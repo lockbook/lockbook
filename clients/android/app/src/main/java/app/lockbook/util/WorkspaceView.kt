@@ -571,13 +571,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             if (response.tabsChanged) {
                 val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
                 model._currentTab.value = newTab
-                println("ad-tra: tabs changed ${model.currentTab.value?.id}")
             }
 
             if (!response.selectedFile.isNullUUID()) {
                 val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
                 model._currentTab.value = newTab
-                println("ad-tra: selected file changed ${model.currentTab.value?.id}")
             }
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {

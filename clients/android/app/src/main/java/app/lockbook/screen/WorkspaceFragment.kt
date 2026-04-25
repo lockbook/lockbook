@@ -93,33 +93,27 @@ class WorkspaceFragment : Fragment() {
         onCreateTabList(workspaceWrapper)
 
         model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
-            println("open file: $id, $newFile")
             workspaceWrapper.workspaceView.openDoc(id, newFile)
             activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
         }
 
         model.createDocAt.observe(viewLifecycleOwner) { it ->
-            println("ad-tra: create doc at")
             workspaceWrapper.workspaceView.createDocAt(it)
         }
 
         model.closeFile.observe(viewLifecycleOwner) { id ->
-            println("ad-tra: close file $id")
             workspaceWrapper.workspaceView.closeDoc(id)
         }
 
         model.currentTab.observe(viewLifecycleOwner) { tab ->
-            println("ad-tra: current tab: ${tab.id} ${tab.type}")
             updateCurrentTab(workspaceWrapper, tab)
         }
 
         model.refreshFilesRequested.observe(viewLifecycleOwner) {
-            println("ad-tra: workspace wants to refresh files")
             filesListModel.reloadFiles()
         }
 
         model.isRendering.observe(viewLifecycleOwner) { isRendering ->
-            println("ad-tra: set is rendering $isRendering ")
             if (isRendering) {
                 workspaceWrapper.workspaceView.startRendering()
             } else {
@@ -232,13 +226,10 @@ class WorkspaceFragment : Fragment() {
         model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
             if (keyboardVisible) {
                 binding.standardBottomSheet.visibility = View.GONE
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.HideBottomViewNavigation)
             } else {
                 binding.standardBottomSheet.visibility = View.VISIBLE
             }
         }
-
-        return binding.root
     }
 
     override fun onDestroyView() {
@@ -246,7 +237,7 @@ class WorkspaceFragment : Fragment() {
         super.onDestroyView()
     }
 
-    private fun toggleBottomSheetExpansion(shouldExpand: Boolean) {
+    private fun toggleTabListExpansion(shouldExpand: Boolean) {
         val currOrientation = (binding.tabsList.layoutManager as LinearLayoutManager).orientation
         if ((currOrientation == LinearLayoutManager.VERTICAL && shouldExpand) ||
             (currOrientation == LinearLayoutManager.HORIZONTAL && !shouldExpand)
@@ -377,16 +368,13 @@ class WorkspaceFragment : Fragment() {
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
 
         var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
-        println("ad-tra: tab title a: $tabTitle")
 
         if (isMissingTab(tabTitle, newTab)) {
             filesListModel.fileModel.refreshFiles()
             tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
-            println("ad-tra: tab title b: $tabTitle")
         }
 
         if (isMissingTab(tabTitle, newTab)) {
-            println("ad-tra: tab title c: $tabTitle")
             // todo: differentiate between startup nulls and legitimate nulls
             return
         }
@@ -421,7 +409,6 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun updateToolbarOnTabChange(newTab: WorkspaceTabType, tabTitle: String?) {
-        println("ad-tra: new tab: $newTab")
         when (newTab) {
             WorkspaceTabType.Loading -> {}
             WorkspaceTabType.Welcome,
@@ -442,7 +429,6 @@ class WorkspaceFragment : Fragment() {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible =
                     true
                 binding.workspaceToolbar.setTitle(tabTitle)
-                println("ad-tra: set tab to: $tabTitle")
             }
         }
     }
