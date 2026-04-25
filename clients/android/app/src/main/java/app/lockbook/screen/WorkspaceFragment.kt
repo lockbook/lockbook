@@ -121,6 +121,19 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
+        model.bottomInset.observe(viewLifecycleOwner) {
+            println("ad-tra: set bottom inset ")
+            workspaceWrapper.workspaceView.setBottomInset(it)
+        }
+        
+        model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
+            if (keyboardVisible) {
+                binding.standardBottomSheet.visibility = View.GONE
+            } else {
+                binding.standardBottomSheet.visibility = View.VISIBLE
+            }
+        }
+
         model.workspaceBackRequested.observe(viewLifecycleOwner) {
             val navigatedBack = workspaceWrapper.workspaceView.back()
             if (!navigatedBack) {
@@ -131,19 +144,6 @@ class WorkspaceFragment : Fragment() {
         model.workspaceForwardRequested.observe(viewLifecycleOwner) {
             workspaceWrapper.workspaceView.forward()
         }
-
-        binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
-
-        getCurrentFile()?.let {
-            binding.workspaceToolbar.setTitle(it.name)
-        }
-
-        binding.workspaceToolbar.setNavigationOnClickListener {
-            (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                .hideSoftInputFromWindow(view?.windowToken, 0)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
-        }
-        workspaceWrapper.workspaceView.showTabs(false)
 
         model.finishedAction.observe(viewLifecycleOwner) { action ->
             when (action) {
@@ -220,14 +220,6 @@ class WorkspaceFragment : Fragment() {
             } else if (distanceY <0 && !isKeyboardVisible) {
                 showBottomSheet()
                 showMaterialToolbar()
-            }
-        }
-
-        model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
-            if (keyboardVisible) {
-                binding.standardBottomSheet.visibility = View.GONE
-            } else {
-                binding.standardBottomSheet.visibility = View.VISIBLE
             }
         }
     }
