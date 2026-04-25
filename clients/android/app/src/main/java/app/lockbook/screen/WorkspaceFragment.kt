@@ -370,7 +370,7 @@ class WorkspaceFragment : Fragment() {
         }
 
         if (tabTitle == null) {
-            Toast.makeText(context, "Could not find file", Toast.LENGTH_SHORT).show()
+            // todo: differentiate between startup nulls and legitimate nulls 
             return
         }
 

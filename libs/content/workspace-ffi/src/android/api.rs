@@ -365,7 +365,11 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let tab_type = get_current_tab(obj);
-    let id = obj.workspace.current_tab_id().unwrap_or_default().to_string();
+    let id = obj
+        .workspace
+        .current_tab_id()
+        .unwrap_or_default()
+        .to_string();
 
     let cls = _env
         .find_class("app/lockbook/workspace/NativeWorkspaceTab")
