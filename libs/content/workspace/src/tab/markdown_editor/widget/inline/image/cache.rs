@@ -60,31 +60,9 @@ pub fn calc<'ast>(
                 continue;
             }
 
-            let cached = prior_cache.map.remove(url);
-
-            // For local (non-http) images we may have previously cached a failure because the
-            // file tree cache wasn't refreshed yet (e.g. paste-imported image + inline render in
-            // the same frame). If the link resolves now, retry instead of pinning the failure
-            // forever.
-            let use_cached = if let Some(cached) = &cached {
-                let is_local = !url.starts_with("http://") && !url.starts_with("https://");
-                if is_local && matches!(*cached.lock().unwrap(), ImageState::Failed(_)) {
-                    let guard = files.read().unwrap();
-                    let from_id = guard.get_by_id(file_id).map(|f| f.parent);
-                    let resolves_now = from_id
-                        .and_then(|from_id| guard.resolve_link(url, from_id))
-                        .is_some_and(|l| matches!(l, ResolvedLink::File(_)));
-                    !resolves_now
-                } else {
-                    true
-                }
-            } else {
-                false
-            };
-
-            if use_cached {
+            if let Some(cached) = prior_cache.map.remove(url) {
                 // re-use image from previous cache (even it if failed to load)
-                result.map.insert(url.clone(), cached.unwrap());
+                result.map.insert(url.clone(), cached);
             } else {
                 let url = url.clone();
                 let image_state: Arc<Mutex<ImageState>> = Default::default();

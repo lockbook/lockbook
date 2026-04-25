@@ -108,7 +108,6 @@ object Workspace {
 
     external fun closeDoc(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
-    external fun showTabs(rustObj: Long, show: Boolean)
 
     external fun getTabs(rustObj: Long) : Array<String>
 

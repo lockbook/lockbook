@@ -302,11 +302,6 @@ class MainScreenActivity : AppCompatActivity() {
                     View.VISIBLE
                 }
             }
-            is UpdateMainScreenUI.HideBottomViewNavigation -> {
-                if (!binding.slidingPaneLayout.isSlideable) {
-                    binding.bottomNavigation.visibility = View.GONE
-                }
-            }
             UpdateMainScreenUI.CloseSlidingPane -> {
                 slidingPaneLayout.closePane()
             }

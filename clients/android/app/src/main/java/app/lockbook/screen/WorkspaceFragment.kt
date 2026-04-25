@@ -77,33 +77,6 @@ class WorkspaceFragment : Fragment() {
         _binding = FragmentWorkspaceBinding.inflate(inflater, container, false)
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
-
-        binding.workspaceToolbar.setOnMenuItemClickListener { it ->
-            when (it.itemId) {
-                R.id.menu_text_editor_share -> {
-                    (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                        .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
-
-                    getCurrentFile()?.let {
-                        activityModel.launchTransientScreen(TransientScreen.ShareFile(it))
-                    }
-                }
-                R.id.menu_text_editor_share_externally -> {
-                    getCurrentFile()?.let {
-                        activityModel.shareSelectedFiles(listOf(it), requireContext().cacheDir)
-                    }
-                }
-            }
-
-            true
-        }
-
-        binding.workspaceToolbar.setOnClickListener {
-            getCurrentFile()?.let {
-                activityModel.launchTransientScreen(TransientScreen.Rename(it))
-            }
-        }
-
         val layoutParams = ConstraintLayout.LayoutParams(
             ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
             ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
@@ -116,36 +89,37 @@ class WorkspaceFragment : Fragment() {
 
         binding.workspaceRoot.addView(workspaceWrapper, layoutParams)
 
-        model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
-            workspaceWrapper.workspaceView.openDoc(id, newFile)
-            workspaceWrapper.workspaceView.drawImmediately()
+        onCreateToolbar(workspaceWrapper)
+        onCreateTabList(workspaceWrapper)
 
+        model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
+            println("open file: $id, $newFile")
+            workspaceWrapper.workspaceView.openDoc(id, newFile)
             activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
         }
 
         model.createDocAt.observe(viewLifecycleOwner) { it ->
+            println("ad-tra: create doc at")
             workspaceWrapper.workspaceView.createDocAt(it)
         }
 
         model.closeFile.observe(viewLifecycleOwner) { id ->
+            println("ad-tra: close file $id")
             workspaceWrapper.workspaceView.closeDoc(id)
-            workspaceWrapper.workspaceView.drawImmediately()
         }
 
         model.currentTab.observe(viewLifecycleOwner) { tab ->
+            println("ad-tra: current tab: ${tab.id} ${tab.type}")
             updateCurrentTab(workspaceWrapper, tab)
-            binding.closeAllTabs.isEnabled = !model.tabs.isEmpty()
         }
 
         model.refreshFilesRequested.observe(viewLifecycleOwner) {
+            println("ad-tra: workspace wants to refresh files")
             filesListModel.reloadFiles()
         }
 
-        model.bottomInset.observe(viewLifecycleOwner) {
-            workspaceWrapper.workspaceView.setBottomInset(it)
-        }
-
         model.isRendering.observe(viewLifecycleOwner) { isRendering ->
+            println("ad-tra: set is rendering ${isRendering} ")
             if (isRendering) {
                 workspaceWrapper.workspaceView.startRendering()
             } else {
@@ -153,28 +127,26 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-        binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
-
-        getCurrentFile()?.let {
-            binding.workspaceToolbar.setTitle(it.name)
+        model.bottomInset.observe(viewLifecycleOwner) {
+            println("ad-tra: set bottom inset ")
+            workspaceWrapper.workspaceView.setBottomInset(it)
         }
 
-        binding.workspaceToolbar.setNavigationOnClickListener {
-            (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                .hideSoftInputFromWindow(view?.windowToken, 0)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+        model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
+            if (keyboardVisible) {
+                binding.standardBottomSheet.visibility = View.GONE
+            } else {
+                binding.standardBottomSheet.visibility = View.VISIBLE
+            }
         }
-        workspaceWrapper.workspaceView.showTabs(false)
 
         model.finishedAction.observe(viewLifecycleOwner) { action ->
             when (action) {
                 is FinishedAction.Delete -> workspaceWrapper.workspaceView.closeDoc(action.id)
                 is FinishedAction.Rename -> {
                     workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
-                    if (binding.workspaceToolbar.title != "") {
-                        // we're showing the title in the menu bar. let's update it
-                        binding.workspaceToolbar.setTitle(action.name)
-                    }
+                    binding.workspaceToolbar.setTitle(action.name)
+                    // todo: why the surgical update, can i just rebuild state
                     val tabIndex = model.tabs.indexOfFirst { it.id == action.id }
                     if (tabIndex != -1) {
                         val updatedTab = model.tabs.get(tabIndex)
@@ -189,25 +161,51 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-        setupTabList()
+        return binding.root
+    }
 
-        binding.expandList.setOnClickListener {
-            model._bottomSheetExpanded.value = !(model.bottomSheetExpanded.value ?: false)
+    private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
+        binding.workspaceToolbar.setOnMenuItemClickListener { it ->
+            when (it.itemId) {
+                R.id.menu_text_editor_share -> {
+                    (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
+
+                    getCurrentFile()?.let {
+                        activityModel.launchTransientScreen(TransientScreen.ShareFile(it))
+                    }
+                }
+
+                R.id.menu_text_editor_share_externally -> {
+                    getCurrentFile()?.let {
+                        activityModel.shareSelectedFiles(listOf(it), requireContext().cacheDir)
+                    }
+                }
+            }
+
+            true
         }
 
-        model.bottomSheetExpanded.observe(viewLifecycleOwner) { shouldExpand ->
-            toggleBottomSheetExpansion(shouldExpand)
-        }
-
-        binding.closeAllTabs.setOnClickListener {
-            workspaceWrapper.workspaceView.closeAllTabs()
-            workspaceWrapper.workspaceView.drawImmediately()
-            model._bottomSheetExpanded.postValue(false)
+        binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
+        binding.workspaceToolbar.setNavigationOnClickListener {
+            (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .hideSoftInputFromWindow(view?.windowToken, 0)
             activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
         }
 
-        model.hideMaterialToolbar.observe(viewLifecycleOwner) { distanceY ->
+        binding.workspaceToolbar.setOnClickListener {
+            getCurrentFile()?.let {
+                activityModel.launchTransientScreen(TransientScreen.Rename(it))
+            }
+        }
 
+        // is this needed
+        getCurrentFile()?.let {
+            binding.workspaceToolbar.setTitle(it.name)
+        }
+
+
+        model.hideToolbar.observe(viewLifecycleOwner) { distanceY ->
             val isKeyboardVisible = model.keyboardVisible.value ?: false
 
             if (distanceY > 0) {
@@ -220,20 +218,9 @@ class WorkspaceFragment : Fragment() {
                 showMaterialToolbar()
             }
         }
-
-        model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
-            if (keyboardVisible) {
-                binding.standardBottomSheet.visibility = View.GONE
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.HideBottomViewNavigation)
-            } else {
-                binding.standardBottomSheet.visibility = View.VISIBLE
-            }
-        }
-
-        return binding.root
     }
 
-    private fun toggleBottomSheetExpansion(shouldExpand: Boolean) {
+    private fun toggleTabListExpansion(shouldExpand: Boolean) {
         val currOrientation = (binding.tabsList.layoutManager as LinearLayoutManager).orientation
         if ((currOrientation == LinearLayoutManager.VERTICAL && shouldExpand) ||
             (currOrientation == LinearLayoutManager.HORIZONTAL && !shouldExpand)
@@ -362,14 +349,19 @@ class WorkspaceFragment : Fragment() {
 
     @SuppressLint("NotifyDataSetChanged")
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
+
         var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+        println("ad-tra: tab title a: $tabTitle")
+
         if (isMissingTab(tabTitle, newTab)) {
             filesListModel.fileModel.refreshFiles()
             tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+            println("ad-tra: tab title b: $tabTitle")
 
         }
 
         if (isMissingTab(tabTitle, newTab)) {
+            println("ad-tra: tab title c: $tabTitle")
             // todo: differentiate between startup nulls and legitimate nulls
             return
         }
@@ -382,9 +374,21 @@ class WorkspaceFragment : Fragment() {
 
         model.tabs.set(openTabs)
         binding.tabsList.adapter?.notifyDataSetChanged()
+        binding.closeAllTabs.isEnabled = !model.tabs.isEmpty()
+
+        scrollToCurrentTab(newTab.id)
 
         workspaceWrapper.updateWrapperBasedOnTab(newTab.type)
         showBottomSheet()
+        showMaterialToolbar()
+    }
+
+    private fun scrollToCurrentTab(newTab: String?) {
+        if (newTab == null) return
+        val selectedPosition = model.tabs.indexOfFirst { it.id == newTab}
+        if (selectedPosition != -1) {
+            binding.tabsList.scrollToPosition(selectedPosition)
+        }
     }
 
     private fun isMissingTab(tabTitle: String?, newTab: WorkspaceTab) : Boolean{
@@ -392,6 +396,7 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun updateToolbarOnTabChange(newTab: WorkspaceTabType, tabTitle: String?) {
+        println("ad-tra: new tab: $newTab")
         when (newTab) {
             WorkspaceTabType.Loading ->{}
             WorkspaceTabType.Welcome,
@@ -412,6 +417,8 @@ class WorkspaceFragment : Fragment() {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible =
                     true
                 binding.workspaceToolbar.setTitle(tabTitle)
+                println("ad-tra: set tab to: $tabTitle")
+
             }
         }
     }
@@ -449,6 +456,26 @@ class WorkspaceFragment : Fragment() {
         return filesListModel.fileModel.idsAndFiles[currentTab.id]
     }
 
+    private fun onCreateTabList(workspaceWrapper: WorkspaceWrapperView){
+
+        setupTabList()
+
+        model.tabListExpanded.observe(viewLifecycleOwner) { shouldExpand ->
+            toggleTabListExpansion(shouldExpand)
+        }
+
+        binding.expandList.setOnClickListener {
+            model._tabListExpanded.value = !(model.tabListExpanded.value ?: false)
+        }
+
+        binding.closeAllTabs.setOnClickListener {
+            workspaceWrapper.workspaceView.closeAllTabs()
+            workspaceWrapper.workspaceView.drawImmediately()
+            model._tabListExpanded.postValue(false)
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+        }
+
+    }
     @SuppressLint("NotifyDataSetChanged")
     private fun setupTabList() {
         binding.tabsList.setup {
@@ -488,12 +515,7 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-        binding.tabsList.post {
-            val selectedPosition = model.tabs.indexOfFirst { it.id == getCurrentFile()?.id }
-            if (selectedPosition != -1) {
-                binding.tabsList.scrollToPosition(selectedPosition)
-            }
-        }
+        scrollToCurrentTab(getCurrentFile()?.id)
     }
 
     private fun switchTab(id: String) {
@@ -586,8 +608,8 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
     @SuppressLint("ClickableViewAccessibility")
     override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
 
-        if (model.bottomSheetExpanded.value ?: true) {
-            model._bottomSheetExpanded.postValue(false)
+        if (model.tabListExpanded.value ?: true) {
+            model._tabListExpanded.postValue(false)
         }
         return false
     }
@@ -615,7 +637,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             distanceX: Float,
             distanceY: Float
         ): Boolean {
-            workspaceView.model._hideMaterialToolbar.postValue(distanceY)
+            workspaceView.model._hideToolbar.value = distanceY
             return super.onScroll(e1, e2, distanceX, distanceY)
         }
     }
@@ -635,7 +657,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
                     .toWindowInsetsCompat(rootWindowInsets)
                     .isVisible(WindowInsetsCompat.Type.ime())
 
-                val bottomSheetExpanded = workspaceView.model.bottomSheetExpanded.value ?: false
+                val bottomSheetExpanded = workspaceView.model.tabListExpanded.value ?: false
 
                 val slopTouchThreshold = ViewConfiguration.get(context).scaledTouchSlop
                 val nonSloppyTouch = abs(event.x - touchStartX).toInt() < slopTouchThreshold &&

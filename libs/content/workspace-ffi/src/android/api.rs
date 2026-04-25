@@ -308,10 +308,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
         .position(|s| s.dest.id() == id)
     {
         obj.workspace.close_tab(tab_id);
-    } else {
-        while !obj.workspace.tab_strip.is_empty() {
-            obj.workspace.close_tab(0);
-        }
     }
 }
 
@@ -324,15 +320,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
     while !obj.workspace.tab_strip.is_empty() {
         obj.workspace.close_tab(0);
     }
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_showTabs(
-    _env: JNIEnv, _: JClass, obj: jlong, show: jboolean,
-) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    obj.workspace.show_tabs = show == 1;
 }
 
 #[no_mangle]

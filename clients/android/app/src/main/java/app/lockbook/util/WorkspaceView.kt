@@ -21,6 +21,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.widget.OverScroller
+import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
@@ -539,8 +540,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         withContext(Dispatchers.Main) {
             if (response.urlOpened.isNotEmpty()) {
-                val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
-                startActivity(context, browserIntent, null)
+                try{
+                    val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
+                    startActivity(context, browserIntent, null)
+                }catch (err: Exception){
+                    Toast.makeText(context, err.message, Toast.LENGTH_SHORT).show()
+                }
+
             }
 
             if (!response.docCreated.isNullUUID()) {
@@ -565,16 +571,16 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             if (response.tabsChanged) {
                 val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
-                if (model._currentTab.value != newTab) {
-                    model._currentTab.value = newTab
-                }
+                model._currentTab.value = newTab
+                println("ad-tra: tabs changed ${model.currentTab.value?.id}")
+
             }
 
             if (!response.selectedFile.isNullUUID()) {
                 val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
-                if (model._currentTab.value != newTab) {
-                    model._currentTab.value = newTab
-                }
+                model._currentTab.value = newTab
+                println("ad-tra: selected file changed ${model.currentTab.value?.id}")
+
             }
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
@@ -624,6 +630,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
         Workspace.createDocAt(WGPU_OBJ, payload.first, payload.second)
+        drawImmediately()
     }
 
     fun cancelTouches(event: MotionEvent) {
@@ -734,16 +741,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         val tab = Workspace.openDoc(WGPU_OBJ, id, newFile)
+        drawImmediately()
 
         return WorkspaceTabType.fromInt(tab)
-    }
-
-    fun showTabs(show: Boolean) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
-        }
-
-        Workspace.showTabs(WGPU_OBJ, show)
     }
 
     fun isPenOnlyDraw(): Boolean {
@@ -768,6 +768,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         Workspace.closeDoc(WGPU_OBJ, id)
+        drawImmediately()
     }
 
     fun closeAllTabs() {
