@@ -108,11 +108,10 @@ object Workspace {
 
     external fun closeDoc(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
-    external fun showTabs(rustObj: Long, show: Boolean)
 
     external fun getTabs(rustObj: Long) : Array<String>
 
-    external fun currentTab(rustObj: Long): Int
+    external fun currentTab(rustObj: Long): NativeWorkspaceTab
 
     external fun fileRenamed(rustObj: Long, id: String, name: String): Int
 
@@ -135,9 +134,15 @@ object Workspace {
     external fun clipboardCut(rustObj: Long)
     external fun clipboardCopy(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
+    external fun clipboardSendImage(rustObj: Long, content: ByteArray, isPaste: Boolean)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)
 }
+
+data class NativeWorkspaceTab(
+    val id: String,
+    val type: Int,
+)
 @SuppressLint("UnsafeOptInUsageError")
 @Serializable
 public data class LbStatus(
