@@ -64,6 +64,7 @@ mod galleys;
 pub mod input;
 pub mod md_label;
 pub mod output;
+pub mod scroll_content;
 pub mod show;
 mod theme;
 mod widget;
