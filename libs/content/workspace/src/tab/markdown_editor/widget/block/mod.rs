@@ -51,6 +51,11 @@ impl<'ast> MdRender {
             NodeValue::BlockQuote => indented_width(),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
+            // The doc has intrinsic horizontal padding equal to
+            // `2·layout.margin` — its content area is narrower than
+            // the renderer's outer `width`. Callers that want the
+            // content to fill a specific column should set
+            // `renderer.width` to `col_width + 2·margin`.
             NodeValue::Document => self.width - 2. * self.layout.margin,
             NodeValue::FootnoteDefinition(_) => indented_width(),
             NodeValue::Item(_) => indented_width(),
@@ -110,7 +115,9 @@ impl<'ast> MdRender {
     /// scrollbar sizing for off-screen content). Visible content must
     /// be measured via [`Self::height`], which this function does NOT
     /// call into.
-    pub fn height_approx(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
+    pub fn height_approx(
+        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+    ) -> f32 {
         if let Some(cached) = self.get_cached_node_height_approx(node) {
             return cached;
         }
@@ -169,8 +176,7 @@ impl<'ast> MdRender {
             // which is real cost we want to skip for off-screen content.
             NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) => {
                 let row_height = self.row_height(node);
-                let n = (self.node_last_line_idx(node) - self.node_first_line_idx(node) + 1)
-                    as f32;
+                let n = (self.node_last_line_idx(node) - self.node_first_line_idx(node) + 1) as f32;
                 n * row_height + (n - 1.0).max(0.0) * self.layout.row_spacing
             }
             NodeValue::ThematicBreak => self.height_thematic_break(),
@@ -295,9 +301,7 @@ impl<'ast> MdRender {
     /// case.
     ///
     /// Function of (doc, width); viewport-independent.
-    pub fn scroll_extent(
-        &self, root: &'ast AstNode<'ast>, viewport_height: f32,
-    ) -> f32 {
+    pub fn scroll_extent(&self, root: &'ast AstNode<'ast>, viewport_height: f32) -> f32 {
         self.approx_y_top_last_block(root) + viewport_height
     }
 
@@ -1069,12 +1073,7 @@ impl MdRender {
             // - any Unicode BiDi paragraph separator present. `set_text`
             //   only splits on `\n`/`\r`; cosmic-text's shaping then
             //   asserts all paragraphs in a "line" share an RTL level.
-            let has_emoji = text.chars().any(|c| {
-                matches!(
-                    c as u32,
-                    0xFE0F | 0x1F000..
-                )
-            });
+            let has_emoji = text.chars().any(|c| matches!(c as u32, 0xFE0F | 0x1F000..));
             let has_bidi_sep = text
                 .chars()
                 .any(|c| matches!(c, '\u{85}' | '\u{1c}'..='\u{1e}' | '\u{2029}'));
@@ -1095,12 +1094,7 @@ impl MdRender {
                 let emoji_attrs =
                     glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
                 let spans = text.graphemes(true).map(|g| {
-                    let is_emoji = g.chars().any(|c| {
-                        matches!(
-                            c as u32,
-                            0xFE0F | 0x1F000..
-                        )
-                    });
+                    let is_emoji = g.chars().any(|c| matches!(c as u32, 0xFE0F | 0x1F000..));
                     (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
                 });
                 b.set_rich_text(&mut fs_guard, spans, &attrs, glyphon::Shaping::Advanced, None);

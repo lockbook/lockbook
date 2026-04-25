@@ -14,10 +14,9 @@ use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::os::OperatingSystem;
-use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility, ScrollSource};
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
-    Pos2, Rect, ScrollArea, Stroke, Ui, UiBuilder, Vec2, scroll_area,
+    Pos2, Rect, Stroke, Ui, UiBuilder, Vec2, scroll_area,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -782,18 +781,11 @@ impl Editor {
                                     // show editor
                                     let scroll_area_id =
                                         ui.id().with(egui::Id::new(self.edit.file_id));
-                                    let scroll_area_offset = ui.data_mut(|d| {
-                                        d.get_persisted(scroll_area_id)
-                                            .map(|s: scroll_area::State| s.offset)
-                                            .unwrap_or_default()
-                                            .y
-                                    });
-
-                                    let scroll_area_output = self.show_scrollable_editor(ui, root);
-                                    self.next_resp.scroll_updated =
-                                        scroll_area_output.state.offset.y != scroll_area_offset;
-                                    self.edit.scroll_area_velocity =
-                                        scroll_area_output.state.velocity();
+                                    self.show_scrollable_editor(ui, root);
+                                    // TODO: restore scroll persistence + velocity
+                                    // wired through `AffineScrollArea`.
+                                    self.next_resp.scroll_updated = false;
+                                    self.edit.scroll_area_velocity = Vec2::ZERO;
 
                                     Some(scroll_area_id)
                                 } else {
@@ -820,12 +812,6 @@ impl Editor {
                     scroll_area_id
                 } else {
                     let scroll_area_id = ui.id().with(egui::Id::new(self.edit.file_id));
-                    let scroll_area_offset = ui.data_mut(|d| {
-                        d.get_persisted(scroll_area_id)
-                            .map(|s: scroll_area::State| s.offset)
-                            .unwrap_or_default()
-                            .y
-                    });
 
                     if !self.edit.renderer.readonly {
                         self.show_toolbar(root, ui);
@@ -838,10 +824,11 @@ impl Editor {
                     self.edit.renderer.touch_consuming_rects.clear();
 
                     // ...then show editor content
-                    let scroll_area_output = self.show_scrollable_editor(ui, root);
-                    self.next_resp.scroll_updated =
-                        scroll_area_output.state.offset.y != scroll_area_offset;
-                    self.edit.scroll_area_velocity = scroll_area_output.state.velocity();
+                    self.show_scrollable_editor(ui, root);
+                    // TODO: restore scroll persistence + velocity wired
+                    // through `AffineScrollArea`.
+                    self.next_resp.scroll_updated = false;
+                    self.edit.scroll_area_velocity = Vec2::ZERO;
 
                     Some(scroll_area_id)
                 };
@@ -1050,107 +1037,86 @@ impl Editor {
             || self.toolbar.menu_open
     }
 
-    fn show_scrollable_editor<'a>(
-        &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
-    ) -> ScrollAreaOutput<()> {
+    fn show_scrollable_editor<'a>(&mut self, ui: &mut Ui, _root: &'a AstNode<'a>) {
         let margin: Margin = if cfg!(target_os = "android") {
             Margin::symmetric(0, 60)
         } else {
             Margin::symmetric(0, 15)
         };
-        ScrollArea::vertical()
-            .scroll_source(if self.edit.renderer.touch_mode {
-                ScrollSource::ALL
-            } else {
-                ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL
-            })
-            .id_salt(self.edit.file_id)
-            .scroll_bar_visibility(if self.edit.renderer.touch_mode {
-                ScrollBarVisibility::AlwaysVisible
-            } else {
-                ScrollBarVisibility::VisibleWhenNeeded
-            })
+        let prev_seq = self.edit.renderer.buffer.current.seq;
+
+        Frame::canvas(ui.style())
+            .inner_margin(margin)
+            .stroke(Stroke::NONE)
             .show(ui, |ui| {
-                let prev_seq = self.edit.renderer.buffer.current.seq;
+                // Claim full available width with 0 vertical space so
+                // Frame stretches horizontally regardless of how
+                // narrow its visible content turns out to be.
+                let avail_w = ui.available_width();
+                ui.allocate_space(Vec2::new(avail_w, 0.0));
 
-                ui.vertical_centered_justified(|ui| {
-                    Frame::canvas(ui.style())
-                        .inner_margin(margin)
-                        .stroke(Stroke::NONE)
-                        .show(ui, |ui| {
-                            let scroll_view_height = ui.max_rect().height();
-                            ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
+                let canvas_rect = ui.max_rect();
+                let canvas_width = canvas_rect.width();
+                let layout_margin = self.edit.renderer.layout.margin;
 
-                            let padding = (ui.available_width() - self.edit.renderer.width) / 2.;
+                // Content centered at max_width (chat-style):
+                //   col_width = min(canvas_width − 2·margin, max_width)
+                //   col_pad   = (canvas_width − col_width) / 2
+                // Then the doc paints in [canvas_left + col_pad,
+                // canvas_left + col_pad + col_width]. AffineScrollArea
+                // spans the full canvas so its scrollbar sits at the
+                // canvas right edge.
+                let max_width = self.edit.renderer.layout.max_width;
+                let col_width =
+                    (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
+                let col_pad = ((canvas_width - col_width) / 2.0).max(0.0);
 
-                            self.edit.renderer.top_left = ui.max_rect().min
-                                + (padding + self.edit.renderer.layout.margin) * Vec2::X;
-                            // Pre-subtract margin so height() and show see the same
-                            // renderer.width. Otherwise margin gets subtracted twice,
-                            // cell widths diverge, and cached heights go stale.
-                            self.edit.renderer.width -= 2. * self.edit.renderer.layout.margin;
-                            // Anchor-based extent: scroll bound is the
-                            // approx-y of the last block's top, plus one
-                            // viewport. At max scroll the last block sits
-                            // at the top of the viewport (with empty space
-                            // below if shorter). Constant function of
-                            // (doc, width) — viewport-independent, no
-                            // cycle. show paints visible blocks precisely
-                            // anchored to their approx-y top.
-                            self.edit.renderer.viewport.set(ui.clip_rect());
-                            let height =
-                                self.edit.renderer.scroll_extent(root, scroll_view_height);
-                            let rect = Rect::from_min_size(
-                                self.edit.renderer.top_left,
-                                Vec2::new(self.edit.renderer.width, height),
-                            );
+                // `width(Document)` returns `renderer.width − 2·margin`.
+                // To make the content's wrap width equal `col_width`,
+                // set `renderer.width = col_width + 2·margin`.
+                self.edit.renderer.top_left =
+                    canvas_rect.min + Vec2::new(col_pad, 0.0);
+                self.edit.renderer.width = col_width + 2.0 * layout_margin;
+                self.edit.renderer.viewport.set(ui.clip_rect());
 
-                            // delegate to MdEdit::show for parse, event processing,
-                            // render, cursor/selection drawing, touch handles,
-                            // IME, and pending_scroll::Cursor consumption.
-                            self.edit.show(ui, rect, self.id());
+                self.edit.show(ui, canvas_rect, self.id());
+                ui.advance_cursor_after_rect(canvas_rect);
+            });
 
-                            ui.advance_cursor_after_rect(rect);
-                        });
-                });
-
-                // if text changed during MdEdit::show, recompute find matches
-                // before painting match highlights (which index by offset).
-                if self.edit.renderer.buffer.current.seq != prev_seq {
-                    if let Some(term) = self.find.term.clone() {
-                        self.find.matches = self.find.find_all(&self.edit.renderer.buffer, &term);
-                        if self.find.matches.is_empty() {
-                            self.find.current_match = None;
-                        } else if let Some(idx) = self.find.current_match {
-                            if idx >= self.find.matches.len() {
-                                self.find.current_match = Some(self.find.matches.len() - 1);
-                            }
-                        }
+        // if text changed during MdEdit::show, recompute find matches
+        // before painting match highlights (which index by offset).
+        if self.edit.renderer.buffer.current.seq != prev_seq {
+            if let Some(term) = self.find.term.clone() {
+                self.find.matches = self.find.find_all(&self.edit.renderer.buffer, &term);
+                if self.find.matches.is_empty() {
+                    self.find.current_match = None;
+                } else if let Some(idx) = self.find.current_match {
+                    if idx >= self.find.matches.len() {
+                        self.find.current_match = Some(self.find.matches.len() - 1);
                     }
                 }
+            }
+        }
 
-                // paint find match highlights on top of the rendered content
-                if !self.find.matches.is_empty() {
-                    let theme = self.edit.renderer.ctx.get_lb_theme();
-                    let highlight_color = theme.neutral_bg_tertiary();
-                    let current_color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
-                    for (i, &match_range) in self.find.matches.iter().enumerate() {
-                        let color = if self.find.current_match == Some(i) {
-                            current_color
-                        } else {
-                            highlight_color
-                        };
-                        self.edit.show_range(ui, match_range, color);
-                    }
-                }
+        // paint find match highlights on top of the rendered content
+        if !self.find.matches.is_empty() {
+            let theme = self.edit.renderer.ctx.get_lb_theme();
+            let highlight_color = theme.neutral_bg_tertiary();
+            let current_color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
+            for (i, &match_range) in self.find.matches.iter().enumerate() {
+                let color = if self.find.current_match == Some(i) {
+                    current_color
+                } else {
+                    highlight_color
+                };
+                self.edit.show_range(ui, match_range, color);
+            }
+        }
 
-                // MdEdit::show consumed ScrollTarget::Cursor; FindMatch is
-                // editor-owned because Find lives on Editor.
-                if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
-                    self.edit.pending_scroll = None;
-                    self.scroll_to_find_match(ui);
-                }
-            })
+        if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
+            self.edit.pending_scroll = None;
+            self.scroll_to_find_match(ui);
+        }
     }
 
     fn show_find_centered(&mut self, ui: &mut Ui) {

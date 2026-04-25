@@ -30,7 +30,7 @@
 //!   **screen-space** (relative to the egui ui's origin). Output that
 //!   the content records (e.g. galleys) should also be screen-space.
 
-use egui::{Color32, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
+use egui::{Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
 
 /// Content the scroll area renders. See module docs.
 pub trait ScrollContent {
@@ -68,8 +68,25 @@ impl AffineScrollArea {
     }
 
     pub fn show(&mut self, ui: &mut Ui, content: &mut dyn ScrollContent) -> Response {
-        let viewport_size = ui.available_size_before_wrap();
-        let (rect, response) = ui.allocate_exact_size(viewport_size, Sense::click_and_drag());
+        // Take the parent's full max_rect — callers control the scroll
+        // area's size by setting the surrounding ui's max_rect (e.g.
+        // via `ui.scope_builder().max_rect(...)`).
+        let rect = ui.max_rect();
+
+        let response = ui.allocate_rect(rect, Sense::hover());
+
+        // Scrollbar hit area registered AFTER the body so it shadows
+        // the body's hover in z-order. Same dimensions used by
+        // `draw_scrollbar` below.
+        const BAR_WIDTH: f32 = 10.0;
+        const BAR_INSET: f32 = 3.0;
+        let bar_x = rect.max.x - BAR_WIDTH - BAR_INSET;
+        let bar_track = Rect::from_min_size(
+            Pos2::new(bar_x, rect.min.y),
+            Vec2::new(BAR_WIDTH, rect.height()),
+        );
+        let bar_id = self.id_salt.with("scrollbar");
+        let bar_response = ui.interact(bar_track, bar_id, Sense::click_and_drag());
 
         // Persisted scroll state.
         let mut state: ScrollState = ui
@@ -77,30 +94,64 @@ impl AffineScrollArea {
             .data(|d| d.get_temp(self.id_salt))
             .unwrap_or_default();
 
-        // Total approx height (constant function of the doc).
-        let approx_total: f32 = (0..content.block_count())
-            .map(|i| content.approx_height(i))
-            .sum();
+        // Max scroll = max of:
+        // - approx-y top of the last block (user can put it at top of
+        //   viewport — useful when last block is short).
+        // - approx_total − viewport_height (user can scroll within a
+        //   tall single block).
+        // Whichever's larger wins. Both are constant functions of the doc.
+        let n = content.block_count();
         let viewport_height = rect.height();
-        let max_offset = (approx_total - viewport_height).max(0.0);
+        let approx_total: f32 = (0..n).map(|i| content.approx_height(i)).sum();
+        let max_offset = if n == 0 {
+            0.0
+        } else {
+            let approx_y_top_last: f32 =
+                (0..n - 1).map(|i| content.approx_height(i)).sum();
+            approx_y_top_last.max(approx_total - viewport_height).max(0.0)
+        };
 
         // Process scroll events: wheel, drag on scrollbar, programmatic.
-        // Wheel/touch events are in screen pixels = precise. Translate
-        // to approx via the affine map at current offset.
-        if response.hovered() || response.dragged() {
-            let raw_scroll_delta = ui.input(|i| i.smooth_scroll_delta.y);
-            if raw_scroll_delta != 0.0 {
-                // egui's scroll convention: positive y means scroll up
-                // (content moves down). We want our offset to *increase*
-                // when user scrolls down (content moves up), so negate.
-                let precise_delta = -raw_scroll_delta;
-                let approx_delta = precise_to_approx_delta(
-                    content,
-                    state.offset_approx,
-                    precise_delta,
-                );
-                state.offset_approx =
-                    (state.offset_approx + approx_delta).clamp(0.0, max_offset);
+        // Wheel events are in screen pixels = precise. Translate to
+        // approx via the affine map at current offset.
+        //
+        // Use `raw_scroll_delta` (immediate, unsmoothed) rather than
+        // `smooth_scroll_delta` (kinetic). Tests need the full delta in
+        // one frame; production wheel input lands in raw too.
+        let raw_scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
+        if raw_scroll_delta != 0.0 {
+            // egui's scroll convention: positive y means scroll up
+            // (content moves down). We want our offset to *increase*
+            // when user scrolls down (content moves up), so negate.
+            let precise_delta = -raw_scroll_delta;
+            let approx_delta = precise_to_approx_delta(
+                content,
+                state.offset_approx,
+                precise_delta,
+            );
+            state.offset_approx =
+                (state.offset_approx + approx_delta).clamp(0.0, max_offset);
+        }
+
+        // Scrollbar drag/click. The thumb spans `visible_fraction *
+        // viewport_height`; the user can drag the thumb across the
+        // remaining `(1 - visible_fraction) * viewport_height` of
+        // track. That drag range maps onto `[0, max_offset]` in approx.
+        if max_offset > 0.0 && (bar_response.dragged() || bar_response.clicked()) {
+            let approx_total = max_offset + viewport_height;
+            let visible_fraction = (viewport_height / approx_total).clamp(0.0, 1.0);
+            let track_drag_range = (rect.height() * (1.0 - visible_fraction)).max(1.0);
+            if bar_response.dragged() {
+                let drag_y = ui.input(|i| i.pointer.delta().y);
+                state.offset_approx = (state.offset_approx
+                    + drag_y * (max_offset / track_drag_range))
+                    .clamp(0.0, max_offset);
+            } else if let Some(pos) = bar_response.interact_pointer_pos() {
+                // Click jumps so the thumb's center lands at the cursor.
+                let thumb_h = visible_fraction * rect.height();
+                let target_thumb_top = (pos.y - rect.min.y - thumb_h / 2.0)
+                    .clamp(0.0, track_drag_range);
+                state.offset_approx = target_thumb_top * (max_offset / track_drag_range);
             }
         }
 
@@ -111,7 +162,7 @@ impl AffineScrollArea {
         });
 
         // Draw scrollbar (simple vertical bar on the right).
-        if approx_total > viewport_height {
+        if max_offset > 0.0 {
             draw_scrollbar(ui, rect, state.offset_approx, approx_total, viewport_height);
         }
 
@@ -278,8 +329,20 @@ fn precise_to_approx_delta(
 fn draw_scrollbar(
     ui: &Ui, viewport: Rect, offset_approx: f32, approx_total: f32, viewport_height: f32,
 ) {
-    const BAR_WIDTH: f32 = 6.0;
-    let bar_x = viewport.max.x - BAR_WIDTH - 2.0;
+    use crate::theme::palette_v2::ThemeExt as _;
+    // Must match the dimensions in `show()` — the scrollbar's hit area
+    // is allocated there, this only paints into it.
+    const BAR_WIDTH: f32 = 10.0;
+    const BAR_INSET: f32 = 3.0;
+
+    let theme = ui.ctx().get_lb_theme();
+    // Track: lerp neutral_bg toward neutral (a darker tone) — barely
+    // visible, just enough to anchor the thumb. Thumb: pure neutral
+    // (grey in either mode), prominent against the bg.
+    let track_color = theme.neutral_bg().lerp_to_gamma(theme.neutral(), 0.3);
+    let thumb_color = theme.neutral();
+
+    let bar_x = viewport.max.x - BAR_WIDTH - BAR_INSET;
     let bar_track = Rect::from_min_size(
         Pos2::new(bar_x, viewport.min.y),
         Vec2::new(BAR_WIDTH, viewport.height()),
@@ -290,15 +353,11 @@ fn draw_scrollbar(
         Pos2::new(bar_x, viewport.min.y + offset_fraction * viewport.height()),
         Vec2::new(BAR_WIDTH, visible_fraction * viewport.height()),
     );
-    ui.painter().rect_filled(
-        bar_track,
-        2.0,
-        Color32::from_black_alpha(20),
-    );
+    ui.painter().rect_filled(bar_track, 3.0, track_color);
     ui.painter().rect(
         thumb,
-        2.0,
-        Color32::from_black_alpha(80),
+        3.0,
+        thumb_color,
         Stroke::NONE,
         egui::epaint::StrokeKind::Inside,
     );

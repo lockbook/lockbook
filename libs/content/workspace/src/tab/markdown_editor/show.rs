@@ -15,7 +15,7 @@
 use comrak::Arena;
 use egui::os::OperatingSystem;
 use egui::{
-    Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, Vec2, ViewportCommand,
+    Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, ViewportCommand,
 };
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
@@ -138,8 +138,11 @@ impl MdEdit {
     /// render.
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
-        self.renderer.width = rect.width();
-        self.renderer.top_left = rect.min;
+        // `rect` is the scroll-area bounds (typically full canvas
+        // width). `renderer.width` and `renderer.top_left` are set by
+        // the caller (`show_scrollable_editor`) to reflect the
+        // content's centered column — don't overwrite them here, or
+        // the centering is lost.
 
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
@@ -326,16 +329,20 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
 
-        // Anchor-based render rect: matches the scroll-area extent
-        // computed by the outer container (approx-y of last block + vh).
-        // show paints visible blocks precisely starting from each one's
-        // approx-y position. Off-screen content uses approx for layout
-        // advancement only; it isn't painted.
+        // Render via AffineScrollArea, which handles scroll events
+        // (translating precise wheel input to approx scroll bar units
+        // via piecewise affine), anchor identification, and per-block
+        // paint placement in screen-space. DocScrollContent adapts the
+        // doc's top-level blocks to the scroll area's content trait.
         self.renderer.viewport.set(ui.clip_rect());
-        let height = self.renderer.scroll_extent(root, ui.clip_rect().height());
-        let render_rect = Rect::from_min_size(rect.min, Vec2::new(rect.width(), height));
-        ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
-            self.renderer.show_block(ui, root, rect.min, &[root]);
+        ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+            let mut content =
+                crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
+                    &mut self.renderer,
+                    root,
+                );
+            let mut scroll = crate::widgets::affine_scroll::AffineScrollArea::new(id);
+            scroll.show(ui, &mut content);
         });
         self.renderer.galleys.galleys.sort_by_key(|g| g.range);
 
