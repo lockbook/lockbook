@@ -363,14 +363,14 @@ class WorkspaceFragment : Fragment() {
     @SuppressLint("NotifyDataSetChanged")
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
         var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
-
-        if (tabTitle == null && newTab.type != WorkspaceTabType.Welcome) {
+        if (isMissingTab(tabTitle, newTab)) {
             filesListModel.fileModel.refreshFiles()
             tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+
         }
 
-        if (tabTitle == null) {
-            // todo: differentiate between startup nulls and legitimate nulls 
+        if (isMissingTab(tabTitle, newTab)) {
+            // todo: differentiate between startup nulls and legitimate nulls
             return
         }
 
@@ -387,10 +387,14 @@ class WorkspaceFragment : Fragment() {
         showBottomSheet()
     }
 
+    private fun isMissingTab(tabTitle: String?, newTab: WorkspaceTab) : Boolean{
+        return tabTitle == null && newTab.type != WorkspaceTabType.Welcome
+    }
+
     private fun updateToolbarOnTabChange(newTab: WorkspaceTabType, tabTitle: String?) {
         when (newTab) {
+            WorkspaceTabType.Loading ->{}
             WorkspaceTabType.Welcome,
-            WorkspaceTabType.Loading,
             WorkspaceTabType.Graph -> {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible =
                     false
