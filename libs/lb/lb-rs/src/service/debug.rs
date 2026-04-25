@@ -1,4 +1,4 @@
-use crate::Lb;
+use crate::LocalLb;
 use crate::model::clock;
 use crate::model::errors::LbResult;
 use crate::service::lb_id::LbID;
@@ -56,7 +56,7 @@ impl DebugInfoDisplay for LbResult<DebugInfo> {
     }
 }
 
-impl Lb {
+impl LocalLb {
     async fn human_last_synced(&self) -> String {
         let tx = self.ro_tx().await;
         let db = tx.db();

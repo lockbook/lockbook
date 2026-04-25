@@ -6,6 +6,7 @@ use crate::model::lazy::{LazyStaged1, LazyTree};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::model::{symkey, validate};
 use crate::service::keychain::Keychain;
+use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 use uuid::Uuid;
 
@@ -208,7 +209,7 @@ where
     }
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Filter {
     DocumentsOnly,
     FoldersOnly,

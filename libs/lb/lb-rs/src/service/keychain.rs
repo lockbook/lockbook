@@ -1,7 +1,7 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::Lb;
+use crate::LocalLb;
 use crate::model::account::Account;
 use crate::model::crypto::AESKey;
 use crate::model::errors::{LbErrKind, LbResult};
@@ -37,7 +37,7 @@ impl From<Option<&Account>> for Keychain {
     }
 }
 
-impl Lb {
+impl LocalLb {
     pub fn get_account(&self) -> LbResult<&Account> {
         self.keychain.get_account()
     }

@@ -30,7 +30,7 @@ pub fn decrypt<T: DeserializeOwned>(key: &AESKey, to_decrypt: &AESEncrypted<T>) 
     let nonce = GenericArray::from_slice(&to_decrypt.nonce);
     let decrypted = convert_key(key)
         .decrypt(nonce, aead::Payload { msg: &to_decrypt.value, aad: &[] })
-        .map_err(|err| LbErrKind::Crypto(CryptoError::Decryption(err)))?;
+        .map_err(|err| LbErrKind::Crypto(CryptoError::Decryption(err.to_string())))?;
     let deserialized = bincode::deserialize(&decrypted).map_unexpected()?;
     Ok(deserialized)
 }
