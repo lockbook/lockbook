@@ -49,17 +49,7 @@ impl<'ast> MdRender {
         }
     }
 
-    pub(crate) fn height_auto_code_block(
-        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, top_left: Pos2,
-    ) -> f32 {
-        if node_code_block.fenced {
-            self.height_auto_fenced_code_block(node, node_code_block, top_left)
-        } else {
-            self.height_auto_indented_code_block(node, node_code_block, false, top_left)
-        }
-    }
-
-    pub fn show_code_block(
+pub fn show_code_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock,
     ) {
@@ -203,90 +193,7 @@ impl<'ast> MdRender {
         (code_line, regions)
     }
 
-    /// Viewport-aware total height for an indented (or HtmlBlock) code
-    /// block. Walks lines; per line, decides precise (visible) vs
-    /// `height_approx_code_block_line` (off-screen) using `top_left.y` and the
-    /// renderer's screen rect. Mirrors `show_indented_code_block`'s
-    /// per-line decision so totals agree.
-    pub(crate) fn height_auto_indented_code_block(
-        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, synthetic: bool,
-        top_left: Pos2,
-    ) -> f32 {
-        let viewport = self.viewport.get();
-        let mut result = 0.;
-        let reveal = self.reveal_indented_code_block(node, synthetic);
-        let first_line_idx = self.node_first_line_idx(node);
-        let last_line_idx = self.node_last_line_idx(node);
-        for line_idx in first_line_idx..=last_line_idx {
-            let line = self.bounds.source_lines[line_idx];
-            if reveal {
-                let node_line = self.node_line(node, line);
-                result += self.height_section(
-                    &mut self.new_wrap(self.width(node) - 2. * self.layout.block_padding),
-                    node_line,
-                    self.text_format_syntax(),
-                );
-            } else {
-                let node_line = self.node_line(node, line);
-                let cheap = self.height_approx_code_block_line(node, node_line);
-                let line_top = top_left.y + result + self.layout.block_padding;
-                let visible = line_top + cheap > viewport.min.y && line_top < viewport.max.y;
-                let h = if visible {
-                    self.height_code_block_line(node, node_code_block, line, synthetic)
-                } else {
-                    cheap
-                };
-                result += h;
-            }
-            if line_idx != last_line_idx {
-                result += self.layout.row_spacing;
-            }
-        }
-        result + 2. * self.layout.block_padding
-    }
-
-    pub(crate) fn height_auto_fenced_code_block(
-        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, top_left: Pos2,
-    ) -> f32 {
-        let viewport = self.viewport.get();
-        let width = self.width(node) - 2. * self.layout.block_padding;
-        let mut result = self.layout.block_padding;
-        result -= self.layout.row_spacing;
-        let reveal = self.reveal_fenced_code_block(node, node_code_block);
-        let first_line_idx = self.node_first_line_idx(node);
-        let last_line_idx = self.node_last_line_idx(node);
-        for line_idx in first_line_idx..=last_line_idx {
-            let line = self.bounds.source_lines[line_idx];
-            let node_line = self.node_line(node, line);
-            let is_opening_fence = line_idx == first_line_idx;
-            let is_closing_fence = !is_opening_fence
-                && line_idx == last_line_idx
-                && self.is_closing_fence(node, node_code_block, line);
-            if is_opening_fence || is_closing_fence {
-                if reveal {
-                    result += self.layout.row_spacing;
-                    result += self.height_section(
-                        &mut self.new_wrap(width),
-                        node_line,
-                        self.text_format_syntax(),
-                    );
-                }
-            } else {
-                result += self.layout.row_spacing;
-                let cheap = self.height_approx_code_block_line(node, node_line);
-                let line_top = top_left.y + result;
-                let visible = line_top + cheap > viewport.min.y && line_top < viewport.max.y;
-                if visible {
-                    result += self.height_code_block_line(node, node_code_block, line, false);
-                } else {
-                    result += cheap;
-                }
-            }
-        }
-        result + self.layout.block_padding
-    }
-
-    fn height_approx_code_block_line(
+fn height_approx_code_block_line(
         &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
     ) -> f32 {
         let row_height = self.layout.row_height;

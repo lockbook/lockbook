@@ -146,12 +146,8 @@ pub struct MdRender {
     pub width: f32,
     pub height: f32,
     /// Visible region in screen-space, set by the caller per frame.
-    /// `height_auto` and the per-line code-block visibility checks
-    /// consult this rect to decide precise vs approximate height. The
-    /// scroll-area extent computation uses `height_auto` against this
-    /// rect so the visible region's precise/approx delta is folded into
-    /// the extent — at max scroll the end-of-doc gets compensated and
-    /// stays reachable.
+    /// Per-line code-block visibility checks consult this to decide
+    /// precise vs approximate height.
     pub viewport: Cell<Rect>,
 
     // debug
