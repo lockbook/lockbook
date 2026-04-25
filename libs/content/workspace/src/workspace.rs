@@ -541,21 +541,6 @@ impl Workspace {
                     crate::tab::ClipContent::Image(data) => {
                         let file = crate::tab::import_image(&self.core, file_id, &data);
 
-                        // Update the in-memory file cache immediately so link resolution /
-                        // inline image rendering can resolve the new file in the same frame.
-                        {
-                            let mut guard = self.files.write().unwrap();
-                            // is imports folder in the file cache?
-                            if guard.get_by_id(file.parent).is_none() {
-                                if let Ok(folder) = self.core.get_file_by_id(file.parent) {
-                                    guard.files.push(folder);
-                                }
-                            }
-                            if guard.get_by_id(file.id).is_none() {
-                                guard.files.push(file.clone());
-                            }
-                        }
-
                         let rel_path = {
                             let guard = self.files.read().unwrap();
                             let parent = guard.get_by_id(file_id).unwrap().parent;

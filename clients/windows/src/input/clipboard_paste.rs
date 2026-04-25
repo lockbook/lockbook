@@ -5,6 +5,12 @@ use std::io::Cursor;
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};
 
 pub fn handle(app: &mut WgpuLockbook) {
+    if let Ok(unicode) = clipboard_win::get_clipboard(clipboard_win::formats::Unicode) {
+        app.renderer
+            .raw_input
+            .events
+            .push(egui::Event::Paste(unicode));
+    }
     if let Ok(bitmap) = clipboard_win::get_clipboard(clipboard_win::formats::Bitmap) {
         let bitmap: image::DynamicImage =
             image::load_from_memory(&bitmap).expect("load image from memory");
@@ -17,16 +23,5 @@ pub fn handle(app: &mut WgpuLockbook) {
             content: vec![ClipContent::Image(png_bytes)],
             position: Pos2::ZERO, // todo: support position
         });
-        // Many Windows apps put a dummy "null" unicode payload on the clipboard
-        // alongside bitmap data. Prefer pasting the image (handled above) and
-        // avoid also pasting that text into the editor.
-        return;
-    }
-
-    if let Ok(unicode) = clipboard_win::get_clipboard(clipboard_win::formats::Unicode) {
-        app.renderer
-            .raw_input
-            .events
-            .push(egui::Event::Paste(unicode));
     }
 }

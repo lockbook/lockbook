@@ -540,13 +540,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         withContext(Dispatchers.Main) {
             if (response.urlOpened.isNotEmpty()) {
-                try{
+                try {
                     val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
                     startActivity(context, browserIntent, null)
-                }catch (err: Exception){
+                } catch (err: Exception) {
                     Toast.makeText(context, err.message, Toast.LENGTH_SHORT).show()
                 }
-
             }
 
             if (!response.docCreated.isNullUUID()) {
@@ -573,14 +572,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
                 model._currentTab.value = newTab
                 println("ad-tra: tabs changed ${model.currentTab.value?.id}")
-
             }
 
             if (!response.selectedFile.isNullUUID()) {
                 val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
                 model._currentTab.value = newTab
                 println("ad-tra: selected file changed ${model.currentTab.value?.id}")
-
             }
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {

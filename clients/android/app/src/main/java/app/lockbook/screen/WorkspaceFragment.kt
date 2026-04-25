@@ -119,7 +119,7 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.isRendering.observe(viewLifecycleOwner) { isRendering ->
-            println("ad-tra: set is rendering ${isRendering} ")
+            println("ad-tra: set is rendering $isRendering ")
             if (isRendering) {
                 workspaceWrapper.workspaceView.startRendering()
             } else {
@@ -203,7 +203,6 @@ class WorkspaceFragment : Fragment() {
         getCurrentFile()?.let {
             binding.workspaceToolbar.setTitle(it.name)
         }
-
 
         model.hideToolbar.observe(viewLifecycleOwner) { distanceY ->
             val isKeyboardVisible = model.keyboardVisible.value ?: false
@@ -357,7 +356,6 @@ class WorkspaceFragment : Fragment() {
             filesListModel.fileModel.refreshFiles()
             tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
             println("ad-tra: tab title b: $tabTitle")
-
         }
 
         if (isMissingTab(tabTitle, newTab)) {
@@ -385,20 +383,20 @@ class WorkspaceFragment : Fragment() {
 
     private fun scrollToCurrentTab(newTab: String?) {
         if (newTab == null) return
-        val selectedPosition = model.tabs.indexOfFirst { it.id == newTab}
+        val selectedPosition = model.tabs.indexOfFirst { it.id == newTab }
         if (selectedPosition != -1) {
             binding.tabsList.scrollToPosition(selectedPosition)
         }
     }
 
-    private fun isMissingTab(tabTitle: String?, newTab: WorkspaceTab) : Boolean{
+    private fun isMissingTab(tabTitle: String?, newTab: WorkspaceTab): Boolean {
         return tabTitle == null && newTab.type != WorkspaceTabType.Welcome
     }
 
     private fun updateToolbarOnTabChange(newTab: WorkspaceTabType, tabTitle: String?) {
         println("ad-tra: new tab: $newTab")
         when (newTab) {
-            WorkspaceTabType.Loading ->{}
+            WorkspaceTabType.Loading -> {}
             WorkspaceTabType.Welcome,
             WorkspaceTabType.Graph -> {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible =
@@ -418,7 +416,6 @@ class WorkspaceFragment : Fragment() {
                     true
                 binding.workspaceToolbar.setTitle(tabTitle)
                 println("ad-tra: set tab to: $tabTitle")
-
             }
         }
     }
@@ -456,7 +453,7 @@ class WorkspaceFragment : Fragment() {
         return filesListModel.fileModel.idsAndFiles[currentTab.id]
     }
 
-    private fun onCreateTabList(workspaceWrapper: WorkspaceWrapperView){
+    private fun onCreateTabList(workspaceWrapper: WorkspaceWrapperView) {
 
         setupTabList()
 
@@ -474,7 +471,6 @@ class WorkspaceFragment : Fragment() {
             model._tabListExpanded.postValue(false)
             activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
         }
-
     }
     @SuppressLint("NotifyDataSetChanged")
     private fun setupTabList() {
