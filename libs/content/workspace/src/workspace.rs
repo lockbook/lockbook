@@ -392,6 +392,15 @@ impl Workspace {
         self.mark_current_tab_changed();
     }
 
+    pub fn can_back(&self) -> bool {
+        let Some(current_dest) = self.current_tab.as_ref() else { return false };
+        self.tab_strip
+            .iter()
+            .find(|s| &s.dest == current_dest)
+            .map(|slot| !slot.back.is_empty())
+            .unwrap_or(false)
+    }
+
     pub fn forward(&mut self) {
         let Some(current_dest) = self.current_tab.clone() else { return };
         let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
@@ -406,6 +415,15 @@ impl Workspace {
         self.open_dest(&new_dest);
         self.current_tab = Some(new_dest);
         self.mark_current_tab_changed();
+    }
+
+    pub fn can_forward(&self) -> bool {
+        let Some(current_dest) = self.current_tab.as_ref() else { return false };
+        self.tab_strip
+            .iter()
+            .find(|s| &s.dest == current_dest)
+            .map(|slot| !slot.forward.is_empty())
+            .unwrap_or(false)
     }
 
     pub fn close_tab(&mut self, i: usize) {

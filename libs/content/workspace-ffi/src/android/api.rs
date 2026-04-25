@@ -323,6 +323,44 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_back(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    if obj.workspace.can_back() {
+        obj.workspace.back();
+        true
+    } else {
+        false
+    }
+    .into()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_forward(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    if obj.workspace.can_forward() {
+        obj.workspace.forward();
+        true
+    } else {
+        false
+    }
+    .into()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_canForward(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.can_forward().into()
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
     mut env: JNIEnv, _: JClass, obj: jlong,
 ) -> jobjectArray {

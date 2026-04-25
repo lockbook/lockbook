@@ -505,14 +505,16 @@ impl MdRender {
         &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap, range: (Grapheme, Grapheme),
         text_format: Format, override_text: Option<&str>, sense: Sense,
     ) -> Response {
-        let text = override_text.unwrap_or(&self.buffer[range]);
         let ppi = self.ctx.pixels_per_point();
         let padded = text_format.background != egui::Color32::TRANSPARENT;
         let sense = if text_format.spoiler { Sense::hover() } else { sense };
 
         #[cfg(debug_assertions)]
-        if text.contains('\n') {
-            panic!("show_text_line: text contains newline: {text:?}");
+        {
+            let text = override_text.unwrap_or(&self.buffer[range]);
+            if text.contains('\n') {
+                panic!("show_text_line: text contains newline: {text:?}");
+            }
         }
 
         let font_size = if text_format.superscript || text_format.subscript {

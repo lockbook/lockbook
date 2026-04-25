@@ -108,6 +108,9 @@ object Workspace {
 
     external fun closeDoc(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
+    external fun back(rustObj: Long): Boolean
+    external fun forward(rustObj: Long): Boolean
+    external fun canForward(rustObj: Long): Boolean
 
     external fun getTabs(rustObj: Long) : Array<String>
 

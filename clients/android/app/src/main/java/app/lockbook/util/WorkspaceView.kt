@@ -571,13 +571,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             if (response.tabsChanged) {
                 val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
                 model._currentTab.value = newTab
-                println("ad-tra: tabs changed ${model.currentTab.value?.id}")
             }
 
             if (!response.selectedFile.isNullUUID()) {
                 val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
                 model._currentTab.value = newTab
-                println("ad-tra: selected file changed ${model.currentTab.value?.id}")
             }
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
@@ -741,6 +739,40 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         drawImmediately()
 
         return WorkspaceTabType.fromInt(tab)
+    }
+
+    fun back(): Boolean {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        val didNavigate = Workspace.back(WGPU_OBJ)
+        if (didNavigate) {
+            drawImmediately()
+        }
+
+        return didNavigate
+    }
+
+    fun forward(): Boolean {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        val didNavigate = Workspace.forward(WGPU_OBJ)
+        if (didNavigate) {
+            drawImmediately()
+        }
+
+        return didNavigate
+    }
+
+    fun canForward(): Boolean {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        return Workspace.canForward(WGPU_OBJ)
     }
 
     fun isPenOnlyDraw(): Boolean {
