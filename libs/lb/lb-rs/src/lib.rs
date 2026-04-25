@@ -224,7 +224,7 @@ impl Lb {
         if let Some(remote) = &self.remote {
             let r = Arc::clone(remote);
             tokio::spawn(async move {
-                let _: LbResult<()> = r.call(Request::AppForegrounded).await;
+                let _ = r.try_call::<()>(Request::AppForegrounded).await;
             });
         }
     }

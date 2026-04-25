@@ -12,7 +12,6 @@ use tokio::task::JoinHandle;
 
 use crate::ipc::protocol::Request;
 use crate::model::account::Account;
-use crate::model::core_config::Config;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::service::events::Event;
 
@@ -28,7 +27,6 @@ const EVENT_CHANNEL_CAPACITY: usize = 10_000;
 
 #[cfg_attr(not(unix), allow(dead_code))]
 pub struct RemoteLb {
-    config: Config,
     account: OnceLock<Account>,
     events: Arc<OnceLock<broadcast::Sender<Event>>>,
     #[cfg(unix)]
@@ -46,7 +44,7 @@ impl Drop for RemoteLb {
 
 impl RemoteLb {
     #[cfg(unix)]
-    pub async fn connect(socket: &Path, config: Config) -> io::Result<Arc<Self>> {
+    pub async fn connect(socket: &Path) -> io::Result<Arc<Self>> {
         let stream = UnixStream::connect(socket).await?;
         let (read_half, write_half) = stream.into_split();
         let in_flight: InFlight = Arc::new(Mutex::new(HashMap::new()));
@@ -55,7 +53,6 @@ impl RemoteLb {
             tokio::spawn(reader_loop(read_half, Arc::clone(&in_flight), Arc::clone(&events)));
 
         let me = Arc::new(Self {
-            config,
             account: OnceLock::new(),
             events,
             writer: Mutex::new(write_half),
@@ -64,15 +61,11 @@ impl RemoteLb {
             reader_task,
         });
 
-        if let Ok(account) = me.call::<Account>(Request::GetAccount).await {
+        if let Ok(account) = me.try_call::<Account>(Request::GetAccount).await {
             me.cache_account(account);
         }
 
         Ok(me)
-    }
-
-    pub fn config(&self) -> &Config {
-        &self.config
     }
 
     pub fn get_account(&self) -> LbResult<&Account> {
@@ -90,26 +83,11 @@ impl RemoteLb {
             let (tx, _) = broadcast::channel::<Event>(EVENT_CHANNEL_CAPACITY);
             let me = Arc::clone(self);
             tokio::spawn(async move {
-                if let Err(err) = me.call::<()>(Request::Subscribe).await {
-                    tracing::warn!(?err, "ipc: Subscribe failed; events won't be relayed");
-                }
+                let _ = me.try_call::<()>(Request::Subscribe).await;
             });
             tx
         });
         tx.subscribe()
-    }
-
-    pub async fn call<Out>(&self, req: Request) -> LbResult<Out>
-    where
-        Out: DeserializeOwned,
-    {
-        match self.try_call(req).await {
-            Ok(v) => Ok(v),
-            Err(RemoteCallError::HostUnavailable) => {
-                Err(LbErrKind::Unexpected("ipc: host disconnected".into()).into())
-            }
-            Err(RemoteCallError::Other(e)) => Err(e),
-        }
     }
 
     pub(crate) async fn try_call<Out>(&self, req: Request) -> Result<Out, RemoteCallError>
@@ -148,6 +126,7 @@ impl RemoteLb {
     }
 }
 
+#[cfg_attr(not(unix), allow(dead_code))]
 pub(crate) enum RemoteCallError {
     HostUnavailable,
     Other(crate::model::errors::LbErr),

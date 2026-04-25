@@ -27,6 +27,7 @@ impl Lb {
         self.local.get().cloned()
     }
 
+    #[cfg_attr(not(unix), allow(dead_code))]
     pub(crate) async fn recover(&self) -> LbResult<LocalLb> {
         if let Some(local) = self.local.get() {
             return Ok(local.clone());
@@ -113,7 +114,7 @@ pub async fn connect_guest(config: &Config) -> Option<Arc<client::RemoteLb>> {
         let mut attempts: u32 = 0;
         let mut delay = std::time::Duration::from_millis(10);
         loop {
-            match client::RemoteLb::connect(&socket, config.clone()).await {
+            match client::RemoteLb::connect(&socket).await {
                 Ok(c) => return Some(c),
                 Err(_) if attempts < 10 => {
                     attempts += 1;
