@@ -25,7 +25,7 @@
 
 use egui::{EventFilter, Frame, Id, Key, Label, Margin, Ui, Widget as _};
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocByteOffset, DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _};
 
 use crate::tab::ExtendedOutput as _;
 use crate::theme::icons::Icon;
@@ -46,7 +46,7 @@ pub struct Find {
     pub open_requested: bool,
     was_focused: bool,
     /// All match ranges in the document for the current search term.
-    pub matches: Vec<(DocCharOffset, DocCharOffset)>,
+    pub matches: Vec<(Grapheme, Grapheme)>,
     /// Index into `matches` for the currently focused match, if any.
     pub current_match: Option<usize>,
 }
@@ -91,7 +91,7 @@ pub struct FindOutput {
 impl Find {
     /// Range of the currently focused match, if any. Caller snapshots this
     /// before and after [`Find::show`] to detect reveal-state changes.
-    pub fn current_match_range(&self) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn current_match_range(&self) -> Option<(Grapheme, Grapheme)> {
         self.current_match
             .and_then(|idx| self.matches.get(idx).copied())
     }
@@ -361,7 +361,7 @@ impl Find {
 
     /// Recompute `matches` for the current term, positioning `current_match`
     /// at the first match at or after `anchor`.
-    fn refresh_matches(&mut self, buffer: &Buffer, anchor: DocCharOffset) {
+    fn refresh_matches(&mut self, buffer: &Buffer, anchor: Grapheme) {
         let term = self.term.clone().unwrap_or_default();
         self.matches = self.find_all(buffer, &term);
         if self.matches.is_empty() {
@@ -379,7 +379,7 @@ impl Find {
     }
 
     /// Compute all match ranges in the document for the given search term.
-    pub fn find_all(&self, buffer: &Buffer, term: &str) -> Vec<(DocCharOffset, DocCharOffset)> {
+    pub fn find_all(&self, buffer: &Buffer, term: &str) -> Vec<(Grapheme, Grapheme)> {
         if term.is_empty() {
             return Vec::new();
         }
@@ -403,10 +403,8 @@ impl Find {
             let abs_end = abs_pos + search_term.len();
 
             if !self.whole_word || is_whole_word(text, abs_pos, abs_end) {
-                matches.push((
-                    segs.offset_to_char(DocByteOffset(abs_pos)),
-                    segs.offset_to_char(DocByteOffset(abs_end)),
-                ));
+                matches
+                    .push((segs.offset_to_char(Byte(abs_pos)), segs.offset_to_char(Byte(abs_end))));
             }
 
             byte_start = abs_end;
@@ -414,7 +412,7 @@ impl Find {
         matches
     }
 
-    fn find_all_regex(&self, buffer: &Buffer, term: &str) -> Vec<(DocCharOffset, DocCharOffset)> {
+    fn find_all_regex(&self, buffer: &Buffer, term: &str) -> Vec<(Grapheme, Grapheme)> {
         let text = &buffer.current.text;
         let segs = &buffer.current.segs;
 
@@ -429,18 +427,13 @@ impl Find {
         };
 
         re.find_iter(text)
-            .map(|m| {
-                (
-                    segs.offset_to_char(DocByteOffset(m.start())),
-                    segs.offset_to_char(DocByteOffset(m.end())),
-                )
-            })
+            .map(|m| (segs.offset_to_char(Byte(m.start())), segs.offset_to_char(Byte(m.end()))))
             .collect()
     }
 
     /// Navigate to the next or previous match relative to the cursor. Sets
     /// `current_match` and returns true if a match is present.
-    fn navigate(&mut self, forward: bool, cursor: DocCharOffset) -> bool {
+    fn navigate(&mut self, forward: bool, cursor: Grapheme) -> bool {
         if self.matches.is_empty() {
             self.current_match = None;
             return false;

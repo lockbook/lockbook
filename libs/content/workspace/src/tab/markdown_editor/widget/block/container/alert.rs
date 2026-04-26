@@ -3,7 +3,7 @@ use crate::theme::palette_v2::ThemeExt as _;
 use comrak::nodes::{AlertType, AstNode, NodeAlert};
 use egui::{Pos2, Rect, Sense, Stroke, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
 use crate::tab::markdown_editor::MdRender;
@@ -212,8 +212,8 @@ impl<'ast> MdRender {
     }
 
     pub fn own_prefix_len_alert(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<Graphemes> {
         self.own_prefix_len_block_quote(node, line)
     }
 
@@ -237,7 +237,7 @@ impl<'ast> MdRender {
 
     fn alert_type_title_ranges(
         &self, node: &'ast AstNode<'ast>,
-    ) -> ((DocCharOffset, DocCharOffset), (DocCharOffset, DocCharOffset)) {
+    ) -> ((Grapheme, Grapheme), (Grapheme, Grapheme)) {
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
         let line_content_text = &self.buffer[line_content].to_uppercase();

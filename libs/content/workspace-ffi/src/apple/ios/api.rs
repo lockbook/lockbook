@@ -1,5 +1,5 @@
 use egui::{Key, Modifiers, PointerButton, TouchDeviceId, TouchId, TouchPhase};
-use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
+use lb_c::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::ptr::null;
@@ -128,7 +128,7 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
         None => return null(),
     };
 
-    let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
+    let range: Option<(Grapheme, Grapheme)> = range.into();
     if let Some(range) = range {
         CString::new(&markdown.edit.renderer.buffer[range])
             .expect("Could not Rust String -> C String")
@@ -238,7 +238,7 @@ pub unsafe extern "C" fn unmark_text(_obj: *mut c_void) {
 /// should we be returning a subset of the document? https://stackoverflow.com/questions/12676851/uitextinput-is-it-ok-to-return-incorrect-beginningofdocument-endofdocumen
 #[no_mangle]
 pub unsafe extern "C" fn beginning_of_document(_obj: *mut c_void) -> CTextPosition {
-    DocCharOffset(0).into()
+    Grapheme(0).into()
 }
 
 /// # Safety
@@ -476,7 +476,7 @@ pub unsafe extern "C" fn position_offset(
         None => return CTextPosition::default(),
     };
 
-    let start: Option<DocCharOffset> = start.into();
+    let start: Option<Grapheme> = start.into();
     if let Some(start) = start {
         let last_cursor_position = markdown
             .edit
@@ -487,11 +487,11 @@ pub unsafe extern "C" fn position_offset(
             .last_cursor_position();
 
         let result = if offset < 0 && -offset > start.0 as i32 {
-            DocCharOffset::default()
+            Grapheme::default()
         } else if offset > 0 && (start.0).saturating_add(offset as usize) > last_cursor_position.0 {
             last_cursor_position
         } else {
-            start + RelCharOffset(offset as _)
+            start + Graphemes(offset as _)
         };
 
         result.into()
@@ -523,7 +523,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
     };
     let backwards = matches!(direction, CTextLayoutDirection::Left | CTextLayoutDirection::Up);
 
-    let mut result: DocCharOffset = start.pos.into();
+    let mut result: Grapheme = start.pos.into();
     for _ in 0..offset {
         result = markdown.edit.advance(result, advance, backwards);
     }
@@ -648,7 +648,7 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
     };
 
     let selection_representing_rect = {
-        let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
+        let range: Option<(Grapheme, Grapheme)> = range.into();
         let range = match range {
             Some(range) => range,
             None => {
@@ -778,7 +778,7 @@ pub unsafe extern "C" fn selection_rects(
         None => return UITextSelectionRects::default(),
     };
 
-    let range: Option<(DocCharOffset, DocCharOffset)> = range.into();
+    let range: Option<(Grapheme, Grapheme)> = range.into();
     let range = match range {
         Some(range) => range,
         None => {

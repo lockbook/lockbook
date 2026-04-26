@@ -1,6 +1,6 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::{CornerRadius, Rect, Stroke, StrokeKind, Ui, UiBuilder};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
@@ -19,7 +19,7 @@ pub(crate) mod utils;
 
 impl<'ast> MdRender {
     /// Returns the range for the node.
-    pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn node_range(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         // Check cache first
         if let Some(cached_range) = self.get_cached_node_range(node) {
             return cached_range;
@@ -98,12 +98,161 @@ impl<'ast> MdRender {
                 range.1 = self.node_range(last_child).1;
             }
 
+            // hack: comrak misreports the end column of an HtmlBlock that
+            // sits inside a `>\t`-prefixed blockquote — it overshoots by
+            // the tab's expanded-vs-source width (e.g. for `>\t<div>foo
+            // </div>` it reports end col 18 instead of 16). The over-
+            // wide end leaks the range onto the next line and causes the
+            // following block's first line to be re-rendered as part of
+            // the HtmlBlock. Confirmed via repro against comrak 0.50 that
+            // this misreport is unique to this combination — every other
+            // tab-blockquote shape (paragraph, code span, list-item
+            // child) reports source-aligned columns. Clamp to the end of
+            // the sourcepos's last line.
+            NodeValue::HtmlBlock(_) => {
+                let last_line_idx = node_data.sourcepos.end.line.saturating_sub(1);
+                if let Some(line) = self.bounds.source_lines.get(last_line_idx) {
+                    range.1 = range.1.min(line.end());
+                }
+            }
+
+            // hack: for a Table inside a list Item, comrak reports
+            // sourcepos columns for every row as if that row has the
+            // same prefix as the Item's first line (e.g. `- `, 2
+            // chars). A continuation line with different leading
+            // whitespace (`\t` = 1 char, `    ` = 4 chars) gets the
+            // same reported cols, so TableRow/TableCell/Text nodes
+            // point at the wrong source bytes. Shift by
+            // `(actual leading ws) - (item.padding)` per line to align
+            // with actual source. Matches comrak issue #591 (closed
+            // for indented-predecessor case, still present for
+            // list-item continuation).
+            // Any node descended from a Table whose rows hit comrak's
+            // canonical-first-line quirk needs the shift, not just
+            // Text/TableRow/TableCell — inline wrappers like Emph,
+            // Strong, Code, Link have their own sourcepos that
+            // otherwise points at pre-shift bytes. The helper's Table
+            // ancestor check gates this; inline-vs-block distinction
+            // doesn't matter.
+            NodeValue::TableRow(_)
+            | NodeValue::TableCell
+            | NodeValue::Text(_)
+            | NodeValue::Emph
+            | NodeValue::Strong
+            | NodeValue::Strikethrough
+            | NodeValue::Code(_)
+            | NodeValue::HtmlInline(_)
+            | NodeValue::Link(_)
+            | NodeValue::Image(_)
+            | NodeValue::Highlight
+            | NodeValue::Underline
+            | NodeValue::Superscript
+            | NodeValue::Subscript
+            | NodeValue::SpoileredText
+            | NodeValue::Math(_)
+            | NodeValue::ShortCode(_)
+            | NodeValue::WikiLink(_)
+            | NodeValue::FootnoteReference(_)
+            | NodeValue::SoftBreak
+            | NodeValue::Escaped
+            | NodeValue::EscapedTag(_)
+            | NodeValue::Subtext => {
+                if let Some(shift) = self.table_in_item_continuation_shift(node) {
+                    if shift != 0 {
+                        // Redo the sourcepos→byte conversion, applying
+                        // the shift in BYTE space *before* ceiling to
+                        // grapheme boundaries. Taking the ceiled
+                        // grapheme back to bytes and shifting there
+                        // compounds the ceil with the shift, yielding
+                        // a grapheme one or two clusters past where
+                        // the actual content ends (observed with
+                        // Devanagari in tab-indented table cells).
+                        let buf_byte_end = self.buffer.current.text.len();
+                        let sp = node_data.sourcepos;
+                        let line_to_byte =
+                            |lc: comrak::nodes::LineColumn,
+                             plus_one_for_exclusive: bool|
+                             -> lb_rs::model::text::offset_types::Byte {
+                                let line_idx = lc.line.saturating_sub(1);
+                                let col =
+                                    if plus_one_for_exclusive { lc.column + 1 } else { lc.column };
+                                let col_idx = col.saturating_sub(1);
+                                let line = self.bounds.source_lines[line_idx];
+                                let line_start = self.offset_to_byte(line.start()).0 as isize;
+                                let shifted = line_start
+                                    .saturating_add(col_idx as isize)
+                                    .saturating_add(shift)
+                                    .max(0) as usize;
+                                lb_rs::model::text::offset_types::Byte(shifted.min(buf_byte_end))
+                            };
+                        let start_byte = line_to_byte(sp.start, false);
+                        let end_byte = line_to_byte(sp.end, true);
+                        range = (
+                            self.buffer.current.segs.byte_to_char_ceil(start_byte),
+                            self.buffer.current.segs.byte_to_char_ceil(end_byte),
+                        );
+                    }
+                }
+            }
+
             _ => {}
         }
 
         // Cache the result before returning
         self.set_cached_node_range(node, range);
         range
+    }
+
+    /// Byte shift to apply to a `TableRow`/`TableCell`/`Text` node
+    /// when comrak's sourcepos columns don't match source — applies
+    /// only when a `Table`'s first row sits on a list `Item`'s first
+    /// line (e.g. `- | a | b |`, table immediately after the marker).
+    /// In that shape comrak reports subsequent rows' cols as if they
+    /// share the item-marker prefix, even when continuation lines use
+    /// a different indent (tab, 4sp, etc.). Shift by
+    /// `actual_leading_ws - item.padding` to align with source. For
+    /// tables that *aren't* the item's first content (starting on a
+    /// continuation line), comrak already reports source-aligned cols
+    /// — skip the shift. Also restricted to top-level items (nested
+    /// cases would need ancestor-aware leading-ws accounting).
+    fn table_in_item_continuation_shift(&self, node: &'ast AstNode<'ast>) -> Option<isize> {
+        let mut cur = Some(node);
+        let table = loop {
+            let n = cur?;
+            if matches!(&n.data.borrow().value, NodeValue::Table(_)) {
+                break n;
+            }
+            cur = n.parent();
+        };
+        let item = table.parent()?;
+        let padding = match &item.data.borrow().value {
+            NodeValue::Item(nl) => nl.padding,
+            NodeValue::TaskItem(_) => match item.parent().map(|p| p.data.borrow().value.clone()) {
+                Some(NodeValue::List(nl)) => nl.padding,
+                _ => return None,
+            },
+            _ => return None,
+        };
+        let list = item.parent()?;
+        let list_parent = list.parent()?;
+        if !matches!(&list_parent.data.borrow().value, NodeValue::Document) {
+            return None;
+        }
+        // Only when the Table's first row is on the Item's first line
+        // (comrak's quirk only fires in that shape).
+        let item_first_line = item.data.borrow().sourcepos.start.line;
+        if table.data.borrow().sourcepos.start.line != item_first_line {
+            return None;
+        }
+        let node_line = node.data.borrow().sourcepos.start.line;
+        if node_line == item_first_line {
+            return Some(0);
+        }
+        let line_idx = node_line.saturating_sub(1);
+        let line = self.bounds.source_lines.get(line_idx)?;
+        let text = &self.buffer[*line];
+        let leading_ws = text.chars().take_while(|c| matches!(c, ' ' | '\t')).count();
+        Some(leading_ws as isize - padding as isize)
     }
 
     /// Creates a UI that assigns ids using the node range.
@@ -129,7 +278,7 @@ impl<'ast> MdRender {
     }
 
     /// Returns the lines spanned by the given range.
-    pub fn range_lines(&self, range: (DocCharOffset, DocCharOffset)) -> (usize, usize) {
+    pub fn range_lines(&self, range: (Grapheme, Grapheme)) -> (usize, usize) {
         let range_lines = self.range_split_newlines(range);
 
         let first_line = *range_lines.first().unwrap();

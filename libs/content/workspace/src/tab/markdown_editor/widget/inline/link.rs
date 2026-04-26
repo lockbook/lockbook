@@ -1,6 +1,6 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{OpenUrl, Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
 use lb_rs::spawn;
 use scraper::{Html, Selector};
 use std::collections::hash_map::Entry;
@@ -54,7 +54,7 @@ impl<'ast> MdRender {
     }
 
     pub fn span_link(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
         let mut tmp_wrap = wrap.clone();
         let node_range = self.node_range(node);
@@ -106,7 +106,7 @@ impl<'ast> MdRender {
 
     pub fn show_link(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        node_link: &NodeLink, range: (DocCharOffset, DocCharOffset),
+        node_link: &NodeLink, range: (Grapheme, Grapheme),
     ) -> Response {
         let node_range = self.node_range(node);
         let is_auto = self.link_is_auto(node, &node_link.url);

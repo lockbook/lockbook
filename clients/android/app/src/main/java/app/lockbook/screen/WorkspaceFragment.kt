@@ -18,9 +18,13 @@ import android.view.inputmethod.EditorInfo
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
+import android.widget.Toast
 import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
+import androidx.core.view.inputmethod.EditorInfoCompat
+import androidx.core.view.inputmethod.InputConnectionCompat
+import androidx.core.view.inputmethod.InputContentInfoCompat
 import androidx.core.view.isVisible
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -38,6 +42,7 @@ import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.HorizontalTabItemHolder
+import app.lockbook.util.MAX_CONTENT_SIZE
 import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
@@ -72,33 +77,6 @@ class WorkspaceFragment : Fragment() {
         _binding = FragmentWorkspaceBinding.inflate(inflater, container, false)
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
-
-        binding.workspaceToolbar.setOnMenuItemClickListener { it ->
-            when (it.itemId) {
-                R.id.menu_text_editor_share -> {
-                    (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                        .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
-
-                    getCurrentFile()?.let {
-                        activityModel.launchTransientScreen(TransientScreen.ShareFile(it))
-                    }
-                }
-                R.id.menu_text_editor_share_externally -> {
-                    getCurrentFile()?.let {
-                        activityModel.shareSelectedFiles(listOf(it), requireContext().cacheDir)
-                    }
-                }
-            }
-
-            true
-        }
-
-        binding.workspaceToolbar.setOnClickListener {
-            getCurrentFile()?.let {
-                activityModel.launchTransientScreen(TransientScreen.Rename(it))
-            }
-        }
-
         val layoutParams = ConstraintLayout.LayoutParams(
             ConstraintLayout.LayoutParams.MATCH_CONSTRAINT,
             ConstraintLayout.LayoutParams.MATCH_CONSTRAINT
@@ -111,10 +89,11 @@ class WorkspaceFragment : Fragment() {
 
         binding.workspaceRoot.addView(workspaceWrapper, layoutParams)
 
+        onCreateToolbar(workspaceWrapper)
+        onCreateTabList(workspaceWrapper)
+
         model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
             workspaceWrapper.workspaceView.openDoc(id, newFile)
-            workspaceWrapper.workspaceView.drawImmediately()
-
             activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
         }
 
@@ -124,16 +103,15 @@ class WorkspaceFragment : Fragment() {
 
         model.closeFile.observe(viewLifecycleOwner) { id ->
             workspaceWrapper.workspaceView.closeDoc(id)
-            workspaceWrapper.workspaceView.drawImmediately()
         }
 
         model.currentTab.observe(viewLifecycleOwner) { tab ->
             updateCurrentTab(workspaceWrapper, tab)
-            binding.closeAllTabs.isEnabled = !model.tabs.isEmpty()
+            updateForwardButtonState(workspaceWrapper)
         }
 
-        model.bottomInset.observe(viewLifecycleOwner) {
-            workspaceWrapper.workspaceView.setBottomInset(it)
+        model.refreshFilesRequested.observe(viewLifecycleOwner) {
+            filesListModel.reloadFiles()
         }
 
         model.isRendering.observe(viewLifecycleOwner) { isRendering ->
@@ -144,28 +122,37 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-        binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
-
-        getCurrentFile()?.let {
-            binding.workspaceToolbar.setTitle(it.name)
+        model.bottomInset.observe(viewLifecycleOwner) {
+            println("ad-tra: set bottom inset ")
+            workspaceWrapper.workspaceView.setBottomInset(it)
         }
 
-        binding.workspaceToolbar.setNavigationOnClickListener {
-            (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                .hideSoftInputFromWindow(view?.windowToken, 0)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+        model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
+            if (keyboardVisible) {
+                binding.standardBottomSheet.visibility = View.GONE
+            } else {
+                binding.standardBottomSheet.visibility = View.VISIBLE
+            }
         }
-        workspaceWrapper.workspaceView.showTabs(false)
+
+        model.workspaceBackRequested.observe(viewLifecycleOwner) {
+            val navigatedBack = workspaceWrapper.workspaceView.back()
+            if (!navigatedBack) {
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+            }
+        }
+
+        model.workspaceForwardRequested.observe(viewLifecycleOwner) {
+            workspaceWrapper.workspaceView.forward()
+        }
 
         model.finishedAction.observe(viewLifecycleOwner) { action ->
             when (action) {
                 is FinishedAction.Delete -> workspaceWrapper.workspaceView.closeDoc(action.id)
                 is FinishedAction.Rename -> {
                     workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
-                    if (binding.workspaceToolbar.title != "") {
-                        // we're showing the title in the menu bar. let's update it
-                        binding.workspaceToolbar.setTitle(action.name)
-                    }
+                    binding.workspaceToolbar.setTitle(action.name)
+                    // todo: why the surgical update, can i just rebuild state
                     val tabIndex = model.tabs.indexOfFirst { it.id == action.id }
                     if (tabIndex != -1) {
                         val updatedTab = model.tabs.get(tabIndex)
@@ -180,23 +167,50 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-        setupTabList()
+        return binding.root
+    }
 
-        binding.expandList.setOnClickListener {
-            model._bottomSheetExpanded.value = !(model.bottomSheetExpanded.value ?: false)
+    private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
+        binding.workspaceToolbar.setOnMenuItemClickListener { it ->
+            when (it.itemId) {
+                R.id.menu_text_editor_share -> {
+                    (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                        .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
+
+                    getCurrentFile()?.let {
+                        activityModel.launchTransientScreen(TransientScreen.ShareFile(it))
+                    }
+                }
+
+                R.id.menu_text_editor_share_externally -> {
+                    getCurrentFile()?.let {
+                        activityModel.shareSelectedFiles(listOf(it), requireContext().cacheDir)
+                    }
+                }
+            }
+
+            true
         }
 
-        model.bottomSheetExpanded.observe(viewLifecycleOwner) { shouldExpand ->
-            toggleBottomSheetExpansion(shouldExpand)
+        binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
+        binding.workspaceToolbar.setNavigationOnClickListener {
+            (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .hideSoftInputFromWindow(view?.windowToken, 0)
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
         }
 
-        binding.closeAllTabs.setOnClickListener {
-            workspaceWrapper.workspaceView.closeAllTabs()
-            workspaceWrapper.workspaceView.drawImmediately()
+        binding.workspaceToolbar.setOnClickListener {
+            getCurrentFile()?.let {
+                activityModel.launchTransientScreen(TransientScreen.Rename(it))
+            }
         }
 
-        model.hideMaterialToolbar.observe(viewLifecycleOwner) { distanceY ->
+        // is this needed
+        getCurrentFile()?.let {
+            binding.workspaceToolbar.setTitle(it.name)
+        }
 
+        model.hideToolbar.observe(viewLifecycleOwner) { distanceY ->
             val isKeyboardVisible = model.keyboardVisible.value ?: false
 
             if (distanceY > 0) {
@@ -209,20 +223,14 @@ class WorkspaceFragment : Fragment() {
                 showMaterialToolbar()
             }
         }
-
-        model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
-            if (keyboardVisible) {
-                binding.standardBottomSheet.visibility = View.GONE
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.HideBottomViewNavigation)
-            } else {
-                binding.standardBottomSheet.visibility = View.VISIBLE
-            }
-        }
-
-        return binding.root
     }
 
-    private fun toggleBottomSheetExpansion(shouldExpand: Boolean) {
+    override fun onDestroyView() {
+        _binding = null
+        super.onDestroyView()
+    }
+
+    private fun toggleTabListExpansion(shouldExpand: Boolean) {
         val currOrientation = (binding.tabsList.layoutManager as LinearLayoutManager).orientation
         if ((currOrientation == LinearLayoutManager.VERTICAL && shouldExpand) ||
             (currOrientation == LinearLayoutManager.HORIZONTAL && !shouldExpand)
@@ -238,6 +246,11 @@ class WorkspaceFragment : Fragment() {
 
         animateBottomSheetHeight(newHeight) {
             binding.expandList.visibility = if (binding.expandList.isVisible) {
+                View.GONE
+            } else {
+                View.VISIBLE
+            }
+            binding.forwardWs.visibility = if (binding.forwardWs.isVisible) {
                 View.GONE
             } else {
                 View.VISIBLE
@@ -351,14 +364,20 @@ class WorkspaceFragment : Fragment() {
 
     @SuppressLint("NotifyDataSetChanged")
     private fun updateCurrentTab(workspaceWrapper: WorkspaceWrapperView, newTab: WorkspaceTab) {
-        val tabFile = filesListModel.fileModel.idsAndFiles[newTab.id]
-        if (tabFile == null) {
-            model.tabs.set(emptyList())
-            binding.tabsList.adapter?.notifyDataSetChanged()
+
+        var tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+
+        if (isMissingTab(tabTitle, newTab)) {
+            filesListModel.fileModel.refreshFiles()
+            tabTitle = filesListModel.fileModel.idsAndFiles[newTab.id]?.name
+        }
+
+        if (isMissingTab(tabTitle, newTab)) {
+            // todo: differentiate between startup nulls and legitimate nulls
             return
         }
 
-        updateToolbarOnTabChange(newTab.type, tabFile.name)
+        updateToolbarOnTabChange(newTab.type, tabTitle)
 
         val openTabs = workspaceWrapper.workspaceView.getTabs()
             .mapNotNull { tabId -> filesListModel.fileModel.idsAndFiles[tabId] }
@@ -366,14 +385,31 @@ class WorkspaceFragment : Fragment() {
 
         model.tabs.set(openTabs)
         binding.tabsList.adapter?.notifyDataSetChanged()
+        binding.closeAllTabs.isEnabled = !model.tabs.isEmpty()
+
+        scrollToCurrentTab(newTab.id)
 
         workspaceWrapper.updateWrapperBasedOnTab(newTab.type)
+        showBottomSheet()
+        showMaterialToolbar()
+    }
+
+    private fun scrollToCurrentTab(newTab: String?) {
+        if (newTab == null) return
+        val selectedPosition = model.tabs.indexOfFirst { it.id == newTab }
+        if (selectedPosition != -1) {
+            binding.tabsList.scrollToPosition(selectedPosition)
+        }
+    }
+
+    private fun isMissingTab(tabTitle: String?, newTab: WorkspaceTab): Boolean {
+        return tabTitle == null && newTab.type != WorkspaceTabType.Welcome
     }
 
     private fun updateToolbarOnTabChange(newTab: WorkspaceTabType, tabTitle: String?) {
         when (newTab) {
+            WorkspaceTabType.Loading -> {}
             WorkspaceTabType.Welcome,
-            WorkspaceTabType.Loading,
             WorkspaceTabType.Graph -> {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible =
                     false
@@ -428,6 +464,34 @@ class WorkspaceFragment : Fragment() {
         return filesListModel.fileModel.idsAndFiles[currentTab.id]
     }
 
+    private fun onCreateTabList(workspaceWrapper: WorkspaceWrapperView) {
+
+        setupTabList()
+
+        model.tabListExpanded.observe(viewLifecycleOwner) { shouldExpand ->
+            toggleTabListExpansion(shouldExpand)
+        }
+
+        binding.expandList.setOnClickListener {
+            model._tabListExpanded.value = !(model.tabListExpanded.value ?: false)
+        }
+
+        binding.forwardWs.setOnClickListener {
+            workspaceWrapper.workspaceView.forward()
+        }
+
+        binding.closeAllTabs.setOnClickListener {
+            workspaceWrapper.workspaceView.closeAllTabs()
+            workspaceWrapper.workspaceView.drawImmediately()
+            model._tabListExpanded.postValue(false)
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+        }
+    }
+
+    private fun updateForwardButtonState(workspaceWrapper: WorkspaceWrapperView) {
+        binding.forwardWs.isEnabled = workspaceWrapper.workspaceView.canForward()
+    }
+    @SuppressLint("NotifyDataSetChanged")
     private fun setupTabList() {
         binding.tabsList.setup {
             withDataSource(model.tabs)
@@ -455,7 +519,7 @@ class WorkspaceFragment : Fragment() {
                         closeButton.isChecked = isSelected
                         closeButton.setOnClickListener {
                             model._closeFile.value = item.id
-                            binding.tabsList.adapter?.notifyItemRemoved(i)
+                            binding.tabsList.adapter?.notifyDataSetChanged()
                         }
 
                         name.setOnClickListener {
@@ -466,12 +530,7 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-        binding.tabsList.post {
-            val selectedPosition = model.tabs.indexOfFirst { it.id == getCurrentFile()?.id }
-            if (selectedPosition != -1) {
-                binding.tabsList.scrollToPosition(selectedPosition)
-            }
-        }
+        scrollToCurrentTab(getCurrentFile()?.id)
     }
 
     private fun switchTab(id: String) {
@@ -486,23 +545,6 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
 
     var currentWrapper: View? = null
 
-    private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDown(e: MotionEvent): Boolean {
-            return true
-        }
-        override fun onScroll(
-            e1: MotionEvent?,
-            e2: MotionEvent,
-            distanceX: Float,
-            distanceY: Float
-        ): Boolean {
-            model._hideMaterialToolbar.postValue(distanceY)
-
-            return super.onScroll(e1, e2, distanceX, distanceY)
-        }
-    }
-    private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
-
     companion object {
         const val TAB_BAR_HEIGHT = 50
         const val TEXT_TOOL_BAR_HEIGHT = 45
@@ -514,12 +556,21 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
         ViewGroup.LayoutParams.MATCH_PARENT
     )
 
-    val WS_TEXT_LAYOUT_PARAMS = MarginLayoutParams(
-        ViewGroup.LayoutParams.MATCH_PARENT,
-        ViewGroup.LayoutParams.MATCH_PARENT
-    ).apply {
-        topMargin = (TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt()
-        bottomMargin = (TEXT_TOOL_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity).toInt()
+    private fun topInsetPxForTextWrapper(): Int {
+        val scaledDensity = context.resources.displayMetrics.scaledDensity
+        val topInsetDp = if (model.showTabs.value == true) TAB_BAR_HEIGHT else TEXT_TOOL_BAR_HEIGHT
+        return (topInsetDp * scaledDensity).toInt()
+    }
+
+    private fun textWrapperLayoutParams(topInsetPx: Int): MarginLayoutParams {
+        val scaledDensity = context.resources.displayMetrics.scaledDensity
+        return MarginLayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            ViewGroup.LayoutParams.MATCH_PARENT
+        ).apply {
+            topMargin = topInsetPx
+            bottomMargin = (TEXT_TOOL_BAR_HEIGHT * scaledDensity).toInt()
+        }
     }
 
     init {
@@ -528,72 +579,52 @@ class WorkspaceWrapperView(context: Context, val model: WorkspaceViewModel) : Fr
     }
 
     fun updateWrapperBasedOnTab(newTab: WorkspaceTabType) {
-        if (newTab.viewWrapperId() == currentTab.viewWrapperId()) {
+        detachWrapperIfPresent()
+        attachWrapperIfNeeded(newTab)
+
+        currentTab = newTab
+    }
+
+    private fun detachWrapperIfPresent() {
+        val wrapper = currentWrapper ?: return
+
+        // Clear the link from the native view immediately to avoid stale references.
+        workspaceView.wrapperView = null
+        currentWrapper = null
+
+        if (wrapper is WorkspaceTextInputWrapper) {
+            wrapper.wsInputConnection.closeConnection()
+            wrapper.clearFocus()
+            (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .hideSoftInputFromWindow(this.windowToken, 0)
+            Handler(Looper.getMainLooper()).postDelayed(
+                {
+                    if (wrapper.parent === this) {
+                        removeView(wrapper)
+                    }
+                },
+                200
+            )
+        }
+    }
+
+    private fun attachWrapperIfNeeded(newTab: WorkspaceTabType) {
+        if (!newTab.isTextEdit()) {
             return
         }
 
-        when (currentTab) {
-            WorkspaceTabType.Welcome,
-            WorkspaceTabType.Svg,
-            WorkspaceTabType.Image,
-            WorkspaceTabType.Pdf,
-            WorkspaceTabType.Loading,
-            WorkspaceTabType.Graph -> { }
-            WorkspaceTabType.Markdown,
-            WorkspaceTabType.PlainText -> {
-                val connection = (currentWrapper as? WorkspaceTextInputWrapper)?.wsInputConnection
-                    ?: return
-
-                connection.closeConnection()
-                currentWrapper?.clearFocus()
-                (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
-                    .hideSoftInputFromWindow(this.windowToken, 0)
-
-                val instanceWrapper = currentWrapper
-                Handler(Looper.getMainLooper()).postDelayed(
-                    {
-                        removeView(instanceWrapper)
-                    },
-                    200
-                )
-            }
-        }
-
-        when (newTab) {
-            WorkspaceTabType.Welcome,
-            WorkspaceTabType.Svg,
-            WorkspaceTabType.Image,
-            WorkspaceTabType.Pdf,
-            WorkspaceTabType.Loading,
-            WorkspaceTabType.Graph -> {}
-            WorkspaceTabType.Markdown,
-            WorkspaceTabType.PlainText -> {
-                val touchYOffset: Float
-                if (model.showTabs.value == true) {
-                    touchYOffset = TAB_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity
-                } else {
-                    touchYOffset = TEXT_TOOL_BAR_HEIGHT * context.resources.displayMetrics.scaledDensity
-                }
-
-                currentWrapper = WorkspaceTextInputWrapper(context, workspaceView, touchYOffset)
-                workspaceView.wrapperView = currentWrapper
-
-                addView(currentWrapper, WS_TEXT_LAYOUT_PARAMS)
-            }
-        }
-
-        currentTab = newTab
+        val topInsetPx = topInsetPxForTextWrapper()
+        val wrapper = WorkspaceTextInputWrapper(context, workspaceView, topInsetPx.toFloat())
+        currentWrapper = wrapper
+        workspaceView.wrapperView = wrapper
+        addView(wrapper, textWrapperLayoutParams(topInsetPx))
     }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onInterceptTouchEvent(event: MotionEvent?): Boolean {
 
-        if (event != null && currentTab != WorkspaceTabType.Svg && currentTab != WorkspaceTabType.Image) {
-            scrollDetector.onTouchEvent(event)
-        }
-
-        if (model.bottomSheetExpanded.value ?: true) {
-            model._bottomSheetExpanded.postValue(false)
+        if (model.tabListExpanded.value ?: true) {
+            model._tabListExpanded.postValue(false)
         }
         return false
     }
@@ -611,10 +642,25 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
         isFocusableInTouchMode = true
     }
 
+    private val tabSheetScrollListener = object : GestureDetector.SimpleOnGestureListener() {
+        override fun onDown(e: MotionEvent): Boolean {
+            return true
+        }
+        override fun onScroll(
+            e1: MotionEvent?,
+            e2: MotionEvent,
+            distanceX: Float,
+            distanceY: Float
+        ): Boolean {
+            workspaceView.model._hideToolbar.value = distanceY
+            return super.onScroll(e1, e2, distanceX, distanceY)
+        }
+    }
+    private val tabSheetScrollDetector: GestureDetector = GestureDetector(context, tabSheetScrollListener)
+
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
         requestFocus()
-
         when (event?.action) {
             MotionEvent.ACTION_DOWN -> {
                 touchStartX = event.x
@@ -626,14 +672,13 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
                     .toWindowInsetsCompat(rootWindowInsets)
                     .isVisible(WindowInsetsCompat.Type.ime())
 
-                val bottomSheetExpanded = workspaceView.model.bottomSheetExpanded.value ?: false
+                val bottomSheetExpanded = workspaceView.model.tabListExpanded.value ?: false
 
-                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && abs(event.x - touchStartX).toInt() < ViewConfiguration.get(
-                        context
-                    ).scaledTouchSlop && abs(event.y - touchStartY).toInt() < ViewConfiguration.get(
-                            context
-                        ).scaledTouchSlop
-                ) {
+                val slopTouchThreshold = ViewConfiguration.get(context).scaledTouchSlop
+                val nonSloppyTouch = abs(event.x - touchStartX).toInt() < slopTouchThreshold &&
+                    abs(event.y - touchStartY).toInt() < slopTouchThreshold
+
+                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
                 }
@@ -642,6 +687,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
 
         if (event != null) {
             workspaceView.forwardedTouchEvent(event, touchYOffset)
+            tabSheetScrollDetector.onTouchEvent(event)
         }
 
         workspaceView.drawImmediately()
@@ -661,10 +707,72 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             outAttrs.inputType =
                 InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_MULTI_LINE or InputType.TYPE_TEXT_FLAG_AUTO_CORRECT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
 
+            EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
+
             outAttrs.initialSelStart = wsInputConnection.wsEditable.getSelection().start
             outAttrs.initialSelEnd = wsInputConnection.wsEditable.getSelection().end
         }
 
-        return wsInputConnection
+        if (outAttrs == null) {
+            return wsInputConnection
+        }
+
+        // Handle `commitContent` from IMEs (e.g. Gboard clipboard images).
+        return InputConnectionCompat.createWrapper(wsInputConnection, outAttrs) { inputContentInfo, flags, _ ->
+            handleCommitContent(inputContentInfo, flags)
+        }
+    }
+
+    private fun handleCommitContent(inputContentInfo: InputContentInfoCompat, flags: Int): Boolean {
+        val isImage = inputContentInfo.description.hasMimeType("image/*")
+        if (!isImage) {
+            Toast
+                .makeText(context, "Clipboard content not supported", Toast.LENGTH_SHORT)
+                .show()
+            return false
+        }
+
+        val needsPermission =
+            (flags and InputConnectionCompat.INPUT_CONTENT_GRANT_READ_URI_PERMISSION) != 0
+        if (needsPermission) {
+            try {
+                inputContentInfo.requestPermission()
+            } catch (_: Exception) {
+                Toast
+                    .makeText(context, "Could not read pasted content", Toast.LENGTH_SHORT)
+                    .show()
+                return false
+            }
+        }
+
+        val uri = inputContentInfo.contentUri
+        val appContext = context.applicationContext
+        workspaceView.launchIo {
+            val bytes = try {
+                wsInputConnection.readAllBytesCapped(uri, MAX_CONTENT_SIZE)
+            } catch (_: Exception) {
+                null
+            } finally {
+                if (needsPermission) {
+                    try {
+                        inputContentInfo.releasePermission()
+                    } catch (_: Exception) {
+                    }
+                }
+            }
+
+            if (bytes != null) {
+                workspaceView.textMutations.get().add(
+                    WorkspaceView.WsTextMutation.ClipboardPasteImage(bytes, true) to -1
+                )
+                workspaceView.drawImmediately()
+            } else {
+                Toast
+                    .makeText(appContext, "Clipboard image too large or unreadable", Toast.LENGTH_SHORT)
+                    .show()
+            }
+        }
+
+        return true
     }
 }

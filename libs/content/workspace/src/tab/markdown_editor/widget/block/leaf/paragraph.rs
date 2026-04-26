@@ -1,6 +1,6 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 
@@ -31,7 +31,7 @@ impl<'ast> MdRender {
     }
 
     pub fn height_paragraph_line(
-        &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
     ) -> f32 {
         let width = self.width(node);
         let mut wrap = self.new_wrap(width);
@@ -89,7 +89,7 @@ impl<'ast> MdRender {
 
     pub fn show_paragraph_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_line: (DocCharOffset, DocCharOffset),
+        node_line: (Grapheme, Grapheme),
     ) {
         let width = self.width(node);
         let mut wrap = self.new_wrap(width);

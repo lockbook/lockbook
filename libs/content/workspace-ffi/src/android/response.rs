@@ -1,5 +1,5 @@
 use lb_c::Uuid;
-use lb_c::model::text::offset_types::{DocCharOffset, RelCharOffset};
+use lb_c::model::text::offset_types::{Grapheme, Graphemes};
 use serde::Serialize;
 use workspace_rs::tab::markdown_editor::input::{Location, Region};
 
@@ -102,13 +102,13 @@ pub struct JRect {
     pub max_y: f32,
 }
 
-impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
+impl From<JTextRange> for (Grapheme, Grapheme) {
     fn from(value: JTextRange) -> Self {
         (value.start.into(), value.end.into())
     }
 }
 
-impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
+impl From<JTextRange> for (Graphemes, Graphemes) {
     fn from(value: JTextRange) -> Self {
         (value.start.into(), value.end.into())
     }
@@ -117,8 +117,8 @@ impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
 impl From<JTextRange> for Region {
     fn from(value: JTextRange) -> Self {
         Region::BetweenLocations {
-            start: Location::DocCharOffset(value.start.into()),
-            end: Location::DocCharOffset(value.start.into()),
+            start: Location::Grapheme(value.start.into()),
+            end: Location::Grapheme(value.start.into()),
         }
     }
 }

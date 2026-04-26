@@ -2,7 +2,7 @@ use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
 use lb_rs::model::file::File;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use std::sync::{Arc, RwLock};
 
@@ -43,7 +43,7 @@ pub struct LinkCompletions {
     pub mode: CompletionMode,
     /// The search term range in the document (the query text only, excluding
     /// brackets/syntax). Set when active so show_text() can highlight it.
-    pub search_term_range: Option<(DocCharOffset, DocCharOffset)>,
+    pub search_term_range: Option<(Grapheme, Grapheme)>,
     /// Suppressed query string — cleared automatically when the query changes.
     suppressed: Option<String>,
 }
@@ -172,8 +172,8 @@ impl LinkCompletions {
     /// Push the replacement event for the current query and reset popup state.
     /// Shared between `handle_input` and the click path in `show_link_completions`.
     pub fn apply_completion(
-        &mut self, events: &mut Vec<Event>, bracket_start: DocCharOffset,
-        replace_end: DocCharOffset, display: &str, path: &str, mode: CompletionMode,
+        &mut self, events: &mut Vec<Event>, bracket_start: Grapheme, replace_end: Grapheme,
+        display: &str, path: &str, mode: CompletionMode,
     ) {
         let text = match mode {
             CompletionMode::WikiLink => format!("[[{}]]", path),
@@ -182,8 +182,8 @@ impl LinkCompletions {
         };
         events.push(Event::Replace {
             region: Region::BetweenLocations {
-                start: Location::DocCharOffset(bracket_start),
-                end: Location::DocCharOffset(replace_end),
+                start: Location::Grapheme(bracket_start),
+                end: Location::Grapheme(replace_end),
             },
             text,
             advance_cursor: true,
@@ -195,7 +195,7 @@ impl LinkCompletions {
 
 /// Tries all detection strategies, returning the first match with its mode.
 /// WikiLink (`[[`) takes priority over plain Link (`[`).
-fn detect_any(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), CompletionMode)> {
+fn detect_any(buffer: &Buffer) -> Option<((Grapheme, Grapheme), CompletionMode)> {
     if let Some(range) = detect_wikilink(buffer) {
         return Some((range, CompletionMode::WikiLink));
     }
@@ -208,11 +208,11 @@ fn detect_any(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), Comple
 
 /// Returns the grapheme `&str` at the given char offset.
 fn grapheme_at(buffer: &Buffer, i: usize) -> &str {
-    &buffer[(DocCharOffset(i), DocCharOffset(i + 1))]
+    &buffer[(Grapheme(i), Grapheme(i + 1))]
 }
 
 /// Returns the range of a `[[...]]` wikilink token under the cursor.
-fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
+fn detect_wikilink(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
     let selection = buffer.current.selection;
     if selection.0 != selection.1 {
         return None;
@@ -259,14 +259,14 @@ fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
         j += 1;
     }
 
-    Some((DocCharOffset(bracket_start), DocCharOffset(j)))
+    Some((Grapheme(bracket_start), Grapheme(j)))
 }
 
 /// Returns the range of a `[text](path)` or `![text](path)` link under the cursor,
 /// plus whether it's an image link. The cursor must be in the display-text field
 /// (between `[` and `]`); if `](...)` already exists it's included in the range
 /// so the whole link is replaced when a result is picked.
-fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)> {
+fn detect_link(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
     let selection = buffer.current.selection;
     if selection.0 != selection.1 {
         return None;
@@ -323,19 +323,19 @@ fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)
         j += 1;
     }
 
-    Some(((DocCharOffset(start), DocCharOffset(j)), is_image))
+    Some(((Grapheme(start), Grapheme(j)), is_image))
 }
 
 /// Returns the sub-range of `range` covering just the query text, with syntax stripped.
 fn query_range(
-    buffer: &Buffer, range: (DocCharOffset, DocCharOffset), mode: CompletionMode,
-) -> (DocCharOffset, DocCharOffset) {
+    buffer: &Buffer, range: (Grapheme, Grapheme), mode: CompletionMode,
+) -> (Grapheme, Grapheme) {
     let prefix_len = match mode {
         CompletionMode::WikiLink => 2,  // [[
         CompletionMode::Link => 1,      // [
         CompletionMode::ImageLink => 2, // ![
     };
-    let start = DocCharOffset(range.0.0 + prefix_len);
+    let start = Grapheme(range.0.0 + prefix_len);
 
     // For wiki links, exclude trailing `]]` if present.
     // For regular/image links, the query is only the display text before `]`.
@@ -343,12 +343,12 @@ fn query_range(
     let end = match mode {
         CompletionMode::WikiLink => {
             let trimmed = raw.trim_end_matches(']');
-            DocCharOffset(range.0.0 + trimmed.len())
+            Grapheme(range.0.0 + trimmed.len())
         }
         CompletionMode::Link | CompletionMode::ImageLink => {
             let after_prefix = &raw[prefix_len..];
             let text_len = after_prefix.find(']').unwrap_or(after_prefix.len());
-            DocCharOffset(start.0 + text_len)
+            Grapheme(start.0 + text_len)
         }
     };
 
