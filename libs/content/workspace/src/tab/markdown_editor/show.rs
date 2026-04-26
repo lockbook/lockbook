@@ -345,7 +345,8 @@ impl MdEdit {
                 &mut self.renderer,
                 root,
                 trailing_precise,
-            );
+            )
+            .with_default_leading();
             let mut scroll =
                 crate::widgets::affine_scroll::AffineScrollArea::new(id).touch_scroll(touch_scroll);
             scroll.show(ui, &mut content);

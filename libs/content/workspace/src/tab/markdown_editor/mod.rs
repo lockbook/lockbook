@@ -869,13 +869,16 @@ impl Editor {
                         // (the virtual trailing pad has zero approx
                         // height, so the offset never falls inside
                         // it), so the trailing-pad height doesn't
-                        // matter here.
+                        // matter here. The leading pad does — its
+                        // approx height is part of the offset, so it
+                        // must match the live render's value.
                         let mut content =
                             crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
                                 &mut self.edit.renderer,
                                 root,
                                 0.0,
-                            );
+                            )
+                            .with_default_leading();
                         let offset = crate::widgets::affine_scroll::anchor_to_offset(
                             &mut content,
                             anchor_idx,
@@ -1027,7 +1030,8 @@ impl Editor {
                             &mut self.edit.renderer,
                             root,
                             0.0,
-                        );
+                        )
+                        .with_default_leading();
                     let anchor =
                         crate::widgets::affine_scroll::offset_to_anchor(&mut content, offset);
                     let _ = content;
@@ -1226,7 +1230,8 @@ impl Editor {
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
         let mut content =
-            DocScrollContent::new(&mut self.edit.renderer, root, viewport_height / 2.0);
+            DocScrollContent::new(&mut self.edit.renderer, root, viewport_height / 2.0)
+                .with_default_leading();
 
         let offset = align_offset(&mut content, viewport_height, Align::Center, |c| {
             c.text_range()

@@ -34,9 +34,12 @@
 //! block) are 0-height rows. `block_padding` is folded into the first
 //! row's prefix and the last row's suffix.
 //!
-//! Plus one **virtual trailing pad** row at the end with `approx = 0`
-//! and `precise = trailing_precise`, giving the user vh/2 of empty
-//! space below the doc end.
+//! Plus a **virtual leading pad** row at the start with `approx =
+//! precise = leading_precise` (acts as real top padding — counted
+//! toward the scrollbar) and a **virtual trailing pad** at the end
+//! with `approx = 0`, `precise = trailing_precise` (overscroll
+//! room — not counted toward the scrollbar — so the last line can
+//! scroll into the middle of the viewport).
 
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Rect, Ui, Vec2};
@@ -116,7 +119,14 @@ pub fn test_code_block_chrome_rects() -> Vec<egui::Rect> {
 pub struct DocScrollContent<'a, 'ast> {
     pub renderer: &'a mut MdRender,
     pub root: &'ast AstNode<'ast>,
+    /// Precise + approx height of the virtual leading pad row (top
+    /// margin inside the scroll model). Counts toward the scrollbar
+    /// — unlike `trailing_precise` which is approx-zero — so the
+    /// pad behaves like real top padding rather than overscroll.
+    pub leading_precise: f32,
     /// Precise height of the virtual trailing pad row (e.g. vh/2).
+    /// Approx height is 0 — the trailing pad is overscroll, not
+    /// content, so it doesn't inflate the scrollbar.
     pub trailing_precise: f32,
     cursor: Cursor<'ast>,
 }
@@ -124,6 +134,7 @@ pub struct DocScrollContent<'a, 'ast> {
 #[derive(Clone, Copy)]
 enum Cursor<'ast> {
     Start,
+    Leading,
     At {
         node: &'ast AstNode<'ast>,
         /// `Some(idx)` for line-based leaves (paragraph today; more
@@ -138,7 +149,17 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     pub fn new(
         renderer: &'a mut MdRender, root: &'ast AstNode<'ast>, trailing_precise: f32,
     ) -> Self {
-        Self { renderer, root, trailing_precise, cursor: Cursor::Start }
+        Self { renderer, root, leading_precise: 0.0, trailing_precise, cursor: Cursor::Start }
+    }
+
+    /// Set `leading_precise` to the default top-padding for production
+    /// rendering. Larger on Android to clear the system status bar /
+    /// safe area. All production walks (render + persistence + scroll-
+    /// to) must agree on this value or anchor offsets drift by the
+    /// difference.
+    pub fn with_default_leading(mut self) -> Self {
+        self.leading_precise = if cfg!(target_os = "android") { 60.0 } else { 15.0 };
+        self
     }
 
     /// Source-text range covered by the row at the cursor's current
@@ -147,7 +168,7 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
         match self.cursor {
             Cursor::At { node, line: None } => Some(self.renderer.node_range(node)),
             Cursor::At { node, line: Some(idx) } => Some(self.line_range(node, idx)),
-            Cursor::Trailing | Cursor::Start | Cursor::End => None,
+            Cursor::Leading | Cursor::Trailing | Cursor::Start | Cursor::End => None,
         }
     }
 
@@ -800,7 +821,8 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
 
     fn next(&mut self) -> bool {
         match self.cursor {
-            Cursor::Start => match self.first_leaf_in(self.root) {
+            Cursor::Start => self.cursor = Cursor::Leading,
+            Cursor::Leading => match self.first_leaf_in(self.root) {
                 Some(leaf) => self.cursor = self.first_line_at(leaf),
                 None => self.cursor = Cursor::Trailing,
             },
@@ -831,10 +853,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
             Cursor::End => self.cursor = Cursor::Trailing,
             Cursor::Trailing => match self.last_leaf_in(self.root) {
                 Some(leaf) => self.cursor = self.last_line_at(leaf),
-                None => {
-                    self.cursor = Cursor::Start;
-                    return false;
-                }
+                None => self.cursor = Cursor::Leading,
             },
             Cursor::At { node, line } => {
                 if let Some(idx) = line {
@@ -845,11 +864,12 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                 }
                 match self.prev_leaf(node) {
                     Some(leaf) => self.cursor = self.last_line_at(leaf),
-                    None => {
-                        self.cursor = Cursor::Start;
-                        return false;
-                    }
+                    None => self.cursor = Cursor::Leading,
                 }
+            }
+            Cursor::Leading => {
+                self.cursor = Cursor::Start;
+                return false;
             }
             Cursor::Start => return false,
         }
@@ -859,6 +879,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
     fn approx(&self) -> f32 {
         match self.cursor {
             Cursor::At { node, line } => self.row_approx(node, line),
+            Cursor::Leading => self.leading_precise,
             Cursor::Trailing => 0.0,
             Cursor::Start | Cursor::End => panic!("approx() with cursor off a row"),
         }
@@ -867,6 +888,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
     fn precise(&mut self) -> f32 {
         match self.cursor {
             Cursor::At { node, line } => self.row_precise(node, line),
+            Cursor::Leading => self.leading_precise,
             Cursor::Trailing => self.trailing_precise,
             Cursor::Start | Cursor::End => panic!("precise() with cursor off a row"),
         }
@@ -961,7 +983,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                 // walks ancestors; this fills the gap.
                 self.paint_self_chrome(ui, node, line, top_left.y, content_top, layout.content);
             }
-            Cursor::Trailing => {} // virtual padding — paints nothing
+            Cursor::Leading | Cursor::Trailing => {} // virtual padding — paints nothing
             Cursor::Start | Cursor::End => panic!("render() with cursor off a row"),
         }
     }
