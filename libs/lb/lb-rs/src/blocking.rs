@@ -341,6 +341,7 @@ impl Lb {
 
     pub fn subscribe(&self) -> Receiver<Event> {
         // required for the tokio::spawn that this guy does
+        #[cfg(not(target_family = "wasm"))]
         let _rt = self.rt.enter();
         self.lb.subscribe()
     }
