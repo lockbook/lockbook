@@ -89,18 +89,17 @@ impl<'ast> MdRender {
         height_sum
     }
 
-    // Paints children of a container block, stacked vertically from
-    // `top_left`. Visibility is approx-checked as a cost optimization
-    // (don't shape blocks far outside the viewport), but no positional
-    // snapping happens here — blocks paint at their natural cumulative
-    // position from `top_left`. Top-level scroll-anchor logic lives in
-    // `widgets::affine_scroll`, which iterates the doc's top-level
-    // blocks directly and bypasses this function at the root level.
+    // Paints children of a container, stacked vertically from
+    // `top_left`. Used by container show paths (BlockQuote, Item,
+    // Document via MdLabel and tests, etc.); the editor's scroll path
+    // walks scroll-leaves directly through `widgets::affine_scroll` and
+    // bypasses this function at the root. Visibility gates *painting*
+    // as a cost optimization (skip shaping off-screen content), but the
+    // y-advance always uses precise heights so a block's position is
+    // independent of which other blocks happen to be visible.
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
-        let children = node.children().collect::<Vec<_>>();
-
         let required_ranges =
             self.galley_required_ranges(self.in_progress_selection, self.find_current_match);
         let viewport = ui.clip_rect();
@@ -112,13 +111,13 @@ impl<'ast> MdRender {
         let past_all_required =
             |offset: Grapheme| -> bool { required_ranges.iter().all(|rr| offset > rr.end()) };
 
-        for child in &children {
+        for child in node.children() {
             let child_range = self.node_range(child);
             let pre_lines = self.pre_spacing_lines(child);
             let post_lines = self.post_spacing_lines(child);
 
             // pre-spacing
-            let pre_spacing = self.block_pre_spacing_height_approx(child);
+            let pre_spacing = self.block_pre_spacing_height(child);
             let pre_spacing_below_viewport = viewport.max.y < top_left.y;
             let pre_spacing_above_viewport = viewport.min.y > top_left.y + pre_spacing;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
@@ -128,15 +127,10 @@ impl<'ast> MdRender {
             }
             top_left.y += pre_spacing;
 
-            // child block — always advance by precise height so the
-            // layout is deterministic regardless of which children
-            // happen to be visible. Painting is gated by visibility for
-            // cost (don't shape off-screen content), but the y-advance
-            // doesn't depend on the visibility decision. This matters
-            // for the affine scroll area's invariant: a block's screen
-            // position must be independent of which other blocks are
-            // visible.
-            let approx_height = self.height_approx(child);
+            // child block — y-advance uses precise height regardless of
+            // visibility so a block's screen position is independent of
+            // which other blocks happen to be visible. Painting is gated
+            // by visibility purely as a cost optimization.
             let precise_height = self.height(child);
             let block_below_viewport = viewport.max.y < top_left.y;
             let block_above_viewport = viewport.min.y > top_left.y + precise_height;
@@ -154,7 +148,7 @@ impl<'ast> MdRender {
                 }
                 self.show_block(ui, child, top_left);
             } else {
-                let in_buffer = top_left.y + approx_height > viewport.min.y - buffer
+                let in_buffer = top_left.y + precise_height > viewport.min.y - buffer
                     && top_left.y < viewport.max.y + buffer;
                 if in_buffer {
                     self.warm_images(child);
@@ -163,7 +157,7 @@ impl<'ast> MdRender {
             top_left.y += precise_height;
 
             // post-spacing
-            let post_spacing = self.block_post_spacing_height_approx(child);
+            let post_spacing = self.block_post_spacing_height(child);
             let post_spacing_below_viewport = viewport.max.y < top_left.y;
             let post_spacing_above_viewport = viewport.min.y > top_left.y + post_spacing;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;

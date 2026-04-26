@@ -277,12 +277,9 @@ impl<'ast> MdRender {
         )
     }
 
-    /// Returns the lines spanned by the given range.
+    /// Returns the lines spanned by the given range, as `(start, end)`
+    /// indices into `source_lines` (inclusive, exclusive).
     pub fn range_lines(&self, range: (Grapheme, Grapheme)) -> (usize, usize) {
-        // The first and last "split" positions are just `range.0` and
-        // `range.1` — splitting on newlines doesn't change either
-        // endpoint. Look those up directly in `source_lines` instead
-        // of materializing a Vec of every intermediate line.
         let start_line_idx = self
             .bounds
             .source_lines
@@ -292,7 +289,7 @@ impl<'ast> MdRender {
             .bounds
             .source_lines
             .find_containing(range.1, true, true)
-            .end(); // (inclusive, exclusive) preserved
+            .end();
         (start_line_idx, end_line_idx)
     }
 
