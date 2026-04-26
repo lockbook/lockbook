@@ -53,8 +53,6 @@ pub struct LocalLb {
 impl LocalLb {
     #[instrument(level = "info", skip_all, err(Debug))]
     pub async fn init(config: Config) -> LbResult<Self> {
-        logging::init(&config)?;
-
         let docs = AsyncDocs::from(&config);
         let db_cfg = db_rs::Config::in_folder(&config.writeable_path);
         let db = CoreDb::init(db_cfg).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
@@ -99,6 +97,7 @@ impl Lb {
         let local: Arc<OnceLock<LocalLb>> = Arc::new(OnceLock::new());
         let init_err = match LocalLb::init(config.clone()).await {
             Ok(loc) => {
+                logging::init(&loc.config)?;
                 ipc::spawn_host(loc.clone());
                 let _ = local.set(loc);
                 return Ok(Self { local, remote: None, config });
