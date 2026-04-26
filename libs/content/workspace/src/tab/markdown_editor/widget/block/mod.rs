@@ -778,11 +778,15 @@ pub enum TitleState {
     Failed,
 }
 
+/// Cached `(prefix_graphemes, has_more)` keyed by `(node_hash, range)`
+/// — used by `line_prefix_len` for indent-prefix lookup.
+type LinePrefixCache = RefCell<HashMap<(u64, (Grapheme, Grapheme)), (Graphemes, bool)>>;
+
 #[derive(Default)]
 pub struct LayoutCache {
     pub height: RefCell<HashMap<(Grapheme, Grapheme), f32>>,
     pub height_approx: RefCell<HashMap<(Grapheme, Grapheme), f32>>,
-    pub line_prefix_len: RefCell<HashMap<(u64, (Grapheme, Grapheme)), (Graphemes, bool)>>,
+    pub line_prefix_len: LinePrefixCache,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
     pub hidden_by_fold: RefCell<HashMap<(Grapheme, Grapheme), bool>>,
     /// Per-heading content range. Pure function of AST shape (heading

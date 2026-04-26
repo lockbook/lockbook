@@ -146,7 +146,7 @@ impl<'ast> MdRender {
     fn code_block_line_chunks(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (Grapheme, Grapheme), synthetic: bool,
-    ) -> ((Grapheme, Grapheme), Option<Vec<(Style, (Grapheme, Grapheme))>>) {
+    ) -> CodeBlockLineChunks {
         let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
         let node_line = self.node_line(node, line);
         let code_line = if *fenced {
@@ -573,6 +573,10 @@ struct SyntaxCacheKey {
 
 pub type SyntaxHighlightResult = Vec<(Style, (Grapheme, Grapheme))>;
 
+/// Output of [`MdRender::code_block_line_chunks`]: the indent-stripped
+/// line range plus optional syntax-highlighted regions.
+type CodeBlockLineChunks = ((Grapheme, Grapheme), Option<SyntaxHighlightResult>);
+
 #[derive(Clone)]
 pub struct SyntaxHighlightCache {
     map: RefCell<HashMap<SyntaxCacheKey, SyntaxHighlightResult>>,
@@ -626,9 +630,7 @@ impl SyntaxHighlightCache {
     }
 
     fn hash_key(&self, key: &SyntaxCacheKey) -> u64 {
-        use std::hash::{BuildHasher, Hash, Hasher};
-        let mut h = self.hasher.build_hasher();
-        key.hash(&mut h);
-        h.finish()
+        use std::hash::BuildHasher;
+        self.hasher.hash_one(key)
     }
 }
