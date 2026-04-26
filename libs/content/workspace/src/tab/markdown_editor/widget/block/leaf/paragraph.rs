@@ -7,14 +7,6 @@ use crate::tab::markdown_editor::MdRender;
 impl<'ast> MdRender {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut result = 0.;
-        for descendant in node.descendants() {
-            if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
-                let NodeLink { url, .. } = &**node_link;
-                result += self.height_image(node, url);
-                result += self.layout.block_spacing;
-            }
-        }
-
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
@@ -28,6 +20,41 @@ impl<'ast> MdRender {
         }
 
         result
+    }
+
+    /// Total image height + block_spacing for any image whose source
+    /// position lies within `node_line`. Painted above the line text.
+    fn paragraph_line_image_height(
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
+    ) -> f32 {
+        let mut h = 0.0;
+        for descendant in node.descendants() {
+            if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                if node_line.contains_inclusive(self.node_range(descendant).start()) {
+                    let NodeLink { url, .. } = &**node_link;
+                    h += self.height_image(node, url);
+                    h += self.layout.block_spacing;
+                }
+            }
+        }
+        h
+    }
+
+    /// Cheap per-source-line approximation matching the structure of
+    /// `height_approx`'s paragraph branch — uses buffer character
+    /// count and `APPROX_CHAR_WIDTH_FACTOR`. Used by the scroll area
+    /// for per-line row sizing.
+    pub fn height_approx_paragraph_line(
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
+    ) -> f32 {
+        use crate::tab::markdown_editor::widget::block::APPROX_CHAR_WIDTH_FACTOR;
+        let row_height = self.row_height(node);
+        let width = self.width(node).max(row_height);
+        let chars = self.buffer[node_line].chars().count();
+        let char_width = row_height * APPROX_CHAR_WIDTH_FACTOR.with(|c| c.get());
+        let chars_per_row = (width / char_width).floor().max(1.0) as usize;
+        let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
+        rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
     }
 
     pub fn height_paragraph_line(
@@ -59,7 +86,7 @@ impl<'ast> MdRender {
             wrap.offset += self.span_section(&wrap, node_line, self.text_format(node));
         };
 
-        wrap.height()
+        self.paragraph_line_image_height(node, node_line) + wrap.height()
     }
 
     pub fn show_paragraph(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
@@ -67,30 +94,29 @@ impl<'ast> MdRender {
             let line = self.bounds.source_lines[line];
             let node_line = self.node_line(node, line);
 
-            for descendant in node.descendants() {
-                if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
-                    let NodeLink { url, .. } = &**node_link;
-                    if node_line.contains_inclusive(self.node_range(descendant).start()) {
-                        self.show_image_block(ui, node, top_left, url);
-                        top_left.y += self.height_image(node, url);
-                        top_left.y += self.layout.block_spacing;
-                    }
-                }
-            }
-
-            let line_height = self.height_paragraph_line(node, node_line);
-
             self.show_paragraph_line(ui, node, top_left, node_line);
-            top_left.y += line_height;
-
+            top_left.y += self.height_paragraph_line(node, node_line);
             top_left.y += self.layout.block_spacing;
         }
     }
 
     pub fn show_paragraph_line(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         node_line: (Grapheme, Grapheme),
     ) {
+        // Inline images: paint each one above the line text and
+        // advance the local top_left so text starts beneath them.
+        for descendant in node.descendants() {
+            if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                if node_line.contains_inclusive(self.node_range(descendant).start()) {
+                    let NodeLink { url, .. } = &**node_link;
+                    self.show_image_block(ui, node, top_left, url);
+                    top_left.y += self.height_image(node, url);
+                    top_left.y += self.layout.block_spacing;
+                }
+            }
+        }
+
         let width = self.width(node);
         let mut wrap = self.new_wrap(width);
 

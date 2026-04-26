@@ -115,13 +115,11 @@ impl<'ast> MdRender {
     /// scrollbar sizing for off-screen content). Visible content must
     /// be measured via [`Self::height`], which this function does NOT
     /// call into.
-    pub fn height_approx(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
+    pub fn height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
         if let Some(cached) = self.get_cached_node_height_approx(node) {
             return cached;
         }
-        if self.hidden_by_fold(node, siblings) {
+        if self.hidden_by_fold(node) {
             self.set_cached_node_height_approx(node, 0.);
             return 0.;
         }
@@ -141,12 +139,11 @@ impl<'ast> MdRender {
             | NodeValue::Table(_)
             | NodeValue::TableRow(_)
             | NodeValue::FootnoteDefinition(_) => {
-                let children = self.sorted_children(node);
                 let mut total = 0.;
-                for child in &children {
-                    total += self.block_pre_spacing_height_approx(child, &children);
-                    total += self.height_approx(child, &children);
-                    total += self.block_post_spacing_height_approx(child, &children);
+                for child in node.children() {
+                    total += self.block_pre_spacing_height_approx(child);
+                    total += self.height_approx(child);
+                    total += self.block_post_spacing_height_approx(child);
                 }
                 total
             }
@@ -188,7 +185,7 @@ impl<'ast> MdRender {
         height
     }
 
-/// Approx-y position of the top of the last top-level block in the
+    /// Approx-y position of the top of the last top-level block in the
     /// doc — i.e., the scroll offset at which the last block sits at
     /// viewport top. Function of doc + width only.
     ///
@@ -196,18 +193,22 @@ impl<'ast> MdRender {
     /// `show_block_children` uses, so the value matches the y position
     /// at which the anchor walk lands on the last block.
     pub fn approx_y_top_last_block(&self, root: &'ast AstNode<'ast>) -> f32 {
-        let children = self.sorted_children(root);
-        if children.is_empty() {
-            return 0.;
-        }
-        let last_idx = children.len() - 1;
+        let last = match root.last_child() {
+            Some(l) => l,
+            None => return 0.,
+        };
         let mut y = 0.;
-        for child in &children[..last_idx] {
-            y += self.block_pre_spacing_height_approx(child, &children);
-            y += self.height_approx(child, &children);
-            y += self.block_post_spacing_height_approx(child, &children);
+        let mut child = root.first_child();
+        while let Some(c) = child {
+            if std::ptr::eq(c, last) {
+                break;
+            }
+            y += self.block_pre_spacing_height_approx(c);
+            y += self.height_approx(c);
+            y += self.block_post_spacing_height_approx(c);
+            child = c.next_sibling();
         }
-        y += self.block_pre_spacing_height_approx(&children[last_idx], &children);
+        y += self.block_pre_spacing_height_approx(last);
         y
     }
 
@@ -222,7 +223,7 @@ impl<'ast> MdRender {
         self.approx_y_top_last_block(root) + viewport_height
     }
 
-    pub fn height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
+    pub fn height(&self, node: &'ast AstNode<'ast>) -> f32 {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
         }
@@ -261,7 +262,7 @@ impl<'ast> MdRender {
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node, siblings) {
+        if self.hidden_by_fold(node) {
             return 0.;
         }
 
@@ -363,7 +364,7 @@ impl<'ast> MdRender {
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node, siblings) {
+        if self.hidden_by_fold(node) {
             return;
         }
 
@@ -375,9 +376,9 @@ impl<'ast> MdRender {
 
             // container_block
             NodeValue::Alert(node_alert) => {
-                self.show_alert(ui, node, top_left, node_alert, siblings)
+                self.show_alert(ui, node, top_left, node_alert)
             }
-            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, siblings),
+            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => self.show_document(ui, node, top_left),
@@ -650,21 +651,17 @@ impl<'ast> MdRender {
         None
     }
 
-    pub fn hidden_by_fold(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
+    pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
         if let Some(cached) = self.get_cached_hidden_by_fold(node) {
             return cached;
         }
 
-        let result = self.compute_hidden_by_fold(node, siblings);
+        let result = self.compute_hidden_by_fold(node);
         self.set_cached_hidden_by_fold(node, result);
         result
     }
 
-    fn compute_hidden_by_fold(
-        &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
+    fn compute_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
         // show only the first block in folded ancestor blocks
         if node.previous_sibling().is_some() {
             for ancestor in node.ancestors().skip(1) {
@@ -682,26 +679,35 @@ impl<'ast> MdRender {
         // show only the blocks that have no folded heading; headings with
         // another equal or more significant heading between them and the target
         // node don't count; headings intersecting the selection don't count
-        let sibling_index = self.sibling_index(node, sorted_siblings);
-
         let mut most_significant_unfolded_heading =
             if let NodeValue::Heading(heading) = &node.data.borrow().value {
                 heading.level
             } else {
                 7 // max heading level + 1
             };
-        for sibling in sorted_siblings[0..sibling_index].iter().rev() {
-            if let NodeValue::Heading(heading) = &sibling.data.borrow().value {
+        // Walk preceding siblings via AST navigation rather than
+        // collecting them — `compute_hidden_by_fold` runs once per
+        // node (cached), but the cold pass still touches every node.
+        let mut sibling = node.previous_sibling();
+        while let Some(s) = sibling {
+            if let NodeValue::Heading(heading) = &s.data.borrow().value {
                 if heading.level < most_significant_unfolded_heading {
                     most_significant_unfolded_heading = heading.level;
-                    if !self.heading_fold_reveal(sibling, sorted_siblings)
-                        && self.fold(sibling).is_some()
+                    // `heading_fold_reveal` still takes the parent's
+                    // siblings (used for `heading_contents` which
+                    // builds a level-stack across the whole sibling
+                    // run). One Vec collect per `compute_hidden_by_fold`
+                    // call, only on the first heading we encounter,
+                    // and only when the heading is folded — bounded.
+                    if !self.heading_fold_reveal(s, &self.sorted_siblings(s))
+                        && self.fold(s).is_some()
                     {
                         // our node is contained by a folded, unrevealed heading
                         return true;
                     }
                 }
             }
+            sibling = s.previous_sibling();
         }
 
         false

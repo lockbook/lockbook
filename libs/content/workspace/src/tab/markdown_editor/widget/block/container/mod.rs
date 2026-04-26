@@ -82,9 +82,9 @@ impl<'ast> MdRender {
 
         let mut height_sum = 0.0;
         for child in &children {
-            height_sum += self.block_pre_spacing_height(child, &children);
-            height_sum += self.height(child, &children);
-            height_sum += self.block_post_spacing_height(child, &children);
+            height_sum += self.block_pre_spacing_height(child);
+            height_sum += self.height(child);
+            height_sum += self.block_post_spacing_height(child);
         }
         height_sum
     }
@@ -114,17 +114,17 @@ impl<'ast> MdRender {
 
         for child in &children {
             let child_range = self.node_range(child);
-            let pre_lines = self.pre_spacing_lines(child, &children);
-            let post_lines = self.post_spacing_lines(child, &children);
+            let pre_lines = self.pre_spacing_lines(child);
+            let post_lines = self.post_spacing_lines(child);
 
             // pre-spacing
-            let pre_spacing = self.block_pre_spacing_height_approx(child, &children);
+            let pre_spacing = self.block_pre_spacing_height_approx(child);
             let pre_spacing_below_viewport = viewport.max.y < top_left.y;
             let pre_spacing_above_viewport = viewport.min.y > top_left.y + pre_spacing;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
             let pre_spacing_needed = intersects_any_required(&self.spacing_range(&pre_lines));
             if pre_spacing_visible || pre_spacing_needed {
-                self.show_block_pre_spacing(ui, child, top_left, &children);
+                self.show_block_pre_spacing(ui, child, top_left);
             }
             top_left.y += pre_spacing;
 
@@ -136,8 +136,8 @@ impl<'ast> MdRender {
             // for the affine scroll area's invariant: a block's screen
             // position must be independent of which other blocks are
             // visible.
-            let approx_height = self.height_approx(child, &children);
-            let precise_height = self.height(child, &children);
+            let approx_height = self.height_approx(child);
+            let precise_height = self.height(child);
             let block_below_viewport = viewport.max.y < top_left.y;
             let block_above_viewport = viewport.min.y > top_left.y + precise_height;
             let block_visible = !block_above_viewport && !block_below_viewport;
@@ -163,13 +163,13 @@ impl<'ast> MdRender {
             top_left.y += precise_height;
 
             // post-spacing
-            let post_spacing = self.block_post_spacing_height_approx(child, &children);
+            let post_spacing = self.block_post_spacing_height_approx(child);
             let post_spacing_below_viewport = viewport.max.y < top_left.y;
             let post_spacing_above_viewport = viewport.min.y > top_left.y + post_spacing;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
             let post_spacing_needed = intersects_any_required(&self.spacing_range(&post_lines));
             if post_spacing_visible || post_spacing_needed {
-                self.show_block_post_spacing(ui, child, top_left, &children);
+                self.show_block_post_spacing(ui, child, top_left);
             }
             top_left.y += post_spacing;
 
@@ -597,13 +597,13 @@ impl<'ast> MdRender {
 
         for child in &children {
             // add pre-spacing bounds
-            self.compute_bounds_block_pre_spacing(child, &children);
+            self.compute_bounds_block_pre_spacing(child);
 
             // add block bounds
             self.compute_bounds(child);
 
             // add post-spacing bounds
-            self.compute_bounds_block_post_spacing(child, &children);
+            self.compute_bounds_block_post_spacing(child);
         }
     }
 }

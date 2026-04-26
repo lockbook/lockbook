@@ -29,7 +29,7 @@ impl<'ast> MdRender {
             let mut cell_height_max = 0.0f32;
             let children = self.sorted_children(node);
             for table_cell in &children {
-                cell_height_max = cell_height_max.max(self.height(table_cell, &children));
+                cell_height_max = cell_height_max.max(self.height(table_cell));
             }
 
             cell_height_max

@@ -150,7 +150,7 @@ impl<'ast> MdRender {
             // Hover-only check: approximate is fine. Precise here forces
             // a full-tree walk for headings near the doc top (the heading
             // "contains" everything below it), which dominates cold init.
-            let siblings_height = self.height_approx(node, siblings)
+            let siblings_height = self.height_approx(node)
                 + self.heading_contained_siblings_height(node, siblings);
             let siblings_space =
                 Rect::from_min_size(top_left, Vec2::new(self.width(node), siblings_height));
@@ -438,9 +438,9 @@ impl<'ast> MdRender {
         let contained_siblings = self.heading_contained_siblings(node, siblings);
         let mut height_sum = 0.0;
         for sibling in &contained_siblings {
-            height_sum += self.block_pre_spacing_height_approx(sibling, siblings);
-            height_sum += self.height_approx(sibling, siblings);
-            height_sum += self.block_post_spacing_height_approx(sibling, siblings);
+            height_sum += self.block_pre_spacing_height_approx(sibling);
+            height_sum += self.height_approx(sibling);
+            height_sum += self.block_post_spacing_height_approx(sibling);
         }
         height_sum
     }

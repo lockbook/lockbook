@@ -47,6 +47,13 @@ pub trait Rows {
     fn precise(&mut self) -> f32;
 
     fn render(&mut self, ui: &mut Ui, top_left: Pos2);
+
+    /// Hint that the row is about to enter the viewport. Content can
+    /// kick off background work (e.g. start downloading images)
+    /// without painting. Called by the scroll area on rows within a
+    /// viewport-sized buffer above and below the visible window.
+    /// Default is a no-op.
+    fn warm(&mut self) {}
 }
 
 /// Per-frame state of the scroll area. Persisted in egui memory between
@@ -337,6 +344,32 @@ where
     Some(0.0)
 }
 
+/// "Make visible" semantics: only return a new offset if `current_offset`
+/// has the target outside the viewport. When the target is already
+/// visible, returns `None` so the caller leaves scroll alone — avoids
+/// the constant-recenter feel of `Align::Center`. When out of view,
+/// returns the offset that brings the nearest edge of the target just
+/// into the viewport (Top alignment if scrolling up, Bottom if down).
+pub fn make_visible_offset<R, F>(
+    content: &mut R, viewport_height: f32, current_offset: f32, mut find: F,
+) -> Option<f32>
+where
+    R: Rows,
+    F: FnMut(&mut R) -> bool,
+{
+    let top = align_offset(content, viewport_height, Align::Top, &mut find)?;
+    let bottom = align_offset(content, viewport_height, Align::Bottom, &mut find)?;
+    let lo = top.min(bottom);
+    let hi = top.max(bottom);
+    if current_offset >= lo && current_offset <= hi {
+        None
+    } else if current_offset < lo {
+        Some(lo)
+    } else {
+        Some(hi)
+    }
+}
+
 /// Forward walk summing approx heights.
 fn sum_approx<R: Rows>(content: &mut R) -> f32 {
     content.reset();
@@ -404,9 +437,7 @@ pub fn anchor_to_offset<R: Rows>(content: &mut R, anchor_idx: usize, intra: f32)
 /// - Anchor would land in a 0-approx row: skip and continue
 ///   backwards. The 0-approx row can't host an anchor because the
 ///   slope is undefined.
-fn compute_max_offset<R: Rows>(
-    content: &mut R, viewport_height: f32, approx_total: f32,
-) -> f32 {
+fn compute_max_offset<R: Rows>(content: &mut R, viewport_height: f32, approx_total: f32) -> f32 {
     if viewport_height <= 0.0 {
         return 0.0;
     }
@@ -432,9 +463,7 @@ fn compute_max_offset<R: Rows>(
 /// anchor row. Then paints anchor and downstream rows at consecutive
 /// precise positions. Anchor's intra-position is placed at the viewport
 /// top in screen space.
-fn render_visible<R: Rows>(
-    ui: &mut Ui, content: &mut R, viewport: Rect, offset_approx: f32,
-) {
+fn render_visible<R: Rows>(ui: &mut Ui, content: &mut R, viewport: Rect, offset_approx: f32) {
     content.reset();
 
     let mut acc = 0.0f32;
@@ -464,6 +493,32 @@ fn render_visible<R: Rows>(
         let p = content.precise();
         content.render(ui, Pos2::new(viewport.min.x, viewport.min.y + y));
         y += p;
+    }
+
+    // Warm a viewport's worth past the bottom edge so images/etc.
+    // start loading before the user scrolls them in.
+    let warm_until = y + viewport.height();
+    while y < warm_until && content.next() {
+        y += content.precise();
+        content.warm();
+    }
+
+    // Warm a viewport's worth above the rendered region. Re-walk
+    // forward to the anchor (cheap; approx access is O(1) per row),
+    // then prev() warming until we've covered one viewport.
+    content.reset();
+    let mut acc = 0.0f32;
+    while content.next() {
+        let h = content.approx();
+        if acc + h > offset_approx {
+            break;
+        }
+        acc += h;
+    }
+    let mut warm_back = 0.0f32;
+    while warm_back < viewport.height() && content.prev() {
+        warm_back += content.precise();
+        content.warm();
     }
 }
 
@@ -652,6 +707,31 @@ mod tests {
         let mut c = MockContent::new(vec![(50.0, 100.0)]);
         let approx_delta = precise_to_approx_delta(&mut c, 30.0, -30.0);
         assert!((approx_delta + 15.0).abs() < 0.01, "got {}", approx_delta);
+    }
+
+    /// 10 rows of 50px each, viewport=100px (2 rows visible). Target
+    /// is row 5 → Top alignment offset=250, Bottom alignment offset=200.
+    #[test]
+    fn make_visible_no_scroll_when_target_already_in_view() {
+        let mut c = MockContent::new(vec![(50.0, 50.0); 10]);
+        let result = make_visible_offset(&mut c, 100.0, 225.0, |c| c.at() == Some(5));
+        assert_eq!(result, None, "should not scroll when target is visible");
+    }
+
+    #[test]
+    fn make_visible_scrolls_down_when_target_below() {
+        let mut c = MockContent::new(vec![(50.0, 50.0); 10]);
+        let result = make_visible_offset(&mut c, 100.0, 0.0, |c| c.at() == Some(5));
+        let o = result.expect("should scroll");
+        assert!((o - 200.0).abs() < 0.5, "expected ~200, got {o}");
+    }
+
+    #[test]
+    fn make_visible_scrolls_up_when_target_above() {
+        let mut c = MockContent::new(vec![(50.0, 50.0); 10]);
+        let result = make_visible_offset(&mut c, 100.0, 400.0, |c| c.at() == Some(5));
+        let o = result.expect("should scroll");
+        assert!((o - 250.0).abs() < 0.5, "expected ~250, got {o}");
     }
 
     use rand::{Rng, SeedableRng, rngs::StdRng};

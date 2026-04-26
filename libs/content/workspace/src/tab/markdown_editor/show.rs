@@ -332,7 +332,12 @@ impl MdEdit {
         // via piecewise affine), anchor identification, and per-block
         // paint placement in screen-space. DocScrollContent adapts the
         // doc's top-level blocks to the scroll area's content trait.
-        self.renderer.viewport.set(ui.clip_rect());
+        // Use the scroll-area rect (not the outer clip_rect) — chrome
+        // painters compare against `viewport.min.y` to detect the
+        // anchor row, and that comparison must agree with the widget's
+        // own `viewport.min.y` (the rect it renders into) or the
+        // anchor check fails and bars / titles vanish.
+        self.renderer.viewport.set(rect);
         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
             let touch_scroll = self.renderer.touch_mode;
             let trailing_precise = rect.height() / 2.0;
@@ -431,7 +436,7 @@ impl MdEdit {
         self.renderer.width = width;
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
-        self.renderer.height(root, &[root])
+        self.renderer.height(root)
     }
 
     /// Render active completion popups. Caller invokes this after the main

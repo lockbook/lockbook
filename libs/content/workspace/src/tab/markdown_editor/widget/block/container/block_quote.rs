@@ -19,6 +19,8 @@ impl<'ast> MdRender {
     /// for the whole-block paint and by the scroll area's row render
     /// for the first visible descendant of a blockquote.
     pub(crate) fn chrome_block_quote(&self, ui: &mut Ui, annotation: Rect) {
+        #[cfg(test)]
+        crate::tab::markdown_editor::scroll_content::test_record_bq_bar(annotation);
         ui.painter().vline(
             annotation.center().x,
             annotation.y_range(),
@@ -54,9 +56,8 @@ impl<'ast> MdRender {
 
     pub fn show_block_quote(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
-        let height = self.height(node, siblings);
+        let height = self.height(node);
         let annotation_space =
             Rect::from_min_size(top_left, Vec2 { x: self.layout.indent, y: height });
         self.chrome_block_quote(ui, annotation_space);

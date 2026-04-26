@@ -30,7 +30,7 @@ impl MdLabel {
         self.prepare(md, width);
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
-        self.renderer.height(root, &[root])
+        self.renderer.height(root)
     }
 
     /// Render `md` into `ui` at the current cursor position, wrapping at
@@ -55,7 +55,7 @@ impl MdLabel {
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
 
-        let height = self.renderer.height(root, &[root]);
+        let height = self.renderer.height(root);
         self.renderer.top_left = top_left;
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 

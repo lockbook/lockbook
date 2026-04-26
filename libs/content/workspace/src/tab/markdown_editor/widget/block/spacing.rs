@@ -30,23 +30,21 @@ impl<'ast> MdRender {
     /// per-node init-time pass through `compute_bounds` doesn't pay
     /// `hidden_by_fold`'s cost — folded content's spacing still appears
     /// in `inline_paragraphs` but is not rendered.
-    pub fn pre_spacing_lines(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> Option<Range<usize>> {
+    pub fn pre_spacing_lines(&self, node: &'ast AstNode<'ast>) -> Option<Range<usize>> {
         let parent = node.parent()?;
         if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
             return None;
         }
 
-        let sibling_index = self.sibling_index(node, siblings);
-        let first = if sibling_index == 0 {
-            let mut first = self.node_first_line_idx(parent);
-            if matches!(&parent.data.borrow().value, NodeValue::Alert(_)) {
-                first += 1;
+        let first = match node.previous_sibling() {
+            None => {
+                let mut first = self.node_first_line_idx(parent);
+                if matches!(&parent.data.borrow().value, NodeValue::Alert(_)) {
+                    first += 1;
+                }
+                first
             }
-            first
-        } else {
-            self.node_last_line_idx(siblings[sibling_index - 1]) + 1
+            Some(prev) => self.node_last_line_idx(prev) + 1,
         };
 
         Some(first..self.node_first_line_idx(node))
@@ -55,16 +53,13 @@ impl<'ast> MdRender {
     /// Returns the source line index range for the post-spacing of `node`, i.e.
     /// the empty lines between this node and the parent's end. Only the last
     /// sibling has post-spacing; returns `None` otherwise.
-    pub fn post_spacing_lines(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> Option<Range<usize>> {
+    pub fn post_spacing_lines(&self, node: &'ast AstNode<'ast>) -> Option<Range<usize>> {
         let parent = node.parent()?;
         if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
             return None;
         }
 
-        let sibling_index = self.sibling_index(node, siblings);
-        if sibling_index != siblings.len() - 1 {
+        if node.next_sibling().is_some() {
             return None;
         }
 
@@ -77,18 +72,15 @@ impl<'ast> MdRender {
     /// Each blank line is one `row_height`; plus inter-block `block_spacing`.
     /// Used by [`Self::height_approx`] to avoid shaping per spacing line
     /// for off-screen content.
-    pub fn block_pre_spacing_height_approx(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
-        if self.hidden_by_fold(node, siblings) {
+    pub fn block_pre_spacing_height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
+        if self.hidden_by_fold(node) {
             return 0.;
         }
-        let Some(line_range) = self.pre_spacing_lines(node, siblings) else {
+        let Some(line_range) = self.pre_spacing_lines(node) else {
             return 0.;
         };
         let mut result = 0.;
-        let sibling_index = self.sibling_index(node, siblings);
-        if sibling_index != 0 {
+        if node.previous_sibling().is_some() {
             result += self.layout.block_spacing;
         }
         let n = line_range.end.saturating_sub(line_range.start) as f32;
@@ -98,31 +90,26 @@ impl<'ast> MdRender {
     }
 
     /// Approximate height of post-spacing without cosmic-text shaping.
-    pub fn block_post_spacing_height_approx(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
-        let Some(line_range) = self.post_spacing_lines(node, siblings) else {
+    pub fn block_post_spacing_height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let Some(line_range) = self.post_spacing_lines(node) else {
             return 0.;
         };
         let n = line_range.end.saturating_sub(line_range.start) as f32;
         n * self.layout.row_height + n * self.layout.block_spacing
     }
 
-    pub fn block_pre_spacing_height(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
-        if self.hidden_by_fold(node, siblings) {
+    pub fn block_pre_spacing_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+        if self.hidden_by_fold(node) {
             return 0.;
         }
-        let Some(line_range) = self.pre_spacing_lines(node, siblings) else {
+        let Some(line_range) = self.pre_spacing_lines(node) else {
             return 0.;
         };
 
         let width = self.width(node);
         let mut result = 0.;
 
-        let sibling_index = self.sibling_index(node, siblings);
-        if sibling_index != 0 {
+        if node.previous_sibling().is_some() {
             result += self.layout.block_spacing;
         }
 
@@ -143,19 +130,17 @@ impl<'ast> MdRender {
 
     pub fn show_block_pre_spacing(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
-        if self.hidden_by_fold(node, siblings) {
+        if self.hidden_by_fold(node) {
             return;
         }
-        let Some(line_range) = self.pre_spacing_lines(node, siblings) else {
+        let Some(line_range) = self.pre_spacing_lines(node) else {
             return;
         };
 
         let width = self.width(node);
 
-        let sibling_index = self.sibling_index(node, siblings);
-        if sibling_index != 0 {
+        if node.previous_sibling().is_some() {
             top_left.y += self.layout.block_spacing;
         }
 
@@ -171,10 +156,8 @@ impl<'ast> MdRender {
         }
     }
 
-    pub(crate) fn block_post_spacing_height(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
-        let Some(line_range) = self.post_spacing_lines(node, siblings) else {
+    pub(crate) fn block_post_spacing_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let Some(line_range) = self.post_spacing_lines(node) else {
             return 0.;
         };
 
@@ -199,9 +182,8 @@ impl<'ast> MdRender {
 
     pub(crate) fn show_block_post_spacing(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
-        let Some(line_range) = self.post_spacing_lines(node, siblings) else {
+        let Some(line_range) = self.post_spacing_lines(node) else {
             return;
         };
 
@@ -220,10 +202,8 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn compute_bounds_block_pre_spacing(
-        &mut self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) {
-        let Some(line_range) = self.pre_spacing_lines(node, siblings) else {
+    pub fn compute_bounds_block_pre_spacing(&mut self, node: &'ast AstNode<'ast>) {
+        let Some(line_range) = self.pre_spacing_lines(node) else {
             return;
         };
 
@@ -234,10 +214,8 @@ impl<'ast> MdRender {
         }
     }
 
-    pub(crate) fn compute_bounds_block_post_spacing(
-        &mut self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) {
-        let Some(line_range) = self.post_spacing_lines(node, siblings) else {
+    pub(crate) fn compute_bounds_block_post_spacing(&mut self, node: &'ast AstNode<'ast>) {
+        let Some(line_range) = self.post_spacing_lines(node) else {
             return;
         };
 

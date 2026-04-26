@@ -1101,7 +1101,6 @@ impl Editor {
                 // set `renderer.width = col_width + 2·margin`.
                 self.edit.renderer.top_left = canvas_rect.min + Vec2::new(col_pad, 0.0);
                 self.edit.renderer.width = col_width + 2.0 * layout_margin;
-                self.edit.renderer.viewport.set(ui.clip_rect());
 
                 self.edit.show(ui, canvas_rect, self.id());
                 ui.advance_cursor_after_rect(canvas_rect);
@@ -1210,11 +1209,8 @@ impl Editor {
 
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
-        let mut content = DocScrollContent::new(
-            &mut self.edit.renderer,
-            root,
-            viewport_height / 2.0,
-        );
+        let mut content =
+            DocScrollContent::new(&mut self.edit.renderer, root, viewport_height / 2.0);
 
         let offset = align_offset(&mut content, viewport_height, Align::Center, |c| {
             c.text_range()

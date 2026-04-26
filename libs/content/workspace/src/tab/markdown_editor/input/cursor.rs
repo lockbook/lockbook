@@ -197,8 +197,7 @@ impl MdEdit {
 
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);
-        let mut content =
-            DocScrollContent::new(&mut self.renderer, root, viewport_height / 2.0);
+        let mut content = DocScrollContent::new(&mut self.renderer, root, viewport_height / 2.0);
 
         let offset = align_offset(&mut content, viewport_height, Align::Center, |c| {
             c.text_range()

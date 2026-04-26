@@ -41,8 +41,10 @@ impl<'ast> MdRender {
     pub fn show_footnote_definition(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
-        let annotation =
-            Rect::from_min_size(top_left, Vec2 { x: self.layout.indent, y: self.layout.row_height });
+        let annotation = Rect::from_min_size(
+            top_left,
+            Vec2 { x: self.layout.indent, y: self.layout.row_height },
+        );
         self.chrome_footnote_definition(ui, node, annotation);
         top_left.x += annotation.width();
         self.show_block_children(ui, node, top_left);

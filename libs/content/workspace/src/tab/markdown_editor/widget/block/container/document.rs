@@ -27,44 +27,14 @@ impl<'ast> MdRender {
     }
 
     pub fn height_document(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let width = self.width(node);
-
         let any_children = node.children().next().is_some();
         if any_children && !self.plaintext {
             self.block_children_height(node)
         } else {
-            let highlighter_syntax =
-                syntax_set().find_syntax_by_extension(syntax_ext_for(&self.ext));
             let last = self.node_last_line_idx(node).saturating_sub(1);
             let mut result = 0.;
             for line_idx in self.node_lines(node).iter() {
-                let line = self.bounds.source_lines[line_idx];
-                let mut wrap = self.new_wrap(width);
-                if let Some(syntax) = highlighter_syntax {
-                    let mut highlighter = HighlightLines::new(syntax, syntax_theme());
-                    let line_text = &self.buffer[line];
-                    let regions = if let Some(regions) = self.syntax.get(line_text, line) {
-                        regions
-                    } else {
-                        let mut regions = Vec::new();
-                        let mut region_start = self.offset_to_byte(line.start());
-                        for (style, region_str) in
-                            highlighter.highlight_line(line_text, syntax_set()).unwrap()
-                        {
-                            let region_end = region_start + region_str.len();
-                            let region = self.range_to_char((region_start, region_end));
-                            regions.push((style, region));
-                            region_start = region_end;
-                        }
-                        regions
-                    };
-                    for (_, region) in regions {
-                        wrap.offset += self.span_section(&wrap, region, self.text_format_syntax());
-                    }
-                } else {
-                    wrap.offset += self.span_section(&wrap, line, self.text_format_syntax());
-                }
-                result += wrap.height();
+                result += self.height_document_line(node, line_idx);
                 if line_idx != last {
                     result += self.layout.row_spacing;
                 }
@@ -73,77 +43,128 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn show_document(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
+    /// Precise height of one source line in plaintext-mode document
+    /// rendering. Mirrors `show_document_line` so totals agree.
+    pub fn height_document_line(&self, node: &'ast AstNode<'ast>, line_idx: usize) -> f32 {
         let width = self.width(node);
+        let line = self.bounds.source_lines[line_idx];
+        let mut wrap = self.new_wrap(width);
+        let highlighter_syntax = syntax_set().find_syntax_by_extension(syntax_ext_for(&self.ext));
+        if let Some(syntax) = highlighter_syntax {
+            let mut highlighter = HighlightLines::new(syntax, syntax_theme());
+            let line_text = &self.buffer[line];
+            let regions = if let Some(regions) = self.syntax.get(line_text, line) {
+                regions
+            } else {
+                let mut regions = Vec::new();
+                let mut region_start = self.offset_to_byte(line.start());
+                for (style, region_str) in
+                    highlighter.highlight_line(line_text, syntax_set()).unwrap()
+                {
+                    let region_end = region_start + region_str.len();
+                    let region = self.range_to_char((region_start, region_end));
+                    regions.push((style, region));
+                    region_start = region_end;
+                }
+                regions
+            };
+            for (_, region) in regions {
+                wrap.offset += self.span_section(&wrap, region, self.text_format_syntax());
+            }
+        } else {
+            wrap.offset += self.span_section(&wrap, line, self.text_format_syntax());
+        }
+        wrap.height()
+    }
 
+    /// Cheap per-line approx for plaintext-mode document. Same shape
+    /// as `height_approx_paragraph_line` — buffer-char-count divided
+    /// by `APPROX_CHAR_WIDTH_FACTOR`.
+    pub fn height_approx_document_line(&self, node: &'ast AstNode<'ast>, line_idx: usize) -> f32 {
+        use crate::tab::markdown_editor::widget::block::APPROX_CHAR_WIDTH_FACTOR;
+        let row_height = self.row_height(node);
+        let width = self.width(node).max(row_height);
+        let line = self.bounds.source_lines[line_idx];
+        let chars = self.buffer[line].chars().count();
+        let char_width = row_height * APPROX_CHAR_WIDTH_FACTOR.with(|c| c.get());
+        let chars_per_row = (width / char_width).floor().max(1.0) as usize;
+        let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
+        rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
+    }
+
+    pub fn show_document(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let any_children = node.children().next().is_some();
         if any_children && !self.plaintext {
             self.show_block_children(ui, node, top_left);
         } else {
-            let has_syntax = syntax_set()
-                .find_syntax_by_extension(syntax_ext_for(&self.ext))
-                .is_some();
             let last = self.node_last_line_idx(node).saturating_sub(1);
             for line_idx in self.node_lines(node).iter() {
-                let line = self.bounds.source_lines[line_idx];
-                let mut wrap = self.new_wrap(width);
-
-                if has_syntax {
-                    let syntax = syntax_set()
-                        .find_syntax_by_extension(syntax_ext_for(&self.ext))
-                        .unwrap();
-                    let mut highlighter = HighlightLines::new(syntax, syntax_theme());
-                    let line_text = &self.buffer[line];
-
-                    let regions = if let Some(regions) = self.syntax.get(line_text, line) {
-                        regions
-                    } else {
-                        let mut regions = Vec::new();
-                        let mut region_start = self.offset_to_byte(line.start());
-                        for (style, region_str) in
-                            highlighter.highlight_line(line_text, syntax_set()).unwrap()
-                        {
-                            let region_end = region_start + region_str.len();
-                            let region = self.range_to_char((region_start, region_end));
-                            regions.push((style, region));
-                            region_start = region_end;
-                        }
-                        self.syntax.insert(line_text.into(), line, regions.clone());
-                        regions
-                    };
-
-                    let mut text_format = self.text_format_syntax();
-                    if regions.is_empty() {
-                        self.show_section(
-                            ui,
-                            top_left,
-                            &mut wrap,
-                            line.start().into_range(),
-                            text_format.clone(),
-                        );
-                    }
-                    for (style, region) in regions {
-                        let hex = Color32::from_rgb(
-                            style.foreground.r,
-                            style.foreground.g,
-                            style.foreground.b,
-                        )
-                        .to_hex();
-                        let hex = hex.strip_suffix("ff").unwrap();
-                        text_format.color = self.syntax_color_for_hex(hex);
-                        self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
-                    }
-                } else {
-                    self.show_section(ui, top_left, &mut wrap, line, self.text_format_syntax());
-                }
-
-                top_left.y += wrap.height();
+                self.show_document_line(ui, node, top_left, line_idx);
+                top_left.y += self.height_document_line(node, line_idx);
                 if line_idx != last {
                     top_left.y += self.layout.row_spacing;
                 }
-                self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         }
+    }
+
+    /// Paint one source line in plaintext-mode document rendering.
+    pub fn show_document_line(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, line_idx: usize,
+    ) {
+        let width = self.width(node);
+        let line = self.bounds.source_lines[line_idx];
+        let mut wrap = self.new_wrap(width);
+        let has_syntax = syntax_set()
+            .find_syntax_by_extension(syntax_ext_for(&self.ext))
+            .is_some();
+        if has_syntax {
+            let syntax = syntax_set()
+                .find_syntax_by_extension(syntax_ext_for(&self.ext))
+                .unwrap();
+            let mut highlighter = HighlightLines::new(syntax, syntax_theme());
+            let line_text = &self.buffer[line];
+
+            let regions = if let Some(regions) = self.syntax.get(line_text, line) {
+                regions
+            } else {
+                let mut regions = Vec::new();
+                let mut region_start = self.offset_to_byte(line.start());
+                for (style, region_str) in
+                    highlighter.highlight_line(line_text, syntax_set()).unwrap()
+                {
+                    let region_end = region_start + region_str.len();
+                    let region = self.range_to_char((region_start, region_end));
+                    regions.push((style, region));
+                    region_start = region_end;
+                }
+                self.syntax.insert(line_text.into(), line, regions.clone());
+                regions
+            };
+
+            let mut text_format = self.text_format_syntax();
+            if regions.is_empty() {
+                self.show_section(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    line.start().into_range(),
+                    text_format.clone(),
+                );
+            }
+            for (style, region) in regions {
+                let hex =
+                    Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
+                        .to_hex();
+                let hex = hex.strip_suffix("ff").unwrap();
+                text_format.color = self.syntax_color_for_hex(hex);
+                self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
+            }
+        } else {
+            self.show_section(ui, top_left, &mut wrap, line, self.text_format_syntax());
+        }
+
+        self.bounds.wrap_lines.extend(wrap.row_ranges);
     }
 
     pub fn compute_bounds_document(&mut self, node: &'ast AstNode<'ast>) {

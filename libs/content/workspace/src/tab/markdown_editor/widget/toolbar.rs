@@ -1092,7 +1092,7 @@ impl<'ast> Editor {
         self.edit.renderer.bounds.inline_paragraphs.sort();
         self.edit.renderer.calc_words();
 
-        let height = self.edit.renderer.height(root, &[root]);
+        let height = self.edit.renderer.height(root);
 
         self.edit.renderer.layout_cache.clear();
 
@@ -1126,7 +1126,7 @@ impl<'ast> Editor {
         self.edit.renderer.bounds.inline_paragraphs.sort();
         self.edit.renderer.calc_words();
 
-        let height = self.edit.renderer.height(root, &[root]);
+        let height = self.edit.renderer.height(root);
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
         self.edit.renderer.show_block(
