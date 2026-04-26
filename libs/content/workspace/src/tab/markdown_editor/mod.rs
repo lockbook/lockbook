@@ -247,6 +247,14 @@ pub struct Editor {
     pub virtual_keyboard_shown: bool,
     pub unprocessed_scroll: Option<Instant>,
 
+    /// Previous frame's canvas size, for change detection. Tracked
+    /// separately from `renderer.width` because `show_scrollable_editor`
+    /// rewrites `renderer.width` to the centered content-column width,
+    /// which doesn't equal the canvas width on wide windows — comparing
+    /// the next frame's canvas width against `renderer.width` would flip
+    /// every frame and trigger continuous repaints + cache clears.
+    prev_canvas: Option<Vec2>,
+
     // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
 }
@@ -587,6 +595,8 @@ impl Editor {
             virtual_keyboard_shown: cfg!(target_os = "android"),
             unprocessed_scroll: Default::default(),
 
+            prev_canvas: None,
+
             next_resp: Default::default(),
         }
     }
@@ -669,8 +679,12 @@ impl Editor {
             .width()
             .min(self.edit.renderer.layout.max_width)
             .round();
-        let height_updated = self.edit.renderer.height != height;
-        let width_updated = self.edit.renderer.width != width;
+        let canvas = Vec2::new(width, height);
+        let (height_updated, width_updated) = match self.prev_canvas {
+            Some(prev) => (prev.y != canvas.y, prev.x != canvas.x),
+            None => (true, true),
+        };
+        self.prev_canvas = Some(canvas);
         self.edit.renderer.height = height;
         self.edit.renderer.width = width;
 

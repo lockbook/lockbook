@@ -605,18 +605,26 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     /// Walks forward from the current row summing precise heights of
     /// subsequent rows still inside `ancestor`, capped at
     /// `viewport.bottom + 1`. Returns the screen-y of the chrome
-    /// rect's bottom. The starting row's content + suffix is not
-    /// included here (caller already accounts for the row's own y +
-    /// height).
+    /// rect's bottom. Caller passes `content_bottom = content_top +
+    /// content_height` (no suffix); we add the current row's own
+    /// suffix here so the leaf's post-spacing is included even when
+    /// the current row is already the leaf's last row (otherwise the
+    /// chrome bottom jumps up by `leaf_post_spacing` as the anchor
+    /// crosses from second-to-last to last).
     fn bar_chrome_bottom(
         &self, leaf: &'ast AstNode<'ast>, line: Option<usize>, ancestor: &'ast AstNode<'ast>,
         content_bottom: f32,
     ) -> f32 {
         let viewport = self.renderer.viewport.get();
-        let mut y = content_bottom;
+        let n = self.line_count(leaf).unwrap_or(1);
+        let current_suffix = match line {
+            None => self.leaf_post_spacing(leaf),
+            Some(idx) if idx + 1 == n => self.leaf_post_spacing(leaf),
+            Some(_) => 0.0,
+        };
+        let mut y = content_bottom + current_suffix;
         // First, finish remaining rows of the current leaf.
         if let Some(idx) = line {
-            let n = self.line_count(leaf).unwrap_or(1);
             for next_idx in (idx + 1)..n {
                 y += self.row_layout(leaf, Some(next_idx)).total();
                 if y > viewport.max.y + 1.0 {
