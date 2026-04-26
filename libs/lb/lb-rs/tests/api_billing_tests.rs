@@ -7,7 +7,7 @@ use lb_rs::model::api::{
 use lb_rs::model::file_metadata::FileType;
 use rand::RngCore;
 use test_utils::{
-    assert_matches, generate_premium_account_tier, test_core_with_account, test_credit_cards,
+    assert_matches, generate_premium_account_tier, local, test_core_with_account, test_credit_cards,
 };
 
 #[tokio::test]
@@ -18,9 +18,10 @@ async fn upgrade_account_google_play_already_premium() {
     let account = core.get_account().unwrap();
 
     // upgrade account tier to premium using stripe
-    core.client
+    local(&core)
+        .client
         .request(
-            account,
+            &account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -34,10 +35,10 @@ async fn upgrade_account_google_play_already_premium() {
         .unwrap();
 
     // try to upgrade to premium with android
-    let result = core
+    let result = local(&core)
         .client
         .request(
-            account,
+            &account,
             UpgradeAccountGooglePlayRequest {
                 purchase_token: "".to_string(),
                 account_id: "".to_string(),
@@ -60,10 +61,10 @@ async fn upgrade_account_google_play_invalid_purchase_token() {
     let account = core.get_account().unwrap();
 
     // upgrade with bad purchase token
-    let result = core
+    let result = local(&core)
         .client
         .request(
-            account,
+            &account,
             UpgradeAccountGooglePlayRequest {
                 purchase_token: "".to_string(),
                 account_id: "".to_string(),
@@ -86,9 +87,10 @@ async fn upgrade_account_to_premium() {
     let account = core.get_account().unwrap();
 
     // upgrade account tier to premium
-    core.client
+    local(&core)
+        .client
         .request(
-            account,
+            &account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -109,9 +111,10 @@ async fn new_tier_is_old_tier() {
     let account = core.get_account().unwrap();
 
     // upgrade account tier to premium
-    core.client
+    local(&core)
+        .client
         .request(
-            account,
+            &account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -125,10 +128,10 @@ async fn new_tier_is_old_tier() {
         .unwrap();
 
     // upgrade account tier to premium
-    let result = core
+    let result = local(&core)
         .client
         .request(
-            account,
+            &account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -155,10 +158,10 @@ async fn card_does_not_exist() {
     let account = core.get_account().unwrap();
 
     // upgrade account tier to premium using an "old card"
-    let result = core
+    let result = local(&core)
         .client
         .request(
-            account,
+            &account,
             UpgradeAccountStripeRequest {
                 account_tier: StripeAccountTier::Premium(PaymentMethod::OldCard),
             },
@@ -192,10 +195,10 @@ async fn card_decline() {
 
     for (card_number, expected_err) in scenarios {
         // upgrade account tier to premium using bad card number
-        let result = core
+        let result = local(&core)
             .client
             .request(
-                account,
+                &account,
                 UpgradeAccountStripeRequest {
                     account_tier: generate_premium_account_tier(card_number, None, None, None),
                 },
@@ -250,10 +253,10 @@ async fn invalid_cards() {
 
     for (card_number, maybe_exp_year, maybe_exp_month, maybe_cvc, expected_err) in scenarios {
         // upgrade account tier to premium using bad card information
-        let result = core
+        let result = local(&core)
             .client
             .request(
-                account,
+                &account,
                 UpgradeAccountStripeRequest {
                     account_tier: generate_premium_account_tier(
                         card_number,
@@ -281,9 +284,10 @@ async fn cancel_stripe_subscription() {
     let account = core.get_account().unwrap();
 
     // switch account tier to premium
-    core.client
+    local(&core)
+        .client
         .request(
-            account,
+            &account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -297,8 +301,9 @@ async fn cancel_stripe_subscription() {
         .unwrap();
 
     // cancel stripe subscription
-    core.client
-        .request(account, CancelSubscriptionRequest {})
+    local(&core)
+        .client
+        .request(&account, CancelSubscriptionRequest {})
         .await
         .unwrap();
 }
@@ -332,9 +337,10 @@ async fn downgrade_denied() {
     }
 
     // switch account tier to premium
-    core.client
+    local(&core)
+        .client
         .request(
-            account,
+            &account,
             UpgradeAccountStripeRequest {
                 account_tier: generate_premium_account_tier(
                     test_credit_cards::GOOD,
@@ -360,9 +366,9 @@ async fn downgrade_denied() {
     core.sync().await.unwrap();
 
     // attempt to cancel subscription but fail
-    let result = core
+    let result = local(&core)
         .client
-        .request(account, CancelSubscriptionRequest {})
+        .request(&account, CancelSubscriptionRequest {})
         .await;
 
     assert_matches!(
@@ -386,8 +392,9 @@ async fn downgrade_denied() {
     }
 
     // cancel subscription again
-    core.client
-        .request(account, CancelSubscriptionRequest {})
+    local(&core)
+        .client
+        .request(&account, CancelSubscriptionRequest {})
         .await
         .unwrap();
 }
@@ -399,9 +406,9 @@ async fn cancel_subscription_not_premium() {
     let account = core.get_account().unwrap();
 
     // cancel subscription but the account is not premium
-    let result = core
+    let result = local(&core)
         .client
-        .request(account, CancelSubscriptionRequest {})
+        .request(&account, CancelSubscriptionRequest {})
         .await;
 
     assert_matches!(

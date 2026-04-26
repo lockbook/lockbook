@@ -250,7 +250,7 @@ async fn search(query: &str) -> CliResult<()> {
     lb.build_index().await?;
     let build_time = time.elapsed();
 
-    lb.search.tantivy_reader.reload().unwrap();
+    lb.reload_search_index().await?;
 
     let time = Instant::now();
     let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;

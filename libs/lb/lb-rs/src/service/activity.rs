@@ -1,4 +1,4 @@
-use crate::Lb;
+use crate::LocalLb;
 use crate::model::errors::LbResult;
 use crate::model::tree_like::TreeLike;
 use serde::{Deserialize, Serialize};
@@ -6,7 +6,7 @@ use std::cmp::{self, Ordering};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-impl Lb {
+impl LocalLb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         let db = self.ro_tx().await;
@@ -148,7 +148,7 @@ impl DocEvent {
     }
 }
 
-#[derive(Debug, Copy, Clone)]
+#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
 pub struct RankingWeights {
     /// the freshness of a doc as determined by the last activity
     pub temporality: i64,

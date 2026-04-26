@@ -1,4 +1,4 @@
-use crate::Lb;
+use crate::LocalLb;
 use crate::model::api::GetPublicKeyRequest;
 use crate::model::errors::{LbErr, LbResult};
 use crate::model::file::{File, ShareMode};
@@ -8,7 +8,7 @@ use crate::service::events::Actor;
 use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
-impl Lb {
+impl LocalLb {
     // todo: this can check whether the username is known already
     #[instrument(level = "debug", skip(self))]
     pub async fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {

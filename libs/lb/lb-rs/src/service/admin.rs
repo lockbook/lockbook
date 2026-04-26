@@ -1,11 +1,11 @@
-use crate::Lb;
+use crate::LocalLb;
 use crate::io::network::ApiError;
 use crate::model::account::Username;
 use crate::model::api::*;
 use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 use uuid::Uuid;
 
-impl Lb {
+impl LocalLb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn disappear_account(&self, username: &str) -> LbResult<()> {
         let account = self.get_account()?;
