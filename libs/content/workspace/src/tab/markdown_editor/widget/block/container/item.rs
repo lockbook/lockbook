@@ -31,8 +31,7 @@ impl<'ast> MdRender {
     /// Paint the list item's marker (bullet or ordered number) into
     /// the annotation rect at the item's first-line baseline.
     pub(crate) fn chrome_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, annotation: Rect,
-        siblings: &[&'ast AstNode<'ast>], row_height: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, annotation: Rect, row_height: f32,
     ) {
         let parent = node.parent().unwrap();
         let NodeValue::List(node_list) = parent.data.borrow().value else {
@@ -50,7 +49,7 @@ impl<'ast> MdRender {
                 );
             }
             ListType::Ordered => {
-                let sibling_index = self.sibling_index(node, siblings);
+                let sibling_index = self.sibling_index(node);
                 let number = start + sibling_index;
 
                 let text = format!("{number}.");
@@ -93,15 +92,12 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn show_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
-    ) {
+    pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
         let annotation =
             Rect::from_min_size(top_left, Vec2 { x: self.layout.indent, y: row_height });
-        self.chrome_item(ui, node, annotation, siblings, row_height);
+        self.chrome_item(ui, node, annotation, row_height);
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
@@ -150,8 +146,8 @@ impl<'ast> MdRender {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.item_contents(node, siblings),
-            self.item_fold_reveal(node, siblings),
+            self.item_contents(node),
+            self.item_fold_reveal(node),
         );
     }
 
@@ -261,9 +257,7 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn item_contents(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> (Grapheme, Grapheme) {
+    pub fn item_contents(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         // contents start at the end of the first child, which acts as a sort of section title
         // if no children, start at end of node first line
         let mut contents = if let Some(first_child) = node.children().next() {
@@ -272,9 +266,7 @@ impl<'ast> MdRender {
             self.node_first_line(node).end().into_range()
         };
 
-        let sibling_index = self.sibling_index(node, siblings);
-
-        if let Some(sibling) = siblings[sibling_index + 1..].first() {
+        if let Some(sibling) = node.next_sibling() {
             let sibling_first_line = self.node_first_line_idx(sibling);
             let last_line = sibling_first_line - 1;
             contents.1 = self.bounds.source_lines[last_line].end();
@@ -288,10 +280,8 @@ impl<'ast> MdRender {
     }
 
     /// Returns true if the item contents should be revealed whether the heading is folded or not
-    pub fn item_fold_reveal(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
-        self.range_contains_revealed(self.item_contents(node, siblings), false, true)
+    pub fn item_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.range_contains_revealed(self.item_contents(node), false, true)
     }
 
     /// Returns true if the item is selected for folding; specialized adaptation of self.selected_block()

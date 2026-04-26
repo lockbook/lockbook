@@ -333,7 +333,6 @@ impl<'ast> MdRender {
 
     pub(crate) fn show_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
         let ui = &mut self.node_ui(ui, node);
 
@@ -383,7 +382,7 @@ impl<'ast> MdRender {
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => self.show_document(ui, node, top_left),
             NodeValue::FootnoteDefinition(_) => self.show_footnote_definition(ui, node, top_left),
-            NodeValue::Item(_) => self.show_item(ui, node, top_left, siblings),
+            NodeValue::Item(_) => self.show_item(ui, node, top_left),
             NodeValue::List(_) => self.show_block_children(ui, node, top_left),
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => self.show_table(ui, node, top_left),
@@ -391,7 +390,7 @@ impl<'ast> MdRender {
                 self.show_table_row(ui, node, top_left, *is_header_row)
             }
             NodeValue::TaskItem(node_task_item) => {
-                self.show_task_item(ui, node, top_left, node_task_item, siblings)
+                self.show_task_item(ui, node, top_left, node_task_item)
             }
 
             // inline
@@ -428,7 +427,7 @@ impl<'ast> MdRender {
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
             NodeValue::Heading(NodeHeading { level, setext, .. }) => {
-                self.show_heading(ui, node, top_left, *level, *setext, siblings)
+                self.show_heading(ui, node, top_left, *level, *setext)
             }
             NodeValue::HtmlBlock(_) => self.show_html_block(ui, node, top_left),
             NodeValue::Paragraph => self.show_paragraph(ui, node, top_left),
@@ -451,15 +450,17 @@ impl<'ast> MdRender {
                 || node.is_leaf_block())
     }
 
-    pub fn sibling_index(
-        &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
-    ) -> usize {
-        let this_sibling_index = sorted_siblings
-            .iter()
-            .position(|sibling| node.same_node(sibling))
-            .unwrap();
-
-        this_sibling_index
+    /// Position of `node` among its parent's children. Counts preceding
+    /// siblings via AST navigation — O(K) for K = position, no
+    /// allocation.
+    pub fn sibling_index(&self, node: &'ast AstNode<'ast>) -> usize {
+        let mut count = 0;
+        let mut prev = node.previous_sibling();
+        while let Some(s) = prev {
+            count += 1;
+            prev = s.previous_sibling();
+        }
+        count
     }
 
     /// Returns the portion of the line that's within the node, excluding line
@@ -657,13 +658,7 @@ impl<'ast> MdRender {
                 if matches!(
                     &ancestor.data.borrow().value,
                     NodeValue::Item(_) | NodeValue::TaskItem(_)
-                ) && !self.item_fold_reveal(
-                    ancestor,
-                    &ancestor
-                        .parent()
-                        .map(|p| p.children().collect::<Vec<_>>())
-                        .unwrap_or_else(|| vec![ancestor]),
-                )
+                ) && !self.item_fold_reveal(ancestor)
                     && self.fold(ancestor).is_some()
                 {
                     return true;
@@ -688,19 +683,7 @@ impl<'ast> MdRender {
             if let NodeValue::Heading(heading) = &s.data.borrow().value {
                 if heading.level < most_significant_unfolded_heading {
                     most_significant_unfolded_heading = heading.level;
-                    // `heading_fold_reveal` still takes the parent's
-                    // siblings (used for `heading_contents` which
-                    // builds a level-stack across the whole sibling
-                    // run). One Vec collect per `compute_hidden_by_fold`
-                    // call, only on the first heading we encounter,
-                    // and only when the heading is folded — bounded.
-                    if !self.heading_fold_reveal(
-                        s,
-                        &s.parent()
-                            .map(|p| p.children().collect::<Vec<_>>())
-                            .unwrap_or_else(|| vec![s]),
-                    )
-                        && self.fold(s).is_some()
+                    if !self.heading_fold_reveal(s) && self.fold(s).is_some()
                     {
                         // our node is contained by a folded, unrevealed heading
                         return true;

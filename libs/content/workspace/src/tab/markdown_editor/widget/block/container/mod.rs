@@ -152,7 +152,7 @@ impl<'ast> MdRender {
                         precise_height,
                     );
                 }
-                self.show_block(ui, child, top_left, &children);
+                self.show_block(ui, child, top_left);
             } else {
                 let in_buffer = top_left.y + approx_height > viewport.min.y - buffer
                     && top_left.y < viewport.max.y + buffer;

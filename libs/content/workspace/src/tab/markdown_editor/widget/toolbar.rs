@@ -1133,7 +1133,6 @@ impl<'ast> Editor {
             &mut ui.new_child(UiBuilder::new().max_rect(rect).layout(*ui.layout())),
             root,
             top_left,
-            &[root],
         );
 
         self.edit.renderer.layout_cache.clear();

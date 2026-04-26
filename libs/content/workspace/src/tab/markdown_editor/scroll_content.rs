@@ -141,19 +141,6 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
         Self { renderer, root, trailing_precise, cursor: Cursor::Start }
     }
 
-    /// Children of `node`'s parent — used by `show_block` and
-    /// `height` which still take a siblings slice (those touch the
-    /// per-block dispatch path used by atomic leaves; less hot than
-    /// the spacing helpers, which now derive sibling info from
-    /// `node.previous_sibling()` / `node.next_sibling()` directly).
-    /// Root has no parent — pass it as its own sole sibling so
-    /// `sibling_index(root, ...)` finds it.
-    fn parent_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        node.parent()
-            .map(|p| p.children().collect())
-            .unwrap_or_else(|| vec![node])
-    }
-
     /// Source-text range covered by the row at the cursor's current
     /// position, or `None` if the cursor is off a real row.
     pub fn text_range(&self) -> Option<(Grapheme, Grapheme)> {
@@ -470,14 +457,8 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
                             Pos2::new(x, content_top),
                             Vec2::new(indent, row_height),
                         );
-                        let parent_siblings = self.parent_siblings(ancestor);
-                        self.renderer.chrome_item(
-                            ui,
-                            ancestor,
-                            annotation,
-                            &parent_siblings,
-                            row_height,
-                        );
+                        self.renderer
+                            .chrome_item(ui, ancestor, annotation, row_height);
                     }
                 }
                 NodeValue::TaskItem(node_task_item) => {
@@ -902,7 +883,6 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                     content_x += ancestor_indent(&ancestor.data.borrow().value, self.renderer);
                 }
 
-                let siblings = self.parent_siblings(node);
                 let layout = self.row_layout(node, line);
 
                 // Pre-spacing (only on the first row of the leaf).
@@ -942,12 +922,12 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                                 );
                             }
                             _ => {
-                                self.renderer.show_block(ui, node, tl, &siblings);
+                                self.renderer.show_block(ui, node, tl);
                             }
                         }
                     }
                     None => {
-                        self.renderer.show_block(ui, node, tl, &siblings);
+                        self.renderer.show_block(ui, node, tl);
                     }
                 }
                 tl.y += layout.content;

@@ -137,7 +137,6 @@ impl<'ast> MdRender {
 
     pub fn show_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, level: u8, setext: bool,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
         if setext {
             self.show_setext_heading(ui, node, top_left, level);
@@ -150,8 +149,8 @@ impl<'ast> MdRender {
             // Hover-only check: approximate is fine. Precise here forces
             // a full-tree walk for headings near the doc top (the heading
             // "contains" everything below it), which dominates cold init.
-            let siblings_height = self.height_approx(node)
-                + self.heading_contained_siblings_height(node, siblings);
+            let siblings_height =
+                self.height_approx(node) + self.heading_contained_siblings_height(node);
             let siblings_space =
                 Rect::from_min_size(top_left, Vec2::new(self.width(node), siblings_height));
 
@@ -179,8 +178,8 @@ impl<'ast> MdRender {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.heading_contents(node, siblings),
-            self.heading_fold_reveal(node, siblings),
+            self.heading_contents(node),
+            self.heading_fold_reveal(node),
         );
     }
 
@@ -430,65 +429,42 @@ impl<'ast> MdRender {
         }
     }
 
-    fn heading_contained_siblings_height(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
+    fn heading_contained_siblings_height(&self, node: &'ast AstNode<'ast>) -> f32 {
         // Used only for hover-region hit-testing (fold-button display).
         // Approximate is fine — precise here forces a full subtree walk.
-        let contained_siblings = self.heading_contained_siblings(node, siblings);
         let mut height_sum = 0.0;
-        for sibling in &contained_siblings {
-            height_sum += self.block_pre_spacing_height_approx(sibling);
-            height_sum += self.height_approx(sibling);
-            height_sum += self.block_post_spacing_height_approx(sibling);
+        let NodeValue::Heading(heading) = &node.data.borrow().value else {
+            panic!("heading_contained_siblings_height() invoked for non-heading")
+        };
+        let level = heading.level;
+        let mut sibling = node.next_sibling();
+        while let Some(s) = sibling {
+            if let NodeValue::Heading(sib_h) = &s.data.borrow().value {
+                if sib_h.level <= level {
+                    break;
+                }
+            }
+            height_sum += self.block_pre_spacing_height_approx(s);
+            height_sum += self.height_approx(s);
+            height_sum += self.block_post_spacing_height_approx(s);
+            sibling = s.next_sibling();
         }
         height_sum
     }
 
-    fn heading_contained_siblings(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> Vec<&'ast AstNode<'ast>> {
-        let NodeValue::Heading(heading) = &node.data.borrow().value else {
-            panic!("heading_contents() invoked for non-heading")
-        };
-
-        let mut contents = self.node_range(node).end().into_range();
-        let sibling_index = self.sibling_index(node, siblings);
-
-        let mut result = Vec::new();
-
-        for sibling in siblings[sibling_index + 1..].iter() {
-            // an equal or more significant subsequent heading concludes this heading's contents
-            if let NodeValue::Heading(sibling_heading) = &sibling.data.borrow().value {
-                if sibling_heading.level <= heading.level {
-                    let sibling_first_line = self.node_first_line_idx(sibling);
-                    let last_line = sibling_first_line - 1;
-                    contents.1 = self.bounds.source_lines[last_line].end();
-
-                    break;
-                }
-            }
-
-            result.push(*sibling);
-        }
-
-        result
-    }
-
-    pub fn heading_contents(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> (Grapheme, Grapheme) {
+    pub fn heading_contents(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         let key = Self::pack_node_key(node);
         if let Some(cached) = self.layout_cache.heading_contents.borrow().get(&key) {
             return *cached;
         }
-        // Cache miss → fill the cache for every heading sharing this node's
-        // parent in a single O(siblings) sweep with a level stack. Each
-        // heading is pushed when first seen and popped when a subsequent
-        // sibling Heading at level ≤ its own arrives (its contents end at
-        // that sibling's first-line start − 1). Headings still on the stack
-        // at the end of siblings extend to the parent's range end.
-        self.populate_heading_contents(siblings);
+        // Cache miss → fill the cache for every heading sharing this
+        // node's parent in a single O(siblings) sweep with a level
+        // stack. Each heading is pushed when first seen and popped
+        // when a subsequent sibling Heading at level ≤ its own
+        // arrives (its contents end at that sibling's first-line
+        // start − 1). Headings still on the stack at the end of the
+        // sibling run extend to the parent's range end.
+        self.populate_heading_contents(node);
         *self
             .layout_cache
             .heading_contents
@@ -497,15 +473,12 @@ impl<'ast> MdRender {
             .expect("populate_heading_contents must have inserted this heading")
     }
 
-    fn populate_heading_contents(&self, siblings: &[&'ast AstNode<'ast>]) {
-        let parent = match siblings.first().and_then(|s| s.parent()) {
-            Some(p) => p,
-            None => return,
-        };
+    fn populate_heading_contents(&self, anchor: &'ast AstNode<'ast>) {
+        let Some(parent) = anchor.parent() else { return };
         let parent_end = self.node_range(parent).end();
-        let mut stack: Vec<(usize, u8)> = Vec::new();
+        let mut stack: Vec<(&'ast AstNode<'ast>, u8)> = Vec::new();
         let mut cache = self.layout_cache.heading_contents.borrow_mut();
-        for (i, sibling) in siblings.iter().enumerate() {
+        for sibling in parent.children() {
             let NodeValue::Heading(h) = &sibling.data.borrow().value else {
                 continue;
             };
@@ -515,9 +488,8 @@ impl<'ast> MdRender {
             } else {
                 self.bounds.source_lines[first_line_idx - 1].end()
             };
-            while let Some(&(open_idx, open_level)) = stack.last() {
+            while let Some(&(opened, open_level)) = stack.last() {
                 if open_level >= h.level {
-                    let opened = siblings[open_idx];
                     let mut contents = self.node_range(opened).end().into_range();
                     contents.1 = close_to;
                     cache.insert(Self::pack_node_key(opened), contents);
@@ -526,10 +498,9 @@ impl<'ast> MdRender {
                     break;
                 }
             }
-            stack.push((i, h.level));
+            stack.push((sibling, h.level));
         }
-        for (open_idx, _) in stack {
-            let opened = siblings[open_idx];
+        for (opened, _) in stack {
             let mut contents = self.node_range(opened).end().into_range();
             contents.1 = parent_end;
             cache.insert(Self::pack_node_key(opened), contents);
@@ -590,9 +561,7 @@ impl<'ast> MdRender {
     }
 
     /// Returns true if the heading contents should be revealed whether the heading is folded or not
-    pub fn heading_fold_reveal(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
-        self.range_contains_revealed(self.heading_contents(node, siblings), false, true)
+    pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.range_contains_revealed(self.heading_contents(node), false, true)
     }
 }

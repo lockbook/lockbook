@@ -65,7 +65,7 @@ impl MdLabel {
 
         // Scoped ui for clipping; the scope's cursor side-effects stay local.
         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-            self.renderer.show_block(ui, root, top_left, &[root]);
+            self.renderer.show_block(ui, root, top_left);
         });
 
         (std::mem::take(&mut self.renderer.text_areas), rect)
