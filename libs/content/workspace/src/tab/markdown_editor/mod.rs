@@ -68,12 +68,23 @@ pub mod show;
 mod theme;
 mod widget;
 
+#[cfg(test)]
+mod edit_prop_tests;
+#[cfg(test)]
+mod markdown_doc_gen;
+#[cfg(test)]
+mod render_prop_tests;
+#[cfg(test)]
+mod test_harness;
+
 pub use input::Event;
 pub use md_label::MdLabel;
 
 use crate::TextBufferArea;
+use crate::tab::markdown_editor::scroll_content::DocScrollContent;
 use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::affine_scroll::{AffineScrollArea, Align, align_offset};
 use crate::workspace::WsPersistentStore;
 
 #[derive(Debug, Default)]
@@ -1212,9 +1223,6 @@ impl Editor {
     }
 
     fn scroll_to_find_match(&mut self, ui: &mut Ui, scroll_id: egui::Id, viewport_height: f32) {
-        use crate::tab::markdown_editor::scroll_content::DocScrollContent;
-        use crate::widgets::affine_scroll::{AffineScrollArea, Align, align_offset};
-
         let Some(idx) = self.find.current_match else { return };
         let Some(&(target, _)) = self.find.matches.get(idx) else { return };
 

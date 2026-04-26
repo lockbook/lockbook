@@ -3,6 +3,7 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::block::APPROX_CHAR_WIDTH_FACTOR;
 
 impl<'ast> MdRender {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -47,7 +48,6 @@ impl<'ast> MdRender {
     pub fn height_approx_paragraph_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
     ) -> f32 {
-        use crate::tab::markdown_editor::widget::block::APPROX_CHAR_WIDTH_FACTOR;
         let row_height = self.row_height(node);
         let width = self.width(node).max(row_height);
         let chars = self.buffer[node_line].chars().count();

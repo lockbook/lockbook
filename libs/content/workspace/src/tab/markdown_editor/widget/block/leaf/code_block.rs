@@ -1,6 +1,7 @@
 use crate::tab::markdown_editor::{syntax_set, syntax_theme};
 use std::cell::RefCell;
 use std::collections::{HashMap, HashSet};
+use std::hash::BuildHasher;
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
@@ -634,7 +635,6 @@ impl SyntaxHighlightCache {
     }
 
     fn hash_key(&self, key: &SyntaxCacheKey) -> u64 {
-        use std::hash::BuildHasher;
         self.hasher.hash_one(key)
     }
 }

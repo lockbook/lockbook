@@ -6,6 +6,7 @@ use syntect::easy::HighlightLines;
 
 use crate::show::syntax_ext_for;
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::block::APPROX_CHAR_WIDTH_FACTOR;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -81,7 +82,6 @@ impl<'ast> MdRender {
     /// as `height_approx_paragraph_line` — buffer-char-count divided
     /// by `APPROX_CHAR_WIDTH_FACTOR`.
     pub fn height_approx_document_line(&self, node: &'ast AstNode<'ast>, line_idx: usize) -> f32 {
-        use crate::tab::markdown_editor::widget::block::APPROX_CHAR_WIDTH_FACTOR;
         let row_height = self.row_height(node);
         let width = self.width(node).max(row_height);
         let line = self.bounds.source_lines[line_idx];

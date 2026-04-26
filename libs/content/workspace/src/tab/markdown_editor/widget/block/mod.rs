@@ -22,6 +22,7 @@ use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::{Event, MdRender};
+use crate::widgets::glyphon_cache::{GlyphonCacheKey, GlyphonFontFamily};
 
 pub(crate) mod container;
 pub(crate) mod leaf;
@@ -938,7 +939,6 @@ impl MdRender {
         let line_height = line_height * ppi;
         let width = width * ppi;
 
-        use crate::widgets::glyphon_cache::*;
         // Fold wrap mode into the cache key via low-bit nudges to width.
         // Three modes need three distinct keys — a sub-ULP perturbation of
         // an already-quantized pixel value, harmless to layout but enough

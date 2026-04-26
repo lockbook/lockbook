@@ -3,6 +3,7 @@ use egui::{OpenUrl, Pos2, Ui};
 use lb_rs::Uuid;
 use lb_rs::model::text::offset_types::Grapheme;
 
+use crate::resolvers::LinkState;
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
@@ -23,7 +24,6 @@ impl<'ast> MdRender {
 
         if response.hovered && self.inline_clickable(ui, node) {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            use crate::resolvers::LinkState;
             if let LinkState::Warning { message } | LinkState::Broken { message } =
                 self.link_state_for_wikilink(&node_wiki_link.url)
             {

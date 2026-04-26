@@ -4,9 +4,11 @@ use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::MdEdit;
+use crate::tab::markdown_editor::scroll_content::DocScrollContent;
 
 use crate::tab::{ExtendedInput as _, markdown_editor::galleys::GalleyInfo};
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::affine_scroll::{AffineScrollArea, Align, align_offset};
 
 use super::{Event, Location, Region};
 
@@ -187,9 +189,6 @@ impl MdEdit {
     }
 
     pub fn scroll_to_cursor(&mut self, ui: &mut Ui, scroll_id: egui::Id, viewport_height: f32) {
-        use crate::tab::markdown_editor::scroll_content::DocScrollContent;
-        use crate::widgets::affine_scroll::{AffineScrollArea, Align, align_offset};
-
         let target = self
             .in_progress_selection
             .unwrap_or(self.renderer.buffer.current.selection)
