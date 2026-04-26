@@ -14,6 +14,18 @@ impl<'ast> MdRender {
         Format { color: self.ctx.get_lb_theme().neutral_fg_secondary(), ..parent_text_format }
     }
 
+    /// Paint the block quote's left bar inside the annotation rect
+    /// (the indent-width strip on the left). Called by `show_block_quote`
+    /// for the whole-block paint and by the scroll area's row render
+    /// for the first visible descendant of a blockquote.
+    pub(crate) fn chrome_block_quote(&self, ui: &mut Ui, annotation: Rect) {
+        ui.painter().vline(
+            annotation.center().x,
+            annotation.y_range(),
+            Stroke::new(3., self.ctx.get_lb_theme().neutral_bg_tertiary()),
+        );
+    }
+
     pub fn height_block_quote(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut result = 0.;
 
@@ -45,15 +57,9 @@ impl<'ast> MdRender {
         siblings: &[&'ast AstNode<'ast>],
     ) {
         let height = self.height(node, siblings);
-        let annotation_size = Vec2 { x: self.layout.indent, y: height };
-        let annotation_space = Rect::from_min_size(top_left, annotation_size);
-
-        ui.painter().vline(
-            annotation_space.center().x,
-            annotation_space.y_range(),
-            Stroke::new(3., self.ctx.get_lb_theme().neutral_bg_tertiary()),
-        );
-
+        let annotation_space =
+            Rect::from_min_size(top_left, Vec2 { x: self.layout.indent, y: height });
+        self.chrome_block_quote(ui, annotation_space);
         top_left.x += annotation_space.width();
 
         let first_line_idx = self.node_first_line_idx(node);

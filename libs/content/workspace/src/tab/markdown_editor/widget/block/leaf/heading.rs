@@ -228,7 +228,7 @@ impl<'ast> MdRender {
 
         top_left.y -= self.layout.row_spacing;
         if level <= 2 {
-            self.show_heading_rule(ui, top_left, width);
+            self.chrome_heading_rule(ui, top_left, width);
         }
 
         resp
@@ -338,13 +338,13 @@ impl<'ast> MdRender {
         top_left.y += height;
         self.bounds.wrap_lines.extend(wrap.row_ranges);
         if level <= 2 {
-            self.show_heading_rule(ui, top_left, width);
+            self.chrome_heading_rule(ui, top_left, width);
         }
 
         resp
     }
 
-    fn show_heading_rule(&mut self, ui: &mut Ui, top_left: Pos2, width: f32) {
+    fn chrome_heading_rule(&mut self, ui: &mut Ui, top_left: Pos2, width: f32) {
         let line_break_rect =
             Rect::from_min_size(top_left, Vec2::new(width, self.layout.block_spacing));
 

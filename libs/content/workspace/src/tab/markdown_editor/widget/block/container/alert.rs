@@ -52,20 +52,26 @@ impl<'ast> MdRender {
         result
     }
 
+    /// Paint the alert's left bar (colored per alert type) inside the
+    /// annotation rect. Color comes from the alert node's text format.
+    pub(crate) fn chrome_alert(
+        &self, ui: &mut Ui, node: &'ast AstNode<'ast>, annotation: Rect,
+    ) {
+        ui.painter().vline(
+            annotation.center().x,
+            annotation.y_range(),
+            Stroke::new(3., self.text_format(node).color),
+        );
+    }
+
     pub fn show_alert(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         node_alert: &NodeAlert, siblings: &[&'ast AstNode<'ast>],
     ) {
         let height = self.height(node, siblings);
-        let annotation_size = Vec2 { x: self.layout.indent, y: height };
-        let annotation_space = Rect::from_min_size(top_left, annotation_size);
-
-        ui.painter().vline(
-            annotation_space.center().x,
-            annotation_space.y_range(),
-            Stroke::new(3., self.text_format(node).color),
-        );
-
+        let annotation_space =
+            Rect::from_min_size(top_left, Vec2 { x: self.layout.indent, y: height });
+        self.chrome_alert(ui, node, annotation_space);
         top_left.x += self.layout.indent;
 
         // title line is shown & revealed separately from block syntax as if

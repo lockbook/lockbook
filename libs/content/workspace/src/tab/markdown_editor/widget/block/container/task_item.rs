@@ -11,37 +11,27 @@ impl<'ast> MdRender {
         self.height_item(node)
     }
 
-    pub fn show_task_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_task_item: &NodeTaskItem, siblings: &[&'ast AstNode<'ast>],
+    /// Paint the task item's checkbox + handle clicks. Centers the
+    /// checkbox in the annotation rect and registers a clickable
+    /// region slightly larger so taps are forgiving.
+    pub(crate) fn chrome_task_item(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, annotation: Rect, checked: bool,
     ) {
         let theme = self.ctx.get_lb_theme();
-        let maybe_check = node_task_item.symbol;
-        let checked = maybe_check.is_some();
+        let checkbox_space =
+            Rect::from_center_size(annotation.center(), Vec2::splat(annotation.size().min_elem()));
 
-        let first_line = self.node_first_line(node);
-        let row_height = self.node_line_row_height(node, first_line);
-
-        let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
-        let annotation_space = Rect::from_min_size(top_left, annotation_size);
-        let checkbox_space = Rect::from_center_size(
-            annotation_space.center(),
-            Vec2::splat(annotation_space.size().min_elem()),
-        );
-
-        // allocate a slightly larger clickable space that makes the checkbox
-        // easier to tap without overflowing the annotation space horizontally
-        // or overlapping with another row vertically.
-        let extra_width = (annotation_space.width() - checkbox_space.width()) / 2.;
+        // Slightly larger clickable area for friendlier taps without
+        // overlapping neighbouring rows.
+        let extra_width = (annotation.width() - checkbox_space.width()) / 2.;
         let extra_height = self.layout.row_spacing / 2.;
         let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
         let sense = if self.readonly { Sense::hover() } else { Sense::click() };
-        let checkbox_response =
-            // ui.id().with() instead of Id::new() so two views of the same document
-            // get distinct checkbox IDs
-            ui.interact(clickable_space, ui.id().with(self.node_range(node)), sense);
-        if checkbox_response.clicked() {
+        // ui.id().with() (vs Id::new()) so two views of the same doc
+        // get distinct checkbox IDs.
+        let resp = ui.interact(clickable_space, ui.id().with(self.node_range(node)), sense);
+        if resp.clicked() {
             let check_offset = self.check_offset(node);
             let new_check = if checked { ' ' } else { 'x' };
             self.render_events.push(Event::Replace {
@@ -50,25 +40,19 @@ impl<'ast> MdRender {
                 advance_cursor: false,
             });
         }
-        if checkbox_response.hovered() && !self.readonly {
+        if resp.hovered() && !self.readonly {
             ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
         }
         self.touch_consuming_rects.push(clickable_space);
 
-        // draw checkbox
         ui.painter().rect(
             checkbox_space,
             2,
-            if checkbox_response.hovered() {
-                theme.neutral()
-            } else {
-                theme.neutral_bg_secondary()
-            },
+            if resp.hovered() { theme.neutral() } else { theme.neutral_bg_secondary() },
             Stroke::new(1., theme.neutral()),
             StrokeKind::Inside,
         );
 
-        // draw check
         if checked {
             let check_space = checkbox_space.shrink(3.);
             ui.painter().add(Shape::line(
@@ -80,6 +64,20 @@ impl<'ast> MdRender {
                 Stroke::new(1.5, theme.neutral_fg_secondary()),
             ));
         }
+    }
+
+    pub fn show_task_item(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
+        node_task_item: &NodeTaskItem, siblings: &[&'ast AstNode<'ast>],
+    ) {
+        let maybe_check = node_task_item.symbol;
+        let checked = maybe_check.is_some();
+
+        let first_line = self.node_first_line(node);
+        let row_height = self.node_line_row_height(node, first_line);
+        let annotation =
+            Rect::from_min_size(top_left, Vec2 { x: self.layout.indent, y: row_height });
+        self.chrome_task_item(ui, node, annotation, checked);
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
@@ -117,7 +115,7 @@ impl<'ast> MdRender {
             && (self.touch_mode
                 || hovered
                 || fold_button_space.contains(pointer)
-                || annotation_space.contains(pointer)
+                || annotation.contains(pointer)
                 || self.fold(node).is_some()
                 || self.selected_fold_item(node));
         if !show_fold_button {

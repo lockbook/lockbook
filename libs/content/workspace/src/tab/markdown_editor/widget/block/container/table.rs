@@ -49,17 +49,20 @@ impl<'ast> MdRender {
             }
         } else {
             self.show_block_children(ui, node, top_left);
-
-            // draw exterior decoration
-            let table =
+            let table_rect =
                 Rect::from_min_size(top_left, Vec2::new(width, self.block_children_height(node)));
-            ui.painter().rect_stroke(
-                table,
-                2.,
-                Stroke { width: 1., color: self.ctx.get_lb_theme().neutral_bg_tertiary() },
-                egui::epaint::StrokeKind::Inside,
-            );
+            self.chrome_table(ui, table_rect);
         }
+    }
+
+    /// Paint the table's exterior border into `rect`.
+    pub(crate) fn chrome_table(&self, ui: &mut Ui, rect: Rect) {
+        ui.painter().rect_stroke(
+            rect,
+            2.,
+            Stroke { width: 1., color: self.ctx.get_lb_theme().neutral_bg_tertiary() },
+            egui::epaint::StrokeKind::Inside,
+        );
     }
 
     fn reveal_table(&self, node: &'ast AstNode<'ast>) -> bool {

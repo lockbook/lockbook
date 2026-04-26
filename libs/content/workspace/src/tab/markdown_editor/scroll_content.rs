@@ -2,20 +2,18 @@
 //!
 //! `DocScrollContent` is the cursor itself — no flat leaf list, no
 //! pre-collected `Vec` of nodes. `next` / `prev` walk the AST on
-//! demand. The cursor identifies a leaf as either:
+//! demand.
 //!
-//! - an **atomic** top-level AST block (paragraph, heading, list,
-//!   blockquote, etc.), or
-//! - one **line** within a line-based top-level block (code block,
-//!   HTML block, front matter — and the whole document when in
-//!   plaintext mode).
+//! Today every top-level AST block (paragraph, heading, code block,
+//! list, blockquote, etc.) is one row. R2 will change this so the
+//! cursor descends into containers and per-line leaves become rows.
 //!
-//! Plus one **virtual trailing pad** leaf at the end with `approx = 0`
+//! Plus one **virtual trailing pad** row at the end with `approx = 0`
 //! and `precise = trailing_precise`, giving the user vh/2 of empty
-//! space below the doc end so the bottom of the last real leaf can be
+//! space below the doc end so the bottom of the last real row can be
 //! scrolled into view.
 
-use comrak::nodes::{AstNode, NodeValue};
+use comrak::nodes::AstNode;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::Grapheme;
 
@@ -25,22 +23,16 @@ use crate::widgets::affine_scroll::Rows;
 pub struct DocScrollContent<'a, 'ast> {
     pub renderer: &'a mut MdRender,
     pub root: &'ast AstNode<'ast>,
-    /// Precise height of the virtual trailing pad leaf (e.g. vh/2).
+    /// Precise height of the virtual trailing pad row (e.g. vh/2).
     pub trailing_precise: f32,
     cursor: Cursor<'ast>,
 }
 
-/// Cursor position within the doc's leaf sequence.
 #[derive(Clone, Copy)]
 enum Cursor<'ast> {
-    /// Before the first leaf — fresh state after `reset()`.
     Start,
-    /// At a top-level leaf. `line` is `Some` for line-based leaves,
-    /// `None` for atomic.
-    At { node: &'ast AstNode<'ast>, line: Option<usize> },
-    /// At the virtual trailing pad leaf.
+    At { node: &'ast AstNode<'ast> },
     Trailing,
-    /// After the trailing pad — past the end.
     End,
 }
 
@@ -57,35 +49,12 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     fn siblings(&self) -> Vec<&'ast AstNode<'ast>> {
         self.root.children().collect()
     }
-}
 
-/// Number of source lines in a line-based top-level block (code,
-/// html, front matter), or `None` for atomic blocks.
-fn line_count<'ast>(renderer: &MdRender, node: &'ast AstNode<'ast>) -> Option<usize> {
-    let value = &node.data.borrow().value;
-    let line_based = matches!(
-        value,
-        NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) | NodeValue::FrontMatter(_)
-    );
-    if !line_based {
-        return None;
-    }
-    let first = renderer.node_first_line_idx(node);
-    let last = renderer.node_last_line_idx(node);
-    Some(last - first + 1)
-}
-
-impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     /// Source-text range covered by the row at the cursor's current
-    /// position, or `None` if the cursor is off a real row (trailing
-    /// pad, before start, past end).
+    /// position, or `None` if the cursor is off a real row.
     pub fn text_range(&self) -> Option<(Grapheme, Grapheme)> {
         match self.cursor {
-            Cursor::At { node, line: None } => Some(self.renderer.node_range(node)),
-            Cursor::At { node, line: Some(idx) } => {
-                let first = self.renderer.node_first_line_idx(node);
-                Some(self.renderer.bounds.source_lines[first + idx])
-            }
+            Cursor::At { node } => Some(self.renderer.node_range(node)),
             Cursor::Trailing | Cursor::Start | Cursor::End => None,
         }
     }
@@ -103,26 +72,13 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
     fn next(&mut self) -> bool {
         match self.cursor {
             Cursor::Start => match self.root.children().next() {
-                Some(first) => {
-                    let line = line_count(self.renderer, first).map(|_| 0);
-                    self.cursor = Cursor::At { node: first, line };
-                }
+                Some(first) => self.cursor = Cursor::At { node: first },
                 None => self.cursor = Cursor::Trailing,
             },
-            Cursor::At { node, line } => {
-                let advanced_line = line.and_then(|idx| {
-                    let total = line_count(self.renderer, node).unwrap_or(1);
-                    (idx + 1 < total).then_some(idx + 1)
-                });
-                if let Some(idx) = advanced_line {
-                    self.cursor = Cursor::At { node, line: Some(idx) };
-                } else if let Some(next) = node.next_sibling() {
-                    let line = line_count(self.renderer, next).map(|_| 0);
-                    self.cursor = Cursor::At { node: next, line };
-                } else {
-                    self.cursor = Cursor::Trailing;
-                }
-            }
+            Cursor::At { node } => match node.next_sibling() {
+                Some(next) => self.cursor = Cursor::At { node: next },
+                None => self.cursor = Cursor::Trailing,
+            },
             Cursor::Trailing => {
                 self.cursor = Cursor::End;
                 return false;
@@ -136,27 +92,19 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
         match self.cursor {
             Cursor::End => self.cursor = Cursor::Trailing,
             Cursor::Trailing => match self.root.children().last() {
-                Some(last) => {
-                    let line = line_count(self.renderer, last).map(|n| n.saturating_sub(1));
-                    self.cursor = Cursor::At { node: last, line };
-                }
+                Some(last) => self.cursor = Cursor::At { node: last },
                 None => {
                     self.cursor = Cursor::Start;
                     return false;
                 }
             },
-            Cursor::At { node, line } => {
-                let stepped_line = line.and_then(|idx| (idx > 0).then(|| idx - 1));
-                if let Some(idx) = stepped_line {
-                    self.cursor = Cursor::At { node, line: Some(idx) };
-                } else if let Some(prev) = node.previous_sibling() {
-                    let line = line_count(self.renderer, prev).map(|n| n.saturating_sub(1));
-                    self.cursor = Cursor::At { node: prev, line };
-                } else {
+            Cursor::At { node } => match node.previous_sibling() {
+                Some(prev) => self.cursor = Cursor::At { node: prev },
+                None => {
                     self.cursor = Cursor::Start;
                     return false;
                 }
-            }
+            },
             Cursor::Start => return false,
         }
         true
@@ -164,7 +112,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
 
     fn approx(&self) -> f32 {
         match self.cursor {
-            Cursor::At { node, line: _ } => {
+            Cursor::At { node } => {
                 let siblings = self.siblings();
                 self.renderer.block_pre_spacing_height_approx(node, &siblings)
                     + self.renderer.height_approx(node, &siblings)
@@ -177,7 +125,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
 
     fn precise(&mut self) -> f32 {
         match self.cursor {
-            Cursor::At { node, line: _ } => {
+            Cursor::At { node } => {
                 let siblings = self.siblings();
                 self.renderer.block_pre_spacing_height(node, &siblings)
                     + self.renderer.height(node, &siblings)
@@ -190,7 +138,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
 
     fn render(&mut self, ui: &mut Ui, top_left: Pos2) {
         match self.cursor {
-            Cursor::At { node, line: _ } => {
+            Cursor::At { node } => {
                 // x from renderer's centered content column; y from
                 // scroll area's screen-space placement.
                 let mut tl = Pos2::new(self.renderer.top_left.x, top_left.y);

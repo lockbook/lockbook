@@ -39,6 +39,18 @@ impl<'ast> MdRender {
         Format { family: FontFamily::Mono, ..parent_text_format }
     }
 
+    /// Paint the code block chrome (border) into `rect`. Same for
+    /// fenced and indented blocks. The scroll area calls this when a
+    /// code block's first row enters the viewport.
+    pub(crate) fn chrome_code_block(&self, ui: &mut Ui, rect: Rect) {
+        ui.painter().rect_stroke(
+            rect,
+            2.,
+            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
+            egui::epaint::StrokeKind::Inside,
+        );
+    }
+
     pub fn height_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
@@ -90,12 +102,8 @@ pub fn show_code_block(
                     );
                 }
             } else {
-                // Code is monospace — char-count × char_width gives the
-                // wrapped row count without cosmic-text shape. Avoids
-                // shape per line, which dominates init for a giant
-                // code block (e.g. one 100KB block ≈ 400 lines).
                 result += self.layout.row_spacing;
-                result += self.height_approx_code_block_line(node, node_line);
+                result += self.height_code_block_line(node, node_code_block, line, false);
             }
         }
 
@@ -107,7 +115,7 @@ pub fn show_code_block(
     /// advances the wrap via `span_section` instead of painting via
     /// `show_section`. Same content + same chunking → same cosmic-text
     /// wrap → same `wrap.height()` as what show paints.
-    fn height_code_block_line(
+    pub(crate) fn height_code_block_line(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (Grapheme, Grapheme), synthetic: bool,
     ) -> f32 {
@@ -193,7 +201,7 @@ pub fn show_code_block(
         (code_line, regions)
     }
 
-fn height_approx_code_block_line(
+pub(crate) fn height_approx_code_block_line(
         &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
     ) -> f32 {
         let row_height = self.layout.row_height;
@@ -215,18 +223,8 @@ fn height_approx_code_block_line(
         node_code_block: &NodeCodeBlock,
     ) {
         let mut width = self.width(node);
-        // Use `cheap` total for the background rect — same approximation
-        // we account for in advance per line. (`height_fenced_code_block`
-        // already uses the cheap path.)
         let height = self.height_fenced_code_block(node, node_code_block);
-
-        let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        ui.painter().rect_stroke(
-            rect,
-            2.,
-            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
-            egui::epaint::StrokeKind::Inside,
-        );
+        self.chrome_code_block(ui, Rect::from_min_size(top_left, Vec2::new(width, height)));
 
         width -= 2. * self.layout.block_padding;
         top_left.x += self.layout.block_padding;
@@ -236,7 +234,6 @@ fn height_approx_code_block_line(
         let reveal = self.reveal_fenced_code_block(node, node_code_block);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
-        let clip = ui.clip_rect();
         for line_idx in first_line_idx..=last_line_idx {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
@@ -262,24 +259,13 @@ fn height_approx_code_block_line(
                 }
             } else {
                 top_left.y += self.layout.row_spacing;
-                // Per-line viewport check: visible lines shape precisely
-                // and advance by the precise wrap height; off-screen
-                // lines skip shape and advance by `height_approx_code_block_line`.
-                let cheap = self.height_approx_code_block_line(node, node_line);
-                let line_top = top_left.y;
-                let line_bot_estimate = line_top + cheap;
-                let visible = line_bot_estimate >= clip.min.y && line_top <= clip.max.y;
-                if visible {
-                    self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
-                    top_left.y += self.height_code_block_line(node, node_code_block, line, false);
-                } else {
-                    top_left.y += cheap;
-                }
+                self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
+                top_left.y += self.height_code_block_line(node, node_code_block, line, false);
             }
         }
     }
 
-    fn reveal_fenced_code_block(
+    pub(crate) fn reveal_fenced_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> bool {
         let first_line_idx = self.node_first_line_idx(node);
@@ -317,9 +303,7 @@ fn height_approx_code_block_line(
                     self.text_format_syntax(),
                 );
             } else {
-                let _ = (node_code_block, synthetic);
-                let node_line = self.node_line(node, line);
-                result += self.height_approx_code_block_line(node, node_line);
+                result += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
 
             if line_idx != last_line_idx {
@@ -339,14 +323,7 @@ fn height_approx_code_block_line(
     ) {
         let width = self.width(node);
         let height = self.height_indented_code_block(node, node_code_block, synthetic);
-
-        let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        ui.painter().rect_stroke(
-            rect,
-            2.,
-            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
-            egui::epaint::StrokeKind::Inside,
-        );
+        self.chrome_code_block(ui, Rect::from_min_size(top_left, Vec2::new(width, height)));
 
         top_left.x += self.layout.block_padding;
         top_left.y += self.layout.block_padding;
@@ -354,7 +331,6 @@ fn height_approx_code_block_line(
         let reveal = self.reveal_indented_code_block(node, synthetic);
         let first_line_idx = self.node_first_line_idx(node);
         let last_line_idx = self.node_last_line_idx(node);
-        let clip = ui.clip_rect();
         for line_idx in first_line_idx..=last_line_idx {
             let line = self.bounds.source_lines[line_idx];
 
@@ -365,20 +341,8 @@ fn height_approx_code_block_line(
                 top_left.y += wrap.height();
                 self.bounds.wrap_lines.extend(wrap.row_ranges);
             } else {
-                // See `show_fenced_code_block` for the per-line viewport
-                // rationale.
-                let node_line = self.node_line(node, line);
-                let cheap = self.height_approx_code_block_line(node, node_line);
-                let line_top = top_left.y;
-                let line_bot_estimate = line_top + cheap;
-                let visible = line_bot_estimate >= clip.min.y && line_top <= clip.max.y;
-                if visible {
-                    self.show_code_block_line(ui, node, top_left, node_code_block, line, synthetic);
-                    top_left.y +=
-                        self.height_code_block_line(node, node_code_block, line, synthetic);
-                } else {
-                    top_left.y += cheap;
-                }
+                self.show_code_block_line(ui, node, top_left, node_code_block, line, synthetic);
+                top_left.y += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
 
             top_left.y += self.layout.row_spacing;
@@ -411,7 +375,7 @@ fn height_approx_code_block_line(
         reveal
     }
 
-    fn show_code_block_line(
+    pub(crate) fn show_code_block_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock, line: (Grapheme, Grapheme), synthetic: bool,
     ) {
@@ -450,7 +414,7 @@ fn height_approx_code_block_line(
     // followed only by spaces, which are ignored."
     // https://github.github.com/gfm/#fenced-code-blocks
 
-    fn is_closing_fence(
+    pub(crate) fn is_closing_fence(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (Grapheme, Grapheme),
     ) -> bool {

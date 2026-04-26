@@ -28,27 +28,23 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn show_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
+    /// Paint the list item's marker (bullet or ordered number) into
+    /// the annotation rect at the item's first-line baseline.
+    pub(crate) fn chrome_item(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, annotation: Rect,
+        siblings: &[&'ast AstNode<'ast>], row_height: f32,
     ) {
-        let first_line = self.node_first_line(node);
-        let row_height = self.node_line_row_height(node, first_line);
-
         let parent = node.parent().unwrap();
         let NodeValue::List(node_list) = parent.data.borrow().value else {
             unreachable!("items always have list parents")
         };
         let NodeList { list_type, start, .. } = node_list;
 
-        let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
-        let annotation_space = Rect::from_min_size(top_left, annotation_size);
-
         let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();
         match list_type {
             ListType::Bullet => {
                 ui.painter().circle_filled(
-                    annotation_space.center(),
+                    annotation.center(),
                     self.layout.bullet_radius * row_height / self.layout.row_height,
                     annotation_color,
                 );
@@ -83,8 +79,8 @@ impl<'ast> MdRender {
                 };
 
                 // right-pad from content, overflow left if needed
-                let x = annotation_space.right() - size.x - gap;
-                let y = annotation_space.top() + content_line_y - number_line_y;
+                let x = annotation.right() - size.x - gap;
+                let y = annotation.top() + content_line_y - number_line_y;
                 let rect = Rect::from_min_size(Pos2::new(x, y), size);
                 self.text_areas.push(TextBufferArea::new(
                     buffer,
@@ -95,6 +91,17 @@ impl<'ast> MdRender {
                 ));
             }
         }
+    }
+
+    pub fn show_item(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
+        siblings: &[&'ast AstNode<'ast>],
+    ) {
+        let first_line = self.node_first_line(node);
+        let row_height = self.node_line_row_height(node, first_line);
+        let annotation =
+            Rect::from_min_size(top_left, Vec2 { x: self.layout.indent, y: row_height });
+        self.chrome_item(ui, node, annotation, siblings, row_height);
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
@@ -132,7 +139,7 @@ impl<'ast> MdRender {
             && (self.touch_mode
                 || hovered
                 || fold_button_space.contains(pointer)
-                || annotation_space.contains(pointer)
+                || annotation.contains(pointer)
                 || self.fold(node).is_some()
                 || self.selected_fold_item(node));
         if !show_fold_button {
