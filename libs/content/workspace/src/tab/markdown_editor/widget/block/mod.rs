@@ -672,9 +672,9 @@ impl<'ast> MdRender {
         while let Some(c) = child {
             // Pull only the bits we need out of the borrow — copying
             // the heading level and the variant kind avoids cloning
-            // the whole `NodeValue` (which carries owned `String`s
-            // for inline payloads). The full clone showed up in dhat
-            // as 8K+ small allocations per frame.
+            // the whole `NodeValue` (which carries owned `String`s for
+            // inline payloads), which on a typical doc runs ~8K times
+            // per frame.
             let (heading_level, is_item_or_task) = {
                 let value = &c.data.borrow().value;
                 (

@@ -1033,11 +1033,10 @@ mod tests {
 
     /// Non-revealed alert with multiple paragraph children: the cursor
     /// descends into the alert and renders each child as its own row.
-    /// The alert's title chrome ("Note"/"Tip"/etc. with icon) used to
-    /// be drawn by `show_alert`, which never runs in the descent path
-    /// — so the title would silently vanish. Verify the title is now
-    /// painted by the chrome path on the first descendant, and the
-    /// bar geometry includes it.
+    /// `show_alert` never runs in the descent path, so the alert's
+    /// title chrome ("Note"/"Tip"/etc. with icon) must be painted by
+    /// the chrome path on the first descendant. Verify the title is
+    /// painted and the bar geometry includes it.
     #[test]
     fn alert_title_painted_when_descended() {
         let md = "> [!NOTE]\n> Title text here.\n>\n> First body paragraph.\n>\n> Second body paragraph.\n";

@@ -61,8 +61,7 @@ impl MdRender {
         self.bounds.words.clear();
         // ~1 word per 6 bytes is a generous floor on English; oversize
         // is harmless, undersize forces ~log(n) Vec doublings during
-        // the loop. dhat showed 300KB across the doublings without a
-        // capacity hint.
+        // the loop (~300KB of churn on a typical doc).
         self.bounds
             .words
             .reserve(self.buffer.current.text.len() / 6);
