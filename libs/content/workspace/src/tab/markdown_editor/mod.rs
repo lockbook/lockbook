@@ -465,6 +465,8 @@ impl MdRender {
         self.bounds.inline_paragraphs.sort();
         self.calc_words();
 
+        self.populate_hidden_by_fold(root);
+
         root
     }
 

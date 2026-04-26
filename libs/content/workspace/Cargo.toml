@@ -76,3 +76,13 @@ ndk-sys = "0.4"
 raw-window-handle = "0.6"
 jni = "0.21.0"
 pollster = "0.2"
+
+[features]
+# Wires `dhat::Alloc` as the global allocator and exposes
+# `dhat::Profiler` for benches. Off by default — heap-tracked
+# allocations are ~10× slower, so this is a profiling-only knob.
+dhat-heap = ["dep:dhat"]
+
+[dependencies.dhat]
+version = "0.3"
+optional = true

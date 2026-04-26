@@ -642,65 +642,84 @@ impl<'ast> MdRender {
     }
 
     pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
-        if let Some(cached) = self.get_cached_hidden_by_fold(node) {
-            return cached;
-        }
-
-        let result = self.compute_hidden_by_fold(node);
-        self.set_cached_hidden_by_fold(node, result);
-        result
+        self.get_cached_hidden_by_fold(node)
+            .expect("hidden_by_fold queried for a node not in the current AST")
     }
 
-    fn compute_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
-        // show only the first block in folded ancestor blocks
-        if node.previous_sibling().is_some() {
-            for ancestor in node.ancestors().skip(1) {
-                if matches!(
-                    &ancestor.data.borrow().value,
-                    NodeValue::Item(_) | NodeValue::TaskItem(_)
-                ) && !self.item_fold_reveal(ancestor)
-                    && self.fold(ancestor).is_some()
-                {
-                    return true;
-                }
-            }
-        }
+    /// One DFS over the tree. Carries `item_fold_active` down through
+    /// the recursion (any folded-unrevealed Item/TaskItem ancestor
+    /// turns it on, hiding all but the first child). Per parent,
+    /// maintains a stack of currently-open headings as we walk
+    /// children left-to-right; each entry is `(level,
+    /// folded_unrevealed)`. Push/pop is amortized O(1) — every
+    /// heading is pushed once and popped at most once.
+    pub fn populate_hidden_by_fold(&self, root: &'ast AstNode<'ast>) {
+        // The root is never hidden; cache it directly so a query for
+        // `hidden_by_fold(root)` doesn't fall back to the unwrap
+        // default.
+        self.set_cached_hidden_by_fold(root, false);
+        self.populate_hidden_by_fold_subtree(root, false);
+    }
 
-        // show only the blocks that have no folded heading; headings with
-        // another equal or more significant heading between them and the target
-        // node don't count; headings intersecting the selection don't count
-        let mut most_significant_unfolded_heading =
-            if let NodeValue::Heading(heading) = &node.data.borrow().value {
-                heading.level
-            } else {
-                7 // max heading level + 1
+    fn populate_hidden_by_fold_subtree(
+        &self, parent: &'ast AstNode<'ast>, item_fold_active: bool,
+    ) {
+        // Per-parent state. Stack invariant: levels strictly
+        // increasing from bottom to top.
+        let mut heading_stack: Vec<(u8, bool)> = Vec::new();
+        let mut sibling_index: usize = 0;
+        let mut child = parent.first_child();
+        while let Some(c) = child {
+            // Pull only the bits we need out of the borrow — copying
+            // the heading level and the variant kind avoids cloning
+            // the whole `NodeValue` (which carries owned `String`s
+            // for inline payloads). The full clone showed up in dhat
+            // as 8K+ small allocations per frame.
+            let (heading_level, is_item_or_task) = {
+                let value = &c.data.borrow().value;
+                (
+                    if let NodeValue::Heading(h) = value { Some(h.level) } else { None },
+                    matches!(value, NodeValue::Item(_) | NodeValue::TaskItem(_)),
+                )
             };
-        // Walk preceding siblings via AST navigation rather than
-        // collecting them — `compute_hidden_by_fold` runs once per
-        // node (cached), but the cold pass still touches every node.
-        let mut sibling = node.previous_sibling();
-        while let Some(s) = sibling {
-            if let NodeValue::Heading(heading) = &s.data.borrow().value {
-                if heading.level < most_significant_unfolded_heading {
-                    most_significant_unfolded_heading = heading.level;
-                    if !self.heading_fold_reveal(s) && self.fold(s).is_some()
-                    {
-                        // our node is contained by a folded, unrevealed heading
-                        return true;
-                    }
+
+            // Headings end prior headings at >= their level — pop
+            // before the visibility check so the popped headings
+            // don't count as containers of this heading.
+            if let Some(level) = heading_level {
+                while heading_stack
+                    .last()
+                    .is_some_and(|&(lvl, _)| lvl >= level)
+                {
+                    heading_stack.pop();
                 }
             }
-            sibling = s.previous_sibling();
+            let hidden_by_item = sibling_index > 0 && item_fold_active;
+            // Any folded heading currently on the stack hides us.
+            // Stack is small in practice (one entry per nesting
+            // level, ≤ 6), so iterating is fine.
+            let hidden_by_heading = heading_stack.iter().any(|&(_, folded)| folded);
+            self.set_cached_hidden_by_fold(c, hidden_by_item || hidden_by_heading);
+
+            // Push self onto the heading stack so subsequent siblings
+            // know we exist as a section container. Even unfolded
+            // headings get pushed — they "block" prior less-significant
+            // folded headings from contributing past us.
+            if let Some(level) = heading_level {
+                let folded = self.fold(c).is_some() && !self.heading_fold_reveal(c);
+                heading_stack.push((level, folded));
+            }
+
+            let child_item_fold_active = item_fold_active
+                || (is_item_or_task
+                    && self.fold(c).is_some()
+                    && !self.item_fold_reveal(c));
+            self.populate_hidden_by_fold_subtree(c, child_item_fold_active);
+
+            child = c.next_sibling();
+            sibling_index += 1;
         }
-
-        false
     }
-}
-
-#[derive(Default)]
-pub struct CacheEntry<T> {
-    range: (Grapheme, Grapheme),
-    value: T,
 }
 
 // Fast integer mapping for NodeValue variants - no hashing needed
@@ -753,12 +772,6 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
     }
 }
 
-pub struct LinePrefixCacheEntry {
-    node_key_hash: u64,
-    line: (Grapheme, Grapheme),
-    value: (Graphemes, bool),
-}
-
 pub enum TitleState {
     Loading,
     Loaded(String),
@@ -767,11 +780,11 @@ pub enum TitleState {
 
 #[derive(Default)]
 pub struct LayoutCache {
-    pub height: RefCell<Vec<CacheEntry<f32>>>,
-    pub height_approx: RefCell<Vec<CacheEntry<f32>>>,
-    pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
+    pub height: RefCell<HashMap<(Grapheme, Grapheme), f32>>,
+    pub height_approx: RefCell<HashMap<(Grapheme, Grapheme), f32>>,
+    pub line_prefix_len: RefCell<HashMap<(u64, (Grapheme, Grapheme)), (Graphemes, bool)>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
-    pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
+    pub hidden_by_fold: RefCell<HashMap<(Grapheme, Grapheme), bool>>,
     /// Per-heading content range. Pure function of AST shape (heading
     /// levels of siblings + parent's range), so survives reveal/fold
     /// state changes. First miss for any heading under a parent
@@ -820,10 +833,9 @@ impl LayoutCache {
 
         // first pass: find ranges directly affected
         let mut invalidated: Vec<(Grapheme, Grapheme)> = Vec::new();
-        for entry in cache.iter() {
-            if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
-            {
-                invalidated.push(entry.range);
+        for range in cache.keys() {
+            if range.intersects(&old_range, true) || range.intersects(&new_range, true) {
+                invalidated.push(*range);
             }
         }
 
@@ -832,13 +844,12 @@ impl LayoutCache {
         }
 
         // second pass: evict directly affected nodes and their ancestors
-        cache.retain(|entry| {
-            if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
-            {
+        cache.retain(|range, _| {
+            if range.intersects(&old_range, true) || range.intersects(&new_range, true) {
                 return false;
             }
             for inv in &invalidated {
-                if entry.range.contains_range(inv, true, true) {
+                if range.contains_range(inv, true, true) {
                     return false;
                 }
             }
@@ -1015,40 +1026,25 @@ impl MdRender {
 impl<'ast> MdRender {
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
         let range = self.node_range(node);
-        self.layout_cache
-            .height
-            .borrow()
-            .binary_search_by(|entry| entry.range.cmp(&range))
-            .ok()
-            .map(|i| self.layout_cache.height.borrow()[i].value)
+        self.layout_cache.height.borrow().get(&range).copied()
     }
 
     pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32) {
         let range = self.node_range(node);
-        let mut cache = self.layout_cache.height.borrow_mut();
-        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
-            Ok(i) => cache[i].value = height,
-            Err(i) => cache.insert(i, CacheEntry { range, value: height }),
-        }
+        self.layout_cache.height.borrow_mut().insert(range, height);
     }
 
     pub fn get_cached_node_height_approx(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
         let range = self.node_range(node);
-        self.layout_cache
-            .height_approx
-            .borrow()
-            .binary_search_by(|entry| entry.range.cmp(&range))
-            .ok()
-            .map(|i| self.layout_cache.height_approx.borrow()[i].value)
+        self.layout_cache.height_approx.borrow().get(&range).copied()
     }
 
     pub fn set_cached_node_height_approx(&self, node: &'ast AstNode<'ast>, height: f32) {
         let range = self.node_range(node);
-        let mut cache = self.layout_cache.height_approx.borrow_mut();
-        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
-            Ok(i) => cache[i].value = height,
-            Err(i) => cache.insert(i, CacheEntry { range, value: height }),
-        }
+        self.layout_cache
+            .height_approx
+            .borrow_mut()
+            .insert(range, height);
     }
 
     pub fn get_cached_line_prefix_len(
@@ -1058,30 +1054,18 @@ impl<'ast> MdRender {
         self.layout_cache
             .line_prefix_len
             .borrow()
-            .binary_search_by(|entry| {
-                entry
-                    .node_key_hash
-                    .cmp(&node_key_hash)
-                    .then(entry.line.cmp(&line))
-            })
-            .ok()
-            .map(|i| self.layout_cache.line_prefix_len.borrow()[i].value)
+            .get(&(node_key_hash, line))
+            .copied()
     }
 
     pub fn set_cached_line_prefix_len(
         &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), value: (Graphemes, bool),
     ) {
         let node_key_hash = Self::pack_node_key(node);
-        let mut cache = self.layout_cache.line_prefix_len.borrow_mut();
-        match cache.binary_search_by(|entry| {
-            entry
-                .node_key_hash
-                .cmp(&node_key_hash)
-                .then(entry.line.cmp(&line))
-        }) {
-            Ok(i) => cache[i].value = value,
-            Err(i) => cache.insert(i, LinePrefixCacheEntry { node_key_hash, line, value }),
-        }
+        self.layout_cache
+            .line_prefix_len
+            .borrow_mut()
+            .insert((node_key_hash, line), value);
     }
 
     #[inline]
@@ -1105,21 +1089,15 @@ impl<'ast> MdRender {
 
     pub fn get_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> Option<bool> {
         let range = self.node_range(node);
-        self.layout_cache
-            .hidden_by_fold
-            .borrow()
-            .binary_search_by(|entry| entry.range.cmp(&range))
-            .ok()
-            .map(|i| self.layout_cache.hidden_by_fold.borrow()[i].value)
+        self.layout_cache.hidden_by_fold.borrow().get(&range).copied()
     }
 
     pub fn set_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>, hidden: bool) {
         let range = self.node_range(node);
-        let mut cache = self.layout_cache.hidden_by_fold.borrow_mut();
-        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
-            Ok(i) => cache[i].value = hidden,
-            Err(i) => cache.insert(i, CacheEntry { range, value: hidden }),
-        }
+        self.layout_cache
+            .hidden_by_fold
+            .borrow_mut()
+            .insert(range, hidden);
     }
 
     /// Pack node info into u64 using bit manipulation - ultra fast cache key
