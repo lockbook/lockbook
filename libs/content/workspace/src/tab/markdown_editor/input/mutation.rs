@@ -421,7 +421,10 @@ impl<'ast> MdEdit {
                     if matches!(node.data().value, NodeValue::Heading(_))
                         && self.renderer.selected_block(node)
                     {
-                        let siblings = self.renderer.sorted_siblings(node);
+                        let siblings: Vec<_> = node
+                            .parent()
+                            .map(|p| p.children().collect())
+                            .unwrap_or_else(|| vec![node]);
                         self.renderer.apply_fold(
                             node,
                             self.renderer.heading_contents(node, &siblings),
@@ -432,7 +435,10 @@ impl<'ast> MdEdit {
                     if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
                         && self.renderer.selected_fold_item(node)
                     {
-                        let siblings = self.renderer.sorted_siblings(node);
+                        let siblings: Vec<_> = node
+                            .parent()
+                            .map(|p| p.children().collect())
+                            .unwrap_or_else(|| vec![node]);
                         self.renderer.apply_fold(
                             node,
                             self.renderer.item_contents(node, &siblings),

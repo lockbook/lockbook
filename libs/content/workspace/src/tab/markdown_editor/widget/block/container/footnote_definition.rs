@@ -89,13 +89,11 @@ impl<'ast> MdRender {
     /// number is not from the source text; it changes to the reference text
     /// only when you select it.
     ///
-    /// In the AST, it turns out, the nodes are not presented in source order
-    /// when it comes to footnote definitions. Instead, they're presented in
-    /// reference order. At first, I
-    /// [thought](https://github.com/kivikakk/comrak/issues/554) this a bug, but
-    /// it's intended behavior. This is why [`Self::sorted_siblings`] exists.
-    /// Anyway, we leverage this behavior to determine the number we should
-    /// render for the definition, since the node itself does not contain it.
+    /// Footnote definitions are presented in reference order in the AST
+    /// (intended behavior, not a bug — see comrak#554). Footnotes are
+    /// currently disabled in our parse options, but the rendering code
+    /// keeps this leverage so the number can be derived from
+    /// definition position rather than the node payload.
     fn definition_number(&self, node: &'ast AstNode<'ast>) -> usize {
         let mut result = 0;
         let document = node.ancestors().last().expect("There is always a document");

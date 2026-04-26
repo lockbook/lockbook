@@ -451,17 +451,6 @@ impl<'ast> MdRender {
                 || node.is_leaf_block())
     }
 
-    /// Returns the children of the given node. With footnotes disabled,
-    /// comrak reports children in sourcepos order so no sorting is needed.
-    pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        node.children().collect()
-    }
-
-    /// Returns the siblings of the given node in sourcepos order.
-    pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        if let Some(parent) = node.parent() { self.sorted_children(parent) } else { vec![node] }
-    }
-
     pub fn sibling_index(
         &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
     ) -> usize {
@@ -668,7 +657,13 @@ impl<'ast> MdRender {
                 if matches!(
                     &ancestor.data.borrow().value,
                     NodeValue::Item(_) | NodeValue::TaskItem(_)
-                ) && !self.item_fold_reveal(ancestor, &self.sorted_siblings(ancestor))
+                ) && !self.item_fold_reveal(
+                    ancestor,
+                    &ancestor
+                        .parent()
+                        .map(|p| p.children().collect::<Vec<_>>())
+                        .unwrap_or_else(|| vec![ancestor]),
+                )
                     && self.fold(ancestor).is_some()
                 {
                     return true;
@@ -699,7 +694,12 @@ impl<'ast> MdRender {
                     // run). One Vec collect per `compute_hidden_by_fold`
                     // call, only on the first heading we encounter,
                     // and only when the heading is folded — bounded.
-                    if !self.heading_fold_reveal(s, &self.sorted_siblings(s))
+                    if !self.heading_fold_reveal(
+                        s,
+                        &s.parent()
+                            .map(|p| p.children().collect::<Vec<_>>())
+                            .unwrap_or_else(|| vec![s]),
+                    )
                         && self.fold(s).is_some()
                     {
                         // our node is contained by a folded, unrevealed heading

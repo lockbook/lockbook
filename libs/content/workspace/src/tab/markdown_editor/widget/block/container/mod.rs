@@ -78,7 +78,7 @@ impl<'ast> MdRender {
 
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let children = self.sorted_children(node);
+        let children = node.children().collect::<Vec<_>>();
 
         let mut height_sum = 0.0;
         for child in &children {
@@ -99,7 +99,7 @@ impl<'ast> MdRender {
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
-        let children = self.sorted_children(node);
+        let children = node.children().collect::<Vec<_>>();
 
         let required_ranges =
             self.galley_required_ranges(self.in_progress_selection, self.find_current_match);
@@ -593,7 +593,7 @@ impl<'ast> MdRender {
 
     // compute bounds for blocks stacked vertically
     pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
-        let children = self.sorted_children(node);
+        let children = node.children().collect::<Vec<_>>();
 
         for child in &children {
             // add pre-spacing bounds

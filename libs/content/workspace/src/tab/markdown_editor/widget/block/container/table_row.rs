@@ -27,7 +27,7 @@ impl<'ast> MdRender {
         } else {
             // the height of the row is the height of the tallest cell
             let mut cell_height_max = 0.0f32;
-            let children = self.sorted_children(node);
+            let children = node.children().collect::<Vec<_>>();
             for table_cell in &children {
                 cell_height_max = cell_height_max.max(self.height(table_cell));
             }
@@ -89,7 +89,7 @@ impl<'ast> MdRender {
     fn reveal_table_row(&self, node: &'ast AstNode<'ast>) -> bool {
         let selection = self.buffer.current.selection;
         let row_range = self.node_range(node);
-        let children = self.sorted_children(node); // todo: these will always already be sorted
+        let children = node.children().collect::<Vec<_>>(); // todo: these will always already be sorted
         let line = self.node_first_line(node);
         let node_line = self.node_line(node, line);
 
