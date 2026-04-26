@@ -46,11 +46,8 @@ async fn get<T: DeserializeOwned>(client: &Client, url: &str, auth: &str) -> Opt
 /// Refresh every metric source once. Safe to call from the initial startup
 /// path and from the periodic refresh loop.
 async fn refresh_all(
-    client: &Client,
-    config: &env::Config,
-    earliest_date: Option<chrono::NaiveDate>,
-    app_store: &Mutex<AppStoreState>,
-    play_store: &Mutex<PlayStoreState>,
+    client: &Client, config: &env::Config, earliest_date: Option<chrono::NaiveDate>,
+    app_store: &Mutex<AppStoreState>, play_store: &Mutex<PlayStoreState>,
     snap_store: &Mutex<SnapStoreState>,
 ) {
     github::refresh(client, &config.github_token, earliest_date).await;

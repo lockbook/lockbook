@@ -229,7 +229,9 @@ impl AppStoreState {
             return;
         }
 
-        let yesterday = (Local::now() - Duration::days(1)).format("%Y-%m-%d").to_string();
+        let yesterday = (Local::now() - Duration::days(1))
+            .format("%Y-%m-%d")
+            .to_string();
 
         if self.has_report(&yesterday) {
             return;
@@ -242,7 +244,9 @@ impl AppStoreState {
             return;
         };
 
-        if let Some(units) = fetch_and_parse_report(client, &token, &config.vendor_number, &yesterday).await {
+        if let Some(units) =
+            fetch_and_parse_report(client, &token, &config.vendor_number, &yesterday).await
+        {
             let entries: Vec<_> = units
                 .iter()
                 .map(|((product, product_type, country), &units)| DailyEntry {
@@ -264,7 +268,6 @@ impl AppStoreState {
             }
         }
     }
-
 }
 
 fn generate_token(config: &AppStoreConfig) -> Option<String> {
@@ -298,10 +301,7 @@ fn generate_token(config: &AppStoreConfig) -> Option<String> {
 }
 
 async fn fetch_and_parse_report(
-    client: &Client,
-    token: &str,
-    vendor_number: &str,
-    date: &str,
+    client: &Client, token: &str, vendor_number: &str, date: &str,
 ) -> Option<HashMap<(String, String, String), i64>> {
     let resp = client
         .get("https://api.appstoreconnect.apple.com/v1/salesReports")
@@ -344,12 +344,9 @@ fn parse_report(tsv: &str) -> HashMap<(String, String, String), i64> {
 
     let columns: Vec<&str> = header.split('\t').collect();
     let col = |name| columns.iter().position(|c| *c == name);
-    let (Some(title_idx), Some(units_idx), Some(country_idx), Some(type_idx)) = (
-        col("Title"),
-        col("Units"),
-        col("Country Code"),
-        col("Product Type Identifier"),
-    ) else {
+    let (Some(title_idx), Some(units_idx), Some(country_idx), Some(type_idx)) =
+        (col("Title"), col("Units"), col("Country Code"), col("Product Type Identifier"))
+    else {
         warn!("unexpected report format: {header}");
         return result;
     };

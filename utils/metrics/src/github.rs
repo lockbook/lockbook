@@ -15,8 +15,12 @@ lazy_static! {
         register_int_gauge_vec!("github_views", "Repo views (14 day)", &["kind"]).unwrap();
     static ref CLONES: IntGaugeVec =
         register_int_gauge_vec!("github_clones", "Repo clones (14 day)", &["kind"]).unwrap();
-    static ref REFERRERS: IntGaugeVec =
-        register_int_gauge_vec!("github_referrers", "Traffic by referrer (14 day)", &["referrer", "kind"]).unwrap();
+    static ref REFERRERS: IntGaugeVec = register_int_gauge_vec!(
+        "github_referrers",
+        "Traffic by referrer (14 day)",
+        &["referrer", "kind"]
+    )
+    .unwrap();
     static ref REPO_STATS: IntGaugeVec =
         register_int_gauge_vec!("github_repo", "Repo statistics", &["kind"]).unwrap();
 }
@@ -120,8 +124,12 @@ pub async fn refresh(client: &Client, token: &str, earliest_date: Option<NaiveDa
     .await
     {
         for r in &referrers {
-            REFERRERS.with_label_values(&[&r.referrer, "views"]).set(r.count);
-            REFERRERS.with_label_values(&[&r.referrer, "uniques"]).set(r.uniques);
+            REFERRERS
+                .with_label_values(&[&r.referrer, "views"])
+                .set(r.count);
+            REFERRERS
+                .with_label_values(&[&r.referrer, "uniques"])
+                .set(r.uniques);
         }
     }
 

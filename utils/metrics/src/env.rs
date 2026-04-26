@@ -45,9 +45,7 @@ impl Config {
                 service_account_key: play_store_key,
                 bucket: required("PLAY_STORE_BUCKET"),
             },
-            snap_store: SnapStoreConfig {
-                macaroon: required("SNAPCRAFT_MACAROON"),
-            },
+            snap_store: SnapStoreConfig { macaroon: required("SNAPCRAFT_MACAROON") },
             data_dir,
         }
     }

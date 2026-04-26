@@ -289,7 +289,10 @@ impl SnapStoreState {
 
         if let Some(report) = fetch_daily_report(client, &self.credential, &yesterday).await {
             for snap in &report.snaps {
-                *self.cumulative_new.entry(snap.snap_name.clone()).or_default() += snap.new;
+                *self
+                    .cumulative_new
+                    .entry(snap.snap_name.clone())
+                    .or_default() += snap.new;
             }
             self.save_report(&report);
         }
@@ -370,11 +373,7 @@ async fn get_snap_id(client: &Client, snap_name: &str) -> Option<String> {
     info["snap-id"].as_str().map(|s| s.to_string())
 }
 
-async fn fetch_daily_report(
-    client: &Client,
-    credential: &str,
-    date: &str,
-) -> Option<DailyReport> {
+async fn fetch_daily_report(client: &Client, credential: &str, date: &str) -> Option<DailyReport> {
     let auth_header = match parse_authorization_header(credential) {
         Some(h) => h,
         None => {
@@ -452,12 +451,7 @@ async fn fetch_daily_report(
                 }
             }
 
-            entries.push(SnapEntry {
-                snap_name: snap_name.to_string(),
-                new,
-                continued,
-                lost,
-            });
+            entries.push(SnapEntry { snap_name: snap_name.to_string(), new, continued, lost });
         }
     }
 

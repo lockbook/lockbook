@@ -298,10 +298,7 @@ async fn get_access_token(client: &Client, service_account_key: &str) -> Option<
 
     let resp = client
         .post(token_uri)
-        .form(&[
-            ("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"),
-            ("assertion", &jwt),
-        ])
+        .form(&[("grant_type", "urn:ietf:params:oauth:grant-type:jwt-bearer"), ("assertion", &jwt)])
         .send()
         .await
         .ok()?;
@@ -316,10 +313,8 @@ async fn get_access_token(client: &Client, service_account_key: &str) -> Option<
 }
 
 async fn list_csv_files(client: &Client, token: &str, bucket: &str) -> Vec<String> {
-    let url = format!(
-        "https://storage.googleapis.com/storage/v1/b/{}/o?prefix=stats/installs/",
-        bucket
-    );
+    let url =
+        format!("https://storage.googleapis.com/storage/v1/b/{}/o?prefix=stats/installs/", bucket);
 
     let resp = match client.get(&url).bearer_auth(token).send().await {
         Ok(r) => r,
