@@ -601,7 +601,9 @@ impl Default for SyntaxHighlightCache {
 impl SyntaxHighlightCache {
     pub fn insert(&self, text: String, range: (Grapheme, Grapheme), value: SyntaxHighlightResult) {
         let key = SyntaxCacheKey { text, range };
-        self.used_this_frame.borrow_mut().insert(self.hash_key(&key));
+        self.used_this_frame
+            .borrow_mut()
+            .insert(self.hash_key(&key));
         self.map.borrow_mut().insert(key, value);
     }
 
@@ -611,7 +613,9 @@ impl SyntaxHighlightCache {
         // The map lookup itself still needs an owned key since std
         // HashMap doesn't expose raw_entry stably.
         let key = SyntaxCacheKey { text: text.to_string(), range };
-        self.used_this_frame.borrow_mut().insert(self.hash_key(&key));
+        self.used_this_frame
+            .borrow_mut()
+            .insert(self.hash_key(&key));
         self.map.borrow().get(&key).cloned()
     }
 

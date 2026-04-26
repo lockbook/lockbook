@@ -54,9 +54,7 @@ impl<'ast> MdRender {
         result
     }
 
-    pub fn show_block_quote(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-    ) {
+    pub fn show_block_quote(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let height = self.height(node);
         let annotation_space =
             Rect::from_min_size(top_left, Vec2 { x: self.layout.indent, y: height });

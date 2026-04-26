@@ -374,9 +374,7 @@ impl<'ast> MdRender {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(node_alert) => {
-                self.show_alert(ui, node, top_left, node_alert)
-            }
+            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, node_alert),
             NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
@@ -661,9 +659,7 @@ impl<'ast> MdRender {
         self.populate_hidden_by_fold_subtree(root, false);
     }
 
-    fn populate_hidden_by_fold_subtree(
-        &self, parent: &'ast AstNode<'ast>, item_fold_active: bool,
-    ) {
+    fn populate_hidden_by_fold_subtree(&self, parent: &'ast AstNode<'ast>, item_fold_active: bool) {
         // Per-parent state. Stack invariant: levels strictly
         // increasing from bottom to top.
         let mut heading_stack: Vec<(u8, bool)> = Vec::new();
@@ -687,10 +683,7 @@ impl<'ast> MdRender {
             // before the visibility check so the popped headings
             // don't count as containers of this heading.
             if let Some(level) = heading_level {
-                while heading_stack
-                    .last()
-                    .is_some_and(|&(lvl, _)| lvl >= level)
-                {
+                while heading_stack.last().is_some_and(|&(lvl, _)| lvl >= level) {
                     heading_stack.pop();
                 }
             }
@@ -711,9 +704,7 @@ impl<'ast> MdRender {
             }
 
             let child_item_fold_active = item_fold_active
-                || (is_item_or_task
-                    && self.fold(c).is_some()
-                    && !self.item_fold_reveal(c));
+                || (is_item_or_task && self.fold(c).is_some() && !self.item_fold_reveal(c));
             self.populate_hidden_by_fold_subtree(c, child_item_fold_active);
 
             child = c.next_sibling();
@@ -1040,7 +1031,11 @@ impl<'ast> MdRender {
 
     pub fn get_cached_node_height_approx(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
         let range = self.node_range(node);
-        self.layout_cache.height_approx.borrow().get(&range).copied()
+        self.layout_cache
+            .height_approx
+            .borrow()
+            .get(&range)
+            .copied()
     }
 
     pub fn set_cached_node_height_approx(&self, node: &'ast AstNode<'ast>, height: f32) {
@@ -1093,7 +1088,11 @@ impl<'ast> MdRender {
 
     pub fn get_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> Option<bool> {
         let range = self.node_range(node);
-        self.layout_cache.hidden_by_fold.borrow().get(&range).copied()
+        self.layout_cache
+            .hidden_by_fold
+            .borrow()
+            .get(&range)
+            .copied()
     }
 
     pub fn set_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>, hidden: bool) {
