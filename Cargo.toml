@@ -8,6 +8,7 @@ members = [
     "libs/content/workspace",
     "libs/content/workspace-ffi",
     "libs/lb-fs",
+    "libs/lb-bifs",
     "server",
     "clients/cli",
     "clients/egui",
