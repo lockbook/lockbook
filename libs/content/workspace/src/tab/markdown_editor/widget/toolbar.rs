@@ -606,6 +606,11 @@ impl<'ast> Editor {
                             let touch_consuming_rects =
                                 mem::take(&mut self.edit.renderer.touch_consuming_rects);
 
+                            // menu labels: force blue links + plain image-link text
+                            let link_resolver =
+                                mem::replace(&mut self.edit.renderer.link_resolver, Box::new(()));
+                            self.edit.renderer.render_images_as_text = true;
+
                             self.edit.renderer.layout_cache.clear();
 
                             // page title
@@ -1045,6 +1050,9 @@ impl<'ast> Editor {
                             self.edit.renderer.galleys.galleys = galleys;
                             self.edit.renderer.bounds.wrap_lines = wrap_lines;
                             self.edit.renderer.touch_consuming_rects = touch_consuming_rects;
+
+                            self.edit.renderer.link_resolver = link_resolver;
+                            self.edit.renderer.render_images_as_text = false;
                         });
                 });
             });
