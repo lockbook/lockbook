@@ -437,6 +437,11 @@ impl MdRender {
 
         self.bounds.inline_paragraphs.clear();
         self.calc_source_lines();
+        // Populate before compute_bounds: pre_spacing_lines (called
+        // from compute_bounds_block_pre_spacing) queries
+        // hidden_by_fold, which now expects every node already
+        // cached.
+        self.populate_hidden_by_fold(root);
         self.compute_bounds(root);
         self.bounds.inline_paragraphs.sort();
         self.calc_words();
