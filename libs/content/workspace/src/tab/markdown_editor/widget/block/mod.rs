@@ -1,6 +1,12 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
+
+thread_local! {
+    /// Tunable factor for `height_approx`'s presumed character width
+    /// (multiplied by `row_height`). Production default is 0.5.
+    pub(crate) static APPROX_CHAR_WIDTH_FACTOR: Cell<f32> = const { Cell::new(0.5) };
+}
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
@@ -195,6 +201,104 @@ impl<'ast> MdRender {
         self.set_cached_node_height(node, height);
 
         height
+    }
+
+    /// Cheap height estimate. Walks the AST inline (no delegation to
+    /// per-block-type `height_*` functions), summing approximate
+    /// heights of leaf blocks via char-count × presumed-char-width
+    /// instead of cosmic-text shaping. Drift from precise layout is
+    /// expected — only safe for off-screen sizing (scrollbar). Visible
+    /// content must be measured via [`Self::height`].
+    pub fn height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
+        if let Some(cached) = self.get_cached_node_height_approx(node) {
+            return cached;
+        }
+        if self.hidden_by_fold(node) {
+            self.set_cached_node_height_approx(node, 0.);
+            return 0.;
+        }
+        if self.width(node) < self.layout.row_height {
+            self.set_cached_node_height_approx(node, 0.);
+            return 0.;
+        }
+        let value = &node.data.borrow().value;
+        let height = match value {
+            NodeValue::Document
+            | NodeValue::List(_)
+            | NodeValue::BlockQuote
+            | NodeValue::Item(_)
+            | NodeValue::TaskItem(_)
+            | NodeValue::Alert(_)
+            | NodeValue::Table(_)
+            | NodeValue::TableRow(_)
+            | NodeValue::FootnoteDefinition(_) => {
+                let mut total = 0.;
+                for child in node.children() {
+                    total += self.block_pre_spacing_height_approx(child);
+                    total += self.height_approx(child);
+                    total += self.block_post_spacing_height_approx(child);
+                }
+                total
+            }
+            NodeValue::Paragraph | NodeValue::Heading(_) | NodeValue::TableCell => {
+                let row_height = self.row_height(node);
+                let width = self.width(node).max(row_height);
+                let mut chars = 0usize;
+                for d in node.descendants() {
+                    match &d.data.borrow().value {
+                        NodeValue::Text(t) => chars += t.chars().count(),
+                        NodeValue::Code(c) => chars += c.literal.chars().count(),
+                        NodeValue::HtmlInline(s) => chars += s.chars().count(),
+                        NodeValue::Math(m) => chars += m.literal.chars().count(),
+                        NodeValue::SoftBreak | NodeValue::LineBreak => chars += 1,
+                        _ => {}
+                    }
+                }
+                let char_width = row_height * APPROX_CHAR_WIDTH_FACTOR.with(|c| c.get());
+                let chars_per_row = (width / char_width).floor().max(1.0) as usize;
+                let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
+                rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
+            }
+            NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) => {
+                let row_height = self.row_height(node);
+                let n = (self.node_last_line_idx(node) - self.node_first_line_idx(node) + 1) as f32;
+                n * row_height + (n - 1.0).max(0.0) * self.layout.row_spacing
+            }
+            NodeValue::ThematicBreak => self.height_thematic_break(),
+            NodeValue::FrontMatter(_) => self.height_front_matter(node),
+            _ => 0.,
+        };
+        self.set_cached_node_height_approx(node, height);
+        height
+    }
+
+    /// Approx-y of the top of the last top-level block — i.e., the
+    /// scroll offset at which the last block's top sits at viewport
+    /// top. Function of doc + width only.
+    pub fn approx_y_top_last_block(&self, root: &'ast AstNode<'ast>) -> f32 {
+        let last = match root.last_child() {
+            Some(l) => l,
+            None => return 0.,
+        };
+        let mut y = 0.;
+        let mut child = root.first_child();
+        while let Some(c) = child {
+            if std::ptr::eq(c, last) {
+                break;
+            }
+            y += self.block_pre_spacing_height_approx(c);
+            y += self.height_approx(c);
+            y += self.block_post_spacing_height_approx(c);
+            child = c.next_sibling();
+        }
+        y += self.block_pre_spacing_height_approx(last);
+        y
+    }
+
+    /// Approx scroll extent — used to seed the affine widget's
+    /// `max_offset` when reading persisted state.
+    pub fn scroll_extent(&self, root: &'ast AstNode<'ast>, viewport_height: f32) -> f32 {
+        self.approx_y_top_last_block(root) + viewport_height
     }
 
     pub(crate) fn show_block(
@@ -624,6 +728,7 @@ type LinePrefixValue = (Graphemes, bool);
 #[derive(Default)]
 pub struct LayoutCache {
     pub height: RefCell<HashMap<(Grapheme, Grapheme), f32>>,
+    pub height_approx: RefCell<HashMap<(Grapheme, Grapheme), f32>>,
     pub line_prefix_len: RefCell<HashMap<LinePrefixKey, LinePrefixValue>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
     pub hidden_by_fold: RefCell<HashMap<(Grapheme, Grapheme), bool>>,
@@ -634,6 +739,7 @@ impl LayoutCache {
     /// Full clear for width/resize changes where everything must be recomputed.
     pub fn clear(&self) {
         self.height.borrow_mut().clear();
+        self.height_approx.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
@@ -648,6 +754,7 @@ impl LayoutCache {
     /// Glyphon buffers are content-addressed and survive.
     pub fn invalidate_text_change(&self) {
         self.height.borrow_mut().clear();
+        self.height_approx.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
@@ -850,6 +957,23 @@ impl<'ast> MdRender {
     pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32) {
         let range = self.node_range(node);
         self.layout_cache.height.borrow_mut().insert(range, height);
+    }
+
+    pub fn get_cached_node_height_approx(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
+        let range = self.node_range(node);
+        self.layout_cache
+            .height_approx
+            .borrow()
+            .get(&range)
+            .copied()
+    }
+
+    pub fn set_cached_node_height_approx(&self, node: &'ast AstNode<'ast>, height: f32) {
+        let range = self.node_range(node);
+        self.layout_cache
+            .height_approx
+            .borrow_mut()
+            .insert(range, height);
     }
 
     pub fn get_cached_line_prefix_len(

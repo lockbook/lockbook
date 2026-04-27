@@ -186,14 +186,38 @@ impl MdEdit {
         }
     }
 
-    pub fn scroll_to_cursor(&self, ui: &mut Ui) {
-        let selection = self
+    pub fn scroll_to_cursor(&mut self, ui: &mut Ui, scroll_id: egui::Id, viewport_height: f32) {
+        let target = self
             .in_progress_selection
-            .unwrap_or(self.renderer.buffer.current.selection);
+            .unwrap_or(self.renderer.buffer.current.selection)
+            .1;
 
-        if let Some([top, bot]) = self.cursor_line(selection.1) {
-            let rect = Rect::from_min_max(top, bot);
-            ui.scroll_to_rect(rect.expand(rect.height()), None);
+        let arena = comrak::Arena::new();
+        let root = self.renderer.reparse(&arena);
+        let mut content = crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
+            &mut self.renderer,
+            root,
+            0.0,
+            viewport_height / 2.0,
+        )
+        .with_default_leading();
+
+        let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
+        let current_offset = scroll.offset(ui.ctx());
+
+        // Inclusive on `end` so an end-of-line cursor matches its row.
+        let offset = crate::widgets::affine_scroll::make_visible_offset(
+            &mut content,
+            viewport_height,
+            current_offset,
+            |c| {
+                c.text_range()
+                    .is_some_and(|(start, end)| target >= start && target <= end)
+            },
+        );
+
+        if let Some(o) = offset {
+            scroll.set_offset(ui.ctx(), o);
         }
     }
 

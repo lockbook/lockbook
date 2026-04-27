@@ -64,6 +64,35 @@ impl<'ast> MdRender {
         Some(first..(last + 1))
     }
 
+    /// Cheap pre-spacing height estimate. Each blank line is one
+    /// `row_height`; plus inter-block `block_spacing`. Used by
+    /// `height_approx` for off-screen content.
+    pub fn block_pre_spacing_height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
+        if self.hidden_by_fold(node) {
+            return 0.;
+        }
+        let Some(line_range) = self.pre_spacing_lines(node) else {
+            return 0.;
+        };
+        let mut result = 0.;
+        if node.previous_sibling().is_some() {
+            result += self.layout.block_spacing;
+        }
+        let n = line_range.end.saturating_sub(line_range.start) as f32;
+        result += n * self.layout.row_height;
+        result += n * self.layout.block_spacing;
+        result
+    }
+
+    /// Cheap post-spacing height estimate.
+    pub fn block_post_spacing_height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let Some(line_range) = self.post_spacing_lines(node) else {
+            return 0.;
+        };
+        let n = line_range.end.saturating_sub(line_range.start) as f32;
+        n * self.layout.row_height + n * self.layout.block_spacing
+    }
+
     pub fn block_pre_spacing_height(&self, node: &'ast AstNode<'ast>) -> f32 {
         let Some(line_range) = self.pre_spacing_lines(node) else {
             return 0.;
