@@ -1,11 +1,12 @@
 use std::collections::HashMap;
 use std::env;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 
 use lb_rs::Lb;
 use lb_rs::Uuid;
 use lb_rs::model::core_config::Config;
+use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
@@ -21,14 +22,12 @@ pub fn compute_hash(content: &[u8]) -> String {
     format!("{:x}", hasher.finalize())
 }
 
-pub type Hmac = [u8; 32];
-
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct FileRecord {
     pub id: Uuid,
     pub path: String,
     pub hash: String,
-    pub hmac: Option<Hmac>,
+    pub hmac: Option<DocumentHmac>,
 }
 
 #[derive(Debug, Default, Serialize, Deserialize)]
@@ -37,7 +36,7 @@ pub struct Index {
 }
 
 impl Index {
-    pub fn load(data_dir: &PathBuf) -> Self {
+    pub fn load(data_dir: &Path) -> Self {
         let path = data_dir.join(INDEX_FILE);
         if path.exists() {
             let content = fs::read_to_string(&path).unwrap();
@@ -47,7 +46,7 @@ impl Index {
         }
     }
 
-    fn save(&self, data_dir: &PathBuf) {
+    fn save(&self, data_dir: &Path) {
         let path = data_dir.join(INDEX_FILE);
         let content = serde_json::to_string_pretty(self).unwrap();
         fs::write(path, content).unwrap();
@@ -173,19 +172,20 @@ impl BiFS {
 
             // check if file was relocated in lockbook
             if let Some(old_record) = old
-                && old_record.path != relative_path {
-                    // file relocated in lockbook, move local file
-                    let old_path = self.root.join(&old_record.path);
-                    let new_path = self.root.join(relative_path);
+                && old_record.path != relative_path
+            {
+                // file relocated in lockbook, move local file
+                let old_path = self.root.join(&old_record.path);
+                let new_path = self.root.join(relative_path);
 
-                    if old_path.exists() {
-                        if let Some(parent) = new_path.parent() {
-                            fs::create_dir_all(parent).unwrap();
-                        }
-                        fs::rename(&old_path, &new_path).unwrap();
-                        println!("moved: {} -> {}", old_record.path, relative_path);
+                if old_path.exists() {
+                    if let Some(parent) = new_path.parent() {
+                        fs::create_dir_all(parent).unwrap();
                     }
+                    fs::rename(&old_path, &new_path).unwrap();
+                    println!("moved: {} -> {}", old_record.path, relative_path);
                 }
+            }
 
             let new = FileRecord { id: file.id, path: relative_path.to_string(), hash, hmac };
 

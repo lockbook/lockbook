@@ -1,4 +1,4 @@
-use lb_bifs::{compute_hash, BiFS, BASE_DIR, DATA_DIR, INDEX_FILE, SYNC_FOLDER};
+use lb_bifs::{BASE_DIR, BiFS, DATA_DIR, INDEX_FILE, SYNC_FOLDER, compute_hash};
 use lb_rs::Uuid;
 use std::fs;
 use std::path::PathBuf;
@@ -62,7 +62,10 @@ async fn pull_single_document() {
     let root = test_root();
 
     // create a document in the sync folder
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     let content = b"hello world";
     lb.write_document(doc.id, content).await.unwrap();
     lb.sync().await.unwrap();
@@ -81,7 +84,12 @@ async fn pull_single_document() {
     assert_eq!(record.hash, compute_hash(content));
 
     // check base file exists
-    assert!(root.join(DATA_DIR).join(BASE_DIR).join(&record.hash).exists());
+    assert!(
+        root.join(DATA_DIR)
+            .join(BASE_DIR)
+            .join(&record.hash)
+            .exists()
+    );
 }
 
 #[tokio::test]
@@ -89,7 +97,10 @@ async fn pull_document_in_subfolder() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc = lb.create_at_path(&format!("{}/sub/folder/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/sub/folder/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     let content = b"nested content";
     lb.write_document(doc.id, content).await.unwrap();
     lb.sync().await.unwrap();
@@ -109,13 +120,22 @@ async fn pull_multiple_documents() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc1 = lb.create_at_path(&format!("{}/file1.txt", SYNC_FOLDER)).await.unwrap();
+    let doc1 = lb
+        .create_at_path(&format!("{}/file1.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc1.id, b"content 1").await.unwrap();
 
-    let doc2 = lb.create_at_path(&format!("{}/file2.txt", SYNC_FOLDER)).await.unwrap();
+    let doc2 = lb
+        .create_at_path(&format!("{}/file2.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc2.id, b"content 2").await.unwrap();
 
-    let doc3 = lb.create_at_path(&format!("{}/sub/file3.txt", SYNC_FOLDER)).await.unwrap();
+    let doc3 = lb
+        .create_at_path(&format!("{}/sub/file3.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc3.id, b"content 3").await.unwrap();
 
     lb.sync().await.unwrap();
@@ -135,7 +155,10 @@ async fn pull_updates_unchanged_local_file() {
     let root = test_root();
 
     // initial pull
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"version 1").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -159,8 +182,13 @@ async fn pull_merges_changed_local_file() {
     let root = test_root();
 
     // initial pull
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
-    lb.write_document(doc.id, b"line 1\nline 2\nline 3").await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
+    lb.write_document(doc.id, b"line 1\nline 2\nline 3")
+        .await
+        .unwrap();
     lb.sync().await.unwrap();
 
     let mut bifs = BiFS::new(lb.clone(), root.clone());
@@ -170,7 +198,9 @@ async fn pull_merges_changed_local_file() {
     fs::write(root.join("test.txt"), b"line 1\nlocal change\nline 3").unwrap();
 
     // modify remote
-    lb.write_document(doc.id, b"line 1\nline 2\nremote change").await.unwrap();
+    lb.write_document(doc.id, b"line 1\nline 2\nremote change")
+        .await
+        .unwrap();
     lb.sync().await.unwrap();
 
     // second pull - should merge
@@ -188,7 +218,10 @@ async fn index_persists_across_instances() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"content").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -212,7 +245,10 @@ async fn old_base_deleted_after_pull() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"version 1").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -242,7 +278,10 @@ async fn pull_stores_hmac() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"content").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -259,7 +298,10 @@ async fn pull_skips_relocated_file() {
     let root = test_root();
 
     // initial pull
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"content").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -285,7 +327,11 @@ async fn pull_skips_relocated_file() {
     // relocated file should be untouched
     assert_eq!(fs::read(root.join("moved/test.txt")).unwrap(), b"content");
     // file should still exist in lockbook
-    assert!(lb.get_by_path(&format!("{}/test.txt", SYNC_FOLDER)).await.is_ok());
+    assert!(
+        lb.get_by_path(&format!("{}/test.txt", SYNC_FOLDER))
+            .await
+            .is_ok()
+    );
 }
 
 #[tokio::test]
@@ -294,7 +340,10 @@ async fn pull_handles_file_relocated_in_lockbook() {
     let root = test_root();
 
     // initial pull
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"content").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -304,7 +353,10 @@ async fn pull_handles_file_relocated_in_lockbook() {
     assert_eq!(bifs.index.files.get(&doc.id).unwrap().path, "test.txt");
 
     // relocate file in lockbook
-    let moved_folder = lb.create_at_path(&format!("{}/moved/", SYNC_FOLDER)).await.unwrap();
+    let moved_folder = lb
+        .create_at_path(&format!("{}/moved/", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.move_file(&doc.id, &moved_folder.id).await.unwrap();
     lb.sync().await.unwrap();
 
@@ -327,7 +379,10 @@ async fn pull_handles_file_deleted_in_lockbook() {
     let root = test_root();
 
     // initial pull
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"content").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -356,8 +411,13 @@ async fn pull_deletion_is_final_even_with_local_changes() {
     let root = test_root();
 
     // initial pull
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
-    lb.write_document(doc.id, b"original content").await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
+    lb.write_document(doc.id, b"original content")
+        .await
+        .unwrap();
     lb.sync().await.unwrap();
 
     let mut bifs = BiFS::new(lb.clone(), root.clone());

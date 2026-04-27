@@ -1,4 +1,4 @@
-use lb_bifs::{compute_hash, BiFS, BASE_DIR, DATA_DIR, SYNC_FOLDER};
+use lb_bifs::{BASE_DIR, BiFS, DATA_DIR, SYNC_FOLDER, compute_hash};
 use lb_rs::Uuid;
 use std::fs;
 use std::path::PathBuf;
@@ -15,7 +15,10 @@ async fn push_no_changes() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"content").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -35,7 +38,10 @@ async fn push_local_changes() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"original").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -62,7 +68,10 @@ async fn push_locally_deleted_file() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"content").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -78,7 +87,11 @@ async fn push_locally_deleted_file() {
 
     // file should be deleted in lockbook
     lb.sync().await.unwrap();
-    assert!(lb.get_by_path(&format!("{}/test.txt", SYNC_FOLDER)).await.is_err());
+    assert!(
+        lb.get_by_path(&format!("{}/test.txt", SYNC_FOLDER))
+            .await
+            .is_err()
+    );
 
     // index entry should be removed
     assert!(!bifs.index.files.contains_key(&doc.id));
@@ -89,7 +102,10 @@ async fn push_locally_relocated_file_deletes_from_lockbook() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"content").await.unwrap();
     lb.sync().await.unwrap();
 
@@ -105,7 +121,11 @@ async fn push_locally_relocated_file_deletes_from_lockbook() {
 
     // file should be deleted in lockbook
     lb.sync().await.unwrap();
-    assert!(lb.get_by_path(&format!("{}/test.txt", SYNC_FOLDER)).await.is_err());
+    assert!(
+        lb.get_by_path(&format!("{}/test.txt", SYNC_FOLDER))
+            .await
+            .is_err()
+    );
 
     // index entry should be removed
     assert!(!bifs.index.files.contains_key(&doc.id));
@@ -116,13 +136,22 @@ async fn push_multiple_changes() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc1 = lb.create_at_path(&format!("{}/file1.txt", SYNC_FOLDER)).await.unwrap();
+    let doc1 = lb
+        .create_at_path(&format!("{}/file1.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc1.id, b"content 1").await.unwrap();
 
-    let doc2 = lb.create_at_path(&format!("{}/file2.txt", SYNC_FOLDER)).await.unwrap();
+    let doc2 = lb
+        .create_at_path(&format!("{}/file2.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc2.id, b"content 2").await.unwrap();
 
-    let doc3 = lb.create_at_path(&format!("{}/file3.txt", SYNC_FOLDER)).await.unwrap();
+    let doc3 = lb
+        .create_at_path(&format!("{}/file3.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc3.id, b"content 3").await.unwrap();
 
     lb.sync().await.unwrap();
@@ -142,7 +171,11 @@ async fn push_multiple_changes() {
     // file1 should be modified
     assert_eq!(lb.read_document(doc1.id, false).await.unwrap(), b"modified 1");
     // file2 should be deleted
-    assert!(lb.get_by_path(&format!("{}/file2.txt", SYNC_FOLDER)).await.is_err());
+    assert!(
+        lb.get_by_path(&format!("{}/file2.txt", SYNC_FOLDER))
+            .await
+            .is_err()
+    );
     // file3 should be unchanged
     assert_eq!(lb.read_document(doc3.id, false).await.unwrap(), b"content 3");
 }
@@ -162,7 +195,10 @@ async fn push_creates_untracked_file_in_lockbook() {
     bifs.push().await;
 
     // file should now be in lockbook
-    let doc = lb.get_by_path(&format!("{}/new_file.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .get_by_path(&format!("{}/new_file.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     let content = lb.read_document(doc.id, false).await.unwrap();
     assert_eq!(content, b"new content");
 
@@ -178,8 +214,13 @@ async fn push_merges_concurrent_edits() {
     let root = test_root();
 
     // create file in lockbook with base content
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
-    lb.write_document(doc.id, b"line 1\nline 2\nline 3").await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
+    lb.write_document(doc.id, b"line 1\nline 2\nline 3")
+        .await
+        .unwrap();
     lb.sync().await.unwrap();
 
     let mut bifs = BiFS::new(lb.clone(), root.clone());
@@ -189,7 +230,9 @@ async fn push_merges_concurrent_edits() {
     fs::write(root.join("test.txt"), b"line 1\nlocal edit\nline 3").unwrap();
 
     // remote edit: change line 3
-    lb.write_document(doc.id, b"line 1\nline 2\nremote edit").await.unwrap();
+    lb.write_document(doc.id, b"line 1\nline 2\nremote edit")
+        .await
+        .unwrap();
     lb.sync().await.unwrap();
 
     // push should merge both edits
@@ -208,7 +251,10 @@ async fn push_updates_index_and_base() {
     let lb = test_core_with_account().await;
     let root = test_root();
 
-    let doc = lb.create_at_path(&format!("{}/test.txt", SYNC_FOLDER)).await.unwrap();
+    let doc = lb
+        .create_at_path(&format!("{}/test.txt", SYNC_FOLDER))
+        .await
+        .unwrap();
     lb.write_document(doc.id, b"original").await.unwrap();
     lb.sync().await.unwrap();
 
