@@ -575,12 +575,6 @@ impl<'ast> MdRender {
     }
 }
 
-#[derive(Default)]
-pub struct CacheEntry<T> {
-    range: (Grapheme, Grapheme),
-    value: T,
-}
-
 // Fast integer mapping for NodeValue variants - no hashing needed
 fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
     match value {
@@ -631,24 +625,21 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
     }
 }
 
-pub struct LinePrefixCacheEntry {
-    node_key_hash: u64,
-    line: (Grapheme, Grapheme),
-    value: (Graphemes, bool),
-}
-
 pub enum TitleState {
     Loading,
     Loaded(String),
     Failed,
 }
 
+type LinePrefixKey = (u64, (Grapheme, Grapheme));
+type LinePrefixValue = (Graphemes, bool);
+
 #[derive(Default)]
 pub struct LayoutCache {
-    pub height: RefCell<Vec<CacheEntry<f32>>>,
-    pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
+    pub height: RefCell<HashMap<(Grapheme, Grapheme), f32>>,
+    pub line_prefix_len: RefCell<HashMap<LinePrefixKey, LinePrefixValue>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
-    pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
+    pub hidden_by_fold: RefCell<HashMap<(Grapheme, Grapheme), bool>>,
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
 }
 
@@ -687,10 +678,9 @@ impl LayoutCache {
 
         // first pass: find ranges directly affected
         let mut invalidated: Vec<(Grapheme, Grapheme)> = Vec::new();
-        for entry in cache.iter() {
-            if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
-            {
-                invalidated.push(entry.range);
+        for range in cache.keys() {
+            if range.intersects(&old_range, true) || range.intersects(&new_range, true) {
+                invalidated.push(*range);
             }
         }
 
@@ -699,13 +689,12 @@ impl LayoutCache {
         }
 
         // second pass: evict directly affected nodes and their ancestors
-        cache.retain(|entry| {
-            if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
-            {
+        cache.retain(|range, _| {
+            if range.intersects(&old_range, true) || range.intersects(&new_range, true) {
                 return false;
             }
             for inv in &invalidated {
-                if entry.range.contains_range(inv, true, true) {
+                if range.contains_range(inv, true, true) {
                     return false;
                 }
             }
@@ -868,21 +857,12 @@ impl MdRender {
 impl<'ast> MdRender {
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
         let range = self.node_range(node);
-        self.layout_cache
-            .height
-            .borrow()
-            .binary_search_by(|entry| entry.range.cmp(&range))
-            .ok()
-            .map(|i| self.layout_cache.height.borrow()[i].value)
+        self.layout_cache.height.borrow().get(&range).copied()
     }
 
     pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32) {
         let range = self.node_range(node);
-        let mut cache = self.layout_cache.height.borrow_mut();
-        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
-            Ok(i) => cache[i].value = height,
-            Err(i) => cache.insert(i, CacheEntry { range, value: height }),
-        }
+        self.layout_cache.height.borrow_mut().insert(range, height);
     }
 
     pub fn get_cached_line_prefix_len(
@@ -892,30 +872,18 @@ impl<'ast> MdRender {
         self.layout_cache
             .line_prefix_len
             .borrow()
-            .binary_search_by(|entry| {
-                entry
-                    .node_key_hash
-                    .cmp(&node_key_hash)
-                    .then(entry.line.cmp(&line))
-            })
-            .ok()
-            .map(|i| self.layout_cache.line_prefix_len.borrow()[i].value)
+            .get(&(node_key_hash, line))
+            .copied()
     }
 
     pub fn set_cached_line_prefix_len(
         &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), value: (Graphemes, bool),
     ) {
         let node_key_hash = Self::pack_node_key(node);
-        let mut cache = self.layout_cache.line_prefix_len.borrow_mut();
-        match cache.binary_search_by(|entry| {
-            entry
-                .node_key_hash
-                .cmp(&node_key_hash)
-                .then(entry.line.cmp(&line))
-        }) {
-            Ok(i) => cache[i].value = value,
-            Err(i) => cache.insert(i, LinePrefixCacheEntry { node_key_hash, line, value }),
-        }
+        self.layout_cache
+            .line_prefix_len
+            .borrow_mut()
+            .insert((node_key_hash, line), value);
     }
 
     #[inline]
@@ -942,18 +910,16 @@ impl<'ast> MdRender {
         self.layout_cache
             .hidden_by_fold
             .borrow()
-            .binary_search_by(|entry| entry.range.cmp(&range))
-            .ok()
-            .map(|i| self.layout_cache.hidden_by_fold.borrow()[i].value)
+            .get(&range)
+            .copied()
     }
 
     pub fn set_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>, hidden: bool) {
         let range = self.node_range(node);
-        let mut cache = self.layout_cache.hidden_by_fold.borrow_mut();
-        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
-            Ok(i) => cache[i].value = hidden,
-            Err(i) => cache.insert(i, CacheEntry { range, value: hidden }),
-        }
+        self.layout_cache
+            .hidden_by_fold
+            .borrow_mut()
+            .insert(range, hidden);
     }
 
     /// Pack node info into u64 using bit manipulation - ultra fast cache key

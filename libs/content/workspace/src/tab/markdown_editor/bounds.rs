@@ -59,6 +59,13 @@ impl MdRender {
 
     pub fn calc_words(&mut self) {
         self.bounds.words.clear();
+        // ~1 word per 6 bytes is a generous floor on English; oversize
+        // is harmless, undersize forces ~log(n) Vec doublings during
+        // the loop. dhat showed 300KB across the doublings without a
+        // capacity hint.
+        self.bounds
+            .words
+            .reserve(self.buffer.current.text.len() / 6);
 
         // The editor cursor only stops at grapheme boundaries, so words are
         // ranges of graphemes here. UAX #29 word boundaries are *almost* a

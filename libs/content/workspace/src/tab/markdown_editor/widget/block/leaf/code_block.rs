@@ -532,47 +532,63 @@ struct SyntaxCacheKey {
     range: (Grapheme, Grapheme),
 }
 
-impl SyntaxCacheKey {
-    fn new(text: String, range: (Grapheme, Grapheme)) -> Self {
-        Self { text, range }
-    }
-}
-
 pub type SyntaxHighlightResult = Vec<(Style, (Grapheme, Grapheme))>;
 
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SyntaxHighlightCache {
     map: RefCell<HashMap<SyntaxCacheKey, SyntaxHighlightResult>>,
-    used_this_frame: RefCell<HashSet<SyntaxCacheKey>>,
+    /// Hashes of keys touched this frame. `u64` instead of full keys
+    /// avoids per-lookup `String` clones for the bookkeeping side.
+    used_this_frame: RefCell<HashSet<u64>>,
+    hasher: std::collections::hash_map::RandomState,
+}
+
+impl Default for SyntaxHighlightCache {
+    fn default() -> Self {
+        Self {
+            map: RefCell::default(),
+            used_this_frame: RefCell::default(),
+            hasher: std::collections::hash_map::RandomState::new(),
+        }
+    }
 }
 
 impl SyntaxHighlightCache {
     pub fn insert(&self, text: String, range: (Grapheme, Grapheme), value: SyntaxHighlightResult) {
-        let key = SyntaxCacheKey::new(text, range);
-        self.used_this_frame.borrow_mut().insert(key.clone());
+        let key = SyntaxCacheKey { text, range };
+        self.used_this_frame
+            .borrow_mut()
+            .insert(self.hash_key(&key));
         self.map.borrow_mut().insert(key, value);
     }
 
     pub fn get(&self, text: &str, range: (Grapheme, Grapheme)) -> Option<SyntaxHighlightResult> {
-        let key = SyntaxCacheKey::new(text.to_string(), range);
-        self.used_this_frame.borrow_mut().insert(key.clone());
+        // std HashMap doesn't expose raw_entry stably, so the lookup
+        // still needs an owned key — but the used_this_frame side
+        // gets a u64 instead of a second clone.
+        let key = SyntaxCacheKey { text: text.to_string(), range };
+        self.used_this_frame
+            .borrow_mut()
+            .insert(self.hash_key(&key));
         self.map.borrow().get(&key).cloned()
     }
 
     pub fn garbage_collect(&self) {
-        // Remove entries that weren't accessed this frame
-        let keys: Vec<SyntaxCacheKey> = self.map.borrow().keys().cloned().collect();
         let used = self.used_this_frame.borrow();
-        let mut map = self.map.borrow_mut();
-        for key in keys {
-            if !used.contains(&key) {
-                map.remove(&key);
-            }
-        }
+        self.map
+            .borrow_mut()
+            .retain(|key, _| used.contains(&self.hash_key(key)));
+        drop(used);
+        self.used_this_frame.borrow_mut().clear();
     }
 
     pub fn clear(&self) {
         self.map.borrow_mut().clear();
         self.used_this_frame.borrow_mut().clear();
+    }
+
+    fn hash_key(&self, key: &SyntaxCacheKey) -> u64 {
+        use std::hash::BuildHasher;
+        self.hasher.hash_one(key)
     }
 }
