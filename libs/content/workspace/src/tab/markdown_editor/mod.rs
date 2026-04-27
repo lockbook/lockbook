@@ -135,9 +135,8 @@ pub struct MdRender {
     pub syntax: SyntaxHighlightCache,
 
     // viewport
-    pub top_left: Pos2,
     pub width: f32,
-    pub height: f32,
+    pub viewport_height: f32,
 
     // debug
     pub debug: bool,
@@ -235,6 +234,11 @@ pub struct Editor {
     // misc
     pub virtual_keyboard_shown: bool,
     pub unprocessed_scroll: Option<Instant>,
+
+    /// Last frame's available render area, for change detection. Tracked
+    /// separately from `renderer.width` (the centered content-column width,
+    /// which on wide windows is strictly less than the available width).
+    prev_dimensions: Option<Vec2>,
 
     // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
@@ -377,9 +381,8 @@ impl MdRender {
             files: Arc::new(RwLock::new(FileCache::empty())),
             layout_cache: Default::default(),
             syntax: Default::default(),
-            top_left: Default::default(),
             width: Default::default(),
-            height: Default::default(),
+            viewport_height: Default::default(),
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
@@ -415,9 +418,8 @@ impl MdRender {
             files: Arc::new(RwLock::new(FileCache::empty())),
             layout_cache: Default::default(),
             syntax: Default::default(),
-            top_left: Default::default(),
             width: Default::default(),
-            height: Default::default(),
+            viewport_height: Default::default(),
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
@@ -520,9 +522,8 @@ impl Editor {
             layout_cache: Default::default(),
             syntax: Default::default(),
 
-            top_left: Default::default(),
             width: Default::default(),
-            height: Default::default(),
+            viewport_height: Default::default(),
 
             debug: false,
             frame_times: [Instant::now(); 10],
@@ -558,6 +559,8 @@ impl Editor {
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
             unprocessed_scroll: Default::default(),
+
+            prev_dimensions: None,
 
             next_resp: Default::default(),
         }
@@ -641,10 +644,12 @@ impl Editor {
             .width()
             .min(self.edit.renderer.layout.max_width)
             .round();
-        let height_updated = self.edit.renderer.height != height;
-        let width_updated = self.edit.renderer.width != width;
-        self.edit.renderer.height = height;
-        self.edit.renderer.width = width;
+        let dimensions = Vec2::new(width, height);
+        let (height_updated, width_updated) = match self.prev_dimensions {
+            Some(prev) => (prev.y != dimensions.y, prev.x != dimensions.x),
+            None => (true, true),
+        };
+        self.prev_dimensions = Some(dimensions);
 
         let dark_mode = ui.style().visuals.dark_mode;
         if dark_mode != self.edit.renderer.dark_mode {
@@ -1056,14 +1061,17 @@ impl Editor {
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
 
-                            let padding = (ui.available_width() - self.edit.renderer.width) / 2.;
-
-                            self.edit.renderer.top_left = ui.max_rect().min
+                            let column_width = ui
+                                .available_width()
+                                .min(self.edit.renderer.layout.max_width)
+                                .round();
+                            let content_width =
+                                column_width - 2. * self.edit.renderer.layout.margin;
+                            let padding = (ui.available_width() - column_width) / 2.;
+                            let top_left = ui.max_rect().min
                                 + (padding + self.edit.renderer.layout.margin) * Vec2::X;
-                            // Pre-subtract margin so height() and show see the same
-                            // renderer.width. Otherwise margin gets subtracted twice,
-                            // cell widths diverge, and cached heights go stale.
-                            self.edit.renderer.width -= 2. * self.edit.renderer.layout.margin;
+
+                            self.edit.renderer.width = content_width;
                             let height = {
                                 let document_height = self.edit.renderer.height(root, &[root]);
                                 let unfilled_space = if document_height < scroll_view_height {
@@ -1075,10 +1083,8 @@ impl Editor {
 
                                 document_height + unfilled_space.max(end_of_text_padding)
                             };
-                            let rect = Rect::from_min_size(
-                                self.edit.renderer.top_left,
-                                Vec2::new(self.edit.renderer.width, height),
-                            );
+                            let rect =
+                                Rect::from_min_size(top_left, Vec2::new(content_width, height));
 
                             // delegate to MdEdit::show for parse, event processing,
                             // render, cursor/selection drawing, touch handles,

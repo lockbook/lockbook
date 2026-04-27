@@ -139,7 +139,7 @@ impl MdEdit {
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
         self.renderer.width = rect.width();
-        self.renderer.top_left = rect.min;
+        self.renderer.viewport_height = ui.clip_rect().height();
 
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
