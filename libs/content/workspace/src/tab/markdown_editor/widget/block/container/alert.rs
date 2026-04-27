@@ -52,18 +52,6 @@ impl<'ast> MdRender {
         result
     }
 
-    /// Paint the alert's left bar (colored per alert type) inside the
-    /// annotation rect. Color comes from the alert node's text format.
-    pub(crate) fn chrome_alert(&self, ui: &mut Ui, node: &'ast AstNode<'ast>, annotation: Rect) {
-        #[cfg(test)]
-        crate::tab::markdown_editor::scroll_content::test_record_alert_bar(annotation);
-        ui.painter().vline(
-            annotation.center().x,
-            annotation.y_range(),
-            Stroke::new(3., self.text_format(node).color),
-        );
-    }
-
     pub fn show_alert(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         node_alert: &NodeAlert,
@@ -71,7 +59,11 @@ impl<'ast> MdRender {
         let height = self.height(node);
         let annotation_space =
             Rect::from_min_size(top_left, Vec2 { x: self.layout.indent, y: height });
-        self.chrome_alert(ui, node, annotation_space);
+        ui.painter().vline(
+            annotation_space.center().x,
+            annotation_space.y_range(),
+            Stroke::new(3., self.text_format(node).color),
+        );
         top_left.x += self.layout.indent;
 
         // title line is shown & revealed separately from block syntax as if
@@ -153,8 +145,6 @@ impl<'ast> MdRender {
     pub fn show_alert_title_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, node_alert: &NodeAlert,
     ) {
-        #[cfg(test)]
-        crate::tab::markdown_editor::scroll_content::test_record_alert_title(top_left);
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
         if self.range_revealed(line_content, true) {

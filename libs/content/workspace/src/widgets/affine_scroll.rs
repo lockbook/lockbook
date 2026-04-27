@@ -107,13 +107,13 @@ impl AffineScrollArea {
             .offset_approx
     }
 
-    /// Set scroll offset directly. For persistence-restore. Skip
-    /// clamping — the scroll area will clamp on next show against the
-    /// current `max_offset`.
+    /// Set scroll offset directly. Skips clamping — the scroll area
+    /// will clamp on next show against the current `max_offset`.
     pub fn set_offset(&self, ctx: &egui::Context, offset_approx: f32) {
         let mut state: ScrollState = ctx.data(|d| d.get_temp(self.id_salt)).unwrap_or_default();
         state.offset_approx = offset_approx;
         ctx.data_mut(|d| d.insert_temp(self.id_salt, state));
+        ctx.request_repaint();
     }
 
     pub fn show<R: Rows>(&mut self, ui: &mut Ui, content: &mut R) -> Response {

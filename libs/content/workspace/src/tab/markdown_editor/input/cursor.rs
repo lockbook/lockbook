@@ -8,7 +8,7 @@ use crate::tab::markdown_editor::scroll_content::DocScrollContent;
 
 use crate::tab::{ExtendedInput as _, markdown_editor::galleys::GalleyInfo};
 use crate::theme::palette_v2::ThemeExt as _;
-use crate::widgets::affine_scroll::{AffineScrollArea, Align, align_offset};
+use crate::widgets::affine_scroll::{AffineScrollArea, make_visible_offset};
 
 use super::{Event, Location, Region};
 
@@ -199,13 +199,17 @@ impl MdEdit {
         let mut content = DocScrollContent::new(&mut self.renderer, root, viewport_height / 2.0)
             .with_default_leading();
 
-        let offset = align_offset(&mut content, viewport_height, Align::Center, |c| {
+        let scroll = AffineScrollArea::new(scroll_id);
+        let current_offset = scroll.offset(ui.ctx());
+
+        // Inclusive on `end` so an end-of-line cursor matches its row.
+        let offset = make_visible_offset(&mut content, viewport_height, current_offset, |c| {
             c.text_range()
-                .is_some_and(|(start, end)| target >= start && target < end)
+                .is_some_and(|(start, end)| target >= start && target <= end)
         });
 
         if let Some(o) = offset {
-            AffineScrollArea::new(scroll_id).set_offset(ui.ctx(), o);
+            scroll.set_offset(ui.ctx(), o);
         }
     }
 

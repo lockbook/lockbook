@@ -90,13 +90,10 @@ impl<'ast> MdRender {
     }
 
     // Paints children of a container, stacked vertically from
-    // `top_left`. Used by container show paths (BlockQuote, Item,
-    // Document via MdLabel and tests, etc.); the editor's scroll path
-    // walks scroll-leaves directly through `widgets::affine_scroll` and
-    // bypasses this function at the root. Visibility gates *painting*
-    // as a cost optimization (skip shaping off-screen content), but the
-    // y-advance always uses precise heights so a block's position is
-    // independent of which other blocks happen to be visible.
+    // `top_left`. Visibility gates painting as a cost optimization
+    // (skip shaping off-screen content) but the y-advance always uses
+    // precise heights so a block's position is independent of which
+    // other blocks happen to be visible.
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {

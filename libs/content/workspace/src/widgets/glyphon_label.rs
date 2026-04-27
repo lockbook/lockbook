@@ -300,9 +300,13 @@ impl egui::Widget for GlyphonLabel<'_> {
 
         if ui.is_rect_visible(rect) {
             let areas = shaped.text_areas(rect, ui.ctx(), rect);
+            // Clip the callback rect to the visible viewport. If `rect`
+            // is partially scrolled off-screen, `egui_wgpu` clamps it
+            // to the screen and a zero-area result drops the callback.
+            let callback_rect = rect.intersect(ui.clip_rect());
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    rect,
+                    callback_rect,
                     GlyphonRendererCallback::new(areas),
                 ));
         }

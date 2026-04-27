@@ -502,9 +502,12 @@ impl<'a> GlyphonTextEdit<'a> {
                 ui.ctx(),
                 rect,
             ));
+            // Clip to the visible viewport so a partially-scrolled-out
+            // widget rect doesn't get clamped to zero area and dropped.
+            let callback_rect = rect.intersect(ui.clip_rect());
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    rect,
+                    callback_rect,
                     crate::GlyphonRendererCallback::new(areas),
                 ));
 

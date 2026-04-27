@@ -41,11 +41,8 @@ impl<'ast> MdRender {
     }
 
     /// Paint the code block chrome (border) into `rect`. Same for
-    /// fenced and indented blocks. The scroll area calls this when a
-    /// code block's first row enters the viewport.
-    pub(crate) fn chrome_code_block(&self, ui: &mut Ui, rect: Rect) {
-        #[cfg(test)]
-        crate::tab::markdown_editor::scroll_content::test_record_code_block_chrome(rect);
+    /// fenced and indented blocks.
+    fn chrome_code_block(&self, ui: &mut Ui, rect: Rect) {
         ui.painter().rect_stroke(
             rect,
             2.,
@@ -118,7 +115,7 @@ impl<'ast> MdRender {
     /// advances the wrap via `span_section` instead of painting via
     /// `show_section`. Same content + same chunking → same cosmic-text
     /// wrap → same `wrap.height()` as what show paints.
-    pub(crate) fn height_code_block_line(
+    fn height_code_block_line(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (Grapheme, Grapheme), synthetic: bool,
     ) -> f32 {
@@ -204,128 +201,6 @@ impl<'ast> MdRender {
         (code_line, regions)
     }
 
-    /// Cheap per-line approx for code blocks. Same shape as
-    /// `height_approx_paragraph_line` — buffer-char-count divided by a
-    /// generous `char_width = row_height` (mono M-width), so the
-    /// estimate over-counts rows; precise paint will tighten if shape
-    /// disagrees. Hidden fence lines return 0.
-    pub fn height_approx_code_block_line(
-        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, line_idx: usize,
-    ) -> f32 {
-        if !self.code_block_line_visible(node, node_code_block, line_idx) {
-            return 0.0;
-        }
-        let row_height = self.layout.row_height;
-        let char_width = row_height; // generous mono M-width
-        let width = (self.width(node) - 2.0 * self.layout.block_padding).max(row_height);
-        let line = self.bounds.source_lines[line_idx];
-        let chars = self.buffer[line].chars().count();
-        let usable = (width / char_width).floor().max(1.0) as usize;
-        let rows = ((chars as f32) / usable as f32).ceil().max(1.0);
-        rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
-    }
-
-    /// Whether this source line of a code block paints anything. Hidden
-    /// fence lines (opening / closing) are 0-height when reveal is off.
-    /// Indented blocks have no fences — every line is visible.
-    pub fn code_block_line_visible(
-        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, line_idx: usize,
-    ) -> bool {
-        if !node_code_block.fenced {
-            return true;
-        }
-        let first = self.node_first_line_idx(node);
-        let last = self.node_last_line_idx(node);
-        let is_opening = line_idx == first;
-        let is_closing = !is_opening
-            && line_idx == last
-            && self.is_closing_fence(node, node_code_block, self.bounds.source_lines[line_idx]);
-        if !is_opening && !is_closing {
-            return true;
-        }
-        self.reveal_fenced_code_block(node, node_code_block)
-    }
-
-    /// Precise per-line height for the scroll-content per-line model.
-    /// Mirrors what `show_fenced_code_block` / `show_indented_code_block`
-    /// would render at this line: 0 for a hidden fence, `height_section`
-    /// for a revealed fence, `height_code_block_line` for content.
-    pub fn height_code_block_line_render(
-        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, line_idx: usize,
-    ) -> f32 {
-        let line = self.bounds.source_lines[line_idx];
-        if !self.code_block_line_visible(node, node_code_block, line_idx) {
-            return 0.0;
-        }
-        let first = self.node_first_line_idx(node);
-        let last = self.node_last_line_idx(node);
-        let is_opening = line_idx == first;
-        let is_closing = !is_opening
-            && line_idx == last
-            && node_code_block.fenced
-            && self.is_closing_fence(node, node_code_block, line);
-        if is_opening || is_closing {
-            // Revealed fence: shows as raw source via `show_section`.
-            let node_line = self.node_line(node, line);
-            self.height_section(
-                &mut self.new_wrap(self.width(node) - 2.0 * self.layout.block_padding),
-                node_line,
-                self.text_format_syntax(),
-            )
-        } else if node_code_block.fenced {
-            self.height_code_block_line(node, node_code_block, line, false)
-        } else if self.reveal_indented_code_block_visible(node) {
-            // Indented + revealed: show as raw source.
-            let node_line = self.node_line(node, line);
-            self.height_section(
-                &mut self.new_wrap(self.width(node) - 2.0 * self.layout.block_padding),
-                node_line,
-                self.text_format_syntax(),
-            )
-        } else {
-            self.height_code_block_line(node, node_code_block, line, false)
-        }
-    }
-
-    /// Public wrapper around the private `reveal_indented_code_block`
-    /// for use from `scroll_content`. Same signature minus `synthetic`
-    /// (always false for the per-line scroll path).
-    pub fn reveal_indented_code_block_visible(&self, node: &'ast AstNode<'ast>) -> bool {
-        self.reveal_indented_code_block(node, false)
-    }
-
-    /// Per-line paint for the scroll-content per-line model. Mirrors
-    /// `height_code_block_line_render`: skips hidden fences, paints
-    /// revealed fences as raw source, paints content via
-    /// `show_code_block_line`. Caller is responsible for x positioning
-    /// (typically `top_left.x += block_padding` before calling).
-    pub fn show_code_block_line_render(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_code_block: &NodeCodeBlock, line_idx: usize,
-    ) {
-        if !self.code_block_line_visible(node, node_code_block, line_idx) {
-            return;
-        }
-        let line = self.bounds.source_lines[line_idx];
-        let first = self.node_first_line_idx(node);
-        let last = self.node_last_line_idx(node);
-        let is_opening = line_idx == first;
-        let is_closing = !is_opening
-            && line_idx == last
-            && node_code_block.fenced
-            && self.is_closing_fence(node, node_code_block, line);
-        let revealed_indented =
-            !node_code_block.fenced && self.reveal_indented_code_block_visible(node);
-        if is_opening || is_closing || revealed_indented {
-            let node_line = self.node_line(node, line);
-            let mut wrap = self.new_wrap(self.width(node) - 2.0 * self.layout.block_padding);
-            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
-        } else {
-            self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
-        }
-    }
-
     pub fn show_fenced_code_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
         node_code_block: &NodeCodeBlock,
@@ -373,7 +248,7 @@ impl<'ast> MdRender {
         }
     }
 
-    pub(crate) fn reveal_fenced_code_block(
+    fn reveal_fenced_code_block(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> bool {
         let first_line_idx = self.node_first_line_idx(node);
@@ -483,7 +358,7 @@ impl<'ast> MdRender {
         reveal
     }
 
-    pub(crate) fn show_code_block_line(
+    fn show_code_block_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock, line: (Grapheme, Grapheme), synthetic: bool,
     ) {
@@ -522,7 +397,7 @@ impl<'ast> MdRender {
     // followed only by spaces, which are ignored."
     // https://github.github.com/gfm/#fenced-code-blocks
 
-    pub(crate) fn is_closing_fence(
+    fn is_closing_fence(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (Grapheme, Grapheme),
     ) -> bool {

@@ -981,7 +981,7 @@ impl Editor {
                 .invalidate_reveal_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
-        if self.initialized && resp.selection_updated && !all_selected {
+        if self.initialized && (resp.selection_updated || resp.text_updated) && !all_selected {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
@@ -1234,7 +1234,7 @@ impl Editor {
 
         let offset = align_offset(&mut content, viewport_height, Align::Center, |c| {
             c.text_range()
-                .is_some_and(|(start, end)| target >= start && target < end)
+                .is_some_and(|(start, end)| target >= start && target <= end)
         });
 
         if let Some(o) = offset {
