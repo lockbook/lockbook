@@ -36,7 +36,7 @@ impl<'ast> MdRender {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
         match value {
-            NodeValue::FrontMatter(_) => self.width - 2. * self.layout.margin,
+            NodeValue::FrontMatter(_) => self.width,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -44,7 +44,7 @@ impl<'ast> MdRender {
             NodeValue::BlockQuote => indented_width(),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.width - 2. * self.layout.margin,
+            NodeValue::Document => self.width,
             NodeValue::FootnoteDefinition(_) => indented_width(),
             NodeValue::Item(_) => indented_width(),
             NodeValue::List(_) => indented_width(), // indentation handled by items

@@ -60,8 +60,9 @@ impl<'ast> MdRender {
         // satisfy the margin (initial frames before viewport is known,
         // zero-height containers), the image collapses to 0 rather than
         // letting negative dimensions corrupt the surrounding block layout.
-        let image_max_size =
-            (Vec2::new(self.width, self.height) - Vec2::splat(self.layout.margin)).max(Vec2::ZERO);
+        let image_max_size = (Vec2::new(self.width, self.viewport_height)
+            - Vec2::splat(self.layout.margin))
+        .max(Vec2::ZERO);
 
         // only shrink images, never stretch beyond their natural size
         let width = width.min(texture_size.x).min(image_max_size.x);
