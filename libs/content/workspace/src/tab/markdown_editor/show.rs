@@ -326,10 +326,10 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
 
-        let height = self.renderer.height(root, &[root]);
+        let height = self.renderer.height(root);
         let render_rect = Rect::from_min_size(rect.min, Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
-            self.renderer.show_block(ui, root, rect.min, &[root]);
+            self.renderer.show_block(ui, root, rect.min);
         });
         self.renderer.galleys.galleys.sort_by_key(|g| g.range);
 
@@ -412,7 +412,7 @@ impl MdEdit {
         self.renderer.width = width;
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
-        self.renderer.height(root, &[root])
+        self.renderer.height(root)
     }
 
     /// Render active completion popups. Caller invokes this after the main

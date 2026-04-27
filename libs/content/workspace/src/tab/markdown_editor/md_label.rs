@@ -30,7 +30,7 @@ impl MdLabel {
         self.prepare(md, width);
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
-        self.renderer.height(root, &[root])
+        self.renderer.height(root)
     }
 
     /// Render `md` into `ui` at the current cursor position, wrapping at
@@ -55,7 +55,7 @@ impl MdLabel {
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
 
-        let height = self.renderer.height(root, &[root]);
+        let height = self.renderer.height(root);
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
         self.renderer.galleys.galleys.clear();
@@ -64,7 +64,7 @@ impl MdLabel {
 
         // Scoped ui for clipping; the scope's cursor side-effects stay local.
         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-            self.renderer.show_block(ui, root, top_left, &[root]);
+            self.renderer.show_block(ui, root, top_left);
         });
 
         (std::mem::take(&mut self.renderer.text_areas), rect)

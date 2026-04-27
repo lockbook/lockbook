@@ -93,8 +93,7 @@ impl<'ast> MdRender {
             }
 
             NodeValue::List(_) => {
-                let children = self.sorted_children(node);
-                let last_child = children.last().unwrap();
+                let last_child = node.children().last().unwrap();
                 range.1 = self.node_range(last_child).1;
             }
 

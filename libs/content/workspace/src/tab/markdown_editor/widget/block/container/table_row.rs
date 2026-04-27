@@ -27,9 +27,8 @@ impl<'ast> MdRender {
         } else {
             // the height of the row is the height of the tallest cell
             let mut cell_height_max = 0.0f32;
-            let children = self.sorted_children(node);
-            for table_cell in &children {
-                cell_height_max = cell_height_max.max(self.height(table_cell, &children));
+            for table_cell in node.children() {
+                cell_height_max = cell_height_max.max(self.height(table_cell));
             }
 
             cell_height_max
@@ -89,13 +88,12 @@ impl<'ast> MdRender {
     fn reveal_table_row(&self, node: &'ast AstNode<'ast>) -> bool {
         let selection = self.buffer.current.selection;
         let row_range = self.node_range(node);
-        let children = self.sorted_children(node); // todo: these will always already be sorted
         let line = self.node_first_line(node);
         let node_line = self.node_line(node, line);
 
         // check for cursor between cells
         let mut range_start = row_range.start();
-        for cell in &children {
+        for cell in node.children() {
             let cell_range = if let Some((_, _, cell_children_range, _, _)) =
                 self.split_range(cell, node_line)
             {
@@ -114,7 +112,7 @@ impl<'ast> MdRender {
         }
 
         // check for cursor after last cell
-        if let Some(cell) = children.last() {
+        if let Some(cell) = node.children().last() {
             let cell_range = if let Some((_, _, cell_children_range, _, _)) =
                 self.split_range(cell, node_line)
             {

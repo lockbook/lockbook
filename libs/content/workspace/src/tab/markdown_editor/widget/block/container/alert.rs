@@ -54,9 +54,9 @@ impl<'ast> MdRender {
 
     pub fn show_alert(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        node_alert: &NodeAlert, siblings: &[&'ast AstNode<'ast>],
+        node_alert: &NodeAlert,
     ) {
-        let height = self.height(node, siblings);
+        let height = self.height(node);
         let annotation_size = Vec2 { x: self.layout.indent, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 

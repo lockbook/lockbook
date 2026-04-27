@@ -1078,7 +1078,7 @@ impl Editor {
 
                             self.edit.renderer.width = content_width;
                             let height = {
-                                let document_height = self.edit.renderer.height(root, &[root]);
+                                let document_height = self.edit.renderer.height(root);
                                 let unfilled_space = if document_height < scroll_view_height {
                                     scroll_view_height - document_height
                                 } else {
