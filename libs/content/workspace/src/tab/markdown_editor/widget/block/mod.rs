@@ -518,60 +518,77 @@ impl<'ast> MdRender {
     }
 
     pub fn hidden_by_fold(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
+        &self, node: &'ast AstNode<'ast>, _siblings: &[&'ast AstNode<'ast>],
     ) -> bool {
-        if let Some(cached) = self.get_cached_hidden_by_fold(node) {
-            return cached;
-        }
-
-        let result = self.compute_hidden_by_fold(node, siblings);
-        self.set_cached_hidden_by_fold(node, result);
-        result
+        self.get_cached_hidden_by_fold(node)
+            .expect("hidden_by_fold queried for a node not in the current AST")
     }
 
-    fn compute_hidden_by_fold(
-        &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
-        // show only the first block in folded ancestor blocks
-        if node.previous_sibling().is_some() {
-            for ancestor in node.ancestors().skip(1) {
-                if matches!(
-                    &ancestor.data.borrow().value,
-                    NodeValue::Item(_) | NodeValue::TaskItem(_)
-                ) && !self.item_fold_reveal(ancestor, &self.sorted_siblings(ancestor))
-                    && self.fold(ancestor).is_some()
-                {
-                    return true;
-                }
-            }
-        }
+    /// One DFS over the tree. Carries `item_fold_active` down through
+    /// the recursion (any folded-unrevealed Item/TaskItem ancestor
+    /// turns it on, hiding all but the first child). Per parent,
+    /// maintains a stack of currently-open headings as we walk
+    /// children left-to-right; each entry is `(level, folded_unrevealed)`.
+    pub fn populate_hidden_by_fold(&self, root: &'ast AstNode<'ast>) {
+        // The root is never hidden; cache it directly so a query for
+        // `hidden_by_fold(root)` doesn't fall back to the unwrap
+        // default.
+        self.set_cached_hidden_by_fold(root, false);
+        self.populate_hidden_by_fold_subtree(root, false);
+    }
 
-        // show only the blocks that have no folded heading; headings with
-        // another equal or more significant heading between them and the target
-        // node don't count; headings intersecting the selection don't count
-        let sibling_index = self.sibling_index(node, sorted_siblings);
-
-        let mut most_significant_unfolded_heading =
-            if let NodeValue::Heading(heading) = &node.data.borrow().value {
-                heading.level
-            } else {
-                7 // max heading level + 1
+    fn populate_hidden_by_fold_subtree(&self, parent: &'ast AstNode<'ast>, item_fold_active: bool) {
+        // Per-parent state. Stack invariant: levels strictly
+        // increasing from bottom to top.
+        let mut heading_stack: Vec<(u8, bool)> = Vec::new();
+        let mut sibling_index: usize = 0;
+        let mut child = parent.first_child();
+        while let Some(c) = child {
+            // Pull only the bits we need out of the borrow — copying
+            // the heading level and the variant kind avoids cloning
+            // the whole `NodeValue` (which carries owned `String`s
+            // for inline payloads).
+            let (heading_level, is_item_or_task) = {
+                let value = &c.data.borrow().value;
+                (
+                    if let NodeValue::Heading(h) = value { Some(h.level) } else { None },
+                    matches!(value, NodeValue::Item(_) | NodeValue::TaskItem(_)),
+                )
             };
-        for sibling in sorted_siblings[0..sibling_index].iter().rev() {
-            if let NodeValue::Heading(heading) = &sibling.data.borrow().value {
-                if heading.level < most_significant_unfolded_heading {
-                    most_significant_unfolded_heading = heading.level;
-                    if !self.heading_fold_reveal(sibling, sorted_siblings)
-                        && self.fold(sibling).is_some()
-                    {
-                        // our node is contained by a folded, unrevealed heading
-                        return true;
-                    }
+
+            // Headings end prior headings at >= their level — pop
+            // before the visibility check so the popped headings
+            // don't count as containers of this heading.
+            if let Some(level) = heading_level {
+                while heading_stack.last().is_some_and(|&(lvl, _)| lvl >= level) {
+                    heading_stack.pop();
                 }
             }
-        }
 
-        false
+            let hidden_by_item = sibling_index > 0 && item_fold_active;
+            // Any folded heading currently on the stack hides us.
+            let hidden_by_heading = heading_stack.iter().any(|&(_, folded)| folded);
+            self.set_cached_hidden_by_fold(c, hidden_by_item || hidden_by_heading);
+
+            // Push self onto the heading stack so subsequent siblings
+            // know we exist as a section container. Even unfolded
+            // headings get pushed — they "block" prior less-significant
+            // folded headings from contributing past us.
+            if let Some(level) = heading_level {
+                let folded = self.fold(c).is_some()
+                    && !self.heading_fold_reveal(c, &self.sorted_siblings(c));
+                heading_stack.push((level, folded));
+            }
+
+            let child_item_fold_active = item_fold_active
+                || (is_item_or_task
+                    && self.fold(c).is_some()
+                    && !self.item_fold_reveal(c, &self.sorted_siblings(c)));
+            self.populate_hidden_by_fold_subtree(c, child_item_fold_active);
+
+            child = c.next_sibling();
+            sibling_index += 1;
+        }
     }
 }
 
