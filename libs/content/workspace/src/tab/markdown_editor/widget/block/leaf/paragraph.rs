@@ -7,11 +7,14 @@ use crate::tab::markdown_editor::MdRender;
 impl<'ast> MdRender {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut result = 0.;
-        for descendant in node.descendants() {
-            if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
-                let NodeLink { url, .. } = &**node_link;
-                result += self.height_image(node, url);
-                result += self.layout.block_spacing;
+        // toolbar text-only mode: skip block image; inline path renders alt as link
+        if !self.render_images_as_text {
+            for descendant in node.descendants() {
+                if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                    let NodeLink { url, .. } = &**node_link;
+                    result += self.height_image(node, url);
+                    result += self.layout.block_spacing;
+                }
             }
         }
 
@@ -67,13 +70,16 @@ impl<'ast> MdRender {
             let line = self.bounds.source_lines[line];
             let node_line = self.node_line(node, line);
 
-            for descendant in node.descendants() {
-                if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
-                    let NodeLink { url, .. } = &**node_link;
-                    if node_line.contains_inclusive(self.node_range(descendant).start()) {
-                        self.show_image_block(ui, node, top_left, url);
-                        top_left.y += self.height_image(node, url);
-                        top_left.y += self.layout.block_spacing;
+            // mirror `height_paragraph` text-only mode
+            if !self.render_images_as_text {
+                for descendant in node.descendants() {
+                    if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                        let NodeLink { url, .. } = &**node_link;
+                        if node_line.contains_inclusive(self.node_range(descendant).start()) {
+                            self.show_image_block(ui, node, top_left, url);
+                            top_left.y += self.height_image(node, url);
+                            top_left.y += self.layout.block_spacing;
+                        }
                     }
                 }
             }

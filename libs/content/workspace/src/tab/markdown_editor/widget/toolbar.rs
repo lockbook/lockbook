@@ -606,6 +606,11 @@ impl<'ast> Editor {
                             let touch_consuming_rects =
                                 mem::take(&mut self.edit.renderer.touch_consuming_rects);
 
+                            // menu labels: force blue links + plain image-link text
+                            let link_resolver =
+                                mem::replace(&mut self.edit.renderer.link_resolver, Box::new(()));
+                            self.edit.renderer.render_images_as_text = true;
+
                             self.edit.renderer.layout_cache.clear();
 
                             // page title
@@ -1023,6 +1028,19 @@ impl<'ast> Editor {
 
                             ui.advance_cursor_after_rect(rect);
 
+                            // submit shaped text — `MdEdit::show` (which
+                            // normally drains text_areas) doesn't run while
+                            // the menu is open
+                            let text_areas = mem::take(&mut self.edit.renderer.text_areas);
+                            if !text_areas.is_empty() {
+                                ui.painter().add(
+                                    egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                                        ui.clip_rect(),
+                                        crate::GlyphonRendererCallback::new(text_areas),
+                                    ),
+                                );
+                            }
+
                             // restore stored values
                             self.edit.renderer.buffer = buffer;
                             self.edit.renderer.bounds.source_lines = source_lines;
@@ -1032,6 +1050,9 @@ impl<'ast> Editor {
                             self.edit.renderer.galleys.galleys = galleys;
                             self.edit.renderer.bounds.wrap_lines = wrap_lines;
                             self.edit.renderer.touch_consuming_rects = touch_consuming_rects;
+
+                            self.edit.renderer.link_resolver = link_resolver;
+                            self.edit.renderer.render_images_as_text = false;
                         });
                 });
             });

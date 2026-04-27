@@ -120,6 +120,9 @@ pub struct MdRender {
     pub plaintext: bool,
     pub reveal_ranges: Vec<(Grapheme, Grapheme)>,
     pub text_highlight_range: Option<(Grapheme, Grapheme)>,
+    /// Toolbar settings menu: render image nodes as inline link text only,
+    /// skipping the block preview and its reserved space.
+    pub render_images_as_text: bool,
 
     // capabilities
     pub embeds: Box<dyn EmbedResolver>,
@@ -362,6 +365,7 @@ impl MdRender {
             touch_consuming_rects: Default::default(),
             reveal_ranges: Vec::new(),
             text_highlight_range: None,
+            render_images_as_text: false,
             in_progress_selection: None,
             find_current_match: None,
             interactive: false,
@@ -399,6 +403,7 @@ impl MdRender {
             touch_consuming_rects: Default::default(),
             reveal_ranges: Vec::new(),
             text_highlight_range: None,
+            render_images_as_text: false,
             in_progress_selection: None,
             find_current_match: None,
             interactive: false,
@@ -505,6 +510,7 @@ impl Editor {
             plaintext,
             reveal_ranges: Vec::new(),
             text_highlight_range: None,
+            render_images_as_text: false,
 
             embeds,
             link_resolver,
