@@ -27,16 +27,18 @@ impl<'ast> MdRender {
                 Stroke { width: 1.0, color: self.ctx.get_lb_theme().neutral() },
             );
 
-            // show empty row with mapped text range
-            let mut wrap = self.new_wrap(width);
-            self.show_section(
-                ui,
-                top_left,
-                &mut wrap,
-                node_line.end().into_range(),
-                self.text_format_syntax(),
-            );
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
+            // Anchor a galley at each endpoint so cursors at either edge resolve a line.
+            for offset in [node_line.start(), node_line.end()] {
+                let mut wrap = self.new_wrap(width);
+                self.show_section(
+                    ui,
+                    top_left,
+                    &mut wrap,
+                    offset.into_range(),
+                    self.text_format_syntax(),
+                );
+                self.bounds.wrap_lines.extend(wrap.row_ranges);
+            }
         }
     }
 }

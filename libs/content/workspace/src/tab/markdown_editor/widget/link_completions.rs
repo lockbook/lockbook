@@ -3,6 +3,7 @@ use lb_rs::Uuid;
 use lb_rs::model::file::File;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use std::sync::{Arc, RwLock};
 
@@ -337,18 +338,19 @@ fn query_range(
     };
     let start = Grapheme(range.0.0 + prefix_len);
 
-    // For wiki links, exclude trailing `]]` if present.
-    // For regular/image links, the query is only the display text before `]`.
+    // Convert byte lengths to grapheme counts before adding to a `Grapheme`;
+    // multi-byte clusters (Devanagari, emoji) overshoot otherwise.
     let raw = &buffer[range];
     let end = match mode {
         CompletionMode::WikiLink => {
             let trimmed = raw.trim_end_matches(']');
-            Grapheme(range.0.0 + trimmed.len())
+            Grapheme(range.0.0 + trimmed.graphemes(true).count())
         }
         CompletionMode::Link | CompletionMode::ImageLink => {
             let after_prefix = &raw[prefix_len..];
-            let text_len = after_prefix.find(']').unwrap_or(after_prefix.len());
-            Grapheme(start.0 + text_len)
+            let text_byte_len = after_prefix.find(']').unwrap_or(after_prefix.len());
+            let text_grapheme_count = after_prefix[..text_byte_len].graphemes(true).count();
+            Grapheme(start.0 + text_grapheme_count)
         }
     };
 

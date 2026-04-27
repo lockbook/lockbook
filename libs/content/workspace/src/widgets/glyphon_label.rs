@@ -300,9 +300,11 @@ impl egui::Widget for GlyphonLabel<'_> {
 
         if ui.is_rect_visible(rect) {
             let areas = shaped.text_areas(rect, ui.ctx(), rect);
+            // egui_wgpu clamps the callback rect to the screen and drops a zero-area result.
+            let callback_rect = rect.intersect(ui.clip_rect());
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    rect,
+                    callback_rect,
                     GlyphonRendererCallback::new(areas),
                 ));
         }
