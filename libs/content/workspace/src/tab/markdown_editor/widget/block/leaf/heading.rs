@@ -137,7 +137,6 @@ impl<'ast> MdRender {
 
     pub fn show_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, level: u8, setext: bool,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
         if setext {
             self.show_setext_heading(ui, node, top_left, level);
@@ -147,8 +146,7 @@ impl<'ast> MdRender {
 
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
         let hovered = {
-            let siblings_height = self.height(node, siblings)
-                + self.heading_contained_siblings_height(node, siblings);
+            let siblings_height = self.height(node) + self.heading_contained_siblings_height(node);
             let siblings_space =
                 Rect::from_min_size(top_left, Vec2::new(self.width(node), siblings_height));
 
@@ -176,8 +174,8 @@ impl<'ast> MdRender {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.heading_contents(node, siblings),
-            self.heading_fold_reveal(node, siblings),
+            self.heading_contents(node),
+            self.heading_fold_reveal(node),
         );
     }
 
@@ -427,79 +425,47 @@ impl<'ast> MdRender {
         }
     }
 
-    fn heading_contained_siblings_height(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
-        let contained_siblings = self.heading_contained_siblings(node, siblings);
+    fn heading_contained_siblings_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let NodeValue::Heading(heading) = &node.data.borrow().value else {
+            panic!("heading_contained_siblings_height() invoked for non-heading")
+        };
+        let level = heading.level;
         let mut height_sum = 0.0;
-        for sibling in &contained_siblings {
-            height_sum += self.block_pre_spacing_height(sibling, siblings);
-            height_sum += self.height(sibling, siblings);
-            height_sum += self.block_post_spacing_height(sibling, siblings);
+        let mut sibling = node.next_sibling();
+        while let Some(s) = sibling {
+            if let NodeValue::Heading(sib_h) = &s.data.borrow().value {
+                if sib_h.level <= level {
+                    break;
+                }
+            }
+            height_sum += self.block_pre_spacing_height(s);
+            height_sum += self.height(s);
+            height_sum += self.block_post_spacing_height(s);
+            sibling = s.next_sibling();
         }
         height_sum
     }
 
-    fn heading_contained_siblings(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> Vec<&'ast AstNode<'ast>> {
+    pub fn heading_contents(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         let NodeValue::Heading(heading) = &node.data.borrow().value else {
             panic!("heading_contents() invoked for non-heading")
         };
 
         let mut contents = self.node_range(node).end().into_range();
-        let sibling_index = self.sibling_index(node, siblings);
-
-        let mut result = Vec::new();
-
-        for sibling in siblings[sibling_index + 1..].iter() {
-            // an equal or more significant subsequent heading concludes this heading's contents
-            if let NodeValue::Heading(sibling_heading) = &sibling.data.borrow().value {
-                if sibling_heading.level <= heading.level {
-                    let sibling_first_line = self.node_first_line_idx(sibling);
+        let mut sibling = node.next_sibling();
+        while let Some(s) = sibling {
+            if let NodeValue::Heading(sib_h) = &s.data.borrow().value {
+                if sib_h.level <= heading.level {
+                    let sibling_first_line = self.node_first_line_idx(s);
                     let last_line = sibling_first_line - 1;
                     contents.1 = self.bounds.source_lines[last_line].end();
-
-                    break;
+                    return contents;
                 }
             }
-
-            result.push(*sibling);
+            sibling = s.next_sibling();
         }
-
-        result
-    }
-
-    pub fn heading_contents(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> (Grapheme, Grapheme) {
-        let NodeValue::Heading(heading) = &node.data.borrow().value else {
-            panic!("heading_contents() invoked for non-heading")
-        };
-
-        let mut contents = self.node_range(node).end().into_range();
-        let sibling_index = self.sibling_index(node, siblings);
-        let mut concluded_by_subsequent_heading = false;
-        for sibling in siblings[sibling_index + 1..].iter() {
-            // an equal or more significant subsequent heading concludes this heading's contents
-            if let NodeValue::Heading(sibling_heading) = &sibling.data.borrow().value {
-                if sibling_heading.level <= heading.level {
-                    let sibling_first_line = self.node_first_line_idx(sibling);
-                    let last_line = sibling_first_line - 1;
-                    contents.1 = self.bounds.source_lines[last_line].end();
-                    concluded_by_subsequent_heading = true;
-
-                    break;
-                }
-            }
-        }
-        if !concluded_by_subsequent_heading {
-            // absent an equal or more significant subsequent
-            // heading, we contain the remaining content of the
-            // parent
-            contents.1 = self.node_range(node.parent().unwrap()).end();
-        }
-
+        // No concluding heading: contain the rest of the parent.
+        contents.1 = self.node_range(node.parent().unwrap()).end();
         contents
     }
 
@@ -557,9 +523,7 @@ impl<'ast> MdRender {
     }
 
     /// Returns true if the heading contents should be revealed whether the heading is folded or not
-    pub fn heading_fold_reveal(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
-        self.range_contains_revealed(self.heading_contents(node, siblings), false, true)
+    pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.range_contains_revealed(self.heading_contents(node), false, true)
     }
 }

@@ -89,7 +89,7 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
+    pub fn height(&self, node: &'ast AstNode<'ast>) -> f32 {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
         }
@@ -128,7 +128,7 @@ impl<'ast> MdRender {
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node, siblings) {
+        if self.hidden_by_fold(node) {
             return 0.;
         }
 
@@ -199,7 +199,6 @@ impl<'ast> MdRender {
 
     pub(crate) fn show_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
         let ui = &mut self.node_ui(ui, node);
 
@@ -230,7 +229,7 @@ impl<'ast> MdRender {
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node, siblings) {
+        if self.hidden_by_fold(node) {
             return;
         }
 
@@ -241,15 +240,13 @@ impl<'ast> MdRender {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(node_alert) => {
-                self.show_alert(ui, node, top_left, node_alert, siblings)
-            }
-            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, siblings),
+            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, node_alert),
+            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => self.show_document(ui, node, top_left),
             NodeValue::FootnoteDefinition(_) => self.show_footnote_definition(ui, node, top_left),
-            NodeValue::Item(_) => self.show_item(ui, node, top_left, siblings),
+            NodeValue::Item(_) => self.show_item(ui, node, top_left),
             NodeValue::List(_) => self.show_block_children(ui, node, top_left),
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => self.show_table(ui, node, top_left),
@@ -257,7 +254,7 @@ impl<'ast> MdRender {
                 self.show_table_row(ui, node, top_left, *is_header_row)
             }
             NodeValue::TaskItem(node_task_item) => {
-                self.show_task_item(ui, node, top_left, node_task_item, siblings)
+                self.show_task_item(ui, node, top_left, node_task_item)
             }
 
             // inline
@@ -294,7 +291,7 @@ impl<'ast> MdRender {
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
             NodeValue::Heading(NodeHeading { level, setext, .. }) => {
-                self.show_heading(ui, node, top_left, *level, *setext, siblings)
+                self.show_heading(ui, node, top_left, *level, *setext)
             }
             NodeValue::HtmlBlock(_) => self.show_html_block(ui, node, top_left),
             NodeValue::Paragraph => self.show_paragraph(ui, node, top_left),
@@ -315,28 +312,6 @@ impl<'ast> MdRender {
             && self.node_contains_selection(parent)
             && (node.is_container_block() && !self.node_contains_selection(node)
                 || node.is_leaf_block())
-    }
-
-    /// Returns the children of the given node. With footnotes disabled,
-    /// comrak reports children in sourcepos order so no sorting is needed.
-    pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        node.children().collect()
-    }
-
-    /// Returns the siblings of the given node in sourcepos order.
-    pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        if let Some(parent) = node.parent() { self.sorted_children(parent) } else { vec![node] }
-    }
-
-    pub fn sibling_index(
-        &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
-    ) -> usize {
-        let this_sibling_index = sorted_siblings
-            .iter()
-            .position(|sibling| node.same_node(sibling))
-            .unwrap();
-
-        this_sibling_index
     }
 
     /// Returns the portion of the line that's within the node, excluding line
@@ -517,9 +492,7 @@ impl<'ast> MdRender {
         None
     }
 
-    pub fn hidden_by_fold(
-        &self, node: &'ast AstNode<'ast>, _siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
+    pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
         self.get_cached_hidden_by_fold(node)
             .expect("hidden_by_fold queried for a node not in the current AST")
     }
@@ -575,15 +548,12 @@ impl<'ast> MdRender {
             // headings get pushed — they "block" prior less-significant
             // folded headings from contributing past us.
             if let Some(level) = heading_level {
-                let folded = self.fold(c).is_some()
-                    && !self.heading_fold_reveal(c, &self.sorted_siblings(c));
+                let folded = self.fold(c).is_some() && !self.heading_fold_reveal(c);
                 heading_stack.push((level, folded));
             }
 
             let child_item_fold_active = item_fold_active
-                || (is_item_or_task
-                    && self.fold(c).is_some()
-                    && !self.item_fold_reveal(c, &self.sorted_siblings(c)));
+                || (is_item_or_task && self.fold(c).is_some() && !self.item_fold_reveal(c));
             self.populate_hidden_by_fold_subtree(c, child_item_fold_active);
 
             child = c.next_sibling();

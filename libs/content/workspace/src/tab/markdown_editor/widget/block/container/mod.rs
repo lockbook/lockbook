@@ -78,13 +78,11 @@ impl<'ast> MdRender {
 
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let children = self.sorted_children(node);
-
         let mut height_sum = 0.0;
-        for child in &children {
-            height_sum += self.block_pre_spacing_height(child, &children);
-            height_sum += self.height(child, &children);
-            height_sum += self.block_post_spacing_height(child, &children);
+        for child in node.children() {
+            height_sum += self.block_pre_spacing_height(child);
+            height_sum += self.height(child);
+            height_sum += self.block_post_spacing_height(child);
         }
         height_sum
     }
@@ -94,8 +92,6 @@ impl<'ast> MdRender {
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
-        let children = self.sorted_children(node);
-
         let required_ranges =
             self.galley_required_ranges(self.in_progress_selection, self.find_current_match);
         let viewport = ui.clip_rect();
@@ -107,24 +103,24 @@ impl<'ast> MdRender {
         let past_all_required =
             |offset: Grapheme| -> bool { required_ranges.iter().all(|rr| offset > rr.end()) };
 
-        for child in &children {
+        for child in node.children() {
             let child_range = self.node_range(child);
-            let pre_lines = self.pre_spacing_lines(child, &children);
-            let post_lines = self.post_spacing_lines(child, &children);
+            let pre_lines = self.pre_spacing_lines(child);
+            let post_lines = self.post_spacing_lines(child);
 
             // add pre-spacing
-            let pre_spacing = self.block_pre_spacing_height(child, &children);
+            let pre_spacing = self.block_pre_spacing_height(child);
             let pre_spacing_below_viewport = viewport.max.y < top_left.y;
             let pre_spacing_above_viewport = viewport.min.y > top_left.y + pre_spacing;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
             let pre_spacing_needed = intersects_any_required(&self.spacing_range(&pre_lines));
             if pre_spacing_visible || pre_spacing_needed {
-                self.show_block_pre_spacing(ui, child, top_left, &children);
+                self.show_block_pre_spacing(ui, child, top_left);
             }
             top_left.y += pre_spacing;
 
             // add block
-            let child_height = self.height(child, &children);
+            let child_height = self.height(child);
 
             if self.debug {
                 self.show_debug_block_highlight(
@@ -141,7 +137,7 @@ impl<'ast> MdRender {
             let block_visible = !block_above_viewport && !block_below_viewport;
             let block_needed = intersects_any_required(&child_range);
             if block_visible || block_needed {
-                self.show_block(ui, child, top_left, &children);
+                self.show_block(ui, child, top_left);
             } else {
                 let in_buffer = top_left.y + child_height > viewport.min.y - buffer
                     && top_left.y < viewport.max.y + buffer;
@@ -154,13 +150,13 @@ impl<'ast> MdRender {
             top_left.y += child_height;
 
             // add post-spacing
-            let post_spacing = self.block_post_spacing_height(child, &children);
+            let post_spacing = self.block_post_spacing_height(child);
             let post_spacing_below_viewport = viewport.max.y < top_left.y;
             let post_spacing_above_viewport = viewport.min.y > top_left.y + post_spacing;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
             let post_spacing_needed = intersects_any_required(&self.spacing_range(&post_lines));
             if post_spacing_visible || post_spacing_needed {
-                self.show_block_post_spacing(ui, child, top_left, &children);
+                self.show_block_post_spacing(ui, child, top_left);
             }
             top_left.y += post_spacing;
 
@@ -584,17 +580,15 @@ impl<'ast> MdRender {
 
     // compute bounds for blocks stacked vertically
     pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
-        let children = self.sorted_children(node);
-
-        for child in &children {
+        for child in node.children() {
             // add pre-spacing bounds
-            self.compute_bounds_block_pre_spacing(child, &children);
+            self.compute_bounds_block_pre_spacing(child);
 
             // add block bounds
             self.compute_bounds(child);
 
             // add post-spacing bounds
-            self.compute_bounds_block_post_spacing(child, &children);
+            self.compute_bounds_block_post_spacing(child);
         }
     }
 }
