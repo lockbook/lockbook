@@ -306,10 +306,11 @@ impl Chat {
 
         // Transcript text callback. Submit before composer so the composer's
         // own callback (inside show) lands on a later glyphon layer.
+        // `clip_rect` not `max_rect`: egui_wgpu drops a zero-area callback rect.
         if !text_areas.is_empty() {
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.max_rect(),
+                    ui.clip_rect(),
                     GlyphonRendererCallback::new(text_areas),
                 ));
         }
