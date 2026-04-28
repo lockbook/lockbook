@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::sync::atomic::AtomicBool;
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
 
@@ -725,6 +726,13 @@ pub struct LayoutCache {
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
     pub hidden_by_fold: RefCell<HashMap<(Grapheme, Grapheme), bool>>,
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
+
+    /// Set when something outside the editor (file cache refresh, async link
+    /// title fetch completion) changes the resolved width of a link's display
+    /// text. The next reparse drops cached heights so the new width takes
+    /// effect; without this, heights keyed only by node range stay stale.
+    /// Shared via `Arc` so async fetch closures can signal from any thread.
+    pub link_layout_dirty: Arc<AtomicBool>,
 }
 
 impl LayoutCache {
@@ -752,6 +760,14 @@ impl LayoutCache {
         self.node_range.borrow_mut().clear();
 
         // glyphon_buffers: content-addressed, preserved across text changes
+    }
+
+    /// Drop heights only. Used when link title resolution changes (file cache
+    /// refresh or async fetch completion): node ranges, fold state, and line
+    /// prefixes are unaffected, but a link's display-text width may differ.
+    pub fn invalidate_link_layout_change(&self) {
+        self.height.borrow_mut().clear();
+        self.height_approx.borrow_mut().clear();
     }
 
     /// Invalidates height entries affected by a reveal range change (cursor
