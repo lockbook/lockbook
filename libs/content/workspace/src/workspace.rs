@@ -576,19 +576,19 @@ impl Workspace {
                     crate::tab::ClipContent::Image(data) => {
                         let file = crate::tab::import_image(&self.core, file_id, &data);
 
+                        // Refresh before the markdown event lands: the image
+                        // cache's URL→id lookup reads `self.files` on first
+                        // load and caches a sticky "image not found" failure
+                        // if the file isn't there yet.
+                        *self.files.write().unwrap() =
+                            FileCache::new(&self.core).expect("failed to refresh file cache");
+
                         let rel_path = {
                             let guard = self.files.read().unwrap();
                             let parent = guard.get_by_id(file_id).unwrap().parent;
-                            let mut augmented = guard.files.clone();
-                            if augmented.get_by_id(file.parent).is_none() {
-                                if let Ok(folder) = self.core.get_file_by_id(file.parent) {
-                                    augmented.push(folder);
-                                }
-                            }
-                            augmented.push(file.clone());
                             crate::file_cache::relative_path(
-                                &augmented.path(parent),
-                                &augmented.path(file.id),
+                                &guard.path(parent),
+                                &guard.path(file.id),
                             )
                         };
                         let link = format!("![{}]({})", file.name, rel_path);
