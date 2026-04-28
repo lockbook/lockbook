@@ -482,7 +482,11 @@ impl Workspace {
                                 .iter()
                                 .any(|s| s.dest.id() == id && self.tabs.contains_key(&s.dest));
                             if has_open_tab {
-                                self.open_file(id, false, false);
+                                self.tasks.queue_load(LoadRequest {
+                                    id,
+                                    tab_created: false,
+                                    make_current: false,
+                                });
                             }
                         }
                     }
@@ -796,7 +800,11 @@ impl Workspace {
                                         "reloading file after save failed with re-read required: {}",
                                         id
                                     );
-                                    self.open_file(id, false, false);
+                                    self.tasks.queue_load(LoadRequest {
+                                        id,
+                                        tab_created: false,
+                                        make_current: false,
+                                    });
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
                                         format!("{err:?}"),
