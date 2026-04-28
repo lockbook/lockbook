@@ -405,6 +405,12 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
         }
     };
 
+    // Wikilinks resolve by title within the same tree only (see
+    // FileCache::resolve_wikilink).
+    let tree_allowed = |f_id: Uuid| -> bool {
+        if mode == CompletionMode::WikiLink { cache.same_tree(file_id, f_id) } else { true }
+    };
+
     // Path distance: number of `../` segments in the relative path, or u16::MAX for cross-tree.
     let path_distance = |f_id: Uuid, cross_tree: bool| -> u16 {
         if cross_tree {
@@ -462,6 +468,9 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             let Some(f) = cache.get_by_id(id).filter(|f| f.is_document()) else {
                 continue;
             };
+            if !tree_allowed(f.id) {
+                continue;
+            }
             let display_name = f.name.trim_end_matches(".md").to_string();
             results.push(make_result(f, display_name));
             if results.len() == MAX_RESULTS {
@@ -476,6 +485,7 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
     let mut scored: Vec<(FileResult, u8, bool, u16, usize)> = cache
         .all_files()
         .filter(|f| f.is_document() && f.id != file_id && file_allowed(&f.name))
+        .filter(|f| tree_allowed(f.id))
         .filter_map(|f| {
             if !file_matches(&f.name) {
                 return None;
@@ -514,9 +524,10 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
 }
 
 /// Fills `result.insert` for each entry.
-/// - Cross-tree files always use `lb://uuid` (relative paths don't work across trees).
+/// - Link/ImageLink: cross-tree uses `lb://uuid` (relative paths don't work
+///   across trees); same-tree uses the encoded relative path.
 /// - WikiLink: bare title when unique, minimal partial path when ambiguous.
-/// - Link/ImageLink: always the full relative path (no ambiguity since path is explicit).
+///   Cross-tree results are filtered upstream (wikilinks are same-tree only).
 fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: CompletionMode) {
     if mode != CompletionMode::WikiLink {
         for result in results.iter_mut() {
@@ -529,7 +540,6 @@ fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: Completi
         return;
     }
 
-    // For wikilinks: cross-tree files use lb://uuid; same-tree files use title or partial path.
     let all_titles: Vec<&str> = cache
         .all_files()
         .filter(|f| f.is_document())
@@ -537,10 +547,6 @@ fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: Completi
         .collect();
 
     for result in results.iter_mut() {
-        if result.cross_tree {
-            result.insert = format!("lb://{}", result.id);
-            continue;
-        }
         let count = all_titles
             .iter()
             .filter(|t| t.eq_ignore_ascii_case(&result.name))
