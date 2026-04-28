@@ -1,12 +1,6 @@
-use std::cell::{Cell, RefCell};
+use std::cell::RefCell;
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
-
-thread_local! {
-    /// Tunable factor for `height_approx`'s presumed character width
-    /// (multiplied by `row_height`). Production default is 0.5.
-    pub(crate) static APPROX_CHAR_WIDTH_FACTOR: Cell<f32> = const { Cell::new(0.5) };
-}
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
@@ -254,7 +248,7 @@ impl<'ast> MdRender {
                         _ => {}
                     }
                 }
-                let char_width = row_height * APPROX_CHAR_WIDTH_FACTOR.with(|c| c.get());
+                let char_width = row_height * 0.5;
                 let chars_per_row = (width / char_width).floor().max(1.0) as usize;
                 let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
                 rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
