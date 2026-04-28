@@ -1,5 +1,9 @@
 package app.lockbook.screen
 
+import android.animation.Animator
+import android.animation.AnimatorListenerAdapter
+import android.animation.AnimatorSet
+import android.animation.ObjectAnimator
 import android.content.Intent
 import android.os.Build
 import android.os.Bundle
@@ -9,6 +13,7 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
+import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
@@ -40,6 +45,8 @@ class FilesListFragment : Fragment(), FilesFragment {
     private val binding get() = _binding!!
     private val menu get() = binding.filesToolbar
     private var actionModeMenu: ActionMode? = null
+    private var folderTransition: Animator? = null
+    private var folderTransitionId = 0
 
     private var currentTab: WorkspaceTab = WorkspaceTab.Welcome
     private val actionModeMenuCallback: ActionMode.Callback by lazy {
@@ -128,7 +135,7 @@ class FilesListFragment : Fragment(), FilesFragment {
 
         binding.filesBreadcrumbBar.setListener(object : BreadCrumbItemClickListener {
             override fun onItemClick(breadCrumbItem: View, file: File) {
-                model.enterFolder(file)
+                enterFolder(file)
                 unselectFiles()
             }
         })
@@ -176,7 +183,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             if (currentTab != it) {
                 model.fileModel.idsAndFiles[it.id]?.let { child ->
                     model.fileModel.idsAndFiles[child.parent]?.let { parent ->
-                        model.enterFolder(parent)
+                        enterFolder(parent, animate = false)
                     }
                 }
             }
@@ -452,9 +459,99 @@ class FilesListFragment : Fragment(), FilesFragment {
                 activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
             }
             FileType.Folder -> {
-                model.enterFolder(item)
+                enterFolder(item)
             }
             FileType.Link -> {} // shouldn't happen
+        }
+    }
+
+    private fun enterParent() {
+        val parent = model.fileModel.idsAndFiles[model.fileModel.parent.parent] ?: model.fileModel.root
+        enterFolder(parent)
+    }
+
+    private fun enterFolder(newParent: File, animate: Boolean = true) {
+        val transitionId = ++folderTransitionId
+
+        folderTransition?.cancel()
+
+        val transitionViews = listOf(recyclerView, binding.filesEmptyFolder, binding.suggestedDocsLayout.root, binding.filesBreadcrumbBar)
+        if (!animate) {
+            transitionViews.forEach {
+                it.alpha = 1f
+                it.translationX = 0f
+            }
+            folderTransition = null
+            model.enterFolder(newParent)
+            return
+        }
+
+        val isMovingUpTree = model.fileModel.getFileDir().dropLast(1).any { it.id == newParent.id }
+        val translationDistance = resources.displayMetrics.density * FOLDER_TRANSITION_TRANSLATION_DP
+        val outgoingTranslation = if (isMovingUpTree) translationDistance else -translationDistance
+        val incomingTranslation = -outgoingTranslation
+
+        val fadeOut = AnimatorSet().apply {
+            playTogether(
+                transitionViews.flatMap { view ->
+                    listOf(
+                        ObjectAnimator.ofFloat(view, View.ALPHA, view.alpha, 0f),
+                        ObjectAnimator.ofFloat(view, View.TRANSLATION_X, view.translationX, outgoingTranslation)
+                    )
+                }
+            )
+            duration = FOLDER_TRANSITION_FADE_OUT_DURATION
+            interpolator = FastOutSlowInInterpolator()
+        }
+
+        val fadeIn = AnimatorSet().apply {
+            playTogether(
+                transitionViews.flatMap { view ->
+                    listOf(
+                        ObjectAnimator.ofFloat(view, View.ALPHA, 0f, 1f),
+                        ObjectAnimator.ofFloat(view, View.TRANSLATION_X, incomingTranslation, 0f)
+                    )
+                }
+            )
+            duration = FOLDER_TRANSITION_FADE_IN_DURATION
+            interpolator = FastOutSlowInInterpolator()
+        }
+
+        fadeOut.addListener(object : AnimatorListenerAdapter() {
+            override fun onAnimationEnd(animation: Animator) {
+                if (transitionId == folderTransitionId) {
+                    transitionViews.forEach {
+                        it.alpha = 0f
+                        it.translationX = incomingTranslation
+                    }
+                    model.enterFolder(newParent)
+                }
+            }
+        })
+
+        folderTransition = AnimatorSet().apply {
+            playSequentially(fadeOut, fadeIn)
+            addListener(object : AnimatorListenerAdapter() {
+                override fun onAnimationEnd(animation: Animator) {
+                    if (transitionId == folderTransitionId) {
+                        transitionViews.forEach {
+                            it.alpha = 1f
+                            it.translationX = 0f
+                        }
+                        folderTransition = null
+                    }
+                }
+
+                override fun onAnimationCancel(animation: Animator) {
+                    if (transitionId == folderTransitionId) {
+                        transitionViews.forEach {
+                            it.alpha = 1f
+                            it.translationX = 0f
+                        }
+                    }
+                }
+            })
+            start()
         }
     }
 
@@ -594,7 +691,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             false
         }
         !model.fileModel.isAtRoot() -> {
-            model.enterFolder(null)
+            enterParent()
             false
         }
         else -> {
@@ -622,6 +719,10 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 }
+
+private const val FOLDER_TRANSITION_FADE_OUT_DURATION = 70L
+private const val FOLDER_TRANSITION_FADE_IN_DURATION = 160L
+private const val FOLDER_TRANSITION_TRANSLATION_DP = 24f
 
 sealed class UpdateFilesUI {
     object UpdateBreadcrumbBar : UpdateFilesUI()
