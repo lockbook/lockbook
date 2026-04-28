@@ -29,7 +29,6 @@ import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
-import com.google.android.material.animation.AnimationUtils.FAST_OUT_SLOW_IN_INTERPOLATOR
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
 import kotlinx.coroutines.Dispatchers
@@ -466,6 +465,11 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
     }
 
+    private fun enterParent() {
+        val parent = model.fileModel.idsAndFiles[model.fileModel.parent.parent] ?: model.fileModel.root
+        enterFolder(parent)
+    }
+
     private fun enterFolder(newParent: File, animate: Boolean = true) {
         val transitionId = ++folderTransitionId
 
@@ -687,7 +691,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             false
         }
         !model.fileModel.isAtRoot() -> {
-            enterFolder(model.fileModel.root)
+            enterParent()
             false
         }
         else -> {
@@ -716,8 +720,8 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 }
 
-private const val FOLDER_TRANSITION_FADE_OUT_DURATION = 90L
-private const val FOLDER_TRANSITION_FADE_IN_DURATION = 210L
+private const val FOLDER_TRANSITION_FADE_OUT_DURATION = 70L
+private const val FOLDER_TRANSITION_FADE_IN_DURATION = 160L
 private const val FOLDER_TRANSITION_TRANSLATION_DP = 24f
 
 sealed class UpdateFilesUI {
