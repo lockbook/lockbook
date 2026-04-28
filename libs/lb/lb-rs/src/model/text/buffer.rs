@@ -683,7 +683,36 @@ impl Index<(Grapheme, Grapheme)> for Buffer {
 #[cfg(test)]
 mod test {
     use super::Buffer;
+    use crate::model::text::offset_types::{Grapheme, RangeExt as _};
+    use crate::model::text::operation_types::{Operation, Replace};
     use unicode_segmentation::UnicodeSegmentation;
+
+    fn type_into_selection(buffer: &mut Buffer, text: &str) {
+        let range = buffer.current.selection;
+        buffer.queue(vec![
+            Operation::Replace(Replace { range, text: text.into() }),
+            Operation::Select((range.start(), range.start())),
+        ]);
+        buffer.update();
+    }
+
+    #[test]
+    fn type_into_forward_selection() {
+        let mut buffer = Buffer::from("hello");
+        buffer.current.selection = (Grapheme(0), Grapheme(5));
+        type_into_selection(&mut buffer, "X");
+        assert_eq!(buffer.current.text, "X");
+        assert_eq!(buffer.current.selection, (Grapheme(1), Grapheme(1)));
+    }
+
+    #[test]
+    fn type_into_backward_selection() {
+        let mut buffer = Buffer::from("hello");
+        buffer.current.selection = (Grapheme(5), Grapheme(0));
+        type_into_selection(&mut buffer, "X");
+        assert_eq!(buffer.current.text, "X");
+        assert_eq!(buffer.current.selection, (Grapheme(1), Grapheme(1)));
+    }
 
     #[test]
     fn buffer_merge_nonintersecting_replace() {
