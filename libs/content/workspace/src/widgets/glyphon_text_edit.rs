@@ -1,5 +1,4 @@
 use std::sync::{Arc, Mutex};
-use web_time::Duration;
 
 use egui::{Context, Event, EventFilter, Id, ImeEvent, Key, Rect, Response, Sense, Ui};
 use glyphon::{Attrs, Family, FontSystem, Metrics, Shaping};
@@ -14,9 +13,7 @@ const EVENT_FILTER: EventFilter =
 ///
 /// Returns `(text_changed, submitted)`. When `submitted` is `true` the caller
 /// should surrender focus on the widget id so that `lost_focus()` fires.
-fn apply_event(
-    event: Event, state: &mut State, text: &mut String, now: f64, ctx: &Context,
-) -> (bool, bool) {
+fn apply_event(event: Event, state: &mut State, text: &mut String, ctx: &Context) -> (bool, bool) {
     let (mut changed, mut submitted) = (false, false);
     match event {
         Event::Key { key: Key::Enter, pressed: true, .. } => {
@@ -29,7 +26,6 @@ fn apply_event(
             text.insert_str(state.cursor, &s);
             state.cursor += s.len();
             state.anchor = state.cursor;
-            state.last_interaction_time = now;
             changed = true;
         }
         Event::Ime(ImeEvent::Commit(s)) => {
@@ -39,7 +35,6 @@ fn apply_event(
             text.insert_str(state.cursor, &s);
             state.cursor += s.len();
             state.anchor = state.cursor;
-            state.last_interaction_time = now;
             changed = true;
         }
         Event::Key { key: Key::Backspace, pressed: true, modifiers, .. } => {
@@ -57,7 +52,6 @@ fn apply_event(
                     state.anchor = prev;
                 }
             }
-            state.last_interaction_time = now;
             changed = true;
         }
         Event::Key { key: Key::Delete, pressed: true, .. } => {
@@ -67,7 +61,6 @@ fn apply_event(
                 let next = next_grapheme_boundary(text, state.cursor);
                 text.drain(state.cursor..next);
             }
-            state.last_interaction_time = now;
             changed = true;
         }
         Event::Key { key: Key::ArrowLeft, pressed: true, modifiers, .. } => {
@@ -78,7 +71,6 @@ fn apply_event(
                 let prev = prev_grapheme_boundary(text, state.cursor);
                 state.move_cursor(prev, modifiers.shift);
             }
-            state.last_interaction_time = now;
         }
         Event::Key { key: Key::ArrowRight, pressed: true, modifiers, .. } => {
             if !modifiers.shift && state.has_selection() {
@@ -88,20 +80,16 @@ fn apply_event(
                 let next = next_grapheme_boundary(text, state.cursor);
                 state.move_cursor(next, modifiers.shift);
             }
-            state.last_interaction_time = now;
         }
         Event::Key { key: Key::Home, pressed: true, modifiers, .. } => {
             state.move_cursor(0, modifiers.shift);
-            state.last_interaction_time = now;
         }
         Event::Key { key: Key::End, pressed: true, modifiers, .. } => {
             state.move_cursor(text.len(), modifiers.shift);
-            state.last_interaction_time = now;
         }
         Event::Key { key: Key::A, pressed: true, modifiers, .. } if modifiers.command => {
             state.anchor = 0;
             state.cursor = text.len();
-            state.last_interaction_time = now;
         }
         Event::Copy => {
             if state.has_selection() {
@@ -114,7 +102,6 @@ fn apply_event(
                 let (lo, hi) = state.selection();
                 ctx.copy_text(text[lo..hi].to_owned());
                 state.delete_selection(text);
-                state.last_interaction_time = now;
                 changed = true;
             }
         }
@@ -125,7 +112,6 @@ fn apply_event(
             text.insert_str(state.cursor, &s);
             state.cursor += s.len();
             state.anchor = state.cursor;
-            state.last_interaction_time = now;
             changed = true;
         }
         _ => {}
@@ -142,8 +128,6 @@ struct State {
     /// Horizontal scroll offset in logical pixels. Positive shifts the view right,
     /// revealing text that starts left of the widget origin.
     singleline_offset: f32,
-    /// Timestamp of the last edit or cursor movement, used to reset the blink phase.
-    last_interaction_time: f64,
     /// Whether the widget was focused last frame, used to detect focus-gained.
     was_focused: bool,
 }
@@ -238,7 +222,6 @@ impl<'a> GlyphonTextEdit<'a> {
             return false;
         }
 
-        let now = ui.input(|i| i.time);
         let mut state: State = ui.data(|d| d.get_temp(id)).unwrap_or_default();
         state.cursor = state.cursor.min(text.len());
         state.anchor = state.anchor.min(text.len());
@@ -255,7 +238,7 @@ impl<'a> GlyphonTextEdit<'a> {
 
         let mut submitted = false;
         for event in events {
-            let (_, sub) = apply_event(event, &mut state, text, now, ui.ctx());
+            let (_, sub) = apply_event(event, &mut state, text, ui.ctx());
             if sub {
                 ui.memory_mut(|m| m.surrender_focus(id));
                 submitted = true;
@@ -280,7 +263,6 @@ impl<'a> GlyphonTextEdit<'a> {
         let focused = ui.memory(|m| m.has_focus(id));
         let ppi = ui.ctx().pixels_per_point();
         let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
-        let now = ui.input(|i| i.time);
 
         // Restore or initialise per-widget state
         let mut state: State = ui.data(|d| d.get_temp(id)).unwrap_or_else(|| {
@@ -310,7 +292,7 @@ impl<'a> GlyphonTextEdit<'a> {
 
             let events = ui.input_mut(|i| i.filtered_events(&EVENT_FILTER));
             for event in events {
-                let (changed, submitted) = apply_event(event, &mut state, self.text, now, ui.ctx());
+                let (changed, submitted) = apply_event(event, &mut state, self.text, ui.ctx());
                 if changed {
                     text_changed = true;
                 }
@@ -382,7 +364,6 @@ impl<'a> GlyphonTextEdit<'a> {
                 } else {
                     state.cursor = byte;
                 }
-                state.last_interaction_time = now;
             }
         }
 
@@ -511,22 +492,19 @@ impl<'a> GlyphonTextEdit<'a> {
                 ));
 
             if focused {
-                let elapsed = now - state.last_interaction_time;
-                let blink_on = elapsed < 0.5 || (elapsed * 2.0).fract() < 0.5;
-                if blink_on {
-                    const CURSOR_W: f32 = 1.5;
-                    let cx = (rect.min.x + cursor_x - state.singleline_offset)
-                        .clamp(rect.min.x, (rect.max.x - CURSOR_W).max(rect.min.x));
-                    ui.painter().rect_filled(
-                        Rect::from_min_max(
-                            egui::pos2(cx, rect.min.y + 2.0),
-                            egui::pos2(cx + CURSOR_W, rect.max.y - 2.0),
-                        ),
-                        0.0,
-                        visuals.text_color(),
-                    );
-                }
-                ui.ctx().request_repaint_after(Duration::from_millis(300));
+                // Solid cursor — blinking would require a 300ms repaint
+                // forever, eating battery on idle.
+                const CURSOR_W: f32 = 1.5;
+                let cx = (rect.min.x + cursor_x - state.singleline_offset)
+                    .clamp(rect.min.x, (rect.max.x - CURSOR_W).max(rect.min.x));
+                ui.painter().rect_filled(
+                    Rect::from_min_max(
+                        egui::pos2(cx, rect.min.y + 2.0),
+                        egui::pos2(cx + CURSOR_W, rect.max.y - 2.0),
+                    ),
+                    0.0,
+                    visuals.text_color(),
+                );
             }
         }
 
