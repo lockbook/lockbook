@@ -14,9 +14,7 @@
 
 use comrak::Arena;
 use egui::os::OperatingSystem;
-use egui::{
-    Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, Vec2, ViewportCommand,
-};
+use egui::{Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, ViewportCommand};
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
@@ -29,6 +27,11 @@ use crate::widgets::IconButton;
 
 use super::MdEdit;
 use super::input::{Bound, Event, Location, Region};
+
+/// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
+pub struct PreRenderState {
+    focused: bool,
+}
 
 impl MdEdit {
     /// Input phase: consume keyboard events, drain the internal event queue,
@@ -133,12 +136,35 @@ impl MdEdit {
         buf_resp
     }
 
-    /// Draw phase: register the widget for pointer hit-test, process pointer
-    /// and context-menu events (piggybacking on the fresh `Response`), then
-    /// render.
+    /// Draw the document inline at `rect`: pointer + context menu via
+    /// [`MdEdit::pre_render`], paint every block, then cursor /
+    /// selection / IME / scroll-to-cursor / text callback via
+    /// [`MdEdit::post_render`].
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
+        let arena = Arena::new();
+        let root = self.renderer.reparse(&arena);
+        let pre = self.pre_render(ui, rect, id, root);
+
+        self.renderer.galleys.galleys.clear();
+        self.renderer.bounds.wrap_lines.clear();
+        self.renderer.text_areas.clear();
+        let height = self.renderer.height(root);
+        let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
+        ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
+            self.renderer.show_block(ui, root, rect.min);
+        });
+        self.renderer.galleys.galleys.sort_by_key(|g| g.range);
+
+        self.post_render(ui, rect, id, pre);
+    }
+
+    /// Per-frame setup that runs before block rendering: dark-mode +
+    /// viewport snapshot, pointer hit-test, context menu, pointer →
+    /// selection. Returns the focus state for [`MdEdit::post_render`].
+    pub fn pre_render<'a>(
+        &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
+    ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
-        self.renderer.width = rect.width();
         self.renderer.viewport_height = ui.clip_rect().height();
 
         ui.ctx().check_for_id_clash(id, rect, "");
@@ -159,12 +185,6 @@ impl MdEdit {
         if response.hovered() || response_properly_clicked {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
         }
-
-        // Re-parse for rendering. handle_input already parsed and computed
-        // bounds; `clear()` or other inter-phase mutations by the caller
-        // could have left those stale, so recompute.
-        let arena = Arena::new();
-        let root = self.renderer.reparse(&arena);
 
         let mut ops = Vec::new();
 
@@ -321,17 +341,19 @@ impl MdEdit {
 
         self.renderer.in_progress_selection = self.in_progress_selection;
 
-        // --- render -----------------------------------------------------------
-        self.renderer.galleys.galleys.clear();
-        self.renderer.bounds.wrap_lines.clear();
-        self.renderer.text_areas.clear();
+        PreRenderState { focused }
+    }
 
-        let height = self.renderer.height(root);
-        let render_rect = Rect::from_min_size(rect.min, Vec2::new(rect.width(), height));
-        ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
-            self.renderer.show_block(ui, root, rect.min);
-        });
-        self.renderer.galleys.galleys.sort_by_key(|g| g.range);
+    /// Per-frame teardown that runs after block rendering: cursor /
+    /// selection / IME, touch handles, scroll-to-cursor consumption,
+    /// focus lock, glyphon text-callback submission, draining of
+    /// internal events.
+    pub fn post_render(&mut self, ui: &mut Ui, rect: Rect, id: Id, pre: PreRenderState) {
+        let focused = pre.focused;
+
+        // Clip subsequent overlay paints (selection, cursor) to the
+        // editor rect so they don't bleed over toolbars or sidebars.
+        ui.set_clip_rect(rect.intersect(ui.clip_rect()));
 
         // cursor / selection — iOS draws natively
         if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
@@ -357,11 +379,10 @@ impl MdEdit {
             self.show_selection_handles(ui);
         }
 
-        // consume a pending scroll-to-cursor if queued. FindMatch is left to
-        // the caller (it owns find state).
+        // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
-            self.scroll_to_cursor(ui);
+            self.scroll_to_cursor(ui, id, rect.height());
         }
 
         // lock focus filter so arrow keys / tab / shift+enter keep reaching us
