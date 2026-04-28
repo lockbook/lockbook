@@ -137,6 +137,10 @@ pub struct MdRender {
     // viewport
     pub width: f32,
     pub viewport_height: f32,
+    /// Width the layout cache was last populated for. `reparse` clears
+    /// the cache when this differs from `width` so heights computed
+    /// for a different column don't bleed into the new layout.
+    last_layout_width: f32,
 
     // debug
     pub debug: bool,
@@ -388,6 +392,7 @@ impl MdRender {
             syntax: Default::default(),
             width: Default::default(),
             viewport_height: Default::default(),
+            last_layout_width: f32::NAN,
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
@@ -425,6 +430,7 @@ impl MdRender {
             syntax: Default::default(),
             width: Default::default(),
             viewport_height: Default::default(),
+            last_layout_width: f32::NAN,
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
@@ -436,6 +442,14 @@ impl MdRender {
     /// [`Arena`] — comrak's AST is arena-allocated. Callers who need heights
     /// also invoke [`MdRender::height`] on the returned root.
     pub fn reparse<'a>(&mut self, arena: &'a Arena<'a>) -> &'a AstNode<'a> {
+        // Width change invalidates every cached layout value (cache
+        // keys are node-range, not width-aware). Use bit-equality
+        // to handle the initial NaN sentinel cleanly.
+        if self.width.to_bits() != self.last_layout_width.to_bits() {
+            self.layout_cache.clear();
+            self.last_layout_width = self.width;
+        }
+
         let options = Self::comrak_options();
         let text_with_newline = format!("{}\n", self.buffer.current.text);
         let root = comrak::parse_document(arena, &text_with_newline, &options);
@@ -534,6 +548,7 @@ impl Editor {
 
             width: Default::default(),
             viewport_height: Default::default(),
+            last_layout_width: f32::NAN,
 
             debug: false,
             frame_times: [Instant::now(); 10],
@@ -674,6 +689,15 @@ impl Editor {
             self.embeds_last_seen = current;
             changed
         };
+
+        // Invalidate caches BEFORE the render (not after). Heights
+        // depend on `viewport_height` (image clamping) and on resolved
+        // embed dimensions. Width invalidation is handled by `reparse`
+        // via `last_layout_width`, so width changes don't need to
+        // appear here.
+        if height_updated || embeds_updated {
+            self.edit.renderer.layout_cache.clear();
+        }
 
         // --- input phase ------------------------------------------------------
         // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
@@ -917,7 +941,9 @@ impl Editor {
             if embeds_updated {
                 self.unprocessed_scroll = Some(Instant::now());
             }
-            self.edit.renderer.layout_cache.clear();
+            // Cache was cleared at top-of-frame so this render is
+            // already correct; just request the next repaint to settle
+            // anything frame-deferred (e.g. scroll persistence).
             ui.ctx().request_repaint();
         } else if resp.selection_updated {
             let new_selection = self
