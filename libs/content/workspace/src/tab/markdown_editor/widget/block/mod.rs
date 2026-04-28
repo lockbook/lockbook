@@ -197,12 +197,10 @@ impl<'ast> MdRender {
         height
     }
 
-    /// Cheap height estimate. Walks the AST inline (no delegation to
-    /// per-block-type `height_*` functions), summing approximate
-    /// heights of leaf blocks via char-count × presumed-char-width
-    /// instead of cosmic-text shaping. Drift from precise layout is
-    /// expected — only safe for off-screen sizing (scrollbar). Visible
-    /// content must be measured via [`Self::height`].
+    /// Cheap height estimate keyed on char count × presumed char
+    /// width, no cosmic-text shaping. Drifts from precise layout —
+    /// safe for off-screen sizing (scrollbar) only; visible content
+    /// must use [`Self::height`].
     pub fn height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
         if let Some(cached) = self.get_cached_node_height_approx(node) {
             return cached;

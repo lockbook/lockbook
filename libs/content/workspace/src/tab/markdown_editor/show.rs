@@ -136,18 +136,15 @@ impl MdEdit {
         buf_resp
     }
 
-    /// Draw phase: pointer hit-test + context menu + pointer→selection,
-    /// then inline render of all blocks, then cursor / selection / IME
-    /// / scroll-to-cursor / text-callback. No scroll area — `MdEdit` is
-    /// a render primitive; callers that want scrolling (the editor)
-    /// invoke [`MdEdit::pre_render`] + their own render loop +
-    /// [`MdEdit::post_render`] instead.
+    /// Draw the document inline at `rect`: pointer + context menu via
+    /// [`MdEdit::pre_render`], paint every block, then cursor /
+    /// selection / IME / scroll-to-cursor / text callback via
+    /// [`MdEdit::post_render`].
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         let pre = self.pre_render(ui, rect, id, root);
 
-        // inline render — caller-managed scroll lives one level up
         self.renderer.galleys.galleys.clear();
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
@@ -161,17 +158,13 @@ impl MdEdit {
         self.post_render(ui, rect, id, pre);
     }
 
-    /// Per-frame setup the editor and the chat composer share before
-    /// they each pick a render strategy: dark-mode + viewport snapshot,
-    /// pointer hit-test, context menu, pointer→selection translation.
-    /// Returns whether the widget held focus through the interact step
-    /// (the post-render path needs that).
+    /// Per-frame setup that runs before block rendering: dark-mode +
+    /// viewport snapshot, pointer hit-test, context menu, pointer →
+    /// selection. Returns the focus state for [`MdEdit::post_render`].
     pub fn pre_render<'a>(
         &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
-        // `renderer.width` is set by the caller (the centered content
-        // column width) — don't overwrite, or we lose centering.
         self.renderer.viewport_height = ui.clip_rect().height();
 
         ui.ctx().check_for_id_clash(id, rect, "");
@@ -351,10 +344,10 @@ impl MdEdit {
         PreRenderState { focused }
     }
 
-    /// Per-frame teardown the editor and the chat composer share after
-    /// they've each rendered the document: cursor / selection / IME,
-    /// touch handles, scroll-to-cursor consumption, focus lock, glyphon
-    /// text-callback submission, and draining of internal events.
+    /// Per-frame teardown that runs after block rendering: cursor /
+    /// selection / IME, touch handles, scroll-to-cursor consumption,
+    /// focus lock, glyphon text-callback submission, draining of
+    /// internal events.
     pub fn post_render(&mut self, ui: &mut Ui, rect: Rect, id: Id, pre: PreRenderState) {
         let focused = pre.focused;
 
@@ -386,8 +379,7 @@ impl MdEdit {
             self.show_selection_handles(ui);
         }
 
-        // consume a pending scroll-to-cursor if queued. FindMatch is left to
-        // the caller (it owns find state). Composer never queues this.
+        // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
             self.scroll_to_cursor(ui, id, rect.height());

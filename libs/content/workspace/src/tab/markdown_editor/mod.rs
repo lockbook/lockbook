@@ -1149,8 +1149,6 @@ impl Editor {
             }
         }
 
-        // MdEdit::show consumed ScrollTarget::Cursor; FindMatch is
-        // editor-owned because Find lives on Editor.
         if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
             self.edit.pending_scroll = None;
             self.scroll_to_find_match(ui, scroll_id, ui.available_height());
