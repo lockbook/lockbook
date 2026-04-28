@@ -1,5 +1,4 @@
 use std::sync::{Arc, Mutex};
-use web_time::Duration;
 
 use egui::{Context, Event, EventFilter, Id, ImeEvent, Key, Rect, Response, Sense, Ui};
 use glyphon::{Attrs, Family, FontSystem, Metrics, Shaping};
@@ -511,22 +510,19 @@ impl<'a> GlyphonTextEdit<'a> {
                 ));
 
             if focused {
-                let elapsed = now - state.last_interaction_time;
-                let blink_on = elapsed < 0.5 || (elapsed * 2.0).fract() < 0.5;
-                if blink_on {
-                    const CURSOR_W: f32 = 1.5;
-                    let cx = (rect.min.x + cursor_x - state.singleline_offset)
-                        .clamp(rect.min.x, (rect.max.x - CURSOR_W).max(rect.min.x));
-                    ui.painter().rect_filled(
-                        Rect::from_min_max(
-                            egui::pos2(cx, rect.min.y + 2.0),
-                            egui::pos2(cx + CURSOR_W, rect.max.y - 2.0),
-                        ),
-                        0.0,
-                        visuals.text_color(),
-                    );
-                }
-                ui.ctx().request_repaint_after(Duration::from_millis(300));
+                // Solid cursor — blinking would require a 300ms repaint
+                // forever, eating battery on idle.
+                const CURSOR_W: f32 = 1.5;
+                let cx = (rect.min.x + cursor_x - state.singleline_offset)
+                    .clamp(rect.min.x, (rect.max.x - CURSOR_W).max(rect.min.x));
+                ui.painter().rect_filled(
+                    Rect::from_min_max(
+                        egui::pos2(cx, rect.min.y + 2.0),
+                        egui::pos2(cx + CURSOR_W, rect.max.y - 2.0),
+                    ),
+                    0.0,
+                    visuals.text_color(),
+                );
             }
         }
 
