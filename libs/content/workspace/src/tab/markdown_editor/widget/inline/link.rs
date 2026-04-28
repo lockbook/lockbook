@@ -18,7 +18,6 @@ use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
-    Loading,
     Ready(String),
     Absent,
 }
@@ -74,14 +73,6 @@ impl<'ast> MdRender {
                     );
                     true
                 }
-                DestinationTitle::Loading => {
-                    tmp_wrap.offset += self.span_override_section(
-                        &tmp_wrap,
-                        "Loading...",
-                        self.text_format_syntax(),
-                    );
-                    true
-                }
                 DestinationTitle::Absent => false,
             };
 
@@ -127,17 +118,8 @@ impl<'ast> MdRender {
                         Some(&t),
                         Sense::hover(),
                     ),
-                    DestinationTitle::Loading => self.show_override_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        trimmed,
-                        self.text_format_syntax(),
-                        Some("Loading..."),
-                        Sense::hover(),
-                    ),
                     DestinationTitle::Absent => {
-                        // destination has no title
+                        // no title yet (loading, failed, or never had one)
                         self.show_circumfix(ui, node, top_left, wrap, range)
                     }
                 }
@@ -277,7 +259,8 @@ impl<'ast> MdRender {
 
     // Resolves the display title for a link with empty text.
     // Internal links (lb:// or relative paths) resolve synchronously from the file cache.
-    // External http/https links are fetched asynchronously; returns Loading on first call.
+    // External http/https links are fetched asynchronously; returns Absent until
+    // the fetch completes (caller renders the original URL text in that case).
     fn get_link_title(&self, url: &str) -> DestinationTitle {
         let Some(resolved) = self.resolve_link(url) else {
             return DestinationTitle::Absent;
@@ -350,9 +333,8 @@ impl<'ast> MdRender {
 
         let state = arc.lock().unwrap();
         match &*state {
-            TitleState::Loading => DestinationTitle::Loading,
             TitleState::Loaded(t) => DestinationTitle::Ready(t.clone()),
-            TitleState::Failed => DestinationTitle::Absent,
+            TitleState::Loading | TitleState::Failed => DestinationTitle::Absent,
         }
     }
 }
