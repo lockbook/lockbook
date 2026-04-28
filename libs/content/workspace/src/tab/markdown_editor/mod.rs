@@ -779,6 +779,7 @@ impl Editor {
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
                     let toolbar_height = if !self.edit.renderer.readonly
+                        && !self.edit.renderer.plaintext
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
                         MOBILE_TOOL_BAR_SIZE
@@ -811,6 +812,7 @@ impl Editor {
 
                     // ...then show toolbar at the bottom
                     if !self.edit.renderer.readonly
+                        && !self.edit.renderer.plaintext
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
                         let (_, rect) =
@@ -822,7 +824,7 @@ impl Editor {
 
                     editor_shown
                 } else {
-                    if !self.edit.renderer.readonly {
+                    if !self.edit.renderer.readonly && !self.edit.renderer.plaintext {
                         self.show_toolbar(root, ui);
                     }
                     self.show_find_centered(ui);
