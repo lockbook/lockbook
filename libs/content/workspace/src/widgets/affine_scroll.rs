@@ -108,10 +108,15 @@ impl AffineScrollArea {
     }
 
     /// Set scroll offset directly. Skips clamping — the scroll area
-    /// will clamp on next show against the current `max_offset`.
+    /// will clamp on next show against the current `max_offset`. Cancels
+    /// touch-scroll momentum so the programmatic jump isn't fought by a
+    /// coasting flick.
     pub fn set_offset(&self, ctx: &egui::Context, offset_approx: f32) {
         let mut state: ScrollState = ctx.data(|d| d.get_temp(self.id_salt)).unwrap_or_default();
         state.offset_approx = offset_approx;
+        state.velocity_precise = 0.0;
+        state.drag_window = [(0.0, 0.0); DRAG_WINDOW_LEN];
+        state.drag_window_idx = 0;
         ctx.data_mut(|d| d.insert_temp(self.id_salt, state));
         ctx.request_repaint();
     }

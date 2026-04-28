@@ -553,7 +553,13 @@ impl Workspace {
     pub fn process_clip_events(&mut self) {
         let Some(file_id) = self.current_tab().and_then(|tab| {
             let md = tab.markdown()?;
-            if md.edit.renderer.readonly { None } else { Some(md.edit.file_id) }
+            // image paste inserts `![](…)` markdown — skip when the
+            // renderer can't display it as a real image.
+            if md.edit.renderer.readonly || md.edit.renderer.plaintext {
+                None
+            } else {
+                Some(md.edit.file_id)
+            }
         }) else {
             return;
         };
@@ -1003,7 +1009,10 @@ impl Workspace {
         }
 
         if different_file_type {
-            self.open_file(id, false, false);
+            // `ext`/`plaintext` are baked at editor construction; drop and re-open.
+            let dest = Destination::File(id);
+            self.tabs.remove(&dest);
+            self.open_dest(&dest);
         }
 
         self.ctx.request_repaint();

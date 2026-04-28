@@ -930,6 +930,9 @@ impl MdRender {
             let metrics = glyphon::Metrics::new(font_size, line_height);
             let mut b = glyphon::Buffer::new(&mut fs.lock().unwrap(), metrics);
             b.set_size(&mut fs.lock().unwrap(), Some(width), None);
+            // Default cosmic-text tab stop is 8 char-widths; 4 reads
+            // closer to a code-editor tab.
+            b.set_tab_width(&mut fs.lock().unwrap(), 4);
             let emoji_attrs =
                 glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
             let text = text.to_string();

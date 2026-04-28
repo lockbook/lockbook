@@ -43,7 +43,11 @@ impl<'ast> MdEdit {
                 }
             }
             Event::ToggleStyle { region, style } => {
-                self.toggle_style(root, region, style, current_selection, operations);
+                // ToggleStyle inserts markdown syntax (e.g. `**…**`); the
+                // syntax would render as literal text in plaintext mode.
+                if !self.renderer.plaintext {
+                    self.toggle_style(root, region, style, current_selection, operations);
+                }
             }
             Event::Camera => {
                 response.open_camera = true;
@@ -296,7 +300,11 @@ impl<'ast> MdEdit {
                         true
                     };
                     if !handled() {
-                        // default -> do nothing
+                        // default -> insert literal `\t`
+                        operations.push(Operation::Replace(Replace {
+                            range: current_selection,
+                            text: "\t".into(),
+                        }));
                     }
                 } else {
                     // de-indent out of current container block
@@ -374,7 +382,6 @@ impl<'ast> MdEdit {
                     }
                 }
 
-                // advance cursor
                 operations.push(Operation::Select(current_selection));
             }
             Event::Undo => {

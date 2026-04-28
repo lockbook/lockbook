@@ -182,21 +182,7 @@ impl MdRender {
         &self, override_text: Option<&str>, range: (Grapheme, Grapheme), font_size: f32,
         wrap: &Wrap, text_format: &Format, glyph_wrap: bool,
     ) -> Vec<SplitRow> {
-        let raw_text = override_text.unwrap_or(&self.buffer[range]);
-        // Replace inline tabs with regular spaces before shaping.
-        // cosmic-text doesn't treat `\t` as a word-break opportunity and
-        // emits it as a single glyph that advances to the font's tab
-        // stop — so `foo\thello` inside a narrow table cell shapes as
-        // one unbreakable run that overflows the cell. Tab and space
-        // are both 1-byte ASCII, so source byte/grapheme positions are
-        // unchanged; only the visual width and wrap behaviour differ.
-        let replaced;
-        let text: &str = if raw_text.contains('\t') {
-            replaced = raw_text.replace('\t', " ");
-            &replaced
-        } else {
-            raw_text
-        };
+        let text: &str = override_text.unwrap_or(&self.buffer[range]);
         let is_override = override_text.is_some();
         let shape = |s: &str, w: f32| {
             if glyph_wrap {

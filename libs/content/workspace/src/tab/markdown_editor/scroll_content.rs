@@ -42,7 +42,14 @@ pub struct DocScrollContent<'a, 'ast> {
 enum Cursor<'ast> {
     Start,
     Leading,
-    At { node: &'ast AstNode<'ast> },
+    /// Markdown-mode row: one top-level AST block.
+    At {
+        node: &'ast AstNode<'ast>,
+    },
+    /// Plaintext-mode row: one source line.
+    AtLine {
+        line_idx: usize,
+    },
     Trailing,
     End,
 }
@@ -77,6 +84,7 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
     pub fn text_range(&self) -> Option<(Grapheme, Grapheme)> {
         match self.cursor {
             Cursor::At { node } => Some(self.renderer.node_range(node)),
+            Cursor::AtLine { line_idx } => Some(self.renderer.bounds.source_lines[line_idx]),
             Cursor::Leading | Cursor::Trailing | Cursor::Start | Cursor::End => None,
         }
     }
@@ -92,8 +100,13 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
     }
 
     fn next(&mut self) -> bool {
+        let plaintext = self.renderer.plaintext;
+        let line_count = self.renderer.bounds.source_lines.len();
         match self.cursor {
             Cursor::Start => self.cursor = Cursor::Leading,
+            Cursor::Leading if plaintext && line_count > 0 => {
+                self.cursor = Cursor::AtLine { line_idx: 0 }
+            }
             Cursor::Leading => match self.root.children().next() {
                 Some(first) => self.cursor = Cursor::At { node: first },
                 // Childless doc — yield the root itself as a single
@@ -105,6 +118,10 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                 Some(next) => self.cursor = Cursor::At { node: next },
                 None => self.cursor = Cursor::Trailing,
             },
+            Cursor::AtLine { line_idx } if line_idx + 1 < line_count => {
+                self.cursor = Cursor::AtLine { line_idx: line_idx + 1 }
+            }
+            Cursor::AtLine { .. } => self.cursor = Cursor::Trailing,
             Cursor::Trailing => {
                 self.cursor = Cursor::End;
                 return false;
@@ -115,8 +132,13 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
     }
 
     fn prev(&mut self) -> bool {
+        let plaintext = self.renderer.plaintext;
+        let line_count = self.renderer.bounds.source_lines.len();
         match self.cursor {
             Cursor::End => self.cursor = Cursor::Trailing,
+            Cursor::Trailing if plaintext && line_count > 0 => {
+                self.cursor = Cursor::AtLine { line_idx: line_count - 1 }
+            }
             Cursor::Trailing => match self.root.children().last() {
                 Some(last) => self.cursor = Cursor::At { node: last },
                 None => self.cursor = Cursor::At { node: self.root },
@@ -125,6 +147,10 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                 Some(prev) => self.cursor = Cursor::At { node: prev },
                 None => self.cursor = Cursor::Leading,
             },
+            Cursor::AtLine { line_idx } if line_idx > 0 => {
+                self.cursor = Cursor::AtLine { line_idx: line_idx - 1 }
+            }
+            Cursor::AtLine { .. } => self.cursor = Cursor::Leading,
             Cursor::Leading => {
                 self.cursor = Cursor::Start;
                 return false;
@@ -141,6 +167,13 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                     + self.renderer.height_approx(node)
                     + self.renderer.block_post_spacing_height_approx(node)
             }
+            // Per-line plaintext rows: monospace char-count estimate
+            // (no shaping); precise reflects actual cosmic-text wrap.
+            Cursor::AtLine { line_idx } => {
+                let width = self.renderer.width(self.root);
+                self.renderer.height_approx_source_line(line_idx, width)
+                    + self.renderer.layout.row_spacing
+            }
             Cursor::Leading => self.leading_precise,
             Cursor::Trailing => 0.0,
             Cursor::Start | Cursor::End => panic!("approx() with cursor off a row"),
@@ -153,6 +186,10 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                 self.renderer.block_pre_spacing_height(node)
                     + self.renderer.height(node)
                     + self.renderer.block_post_spacing_height(node)
+            }
+            Cursor::AtLine { line_idx } => {
+                let width = self.renderer.width(self.root);
+                self.renderer.height_source_line(line_idx, width) + self.renderer.layout.row_spacing
             }
             Cursor::Leading => self.leading_precise,
             Cursor::Trailing => self.trailing_precise,
@@ -175,6 +212,11 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                 self.renderer.show_block(ui, node, tl);
                 tl.y += self.renderer.height(node);
                 self.renderer.show_block_post_spacing(ui, node, tl);
+            }
+            Cursor::AtLine { line_idx } => {
+                let tl = Pos2::new(self.content_x, top_left.y);
+                let width = self.renderer.width(self.root);
+                self.renderer.show_source_line(ui, tl, line_idx, width);
             }
             Cursor::Leading | Cursor::Trailing => {} // virtual padding — paints nothing
             Cursor::Start | Cursor::End => panic!("render() with cursor off a row"),
