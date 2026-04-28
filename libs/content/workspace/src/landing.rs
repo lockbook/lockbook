@@ -279,17 +279,10 @@ impl Workspace {
         let mut response = Response::default();
 
         ui.vertical_centered_justified(|ui| {
-            // Heading + filters get a `MARGIN`-padded frame so the
-            // centered column sits well inside the canvas. Bottom margin
-            // is dropped so the gap to the table header is just the
-            // explicit `add_space` below.
+            // Heading + filters sit in a `MARGIN`-padded frame; the
+            // bottom edge is flush so the gap below is just `add_space`.
             Frame::canvas(ui.style())
-                .inner_margin(egui::Margin {
-                    left: MARGIN,
-                    right: MARGIN,
-                    top: MARGIN,
-                    bottom: 0,
-                })
+                .inner_margin(egui::Margin { left: MARGIN, right: MARGIN, top: MARGIN, bottom: 0 })
                 .stroke(Stroke::NONE)
                 .fill(Color32::TRANSPARENT)
                 .show(ui, |ui| {
@@ -1065,7 +1058,6 @@ impl Workspace {
                 &mut |this| toggle_sort(this, Sort::Size),
             );
         }
-        // usage_bar column has no header label
     }
 
     fn show_separator_row(&mut self, ui: &mut egui::Ui, label: &'static str) {
