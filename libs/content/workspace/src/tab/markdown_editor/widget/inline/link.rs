@@ -4,6 +4,7 @@ use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
 use lb_rs::spawn;
 use scraper::{Html, Selector};
 use std::collections::hash_map::Entry;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use crate::file_cache::{FilesExt as _, ResolvedLink};
@@ -312,6 +313,7 @@ impl<'ast> MdRender {
                 let client = self.client.clone();
                 let ctx = self.ctx.clone();
                 let title_state = arc.clone();
+                let layout_dirty = self.layout_cache.link_layout_dirty.clone();
                 spawn!({
                     const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
                     const GOOGLEBOT: &str =
@@ -339,6 +341,7 @@ impl<'ast> MdRender {
                         .and_then(|h| extract_html_title(&h))
                         .map(TitleState::Loaded)
                         .unwrap_or(TitleState::Failed);
+                    layout_dirty.store(true, Ordering::Relaxed);
                     ctx.request_repaint();
                 });
                 arc

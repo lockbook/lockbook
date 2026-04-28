@@ -15,6 +15,7 @@ use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use tracing::{debug, error, info, instrument, warn};
 use web_time::{Duration, Instant};
@@ -506,6 +507,18 @@ impl Workspace {
         if refresh_cache {
             *self.files.write().unwrap() =
                 FileCache::new(&self.core).expect("failed to refresh file cache");
+
+            // A file appearing/disappearing/renaming changes link resolution
+            // and titles, which the markdown layout cache keys can't see.
+            for tab in self.tabs.values_mut() {
+                if let Some(md) = tab.markdown_mut() {
+                    md.edit
+                        .renderer
+                        .layout_cache
+                        .link_layout_dirty
+                        .store(true, Ordering::Relaxed);
+                }
+            }
         }
         if remove_deleted_file_tabs {
             let files_arc = Arc::clone(&self.files);

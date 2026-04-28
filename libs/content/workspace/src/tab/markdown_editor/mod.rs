@@ -2,6 +2,7 @@ use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
 use std::sync::OnceLock;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
@@ -446,6 +447,16 @@ impl MdRender {
         if self.width.to_bits() != self.last_layout_width.to_bits() {
             self.layout_cache.clear();
             self.last_layout_width = self.width;
+        }
+
+        // File cache refresh or async link-title fetch may have changed a
+        // link's resolved width; drop heights so the next render recomputes.
+        if self
+            .layout_cache
+            .link_layout_dirty
+            .swap(false, Ordering::Relaxed)
+        {
+            self.layout_cache.invalidate_link_layout_change();
         }
 
         let options = Self::comrak_options();
