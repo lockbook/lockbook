@@ -27,7 +27,7 @@
 //! introduced as part of the type-safety pass to make conversions through
 //! cosmic-text glyph positions and comrak sourcepos explicit.
 
-use super::offset_types::{Byte, Grapheme, Graphemes};
+use super::offset_types::{Byte, Grapheme, Graphemes, RangeExt};
 use super::unicode_segs::UnicodeSegs;
 use unicode_segmentation::UnicodeSegmentation;
 
@@ -67,10 +67,7 @@ impl Graphemes {
     ) -> Self {
         let old_total = old_segs.last_grapheme();
         let new_total = new_segs.last_grapheme();
-        let replaced_len = replaced.1 - replaced.0;
-        // (new_total + replaced_len) - old_total — order matters because
-        // `Grapheme::Sub` is saturating; `new_total - old_total` could
-        // underflow when the replace shrinks the buffer.
+        let replaced_len = replaced.len();
         Self((new_total.0 + replaced_len.0).saturating_sub(old_total.0))
     }
 
