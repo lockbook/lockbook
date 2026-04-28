@@ -188,6 +188,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                 }
             }
             currentTab = it
+            updateOpenWorkspacePaneButtonVisibility()
         }
 
         model.isSuggestedDocsVisible.observe(viewLifecycleOwner) {
@@ -257,6 +258,10 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.drawerLayout.open()
         }
 
+        binding.root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
+            updateOpenWorkspacePaneButtonVisibility()
+        }
+
         binding.navigationView.getHeaderView(0).let { header ->
 
             header.findViewById<LinearLayout>(R.id.set_theme).setOnClickListener {
@@ -298,6 +303,18 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         toggleMenuBar()
+        updateOpenWorkspacePaneButtonVisibility()
+    }
+
+    private fun updateOpenWorkspacePaneButtonVisibility() {
+        val isWorkspacePaneSlideable = (activity as? MainScreenActivity)
+            ?.binding
+            ?.slidingPaneLayout
+            ?.isSlideable == true
+        val isWelcomeOpen = currentTab.type == WorkspaceTabType.Welcome
+
+        menu.menu.findItem(R.id.menu_files_list_open_ws)?.isVisible =
+            isWorkspacePaneSlideable && !isWelcomeOpen
     }
 
     private fun setUpFilesList() {
