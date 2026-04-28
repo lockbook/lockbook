@@ -137,9 +137,8 @@ pub struct MdRender {
     // viewport
     pub width: f32,
     pub viewport_height: f32,
-    /// Width the layout cache was last populated for. `reparse` clears
-    /// the cache when this differs from `width` so heights computed
-    /// for a different column don't bleed into the new layout.
+    /// Width the layout cache was last populated for; `reparse`
+    /// clears the cache when `width` diverges.
     last_layout_width: f32,
 
     // debug
@@ -442,9 +441,8 @@ impl MdRender {
     /// [`Arena`] — comrak's AST is arena-allocated. Callers who need heights
     /// also invoke [`MdRender::height`] on the returned root.
     pub fn reparse<'a>(&mut self, arena: &'a Arena<'a>) -> &'a AstNode<'a> {
-        // Width change invalidates every cached layout value (cache
-        // keys are node-range, not width-aware). Use bit-equality
-        // to handle the initial NaN sentinel cleanly.
+        // Layout-cache keys are node-range, not width-aware; clear on
+        // width change. Bit-equality covers the initial NaN.
         if self.width.to_bits() != self.last_layout_width.to_bits() {
             self.layout_cache.clear();
             self.last_layout_width = self.width;
@@ -690,11 +688,9 @@ impl Editor {
             changed
         };
 
-        // Invalidate caches BEFORE the render (not after). Heights
-        // depend on `viewport_height` (image clamping) and on resolved
-        // embed dimensions. Width invalidation is handled by `reparse`
-        // via `last_layout_width`, so width changes don't need to
-        // appear here.
+        // Heights depend on `viewport_height` (image clamping) and on
+        // resolved embed dimensions; clear so this frame paints the
+        // updated values. (Width invalidation lives in `reparse`.)
         if height_updated || embeds_updated {
             self.edit.renderer.layout_cache.clear();
         }
@@ -941,9 +937,8 @@ impl Editor {
             if embeds_updated {
                 self.unprocessed_scroll = Some(Instant::now());
             }
-            // Cache was cleared at top-of-frame so this render is
-            // already correct; just request the next repaint to settle
-            // anything frame-deferred (e.g. scroll persistence).
+            // Schedule a follow-up frame for the persistence write
+            // path keyed off `unprocessed_scroll`.
             ui.ctx().request_repaint();
         } else if resp.selection_updated {
             let new_selection = self
