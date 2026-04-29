@@ -158,6 +158,11 @@ impl AffineScrollArea {
         // approx. Bounded by the viewport's worth of rows.
         let max_offset = compute_max_offset(content, viewport_height, approx_total);
 
+        // Per-input clamps below only fire when their branch runs; a
+        // passive doc shrink (no input this frame) would leave the
+        // persisted offset out of range.
+        state.offset_approx = state.offset_approx.clamp(0.0, max_offset);
+
         // Scrollbar dimensions reason in approx space (cheap sizing),
         // independent of `max_offset`'s precise-aware clamp.
         let scrollbar_total = approx_total.max(viewport_height);
@@ -169,7 +174,8 @@ impl AffineScrollArea {
         // Use `raw_scroll_delta` (immediate, unsmoothed) rather than
         // `smooth_scroll_delta` (kinetic). Tests need the full delta in
         // one frame; production wheel input lands in raw too.
-        let raw_scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
+        let raw_scroll_delta =
+            if ui.rect_contains_pointer(rect) { ui.input(|i| i.raw_scroll_delta.y) } else { 0.0 };
         if raw_scroll_delta != 0.0 {
             // egui's scroll convention: positive y means scroll up
             // (content moves down). We want our offset to *increase*
