@@ -169,9 +169,6 @@ impl AffineScrollArea {
         // Use `raw_scroll_delta` (immediate, unsmoothed) rather than
         // `smooth_scroll_delta` (kinetic). Tests need the full delta in
         // one frame; production wheel input lands in raw too.
-        //
-        // Gate on pointer-over-rect so wheel input in *other* scroll
-        // areas doesn't also drive this one. Mirrors egui::ScrollArea.
         let raw_scroll_delta =
             if ui.rect_contains_pointer(rect) { ui.input(|i| i.raw_scroll_delta.y) } else { 0.0 };
         if raw_scroll_delta != 0.0 {
