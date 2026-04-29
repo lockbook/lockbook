@@ -158,6 +158,11 @@ impl AffineScrollArea {
         // approx. Bounded by the viewport's worth of rows.
         let max_offset = compute_max_offset(content, viewport_height, approx_total);
 
+        // Per-input clamps below only fire when their branch runs; a
+        // passive doc shrink (no input this frame) would leave the
+        // persisted offset out of range.
+        state.offset_approx = state.offset_approx.clamp(0.0, max_offset);
+
         // Scrollbar dimensions reason in approx space (cheap sizing),
         // independent of `max_offset`'s precise-aware clamp.
         let scrollbar_total = approx_total.max(viewport_height);
