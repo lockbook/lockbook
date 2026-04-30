@@ -1116,31 +1116,42 @@ impl Editor {
 
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
-                let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
                 // affine render: widget body spans the full canvas
                 // (scrollbar at canvas right); content centers within
                 // that body via `content_x`.
-                self.edit.renderer.galleys.galleys.clear();
-                self.edit.renderer.bounds.wrap_lines.clear();
-                self.edit.renderer.text_areas.clear();
                 let touch_scroll = self.edit.renderer.touch_mode;
                 let content_x = canvas_rect.min.x
                     + ((canvas_rect.width() - self.edit.renderer.width) / 2.0).max(0.0);
-                ui.scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
-                    let trailing_precise = canvas_rect.height() / 2.0;
-                    let mut content = scroll_content::DocScrollContent::new(
-                        &mut self.edit.renderer,
-                        root,
-                        content_x,
-                        trailing_precise,
-                    )
-                    .with_default_leading();
-                    let mut scroll =
-                        crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id)
-                            .touch_scroll(touch_scroll);
-                    scroll.show(ui, &mut content);
-                });
+                let pre = ui
+                    .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
+                        // begin → pre_render → finish: editor's click
+                        // sense must register after the affine body's
+                        // drag so taps win over drag in egui's hit-test.
+                        let scroll =
+                            crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id)
+                                .touch_scroll(touch_scroll);
+                        let begun = scroll.begin(ui);
+
+                        let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
+
+                        self.edit.renderer.galleys.galleys.clear();
+                        self.edit.renderer.bounds.wrap_lines.clear();
+                        self.edit.renderer.text_areas.clear();
+
+                        let trailing_precise = canvas_rect.height() / 2.0;
+                        let mut content = scroll_content::DocScrollContent::new(
+                            &mut self.edit.renderer,
+                            root,
+                            content_x,
+                            trailing_precise,
+                        )
+                        .with_default_leading();
+                        begun.finish(ui, &mut content);
+
+                        pre
+                    })
+                    .inner;
                 self.edit.renderer.galleys.galleys.sort_by_key(|g| g.range);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
