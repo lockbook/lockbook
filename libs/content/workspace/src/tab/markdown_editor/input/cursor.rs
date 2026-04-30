@@ -165,9 +165,11 @@ impl MdEdit {
                     ui.ctx().push_markdown_event(Event::Select { region });
                 }
             } else if start_response.dragged() {
+                let line_height = selection_start_line[1].y - selection_start_line[0].y;
+                let offset = Vec2::new(0.0, -line_height - radius);
                 let region = Region::BetweenLocations {
                     start: Location::Pos(
-                        ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
+                        ui.input(|i| i.pointer.interact_pos().unwrap_or_default()) + offset,
                     ),
                     end: Location::Grapheme(self.renderer.buffer.current.selection.1),
                 };
@@ -193,10 +195,12 @@ impl MdEdit {
                     ui.ctx().push_markdown_event(Event::Select { region });
                 }
             } else if end_response.dragged() {
+                let line_height = selection_end_line[1].y - selection_end_line[0].y;
+                let offset = Vec2::new(0.0, -line_height - radius);
                 let region = Region::BetweenLocations {
                     start: Location::Grapheme(self.renderer.buffer.current.selection.0),
                     end: Location::Pos(
-                        ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
+                        ui.input(|i| i.pointer.interact_pos().unwrap_or_default()) + offset,
                     ),
                 };
                 self.in_progress_selection = Some(self.region_to_range(region));
