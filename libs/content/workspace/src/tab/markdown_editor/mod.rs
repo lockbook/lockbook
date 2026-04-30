@@ -1125,9 +1125,6 @@ impl Editor {
                     + ((canvas_rect.width() - self.edit.renderer.width) / 2.0).max(0.0);
                 let pre = ui
                     .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
-                        // begin → pre_render → finish: editor's click
-                        // sense must register after the affine body's
-                        // drag so taps win over drag in egui's hit-test.
                         let scroll =
                             crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id)
                                 .touch_scroll(touch_scroll);
