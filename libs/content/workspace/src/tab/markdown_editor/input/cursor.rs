@@ -26,6 +26,24 @@ impl MdEdit {
         }
     }
 
+    pub fn selection_tap(&self, pos: Pos2) -> bool {
+        let selection = self.renderer.buffer.current.selection;
+        let pad_rect = |rect: Rect| {
+            let pad_x = ((48.0 - rect.width()) / 2.0).max(0.0);
+            let pad_y = ((48.0 - rect.height()) / 2.0).max(0.0);
+            rect.expand2(Vec2::new(pad_x, pad_y))
+        };
+        if selection.is_empty() {
+            self.cursor_line(selection.0)
+                .map(|[top, bot]| pad_rect(Rect::from_min_max(top, bot)).contains(pos))
+                .unwrap_or(false)
+        } else {
+            self.range_rects(selection)
+                .iter()
+                .any(|&r| pad_rect(r).contains(pos))
+        }
+    }
+
     pub fn range_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
         let mut result = Vec::new();
 
@@ -80,9 +98,6 @@ impl MdEdit {
         let radius = 12.0;
         let hit_pad = 12.0;
 
-        // draw selection handles
-        // handles invisible but still draggable when selection is empty
-        // we must allocate handles to check if they were dragged last frame
         if !self.renderer.buffer.current.selection.is_empty() {
             if let Some(selection_start_line) = selection_start_line {
                 let selection_start_center = Pos2 {

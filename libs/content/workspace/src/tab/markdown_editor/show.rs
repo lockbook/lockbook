@@ -274,24 +274,10 @@ impl MdEdit {
                 } else if response.clicked() && modifiers.shift {
                     Some(Region::ToLocation(location))
                 } else if response.clicked() {
-                    if cfg!(target_os = "android") {
-                        // android native context menu: tap-on-selection opens the menu
-                        let offset = self.pos_to_char_offset(pos);
-                        if self
-                            .renderer
-                            .buffer
-                            .current
-                            .selection
-                            .contains(offset, true, true)
-                        {
-                            ctx.set_context_menu(
-                                self.context_menu_pos(self.renderer.buffer.current.selection)
-                                    .unwrap_or(pos),
-                            );
-                            None
-                        } else {
-                            Some(Region::Location(location))
-                        }
+                    if cfg!(target_os = "android") && self.selection_tap(pos) {
+                        let selection = self.renderer.buffer.current.selection;
+                        ctx.set_context_menu(self.context_menu_pos(selection).unwrap_or(pos));
+                        None
                     } else {
                         Some(Region::Location(location))
                     }
@@ -413,7 +399,9 @@ impl MdEdit {
                 ));
         }
 
-        if ui.ctx().os() == OperatingSystem::Android {
+        let has_selection_handles = !self.renderer.buffer.current.selection.is_empty()
+            || self.in_progress_selection.is_some();
+        if ui.ctx().os() == OperatingSystem::Android && has_selection_handles {
             self.show_selection_handles(ui);
         }
 
