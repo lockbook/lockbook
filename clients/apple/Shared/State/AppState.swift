@@ -43,7 +43,7 @@ class AppState: ObservableObject {
         try fm.copyItem(at: legacyURL, to: newURL)
 
         for legacyItem in try fm.contentsOfDirectory(at: legacyURL, includingPropertiesForKeys: nil) {
-            try! fm.removeItem(at: legacyItem)
+            try fm.removeItem(at: legacyItem)
         }
     }
 
