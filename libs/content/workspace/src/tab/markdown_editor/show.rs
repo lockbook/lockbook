@@ -375,10 +375,6 @@ impl MdEdit {
             }
         }
 
-        if ui.ctx().os() == OperatingSystem::Android {
-            self.show_selection_handles(ui);
-        }
-
         // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
@@ -415,6 +411,10 @@ impl MdEdit {
                     ui.clip_rect(),
                     crate::GlyphonRendererCallback::new(text_areas),
                 ));
+        }
+
+        if ui.ctx().os() == OperatingSystem::Android {
+            self.show_selection_handles(ui);
         }
 
         // drain renderer's interactive-element events into the edit queue for next frame

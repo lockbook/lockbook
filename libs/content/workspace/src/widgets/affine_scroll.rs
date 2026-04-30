@@ -121,31 +121,48 @@ impl AffineScrollArea {
         ctx.request_repaint();
     }
 
-    pub fn show<R: Rows>(&mut self, ui: &mut Ui, content: &mut R) -> Response {
-        // Take the parent's full max_rect — callers control the scroll
-        // area's size by setting the surrounding ui's max_rect (e.g.
-        // via `ui.scope_builder().max_rect(...)`).
+    /// Allocate the body's drag interaction. Caller may register its own
+    /// widgets between `begin` and [`AffineScrollAreaBegun::finish`];
+    /// those land at higher z than the body, so click senses on the
+    /// content win over the body's drag — see egui's `hit_test`.
+    pub fn begin(self, ui: &mut Ui) -> AffineScrollAreaBegun {
         let rect = ui.max_rect();
+        let body_sense = if self.touch_scroll { Sense::drag() } else { Sense::hover() };
+        let body_response = ui.allocate_rect(rect, body_sense);
+        AffineScrollAreaBegun {
+            id_salt: self.id_salt,
+            touch_scroll: self.touch_scroll,
+            rect,
+            body_response,
+        }
+    }
 
-        let body_sense = if self.touch_scroll { Sense::click_and_drag() } else { Sense::hover() };
-        let response = ui.allocate_rect(rect, body_sense);
+    pub fn show<R: Rows>(self, ui: &mut Ui, content: &mut R) -> Response {
+        self.begin(ui).finish(ui, content)
+    }
+}
 
-        // Scrollbar hit area registered AFTER the body so it shadows
-        // the body's hover in z-order. Same dimensions used by
-        // `draw_scrollbar` below.
+pub struct AffineScrollAreaBegun {
+    id_salt: egui::Id,
+    touch_scroll: bool,
+    rect: Rect,
+    body_response: Response,
+}
+
+impl AffineScrollAreaBegun {
+    pub fn finish<R: Rows>(self, ui: &mut Ui, content: &mut R) -> Response {
+        let Self { id_salt, touch_scroll, rect, body_response: response } = self;
+
         const BAR_WIDTH: f32 = 10.0;
         const BAR_INSET: f32 = 3.0;
         let bar_x = rect.max.x - BAR_WIDTH - BAR_INSET;
         let bar_track =
             Rect::from_min_size(Pos2::new(bar_x, rect.min.y), Vec2::new(BAR_WIDTH, rect.height()));
-        let bar_id = self.id_salt.with("scrollbar");
+        let bar_id = id_salt.with("scrollbar");
         let bar_response = ui.interact(bar_track, bar_id, Sense::click_and_drag());
 
         // Persisted scroll state.
-        let mut state: ScrollState = ui
-            .ctx()
-            .data(|d| d.get_temp(self.id_salt))
-            .unwrap_or_default();
+        let mut state: ScrollState = ui.ctx().data(|d| d.get_temp(id_salt)).unwrap_or_default();
 
         let viewport_height = rect.height();
 
@@ -158,6 +175,11 @@ impl AffineScrollArea {
         // approx. Bounded by the viewport's worth of rows.
         let max_offset = compute_max_offset(content, viewport_height, approx_total);
 
+        // Per-input clamps below only fire when their branch runs; a
+        // passive doc shrink (no input this frame) would leave the
+        // persisted offset out of range.
+        state.offset_approx = state.offset_approx.clamp(0.0, max_offset);
+
         // Scrollbar dimensions reason in approx space (cheap sizing),
         // independent of `max_offset`'s precise-aware clamp.
         let scrollbar_total = approx_total.max(viewport_height);
@@ -169,7 +191,8 @@ impl AffineScrollArea {
         // Use `raw_scroll_delta` (immediate, unsmoothed) rather than
         // `smooth_scroll_delta` (kinetic). Tests need the full delta in
         // one frame; production wheel input lands in raw too.
-        let raw_scroll_delta = ui.input(|i| i.raw_scroll_delta.y);
+        let raw_scroll_delta =
+            if ui.rect_contains_pointer(rect) { ui.input(|i| i.raw_scroll_delta.y) } else { 0.0 };
         if raw_scroll_delta != 0.0 {
             // egui's scroll convention: positive y means scroll up
             // (content moves down). We want our offset to *increase*
@@ -181,7 +204,7 @@ impl AffineScrollArea {
 
         // Touch body drag → scroll + velocity tracking.
         let dt = ui.input(|i| i.stable_dt).max(0.0001);
-        if max_offset > 0.0 && self.touch_scroll && response.drag_started() {
+        if max_offset > 0.0 && touch_scroll && response.drag_started() {
             // Tap-during-momentum or drag-start: clear stale velocity
             // and the sliding-window history so the new gesture
             // doesn't inherit anything.
@@ -189,7 +212,7 @@ impl AffineScrollArea {
             state.drag_window = [(0.0, 0.0); DRAG_WINDOW_LEN];
             state.drag_window_idx = 0;
         }
-        if max_offset > 0.0 && self.touch_scroll && response.dragged() {
+        if max_offset > 0.0 && touch_scroll && response.dragged() {
             let drag_y = ui.input(|i| i.pointer.delta().y);
             // Drag UP (negative y) → scroll DOWN (offset grows). Same
             // sign convention as wheel.
@@ -224,8 +247,10 @@ impl AffineScrollArea {
         } else {
             state.velocity_precise = 0.0;
         }
-        // Tap (click without drag) cancels momentum.
-        if self.touch_scroll && response.clicked() {
+        let pressed_in_rect = ui.input(|i| {
+            i.pointer.any_pressed() && i.pointer.press_origin().is_some_and(|p| rect.contains(p))
+        });
+        if touch_scroll && pressed_in_rect {
             state.velocity_precise = 0.0;
         }
 
@@ -262,7 +287,7 @@ impl AffineScrollArea {
         }
 
         // Persist state.
-        ui.ctx().data_mut(|d| d.insert_temp(self.id_salt, state));
+        ui.ctx().data_mut(|d| d.insert_temp(id_salt, state));
 
         response
     }
