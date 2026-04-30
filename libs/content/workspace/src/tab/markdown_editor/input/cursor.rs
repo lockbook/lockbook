@@ -77,7 +77,8 @@ impl MdEdit {
         let selection_start_line = self.cursor_line(selection.0);
         let selection_end_line = self.cursor_line(selection.1);
 
-        let radius = 10.0;
+        let radius = 12.0;
+        let hit_pad = 12.0;
 
         // draw selection handles
         // handles invisible but still draggable when selection is empty
@@ -138,7 +139,8 @@ impl MdEdit {
                     x: selection_start_line[1].x,
                     y: selection_start_line[1].y + 2. * radius,
                 },
-            };
+            }
+            .expand(hit_pad);
             let start_response = ui.allocate_rect(selection_start_handle_rect, Sense::drag());
 
             // adjust cursor based on selection handle drag
@@ -165,7 +167,8 @@ impl MdEdit {
                     x: selection_end_line[1].x + 2. * radius,
                     y: selection_end_line[1].y + 2. * radius,
                 },
-            };
+            }
+            .expand(hit_pad);
             let end_response = ui.allocate_rect(selection_end_handle_rect, Sense::drag());
 
             // adjust cursor based on selection handle drag
