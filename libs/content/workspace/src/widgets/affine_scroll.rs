@@ -127,7 +127,7 @@ impl AffineScrollArea {
         // via `ui.scope_builder().max_rect(...)`).
         let rect = ui.max_rect();
 
-        let body_sense = if self.touch_scroll { Sense::click_and_drag() } else { Sense::hover() };
+        let body_sense = if self.touch_scroll { Sense::drag() } else { Sense::hover() };
         let response = ui.allocate_rect(rect, body_sense);
 
         // Scrollbar hit area registered AFTER the body so it shadows
@@ -230,8 +230,10 @@ impl AffineScrollArea {
         } else {
             state.velocity_precise = 0.0;
         }
-        // Tap (click without drag) cancels momentum.
-        if self.touch_scroll && response.clicked() {
+        let pressed_in_rect = ui.input(|i| {
+            i.pointer.any_pressed() && i.pointer.press_origin().is_some_and(|p| rect.contains(p))
+        });
+        if self.touch_scroll && pressed_in_rect {
             state.velocity_precise = 0.0;
         }
 
