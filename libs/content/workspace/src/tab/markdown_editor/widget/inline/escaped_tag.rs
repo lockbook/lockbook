@@ -1,18 +1,18 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_escaped_tag(&self, parent: &AstNode<'_>) -> Format {
         self.text_format(parent)
     }
 
     pub fn span_escaped_tag(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
         let mut tmp_wrap = wrap.clone();
 
@@ -41,7 +41,7 @@ impl<'ast> Editor {
 
     pub fn show_escaped_tag(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset),
+        range: (Grapheme, Grapheme),
     ) -> Response {
         let mut response = Default::default();
         let any_children = node.children().next().is_some();

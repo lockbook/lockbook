@@ -14,7 +14,8 @@ async fn create_two_files_with_same_path() {
     let account = core.get_account().unwrap();
     let root = core.root().await.unwrap();
 
-    let mut tx = core.begin_tx().await;
+    let core_lb = local(&core);
+    let mut tx = core_lb.begin_tx().await;
     let db = tx.db();
 
     let tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
@@ -25,7 +26,7 @@ async fn create_two_files_with_same_path() {
         &root.id,
         "document",
         FileType::Document,
-        &core.keychain,
+        &local(&core).keychain,
     )
     .unwrap();
     tree.create_unvalidated(
@@ -34,7 +35,7 @@ async fn create_two_files_with_same_path() {
         &root.id,
         "document",
         FileType::Document,
-        &core.keychain,
+        &local(&core).keychain,
     )
     .unwrap();
     let result = tree.validate(Owner(account.public_key()));
@@ -66,7 +67,8 @@ async fn directly_shared_link() {
         .unwrap();
 
     // probably for the best that this is how ugly the code has to get to produce this situation
-    let mut tx = cores[1].begin_tx().await;
+    let core1_lb = local(&cores[1]);
+    let mut tx = core1_lb.begin_tx().await;
     let mut link = tx
         .db()
         .local_metadata
@@ -78,7 +80,7 @@ async fn directly_shared_link() {
         .clone();
     link.user_access_keys_mut().push(
         UserAccessInfo::encrypt(
-            accounts[1],
+            &accounts[1],
             &accounts[1].public_key(),
             &accounts[0].public_key(),
             &symkey::generate_key(),
@@ -88,7 +90,7 @@ async fn directly_shared_link() {
     );
     tx.db()
         .local_metadata
-        .insert(*link.id(), link.sign(&cores[1].keychain).unwrap())
+        .insert(*link.id(), link.sign(&local(&cores[1]).keychain).unwrap())
         .unwrap();
 
     let db = tx.db();

@@ -1,17 +1,20 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt, RangeIterExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut result = 0.;
-        for descendant in node.descendants() {
-            if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
-                let NodeLink { url, .. } = &**node_link;
-                result += self.height_image(node, url);
-                result += self.layout.block_spacing;
+        // toolbar text-only mode: skip block image; inline path renders alt as link
+        if !self.render_images_as_text {
+            for descendant in node.descendants() {
+                if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                    let NodeLink { url, .. } = &**node_link;
+                    result += self.height_image(node, url);
+                    result += self.layout.block_spacing;
+                }
             }
         }
 
@@ -31,7 +34,7 @@ impl<'ast> Editor {
     }
 
     pub fn height_paragraph_line(
-        &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
     ) -> f32 {
         let width = self.width(node);
         let mut wrap = self.new_wrap(width);
@@ -67,13 +70,16 @@ impl<'ast> Editor {
             let line = self.bounds.source_lines[line];
             let node_line = self.node_line(node, line);
 
-            for descendant in node.descendants() {
-                if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
-                    let NodeLink { url, .. } = &**node_link;
-                    if node_line.contains_inclusive(self.node_range(descendant).start()) {
-                        self.show_image_block(ui, node, top_left, url);
-                        top_left.y += self.height_image(node, url);
-                        top_left.y += self.layout.block_spacing;
+            // mirror `height_paragraph` text-only mode
+            if !self.render_images_as_text {
+                for descendant in node.descendants() {
+                    if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
+                        let NodeLink { url, .. } = &**node_link;
+                        if node_line.contains_inclusive(self.node_range(descendant).start()) {
+                            self.show_image_block(ui, node, top_left, url);
+                            top_left.y += self.height_image(node, url);
+                            top_left.y += self.layout.block_spacing;
+                        }
                     }
                 }
             }
@@ -89,7 +95,7 @@ impl<'ast> Editor {
 
     pub fn show_paragraph_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_line: (DocCharOffset, DocCharOffset),
+        node_line: (Grapheme, Grapheme),
     ) {
         let width = self.width(node);
         let mut wrap = self.new_wrap(width);

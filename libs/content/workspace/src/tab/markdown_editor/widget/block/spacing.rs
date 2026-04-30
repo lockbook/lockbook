@@ -2,22 +2,20 @@ use std::ops::Range;
 
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     /// Converts an optional source line index range to a doc char offset range.
-    pub fn spacing_range(
-        &self, line_range: &Option<Range<usize>>,
-    ) -> (DocCharOffset, DocCharOffset) {
+    pub fn spacing_range(&self, line_range: &Option<Range<usize>>) -> (Grapheme, Grapheme) {
         match line_range {
             Some(r) if !r.is_empty() => {
                 let start = self.bounds.source_lines[r.start].start();
                 let end = self.bounds.source_lines[r.end - 1].end();
                 (start, end)
             }
-            _ => (DocCharOffset(usize::MAX), DocCharOffset(0)),
+            _ => (Grapheme(usize::MAX), Grapheme(0)),
         }
     }
 
@@ -25,26 +23,24 @@ impl<'ast> Editor {
     /// the empty lines between the previous sibling (or parent start) and this
     /// node. Returns `None` when there is no pre-spacing (document root, table
     /// rows, folded nodes).
-    pub fn pre_spacing_lines(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> Option<Range<usize>> {
+    pub fn pre_spacing_lines(&self, node: &'ast AstNode<'ast>) -> Option<Range<usize>> {
         let parent = node.parent()?;
         if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
             return None;
         }
-        if self.hidden_by_fold(node, siblings) {
+        if self.hidden_by_fold(node) {
             return None;
         }
 
-        let sibling_index = self.sibling_index(node, siblings);
-        let first = if sibling_index == 0 {
-            let mut first = self.node_first_line_idx(parent);
-            if matches!(&parent.data.borrow().value, NodeValue::Alert(_)) {
-                first += 1;
+        let first = match node.previous_sibling() {
+            None => {
+                let mut first = self.node_first_line_idx(parent);
+                if matches!(&parent.data.borrow().value, NodeValue::Alert(_)) {
+                    first += 1;
+                }
+                first
             }
-            first
-        } else {
-            self.node_last_line_idx(siblings[sibling_index - 1]) + 1
+            Some(prev) => self.node_last_line_idx(prev) + 1,
         };
 
         Some(first..self.node_first_line_idx(node))
@@ -53,16 +49,13 @@ impl<'ast> Editor {
     /// Returns the source line index range for the post-spacing of `node`, i.e.
     /// the empty lines between this node and the parent's end. Only the last
     /// sibling has post-spacing; returns `None` otherwise.
-    pub fn post_spacing_lines(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> Option<Range<usize>> {
+    pub fn post_spacing_lines(&self, node: &'ast AstNode<'ast>) -> Option<Range<usize>> {
         let parent = node.parent()?;
         if matches!(node.data.borrow().value, NodeValue::TableRow(_)) {
             return None;
         }
 
-        let sibling_index = self.sibling_index(node, siblings);
-        if sibling_index != siblings.len() - 1 {
+        if node.next_sibling().is_some() {
             return None;
         }
 
@@ -71,18 +64,44 @@ impl<'ast> Editor {
         Some(first..(last + 1))
     }
 
-    pub fn block_pre_spacing_height(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
-        let Some(line_range) = self.pre_spacing_lines(node, siblings) else {
+    /// Cheap pre-spacing height estimate. Each blank line is one
+    /// `row_height`; plus inter-block `block_spacing`. Used by
+    /// `height_approx` for off-screen content.
+    pub fn block_pre_spacing_height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
+        if self.hidden_by_fold(node) {
+            return 0.;
+        }
+        let Some(line_range) = self.pre_spacing_lines(node) else {
+            return 0.;
+        };
+        let mut result = 0.;
+        if node.previous_sibling().is_some() {
+            result += self.layout.block_spacing;
+        }
+        let n = line_range.end.saturating_sub(line_range.start) as f32;
+        result += n * self.layout.row_height;
+        result += n * self.layout.block_spacing;
+        result
+    }
+
+    /// Cheap post-spacing height estimate.
+    pub fn block_post_spacing_height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let Some(line_range) = self.post_spacing_lines(node) else {
+            return 0.;
+        };
+        let n = line_range.end.saturating_sub(line_range.start) as f32;
+        n * self.layout.row_height + n * self.layout.block_spacing
+    }
+
+    pub fn block_pre_spacing_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let Some(line_range) = self.pre_spacing_lines(node) else {
             return 0.;
         };
 
         let width = self.width(node);
         let mut result = 0.;
 
-        let sibling_index = self.sibling_index(node, siblings);
-        if sibling_index != 0 {
+        if node.previous_sibling().is_some() {
             result += self.layout.block_spacing;
         }
 
@@ -103,16 +122,14 @@ impl<'ast> Editor {
 
     pub fn show_block_pre_spacing(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
-        let Some(line_range) = self.pre_spacing_lines(node, siblings) else {
+        let Some(line_range) = self.pre_spacing_lines(node) else {
             return;
         };
 
         let width = self.width(node);
 
-        let sibling_index = self.sibling_index(node, siblings);
-        if sibling_index != 0 {
+        if node.previous_sibling().is_some() {
             top_left.y += self.layout.block_spacing;
         }
 
@@ -128,10 +145,8 @@ impl<'ast> Editor {
         }
     }
 
-    pub(crate) fn block_post_spacing_height(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
-        let Some(line_range) = self.post_spacing_lines(node, siblings) else {
+    pub(crate) fn block_post_spacing_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let Some(line_range) = self.post_spacing_lines(node) else {
             return 0.;
         };
 
@@ -156,9 +171,8 @@ impl<'ast> Editor {
 
     pub(crate) fn show_block_post_spacing(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
-        let Some(line_range) = self.post_spacing_lines(node, siblings) else {
+        let Some(line_range) = self.post_spacing_lines(node) else {
             return;
         };
 
@@ -177,10 +191,8 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn compute_bounds_block_pre_spacing(
-        &mut self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) {
-        let Some(line_range) = self.pre_spacing_lines(node, siblings) else {
+    pub fn compute_bounds_block_pre_spacing(&mut self, node: &'ast AstNode<'ast>) {
+        let Some(line_range) = self.pre_spacing_lines(node) else {
             return;
         };
 
@@ -191,10 +203,8 @@ impl<'ast> Editor {
         }
     }
 
-    pub(crate) fn compute_bounds_block_post_spacing(
-        &mut self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) {
-        let Some(line_range) = self.post_spacing_lines(node, siblings) else {
+    pub(crate) fn compute_bounds_block_post_spacing(&mut self, node: &'ast AstNode<'ast>) {
+        let Some(line_range) = self.post_spacing_lines(node) else {
             return;
         };
 

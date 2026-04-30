@@ -16,6 +16,7 @@ pub struct OnboardHandOff {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
     pub acct_data: Vec<File>,
+    pub is_new_user: bool,
 }
 
 enum AccountUpdate {
@@ -95,6 +96,7 @@ impl OnboardScreen {
                             settings: self.settings.clone(),
                             core: self.core.clone(),
                             acct_data,
+                            is_new_user: true,
                         });
                     }
                     Err(msg) => {
@@ -115,6 +117,7 @@ impl OnboardScreen {
                             settings: self.settings.clone(),
                             core: self.core.clone(),
                             acct_data,
+                            is_new_user: false,
                         });
                     }
                     Err(err) => self.import_err = Some(err),

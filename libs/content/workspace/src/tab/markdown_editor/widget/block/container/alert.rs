@@ -3,14 +3,14 @@ use crate::theme::palette_v2::ThemeExt as _;
 use comrak::nodes::{AlertType, AstNode, NodeAlert};
 use egui::{Pos2, Rect, Sense, Stroke, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
 use crate::theme::icons::Icon;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_alert(&self, parent: &AstNode<'_>, node_alert: &NodeAlert) -> Format {
         let parent_text_format = self.text_format(parent);
         Format {
@@ -54,9 +54,9 @@ impl<'ast> Editor {
 
     pub fn show_alert(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        node_alert: &NodeAlert, siblings: &[&'ast AstNode<'ast>],
+        node_alert: &NodeAlert,
     ) {
-        let height = self.height(node, siblings);
+        let height = self.height(node);
         let annotation_size = Vec2 { x: self.layout.indent, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
@@ -212,8 +212,8 @@ impl<'ast> Editor {
     }
 
     pub fn own_prefix_len_alert(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<Graphemes> {
         self.own_prefix_len_block_quote(node, line)
     }
 
@@ -237,7 +237,7 @@ impl<'ast> Editor {
 
     fn alert_type_title_ranges(
         &self, node: &'ast AstNode<'ast>,
-    ) -> ((DocCharOffset, DocCharOffset), (DocCharOffset, DocCharOffset)) {
+    ) -> ((Grapheme, Grapheme), (Grapheme, Grapheme)) {
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
         let line_content_text = &self.buffer[line_content].to_uppercase();

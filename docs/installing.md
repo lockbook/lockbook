@@ -19,6 +19,7 @@ Being open source, you can always build Lockbook [yourself](building.md).
 - [x86 Binary](https://github.com/lockbook/lockbook/releases)
 - [.deb](https://github.com/lockbook/lockbook/releases)
 - [Snap](https://snapcraft.io/lockbook-desktop): `snap install lockbook-desktop`
+- [Flatpak](https://flathub.org/en/apps/net.lockbook.Lockbook): `flatpak install flathub net.lockbook.Lockbook`
 
 ## CLI
 - [Cargo](https://crates.io/crates/lockbook): `cargo install lockbook`

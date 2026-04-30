@@ -47,9 +47,13 @@ public protocol LbAPI {
     func suggestedDocs() -> Result<[UUID], LbError>
     func clearSuggestedId(id: UUID) -> Result<Void, LbError>
     func clearSuggestedDocs() -> Result<Void, LbError>
+    func pinFile(id: UUID) -> Result<Void, LbError>
+    func unpinFile(id: UUID) -> Result<Void, LbError>
+    func listPinned() -> Result<[UUID], LbError>
     func getUsage() -> Result<UsageMetrics, LbError>
     func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError>
     func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError>
+    func getFileLinkUrl(id: UUID) -> Result<String, LbError>
     func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError>
     func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError>
     func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError>
@@ -527,6 +531,39 @@ public class Lb: LbAPI {
         return .success(())
     }
 
+    public func pinFile(id: UUID) -> Result<Void, LbError> {
+        let err = lb_pin_file(lb, id.toLbUuid())
+
+        if let err {
+            defer { lb_free_err(err) }
+            return .failure(LbError(err.pointee))
+        }
+
+        return .success(())
+    }
+
+    public func unpinFile(id: UUID) -> Result<Void, LbError> {
+        let err = lb_unpin_file(lb, id.toLbUuid())
+
+        if let err {
+            defer { lb_free_err(err) }
+            return .failure(LbError(err.pointee))
+        }
+
+        return .success(())
+    }
+
+    public func listPinned() -> Result<[UUID], LbError> {
+        let res = lb_list_pinned(lb)
+        defer { lb_free_id_list_res(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(Array(UnsafeBufferPointer(start: res.ids, count: Int(res.len))).toUUIDs())
+    }
+
     public func getUsage() -> Result<UsageMetrics, LbError> {
         let res = lb_get_usage(lb)
         defer { lb_free_usage_metrics(res) }
@@ -567,6 +604,13 @@ public class Lb: LbAPI {
         }
 
         return .success(())
+    }
+    
+    public func getFileLinkUrl(id: UUID) -> Result<String, LbError> {
+        let res = lb_get_file_link_url(lb, id.toLbUuid())
+        defer { lb_free_get_file_link_url_res(res) }
+
+        return .success(String(cString: res.link_url))
     }
 
     public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError> {
@@ -748,9 +792,15 @@ public class MockLb: LbAPI {
     public func suggestedDocs() -> Result<[UUID], LbError> { .success([file1.id, file2.id, file3.id]) }
     public func clearSuggestedId(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func clearSuggestedDocs() -> Result<Void, LbError> { .success(()) }
+    public func pinFile(id: UUID) -> Result<Void, LbError> { .success(()) }
+    public func unpinFile(id: UUID) -> Result<Void, LbError> { .success(()) }
+    public func listPinned() -> Result<[UUID], LbError> { .success([file1.id]) }
     public func getUsage() -> Result<UsageMetrics, LbError> { .success(UsageMetrics(serverUsedExact: 100, serverUsedHuman: "100B", serverCapExact: 1000, serverCapHuman: "1000B")) }
     public func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError> { .success(()) }
     public func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError> { .success(()) }
+    public func getFileLinkUrl(id: UUID) -> Result<String, LbError> {
+        .success("https://app.lockbook.net/open/a6743b18-c7ef-4960-9825-8022e2fa5672")
+    }
     public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError> { .success([]) }
     public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> { .success(()) }
     public func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError> { .success(()) }

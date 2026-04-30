@@ -1,15 +1,16 @@
 use comrak::nodes::{AstNode, NodeLink, NodeValue};
 use egui::{OpenUrl, Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
 use lb_rs::spawn;
 use scraper::{Html, Selector};
 use std::collections::hash_map::Entry;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::block::TitleState;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
@@ -17,26 +18,20 @@ use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
-    Loading,
     Ready(String),
     Absent,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum LinkState {
-    Normal,
-    Warning, // access gap — some collaborators can't follow this link
-    Broken,  // target not found
-}
+pub use crate::resolvers::LinkState;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_link(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
         let parent_text_format = self.text_format(parent);
         let theme = self.ctx.get_lb_theme();
         let color = match state {
             LinkState::Normal => theme.fg().blue,
-            LinkState::Warning => theme.fg().yellow,
-            LinkState::Broken => theme.fg().red,
+            LinkState::Warning { .. } => theme.fg().yellow,
+            LinkState::Broken { .. } => theme.fg().red,
         };
         Format { color, underline: true, ..parent_text_format }
     }
@@ -59,7 +54,7 @@ impl<'ast> Editor {
     }
 
     pub fn span_link(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
         let mut tmp_wrap = wrap.clone();
         let node_range = self.node_range(node);
@@ -75,14 +70,6 @@ impl<'ast> Editor {
                         &tmp_wrap,
                         &t,
                         self.text_format_link(node.parent().unwrap(), LinkState::Normal),
-                    );
-                    true
-                }
-                DestinationTitle::Loading => {
-                    tmp_wrap.offset += self.span_override_section(
-                        &tmp_wrap,
-                        "Loading...",
-                        self.text_format_syntax(),
                     );
                     true
                 }
@@ -111,7 +98,7 @@ impl<'ast> Editor {
 
     pub fn show_link(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        node_link: &NodeLink, range: (DocCharOffset, DocCharOffset),
+        node_link: &NodeLink, range: (Grapheme, Grapheme),
     ) -> Response {
         let node_range = self.node_range(node);
         let is_auto = self.link_is_auto(node, &node_link.url);
@@ -131,17 +118,8 @@ impl<'ast> Editor {
                         Some(&t),
                         Sense::hover(),
                     ),
-                    DestinationTitle::Loading => self.show_override_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        trimmed,
-                        self.text_format_syntax(),
-                        Some("Loading..."),
-                        Sense::hover(),
-                    ),
                     DestinationTitle::Absent => {
-                        // destination has no title
+                        // no title yet (loading, failed, or never had one)
                         self.show_circumfix(ui, node, top_left, wrap, range)
                     }
                 }
@@ -179,14 +157,16 @@ impl<'ast> Editor {
 
         if response.hovered {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            if self.link_state_for_url(&node_link.url) == LinkState::Warning {
+            if let LinkState::Warning { message } | LinkState::Broken { message } =
+                self.link_state_for_url(&node_link.url)
+            {
                 if let Some(pos) = ui.ctx().pointer_hover_pos() {
                     egui::Area::new(ui.id().with("link_warning"))
                         .order(egui::Order::Tooltip)
                         .fixed_pos(pos + egui::vec2(8.0, 16.0))
                         .show(ui.ctx(), |ui| {
                             egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                ui.label("Some collaborators cannot access this link target");
+                                ui.label(&message);
                             });
                         });
                 }
@@ -212,44 +192,15 @@ impl<'ast> Editor {
     }
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
-        let guard = self.files.read().unwrap();
-        let from_id = guard.get_by_id(self.file_id)?.parent;
-        guard.resolve_link(url, from_id)
+        self.link_resolver.resolve_link(url)
     }
 
     pub fn link_state_for_url(&self, url: &str) -> LinkState {
-        let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken;
-        };
-        match guard.resolve_link(url, from_id) {
-            None => LinkState::Broken,
-            Some(ResolvedLink::External(_)) => LinkState::Normal,
-            Some(ResolvedLink::File(target_id)) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning
-                } else {
-                    LinkState::Normal
-                }
-            }
-        }
+        self.link_resolver.link_state(url)
     }
 
     pub fn link_state_for_wikilink(&self, url: &str) -> LinkState {
-        let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken;
-        };
-        match guard.resolve_wikilink(url, from_id) {
-            None => LinkState::Broken,
-            Some(target_id) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning
-                } else {
-                    LinkState::Normal
-                }
-            }
-        }
+        self.link_resolver.wikilink_state(url)
     }
 
     pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {
@@ -308,7 +259,8 @@ impl<'ast> Editor {
 
     // Resolves the display title for a link with empty text.
     // Internal links (lb:// or relative paths) resolve synchronously from the file cache.
-    // External http/https links are fetched asynchronously; returns Loading on first call.
+    // External http/https links are fetched asynchronously; returns Absent until
+    // the fetch completes (caller renders the original URL text in that case).
     fn get_link_title(&self, url: &str) -> DestinationTitle {
         let Some(resolved) = self.resolve_link(url) else {
             return DestinationTitle::Absent;
@@ -344,6 +296,7 @@ impl<'ast> Editor {
                 let client = self.client.clone();
                 let ctx = self.ctx.clone();
                 let title_state = arc.clone();
+                let layout_dirty = self.layout_cache.link_layout_dirty.clone();
                 spawn!({
                     const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
                     const GOOGLEBOT: &str =
@@ -371,6 +324,7 @@ impl<'ast> Editor {
                         .and_then(|h| extract_html_title(&h))
                         .map(TitleState::Loaded)
                         .unwrap_or(TitleState::Failed);
+                    layout_dirty.store(true, Ordering::Relaxed);
                     ctx.request_repaint();
                 });
                 arc
@@ -379,9 +333,8 @@ impl<'ast> Editor {
 
         let state = arc.lock().unwrap();
         match &*state {
-            TitleState::Loading => DestinationTitle::Loading,
             TitleState::Loaded(t) => DestinationTitle::Ready(t.clone()),
-            TitleState::Failed => DestinationTitle::Absent,
+            TitleState::Loading | TitleState::Failed => DestinationTitle::Absent,
         }
     }
 }

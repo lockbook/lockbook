@@ -1,9 +1,9 @@
 use egui::{Pos2, Rect};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::ops::Index;
 use std::sync::{Arc, RwLock};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 
 #[derive(Default)]
@@ -14,7 +14,7 @@ pub struct Galleys {
 #[derive(Debug)]
 pub struct GalleyInfo {
     pub is_override: bool,
-    pub range: (DocCharOffset, DocCharOffset),
+    pub range: (Grapheme, Grapheme),
     pub buffer: Arc<RwLock<glyphon::Buffer>>,
     pub rect: Rect,
     pub padded: bool,
@@ -41,7 +41,7 @@ impl Galleys {
         self.galleys.push(galley);
     }
 
-    pub fn galley_at_offset(&self, offset: DocCharOffset) -> Option<usize> {
+    pub fn galley_at_offset(&self, offset: Grapheme) -> Option<usize> {
         for i in (0..self.galleys.len()).rev() {
             let galley = &self.galleys[i];
             if galley.range.contains_inclusive(offset) {
@@ -52,35 +52,32 @@ impl Galleys {
     }
 }
 
-impl Editor {
+impl MdRender {
     /// Returns the document offset range for which galleys must exist,
     /// covering the selection ± 1 source line so that arrow-key navigation
     /// across the viewport edge has a galley to land on.
-    pub fn galley_required_ranges(&self) -> Vec<(DocCharOffset, DocCharOffset)> {
+    pub fn galley_required_ranges(
+        &self, in_progress_selection: Option<(Grapheme, Grapheme)>,
+        find_match: Option<(Grapheme, Grapheme)>,
+    ) -> Vec<(Grapheme, Grapheme)> {
         if self.bounds.source_lines.is_empty() {
             return Vec::new();
         }
 
         let mut ranges = Vec::new();
 
-        let selection = self
-            .in_progress_selection
-            .unwrap_or(self.buffer.current.selection);
+        let selection = in_progress_selection.unwrap_or(self.buffer.current.selection);
         ranges.push(self.source_line_range(selection));
 
         // also require galleys for the current find match so scroll_to_find_match works
-        if let Some(idx) = self.find.current_match {
-            if let Some(&match_range) = self.find.matches.get(idx) {
-                ranges.push(self.source_line_range(match_range));
-            }
+        if let Some(match_range) = find_match {
+            ranges.push(self.source_line_range(match_range));
         }
 
         ranges
     }
 
-    fn source_line_range(
-        &self, range: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+    fn source_line_range(&self, range: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
         let first_line = self
             .bounds
             .source_lines
@@ -101,7 +98,7 @@ impl Editor {
 
     /// Returns the x position of the offset, assuming the offset lies in this
     /// galley. For the y position, use self.rect.y_range().
-    pub fn galley_x(&self, galley: &GalleyInfo, offset: DocCharOffset) -> f32 {
+    pub fn galley_x(&self, galley: &GalleyInfo, offset: Grapheme) -> f32 {
         let buffer = galley.buffer.read().unwrap();
         let glyphs = buffer.layout_runs().next().unwrap().glyphs;
 
@@ -120,7 +117,7 @@ impl Editor {
 
     /// Returns the offset closest to pos in this galley, excluding the offset
     /// after the last glyph.
-    pub fn galley_offset(&self, galley_idx: usize, pos: Pos2) -> DocCharOffset {
+    pub fn galley_offset(&self, galley_idx: usize, pos: Pos2) -> Grapheme {
         let galley = &self.galleys.galleys[galley_idx];
         let buffer = galley.buffer.read().unwrap();
         let layout_run = buffer.layout_runs().next().unwrap();
@@ -159,12 +156,13 @@ impl Editor {
             // Hopefully by this point you already know that a character is not
             // a byte. Instead, we have unicode. In Unicode, there is a table
             // that assigns a number called a **codepoint** to a symbol it
-            // represents. The codepoints are represented in a variable-width
-            // format so the most common ones take up less space. So, multiple
-            // bytes form a codepoint, and generally you defer to a library to
-            // tell you which. We interface with codepoints whenever we
-            // interpret the document in any way; all of the document's
-            // structure is built on top of codepoints.
+            // represents. Codepoints themselves are 21-bit integers, but the
+            // **UTF-8** encoding stores them as variable-length sequences of 1
+            // to 4 bytes so the most common ones take up less space. So, in
+            // UTF-8 multiple bytes form a codepoint, and generally you defer
+            // to a library to tell you which. We interface with codepoints
+            // whenever we interpret the document in any way; all of the
+            // document's structure is built on top of codepoints.
 
             // Sometimes we want to combine codepoints because otherwise the
             // number of required codepoints would be too high. For example,
@@ -178,9 +176,17 @@ impl Editor {
             // skin tones (which apply to many emojis each) and country flag
             // variations (which would be politically tense to get through the
             // unicode committee). We interface with graphemes when moving the
-            // cursor or reading substrings from the text buffer because not all
-            // codepoints are valid text boundaries (and when not, they crash
-            // the program).
+            // cursor or reading substrings from the text buffer because that's
+            // the user's mental model — one arrow-key press, one grapheme.
+
+            // Codepoint boundaries are always valid byte boundaries (that's
+            // the contract of `&str` slicing in Rust; UTF-8 is
+            // self-synchronizing), but they aren't always *grapheme*
+            // boundaries. `Grapheme` is grapheme-indexed, so a byte
+            // offset that lands inside a multi-codepoint cluster (e.g. between
+            // a base character and a combining mark) has no corresponding
+            // `Grapheme` and the lookup crashes. The codepoint<->grapheme
+            // gap is exactly where most of our text-handling bugs live.
 
             // Graphemes are not the unit the font system works in. Instead, it
             // works in glyphs. A **glyph** is a unit that's output by the font.
@@ -207,14 +213,23 @@ impl Editor {
             // between glyphs may not be a boundary between graphemes, but a
             // boundary between glyph clusters always is.
 
-            // In a glyph cluster, cosmic text reports the first glyph as having
-            // zero width and attributes the full width to the final glyph -
-            // this is best thought of as the width by which to advance the
-            // layout cursor after drawing the glyph. We only update
-            // `rel_offset` when the width is non-zero because that glyph is the
-            // last glyph in the glyph cluster, so its end is also the end of a
-            // grapheme. If it was not, the call to `offset_to_char()` below
-            // would immediately crash the program.
+            // In a glyph cluster, cosmic-text reports zero width on every
+            // glyph except one, and that one carries the cluster's full
+            // advance — the width by which to move the layout cursor after
+            // drawing. We only update `rel_offset` when width is non-zero, so
+            // the byte offset we feed to `offset_to_char()` is always the end
+            // of a glyph cluster.
+            //
+            // This is safe *if* (a) cosmic-text uses HarfBuzz's default
+            // cluster level (`MONOTONE_GRAPHEMES`), so glyph cluster
+            // boundaries coincide with grapheme cluster boundaries, and (b)
+            // the glyph carrying the advance is always positioned at the
+            // cluster's source end. Both hold today; if either drifts (e.g. a
+            // shaper change that puts the advance on the base of a base+mark
+            // pair while the mark sits at the cluster's source end), this
+            // would crash on the same Devanagari / ZWJ inputs that broke
+            // `split_rows`. The strict `offset_to_char` is intentional — we'd
+            // rather find out loudly than render against a stale assumption.
             if glyph.w > 0. {
                 x += glyph.w / self.ctx.pixels_per_point();
                 rel_offset = glyph.end;

@@ -31,6 +31,11 @@ impl Workspace {
         {
             cache.lock().unwrap().begin_frame();
         }
+        self.images.begin_frame();
+        self.tabs.begin_frame();
+        for slot in &self.tab_strip {
+            self.tabs.promote(&slot.dest);
+        }
 
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
             self.core.app_foregrounded();
@@ -41,6 +46,7 @@ impl Workspace {
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
+        self.process_clip_events();
 
         if self.is_empty() {
             if self.show_tabs {
@@ -54,7 +60,7 @@ impl Workspace {
             self.landing_page_first_frame = true;
         }
         if self.out.tabs_changed || self.current_tab_changed {
-            self.cfg.set_tabs(&self.tabs, self.current_tab);
+            self.cfg.set_tabs(&self.tab_strip, &self.current_tab);
         }
 
         let zoom = self.ctx.zoom_factor();
@@ -68,6 +74,8 @@ impl Workspace {
         {
             cache.lock().unwrap().end_frame();
         }
+        self.images.end_frame();
+        self.tabs.end_frame();
 
         mem::take(&mut self.out)
     }
@@ -234,9 +242,11 @@ impl Workspace {
                     .show(ui, |ui| {
                         if IconButton::new(Icon::ARROW_LEFT)
                             .disabled(
-                                self.current_tab()
-                                    .map(|tab| tab.back.is_empty())
-                                    .unwrap_or_default(),
+                                self.current_tab
+                                    .as_ref()
+                                    .and_then(|d| self.tab_strip.iter().find(|s| &s.dest == d))
+                                    .map(|s| s.back.is_empty())
+                                    .unwrap_or(true),
                             )
                             .size(37.)
                             .tooltip("Go Back")
@@ -247,9 +257,11 @@ impl Workspace {
                         }
                         if IconButton::new(Icon::ARROW_RIGHT)
                             .disabled(
-                                self.current_tab()
-                                    .map(|tab| tab.forward.is_empty())
-                                    .unwrap_or_default(),
+                                self.current_tab
+                                    .as_ref()
+                                    .and_then(|d| self.tab_strip.iter().find(|s| &s.dest == d))
+                                    .map(|s| s.forward.is_empty())
+                                    .unwrap_or(true),
                             )
                             .size(37.)
                             .tooltip("Go Forward")
@@ -263,32 +275,32 @@ impl Workspace {
                             .max_width(ui.available_width())
                             .show(ui, |ui| {
                                 let mut responses = HashMap::new();
-                                for i in 0..self.tabs.len() {
-                                    if self.tabs[i].is_preview {
-                                        continue;
-                                    }
-                                    if let Some(resp) = self.tab_label(
-                                        ui,
-                                        i,
-                                        self.current_tab == i,
-                                        active_tab_changed,
-                                    ) {
+                                for i in 0..self.tab_strip.len() {
+                                    let dest = &self.tab_strip[i].dest;
+                                    let is_current = self.current_tab.as_ref() == Some(dest);
+                                    if let Some(resp) =
+                                        self.tab_label(ui, i, is_current, active_tab_changed)
+                                    {
                                         responses.insert(i, resp);
                                     }
                                 }
 
                                 // handle responses after showing all tabs because closing a tab invalidates tab indexes
                                 for (i, resp) in responses {
+                                    let dest = self.tab_strip[i].dest.clone();
                                     match resp {
                                         TabLabelResponse::Clicked => {
-                                            if self.current_tab == i {
+                                            let is_current =
+                                                self.current_tab.as_ref() == Some(&dest);
+                                            if is_current {
                                                 // we should rename the file.
 
                                                 self.out.tab_title_clicked = true;
-                                                let active_name = self.tab_title(&self.tabs[i]);
-                                                self.tabs[i].rename = Some(active_name);
+                                                let tab = self.tabs.get(&dest).unwrap();
+                                                let active_name = self.tab_title(tab);
+                                                self.tab_strip[i].rename = Some(active_name);
                                             } else {
-                                                self.tabs[i].rename = None;
+                                                self.tab_strip[i].rename = None;
                                                 self.make_current(i);
                                             }
                                         }
@@ -296,19 +308,18 @@ impl Workspace {
                                             self.close_tab(i);
                                         }
                                         TabLabelResponse::Renamed(name) => {
-                                            self.tabs[i].rename = None;
-                                            if let Some(id) = self.tabs[i].id() {
-                                                self.rename_file((id, name.clone()), true);
-                                            }
+                                            self.tab_strip[i].rename = None;
+                                            let id = dest.id();
+                                            self.rename_file((id, name.clone()), true);
                                         }
                                         TabLabelResponse::Reordered { src, mut dst } => {
                                             let current = self.current_tab_id();
 
-                                            let tab = self.tabs.remove(src);
+                                            let d = self.tab_strip.remove(src);
                                             if src < dst {
                                                 dst -= 1;
                                             }
-                                            self.tabs.insert(dst, tab);
+                                            self.tab_strip.insert(dst, d);
 
                                             if let Some(current) = current {
                                                 self.make_current_by_id(current);
@@ -381,7 +392,13 @@ impl Workspace {
             .ctx
             .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::S))
         {
-            self.save_tab(self.current_tab);
+            if let Some(idx) = self
+                .current_tab
+                .as_ref()
+                .and_then(|d| self.tab_strip.iter().position(|s| s.dest == *d))
+            {
+                self.save_tab(idx);
+            }
         }
 
         // Ctrl-M to open mind map
@@ -398,7 +415,13 @@ impl Workspace {
             .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::W))
         {
             if !self.is_empty() {
-                self.close_tab(self.current_tab);
+                if let Some(idx) = self
+                    .current_tab
+                    .as_ref()
+                    .and_then(|d| self.tab_strip.iter().position(|s| s.dest == *d))
+                {
+                    self.close_tab(idx);
+                }
                 self.ctx.send_viewport_cmd(ViewportCommand::Title(
                     self.current_tab_title().unwrap_or("Lockbook".to_owned()),
                 ));
@@ -416,8 +439,8 @@ impl Workspace {
             .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::W))
             && !self.is_empty()
         {
-            for i in 0..self.tabs.len() {
-                self.close_tab(i);
+            while !self.tab_strip.is_empty() {
+                self.close_tab(0);
             }
 
             self.out.selected_file = None;
@@ -449,18 +472,28 @@ impl Workspace {
             }
         });
         if change != 0 {
-            let old = self.current_tab as i32;
-            let new = old + change;
-            if new >= 0 && new < self.tabs.len() as i32 {
-                self.tabs.swap(old as usize, new as usize);
-                self.make_current(new as usize);
+            let current_idx = self
+                .current_tab
+                .as_ref()
+                .and_then(|d| self.tab_strip.iter().position(|s| s.dest == *d));
+            if let Some(old) = current_idx {
+                let new = old as i32 + change;
+                if new >= 0 && new < self.tab_strip.len() as i32 {
+                    self.tab_strip.swap(old, new as usize);
+                    self.make_current(new as usize);
+                }
             }
         }
 
         // tab navigation
         let completions_active = self
             .current_tab_markdown()
-            .is_some_and(|md| md.emoji_completions.active || md.link_completions.active);
+            .is_some_and(|md| md.edit.emoji_completions.active || md.edit.link_completions.active);
+        let current_idx = self
+            .current_tab
+            .as_ref()
+            .and_then(|d| self.tab_strip.iter().position(|s| s.dest == *d))
+            .unwrap_or(0);
         let mut goto_tab = None;
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
@@ -468,32 +501,32 @@ impl Workspace {
                 if !completions_active && input.consume_key_exact(COMMAND, key)
                     || (!APPLE && input.consume_key_exact(Modifiers::ALT, key))
                 {
-                    goto_tab = Some(i.min(self.tabs.len()) - 1);
+                    goto_tab = Some(i.min(self.tab_strip.len()) - 1);
                 }
             }
 
             // Cmd+9 to go to last tab
-            if !completions_active && input.consume_key_exact(COMMAND, Key::Num9)
-                || (!APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9))
+            if (!completions_active && input.consume_key_exact(COMMAND, Key::Num9)
+                || (!APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9)))
+                && !self.tab_strip.is_empty()
             {
-                goto_tab = Some(self.tabs.len() - 1);
+                goto_tab = Some(self.tab_strip.len() - 1);
             }
 
             // Cmd+Shift+[ or ctrl shift tab to go to previous tab
-            if (APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenCurlyBracket))
-                || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab))
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::OpenCurlyBracket))
+                || (!APPLE && input.consume_key_exact(CTRL | SHIFT, Key::Tab)))
+                && current_idx > 0
             {
-                goto_tab = (0..self.current_tab)
-                    .rev()
-                    .find(|&i| !self.tabs[i].is_preview);
+                goto_tab = Some(current_idx - 1);
             }
 
             // Cmd+Shift+] or ctrl tab to go to next tab
-            if (APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseCurlyBracket))
-                || (!APPLE && input.consume_key_exact(CTRL, Key::Tab))
+            if ((APPLE && input.consume_key_exact(COMMAND | SHIFT, Key::CloseCurlyBracket))
+                || (!APPLE && input.consume_key_exact(CTRL, Key::Tab)))
+                && current_idx + 1 < self.tab_strip.len()
             {
-                goto_tab =
-                    (self.current_tab + 1..self.tabs.len()).find(|&i| !self.tabs[i].is_preview);
+                goto_tab = Some(current_idx + 1);
             }
         });
 
@@ -535,6 +568,7 @@ impl Workspace {
     fn tab_label(
         &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
     ) -> Option<TabLabelResponse> {
+        let dest = self.tab_strip[t].dest.clone();
         let mut result = None;
         let icon_size = 15.0;
         let x_icon = Icon::CLOSE.size(icon_size);
@@ -554,15 +588,16 @@ impl Workspace {
 
         let rename_id = egui::Id::new("rename_tab").with(t);
         let mut rename_submitted = false;
-        if let Some(ref mut str) = self.tabs[t].rename {
+        let slot = &mut self.tab_strip[t];
+        if let Some(ref mut str) = slot.rename {
             rename_submitted = GlyphonTextEdit::process_events(ui, rename_id, str);
         }
-        let rename_text_for_sizing = self.tabs[t].rename.clone().unwrap_or_default();
+        let rename_text_for_sizing = slot.rename.clone().unwrap_or_default();
+        let is_renaming = slot.rename.is_some();
         let tab_label = egui::Frame::default()
             .fill(tab_bg)
             .inner_margin(tab_padding)
             .show(ui, |ui| {
-                let is_renaming = self.tabs[t].rename.is_some();
                 ui.scope_builder(UiBuilder::new(), |ui| {
                     let start = ui.available_rect_before_wrap().min;
 
@@ -572,7 +607,11 @@ impl Workspace {
                     let tab_font_size = 14.0;
                     let tab_line_height = 20.0;
                     let tab_max_width = 200.0;
-                    let raw_title = self.tab_title(&self.tabs[t]);
+                    let raw_title = self
+                        .tabs
+                        .get(&dest)
+                        .map(|tab| self.tab_title(tab))
+                        .unwrap_or_else(|| "Unknown".into());
                     let title = DocType::from_name(&raw_title)
                         .display_name(&raw_title)
                         .to_string();
@@ -685,28 +724,28 @@ impl Workspace {
                             .linear_multiply(0.8)
                     };
 
-                    if let Some(ref mut str) = self.tabs[t].rename {
-                        let stem_end = str.rfind('.').unwrap_or(str.len());
-                        let res = ui.put(
-                            text_rect,
-                            GlyphonTextEdit::new(str)
-                                .id(rename_id)
-                                .font_size(14.0)
-                                .select_on_focus(0, stem_end),
-                        );
+                    if is_renaming {
+                        if let Some(ref mut str) = self.tab_strip[t].rename {
+                            let stem_end = str.rfind('.').unwrap_or(str.len());
+                            let res = ui.put(
+                                text_rect,
+                                GlyphonTextEdit::new(str)
+                                    .id(rename_id)
+                                    .font_size(14.0)
+                                    .select_on_focus(0, stem_end),
+                            );
 
-                        if !res.has_focus() && !res.lost_focus() {
-                            // request focus on the first frame
-                            ui.memory_mut(|m| m.request_focus(res.id));
-                        }
+                            if !res.has_focus() && !res.lost_focus() {
+                                ui.memory_mut(|m| m.request_focus(res.id));
+                            }
 
-                        if rename_submitted {
-                            result = Some(TabLabelResponse::Renamed(str.to_owned()));
-                        }
+                            if rename_submitted {
+                                result = Some(TabLabelResponse::Renamed(str.to_owned()));
+                            }
 
-                        // release focus to cancel ('esc' or click elsewhere)
-                        if res.lost_focus() {
-                            self.tabs[t].rename = None;
+                            if res.lost_focus() {
+                                self.tab_strip[t].rename = None;
+                            }
                         }
                     } else {
                         ui.put(
@@ -833,10 +872,15 @@ impl Workspace {
             sep_stroke,
         );
 
+        let last_saved_str = self
+            .tabs
+            .get(&dest)
+            .map(|tab| tab.last_saved.elapsed_human_string())
+            .unwrap_or_else(|| "unknown".to_string());
+        let status_summary = self.tab_status(t).summary();
         tab_label.response.on_hover_ui(|ui| {
-            ui.label(RichText::from(self.tab_status(t).summary()).size(15.0));
-            let last_saved = self.tabs[t].last_saved.elapsed_human_string();
-            ui.label(RichText::from(format!("last saved {last_saved}")).size(12.0));
+            ui.label(RichText::from(status_summary).size(15.0));
+            ui.label(RichText::from(format!("last saved {last_saved_str}")).size(12.0));
             ui.ctx().request_repaint_after_secs(1.0);
         });
 
@@ -948,6 +992,7 @@ pub enum DocType {
     ImageUnsupported,
     Code,
     PDF,
+    Chat,
     Unknown,
 }
 
@@ -961,6 +1006,7 @@ impl Display for DocType {
             DocType::ImageUnsupported => write!(f, "Image (Unsupported)"),
             DocType::Code => write!(f, "Code"),
             DocType::PDF => write!(f, "PDF"),
+            DocType::Chat => write!(f, "Chat"),
             DocType::Unknown => write!(f, "Unknown"),
         }
     }
@@ -986,6 +1032,7 @@ impl DocType {
             "txt" => Self::PlainText,
             "cr2" => Self::ImageUnsupported,
             "pdf" => Self::PDF,
+            "chat" => Self::Chat,
             _ if image_viewer::is_supported_image_fmt(&ext) => Self::Image,
             _ if crate::tab::markdown_editor::syntax_set()
                 .find_syntax_by_extension(syntax_ext_for(&ext))
@@ -1018,6 +1065,7 @@ impl DocType {
             DocType::ImageUnsupported => false,
             DocType::Code => false,
             DocType::PDF => true,
+            DocType::Chat => true,
             DocType::Unknown => false,
         }
     }

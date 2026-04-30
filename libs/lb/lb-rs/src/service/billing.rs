@@ -1,4 +1,4 @@
-use crate::Lb;
+use crate::LocalLb;
 use crate::io::network::ApiError;
 use crate::model::api::{
     CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
@@ -9,7 +9,7 @@ use crate::model::api::{
 use crate::model::errors::{LbErrKind, LbResult, core_err_unexpected};
 
 // todo: when core is responsible for syncing, these should probably trigger syncs and status updates
-impl Lb {
+impl LocalLb {
     #[instrument(level = "debug", skip(self, account_tier), err(Debug))]
     pub async fn upgrade_account_stripe(&self, account_tier: StripeAccountTier) -> LbResult<()> {
         let account = self.get_account()?;

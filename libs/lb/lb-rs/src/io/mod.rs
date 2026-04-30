@@ -8,7 +8,7 @@
 pub mod docs;
 pub mod network;
 
-use crate::Lb;
+use crate::LocalLb;
 use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
@@ -40,6 +40,7 @@ pub struct CoreV4 {
 
     pub doc_events: List<DocEvent>,
     pub id: Single<LbID>,
+    pub pinned_files: List<Uuid>,
 }
 
 pub struct LbRO<'a> {
@@ -67,7 +68,7 @@ impl LbTx<'_> {
     }
 }
 
-impl Lb {
+impl LocalLb {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = Instant::now();
 

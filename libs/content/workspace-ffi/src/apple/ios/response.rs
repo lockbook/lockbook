@@ -1,5 +1,5 @@
 use lb_c::Uuid;
-use lb_c::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_c::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::ffi::{CString, c_char};
 use workspace_rs::tab::markdown_editor::input::{Bound, Location, Region};
 
@@ -131,8 +131,8 @@ impl Default for CTextRange {
     }
 }
 
-impl From<(DocCharOffset, DocCharOffset)> for CTextRange {
-    fn from(value: (DocCharOffset, DocCharOffset)) -> Self {
+impl From<(Grapheme, Grapheme)> for CTextRange {
+    fn from(value: (Grapheme, Grapheme)) -> Self {
         if value.is_empty() {
             CTextRange::default()
         } else {
@@ -142,8 +142,8 @@ impl From<(DocCharOffset, DocCharOffset)> for CTextRange {
     }
 }
 
-impl From<Option<(DocCharOffset, DocCharOffset)>> for CTextRange {
-    fn from(value: Option<(DocCharOffset, DocCharOffset)>) -> Self {
+impl From<Option<(Grapheme, Grapheme)>> for CTextRange {
+    fn from(value: Option<(Grapheme, Grapheme)>) -> Self {
         match value {
             Some(range) => range.into(),
             None => CTextRange { none: true, start: Default::default(), end: Default::default() },
@@ -165,14 +165,14 @@ impl Default for CTextPosition {
     }
 }
 
-impl From<DocCharOffset> for CTextPosition {
-    fn from(value: DocCharOffset) -> Self {
+impl From<Grapheme> for CTextPosition {
+    fn from(value: Grapheme) -> Self {
         CTextPosition { none: false, pos: value.0 }
     }
 }
 
-impl From<Option<DocCharOffset>> for CTextPosition {
-    fn from(value: Option<DocCharOffset>) -> Self {
+impl From<Option<Grapheme>> for CTextPosition {
+    fn from(value: Option<Grapheme>) -> Self {
         match value {
             Some(offset) => offset.into(),
             None => CTextPosition { none: true, pos: 0 },
@@ -229,7 +229,7 @@ pub struct CRect {
     pub max_y: f64,
 }
 
-impl From<CTextRange> for Option<(DocCharOffset, DocCharOffset)> {
+impl From<CTextRange> for Option<(Grapheme, Grapheme)> {
     fn from(value: CTextRange) -> Self {
         if value.none {
             None
@@ -246,11 +246,10 @@ impl From<CTextRange> for Option<Region> {
         if value.none {
             None
         } else {
-            let result: (DocCharOffset, DocCharOffset) =
-                (value.start.pos.into(), value.end.pos.into());
+            let result: (Grapheme, Grapheme) = (value.start.pos.into(), value.end.pos.into());
             Some(Region::BetweenLocations {
-                start: Location::DocCharOffset(result.start()),
-                end: Location::DocCharOffset(result.end()),
+                start: Location::Grapheme(result.start()),
+                end: Location::Grapheme(result.end()),
             })
         }
     }
@@ -258,11 +257,11 @@ impl From<CTextRange> for Option<Region> {
 
 impl From<CTextPosition> for Option<Location> {
     fn from(value: CTextPosition) -> Self {
-        if value.none { None } else { Some(Location::DocCharOffset(value.pos.into())) }
+        if value.none { None } else { Some(Location::Grapheme(value.pos.into())) }
     }
 }
 
-impl From<CTextPosition> for Option<DocCharOffset> {
+impl From<CTextPosition> for Option<Grapheme> {
     fn from(value: CTextPosition) -> Self {
         if value.none { None } else { Some(value.pos.into()) }
     }

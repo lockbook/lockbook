@@ -21,6 +21,7 @@ import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
 import android.widget.OverScroller
+import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
@@ -32,6 +33,7 @@ import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
+import app.lockbook.workspace.toModelTab
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -64,6 +66,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     private val renderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
     private var renderJob: Job? = null
+
+    private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private val nativeLock = ReentrantLock()
 
@@ -129,6 +133,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         data class ClipboardPaste(
             val text: String
+        ) : WsTextMutation()
+
+        data class ClipboardPasteImage(
+            val bytes: ByteArray,
+            val isPaste: Boolean,
         ) : WsTextMutation()
 
         data class SendKeyEvent(
@@ -429,6 +438,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     override fun onDetachedFromWindow() {
         renderScope.cancel()
+        ioScope.cancel()
 
         super.onDetachedFromWindow()
     }
@@ -445,6 +455,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
     private suspend fun drawWorkspace(): Long {
         var containsNotify = false
+        var pastedImageThisFrame = false
         val responseJson = nativeLock.withLock {
             if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
                 return 0
@@ -495,6 +506,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     is WsTextMutation.ClipboardPaste -> {
                         logger.i("PASTE ${mutation.text}")
                         Workspace.clipboardPaste(WGPU_OBJ, mutation.text)
+                    }
+                    is WsTextMutation.ClipboardPasteImage -> {
+                        pastedImageThisFrame = true
+                        Workspace.clipboardSendImage(WGPU_OBJ, mutation.bytes, mutation.isPaste)
                     }
                     is WsTextMutation.SendKeyEvent -> {
                         logger.i("KEY ${mutation.keyCode} ${mutation.content}")
@@ -555,12 +570,22 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         withContext(Dispatchers.Main) {
             if (response.urlOpened.isNotEmpty()) {
-                val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
-                startActivity(context, browserIntent, null)
+                try {
+                    val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
+                    startActivity(context, browserIntent, null)
+                } catch (err: Exception) {
+                    Toast.makeText(context, err.message, Toast.LENGTH_SHORT).show()
+                }
             }
 
             if (!response.docCreated.isNullUUID()) {
                 model._openFile.postValue(response.docCreated to true)
+            }
+
+            if (pastedImageThisFrame) {
+                // The rust side has now processed the paste event during `enterFrame()`,
+                // so the imported file should exist and a file tree refresh will pick it up.
+                model._refreshFilesRequested.postValue(Unit)
             }
 
             if (response.tabTitleClicked) {
@@ -574,15 +599,13 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
 
             if (response.tabsChanged) {
-                val tab = WorkspaceTabType.fromInt(Workspace.currentTab(WGPU_OBJ))
-
-                if (tab != null) {
-                    model._currentTab.value = model.currentTab.value?.copy(type = tab)
-                }
+                val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
+                model._currentTab.value = newTab
             }
 
             if (!response.selectedFile.isNullUUID()) {
-                model._currentTab.value = model.currentTab.value?.copy(id = response.selectedFile)
+                val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
+                model._currentTab.value = newTab
             }
 
             if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
@@ -595,6 +618,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     if (response.selectionUpdated && textMutations.get().isEmpty()) {
                         textMutations.get().add(WsTextMutation.NotifySelectionUpdate to pendingWorkspaceTextState.get())
                     }
+
+                    response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
+
 
                     if (response.hasEditMenu && contextMenu == null) {
                         val actionModeCallback =
@@ -642,11 +668,16 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         redrawChannel.trySend(Unit)
     }
 
+    fun launchIo(block: suspend () -> Unit) {
+        ioScope.launch { block() }
+    }
+
     fun createDocAt(payload: Pair<Boolean, String>) {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
             return
         }
         Workspace.createDocAt(WGPU_OBJ, payload.first, payload.second)
+        drawImmediately()
     }
 
     fun cancelTouches(event: MotionEvent) {
@@ -757,16 +788,43 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         val tab = Workspace.openDoc(WGPU_OBJ, id, newFile)
+        drawImmediately()
 
         return WorkspaceTabType.fromInt(tab)
     }
 
-    fun showTabs(show: Boolean) {
+    fun back(): Boolean {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return
+            return false
         }
 
-        Workspace.showTabs(WGPU_OBJ, show)
+        val didNavigate = Workspace.back(WGPU_OBJ)
+        if (didNavigate) {
+            drawImmediately()
+        }
+
+        return didNavigate
+    }
+
+    fun forward(): Boolean {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        val didNavigate = Workspace.forward(WGPU_OBJ)
+        if (didNavigate) {
+            drawImmediately()
+        }
+
+        return didNavigate
+    }
+
+    fun canForward(): Boolean {
+        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        return Workspace.canForward(WGPU_OBJ)
     }
 
     fun isPenOnlyDraw(): Boolean {
@@ -791,6 +849,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         Workspace.closeDoc(WGPU_OBJ, id)
+        drawImmediately()
     }
 
     fun closeAllTabs() {

@@ -1,18 +1,19 @@
-use comrak::nodes::{AstNode, NodeTaskItem};
+use comrak::nodes::{AstNode, NodeTaskItem, NodeValue};
 use egui::{CursorIcon, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RelCharOffset};
+use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
-use crate::tab::markdown_editor::{Editor, Event};
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
+use crate::tab::markdown_editor::{Event, MdRender};
 use crate::theme::palette_v2::ThemeExt;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn height_task_item(&self, node: &'ast AstNode<'ast>) -> f32 {
         self.height_item(node)
     }
 
     pub fn show_task_item(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_task_item: &NodeTaskItem, siblings: &[&'ast AstNode<'ast>],
+        node_task_item: &NodeTaskItem,
     ) {
         let theme = self.ctx.get_lb_theme();
         let maybe_check = node_task_item.symbol;
@@ -35,20 +36,21 @@ impl<'ast> Editor {
         let extra_height = self.layout.row_spacing / 2.;
         let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
+        let sense = if self.readonly { Sense::hover() } else { Sense::click() };
         let checkbox_response =
             // ui.id().with() instead of Id::new() so two views of the same document
             // get distinct checkbox IDs
-            ui.interact(clickable_space, ui.id().with(self.node_range(node)), Sense::click());
+            ui.interact(clickable_space, ui.id().with(self.node_range(node)), sense);
         if checkbox_response.clicked() {
             let check_offset = self.check_offset(node);
             let new_check = if checked { ' ' } else { 'x' };
-            self.event.internal_events.push(Event::Replace {
+            self.render_events.push(Event::Replace {
                 region: (check_offset, check_offset + 1).into(),
                 text: new_check.into(),
                 advance_cursor: false,
             });
         }
-        if checkbox_response.hovered() {
+        if checkbox_response.hovered() && !self.readonly {
             ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
         }
         self.touch_consuming_rects.push(clickable_space);
@@ -111,12 +113,13 @@ impl<'ast> Editor {
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
-        let show_fold_button = self.touch_mode
-            || hovered
-            || fold_button_space.contains(pointer)
-            || annotation_space.contains(pointer)
-            || self.fold(node).is_some()
-            || self.selected_fold_item(node);
+        let show_fold_button = self.interactive
+            && (self.touch_mode
+                || hovered
+                || fold_button_space.contains(pointer)
+                || annotation_space.contains(pointer)
+                || self.fold(node).is_some()
+                || self.selected_fold_item(node));
         if !show_fold_button {
             return;
         }
@@ -125,14 +128,14 @@ impl<'ast> Editor {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.item_contents(node, siblings),
-            self.item_fold_reveal(node, siblings),
+            self.item_contents(node),
+            self.item_fold_reveal(node),
         );
     }
 
     pub fn own_prefix_len_task_item(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<Graphemes> {
         let node_line = self.node_line(node, line);
         let mut result = 0.into();
 
@@ -202,13 +205,21 @@ impl<'ast> Editor {
             // same contents and attributes."
             //
             // "If a line is empty, then it need not be indented."
+            //
+            // The threshold here is the *list's* content column (= the
+            // bullet marker `- ` width, typically 2), not the visual
+            // `- [ ] ` width. Comrak parses `- [ ] foo` as a `- ` bullet
+            // item whose content begins with the task syntax `[ ] `, so an
+            // indented code block inside the item begins at content_col + 4
+            // (= 6). Stripping the full visual `- [ ] ` here would consume
+            // the very indent the code block is defined by — and the
+            // code block's own 4-space strip would then leave it empty.
+            let parent_padding = match &node.parent().unwrap().data.borrow().value {
+                NodeValue::List(node_list) => node_list.padding,
+                _ => marker_width_including_spaces, // fallback, shouldn't happen
+            };
             let text = &self.buffer[node_line];
-            for i in 0..(marker_width_including_spaces + indentation) {
-                if text.starts_with(&" ".repeat(marker_width_including_spaces + indentation - i)) {
-                    result += marker_width_including_spaces + indentation - i;
-                    break;
-                }
-            }
+            result += consume_indent_columns(text, indentation + parent_padding);
         }
 
         Some(result)
@@ -225,7 +236,7 @@ impl<'ast> Editor {
         }
     }
 
-    fn check_offset(&self, node: &'ast AstNode<'ast>) -> DocCharOffset {
+    fn check_offset(&self, node: &'ast AstNode<'ast>) -> Grapheme {
         let line = self.node_first_line(node);
         let node_line = self.node_line(node, line);
 

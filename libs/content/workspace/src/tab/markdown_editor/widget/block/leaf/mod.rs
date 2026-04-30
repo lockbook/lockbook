@@ -1,7 +1,7 @@
 use comrak::nodes::AstNode;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _, RangeIterExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
 pub(crate) mod code_block;
 pub(crate) mod front_matter;
@@ -11,18 +11,18 @@ pub(crate) mod paragraph;
 pub(crate) mod table_cell;
 pub(crate) mod thematic_break;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     /// Returns 5 ranges representing the pre-node range, pre-first-child section,
     /// inter-children section, post-last-child section, and post-node range.
     #[allow(clippy::type_complexity)]
     pub fn split_range(
-        &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
     ) -> Option<(
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
-        (DocCharOffset, DocCharOffset),
+        (Grapheme, Grapheme),
+        (Grapheme, Grapheme),
+        (Grapheme, Grapheme),
+        (Grapheme, Grapheme),
+        (Grapheme, Grapheme),
     )> {
         let node_range = self.node_range(node);
 

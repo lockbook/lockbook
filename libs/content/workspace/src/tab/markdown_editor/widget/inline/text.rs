@@ -1,34 +1,22 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn span_text(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
-        let node_range = self.node_range(node);
-        let text_format = self.text_format(node);
-
-        let pre_span = self.text_pre_span(wrap, &text_format);
-        let mid_span = self.text_mid_span(
-            wrap,
-            pre_span,
-            &self.buffer[node_range.trim(&range)],
-            text_format.clone(),
-        );
-        let post_span = self.text_post_span(wrap, pre_span + mid_span, &text_format);
-
-        pre_span + mid_span + post_span
+        self.span_section(wrap, self.node_range(node).trim(&range), self.text_format(node))
     }
 
     pub fn show_text(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset),
+        range: (Grapheme, Grapheme),
     ) -> Response {
         let node_range = self.node_range(node).trim(&range);
         let text_format = self.text_format(node);
@@ -38,12 +26,7 @@ impl<'ast> Editor {
             return Default::default();
         }
 
-        // While a completion popup is active, draw the search text in accent color.
-        let search_range = self
-            .emoji_completions
-            .search_term_range
-            .or(self.link_completions.search_term_range);
-        if let Some(search_range) = search_range {
+        if let Some(search_range) = self.text_highlight_range {
             let start = search_range.0.max(node_range.0);
             let end = search_range.1.min(node_range.1);
             if start < end {

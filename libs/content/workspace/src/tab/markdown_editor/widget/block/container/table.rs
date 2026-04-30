@@ -2,11 +2,11 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{RangeExt, RangeIterExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn height_table(&self, node: &'ast AstNode<'ast>) -> f32 {
         if self.reveal_table(node) {
             let mut height = 0.;

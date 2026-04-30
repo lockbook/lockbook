@@ -1,17 +1,17 @@
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
+    Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
 
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::IconButton;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn heading_row_height(&self, level: u8) -> f32 {
         self.layout.row_height
             * match level {
@@ -63,7 +63,7 @@ impl<'ast> Editor {
     }
 
     pub fn height_setext_heading_line(
-        &self, node: &'ast AstNode<'ast>, node_line: (DocCharOffset, DocCharOffset), reveal: bool,
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> f32 {
         let width = self.width(node);
         let mut wrap = self.new_wrap(width);
@@ -137,7 +137,6 @@ impl<'ast> Editor {
 
     pub fn show_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, level: u8, setext: bool,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
         if setext {
             self.show_setext_heading(ui, node, top_left, level);
@@ -147,8 +146,7 @@ impl<'ast> Editor {
 
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
         let hovered = {
-            let siblings_height = self.height(node, siblings)
-                + self.heading_contained_siblings_height(node, siblings);
+            let siblings_height = self.height(node) + self.heading_contained_siblings_height(node);
             let siblings_space =
                 Rect::from_min_size(top_left, Vec2::new(self.width(node), siblings_height));
 
@@ -162,11 +160,12 @@ impl<'ast> Editor {
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
-        let show_fold_button = self.touch_mode
-            || hovered
-            || fold_button_space.contains(pointer)
-            || self.fold(node).is_some()
-            || self.selected_block(node);
+        let show_fold_button = self.interactive
+            && (self.touch_mode
+                || hovered
+                || fold_button_space.contains(pointer)
+                || self.fold(node).is_some()
+                || self.selected_block(node));
         if !show_fold_button {
             return;
         }
@@ -175,8 +174,8 @@ impl<'ast> Editor {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.heading_contents(node, siblings),
-            self.heading_fold_reveal(node, siblings),
+            self.heading_contents(node),
+            self.heading_fold_reveal(node),
         );
     }
 
@@ -233,7 +232,7 @@ impl<'ast> Editor {
     #[allow(clippy::too_many_arguments)]
     fn show_setext_heading_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_line: (DocCharOffset, DocCharOffset), reveal: bool,
+        node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> Response {
         let mut resp = Default::default();
 
@@ -374,7 +373,7 @@ impl<'ast> Editor {
     }
 
     fn compute_bounds_setext_heading_line(
-        &mut self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset), reveal: bool,
+        &mut self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), reveal: bool,
     ) {
         let node_line = self.node_line(node, line);
 
@@ -426,79 +425,47 @@ impl<'ast> Editor {
         }
     }
 
-    fn heading_contained_siblings_height(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> f32 {
-        let contained_siblings = self.heading_contained_siblings(node, siblings);
+    fn heading_contained_siblings_height(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let NodeValue::Heading(heading) = &node.data.borrow().value else {
+            panic!("heading_contained_siblings_height() invoked for non-heading")
+        };
+        let level = heading.level;
         let mut height_sum = 0.0;
-        for sibling in &contained_siblings {
-            height_sum += self.block_pre_spacing_height(sibling, siblings);
-            height_sum += self.height(sibling, siblings);
-            height_sum += self.block_post_spacing_height(sibling, siblings);
+        let mut sibling = node.next_sibling();
+        while let Some(s) = sibling {
+            if let NodeValue::Heading(sib_h) = &s.data.borrow().value {
+                if sib_h.level <= level {
+                    break;
+                }
+            }
+            height_sum += self.block_pre_spacing_height(s);
+            height_sum += self.height(s);
+            height_sum += self.block_post_spacing_height(s);
+            sibling = s.next_sibling();
         }
         height_sum
     }
 
-    fn heading_contained_siblings(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> Vec<&'ast AstNode<'ast>> {
+    pub fn heading_contents(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         let NodeValue::Heading(heading) = &node.data.borrow().value else {
             panic!("heading_contents() invoked for non-heading")
         };
 
         let mut contents = self.node_range(node).end().into_range();
-        let sibling_index = self.sibling_index(node, siblings);
-
-        let mut result = Vec::new();
-
-        for sibling in siblings[sibling_index + 1..].iter() {
-            // an equal or more significant subsequent heading concludes this heading's contents
-            if let NodeValue::Heading(sibling_heading) = &sibling.data.borrow().value {
-                if sibling_heading.level <= heading.level {
-                    let sibling_first_line = self.node_first_line_idx(sibling);
+        let mut sibling = node.next_sibling();
+        while let Some(s) = sibling {
+            if let NodeValue::Heading(sib_h) = &s.data.borrow().value {
+                if sib_h.level <= heading.level {
+                    let sibling_first_line = self.node_first_line_idx(s);
                     let last_line = sibling_first_line - 1;
                     contents.1 = self.bounds.source_lines[last_line].end();
-
-                    break;
+                    return contents;
                 }
             }
-
-            result.push(*sibling);
+            sibling = s.next_sibling();
         }
-
-        result
-    }
-
-    pub fn heading_contents(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> (DocCharOffset, DocCharOffset) {
-        let NodeValue::Heading(heading) = &node.data.borrow().value else {
-            panic!("heading_contents() invoked for non-heading")
-        };
-
-        let mut contents = self.node_range(node).end().into_range();
-        let sibling_index = self.sibling_index(node, siblings);
-        let mut concluded_by_subsequent_heading = false;
-        for sibling in siblings[sibling_index + 1..].iter() {
-            // an equal or more significant subsequent heading concludes this heading's contents
-            if let NodeValue::Heading(sibling_heading) = &sibling.data.borrow().value {
-                if sibling_heading.level <= heading.level {
-                    let sibling_first_line = self.node_first_line_idx(sibling);
-                    let last_line = sibling_first_line - 1;
-                    contents.1 = self.bounds.source_lines[last_line].end();
-                    concluded_by_subsequent_heading = true;
-
-                    break;
-                }
-            }
-        }
-        if !concluded_by_subsequent_heading {
-            // absent an equal or more significant subsequent
-            // heading, we contain the remaining content of the
-            // parent
-            contents.1 = self.node_range(node.parent().unwrap()).end();
-        }
-
+        // No concluding heading: contain the rest of the parent.
+        contents.1 = self.node_range(node.parent().unwrap()).end();
         contents
     }
 
@@ -516,7 +483,7 @@ impl<'ast> Editor {
 
     pub fn show_fold_button(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, size_icon_size_space: (f32, f32, Rect),
-        contents: (DocCharOffset, DocCharOffset), fold_reveal: bool,
+        contents: (Grapheme, Grapheme), fold_reveal: bool,
     ) {
         let (size, icon_size, space) = size_icon_size_space;
         self.touch_consuming_rects.push(space);
@@ -556,9 +523,7 @@ impl<'ast> Editor {
     }
 
     /// Returns true if the heading contents should be revealed whether the heading is folded or not
-    pub fn heading_fold_reveal(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
-        self.range_contains_revealed(self.heading_contents(node, siblings), false, true)
+    pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.range_contains_revealed(self.heading_contents(node), false, true)
     }
 }

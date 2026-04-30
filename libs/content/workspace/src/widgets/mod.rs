@@ -1,3 +1,4 @@
+pub mod affine_scroll;
 pub mod button;
 pub mod button_group;
 pub mod glyphon_cache;
@@ -5,10 +6,12 @@ pub mod glyphon_label;
 pub mod glyphon_render;
 pub mod glyphon_text_edit;
 pub mod icon_button;
+pub mod image_cache;
 pub mod progress_bar;
 pub mod separator;
 pub mod subscription;
 pub mod switch;
+pub mod tab_cache;
 
 pub use button::Button;
 pub use button_group::ButtonGroup;

@@ -4,6 +4,7 @@ pub mod landing;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
 pub mod output;
+pub mod resolvers;
 pub mod show;
 pub mod space_inspector;
 pub mod tab;
@@ -11,6 +12,11 @@ pub mod task_manager;
 pub mod theme;
 pub mod widgets;
 pub mod workspace;
+
+#[cfg(test)]
+mod file_cache_prop_tests;
+#[cfg(test)]
+mod test_utils;
 
 pub use output::Response;
 pub use tab::Event;

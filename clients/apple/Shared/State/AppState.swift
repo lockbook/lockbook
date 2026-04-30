@@ -8,9 +8,28 @@ class AppState: ObservableObject {
         #if os(macOS)
             NSHomeDirectory() + "/.lockbook"
         #else
-            FileManager.default.urls(for: .documentDirectory, in: .userDomainMask).last!.path
+            resolveIOSWritablePath()
         #endif
     }()
+
+    #if !os(macOS)
+    private static func resolveIOSWritablePath() -> String {
+        let fm = FileManager.default
+        let legacyURL = fm.urls(for: .documentDirectory, in: .userDomainMask).last!
+
+        guard let groupURL = fm.containerURL(forSecurityApplicationGroupIdentifier: "group.app.lockbook") else {
+            return legacyURL.path
+        }
+        let newURL = groupURL.appendingPathComponent("lockbook", isDirectory: true)
+
+        if !fm.fileExists(atPath: newURL.path) {
+            try? fm.moveItem(at: legacyURL, to: newURL)
+        }
+        try? fm.createDirectory(at: newURL, withIntermediateDirectories: true)
+
+        return newURL.path
+    }
+    #endif
 
     static let LB_API_URL: String? = ProcessInfo.processInfo.environment["API_LOCATION"]
 
@@ -41,10 +60,6 @@ class AppState: ObservableObject {
             isLoggedIn = false
             account = nil
         }
-    }
-
-    static func isInternalLink(_ url: URL) -> Bool {
-        url.scheme == "lb"
     }
 }
 

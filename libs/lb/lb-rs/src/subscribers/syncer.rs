@@ -13,7 +13,7 @@ use usvg::Transform;
 use uuid::Uuid;
 
 use crate::{
-    Lb, LbErrKind, LbResult,
+    LbErrKind, LbResult, LocalLb,
     io::network::ApiError,
     model::{
         ValidationFailure,
@@ -66,7 +66,7 @@ pub struct SyncState {
 // should_fetch is going to be a tree fn that will return true if:
 //     is md or svg that descends from
 
-impl Lb {
+impl LocalLb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn sync(&self) -> LbResult<()> {
         let mut sync_state = self.syncer.lock().await;

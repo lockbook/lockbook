@@ -1,13 +1,13 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_footnote_reference(&self, parent: &AstNode<'_>) -> Format {
         Format {
             color: self.ctx.get_lb_theme().neutral_fg_secondary(),
@@ -16,8 +16,7 @@ impl<'ast> Editor {
     }
 
     pub fn span_footnote_reference(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32,
-        range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32, range: (Grapheme, Grapheme),
     ) -> f32 {
         let node_range = self.node_range(node);
 
@@ -43,7 +42,7 @@ impl<'ast> Editor {
             let node_range = self.node_range(node);
             if range.contains_range(&node_range, true, true) {
                 let text = format!("{ix}");
-                self.text_mid_span(wrap, 0., &text, self.text_format(node))
+                self.span_override_section(wrap, &text, self.text_format(node))
             } else {
                 0.0
             }
@@ -53,7 +52,7 @@ impl<'ast> Editor {
     // [^footnotereference]
     pub fn show_footnote_reference(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        ix: u32, range: (DocCharOffset, DocCharOffset),
+        ix: u32, range: (Grapheme, Grapheme),
     ) -> Response {
         let node_range = self.node_range(node);
 

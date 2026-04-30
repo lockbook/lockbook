@@ -1,10 +1,13 @@
 use std::io;
 use std::str::FromStr;
 
+use arboard::Clipboard;
+use chrono::{TimeZone, Utc};
 use cli_rs::cli_error::{CliError, CliResult};
 
 use is_terminal::IsTerminal;
 use lb_rs::DEFAULT_API_LOCATION;
+use lb_rs::Lb;
 use lb_rs::model::api::{PaymentMethod, PaymentPlatform, StripeAccountTier};
 
 use crate::{core, ensure_account, input};
@@ -22,21 +25,38 @@ pub async fn new(username: String, api_url: ApiUrl) -> CliResult<()> {
 #[tokio::main]
 pub async fn import(api_url: ApiUrl) -> CliResult<()> {
     let lb = &core().await?;
-    if io::stdin().is_terminal() {
-        return Err(CliError::from("to import an existing lockbook account, pipe your account string into this command, e.g.:\npbpaste | lockbook account import".to_string()));
+
+    // if being piped, read from stdin
+    if !io::stdin().is_terminal() {
+        let mut account_string = String::new();
+        io::stdin()
+            .read_line(&mut account_string)
+            .map_err(|e| CliError::from(format!("failed to read from stdin: {e}")))?;
+        return import_key(lb, account_string.trim(), &api_url.0).await;
     }
 
-    let mut account_string = String::new();
-    io::stdin()
-        .read_line(&mut account_string)
-        .expect("failed to read from stdin");
-    account_string = account_string.trim().to_string();
+    // try clipboard first
+    if let Some(clip) = try_clipboard() {
+        println!("trying clipboard...");
+        if import_key(lb, &clip, &api_url.0).await.is_ok() {
+            return Ok(());
+        }
+        println!("clipboard did not contain a valid key.");
+    }
 
+    // fall back to prompting
+    let account_string: String = input::std_in("paste your private key: ")?;
+    import_key(lb, account_string.trim(), &api_url.0).await
+}
+
+fn try_clipboard() -> Option<String> {
+    Clipboard::new().ok()?.get_text().ok()
+}
+
+async fn import_key(lb: &Lb, key: &str, api_url: &str) -> CliResult<()> {
     println!("importing account...");
-    lb.import_account(&account_string, Some(&api_url.0)).await?;
-
+    lb.import_account(key, Some(api_url)).await?;
     println!("account imported! next, try to sync by running: lockbook sync");
-
     Ok(())
 }
 
@@ -45,24 +65,20 @@ pub async fn export(skip_check: bool) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account(lb)?;
 
-    let should_ask = !skip_check;
-    let mut should_show = false;
+    // skip confirmation if piped or flag is set
+    let interactive = io::stdout().is_terminal();
+    let should_ask = interactive && !skip_check;
 
     if should_ask {
         let answer: String = input::std_in(
             "your private key is about to be visible. do you want to proceed? [y/n]: ",
         )?;
-        if answer == "y" || answer == "Y" {
-            should_show = true;
+        if answer != "y" && answer != "Y" {
+            return Ok(());
         }
-    } else {
-        should_show = true;
     }
 
-    if should_show {
-        print!("{}", lb.export_account_private_key()?);
-    }
-
+    print!("{}", lb.export_account_private_key()?);
     Ok(())
 }
 
@@ -149,7 +165,12 @@ pub async fn status() -> Result<(), CliError> {
                 println!("state: {account_state:?}");
             }
         }
-        println!("renews on: {}", info.period_end);
+        let renewal_date = Utc
+            .timestamp_millis_opt(info.period_end as i64)
+            .single()
+            .map(|dt| dt.format("%B %d, %Y").to_string())
+            .unwrap_or_else(|| info.period_end.to_string());
+        println!("renews on: {}", renewal_date);
     } else {
         println!("trial tier");
     }

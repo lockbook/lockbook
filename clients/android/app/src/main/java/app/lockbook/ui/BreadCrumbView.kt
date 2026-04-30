@@ -73,5 +73,6 @@ class BreadCrumbView : FrameLayout {
 
     fun setBreadCrumbItems(items: MutableList<BreadCrumbItem>) {
         breadCrumbAdapter.setBreadCrumbItems(items)
+        recyclerView.scrollToPosition(items.count() - 1.coerceAtLeast(0))
     }
 }
