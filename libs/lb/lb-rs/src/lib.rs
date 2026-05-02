@@ -55,6 +55,9 @@ impl LocalLb {
     pub async fn init(config: Config) -> LbResult<Self> {
         let docs = AsyncDocs::from(&config);
         let db_cfg = db_rs::Config::in_folder(&config.writeable_path);
+        // an flock held across iOS suspend causes 0xdead10cc, iOS has no IPC yet
+        #[cfg(target_os = "ios")]
+        let db_cfg = db_rs::Config { fs_locks: false, ..db_cfg };
         let db = CoreDb::init(db_cfg).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
