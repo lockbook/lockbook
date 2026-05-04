@@ -28,10 +28,16 @@ pub struct LandingPage {
     sort_asc: bool,
     flatten_tree: bool,
 
+    /// save landing page?
     #[serde(skip)]
-    cached_file_ids: Vec<Uuid>,
+    dirty: bool,
+
+    #[serde(skip)]
+    cached_files: Vec<File>,
+
     #[serde(skip)]
     cache_generation: u64,
+
     #[serde(skip)]
     cache_snapshot: Option<Box<LandingPage>>,
     /// The folder the cached list was built for. Lives outside `PartialEq`
@@ -63,10 +69,11 @@ impl Default for LandingPage {
             sort: Default::default(),
             sort_asc: true,
             flatten_tree: true,
-            cached_file_ids: Vec::new(),
+            cached_files: Vec::new(),
             cache_generation: 0,
             cache_snapshot: None,
             cached_focused_parent: None,
+            dirty: false,
         }
     }
 }
@@ -213,15 +220,15 @@ fn col_rects(row_rect: Rect, cols: LayoutCols) -> ColRects {
 }
 
 #[derive(Clone, Copy)]
-enum RowKind<'a> {
+enum RowKind {
     TimeSeparator(&'static str),
-    File(&'a File),
+    File(usize),
 }
 
-struct RowLayout<'a> {
+struct RowLayout {
     y_top: f32,
     height: f32,
-    kind: RowKind<'a>,
+    kind: RowKind,
 }
 
 fn time_category(diff_millis: i64) -> &'static str {
@@ -241,14 +248,12 @@ fn time_category(diff_millis: i64) -> &'static str {
     }
 }
 
-fn build_row_layout<'a>(
-    descendents: &[&'a File], sort: &Sort, files: &FileCache,
-) -> (Vec<RowLayout<'a>>, f32) {
+fn build_row_layout(descendents: &[File], sort: &Sort, files: &FileCache) -> (Vec<RowLayout>, f32) {
     let mut rows = Vec::with_capacity(descendents.len() + 8);
     let mut y = 0.0;
 
     let mut current_category: &str = "";
-    for child in descendents {
+    for (idx, child) in descendents.iter().enumerate() {
         if *sort == Sort::Modified {
             let now = lb_rs::model::clock::get_time().0;
             let diff = now - files.last_modified_recursive(child.id) as i64;
@@ -263,7 +268,7 @@ fn build_row_layout<'a>(
                 current_category = category;
             }
         }
-        rows.push(RowLayout { y_top: y, height: FILE_ROW_HEIGHT, kind: RowKind::File(child) });
+        rows.push(RowLayout { y_top: y, height: FILE_ROW_HEIGHT, kind: RowKind::File(idx) });
         y += FILE_ROW_HEIGHT;
     }
 
@@ -272,8 +277,6 @@ fn build_row_layout<'a>(
 
 impl Workspace {
     pub fn show_landing_page(&mut self, ui: &mut egui::Ui) {
-        let initial_landing_page = self.landing_page.clone();
-
         const MARGIN: i8 = 45;
 
         let mut response = Response::default();
@@ -343,7 +346,8 @@ impl Workspace {
         }
 
         // Persist landing page if it changed
-        if self.landing_page != initial_landing_page {
+        if self.landing_page.dirty {
+            self.landing_page.dirty = false;
             self.cfg.set_landing_page(self.landing_page.clone());
         }
     }
@@ -542,11 +546,13 @@ impl Workspace {
                         if ui.button("Any").clicked() {
                             self.landing_page.only_me = false;
                             self.landing_page.collaborators.clear();
+                            self.landing_page.dirty = true;
                         }
                         ui.add_space(5.);
                         if ui.button("Only Me").clicked() {
                             self.landing_page.only_me = true;
                             self.landing_page.collaborators.clear();
+                            self.landing_page.dirty = true;
                         }
 
                         for collaborator in &collaborators_list {
@@ -575,6 +581,7 @@ impl Workspace {
                                 }
 
                                 self.landing_page.only_me = false;
+                                self.landing_page.dirty = true;
                             }
                         }
                     });
@@ -592,6 +599,7 @@ impl Workspace {
                         ui.style_mut().spacing.button_padding.y = 5.0;
                         if ui.button("Any").clicked() {
                             self.landing_page.doc_types.clear();
+                            self.landing_page.dirty = true;
                         }
                         ui.add_space(5.);
 
@@ -619,10 +627,12 @@ impl Workspace {
                                             .any(|dt| dt == doc_type)
                                         {
                                             self.landing_page.doc_types.push(*doc_type);
+                                            self.landing_page.dirty = true;
                                         }
                                     } else {
                                         // Remove the doc type
                                         self.landing_page.doc_types.retain(|&t| t != *doc_type);
+                                        self.landing_page.dirty = true;
                                     }
                                 }
 
@@ -647,6 +657,7 @@ impl Workspace {
                 .clicked()
                 {
                     self.landing_page.flatten_tree = !self.landing_page.flatten_tree;
+                    self.landing_page.dirty = true;
                 }
 
                 // Search box - takes remaining space
@@ -696,10 +707,14 @@ impl Workspace {
                             Vec2::new(edit_width, filters_height),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
-                                GlyphonTextEdit::new(&mut self.landing_page.search_term)
+                                if GlyphonTextEdit::new(&mut self.landing_page.search_term)
                                     .id(search_id)
                                     .hint_text(hint)
-                                    .show(ui);
+                                    .show(ui)
+                                    .changed()
+                                {
+                                    self.landing_page.dirty = true;
+                                }
                             },
                         );
 
@@ -712,6 +727,7 @@ impl Workspace {
                                 .clicked()
                             {
                                 self.landing_page.search_term.clear();
+                                self.landing_page.dirty = true;
                             }
                         }
                     },
@@ -722,20 +738,13 @@ impl Workspace {
         response
     }
 
-    fn filtered_sorted_files<'a>(
-        &mut self, files: &'a FileCache, account: &Account,
-    ) -> Vec<&'a File> {
+    fn filtered_sorted_files(&mut self, files: &FileCache, account: &Account) {
         let focused = self.effective_focused_parent();
         if self.landing_page.cache_generation == files.last_modified
             && self.landing_page.cache_snapshot.as_deref() == Some(&self.landing_page)
             && self.landing_page.cached_focused_parent == Some(focused)
         {
-            return self
-                .landing_page
-                .cached_file_ids
-                .iter()
-                .filter_map(|id| files.get_by_id(*id).or_else(|| files.shared.get_by_id(*id)))
-                .collect();
+            return;
         }
 
         let folder = files.get_by_id(focused).unwrap();
@@ -858,12 +867,10 @@ impl Workspace {
             descendents.reverse()
         }
 
-        self.landing_page.cached_file_ids = descendents.iter().map(|f| f.id).collect();
+        self.landing_page.cached_files = descendents.into_iter().cloned().collect();
         self.landing_page.cache_generation = files.last_modified;
         self.landing_page.cached_focused_parent = Some(focused);
         self.landing_page.cache_snapshot = Some(Box::new(self.landing_page.clone()));
-
-        descendents
     }
 
     /// Files table with columns that you click to select a sort key
@@ -874,9 +881,9 @@ impl Workspace {
         let files_guard = files_arc.read().unwrap();
         let files = &*files_guard;
         let account = self.account.clone();
-        let descendents = self.filtered_sorted_files(files, &account);
+        self.filtered_sorted_files(files, &account);
 
-        if descendents.is_empty() {
+        if self.landing_page.cached_files.is_empty() {
             if !self.landing_page.search_term.is_empty() {
                 ui.label(
                     RichText::new("No files found matching your search.")
@@ -892,13 +899,16 @@ impl Workspace {
             style.spacing.scroll = s;
         });
 
-        let max_usage = descendents
+        let max_usage = self
+            .landing_page
+            .cached_files
             .iter()
             .filter_map(|f| files.size_bytes_recursive.get(&f.id).copied())
             .max()
             .unwrap_or(1) as f32;
 
-        let (rows, total_height) = build_row_layout(&descendents, &self.landing_page.sort, files);
+        let (rows, total_height) =
+            build_row_layout(&self.landing_page.cached_files, &self.landing_page.sort, files);
 
         // Header lives outside the scroll area so it doesn't scroll away.
         // Uses the same centering math as the rows below.
@@ -941,9 +951,9 @@ impl Workspace {
                     );
                     ui.scope_builder(UiBuilder::new().max_rect(row_rect), |ui| match row.kind {
                         RowKind::TimeSeparator(label) => self.show_separator_row(ui, label),
-                        RowKind::File(child) => self.show_file_row(
+                        RowKind::File(idx) => self.show_file_row(
                             ui,
-                            child,
+                            idx,
                             files,
                             &account,
                             max_usage,
@@ -1001,20 +1011,20 @@ impl Workspace {
         // Name / Type — clicking cycles name asc → desc → type asc → desc → name.
         let name_text = if self.landing_page.sort == Sort::Type { "Type" } else { "Name" };
         let name_active = matches!(self.landing_page.sort, Sort::Name | Sort::Type);
-        render_header(self, ui, rects.name, name_text, name_active, &mut |this| match (
-            &this.landing_page.sort,
-            this.landing_page.sort_asc,
-        ) {
-            (Sort::Name, true) => this.landing_page.sort_asc = false,
-            (Sort::Name, false) => {
-                this.landing_page.sort = Sort::Type;
-                this.landing_page.sort_asc = true;
-            }
-            (Sort::Type, true) => this.landing_page.sort_asc = false,
-            _ => {
-                this.landing_page.sort = Sort::Name;
-                this.landing_page.sort_asc = true;
-            }
+        render_header(self, ui, rects.name, name_text, name_active, &mut |this| {
+            match (&this.landing_page.sort, this.landing_page.sort_asc) {
+                (Sort::Name, true) => this.landing_page.sort_asc = false,
+                (Sort::Name, false) => {
+                    this.landing_page.sort = Sort::Type;
+                    this.landing_page.sort_asc = true;
+                }
+                (Sort::Type, true) => this.landing_page.sort_asc = false,
+                _ => {
+                    this.landing_page.sort = Sort::Name;
+                    this.landing_page.sort_asc = true;
+                }
+            };
+            this.landing_page.dirty = true;
         });
 
         let toggle_sort = |this: &mut Self, target: Sort| {
@@ -1081,11 +1091,12 @@ impl Workspace {
 
     #[allow(clippy::too_many_arguments)]
     fn show_file_row(
-        &mut self, ui: &mut egui::Ui, child: &File, files: &FileCache, account: &Account,
+        &mut self, ui: &mut egui::Ui, idx: usize, files: &FileCache, account: &Account,
         max_usage: f32, cols: LayoutCols, response: &mut Response,
     ) {
         let row_rect = ui.max_rect();
         let rects = col_rects(row_rect, cols);
+        let child = self.landing_page.cached_files.get(idx).unwrap();
         let is_renaming = self.landing_rename_target == Some(child.id);
 
         // Positional hover check — child widgets would steal `Response::hovered`.
