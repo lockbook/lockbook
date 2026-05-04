@@ -347,7 +347,6 @@ impl Workspace {
 
         // Persist landing page if it changed
         if self.landing_page.dirty {
-            println!("WROTE");
             self.landing_page.dirty = false;
             self.cfg.set_landing_page(self.landing_page.clone());
         }
