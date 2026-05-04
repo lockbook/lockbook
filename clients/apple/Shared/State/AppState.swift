@@ -1,3 +1,4 @@
+import Foundation
 import SwiftUI
 import SwiftWorkspace
 
@@ -13,6 +14,7 @@ class AppState: ObservableObject {
     }()
 
     #if !os(macOS)
+    // migration from 26.4.11 to app directory
     private static func resolveIOSWritablePath() -> String {
         let fm = FileManager.default
         let legacyURL = fm.urls(for: .documentDirectory, in: .userDomainMask).last!
@@ -22,12 +24,35 @@ class AppState: ObservableObject {
         }
         let newURL = groupURL.appendingPathComponent("lockbook", isDirectory: true)
 
-        if !fm.fileExists(atPath: newURL.path) {
-            try? fm.moveItem(at: legacyURL, to: newURL)
+        if !fm.fileExists(atPath: newURL.path) && hasContents(at: legacyURL) {
+            do {
+                try copyLegacyDataThenDeleteContents(from: legacyURL, to: newURL)
+            } catch {
+                NSLog("Lockbook migration failed copying %@ to %@: %@", legacyURL.path, newURL.path, "\(error)")
+                return legacyURL.path
+            }
         }
         try? fm.createDirectory(at: newURL, withIntermediateDirectories: true)
 
         return newURL.path
+    }
+
+    private static func copyLegacyDataThenDeleteContents(from legacyURL: URL, to newURL: URL) throws {
+        let fm = FileManager.default
+
+        try fm.copyItem(at: legacyURL, to: newURL)
+
+        for legacyItem in try fm.contentsOfDirectory(at: legacyURL, includingPropertiesForKeys: nil) {
+            try fm.removeItem(at: legacyItem)
+        }
+    }
+
+    private static func hasContents(at url: URL) -> Bool {
+        guard let contents = try? FileManager.default.contentsOfDirectory(atPath: url.path) else {
+            return false
+        }
+
+        return !contents.isEmpty
     }
     #endif
 
