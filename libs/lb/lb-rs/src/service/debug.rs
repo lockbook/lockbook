@@ -97,37 +97,10 @@ impl LocalLb {
     #[cfg(not(target_family = "wasm"))]
     async fn collect_panics(&self, populate_content: bool) -> LbResult<Vec<PanicInfo>> {
         let mut panics = vec![];
-
-        let dir_path = &self.config.writeable_path;
-        let path = Path::new(dir_path);
-
-        let prefix = "panic---";
-        let suffix = ".log";
-        let timestamp_format = "%Y-%m-%d---%H-%M-%S";
-
-        let mut entries = fs::read_dir(path).await?;
-        while let Some(entry) = entries.next_entry().await? {
-            let file_name = entry.file_name().into_string().unwrap_or_default();
-
-            // Check if the filename matches the expected format
-            if file_name.starts_with(prefix) && file_name.ends_with(suffix) {
-                // Extract the timestamp portion from the filename
-                let timestamp_str = &file_name[prefix.len()..file_name.len() - suffix.len()];
-
-                // Parse the timestamp
-                if let Ok(time) = NaiveDateTime::parse_from_str(timestamp_str, timestamp_format) {
-                    let file_path = path.join(file_name);
-                    let content = if populate_content {
-                        let contents = fs::read_to_string(&file_path).await?;
-                        let contents = format!("time: {time}: contents: {contents}");
-                        contents
-                    } else {
-                        Default::default()
-                    };
-
-                    panics.push(PanicInfo { time, file_path, content });
-                }
-            }
+        let mut iter = iter_panic_files(&self.config.writeable_path).await?;
+        while let Some(entry) = iter.next().await? {
+            let content = if populate_content { entry.content().await? } else { String::new() };
+            panics.push(PanicInfo { time: entry.time, file_path: entry.file_path, content });
         }
         panics.sort_by(|a, b| b.time.cmp(&a.time));
 
@@ -220,6 +193,75 @@ pub struct PanicInfo {
     pub time: NaiveDateTime,
     pub file_path: PathBuf,
     pub content: String,
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub struct PanicFiles {
+    entries: tokio::fs::ReadDir,
+    base_path: PathBuf,
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub struct PanicFile {
+    pub time: NaiveDateTime,
+    pub file_path: PathBuf,
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl PanicFiles {
+    pub async fn next(&mut self) -> LbResult<Option<PanicFile>> {
+        const PREFIX: &str = "panic---";
+        const SUFFIX: &str = ".log";
+        const TIMESTAMP_FORMAT: &str = "%Y-%m-%d---%H-%M-%S";
+
+        while let Some(entry) = self.entries.next_entry().await? {
+            let file_name = entry.file_name().into_string().unwrap_or_default();
+            if !file_name.starts_with(PREFIX) || !file_name.ends_with(SUFFIX) {
+                continue;
+            }
+            let timestamp_str = &file_name[PREFIX.len()..file_name.len() - SUFFIX.len()];
+            let Ok(time) = NaiveDateTime::parse_from_str(timestamp_str, TIMESTAMP_FORMAT) else {
+                continue;
+            };
+            let file_path = self.base_path.join(file_name);
+            return Ok(Some(PanicFile { time, file_path }));
+        }
+        Ok(None)
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+impl PanicFile {
+    pub async fn content(&self) -> LbResult<String> {
+        let contents = fs::read_to_string(&self.file_path).await?;
+        Ok(format!("time: {}: contents: {}", self.time, contents))
+    }
+}
+
+#[cfg(not(target_family = "wasm"))]
+pub(crate) async fn iter_panic_files(path: &str) -> LbResult<PanicFiles> {
+    let base_path = Path::new(path).to_path_buf();
+    let entries = fs::read_dir(&base_path).await?;
+    Ok(PanicFiles { entries, base_path })
+}
+
+/// Millisecond UTC timestamp of the most recent panic file on disk, if any.
+#[cfg(not(target_family = "wasm"))]
+pub(crate) async fn latest_panic_time(path: &str) -> LbResult<Option<i64>> {
+    let mut iter = iter_panic_files(path).await?;
+    let mut max: Option<i64> = None;
+    while let Some(entry) = iter.next().await? {
+        let new_ts = entry.time.and_utc().timestamp_millis();
+        match &mut max {
+            Some(ts) => {
+                if new_ts > *ts {
+                    *ts = new_ts;
+                }
+            }
+            None => max = Some(new_ts),
+        }
+    }
+    Ok(max)
 }
 
 pub fn generate_panic_filename(path: &str) -> String {
