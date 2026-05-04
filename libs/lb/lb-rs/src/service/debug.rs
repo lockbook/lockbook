@@ -99,11 +99,7 @@ impl LocalLb {
         let mut panics = vec![];
         let mut iter = iter_panic_files(&self.config.writeable_path).await?;
         while let Some(entry) = iter.next().await? {
-            let content = if populate_content {
-                entry.content().await?
-            } else {
-                String::new()
-            };
+            let content = if populate_content { entry.content().await? } else { String::new() };
             panics.push(PanicInfo { time: entry.time, file_path: entry.file_path, content });
         }
         panics.sort_by(|a, b| b.time.cmp(&a.time));
@@ -243,10 +239,29 @@ impl PanicFile {
 }
 
 #[cfg(not(target_family = "wasm"))]
-pub async fn iter_panic_files(path: &str) -> LbResult<PanicFiles> {
+pub(crate) async fn iter_panic_files(path: &str) -> LbResult<PanicFiles> {
     let base_path = Path::new(path).to_path_buf();
     let entries = fs::read_dir(&base_path).await?;
     Ok(PanicFiles { entries, base_path })
+}
+
+/// Millisecond UTC timestamp of the most recent panic file on disk, if any.
+#[cfg(not(target_family = "wasm"))]
+pub(crate) async fn latest_panic_time(path: &str) -> LbResult<Option<i64>> {
+    let mut iter = iter_panic_files(path).await?;
+    let mut max: Option<i64> = None;
+    while let Some(entry) = iter.next().await? {
+        let new_ts = entry.time.and_utc().timestamp_millis();
+        match &mut max {
+            Some(ts) => {
+                if new_ts > *ts {
+                    *ts = new_ts;
+                }
+            }
+            None => max = Some(new_ts),
+        }
+    }
+    Ok(max)
 }
 
 pub fn generate_panic_filename(path: &str) -> String {
