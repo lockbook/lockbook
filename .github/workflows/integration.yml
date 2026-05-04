@@ -35,7 +35,7 @@ jobs:
     - name: Install Nightly
       run: rustup toolchain install nightly
     - name: Install udeps
-      run: nix-shell -p openssl pkg-config --command "cargo install cargo-udeps --locked"
+      run: nix-shell -p openssl pkg-config --command "cargo install cargo-udeps --locked --version 0.1.55"
     - name: Check Unused Dependencies
       run: nix-shell -p openssl pkg-config glib gobject-introspection gdk-pixbuf gtk3 --command "cargo run -p lbdev -- ci assert-no-udeps"
     - name: Cleanup
