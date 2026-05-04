@@ -1,13 +1,13 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt as _, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_code(&self, parent: &AstNode<'_>) -> Format {
         let theme = self.ctx.get_lb_theme();
         Format {
@@ -20,10 +20,9 @@ impl<'ast> Editor {
     }
 
     pub fn span_code(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
     ) -> f32 {
         let node_range = self.node_range(node);
-        let text_format = self.text_format(node);
 
         let prefix_range = (node_range.start(), node_range.start() + 1).trim(&range);
         let infix_range = (node_range.start() + 1, node_range.end() - 1).trim(&range);
@@ -37,16 +36,7 @@ impl<'ast> Editor {
                 self.span_section(&tmp_wrap, prefix_range, self.text_format_syntax());
         }
         if !infix_range.is_empty() {
-            let pre_span = self.text_pre_span(&tmp_wrap, &text_format);
-            let mid_span = self.text_mid_span(
-                &tmp_wrap,
-                pre_span,
-                &self.buffer[infix_range],
-                text_format.clone(),
-            );
-            let post_span = self.text_post_span(&tmp_wrap, pre_span + mid_span, &text_format);
-
-            tmp_wrap.offset += pre_span + mid_span + post_span;
+            tmp_wrap.offset += self.span_section(&tmp_wrap, infix_range, self.text_format(node));
         }
         if !postfix_range.is_empty() && reveal {
             tmp_wrap.offset +=
@@ -58,7 +48,7 @@ impl<'ast> Editor {
 
     pub fn show_code(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (DocCharOffset, DocCharOffset),
+        range: (Grapheme, Grapheme),
     ) -> Response {
         let node_range = self.node_range(node);
 

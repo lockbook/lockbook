@@ -1,5 +1,5 @@
 use lb_c::Uuid;
-use lb_c::model::text::offset_types::{DocCharOffset, RelCharOffset};
+use lb_c::model::text::offset_types::{Grapheme, Graphemes};
 use serde::Serialize;
 use workspace_rs::tab::markdown_editor::input::{Location, Region};
 
@@ -10,6 +10,7 @@ pub struct AndroidResponse {
     copied_text: String,
     has_url_opened: bool,
     url_opened: String,
+    virtual_keyboard_shown: Option<bool>,
 
     // widget response
     selected_file: Uuid,
@@ -51,7 +52,7 @@ impl From<crate::Response> for AndroidResponse {
             copied_text,
             urls_opened,
             cursor: _,
-            virtual_keyboard_shown: _,
+            virtual_keyboard_shown,
             window_title: _,
             request_paste: _,
             context_menu,
@@ -75,6 +76,7 @@ impl From<crate::Response> for AndroidResponse {
             has_edit_menu: context_menu.is_some(),
             edit_menu_x: context_menu.unwrap_or_default().x,
             edit_menu_y: context_menu.unwrap_or_default().y,
+            virtual_keyboard_shown,
         }
     }
 }
@@ -100,13 +102,13 @@ pub struct JRect {
     pub max_y: f32,
 }
 
-impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
+impl From<JTextRange> for (Grapheme, Grapheme) {
     fn from(value: JTextRange) -> Self {
         (value.start.into(), value.end.into())
     }
 }
 
-impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
+impl From<JTextRange> for (Graphemes, Graphemes) {
     fn from(value: JTextRange) -> Self {
         (value.start.into(), value.end.into())
     }
@@ -115,8 +117,8 @@ impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
 impl From<JTextRange> for Region {
     fn from(value: JTextRange) -> Self {
         Region::BetweenLocations {
-            start: Location::DocCharOffset(value.start.into()),
-            end: Location::DocCharOffset(value.start.into()),
+            start: Location::Grapheme(value.start.into()),
+            end: Location::Grapheme(value.start.into()),
         }
     }
 }

@@ -13,6 +13,7 @@ use lb_rs::model::text::offset_types::{IntoRangeExt, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 use serde::{Deserialize, Serialize};
 
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
@@ -81,7 +82,6 @@ impl<'ast> Editor {
 
         let persistence = self.persistence.get_markdown().toolbar;
         let is_default = persistence == Default::default();
-        let is_mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
         let is_ios = cfg!(target_os = "ios");
 
         // width of a group of n buttons with intra-group spacing + trailing separator
@@ -93,7 +93,7 @@ impl<'ast> Editor {
 
         let mut w = 2. * margin;
 
-        if is_mobile {
+        if is_ios {
             let mut n = 0;
             if self.virtual_keyboard_shown {
                 n += 1;
@@ -148,7 +148,8 @@ impl<'ast> Editor {
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.visuals_mut().widgets.active.bg_fill = self.ctx.get_lb_theme().fg().blue;
+                    ui.visuals_mut().widgets.active.bg_fill =
+                        self.edit.renderer.ctx.get_lb_theme().fg().blue;
 
                     let is_ios = cfg!(target_os = "ios");
                     let is_mobile = is_ios || cfg!(target_os = "android");
@@ -165,7 +166,7 @@ impl<'ast> Editor {
 
                     let mut events = Vec::new();
 
-                    if is_mobile {
+                    if is_ios {
                         let mut any_util = false;
                         if self.virtual_keyboard_shown {
                             if IconButton::new(Icon::KEYBOARD_HIDE.size(ICON_SIZE))
@@ -502,10 +503,11 @@ impl<'ast> Editor {
 
         for node in root.descendants() {
             if let NodeValue::Heading(NodeHeading { level, .. }) = &node.data.borrow().value {
-                if self
-                    .node_range(node)
-                    .contains_range(&self.buffer.current.selection, true, true)
-                {
+                if self.edit.renderer.node_range(node).contains_range(
+                    &self.edit.renderer.buffer.current.selection,
+                    true,
+                    true,
+                ) {
                     current_heading_level = *level;
                     applied = true;
                     break;
@@ -538,9 +540,10 @@ impl<'ast> Editor {
         &self, icon: Icon, style: NodeValue, root: &'ast AstNode<'ast>, ui: &mut Ui,
     ) -> Option<Event> {
         let applied = if style.is_inline() {
-            self.inline_styled(root, self.buffer.current.selection, &style)
+            self.edit
+                .inline_styled(root, self.edit.renderer.buffer.current.selection, &style)
         } else {
-            self.unapply_block(root, &style)
+            self.edit.unapply_block(root, &style)
         };
 
         self.button(icon, style, applied, ui)
@@ -572,34 +575,43 @@ impl<'ast> Editor {
                     Frame::canvas(ui.style())
                         .inner_margin(margin)
                         .stroke(Stroke::NONE)
-                        .fill(self.ctx.get_lb_theme().neutral_bg())
+                        .fill(self.edit.renderer.ctx.get_lb_theme().neutral_bg())
                         .show(ui, |ui| {
                             // setup
                             ui.visuals_mut().widgets.active.bg_fill =
-                                self.ctx.get_lb_theme().fg().blue;
+                                self.edit.renderer.ctx.get_lb_theme().fg().blue;
 
+                            let is_android = cfg!(target_os = "android");
                             let is_ios = cfg!(target_os = "ios");
 
                             let persistence = self.persistence.get_markdown().toolbar;
 
                             let scroll_view_height = ui.max_rect().height();
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
-                            let padding = (ui.available_width() - self.width) / 2.;
+                            let padding = (ui.available_width() - self.edit.renderer.width) / 2.;
 
                             let mut top_left =
                                 ui.max_rect().min + (padding + MENU_MARGIN) * Vec2::X;
-                            let md_width = self.width - 2. * MENU_MARGIN;
+                            let md_width = self.edit.renderer.width - 2. * MENU_MARGIN;
 
                             // store values
-                            let source_lines = mem::take(&mut self.bounds.source_lines);
-                            let buffer = mem::take(&mut self.buffer);
-                            let inline_paragraphs = mem::take(&mut self.bounds.inline_paragraphs);
+                            let source_lines =
+                                mem::take(&mut self.edit.renderer.bounds.source_lines);
+                            let buffer = mem::take(&mut self.edit.renderer.buffer);
+                            let inline_paragraphs =
+                                mem::take(&mut self.edit.renderer.bounds.inline_paragraphs);
 
-                            let galleys = mem::take(&mut self.galleys.galleys);
-                            let wrap_lines = mem::take(&mut self.bounds.wrap_lines);
-                            let touch_consuming_rects = mem::take(&mut self.touch_consuming_rects);
+                            let galleys = mem::take(&mut self.edit.renderer.galleys.galleys);
+                            let wrap_lines = mem::take(&mut self.edit.renderer.bounds.wrap_lines);
+                            let touch_consuming_rects =
+                                mem::take(&mut self.edit.renderer.touch_consuming_rects);
 
-                            self.layout_cache.clear();
+                            // menu labels: force blue links + plain image-link text
+                            let link_resolver =
+                                mem::replace(&mut self.edit.renderer.link_resolver, Box::new(()));
+                            self.edit.renderer.render_images_as_text = true;
+
+                            self.edit.renderer.layout_cache.clear();
 
                             // page title
                             ui.add_space(MENU_SPACE);
@@ -617,27 +629,29 @@ impl<'ast> Editor {
                             ui.add_space(MENU_SPACE);
                             top_left.y += MENU_SPACE;
 
-                            // search
-                            if self
-                                .menu_toggle(
-                                    ui,
-                                    top_left,
-                                    md_width,
-                                    "Search",
-                                    IconButton::new(Icon::SEARCH.size(ICON_SIZE))
-                                        .colored(persistence.search),
-                                )
-                                .clicked()
-                            {
-                                let mut persistence = self.persistence.data.write().unwrap();
-                                let persistence = &mut persistence.markdown.toolbar;
-                                persistence.search ^= true;
-                                self.persistence.write_to_file();
-                            }
-                            top_left.y += self.menu_toggle_height("Search");
+                            if !is_android {
+                                // search
+                                if self
+                                    .menu_toggle(
+                                        ui,
+                                        top_left,
+                                        md_width,
+                                        "Search",
+                                        IconButton::new(Icon::SEARCH.size(ICON_SIZE))
+                                            .colored(persistence.search),
+                                    )
+                                    .clicked()
+                                {
+                                    let mut persistence = self.persistence.data.write().unwrap();
+                                    let persistence = &mut persistence.markdown.toolbar;
+                                    persistence.search ^= true;
+                                    self.persistence.write_to_file();
+                                }
+                                top_left.y += self.menu_toggle_height("Search");
 
-                            Separator::default().spacing(MENU_SPACE).ui(ui);
-                            top_left.y += MENU_SPACE;
+                                Separator::default().spacing(MENU_SPACE).ui(ui);
+                                top_left.y += MENU_SPACE;
+                            }
 
                             // undo / redo
                             if self
@@ -1007,19 +1021,38 @@ impl<'ast> Editor {
                             } else {
                                 0.
                             };
-                            let rect = Rect::from_min_size(top_left, Vec2::new(self.width, height));
+                            let rect = Rect::from_min_size(
+                                top_left,
+                                Vec2::new(self.edit.renderer.width, height),
+                            );
 
                             ui.advance_cursor_after_rect(rect);
 
-                            // restore stored values
-                            self.buffer = buffer;
-                            self.bounds.source_lines = source_lines;
-                            self.bounds.inline_paragraphs = inline_paragraphs;
-                            self.calc_words();
+                            // submit shaped text — `MdEdit::show` (which
+                            // normally drains text_areas) doesn't run while
+                            // the menu is open
+                            let text_areas = mem::take(&mut self.edit.renderer.text_areas);
+                            if !text_areas.is_empty() {
+                                ui.painter().add(
+                                    egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                                        ui.clip_rect(),
+                                        crate::GlyphonRendererCallback::new(text_areas),
+                                    ),
+                                );
+                            }
 
-                            self.galleys.galleys = galleys;
-                            self.bounds.wrap_lines = wrap_lines;
-                            self.touch_consuming_rects = touch_consuming_rects;
+                            // restore stored values
+                            self.edit.renderer.buffer = buffer;
+                            self.edit.renderer.bounds.source_lines = source_lines;
+                            self.edit.renderer.bounds.inline_paragraphs = inline_paragraphs;
+                            self.edit.renderer.calc_words();
+
+                            self.edit.renderer.galleys.galleys = galleys;
+                            self.edit.renderer.bounds.wrap_lines = wrap_lines;
+                            self.edit.renderer.touch_consuming_rects = touch_consuming_rects;
+
+                            self.edit.renderer.link_resolver = link_resolver;
+                            self.edit.renderer.render_images_as_text = false;
                         });
                 });
             });
@@ -1054,65 +1087,76 @@ impl<'ast> Editor {
     }
 
     pub fn markdown_label_height(&mut self, md: &str) -> f32 {
-        self.buffer = md.into();
+        self.edit.renderer.buffer = md.into();
 
         // place cursor (affects capture)
-        self.buffer.queue(vec![Operation::Select(
-            self.buffer.current.segs.last_cursor_position().into_range(),
+        self.edit.renderer.buffer.queue(vec![Operation::Select(
+            self.edit
+                .renderer
+                .buffer
+                .current
+                .segs
+                .last_cursor_position()
+                .into_range(),
         )]);
-        self.buffer.update();
+        self.edit.renderer.buffer.update();
 
         // parse
         let arena = Arena::new();
-        let options = Self::comrak_options();
-        let text_with_newline = self.buffer.current.text.to_string() + "\n";
+        let options = MdRender::comrak_options();
+        let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         // pre-render work
-        self.calc_source_lines();
-        self.compute_bounds(root);
-        self.bounds.inline_paragraphs.sort();
-        self.calc_words();
+        self.edit.renderer.calc_source_lines();
+        self.edit.renderer.compute_bounds(root);
+        self.edit.renderer.bounds.inline_paragraphs.sort();
+        self.edit.renderer.calc_words();
 
-        let height = self.height(root, &[root]);
+        let height = self.edit.renderer.height(root);
 
-        self.layout_cache.clear();
+        self.edit.renderer.layout_cache.clear();
 
         height
     }
 
     pub fn markdown_label(&mut self, ui: &mut Ui, top_left: Pos2, width: f32, md: &str) {
-        self.buffer = md.into();
+        self.edit.renderer.buffer = md.into();
 
         // place cursor (affects capture)
-        self.buffer.queue(vec![Operation::Select(
-            self.buffer.current.segs.last_cursor_position().into_range(),
+        self.edit.renderer.buffer.queue(vec![Operation::Select(
+            self.edit
+                .renderer
+                .buffer
+                .current
+                .segs
+                .last_cursor_position()
+                .into_range(),
         )]);
-        self.buffer.update();
+        self.edit.renderer.buffer.update();
 
         // parse
         let arena = Arena::new();
-        let options = Self::comrak_options();
-        let text_with_newline = self.buffer.current.text.to_string() + "\n";
+        let options = MdRender::comrak_options();
+        let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
         let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         // pre-render work
-        self.calc_source_lines();
-        self.compute_bounds(root);
-        self.bounds.inline_paragraphs.sort();
-        self.calc_words();
+        self.edit.renderer.calc_source_lines();
+        self.edit.renderer.compute_bounds(root);
+        self.edit.renderer.bounds.inline_paragraphs.sort();
+        self.edit.renderer.calc_words();
 
-        let height = self.height(root, &[root]);
+        let height = self.edit.renderer.height(root);
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
-        self.show_block(
+        self.edit.renderer.show_block(
             &mut ui.new_child(UiBuilder::new().max_rect(rect).layout(*ui.layout())),
             root,
             top_left,
-            &[root],
         );
 
-        self.layout_cache.clear();
+        self.edit.renderer.layout_cache.clear();
     }
 }
 

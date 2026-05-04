@@ -35,7 +35,7 @@ class WorkspaceViewModel : ViewModel() {
     val createDocAt: LiveData<Pair<Boolean, String>>
         get() = _createDocAt
 
-    val _currentTab = MutableLiveData<WorkspaceTab>(WorkspaceTab.Welcome)
+    val _currentTab = MutableLiveData<WorkspaceTab>()
     val currentTab: LiveData<WorkspaceTab>
         get() = _currentTab
 
@@ -43,13 +43,17 @@ class WorkspaceViewModel : ViewModel() {
     val finishedAction: LiveData<FinishedAction>
         get() = _finishedAction
 
-    val _hideMaterialToolbar = SingleMutableLiveData<Float>()
-    val hideMaterialToolbar: LiveData<Float>
-        get() = _hideMaterialToolbar
+    val _hideToolbar = SingleMutableLiveData<Float>()
+    val hideToolbar: LiveData<Float>
+        get() = _hideToolbar
 
     val _tabTitleClicked = SingleMutableLiveData<Unit>()
     val tabTitleClicked: LiveData<Unit>
         get() = _tabTitleClicked
+
+    val _refreshFilesRequested = SingleMutableLiveData<Unit>()
+    val refreshFilesRequested: LiveData<Unit>
+        get() = _refreshFilesRequested
 
     var tabs = emptyDataSourceTyped<File>()
 
@@ -57,9 +61,13 @@ class WorkspaceViewModel : ViewModel() {
     val keyboardVisible: LiveData<Boolean>
         get() = _keyboardVisible
 
-    val _bottomSheetExpanded = MutableLiveData<Boolean>(false)
-    val bottomSheetExpanded: LiveData<Boolean>
-        get() = _bottomSheetExpanded
+    val _showKeyboard = MutableLiveData<Boolean>()
+    val showKeyboard: LiveData<Boolean>
+        get() = _showKeyboard
+
+    val _tabListExpanded = MutableLiveData(false)
+    val tabListExpanded: LiveData<Boolean>
+        get() = _tabListExpanded
 
     val _bottomInset = MutableLiveData<Int>()
     val bottomInset: LiveData<Int>
@@ -68,6 +76,24 @@ class WorkspaceViewModel : ViewModel() {
     val _isRendering = MutableLiveData<Boolean>()
     val isRendering: LiveData<Boolean>
         get() = _isRendering
+
+    /** request workspace view to navigate within tab history **/
+    private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
+    val workspaceBackRequested: LiveData<Unit>
+        get() = _workspaceBackRequested
+
+    /** request workspace view to navigate forward within tab history **/
+    private val _workspaceForwardRequested = SingleMutableLiveData<Unit>()
+    val workspaceForwardRequested: LiveData<Unit>
+        get() = _workspaceForwardRequested
+
+    fun requestWorkspaceBack() {
+        _workspaceBackRequested.postValue(Unit)
+    }
+
+    fun requestWorkspaceForward() {
+        _workspaceForwardRequested.postValue(Unit)
+    }
 }
 
 data class WorkspaceTab(

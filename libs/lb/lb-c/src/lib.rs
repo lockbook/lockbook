@@ -614,6 +614,39 @@ pub extern "C" fn lb_clear_suggested_id(lb: *mut Lb, id: LbUuid) -> *mut LbFfiEr
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_pin_file(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.pin_file(id.into()) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_unpin_file(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
+    let lb = rlb(lb);
+
+    match lb.unpin_file(id.into()) {
+        Ok(()) => null_mut(),
+        Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_list_pinned(lb: *mut Lb) -> LbIdListRes {
+    let lb = rlb(lb);
+
+    match lb.list_pinned() {
+        Ok(ids) => {
+            let (ids, len) = carray(ids.into_iter().map(LbUuid::from).collect());
+            LbIdListRes { err: null_mut(), ids, len }
+        }
+        Err(err) => LbIdListRes { err: lb_err(err), ids: null_mut(), len: 0 },
+    }
+}
+
 #[repr(C)]
 pub struct LbUsageMetricsRes {
     err: *mut LbFfiErr,
@@ -682,6 +715,22 @@ pub extern "C" fn lb_export_file(
     match lb.export_files(source_id.into(), dest, edit, &None) {
         Ok(()) => null_mut(),
         Err(err) => lb_err(err),
+    }
+}
+
+#[repr(C)]
+pub struct LbGetFileLinkUrlRes {
+    err: *mut LbFfiErr,
+    link_url: *mut c_char,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_get_file_link_url(lb: *mut Lb, id: LbUuid) -> LbGetFileLinkUrlRes {
+    let lb = rlb(lb);
+
+    match lb.get_file_link_url(id.into()) {
+        Ok(link_url) => LbGetFileLinkUrlRes { err: null_mut(), link_url: cstring(link_url) },
+        Err(err) => LbGetFileLinkUrlRes { err: lb_err(err), link_url: null_mut() },
     }
 }
 

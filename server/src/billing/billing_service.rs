@@ -286,10 +286,7 @@ where
             )?
             .to_lazy();
 
-            let usage: u64 = Self::get_usage_helper(&mut tree)?
-                .iter()
-                .map(|a| a.size_bytes)
-                .sum();
+            let usage = tree.calculate_usage(Owner(context.public_key))?;
 
             if usage > FREE_TIER_USAGE_SIZE {
                 debug!("Cannot downgrade user to free since they are over the data cap");

@@ -1,15 +1,16 @@
-use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::Uuid;
 use lb_rs::model::file::File;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use std::sync::{Arc, RwLock};
 
 use crate::TextBufferArea;
 use crate::file_cache::{FileCache, FilesExt as _, relative_path};
 use crate::tab::image_viewer::is_supported_image_fmt;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::theme::palette_v2::ThemeExt as _;
@@ -34,8 +35,8 @@ pub enum CompletionMode {
 
 #[derive(Default)]
 pub struct LinkCompletions {
-    /// Set before process_events so translate_egui_keyboard_event can swallow
-    /// arrow/enter keys when the popup is open.
+    /// True when a valid link query is being typed and has results.
+    /// Read by the editor to gate rendering; also gates `handle_input`.
     pub active: bool,
     /// Keyboard-highlighted result index.
     pub selected: usize,
@@ -43,7 +44,7 @@ pub struct LinkCompletions {
     pub mode: CompletionMode,
     /// The search term range in the document (the query text only, excluding
     /// brackets/syntax). Set when active so show_text() can highlight it.
-    pub search_term_range: Option<(DocCharOffset, DocCharOffset)>,
+    pub search_term_range: Option<(Grapheme, Grapheme)>,
     /// Suppressed query string — cleared automatically when the query changes.
     suppressed: Option<String>,
 }
@@ -95,11 +96,107 @@ impl LinkCompletions {
         self.active = true;
         self.search_term_range = Some(qr);
     }
+
+    /// Consume (or observe) keyboard events targeting the popup and update
+    /// state accordingly. Emitted replacements are pushed onto `events`.
+    ///
+    /// Must run before the editor's `process_events`. Escape is observed
+    /// (not consumed) and fires regardless of editor focus; nav keys are
+    /// consumed and focus-gated. See `EmojiCompletions::handle_input` for the
+    /// rationale.
+    pub fn handle_input(
+        &mut self, ctx: &Context, buffer: &Buffer, files: &Arc<RwLock<FileCache>>, file_id: Uuid,
+        editor_focused: bool, events: &mut Vec<Event>,
+    ) {
+        if !self.active {
+            return;
+        }
+        let Some(((bracket_start, replace_end), mode)) = detect_any(buffer) else { return };
+        let qr = query_range(buffer, (bracket_start, replace_end), mode);
+        let query = buffer[qr].to_string();
+        if self.suppressed.as_deref() == Some(query.as_str()) {
+            return;
+        }
+
+        let cache = files.read().unwrap();
+        let results = search(&cache, file_id, &query, mode);
+        drop(cache);
+        if results.is_empty() {
+            return;
+        }
+        self.selected = self.selected.min(results.len() - 1);
+
+        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+            self.suppressed = Some(query);
+            return;
+        }
+
+        if !editor_focused {
+            return;
+        }
+
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) && self.selected > 0 {
+            self.selected -= 1;
+        }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
+            && self.selected + 1 < results.len()
+        {
+            self.selected += 1;
+        }
+
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
+            let idx = self.selected;
+            let r = &results[idx];
+            self.apply_completion(events, bracket_start, replace_end, &r.name, &r.insert, mode);
+            return;
+        }
+
+        let num_modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+            Modifiers::COMMAND
+        } else {
+            Modifiers::CTRL
+        };
+        for (idx, key) in
+            [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7]
+                .iter()
+                .enumerate()
+                .take(results.len())
+        {
+            if ctx.input_mut(|i| i.consume_key(num_modifier, *key)) {
+                let r = &results[idx];
+                self.apply_completion(events, bracket_start, replace_end, &r.name, &r.insert, mode);
+                return;
+            }
+        }
+    }
+
+    /// Push the replacement event for the current query and reset popup state.
+    /// Shared between `handle_input` and the click path in `show_link_completions`.
+    pub fn apply_completion(
+        &mut self, events: &mut Vec<Event>, bracket_start: Grapheme, replace_end: Grapheme,
+        display: &str, path: &str, mode: CompletionMode,
+    ) {
+        let text = match mode {
+            CompletionMode::WikiLink => format!("[[{}]]", path),
+            CompletionMode::Link => format!("[{}]({})", display, path),
+            CompletionMode::ImageLink => format!("![{}]({})", display, path),
+        };
+        events.push(Event::Replace {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(bracket_start),
+                end: Location::Grapheme(replace_end),
+            },
+            text,
+            advance_cursor: true,
+        });
+        self.selected = 0;
+        self.suppressed = None;
+    }
 }
 
 /// Tries all detection strategies, returning the first match with its mode.
 /// WikiLink (`[[`) takes priority over plain Link (`[`).
-fn detect_any(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), CompletionMode)> {
+fn detect_any(buffer: &Buffer) -> Option<((Grapheme, Grapheme), CompletionMode)> {
     if let Some(range) = detect_wikilink(buffer) {
         return Some((range, CompletionMode::WikiLink));
     }
@@ -112,11 +209,11 @@ fn detect_any(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), Comple
 
 /// Returns the grapheme `&str` at the given char offset.
 fn grapheme_at(buffer: &Buffer, i: usize) -> &str {
-    &buffer[(DocCharOffset(i), DocCharOffset(i + 1))]
+    &buffer[(Grapheme(i), Grapheme(i + 1))]
 }
 
 /// Returns the range of a `[[...]]` wikilink token under the cursor.
-fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
+fn detect_wikilink(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
     let selection = buffer.current.selection;
     if selection.0 != selection.1 {
         return None;
@@ -163,14 +260,14 @@ fn detect_wikilink(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
         j += 1;
     }
 
-    Some((DocCharOffset(bracket_start), DocCharOffset(j)))
+    Some((Grapheme(bracket_start), Grapheme(j)))
 }
 
 /// Returns the range of a `[text](path)` or `![text](path)` link under the cursor,
 /// plus whether it's an image link. The cursor must be in the display-text field
 /// (between `[` and `]`); if `](...)` already exists it's included in the range
 /// so the whole link is replaced when a result is picked.
-fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)> {
+fn detect_link(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
     let selection = buffer.current.selection;
     if selection.0 != selection.1 {
         return None;
@@ -227,32 +324,33 @@ fn detect_link(buffer: &Buffer) -> Option<((DocCharOffset, DocCharOffset), bool)
         j += 1;
     }
 
-    Some(((DocCharOffset(start), DocCharOffset(j)), is_image))
+    Some(((Grapheme(start), Grapheme(j)), is_image))
 }
 
 /// Returns the sub-range of `range` covering just the query text, with syntax stripped.
 fn query_range(
-    buffer: &Buffer, range: (DocCharOffset, DocCharOffset), mode: CompletionMode,
-) -> (DocCharOffset, DocCharOffset) {
+    buffer: &Buffer, range: (Grapheme, Grapheme), mode: CompletionMode,
+) -> (Grapheme, Grapheme) {
     let prefix_len = match mode {
         CompletionMode::WikiLink => 2,  // [[
         CompletionMode::Link => 1,      // [
         CompletionMode::ImageLink => 2, // ![
     };
-    let start = DocCharOffset(range.0.0 + prefix_len);
+    let start = Grapheme(range.0.0 + prefix_len);
 
-    // For wiki links, exclude trailing `]]` if present.
-    // For regular/image links, the query is only the display text before `]`.
+    // Convert byte lengths to grapheme counts before adding to a `Grapheme`;
+    // multi-byte clusters (Devanagari, emoji) overshoot otherwise.
     let raw = &buffer[range];
     let end = match mode {
         CompletionMode::WikiLink => {
             let trimmed = raw.trim_end_matches(']');
-            DocCharOffset(range.0.0 + trimmed.len())
+            Grapheme(range.0.0 + trimmed.graphemes(true).count())
         }
         CompletionMode::Link | CompletionMode::ImageLink => {
             let after_prefix = &raw[prefix_len..];
-            let text_len = after_prefix.find(']').unwrap_or(after_prefix.len());
-            DocCharOffset(start.0 + text_len)
+            let text_byte_len = after_prefix.find(']').unwrap_or(after_prefix.len());
+            let text_grapheme_count = after_prefix[..text_byte_len].graphemes(true).count();
+            Grapheme(start.0 + text_grapheme_count)
         }
     };
 
@@ -305,6 +403,12 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
                 .unwrap_or(false),
             CompletionMode::WikiLink | CompletionMode::Link => true,
         }
+    };
+
+    // Wikilinks resolve by title within the same tree only (see
+    // FileCache::resolve_wikilink).
+    let tree_allowed = |f_id: Uuid| -> bool {
+        if mode == CompletionMode::WikiLink { cache.same_tree(file_id, f_id) } else { true }
     };
 
     // Path distance: number of `../` segments in the relative path, or u16::MAX for cross-tree.
@@ -364,6 +468,9 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             let Some(f) = cache.get_by_id(id).filter(|f| f.is_document()) else {
                 continue;
             };
+            if !tree_allowed(f.id) {
+                continue;
+            }
             let display_name = f.name.trim_end_matches(".md").to_string();
             results.push(make_result(f, display_name));
             if results.len() == MAX_RESULTS {
@@ -378,6 +485,7 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
     let mut scored: Vec<(FileResult, u8, bool, u16, usize)> = cache
         .all_files()
         .filter(|f| f.is_document() && f.id != file_id && file_allowed(&f.name))
+        .filter(|f| tree_allowed(f.id))
         .filter_map(|f| {
             if !file_matches(&f.name) {
                 return None;
@@ -416,9 +524,10 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
 }
 
 /// Fills `result.insert` for each entry.
-/// - Cross-tree files always use `lb://uuid` (relative paths don't work across trees).
+/// - Link/ImageLink: cross-tree uses `lb://uuid` (relative paths don't work
+///   across trees); same-tree uses the encoded relative path.
 /// - WikiLink: bare title when unique, minimal partial path when ambiguous.
-/// - Link/ImageLink: always the full relative path (no ambiguity since path is explicit).
+///   Cross-tree results are filtered upstream (wikilinks are same-tree only).
 fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: CompletionMode) {
     if mode != CompletionMode::WikiLink {
         for result in results.iter_mut() {
@@ -431,7 +540,6 @@ fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: Completi
         return;
     }
 
-    // For wikilinks: cross-tree files use lb://uuid; same-tree files use title or partial path.
     let all_titles: Vec<&str> = cache
         .all_files()
         .filter(|f| f.is_document())
@@ -439,10 +547,6 @@ fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: Completi
         .collect();
 
     for result in results.iter_mut() {
-        if result.cross_tree {
-            result.insert = format!("lb://{}", result.id);
-            continue;
-        }
         let count = all_titles
             .iter()
             .filter(|t| t.eq_ignore_ascii_case(&result.name))
@@ -560,94 +664,32 @@ fn abbreviate_segments(
     }
 }
 
-impl Editor {
+impl MdEdit {
     pub fn show_link_completions(&mut self, ui: &mut Ui) {
-        if self.readonly || !self.link_completions.active {
+        if self.renderer.readonly || !self.link_completions.active {
             return;
         }
 
-        let Some(((bracket_start, replace_end), mode)) = detect_any(&self.buffer) else {
+        let Some(((bracket_start, replace_end), mode)) = detect_any(&self.renderer.buffer) else {
             return;
         };
-        let qr = query_range(&self.buffer, (bracket_start, replace_end), mode);
-        let query = self.buffer[qr].to_string();
+        let qr = query_range(&self.renderer.buffer, (bracket_start, replace_end), mode);
+        let query = self.renderer.buffer[qr].to_string();
 
         if self.link_completions.suppressed.as_deref() == Some(query.as_str()) {
             return;
         }
 
-        let cache = self.files.read().unwrap();
+        let cache = self.renderer.files.read().unwrap();
         let mut results = search(&cache, self.file_id, &query, mode);
         drop(cache);
         if results.is_empty() {
             return;
         }
 
-        self.link_completions.selected = self.link_completions.selected.min(results.len() - 1);
-
         let Some([cursor_top, cursor_bot]) = self.cursor_line(bracket_start) else {
             return;
         };
-
-        // Escape is checked outside the focused guard so it always fires.
-        if ui.input(|i| i.key_pressed(Key::Escape)) {
-            self.link_completions.suppressed = Some(query.clone());
-            return;
-        }
-
-        if self.focused(ui.ctx()) {
-            ui.input(|i| {
-                if i.key_pressed(Key::ArrowUp) && self.link_completions.selected > 0 {
-                    self.link_completions.selected -= 1;
-                }
-                if i.key_pressed(Key::ArrowDown)
-                    && self.link_completions.selected + 1 < results.len()
-                {
-                    self.link_completions.selected += 1;
-                }
-            });
-
-            if ui.input(|i| i.key_pressed(Key::Enter)) {
-                let idx = self.link_completions.selected;
-                self.apply_link_completion(
-                    bracket_start,
-                    replace_end,
-                    &results[idx].name,
-                    &results[idx].insert,
-                    mode,
-                );
-                return;
-            }
-
-            let mut chosen = None;
-            ui.input(|i| {
-                let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
-                    i.modifiers.command
-                } else {
-                    i.modifiers.ctrl
-                };
-                for (idx, key) in
-                    [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5, Key::Num6, Key::Num7]
-                        .iter()
-                        .enumerate()
-                        .take(results.len())
-                {
-                    if i.key_pressed(*key) && modifier {
-                        chosen = Some(idx);
-                    }
-                }
-            });
-            if let Some(idx) = chosen {
-                self.apply_link_completion(
-                    bracket_start,
-                    replace_end,
-                    &results[idx].name,
-                    &results[idx].insert,
-                    mode,
-                );
-                return;
-            }
-        }
 
         // -- Measure content -------------------------------------------------------
         let text_color = ui.visuals().text_color();
@@ -672,8 +714,8 @@ impl Editor {
             .enumerate()
             .map(|(i, r)| {
                 let mut label = GlyphonLabel::new(&r.name, text_color)
-                    .font_size(self.layout.completion_font_size)
-                    .line_height(self.layout.completion_line_height);
+                    .font_size(self.renderer.layout.completion_font_size)
+                    .line_height(self.renderer.layout.completion_line_height);
                 if let Some(shortcut) = shortcuts.get(i) {
                     label = label.hint(shortcut, hint_color);
                 }
@@ -683,8 +725,8 @@ impl Editor {
 
         let measure_path = |text: &str| -> f32 {
             GlyphonLabel::new(text, hint_color)
-                .font_size(self.layout.completion_font_size - 2.0)
-                .line_height(self.layout.completion_line_height)
+                .font_size(self.renderer.layout.completion_font_size - 2.0)
+                .line_height(self.renderer.layout.completion_line_height)
                 .measure(ui)
                 .x
         };
@@ -708,7 +750,7 @@ impl Editor {
             })
             .fold(0.0_f32, f32::max);
 
-        let popup_height = results.len() as f32 * self.layout.completion_row_height;
+        let popup_height = results.len() as f32 * self.renderer.layout.completion_row_height;
         let screen_rect = ui.ctx().screen_rect();
         let popup_y = if cursor_top.y - popup_height >= screen_rect.min.y {
             cursor_top.y - popup_height
@@ -719,16 +761,16 @@ impl Editor {
             Pos2::new(cursor_top.x, popup_y),
             Vec2::new(popup_width, popup_height),
         );
-        self.touch_consuming_rects.push(popup_rect);
+        self.renderer.touch_consuming_rects.push(popup_rect);
 
         let row_rects: Vec<Rect> = (0..results.len())
             .map(|i| {
                 Rect::from_min_size(
                     Pos2::new(
                         popup_rect.min.x,
-                        popup_rect.min.y + i as f32 * self.layout.completion_row_height,
+                        popup_rect.min.y + i as f32 * self.renderer.layout.completion_row_height,
                     ),
-                    Vec2::new(popup_width, self.layout.completion_row_height),
+                    Vec2::new(popup_width, self.renderer.layout.completion_row_height),
                 )
             })
             .collect();
@@ -744,7 +786,7 @@ impl Editor {
         }
 
         // -- Draw backgrounds ------------------------------------------------------
-        self.draw_completion_popup(
+        self.renderer.draw_completion_popup(
             ui,
             popup_rect,
             &row_rects,
@@ -761,7 +803,7 @@ impl Editor {
             let text_top = rect.min.y + 4.0;
             let content_rect = Rect::from_min_size(
                 Pos2::new(rect.min.x + 8.0, text_top),
-                Vec2::new(popup_width - 16.0, self.layout.completion_line_height),
+                Vec2::new(popup_width - 16.0, self.renderer.layout.completion_line_height),
             );
 
             // Name (bold on matched chars) + shortcut hint (e.g. ⌘1).
@@ -770,8 +812,8 @@ impl Editor {
             let span_refs: Vec<(&str, bool)> =
                 spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
             let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                .font_size(self.layout.completion_font_size)
-                .line_height(self.layout.completion_line_height);
+                .font_size(self.renderer.layout.completion_font_size)
+                .line_height(self.renderer.layout.completion_line_height);
             if let Some(shortcut) = shortcuts.get(idx) {
                 label = label.hint(shortcut, hint_color);
             }
@@ -789,12 +831,12 @@ impl Editor {
                 })
                 .collect();
             let shaped = GlyphonLabel::new_colored(colored_spans, hint_color)
-                .font_size(self.layout.completion_font_size - 2.0)
-                .line_height(self.layout.completion_line_height)
+                .font_size(self.renderer.layout.completion_font_size - 2.0)
+                .line_height(self.renderer.layout.completion_line_height)
                 .build(ui.ctx());
             let path_rect = Rect::from_min_size(
                 Pos2::new(content_rect.max.x - shortcut_width - 8.0 - shaped.size.x, text_top),
-                Vec2::new(shaped.size.x, self.layout.completion_line_height),
+                Vec2::new(shaped.size.x, self.renderer.layout.completion_line_height),
             );
             text_areas.push(shaped.text_area(path_rect, ui.ctx(), clip_rect));
         }
@@ -808,34 +850,15 @@ impl Editor {
 
         // -- Apply clicked result --------------------------------------------------
         if let Some(idx) = clicked {
-            self.apply_link_completion(
+            let r = &results[idx];
+            self.link_completions.apply_completion(
+                &mut self.event.internal_events,
                 bracket_start,
                 replace_end,
-                &results[idx].name,
-                &results[idx].insert,
+                &r.name,
+                &r.insert,
                 mode,
             );
         }
-    }
-
-    fn apply_link_completion(
-        &mut self, bracket_start: DocCharOffset, replace_end: DocCharOffset, display: &str,
-        path: &str, mode: CompletionMode,
-    ) {
-        let text = match mode {
-            CompletionMode::WikiLink => format!("[[{}]]", path),
-            CompletionMode::Link => format!("[{}]({})", display, path),
-            CompletionMode::ImageLink => format!("![{}]({})", display, path),
-        };
-        self.event.internal_events.push(Event::Replace {
-            region: Region::BetweenLocations {
-                start: Location::DocCharOffset(bracket_start),
-                end: Location::DocCharOffset(replace_end),
-            },
-            text,
-            advance_cursor: true,
-        });
-        self.link_completions.selected = 0;
-        self.link_completions.suppressed = None;
     }
 }

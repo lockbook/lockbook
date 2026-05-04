@@ -3,6 +3,9 @@ use std::sync::{Arc, Mutex, RwLock};
 use egui::{Response, Sense, Ui};
 use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Weight};
 
+use crate::widgets::glyphon_cache::{
+    GlyphonCache, GlyphonCacheKey, GlyphonCacheSpan, GlyphonFontFamily,
+};
 use crate::{GlyphonRendererCallback, TextBufferArea};
 
 /// Per-span styling: bold flag and optional color override.
@@ -180,14 +183,11 @@ impl<'a> GlyphonLabel<'a> {
 
     /// Shapes the text and returns the buffers + measured size for manual placement.
     pub fn build(&self, ctx: &egui::Context) -> ShapedLabel {
-        let font_system = ctx
-            .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
-            .expect("cosmic-text font system used before registered");
         let ppi = ctx.pixels_per_point();
         let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
 
         let main = Self::shape_buffer(
-            &font_system,
+            ctx,
             ppi,
             &self.spans,
             self.color,
@@ -199,7 +199,7 @@ impl<'a> GlyphonLabel<'a> {
         let hint = self.hint.map(|(text, color)| {
             let hint_font_size = self.font_size - 2.0;
             Self::shape_buffer(
-                &font_system,
+                ctx,
                 ppi,
                 &[(text, SpanStyle { bold: false, color: None })],
                 color,
@@ -222,42 +222,72 @@ impl<'a> GlyphonLabel<'a> {
     }
 
     fn shape_buffer(
-        font_system: &Arc<Mutex<FontSystem>>, ppi: f32, spans: &[(&str, SpanStyle)],
-        color: egui::Color32, font_size: f32, line_height: f32, max_width: f32,
+        ctx: &egui::Context, ppi: f32, spans: &[(&str, SpanStyle)], color: egui::Color32,
+        font_size: f32, line_height: f32, max_width: f32,
     ) -> ShapedBuffer {
-        let mut fs = font_system.lock().unwrap();
-        let mut buf = Buffer::new(&mut fs, Metrics::new(font_size * ppi, line_height * ppi));
-        buf.set_size(&mut fs, Some(max_width * ppi), None);
+        let cache_key = GlyphonCacheKey {
+            spans: spans
+                .iter()
+                .map(|&(text, style)| GlyphonCacheSpan {
+                    text: text.to_string(),
+                    family: GlyphonFontFamily::SansSerif,
+                    bold: style.bold,
+                    italic: false,
+                    color: style.color.map(|c| c.to_array()),
+                })
+                .collect(),
+            font_size_bits: (font_size * ppi).to_bits(),
+            line_height_bits: (line_height * ppi).to_bits(),
+            width_bits: (max_width * ppi).to_bits(),
+        };
 
-        let base = Attrs::new().family(Family::SansSerif);
-        buf.set_rich_text(
-            &mut fs,
-            spans.iter().map(|&(text, style)| {
-                let mut attrs =
-                    if style.bold { base.clone().weight(Weight::BOLD) } else { base.clone() };
-                if let Some(c) = style.color {
-                    attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
-                }
-                (text, attrs)
-            }),
-            &base,
-            Shaping::Advanced,
-            None,
-        );
-        buf.shape_until_scroll(&mut fs, false);
+        let font_system = ctx
+            .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
+            .expect("cosmic-text font system used before registered");
 
+        let buffer = ctx
+            .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
+            .expect("glyphon cache used before registered")
+            .lock()
+            .unwrap()
+            .get_or_shape(cache_key, || {
+                let mut fs = font_system.lock().unwrap();
+                let mut buf =
+                    Buffer::new(&mut fs, Metrics::new(font_size * ppi, line_height * ppi));
+                buf.set_size(&mut fs, Some(max_width * ppi), None);
+
+                let base = Attrs::new().family(Family::SansSerif);
+                buf.set_rich_text(
+                    &mut fs,
+                    spans.iter().map(|&(text, style)| {
+                        let mut attrs = if style.bold {
+                            base.clone().weight(Weight::BOLD)
+                        } else {
+                            base.clone()
+                        };
+                        if let Some(c) = style.color {
+                            attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
+                        }
+                        (text, attrs)
+                    }),
+                    &base,
+                    Shaping::Advanced,
+                    None,
+                );
+                buf.shape_until_scroll(&mut fs, false);
+                buf
+            });
+
+        let buf = buffer.read().unwrap();
         let line_height_px = buf.metrics().line_height;
         let (width, lines) = buf
             .layout_runs()
             .fold((0.0f32, 0u32), |(w, n), r| (w.max(r.line_w), n + 1));
         let size = egui::vec2(width / ppi, lines as f32 * line_height_px / ppi);
+        drop(buf);
 
         let c = color;
-        ShapedBuffer {
-            buffer: Arc::new(RwLock::new(buf)),
-            size,
-            color: glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
-        }
+        ShapedBuffer { buffer, size, color: glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()) }
     }
 }
 
@@ -270,9 +300,11 @@ impl egui::Widget for GlyphonLabel<'_> {
 
         if ui.is_rect_visible(rect) {
             let areas = shaped.text_areas(rect, ui.ctx(), rect);
+            // egui_wgpu clamps the callback rect to the screen and drops a zero-area result.
+            let callback_rect = rect.intersect(ui.clip_rect());
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    rect,
+                    callback_rect,
                     GlyphonRendererCallback::new(areas),
                 ));
         }

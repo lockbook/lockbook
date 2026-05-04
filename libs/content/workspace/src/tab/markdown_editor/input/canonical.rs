@@ -1,4 +1,4 @@
-use crate::tab::markdown_editor::{self, Editor};
+use crate::tab::markdown_editor::{self, MdEdit};
 use comrak::nodes::{AstNode, ListType, NodeHeading, NodeLink, NodeList, NodeValue};
 use egui::{self, Key, Modifiers};
 use lb_rs::model::text::offset_types::RangeExt as _;
@@ -25,20 +25,10 @@ impl From<Modifiers> for Advance {
 
 const PAGE_LINES: usize = 50;
 
-impl<'ast> Editor {
+impl<'ast> MdEdit {
     pub fn translate_egui_keyboard_event(
         &self, event: egui::Event, root: &'ast AstNode<'ast>,
     ) -> Option<Event> {
-        // When the emoji popup is open, swallow vertical navigation and Enter so
-        // they are handled by show_emoji_completions instead of moving the cursor.
-        if self.emoji_completions.active || self.link_completions.active {
-            if let egui::Event::Key { key, pressed: true, .. } = &event {
-                if matches!(key, Key::ArrowUp | Key::ArrowDown | Key::Enter) {
-                    return None;
-                }
-            }
-        }
-
         match event {
             egui::Event::Key { key, pressed: true, modifiers, .. }
                 if matches!(key, Key::ArrowUp | Key::ArrowDown | Key::PageUp | Key::PageDown) =>
@@ -76,7 +66,7 @@ impl<'ast> Editor {
                 })
             }
             egui::Event::Paste(text) => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
 
@@ -85,7 +75,7 @@ impl<'ast> Editor {
                 // with text selected, pasting a link turns selected text into a
                 // markdown link...
                 let mut link_paste = false;
-                if !self.buffer.current.selection.is_empty() {
+                if !self.renderer.buffer.current.selection.is_empty() {
                     // use comrak's auto-link detector
                     let arena = comrak::Arena::new();
                     let mut options = comrak::Options::default();
@@ -109,8 +99,9 @@ impl<'ast> Editor {
                         descendant.data().value,
                         NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_)
                     ) && self
+                        .renderer
                         .node_range(descendant)
-                        .intersects(&self.buffer.current.selection, false)
+                        .intersects(&self.renderer.buffer.current.selection, false)
                     {
                         link_paste = false;
                         break;
@@ -127,7 +118,7 @@ impl<'ast> Editor {
                 }
             }
             egui::Event::Text(text) => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::Replace {
@@ -139,7 +130,7 @@ impl<'ast> Editor {
             egui::Event::Key { key, pressed: true, modifiers, .. }
                 if matches!(key, Key::Backspace | Key::Delete) =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::Delete {
@@ -152,19 +143,20 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") && modifiers.command =>
             {
-                self.open_links_in_selection(root, &self.ctx);
+                self.renderer
+                    .open_links_in_selection(root, &self.renderer.ctx);
                 None
             }
             egui::Event::Key { key: Key::Enter, pressed: true, modifiers, .. }
                 if !cfg!(target_os = "ios") =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::Newline { shift: modifiers.shift })
             }
             egui::Event::Key { key: Key::Tab, pressed: true, modifiers, .. } if !modifiers.alt => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 if !modifiers.shift && cfg!(target_os = "ios") {
@@ -182,7 +174,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
                 if modifiers.command && !modifiers.shift && !cfg!(target_os = "ios") =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::Cut)
@@ -196,19 +188,19 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Z, pressed: true, modifiers, .. }
                 if modifiers.command && !cfg!(target_os = "ios") =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 if !modifiers.shift { Some(Event::Undo) } else { Some(Event::Redo) }
             }
             egui::Event::Key { key: Key::B, pressed: true, modifiers, .. } if modifiers.command => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Strong })
             }
             egui::Event::Key { key: Key::I, pressed: true, modifiers, .. } if modifiers.command => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Emph })
@@ -216,7 +208,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::C, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 if !modifiers.alt {
@@ -236,7 +228,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::X, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle {
@@ -247,13 +239,13 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::H, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Highlight })
             }
             egui::Event::Key { key: Key::U, pressed: true, modifiers, .. } if modifiers.command => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Underline })
@@ -261,7 +253,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::P, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle {
@@ -272,7 +264,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::S, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle { region: Region::Selection, style: NodeValue::Subscript })
@@ -280,7 +272,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::E, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle {
@@ -289,7 +281,7 @@ impl<'ast> Editor {
                 })
             }
             egui::Event::Key { key: Key::K, pressed: true, modifiers, .. } if modifiers.command => {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleStyle {
@@ -300,7 +292,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Num7, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -316,7 +308,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Num8, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -332,7 +324,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Num9, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -349,7 +341,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Num1, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -362,7 +354,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Num2, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -375,7 +367,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Num3, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -388,7 +380,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Num4, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -401,7 +393,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Num5, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -414,7 +406,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Num6, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -427,7 +419,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::Q, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -440,7 +432,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::R, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.alt =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some({
@@ -453,7 +445,7 @@ impl<'ast> Editor {
             egui::Event::Key { key: Key::D, pressed: true, modifiers, .. }
                 if modifiers.command && modifiers.shift =>
             {
-                if self.readonly {
+                if self.renderer.readonly {
                     return None;
                 }
                 Some(Event::ToggleFold)

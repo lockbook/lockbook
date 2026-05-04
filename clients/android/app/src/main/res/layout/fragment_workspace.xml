@@ -49,7 +49,7 @@
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/expand_list"
-            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+            style="@style/Widget.Material3.Button.IconButton.Filled"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginStart="?android:listPreferredItemPaddingStart"
@@ -58,6 +58,21 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/close_all_tabs"
             app:layout_constraintBottom_toBottomOf="parent"
+            app:shapeAppearanceOverlay="@style/MyShapeAppearance"
+            />
+
+        <com.google.android.material.button.MaterialButton
+            android:id="@+id/forward_ws"
+            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:contentDescription="@string/workspace_forward"
+            app:icon="@drawable/ic_baseline_arrow_forward_24"
+            app:layout_constraintStart_toEndOf="@+id/expand_list"
+            app:layout_constraintTop_toBottomOf="@+id/close_all_tabs"
+            app:layout_constraintBottom_toBottomOf="parent"
+            android:insetLeft="0dp"
+            app:shapeAppearanceOverlay="@style/MyQRShapeAppearance"
             />
 
         <androidx.recyclerview.widget.RecyclerView
@@ -67,7 +82,8 @@
             android:orientation="horizontal"
             app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
             android:scrollbars="vertical"
-            app:layout_constraintStart_toEndOf="@+id/expand_list"
+            android:insetRight="0dp"
+            app:layout_constraintStart_toEndOf="@+id/forward_ws"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintTop_toBottomOf="@+id/close_all_tabs"
             app:layout_constraintBottom_toBottomOf="parent"

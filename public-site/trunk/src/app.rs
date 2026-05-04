@@ -2,17 +2,20 @@ use std::sync::Arc;
 
 use lb_rs::{Uuid, blocking::Lb, model::core_config::Config};
 use workspace_rs::{
+    resolvers::image_embed::ImageEmbedResolver,
     tab::{
-        markdown_editor::{Editor, MdConfig, MdResources},
+        markdown_editor::{Editor, HttpClient, MdConfig, MdResources},
         svg_editor::SVGEditor,
     },
     theme::palette_v2::{Mode, Theme, ThemeExt as _},
+    widgets::image_cache::ImageCache,
     workspace::WsPersistentStore,
 };
 
 pub struct LbWebApp {
     core: Lb,
     cfg: WsPersistentStore,
+    images: Option<ImageCache>,
     editor: Option<Editor>,
     canvas: Option<SVGEditor>,
     initial_screen: InitialScreen,
@@ -62,7 +65,7 @@ impl LbWebApp {
 
         let cfg = WsPersistentStore::new(false, "/tmp/lb-public-site".into());
 
-        Self { core: lb, cfg, editor: None, canvas: None, initial_screen }
+        Self { core: lb, cfg, images: None, editor: None, canvas: None, initial_screen }
     }
 }
 
@@ -81,16 +84,31 @@ impl eframe::App for LbWebApp {
             .frame(egui::Frame::default().fill(ctx.style().visuals.widgets.noninteractive.bg_fill))
             .show(ctx, |ui| {
                 if self.editor.is_none() && self.initial_screen == InitialScreen::Editor {
+                    let files = Arc::new(std::sync::RwLock::new(
+                        workspace_rs::file_cache::FileCache::empty(),
+                    ));
+                    let file_id = Uuid::new_v4();
+                    let images = ImageCache::new(
+                        ctx.clone(),
+                        HttpClient::default(),
+                        self.core.clone(),
+                        Arc::clone(&files),
+                    );
+                    self.images = Some(images.clone());
                     self.editor = Some(Editor::new(
                         include_str!("../resources/editor-demo.md"),
-                        Uuid::new_v4(),
+                        file_id,
                         None,
                         MdResources {
                             ctx: ctx.clone(),
                             core: self.core.clone(),
                             persistence: self.cfg.clone(),
-                            files: Arc::new(std::sync::RwLock::new(
-                                workspace_rs::file_cache::FileCache::empty(),
+                            files,
+                            link_resolver: Box::new(()),
+                            embeds: Box::new(ImageEmbedResolver::new(
+                                images,
+                                file_id,
+                                Default::default(),
                             )),
                         },
                         MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: true },
@@ -109,10 +127,16 @@ impl eframe::App for LbWebApp {
                         false,
                     ))
                 }
+                if let Some(images) = &self.images {
+                    images.begin_frame();
+                }
                 if let Some(md) = &mut self.editor {
                     egui::Frame::default().show(ui, |ui| {
                         md.show(ui);
                     });
+                }
+                if let Some(images) = &self.images {
+                    images.end_frame();
                 }
 
                 if let Some(svg) = &mut self.canvas {

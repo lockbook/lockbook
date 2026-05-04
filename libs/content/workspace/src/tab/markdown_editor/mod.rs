@@ -2,20 +2,21 @@ use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
 use std::sync::OnceLock;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
 use crate::file_cache::FileCache;
+use crate::resolvers::{EmbedResolver, LinkResolver};
 use bounds::Bounds;
 use colored::Colorize as _;
 use comrak::nodes::AstNode;
 use comrak::{Arena, Options};
 use core::time::Duration;
 use egui::os::OperatingSystem;
-use egui::scroll_area::{ScrollAreaOutput, ScrollBarVisibility, ScrollSource};
 use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
-    Pos2, Rect, ScrollArea, Sense, Stroke, Ui, UiBuilder, Vec2, scroll_area,
+    Pos2, Rect, Stroke, Ui, UiBuilder, Vec2,
 };
 use galleys::Galleys;
 use input::cursor::CursorState;
@@ -24,7 +25,7 @@ use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::Grapheme;
 use serde::{Deserialize, Serialize};
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
@@ -33,7 +34,6 @@ use widget::block::LayoutCache;
 use widget::block::leaf::code_block::SyntaxHighlightCache;
 use widget::emoji_completions::EmojiCompletions;
 use widget::find::Find;
-use widget::inline::image::cache::ImageCache;
 use widget::link_completions::LinkCompletions;
 use widget::toolbar::{MOBILE_TOOL_BAR_SIZE, Toolbar};
 
@@ -61,11 +61,15 @@ pub fn syntax_theme() -> &'static Theme {
 pub mod bounds;
 mod galleys;
 pub mod input;
+pub mod md_label;
 pub mod output;
+mod scroll_content;
+pub mod show;
 mod theme;
 mod widget;
 
 pub use input::Event;
+pub use md_label::MdLabel;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
@@ -84,78 +88,164 @@ pub struct Response {
     pub find_widget_height: f32,
 }
 
-pub struct Editor {
-    // dependencies
-    pub core: Lb,
-    pub client: HttpClient,
+pub struct MdRender {
+    // context
     pub ctx: Context,
-    pub persistence: WsPersistentStore,
-    pub files: Arc<RwLock<FileCache>>,
     pub layout: MdLayout,
-
-    // theme
-    dark_mode: bool, // supports change detection
-
-    // input
-    pub file_id: Uuid,
-    pub hmac: Option<DocumentHmac>,
-    pub initialized: bool,
+    pub dark_mode: bool,
     pub ext: String,
     pub touch_mode: bool,
-    pub phone_mode: bool,
-    pub readonly: bool,
 
-    // internal systems
+    // document
     pub bounds: Bounds,
     pub buffer: Buffer,
-    pub cursor: CursorState,
-    pub event: EventState,
+
+    // render output
     pub galleys: Galleys,
     pub text_areas: Vec<TextBufferArea>,
+    pub render_events: Vec<input::Event>,
+    pub touch_consuming_rects: Vec<Rect>,
 
-    pub images: ImageCache,
+    // render input
+    pub in_progress_selection: Option<(Grapheme, Grapheme)>,
+    pub find_current_match: Option<(Grapheme, Grapheme)>,
+    /// Gates fold UI. Stays true in readonly — fold is the one mutation
+    /// allowed there (saves are gated separately).
+    pub interactive: bool,
+    /// Gates click on interactive render elements that mutate the doc
+    /// (task checkbox). Fold clicks ignore it (changes aren't saved)
+    pub readonly: bool,
+    /// When true, render via the per-line source text — no markdown block
+    /// parsing, no fold UI, no completion popups. Set at construction from
+    /// the non-`md` ext check; callers may also flip it directly.
+    pub plaintext: bool,
+    pub reveal_ranges: Vec<(Grapheme, Grapheme)>,
+    pub text_highlight_range: Option<(Grapheme, Grapheme)>,
+    /// Toolbar settings menu: render image nodes as inline link text only,
+    /// skipping the block preview and its reserved space.
+    pub render_images_as_text: bool,
+
+    // capabilities
+    pub embeds: Box<dyn EmbedResolver>,
+    pub link_resolver: Box<dyn LinkResolver>,
+    pub client: HttpClient,
+    pub files: Arc<RwLock<FileCache>>,
+
+    // caches
     pub layout_cache: LayoutCache,
     pub syntax: SyntaxHighlightCache,
-    pub debug: bool,
-    frame_times: [Instant; 10],
-    frame_times_idx: usize,
-    pub touch_consuming_rects: Vec<Rect>, // touches on these will not place the cursor on iOS
-    pub scroll_area_velocity: Vec2,       // if nonzero, touches will not place the cursor on iOS
 
-    // widgets
+    // viewport
+    pub width: f32,
+    pub viewport_height: f32,
+    /// Width the layout cache was last populated for; `reparse`
+    /// clears the cache when `width` diverges.
+    last_layout_width: f32,
+
+    // debug
+    pub debug: bool,
+    pub frame_times: [Instant; 10],
+    pub frame_times_idx: usize,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum ScrollTarget {
+    Cursor,
+    FindMatch,
+}
+
+/// Editing primitive — an [`MdRender`] plus the interactive state needed to
+/// mutate it. Self-contained so it can be used standalone (by a composer or a
+/// label+input pair) without needing an [`Editor`]'s surrounding widgets and
+/// workspace integration.
+pub struct MdEdit {
+    pub renderer: MdRender,
+
+    pub cursor: CursorState,
+    pub event: EventState,
+
+    /// No physical keyboard (phone or iPad compact mode). Used by completion
+    /// popups to hide Cmd/Ctrl+N shortcut hints.
+    pub phone_mode: bool,
+
+    /// Transient drag selection — `Some` while a drag is in progress; the
+    /// rendered cursor/selection falls back to the buffer's own selection
+    /// when `None`.
+    pub in_progress_selection: Option<(Grapheme, Grapheme)>,
+
+    /// Frame-scoped single-target scroll intent, consumed at the end of the
+    /// scroll area callback.
+    pub pending_scroll: Option<ScrollTarget>,
+
+    /// Momentum from the last scroll-area frame; used by `will_consume_touch`
+    /// to block touch cursor placement during momentum scroll.
+    pub scroll_area_velocity: Vec2,
+
+    /// Document identity — link completions resolve relative paths against
+    /// the current file's parent.
+    pub file_id: Uuid,
+
+    /// Emoji shortcode completion popup (e.g. `:smile:`).
+    pub emoji_completions: EmojiCompletions,
+
+    /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
+    pub link_completions: LinkCompletions,
+}
+
+impl MdEdit {
+    /// Minimal editor for standalone composer-like use. Wraps
+    /// `MdRender::empty` (no-op resolvers, empty `FileCache`) and sets
+    /// `readonly = false` on the renderer so the composer can mutate.
+    /// Callers wire `file_id`, `renderer.files`, `renderer.link_resolver`,
+    /// and `renderer.embeds` as needed.
+    pub fn empty(ctx: Context) -> Self {
+        let mut renderer = MdRender::empty(ctx);
+        renderer.readonly = false;
+        Self {
+            renderer,
+            cursor: Default::default(),
+            event: Default::default(),
+            phone_mode: false,
+            in_progress_selection: None,
+            pending_scroll: None,
+            scroll_area_velocity: Default::default(),
+            file_id: Uuid::nil(),
+            emoji_completions: Default::default(),
+            link_completions: Default::default(),
+        }
+    }
+}
+
+pub struct Editor {
+    pub edit: MdEdit,
+
+    // workspace dependencies
+    pub core: Lb,
+    pub persistence: WsPersistentStore,
+
+    // document identity
+    pub id_salt: Id,
+    pub hmac: Option<DocumentHmac>,
+    pub initialized: bool,
+
+    embeds_last_seen: u64,
+
+    // interaction widgets (toolbar + find are Editor-owned; completion
+    // widgets moved onto MdEdit so a standalone composer inherits them)
     pub toolbar: Toolbar,
     pub find: Find,
-    pub emoji_completions: EmojiCompletions,
-    pub link_completions: LinkCompletions,
-
-    // selection state
-    /// During drag operations, stores the selection that would be applied
-    /// without actually updating the buffer selection (which would affect syntax reveal)
-    pub in_progress_selection: Option<(DocCharOffset, DocCharOffset)>,
 
     // misc
     pub virtual_keyboard_shown: bool,
-    scroll_to_cursor: bool,
-    scroll_to_find_match: bool,
     pub unprocessed_scroll: Option<Instant>,
 
-    // layout
-    top_left: Pos2,
-    /// width of the viewport, useful for doc render width and image size
-    /// constraints, populated at frame start
-    width: f32,
-    /// height of the viewport, useful for image size constraints, populated at
-    /// frame start
-    height: f32,
+    /// Last frame's available render area, for change detection. Tracked
+    /// separately from `renderer.width` (the centered content-column width,
+    /// which on wide windows is strictly less than the available width).
+    prev_dimensions: Option<Vec2>,
 
     // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
-}
-
-impl Drop for Editor {
-    fn drop(&mut self) {
-        self.images.free(&self.ctx);
-    }
 }
 
 static PRINT: bool = false;
@@ -166,10 +256,26 @@ pub struct MdPersistence {
     file: HashMap<Uuid, MdFilePersistence>,
 }
 
+impl MdPersistence {
+    pub fn image_dims(&self, file_id: &Uuid) -> HashMap<String, [f32; 2]> {
+        self.file
+            .get(file_id)
+            .map(|f| f.image_dims.clone())
+            .unwrap_or_default()
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdFilePersistence {
-    scroll_offset: f32,
-    selection: (DocCharOffset, DocCharOffset),
+    /// `(anchor_block_idx, intra_offset_approx)` — the row index and
+    /// approx units within that row at which the scroll offset sits.
+    /// Width-independent (unlike a raw pixel offset) so reopening the
+    /// doc at a different width still lands on the right block.
+    #[serde(default)]
+    anchor: Option<(usize, f32)>,
+    selection: (Grapheme, Grapheme),
+    #[serde(default)]
+    image_dims: HashMap<String, [f32; 2]>,
 }
 
 pub struct MdResources {
@@ -177,6 +283,8 @@ pub struct MdResources {
     pub core: Lb,
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
+    pub link_resolver: Box<dyn LinkResolver>,
+    pub embeds: Box<dyn EmbedResolver>,
 }
 
 pub struct MdConfig {
@@ -248,68 +356,245 @@ pub type HttpClient = reqwest::Client;
 #[cfg(not(target_arch = "wasm32"))]
 pub type HttpClient = reqwest::blocking::Client;
 
+impl MdRender {
+    /// Minimal renderer with no resolvers, empty file cache, and `md`
+    /// extension. Used by [`MdLabel`] and tests. Touch-mode and layout are
+    /// derived from `ctx`.
+    pub fn empty(ctx: Context) -> Self {
+        let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
+        let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
+        let dark_mode = ctx.style().visuals.dark_mode;
+        Self {
+            ctx,
+            layout,
+            dark_mode,
+            ext: "md".into(),
+            touch_mode,
+            bounds: Default::default(),
+            buffer: "".into(),
+            galleys: Default::default(),
+            text_areas: Default::default(),
+            render_events: Vec::new(),
+            touch_consuming_rects: Default::default(),
+            reveal_ranges: Vec::new(),
+            text_highlight_range: None,
+            render_images_as_text: false,
+            in_progress_selection: None,
+            find_current_match: None,
+            interactive: false,
+            readonly: true,
+            plaintext: false,
+            embeds: Box::new(()),
+            link_resolver: Box::new(()),
+            client: Default::default(),
+            files: Arc::new(RwLock::new(FileCache::empty())),
+            layout_cache: Default::default(),
+            syntax: Default::default(),
+            width: Default::default(),
+            viewport_height: Default::default(),
+            last_layout_width: f32::NAN,
+            debug: false,
+            frame_times: [Instant::now(); 10],
+            frame_times_idx: 0,
+        }
+    }
+
+    #[cfg(test)]
+    pub(crate) fn test(md: &str) -> Self {
+        let ctx = Context::default();
+        Self {
+            ctx,
+            layout: MdLayout::desktop(),
+            dark_mode: false,
+            ext: "md".into(),
+            touch_mode: false,
+            bounds: Default::default(),
+            buffer: md.into(),
+            galleys: Default::default(),
+            text_areas: Default::default(),
+            render_events: Vec::new(),
+            touch_consuming_rects: Default::default(),
+            reveal_ranges: Vec::new(),
+            text_highlight_range: None,
+            render_images_as_text: false,
+            in_progress_selection: None,
+            find_current_match: None,
+            interactive: false,
+            readonly: true,
+            plaintext: false,
+            embeds: Box::new(()),
+            link_resolver: Box::new(()),
+            client: Default::default(),
+            files: Arc::new(RwLock::new(FileCache::empty())),
+            layout_cache: Default::default(),
+            syntax: Default::default(),
+            width: Default::default(),
+            viewport_height: Default::default(),
+            last_layout_width: f32::NAN,
+            debug: false,
+            frame_times: [Instant::now(); 10],
+            frame_times_idx: 0,
+        }
+    }
+
+    /// Re-parse the buffer into a fresh AST and rebuild all text-derived
+    /// bounds (source lines, words, inline paragraphs). The caller owns the
+    /// [`Arena`] — comrak's AST is arena-allocated. Callers who need heights
+    /// also invoke [`MdRender::height`] on the returned root.
+    pub fn reparse<'a>(&mut self, arena: &'a Arena<'a>) -> &'a AstNode<'a> {
+        // Layout-cache keys are node-range, not width-aware; clear on
+        // width change. Bit-equality covers the initial NaN.
+        if self.width.to_bits() != self.last_layout_width.to_bits() {
+            self.layout_cache.clear();
+            self.last_layout_width = self.width;
+        }
+
+        // File cache refresh or async link-title fetch may have changed a
+        // link's resolved width; drop heights so the next render recomputes.
+        if self
+            .layout_cache
+            .link_layout_dirty
+            .swap(false, Ordering::Relaxed)
+        {
+            self.layout_cache.invalidate_link_layout_change();
+        }
+
+        let options = Self::comrak_options();
+        let text_with_newline = format!("{}\n", self.buffer.current.text);
+        let root = comrak::parse_document(arena, &text_with_newline, &options);
+
+        self.bounds.inline_paragraphs.clear();
+        self.calc_source_lines();
+        // Populate before compute_bounds: pre_spacing_lines (called
+        // from compute_bounds_block_pre_spacing) queries
+        // hidden_by_fold, which now expects every node already
+        // cached.
+        self.populate_hidden_by_fold(root);
+        self.compute_bounds(root);
+        self.bounds.inline_paragraphs.sort();
+        self.calc_words();
+
+        root
+    }
+
+    pub fn comrak_options() -> Options<'static> {
+        let mut options = Options::default();
+        options.parse.smart = true;
+        options.parse.ignore_setext = true;
+        options.extension.alerts = true;
+        options.extension.autolink = true;
+        options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
+        options.extension.footnotes = false;
+        options.extension.front_matter_delimiter = Some("---".to_string());
+        options.extension.greentext = false;
+        options.extension.header_ids = None; // intended for HTML renderers
+        options.extension.highlight = true;
+        options.extension.math_code = true; // rendered as code for now
+        options.extension.math_dollars = true; // rendered as code for now
+        options.extension.multiline_block_quotes = false; // todo
+        options.extension.shortcodes = true;
+        options.extension.spoiler = true;
+        options.extension.strikethrough = true;
+        options.extension.subscript = true;
+        options.extension.superscript = true;
+        options.extension.table = true;
+        options.extension.tagfilter = false; // intended for HTML renderers
+        options.extension.tasklist = true;
+        options.extension.underline = true;
+        options.extension.wikilinks_title_after_pipe = true; // matches obsidian
+        options.extension.wikilinks_title_before_pipe = false; // would not match obsidian
+        options.render.escaped_char_spans = true;
+        options
+    }
+}
+
 impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, files } = res;
+        let MdResources { ctx, core, persistence, files, link_resolver, embeds } = res;
         let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
+        let plaintext = ext.to_lowercase() != "md";
 
         let dark_mode = ctx.style().visuals.dark_mode;
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let phone_mode = touch_mode && !tablet_or_desktop;
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
-        Self {
-            core,
-            client: Default::default(),
+        let client: HttpClient = Default::default();
+
+        let renderer = MdRender {
             ctx,
-            persistence,
-            files,
-
+            layout,
             dark_mode,
-
-            toolbar: Default::default(),
-            find: Default::default(),
-            emoji_completions: Default::default(),
-            link_completions: Default::default(),
-
-            readonly,
-            file_id,
-            hmac,
-            initialized: Default::default(),
             ext,
             touch_mode,
-            phone_mode,
-            layout,
 
             bounds: Default::default(),
             buffer: md.into(),
-            cursor: Default::default(),
-            event: Default::default(),
-            galleys: Default::default(),
 
-            images: Default::default(),
+            galleys: Default::default(),
+            text_areas: Default::default(),
+            render_events: Vec::new(),
+            touch_consuming_rects: Default::default(),
+
+            in_progress_selection: None,
+            find_current_match: None,
+            interactive: true,
+            readonly,
+            plaintext,
+            reveal_ranges: Vec::new(),
+            text_highlight_range: None,
+            render_images_as_text: false,
+
+            embeds,
+            link_resolver,
+            client,
+            files,
+
             layout_cache: Default::default(),
             syntax: Default::default(),
+
+            width: Default::default(),
+            viewport_height: Default::default(),
+            last_layout_width: f32::NAN,
+
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
-            touch_consuming_rects: Default::default(),
-            scroll_area_velocity: Default::default(),
-            text_areas: Default::default(),
+        };
 
-            in_progress_selection: None,
+        Self {
+            edit: MdEdit {
+                renderer,
+                phone_mode,
+                cursor: Default::default(),
+                event: Default::default(),
+                in_progress_selection: None,
+                pending_scroll: None,
+                scroll_area_velocity: Default::default(),
+                file_id,
+                emoji_completions: Default::default(),
+                link_completions: Default::default(),
+            },
+
+            core,
+            persistence,
+
+            id_salt: Id::NULL,
+            hmac,
+            initialized: Default::default(),
+
+            embeds_last_seen: 0,
+
+            toolbar: Default::default(),
+            find: Default::default(),
 
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
-            scroll_to_cursor: Default::default(),
-            scroll_to_find_match: Default::default(),
             unprocessed_scroll: Default::default(),
 
-            top_left: Default::default(),
-            width: Default::default(),
-            height: Default::default(),
+            prev_dimensions: None,
 
             next_resp: Default::default(),
         }
@@ -318,24 +603,28 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         let files = Arc::new(RwLock::new(FileCache::empty()));
+        let ctx = Context::default();
+        let core = Lb::init(lb_rs::model::core_config::Config {
+            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+            logs: false,
+            stdout_logs: false,
+            colored_logs: false,
+            background_work: false,
+        })
+        .unwrap();
         Self::new(
             md,
             Uuid::new_v4(),
             None,
             MdResources {
-                ctx: Context::default(),
-                core: Lb::init(lb_rs::model::core_config::Config {
-                    writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-                    logs: false,
-                    stdout_logs: false,
-                    colored_logs: false,
-                    background_work: false,
-                })
-                .unwrap(),
+                ctx,
+                core,
                 persistence: WsPersistentStore::new(
                     false,
                     format!("/tmp/{}", Uuid::new_v4()).into(),
                 ),
+                link_resolver: Box::new(()),
+                embeds: Box::new(()),
                 files,
             },
             MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
@@ -343,7 +632,7 @@ impl Editor {
     }
 
     pub fn id(&self) -> Id {
-        Id::new(self.file_id)
+        Id::new(self.edit.file_id).with(self.id_salt)
     }
 
     pub fn focus(&self, ctx: &Context) {
@@ -377,67 +666,89 @@ impl Editor {
     }
 
     pub fn plaintext_mode(&self) -> bool {
-        self.ext.to_lowercase() != "md"
-    }
-
-    fn comrak_options() -> Options<'static> {
-        let mut options = Options::default();
-        options.parse.smart = true;
-        options.parse.ignore_setext = true;
-        options.extension.alerts = true;
-        options.extension.autolink = true;
-        options.extension.description_lists = false; // todo: is this a good way to power workspace-wide term definitions?
-        options.extension.footnotes = false;
-        options.extension.front_matter_delimiter = Some("---".to_string());
-        options.extension.greentext = false;
-        options.extension.header_ids = None; // intended for HTML renderers
-        options.extension.highlight = true;
-        options.extension.math_code = true; // rendered as code for now
-        options.extension.math_dollars = true; // rendered as code for now
-        options.extension.multiline_block_quotes = false; // todo
-        options.extension.shortcodes = true;
-        options.extension.spoiler = true;
-        options.extension.strikethrough = true;
-        options.extension.subscript = true;
-        options.extension.superscript = true;
-        options.extension.table = true;
-        options.extension.tagfilter = false; // intended for HTML renderers
-        options.extension.tasklist = true;
-        options.extension.underline = true;
-        options.extension.wikilinks_title_after_pipe = true; // matches obsidian
-        options.extension.wikilinks_title_before_pipe = false; // would not match obsidian
-        options.render.escaped_char_spans = true;
-        options
+        self.edit.renderer.plaintext
     }
 
     pub fn show(&mut self, ui: &mut Ui) -> Response {
         let mut resp: Response = mem::take(&mut self.next_resp);
 
         let height = ui.available_size().y.round();
-        let width = ui.max_rect().width().min(self.layout.max_width).round();
-        let height_updated = self.height != height;
-        let width_updated = self.width != width;
-        self.height = height;
-        self.width = width;
+        let width = ui
+            .max_rect()
+            .width()
+            .min(self.edit.renderer.layout.max_width)
+            .round();
+        let dimensions = Vec2::new(width, height);
+        let (height_updated, width_updated) = match self.prev_dimensions {
+            Some(prev) => (prev.y != dimensions.y, prev.x != dimensions.x),
+            None => (true, true),
+        };
+        self.prev_dimensions = Some(dimensions);
 
         let dark_mode = ui.style().visuals.dark_mode;
-        if dark_mode != self.dark_mode {
-            self.syntax.clear();
-            self.dark_mode = dark_mode;
+        if dark_mode != self.edit.renderer.dark_mode {
+            self.edit.renderer.syntax.clear();
+            self.edit.renderer.dark_mode = dark_mode;
         }
 
-        self.calc_source_lines();
-
         let start = web_time::Instant::now();
+        let embeds_updated = {
+            let current = self.edit.renderer.embeds.last_modified();
+            let changed = current != self.embeds_last_seen;
+            self.embeds_last_seen = current;
+            changed
+        };
 
-        let arena = Arena::new();
-        let options = Self::comrak_options();
+        // Heights depend on `viewport_height` (image clamping) and on
+        // resolved embed dimensions; clear so this frame paints the
+        // updated values. (Width invalidation lives in `reparse`.)
+        if height_updated || embeds_updated {
+            self.edit.renderer.layout_cache.clear();
+        }
 
-        let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
-        let mut root = comrak::parse_document(&arena, &text_with_newline, &options);
+        // --- input phase ------------------------------------------------------
+        // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
+        // MdEdit's internal event queue, then let MdEdit::handle_input drain
+        // everything (workspace + keyboard + completions).
+        let workspace_events = self.drain_workspace_events(ui.ctx());
+        self.edit.event.internal_events.extend(workspace_events);
+
+        let prior_selection = self.edit.renderer.buffer.current.selection;
+        let buf_resp = self.edit.handle_input(ui.ctx(), self.id());
+        resp.open_camera = buf_resp.open_camera;
+
+        if !self.initialized || buf_resp.text_updated {
+            resp.text_updated = true;
+            // recompute find matches when text changes
+            if let Some(term) = self.find.term.clone() {
+                self.find.matches = self.find.find_all(&self.edit.renderer.buffer, &term);
+                if self.find.matches.is_empty() {
+                    self.find.current_match = None;
+                } else if let Some(idx) = self.find.current_match {
+                    if idx >= self.find.matches.len() {
+                        self.find.current_match = Some(self.find.matches.len() - 1);
+                    }
+                }
+            }
+            ui.ctx().request_repaint();
+        }
+        resp.selection_updated = prior_selection
+            != self
+                .edit
+                .in_progress_selection
+                .unwrap_or(self.edit.renderer.buffer.current.selection);
 
         let ast_elapsed = start.elapsed();
+        let print_elapsed = std::time::Duration::ZERO;
         let start = web_time::Instant::now();
+
+        // --- draw phase (back to front) ---------------------------------------
+        // Re-parse for render. handle_input parsed its own; that arena has
+        // been dropped. The parse is assumed cheap (~1 ms).
+        let arena = Arena::new();
+        let options = MdRender::comrak_options();
+        let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
+        let root = comrak::parse_document(&arena, &text_with_newline, &options);
 
         if PRINT {
             println!(
@@ -448,139 +759,62 @@ impl Editor {
             print_ast(root);
         }
 
-        let print_elapsed = start.elapsed();
-        let start = web_time::Instant::now();
-
-        // process events
-        let prior_selection = self.buffer.current.selection;
-        let images_updated = {
-            let mut images_updated = self.images.updated.lock().unwrap();
-            let result = *images_updated;
-            *images_updated = false;
-            result
-        };
-
-        self.emoji_completions
-            .update_active_state(&self.buffer, &self.bounds.inline_paragraphs);
-        self.link_completions.update_active_state(
-            &self.buffer,
-            &self.bounds.inline_paragraphs,
-            &self.files,
-            self.file_id,
+        ui.painter().rect_filled(
+            ui.max_rect(),
+            0.,
+            self.edit.renderer.ctx.get_lb_theme().neutral_bg(),
         );
-        let buffer_resp = self.process_events(ui.ctx(), root);
-        resp.open_camera = buffer_resp.open_camera;
-
-        if !self.initialized || buffer_resp.text_updated {
-            resp.text_updated = true;
-
-            // need to re-parse ast to compute bounds which are referenced by mobile virtual keyboard between frames
-            let text_with_newline = self.buffer.current.text.to_string() + "\n"; // todo: probably not okay but this parser quirky af sometimes
-            root = comrak::parse_document(&arena, &text_with_newline, &options);
-
-            self.bounds.inline_paragraphs.clear();
-            self.layout_cache.invalidate_text_change();
-
-            self.calc_source_lines();
-            self.compute_bounds(root);
-            self.bounds.inline_paragraphs.sort();
-
-            self.calc_words();
-
-            // recompute find matches when text changes
-            if let Some(term) = &self.find.term {
-                let term = term.clone();
-                self.find.matches = self.find_all(&term);
-                if self.find.matches.is_empty() {
-                    self.find.current_match = None;
-                } else if let Some(idx) = self.find.current_match {
-                    if idx >= self.find.matches.len() {
-                        self.find.current_match = Some(self.find.matches.len() - 1);
-                    }
-                }
-            }
-
-            ui.ctx().request_repaint();
-        }
-        resp.selection_updated = prior_selection
-            != self
-                .in_progress_selection
-                .unwrap_or(self.buffer.current.selection);
-
-        self.images = widget::inline::image::cache::calc(
-            root,
-            &self.images,
-            &self.client,
-            &self.core,
-            self.file_id,
-            &self.files,
-            ui,
-        );
-
-        ui.painter()
-            .rect_filled(ui.max_rect(), 0., self.ctx.get_lb_theme().neutral_bg());
-        self.apply_theme(ui);
+        self.edit.renderer.apply_theme(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
-        let scroll_area_id = ui
+        let scroll_id = self.id();
+        let prev_offset =
+            crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id).offset(ui.ctx());
+
+        let editor_shown = ui
             .vertical(|ui| {
-                let scroll_area_id = if self.touch_mode {
+                if self.edit.renderer.touch_mode {
                     self.show_find_centered(ui);
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
-                    let toolbar_height = if !self.readonly
+                    let toolbar_height = if !self.edit.renderer.readonly
+                        && !self.edit.renderer.plaintext
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
                         MOBILE_TOOL_BAR_SIZE
                     } else {
                         0.
                     };
-                    let scroll_area_id = ui
+                    let editor_shown = ui
                         .allocate_ui(
                             egui::vec2(
                                 ui.available_width(),
                                 ui.available_height() - toolbar_height,
                             ),
                             |ui| {
-                                ui.ctx().style_mut(|style| {
-                                    style.spacing.scroll = egui::style::ScrollStyle::solid();
-                                    style.spacing.scroll.bar_width = 10.;
-                                });
-
                                 if !self.toolbar.menu_open {
-                                    // these are computed during render
-                                    self.galleys.galleys.clear();
-                                    self.bounds.wrap_lines.clear();
-                                    self.touch_consuming_rects.clear();
-
-                                    // show editor
-                                    let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-                                    let scroll_area_offset = ui.data_mut(|d| {
-                                        d.get_persisted(scroll_area_id)
-                                            .map(|s: scroll_area::State| s.offset)
-                                            .unwrap_or_default()
-                                            .y
-                                    });
-
-                                    let scroll_area_output = self.show_scrollable_editor(ui, root);
-                                    self.next_resp.scroll_updated =
-                                        scroll_area_output.state.offset.y != scroll_area_offset;
-                                    self.scroll_area_velocity = scroll_area_output.state.velocity();
-
-                                    Some(scroll_area_id)
+                                    // galleys / wrap_lines are cleared and
+                                    // repopulated inside MdEdit::show — don't
+                                    // clear here or input handling (which
+                                    // reads last-frame galleys) sees nothing.
+                                    self.edit.renderer.touch_consuming_rects.clear();
+                                    self.show_scrollable_editor(ui, root);
+                                    true
                                 } else {
                                     // show toolbar settings
                                     self.show_toolbar_menu(ui);
-
-                                    None
+                                    false
                                 }
                             },
                         )
                         .inner;
 
                     // ...then show toolbar at the bottom
-                    if !self.readonly && (self.virtual_keyboard_shown || self.toolbar.menu_open) {
+                    if !self.edit.renderer.readonly
+                        && !self.edit.renderer.plaintext
+                        && (self.virtual_keyboard_shown || self.toolbar.menu_open)
+                    {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
                         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
@@ -588,88 +822,102 @@ impl Editor {
                         });
                     }
 
-                    scroll_area_id
+                    editor_shown
                 } else {
-                    let scroll_area_id = ui.id().with(egui::Id::new(self.file_id));
-                    let scroll_area_offset = ui.data_mut(|d| {
-                        d.get_persisted(scroll_area_id)
-                            .map(|s: scroll_area::State| s.offset)
-                            .unwrap_or_default()
-                            .y
-                    });
-
-                    if !self.readonly {
+                    if !self.edit.renderer.readonly && !self.edit.renderer.plaintext {
                         self.show_toolbar(root, ui);
                     }
                     self.show_find_centered(ui);
 
-                    // these are computed during render
-                    self.galleys.galleys.clear();
-                    self.bounds.wrap_lines.clear();
-                    self.touch_consuming_rects.clear();
+                    // galleys / wrap_lines are cleared and repopulated inside
+                    // MdEdit::show — don't clear here or input handling (which
+                    // reads last-frame galleys) sees nothing.
+                    self.edit.renderer.touch_consuming_rects.clear();
 
-                    // ...then show editor content
-                    let scroll_area_output = self.show_scrollable_editor(ui, root);
-                    self.next_resp.scroll_updated =
-                        scroll_area_output.state.offset.y != scroll_area_offset;
-                    self.scroll_area_velocity = scroll_area_output.state.velocity();
-
-                    Some(scroll_area_id)
-                };
-
-                // persistence: read
-                if !self.initialized {
-                    let persisted = self
-                        .persistence
-                        .get_markdown()
-                        .file
-                        .get(&self.file_id)
-                        .cloned()
-                        .unwrap_or_default();
-                    if let Some(scroll_area_id) = scroll_area_id {
-                        ui.data_mut(|d| {
-                            let state: Option<scroll_area::State> = d.get_persisted(scroll_area_id);
-                            if let Some(mut state) = state {
-                                state.offset.y = persisted.scroll_offset;
-                                d.insert_temp(scroll_area_id, state);
-                            }
-                        });
-                    }
-                    // set the selection using low-level API; using internal
-                    // events causes touch devices to scroll to cursor on 2nd
-                    // frame
-                    let (start, end) = persisted.selection;
-                    let selection = (
-                        start.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
-                        end.clamp(0.into(), self.buffer.current.segs.last_cursor_position()),
-                    );
-                    self.buffer.queue(vec![
-                        lb_rs::model::text::operation_types::Operation::Select(selection),
-                    ]);
-                    self.buffer.update();
+                    self.show_scrollable_editor(ui, root);
+                    true
                 }
-
-                scroll_area_id
             })
             .inner;
 
-        let text_areas = std::mem::take(&mut self.text_areas);
-        if !text_areas.is_empty() {
-            ui.painter()
-                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    ui.max_rect(),
-                    crate::GlyphonRendererCallback::new(text_areas),
-                ));
-        }
-        self.show_emoji_completions(ui);
-        self.show_link_completions(ui);
+        if editor_shown {
+            let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
+            let new_offset = scroll.offset(ui.ctx());
+            self.next_resp.scroll_updated = new_offset != prev_offset;
+            self.edit.scroll_area_velocity = scroll.velocity(ui.ctx());
 
-        self.syntax.garbage_collect();
+            // persistence: read on first frame
+            if !self.initialized {
+                let persisted = self
+                    .persistence
+                    .get_markdown()
+                    .file
+                    .get(&self.edit.file_id)
+                    .cloned()
+                    .unwrap_or_default();
+                if let Some((anchor_idx, intra)) = persisted.anchor {
+                    let arena = Arena::new();
+                    let root = self.edit.renderer.reparse(&arena);
+                    let mut content = scroll_content::DocScrollContent::new(
+                        &mut self.edit.renderer,
+                        root,
+                        0.0,
+                        0.0,
+                    )
+                    .with_default_leading();
+                    let offset = crate::widgets::affine_scroll::anchor_to_offset(
+                        &mut content,
+                        anchor_idx,
+                        intra,
+                    );
+                    crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id)
+                        .set_offset(ui.ctx(), offset);
+                    let _ = content;
+                }
+                // set the selection using low-level API; using internal
+                // events causes touch devices to scroll to cursor on 2nd
+                // frame
+                let (start, end) = persisted.selection;
+                let selection = (
+                    start.clamp(
+                        0.into(),
+                        self.edit
+                            .renderer
+                            .buffer
+                            .current
+                            .segs
+                            .last_cursor_position(),
+                    ),
+                    end.clamp(
+                        0.into(),
+                        self.edit
+                            .renderer
+                            .buffer
+                            .current
+                            .segs
+                            .last_cursor_position(),
+                    ),
+                );
+                self.edit
+                    .renderer
+                    .buffer
+                    .queue(vec![lb_rs::model::text::operation_types::Operation::Select(selection)]);
+                self.edit.renderer.buffer.update();
+            }
+        }
+
+        // Completion popups render last, outside the scroll area's clip, so
+        // they composite over the toolbar / find widget when the cursor is
+        // near the top of the document. `edit.show` already submitted the
+        // editor's text callback; popups land on a later glyphon layer.
+        self.edit.show_completions(ui);
+
+        self.edit.renderer.syntax.garbage_collect();
 
         let render_elapsed = start.elapsed();
 
-        if self.debug {
-            self.show_debug_fps(ui);
+        if self.edit.renderer.debug {
+            self.edit.renderer.show_debug_fps(ui);
         }
 
         if PRINT {
@@ -678,7 +926,7 @@ impl Editor {
                 "--------------------------------------------------------------------------------"
                     .bright_black()
             );
-            println!("document: {:?}", self.buffer.current.text);
+            println!("document: {:?}", self.edit.renderer.buffer.current.text);
             println!(
                 "{}",
                 "--------------------------------------------------------------------------------"
@@ -696,37 +944,45 @@ impl Editor {
         }
 
         // post-frame bookkeeping
-        let all_selected = self.buffer.current.selection == (0.into(), self.last_cursor_position());
-        if images_updated || height_updated || width_updated {
-            self.layout_cache.clear();
+        let all_selected = self.edit.renderer.buffer.current.selection
+            == (0.into(), self.edit.renderer.last_cursor_position());
+        if embeds_updated || height_updated || width_updated {
+            if embeds_updated {
+                self.unprocessed_scroll = Some(Instant::now());
+            }
+            // Schedule a follow-up frame for the persistence write
+            // path keyed off `unprocessed_scroll`.
             ui.ctx().request_repaint();
         } else if resp.selection_updated {
             let new_selection = self
+                .edit
                 .in_progress_selection
-                .unwrap_or(self.buffer.current.selection);
-            self.layout_cache
+                .unwrap_or(self.edit.renderer.buffer.current.selection);
+            self.edit
+                .renderer
+                .layout_cache
                 .invalidate_reveal_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
         if self.initialized && resp.selection_updated && !all_selected {
-            self.scroll_to_cursor = true;
+            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
-        if self.initialized && self.touch_mode && height_updated {
-            self.scroll_to_cursor = true;
+        if self.initialized && self.edit.renderer.touch_mode && height_updated {
+            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
         if self.next_resp.scroll_updated {
             self.unprocessed_scroll = Some(Instant::now());
             ui.ctx().request_repaint();
         }
-        if !self.event.internal_events.is_empty() {
+        self.edit
+            .event
+            .internal_events
+            .append(&mut self.edit.renderer.render_events);
+        if !self.edit.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
-        if self.images.any_loading() {
-            ui.ctx().request_repaint_after(Duration::from_millis(8));
-        }
-
         // persistence: write
         let mut persistence_updated = false;
         if resp.selection_updated {
@@ -734,31 +990,50 @@ impl Editor {
             persistence
                 .markdown
                 .file
-                .entry(self.file_id)
-                .and_modify(|f| f.selection = self.buffer.current.selection)
+                .entry(self.edit.file_id)
+                .and_modify(|f| f.selection = self.edit.renderer.buffer.current.selection)
                 .or_insert(MdFilePersistence {
-                    scroll_offset: Default::default(),
-                    selection: self.buffer.current.selection,
+                    anchor: None,
+                    selection: self.edit.renderer.buffer.current.selection,
+                    image_dims: Default::default(),
                 });
             persistence_updated = true;
         }
 
         let mut scroll_end_processed = false;
         if let Some(unprocessed_scroll) = self.unprocessed_scroll {
-            if unprocessed_scroll.elapsed() > Duration::from_millis(100) {
-                if let Some(scroll_area_id) = scroll_area_id {
-                    let state: Option<scroll_area::State> = ui.data(|d| d.get_temp(scroll_area_id));
-                    let scroll_offset = if let Some(state) = state { state.offset.y } else { 0. };
+            if unprocessed_scroll.elapsed() > Duration::from_millis(100) && editor_shown {
+                {
+                    let arena = Arena::new();
+                    let root = self.edit.renderer.reparse(&arena);
+                    let scroll_id = self.id();
+                    let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
+                    let offset = scroll.offset(ui.ctx());
+                    let mut content = scroll_content::DocScrollContent::new(
+                        &mut self.edit.renderer,
+                        root,
+                        0.0,
+                        0.0,
+                    )
+                    .with_default_leading();
+                    let anchor =
+                        Some(crate::widgets::affine_scroll::offset_to_anchor(&mut content, offset));
+                    let _ = content;
 
+                    let image_dims = self.edit.renderer.embeds.image_dims();
                     let mut persistence = self.persistence.data.write().unwrap();
                     persistence
                         .markdown
                         .file
-                        .entry(self.file_id)
-                        .and_modify(|f| f.scroll_offset = scroll_offset)
+                        .entry(self.edit.file_id)
+                        .and_modify(|f| {
+                            f.anchor = anchor;
+                            f.image_dims = image_dims.clone();
+                        })
                         .or_insert(MdFilePersistence {
-                            scroll_offset,
+                            anchor,
                             selection: Default::default(),
+                            image_dims,
                         });
                     persistence_updated = true;
 
@@ -788,119 +1063,45 @@ impl Editor {
     }
 
     pub fn will_consume_touch(&self, pos: Pos2) -> bool {
-        self.touch_consuming_rects
+        self.edit
+            .renderer
+            .touch_consuming_rects
             .iter()
             .any(|rect| rect.contains(pos))
-            || self.scroll_area_velocity.abs().max_elem() > 0.
+            || self.edit.scroll_area_velocity.abs().max_elem() > 0.
             || self.toolbar.menu_open
     }
 
-    fn show_scrollable_editor<'a>(
-        &mut self, ui: &mut Ui, root: &'a AstNode<'a>,
-    ) -> ScrollAreaOutput<()> {
-        let margin: Margin = if cfg!(target_os = "android") {
-            Margin::symmetric(0, 60)
-        } else {
-            Margin::symmetric(0, 15)
-        };
-        ScrollArea::vertical()
-            .scroll_source(if self.touch_mode {
-                ScrollSource::ALL
-            } else {
-                ScrollSource::SCROLL_BAR | ScrollSource::MOUSE_WHEEL
-            })
-            .id_salt(self.file_id)
-            .scroll_bar_visibility(if self.touch_mode {
-                ScrollBarVisibility::AlwaysVisible
-            } else {
-                ScrollBarVisibility::VisibleWhenNeeded
-            })
+    fn show_scrollable_editor<'a>(&mut self, ui: &mut Ui, _root: &'a AstNode<'a>) {
+        let prev_seq = self.edit.renderer.buffer.current.seq;
+        let scroll_id = self.id();
+
+        Frame::canvas(ui.style())
+            .inner_margin(Margin::ZERO)
+            .stroke(Stroke::NONE)
             .show(ui, |ui| {
-                ui.vertical_centered_justified(|ui| {
-                    Frame::canvas(ui.style())
-                        .inner_margin(margin)
-                        .stroke(Stroke::NONE)
-                        .show(ui, |ui| {
-                            let scroll_view_height = ui.max_rect().height();
-                            ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
+                // Claim full available width with 0 vertical space so the
+                // Frame stretches horizontally regardless of how narrow the
+                // visible content turns out to be.
+                let avail_w = ui.available_width();
+                ui.allocate_space(Vec2::new(avail_w, 0.0));
 
-                            let padding = (ui.available_width() - self.width) / 2.;
+                let canvas_rect = ui.max_rect();
+                let canvas_width = canvas_rect.width();
+                let layout_margin = self.edit.renderer.layout.margin;
 
-                            self.top_left =
-                                ui.max_rect().min + (padding + self.layout.margin) * Vec2::X;
-                            let height = {
-                                let document_height = self.height(root, &[root]);
-                                let unfilled_space = if document_height < scroll_view_height {
-                                    scroll_view_height - document_height
-                                } else {
-                                    0.
-                                };
-                                let end_of_text_padding = scroll_view_height / 2.;
+                // Content column width caps at `max_width`; the affine
+                // widget spans the full canvas so its scrollbar lands
+                // at the canvas right edge.
+                let max_width = self.edit.renderer.layout.max_width;
+                let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
+                self.edit.renderer.width = col_width;
 
-                                document_height + unfilled_space.max(end_of_text_padding)
-                            };
-                            let rect = Rect::from_min_size(
-                                self.top_left,
-                                Vec2::new(self.width - 2. * self.layout.margin, height),
-                            );
-
-                            ui.ctx().check_for_id_clash(self.id(), rect, ""); // registers this widget so it's not forgotten by next frame
-                            let focused = self.focused(ui.ctx());
-                            let response = ui.interact(
-                                rect,
-                                self.id(),
-                                if self.touch_mode {
-                                    Sense::click()
-                                } else {
-                                    Sense::click_and_drag()
-                                },
-                            );
-                            if focused && !self.focused(ui.ctx()) {
-                                // interact surrenders focus if we don't have sense focusable, but also if user clicks elsewhere, even on a child
-                                self.focus(ui.ctx());
-                            }
-                            let response_properly_clicked =
-                                response.clicked_by(egui::PointerButton::Primary);
-                            if response.hovered() || response_properly_clicked {
-                                ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
-                                // overridable by widgets
-                            }
-
-                            ui.advance_cursor_after_rect(rect);
-
-                            ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                                self.show_block(ui, root, self.top_left, &[root]);
-                            });
-                        });
-                });
-                self.galleys.galleys.sort_by_key(|g| g.range);
-
-                // show selection
-                if ui.ctx().os() != OperatingSystem::IOS {
-                    let selection = self
-                        .in_progress_selection
-                        .unwrap_or(self.buffer.current.selection);
-                    let theme = self.ctx.get_lb_theme();
-                    let color = theme.bg().get_color(theme.prefs().primary);
-                    self.show_range(ui, selection, color.lerp_to_gamma(theme.neutral_bg(), 0.7));
-                    self.show_offset(ui, selection.1, color);
-
-                    if self.focused(ui.ctx()) {
-                        if let Some([top, bot]) = self.cursor_line(selection.1) {
-                            let cursor_rect = egui::Rect::from_min_max(top, bot);
-                            ui.output_mut(|o| {
-                                o.ime = Some(egui::output::IMEOutput {
-                                    rect: ui.max_rect(),
-                                    cursor_rect,
-                                });
-                            });
-                        }
-                    }
-                }
-
-                // show find match highlights
+                // Paint find-match highlights first so the editor's text
+                // callback (submitted via post_render) lands on a layer
+                // above them.
                 if !self.find.matches.is_empty() {
-                    let theme = self.ctx.get_lb_theme();
+                    let theme = self.edit.renderer.ctx.get_lb_theme();
                     let highlight_color = theme.neutral_bg_tertiary();
                     let current_color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
                     for (i, &match_range) in self.find.matches.iter().enumerate() {
@@ -909,88 +1110,154 @@ impl Editor {
                         } else {
                             highlight_color
                         };
-                        self.show_range(ui, match_range, color);
+                        self.edit.show_range(ui, match_range, color);
                     }
                 }
 
-                if ui.ctx().os() == OperatingSystem::Android {
-                    self.show_selection_handles(ui);
+                let arena = Arena::new();
+                let root = self.edit.renderer.reparse(&arena);
+
+                // affine render: widget body spans the full canvas
+                // (scrollbar at canvas right); content centers within
+                // that body via `content_x`.
+                let touch_scroll = self.edit.renderer.touch_mode;
+                let content_x = canvas_rect.min.x
+                    + ((canvas_rect.width() - self.edit.renderer.width) / 2.0).max(0.0);
+                let pre = ui
+                    .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
+                        let scroll =
+                            crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id)
+                                .touch_scroll(touch_scroll);
+                        let begun = scroll.begin(ui);
+
+                        let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
+
+                        self.edit.renderer.galleys.galleys.clear();
+                        self.edit.renderer.bounds.wrap_lines.clear();
+                        self.edit.renderer.text_areas.clear();
+
+                        let trailing_precise = canvas_rect.height() / 2.0;
+                        let mut content = scroll_content::DocScrollContent::new(
+                            &mut self.edit.renderer,
+                            root,
+                            content_x,
+                            trailing_precise,
+                        )
+                        .with_default_leading();
+                        begun.finish(ui, &mut content);
+
+                        pre
+                    })
+                    .inner;
+                self.edit.renderer.galleys.galleys.sort_by_key(|g| g.range);
+
+                self.edit.post_render(ui, canvas_rect, scroll_id, pre);
+                ui.advance_cursor_after_rect(canvas_rect);
+            });
+
+        // if text changed during MdEdit::show, recompute find matches
+        // before painting match highlights (which index by offset).
+        if self.edit.renderer.buffer.current.seq != prev_seq {
+            if let Some(term) = self.find.term.clone() {
+                self.find.matches = self.find.find_all(&self.edit.renderer.buffer, &term);
+                if self.find.matches.is_empty() {
+                    self.find.current_match = None;
+                } else if let Some(idx) = self.find.current_match {
+                    if idx >= self.find.matches.len() {
+                        self.find.current_match = Some(self.find.matches.len() - 1);
+                    }
                 }
-                if mem::take(&mut self.scroll_to_cursor) {
-                    self.scroll_to_cursor(ui);
-                }
-                if mem::take(&mut self.scroll_to_find_match) {
-                    self.scroll_to_find_match(ui);
-                }
-            })
+            }
+        }
+
+        if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
+            self.edit.pending_scroll = None;
+            self.scroll_to_find_match(ui, scroll_id, ui.available_height());
+        }
     }
 
     fn show_find_centered(&mut self, ui: &mut Ui) {
         let available = ui.available_width();
-        let content_width =
-            if self.touch_mode { self.width } else { self.toolbar_width().min(self.width) };
+        let content_width = if self.edit.renderer.touch_mode {
+            self.edit.renderer.width
+        } else {
+            self.toolbar_width().min(self.edit.renderer.width)
+        };
         let content_left = ui.max_rect().left() + (available - content_width) / 2.;
         let top = ui.cursor().min.y;
         let find_rect =
             Rect::from_min_size(egui::pos2(content_left, top), egui::vec2(content_width, 0.));
+        let prev_match = self.find.current_match_range();
         let scope_resp = ui.scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
             self.find
-                .show(&self.buffer, self.virtual_keyboard_shown, ui)
+                .show(&self.edit.renderer.buffer, self.virtual_keyboard_shown, ui)
         });
-        let find_resp = scope_resp.inner;
+        let find_output = scope_resp.inner;
         let rendered_rect = scope_resp.response.rect;
         ui.advance_cursor_after_rect(rendered_rect);
         self.next_resp.find_widget_height = rendered_rect.height();
-        self.process_find_response(find_resp);
-    }
 
-    fn process_find_response(&mut self, resp: widget::find::Response) {
-        if resp.replace_one {
-            if let Some(idx) = self.find.current_match {
-                if let Some(&match_range) = self.find.matches.get(idx) {
-                    let replacement = self.find.replace_term.clone();
-                    self.event.internal_events.push(Event::Replace {
-                        region: match_range.into(),
-                        text: replacement,
-                        advance_cursor: false,
-                    });
-                }
+        self.edit.event.internal_events.extend(find_output.events);
+        if find_output.scroll_to_match {
+            self.edit.pending_scroll = Some(ScrollTarget::FindMatch);
+        }
+
+        // match-driven reveal-cache invalidation, mirroring the cursor-selection path
+        let new_match = self.find.current_match_range();
+        if prev_match != new_match {
+            if let Some(old) = prev_match {
+                self.edit
+                    .renderer
+                    .layout_cache
+                    .invalidate_reveal_change(old, old);
+            }
+            if let Some(new) = new_match {
+                self.edit
+                    .renderer
+                    .layout_cache
+                    .invalidate_reveal_change(new, new);
             }
         }
-        if resp.replace_all {
-            let replacement = self.find.replace_term.clone();
-            for &match_range in self.find.matches.iter().rev() {
-                self.event.internal_events.push(Event::Replace {
-                    region: match_range.into(),
-                    text: replacement.clone(),
-                    advance_cursor: false,
-                });
-            }
+        if find_output.closed {
+            self.edit.renderer.layout_cache.clear();
         }
-        if resp.term_changed {
-            let term = self.find.term.clone().unwrap_or_default();
-            self.event.internal_events.push(Event::FindSearch { term });
-        }
-        if let Some(forward) = resp.navigate {
-            self.event
-                .internal_events
-                .push(Event::FindNavigate { backwards: !forward });
-        }
-        if resp.closed {
-            self.find.matches.clear();
-            self.find.current_match = None;
-            self.layout_cache.clear();
+
+        // bridge find state → renderer inputs for this frame's editor render.
+        // Must happen after Find::show so galley_required_ranges and
+        // reveal_ranges reflect the new current_match; otherwise the match
+        // galley isn't built and scroll_to_find_match has nothing to scroll to.
+        self.edit.renderer.find_current_match = new_match;
+        if let Some(range) = new_match {
+            self.edit.renderer.reveal_ranges.push(range);
         }
     }
 
-    fn scroll_to_find_match(&self, ui: &mut Ui) {
-        if let Some(idx) = self.find.current_match {
-            if let Some(match_range) = self.find.matches.get(idx) {
-                let rects = self.range_rects(*match_range);
-                if let Some(rect) = rects.first() {
-                    ui.scroll_to_rect(rect.expand(rect.height()), Some(egui::Align::Center));
-                }
-            }
+    fn scroll_to_find_match(&mut self, ui: &mut Ui, scroll_id: Id, viewport_height: f32) {
+        let Some(idx) = self.find.current_match else { return };
+        let Some(&(target, _)) = self.find.matches.get(idx) else { return };
+
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let mut content = scroll_content::DocScrollContent::new(
+            &mut self.edit.renderer,
+            root,
+            0.0,
+            viewport_height / 2.0,
+        )
+        .with_default_leading();
+
+        let offset = crate::widgets::affine_scroll::align_offset(
+            &mut content,
+            viewport_height,
+            crate::widgets::affine_scroll::Align::Center,
+            |c| {
+                c.text_range()
+                    .is_some_and(|(start, end)| target >= start && target <= end)
+            },
+        );
+
+        if let Some(o) = offset {
+            crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id).set_offset(ui.ctx(), o);
         }
     }
 }
@@ -1243,7 +1510,7 @@ mod test {
     use crate::theme::palette_v2::{Mode, Theme};
     use egui::RawInput;
     use input::{Event, Location, Region};
-    use lb_rs::model::text::offset_types::DocCharOffset;
+    use lb_rs::model::text::offset_types::Grapheme;
 
     struct TestEditor {
         editor: Editor,
@@ -1261,8 +1528,8 @@ mod test {
         fn replace(&mut self, start: usize, end: usize, text: &str) {
             self.pending.push(Event::Replace {
                 region: Region::BetweenLocations {
-                    start: Location::DocCharOffset(DocCharOffset(start)),
-                    end: Location::DocCharOffset(DocCharOffset(end)),
+                    start: Location::Grapheme(Grapheme(start)),
+                    end: Location::Grapheme(Grapheme(end)),
                 },
                 text: text.to_string(),
                 advance_cursor: true,
@@ -1272,7 +1539,7 @@ mod test {
         /// Workspace.enterFrame() — runs a full headless egui frame through
         /// Editor::show(), processing all pending events.
         fn enter_frame(&mut self) {
-            let ctx = self.editor.ctx.clone();
+            let ctx = self.editor.edit.renderer.ctx.clone();
             let pending = std::mem::take(&mut self.pending);
             let _ = ctx.run(RawInput::default(), |ctx| {
                 ctx.set_lb_theme(Theme::default(Mode::Dark));
@@ -1287,11 +1554,11 @@ mod test {
         }
 
         fn get_text(&self) -> &str {
-            &self.editor.buffer.current.text
+            &self.editor.edit.renderer.buffer.current.text
         }
 
         fn get_selection(&self) -> (usize, usize) {
-            let sel = self.editor.buffer.current.selection;
+            let sel = self.editor.edit.renderer.buffer.current.selection;
             (sel.0.0, sel.1.0)
         }
     }

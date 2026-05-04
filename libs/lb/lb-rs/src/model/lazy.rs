@@ -1,4 +1,5 @@
 use crate::model::access_info::UserAccessMode;
+use crate::model::api::METADATA_FEE;
 use crate::model::crypto::AESKey;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
@@ -126,6 +127,27 @@ impl<T: TreeLike> LazyTree<T> {
         }
 
         Ok(deleted)
+    }
+
+    /// Calculates the total usage in bytes for all non-deleted files owned by the owner.
+    /// This includes the document size plus METADATA_FEE for each file.
+    /// Files shared with this owner (but owned by others) are excluded.
+    pub fn calculate_usage(&mut self, owner: Owner) -> LbResult<u64> {
+        let mut total: u64 = 0;
+        for id in self.ids() {
+            // Check owner first
+            let file_owner = self.find(&id)?.owner();
+            if file_owner != owner {
+                continue;
+            }
+            // Skip deleted files
+            if self.calculate_deleted(&id)? {
+                continue;
+            }
+            let file_size = self.find(&id)?.doc_size().unwrap_or(0) as u64;
+            total += file_size + METADATA_FEE;
+        }
+        Ok(total)
     }
 
     pub fn decrypt_key(&mut self, id: &Uuid, keychain: &Keychain) -> LbResult<AESKey> {

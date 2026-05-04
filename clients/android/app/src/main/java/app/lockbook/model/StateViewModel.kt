@@ -95,6 +95,5 @@ sealed class UpdateMainScreenUI {
     object ToggleBottomViewNavigation : UpdateMainScreenUI()
     object CloseSlidingPane : UpdateMainScreenUI()
     object CloseWorkspacePane : UpdateMainScreenUI()
-    object HideBottomViewNavigation : UpdateMainScreenUI()
     object OpenWorkspacePane : UpdateMainScreenUI()
 }

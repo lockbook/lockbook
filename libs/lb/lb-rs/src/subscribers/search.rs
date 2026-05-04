@@ -2,8 +2,8 @@ use crate::model::errors::{LbResult, Unexpected};
 use crate::model::file::File;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
-use crate::{Lb, tokio_spawn};
-use serde::Serialize;
+use crate::{LocalLb, tokio_spawn};
+use serde::{Deserialize, Serialize};
 use std::ops::Range;
 use std::sync::Arc;
 use std::sync::atomic::AtomicBool;
@@ -26,20 +26,20 @@ pub struct SearchIndex {
     pub tantivy_reader: IndexReader,
 }
 
-#[derive(Copy, Clone, Debug)]
+#[derive(Copy, Clone, Debug, Serialize, Deserialize)]
 pub enum SearchConfig {
     Paths,
     Documents,
     PathsAndDocuments,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum SearchResult {
     DocumentMatch { id: Uuid, path: String, content_matches: Vec<ContentMatch> },
     PathMatch { id: Uuid, path: String, matched_indices: Vec<usize>, score: i64 },
 }
 
-impl Lb {
+impl LocalLb {
     /// Lockbook's search implementation.
     ///
     /// Takes an input and a configuration. The configuration describes whether we are searching
@@ -147,6 +147,13 @@ impl Lb {
         }
 
         matches
+    }
+
+    pub fn reload_search_index(&self) -> LbResult<()> {
+        self.search
+            .tantivy_reader
+            .reload()
+            .map_err(|e| crate::LbErrKind::Unexpected(format!("tantivy reload: {e}")).into())
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]
@@ -297,7 +304,7 @@ impl Default for SearchIndex {
     }
 }
 
-#[derive(Debug, Serialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ContentMatch {
     pub paragraph: String,
     pub matched_indices: Vec<usize>,
@@ -345,7 +352,7 @@ pub struct SearchMetadata {
 }
 
 impl SearchMetadata {
-    async fn populate(lb: &Lb) -> LbResult<Self> {
+    async fn populate(lb: &LocalLb) -> LbResult<Self> {
         let files = lb.list_metadatas().await?;
         let paths = lb.list_paths_with_ids(None).await?;
         let suggested_docs = lb.suggested_docs(RankingWeights::default()).await?;

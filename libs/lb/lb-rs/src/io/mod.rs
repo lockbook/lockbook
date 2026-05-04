@@ -8,7 +8,7 @@
 pub mod docs;
 pub mod network;
 
-use crate::Lb;
+use crate::LocalLb;
 use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
@@ -40,6 +40,12 @@ pub struct CoreV4 {
 
     pub doc_events: List<DocEvent>,
     pub id: Single<LbID>,
+    pub pinned_files: List<Uuid>,
+
+    /// Sentinel for `send_debug_info` throttling: the millisecond timestamp of the
+    /// most recent panic file we've already uploaded. `None` means we have never
+    /// sent debug info; `Some(0)` means we've sent before but no panic file existed.
+    pub last_extracted_panic: Single<i64>,
 }
 
 pub struct LbRO<'a> {
@@ -67,7 +73,7 @@ impl LbTx<'_> {
     }
 }
 
-impl Lb {
+impl LocalLb {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = Instant::now();
 

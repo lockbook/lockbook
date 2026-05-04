@@ -48,7 +48,7 @@ impl SecretFileName {
         let nonce = GenericArray::from_slice(&self.encrypted_value.nonce);
         let decrypted = convert_key(key)
             .decrypt(nonce, aead::Payload { msg: &self.encrypted_value.value, aad: &[] })
-            .map_err(|err| LbErrKind::Crypto(CryptoError::Decryption(err)))?;
+            .map_err(|err| LbErrKind::Crypto(CryptoError::Decryption(err.to_string())))?;
         let deserialized = bincode::deserialize(&decrypted).map_unexpected()?;
         Ok(deserialized)
     }
@@ -58,7 +58,7 @@ impl SecretFileName {
         let mut mac = HmacSha256::new_from_slice(parent_key).map_unexpected()?;
         mac.update(decrypted.as_ref());
         mac.verify(&self.hmac)
-            .map_err(|err| LbErrKind::Crypto(CryptoError::HmacVerification(err)))?;
+            .map_err(|err| LbErrKind::Crypto(CryptoError::HmacVerification(err.to_string())))?;
         Ok(())
     }
 }

@@ -1,9 +1,9 @@
-use egui::{Id, Key, Pos2, Rect, Sense, Ui, Vec2};
+use egui::{Context, Id, Key, Modifiers, Pos2, Rect, Sense, Ui, Vec2};
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::{DocCharOffset, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::TextBufferArea;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::widgets::GlyphonLabel;
@@ -14,15 +14,15 @@ const POPUP_PADDING: f32 = 24.0; // 8 left + 8 gap + 8 right
 
 #[derive(Default)]
 pub struct EmojiCompletions {
-    /// Set each frame before process_events so translate_egui_keyboard_event
-    /// can check it and swallow arrow/enter keys when the popup is open.
+    /// True when a valid shortcode query is being typed and has results.
+    /// Read by the editor to gate rendering; also gates `handle_input`.
     pub active: bool,
     /// Keyboard-highlighted result index.
     pub selected: usize,
     /// The search term range in the document excluding the opening colon,
     /// e.g. `smil` in `:smil`. Set when active so show_text() can split
     /// rendering and draw the term in the accent color.
-    pub search_term_range: Option<(DocCharOffset, DocCharOffset)>,
+    pub search_term_range: Option<(Grapheme, Grapheme)>,
     /// When Escape is pressed we store the current query string here.
     /// stays hidden while the live query equals this exactly. Typing more characters
     /// changes the query and un-suppresses automatically — no explicit clear needed.
@@ -31,8 +31,7 @@ pub struct EmojiCompletions {
 
 impl EmojiCompletions {
     /// Recomputes whether the popup should be active. Must be called before
-    /// process_events so that translate_egui_keyboard_event can consult
-    /// self.emoji_completions.active when deciding whether to swallow keys.
+    /// `handle_input`, which early-returns when `self.active` is false.
     pub fn update_active_state(&mut self, buffer: &Buffer, inline_paragraphs: &Paragraphs) {
         self.active = false;
         self.search_term_range = None;
@@ -63,6 +62,100 @@ impl EmojiCompletions {
         self.search_term_range =
             if has_results { Some((range.start() + 1, range.end())) } else { None };
     }
+
+    /// Consume (or observe) keyboard events targeting the popup and update
+    /// state accordingly. Emitted replacements are pushed onto `events`.
+    ///
+    /// Must run before the editor's `process_events` so the popup gets first
+    /// dibs on nav keys — `consume_key` removes them from the egui queue so
+    /// the editor's key handling never sees them.
+    ///
+    /// Escape is observed (not consumed) and fires regardless of editor
+    /// focus: dismissing via Escape must always work even when the user has
+    /// clicked away, and leaving the event in the queue lets other handlers
+    /// (modal dismiss, etc.) react to the same press. Nav keys
+    /// (Up/Down/Enter/Cmd+num) are consumed and only fire when the editor has
+    /// focus, since otherwise they belong to whatever widget the user is
+    /// actually interacting with.
+    pub fn handle_input(
+        &mut self, ctx: &Context, buffer: &Buffer, editor_focused: bool, events: &mut Vec<Event>,
+    ) {
+        if !self.active {
+            return;
+        }
+        let Some((colon_offset, replace_end)) = detect_query(buffer) else { return };
+        let Some(query) = query_from_range(buffer, (colon_offset, replace_end)) else { return };
+        if self.suppressed.as_deref() == Some(query.as_str()) {
+            return;
+        }
+        let results = search(&query);
+        if results.is_empty() {
+            return;
+        }
+        // Clamp selection in case results shrank (e.g. the user typed more characters).
+        self.selected = self.selected.min(results.len() - 1);
+
+        if ctx.input(|i| i.key_pressed(Key::Escape)) {
+            self.suppressed = Some(query);
+            return;
+        }
+
+        if !editor_focused {
+            return;
+        }
+
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowUp)) && self.selected > 0 {
+            self.selected -= 1;
+        }
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::ArrowDown))
+            && self.selected + 1 < results.len()
+        {
+            self.selected += 1;
+        }
+
+        if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
+            let idx = self.selected;
+            let shortcode = matching_shortcode(results[idx], &query);
+            self.apply_completion(events, colon_offset, replace_end, shortcode);
+            return;
+        }
+
+        let num_modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+            Modifiers::COMMAND
+        } else {
+            Modifiers::CTRL
+        };
+        for (idx, key) in [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5]
+            .iter()
+            .enumerate()
+            .take(results.len())
+        {
+            if ctx.input_mut(|i| i.consume_key(num_modifier, *key)) {
+                let shortcode = matching_shortcode(results[idx], &query);
+                self.apply_completion(events, colon_offset, replace_end, shortcode);
+                return;
+            }
+        }
+    }
+
+    /// Push a replacement event for the current query and reset popup state.
+    /// Shared between `handle_input` (Enter / number keys) and the click path
+    /// in `show_emoji_completions`.
+    pub fn apply_completion(
+        &mut self, events: &mut Vec<Event>, colon_offset: Grapheme, replace_end: Grapheme,
+        shortcode: &str,
+    ) {
+        events.push(Event::Replace {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(colon_offset),
+                end: Location::Grapheme(replace_end),
+            },
+            text: format!(":{}:", shortcode),
+            advance_cursor: true,
+        });
+        self.selected = 0;
+        self.suppressed = None;
+    }
 }
 
 /// Returns the range `(start, end)` of the shortcode token under the cursor,
@@ -72,10 +165,10 @@ impl EmojiCompletions {
 /// get the search query.
 /// Returns the grapheme `&str` at the given char offset.
 fn grapheme_at(buffer: &Buffer, i: usize) -> &str {
-    &buffer[(DocCharOffset(i), DocCharOffset(i + 1))]
+    &buffer[(Grapheme(i), Grapheme(i + 1))]
 }
 
-fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
+fn detect_query(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
     let selection = buffer.current.selection;
 
     // Only trigger for a collapsed cursor — an active selection means the user
@@ -144,10 +237,10 @@ fn detect_query(buffer: &Buffer) -> Option<(DocCharOffset, DocCharOffset)> {
         j += 1;
     }
 
-    Some((DocCharOffset(colon_idx), DocCharOffset(j)))
+    Some((Grapheme(colon_idx), Grapheme(j)))
 }
 
-fn query_from_range(buffer: &Buffer, range: (DocCharOffset, DocCharOffset)) -> Option<String> {
+fn query_from_range(buffer: &Buffer, range: (Grapheme, Grapheme)) -> Option<String> {
     let raw = &buffer[range];
     // Strip surrounding colons to get the bare shortcode name.
     let query = raw.trim_matches(':').to_string();
@@ -255,16 +348,17 @@ fn matching_shortcode<'a>(emoji: &'a emojis::Emoji, query: &str) -> &'a str {
         .unwrap_or("")
 }
 
-impl Editor {
+impl MdEdit {
     pub fn show_emoji_completions(&mut self, ui: &mut Ui) {
-        if self.readonly || !self.emoji_completions.active {
+        if self.renderer.readonly || !self.emoji_completions.active {
             return;
         }
 
-        let Some((colon_offset, replace_end)) = detect_query(&self.buffer) else {
+        let Some((colon_offset, replace_end)) = detect_query(&self.renderer.buffer) else {
             return;
         };
-        let Some(query) = query_from_range(&self.buffer, (colon_offset, replace_end)) else {
+        let Some(query) = query_from_range(&self.renderer.buffer, (colon_offset, replace_end))
+        else {
             return;
         };
 
@@ -277,71 +371,10 @@ impl Editor {
             return;
         }
 
-        // Clamp selection in case results shrank (e.g. the user typed more characters).
-        self.emoji_completions.selected = self.emoji_completions.selected.min(results.len() - 1);
-
         // Anchor the popup at the opening colon so it doesn't shift right as the user types.
         let Some([cursor_top, cursor_bot]) = self.cursor_line(colon_offset) else {
             return;
         };
-
-        // Escape is checked outside the focused guard so it always fires.
-        if ui.input(|i| i.key_pressed(Key::Escape)) {
-            self.emoji_completions.suppressed = Some(query);
-            return;
-        }
-
-        if self.focused(ui.ctx()) {
-            // Up/Down were swallowed by translate_egui_keyboard_event so the document
-            // cursor didn't move; read them here to update the highlighted row.
-            ui.input(|i| {
-                if i.key_pressed(Key::ArrowUp) && self.emoji_completions.selected > 0 {
-                    self.emoji_completions.selected -= 1;
-                }
-                if i.key_pressed(Key::ArrowDown)
-                    && self.emoji_completions.selected + 1 < results.len()
-                {
-                    self.emoji_completions.selected += 1;
-                }
-            });
-
-            // Enter picks the highlighted row (also swallowed by translate_egui_keyboard_event).
-            if ui.input(|i| i.key_pressed(Key::Enter)) {
-                let idx = self.emoji_completions.selected;
-                self.apply_emoji_completion(
-                    colon_offset,
-                    replace_end,
-                    matching_shortcode(results[idx], &query),
-                );
-                return;
-            }
-
-            let mut chosen = None;
-            ui.input(|i| {
-                let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
-                    i.modifiers.command
-                } else {
-                    i.modifiers.ctrl
-                };
-                for (idx, key) in [Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5]
-                    .iter()
-                    .enumerate()
-                    .take(results.len())
-                {
-                    if i.key_pressed(*key) && modifier {
-                        chosen = Some(idx);
-                    }
-                }
-            });
-            if let Some(idx) = chosen {
-                self.apply_emoji_completion(
-                    colon_offset,
-                    replace_end,
-                    matching_shortcode(results[idx], &query),
-                );
-                return;
-            }
-        }
 
         // -- Measure content -------------------------------------------------------
         let text_color = ui.visuals().text_color();
@@ -374,8 +407,8 @@ impl Editor {
                 let span_refs: Vec<(&str, bool)> =
                     s.iter().map(|(t, b)| (t.as_str(), *b)).collect();
                 let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                    .font_size(self.layout.completion_font_size)
-                    .line_height(self.layout.completion_line_height);
+                    .font_size(self.renderer.layout.completion_font_size)
+                    .line_height(self.renderer.layout.completion_line_height);
                 if let Some(hint) = hints.get(i) {
                     label = label.hint(hint, hint_color);
                 }
@@ -385,7 +418,7 @@ impl Editor {
 
         // -- Position popup --------------------------------------------------------
         let popup_width = max_width + POPUP_PADDING;
-        let popup_height = results.len() as f32 * self.layout.completion_row_height;
+        let popup_height = results.len() as f32 * self.renderer.layout.completion_row_height;
         let screen_rect = ui.ctx().screen_rect();
         let popup_y = if cursor_top.y - popup_height >= screen_rect.min.y {
             cursor_top.y - popup_height
@@ -396,16 +429,16 @@ impl Editor {
             Pos2::new(cursor_top.x, popup_y),
             Vec2::new(popup_width, popup_height),
         );
-        self.touch_consuming_rects.push(popup_rect);
+        self.renderer.touch_consuming_rects.push(popup_rect);
 
         let row_rects: Vec<Rect> = (0..results.len())
             .map(|i| {
                 Rect::from_min_size(
                     Pos2::new(
                         popup_rect.min.x,
-                        popup_rect.min.y + i as f32 * self.layout.completion_row_height,
+                        popup_rect.min.y + i as f32 * self.renderer.layout.completion_row_height,
                     ),
-                    Vec2::new(popup_width, self.layout.completion_row_height),
+                    Vec2::new(popup_width, self.renderer.layout.completion_row_height),
                 )
             })
             .collect();
@@ -421,7 +454,7 @@ impl Editor {
         }
 
         // -- Draw backgrounds ------------------------------------------------------
-        self.draw_completion_popup(
+        self.renderer.draw_completion_popup(
             ui,
             popup_rect,
             &row_rects,
@@ -438,14 +471,14 @@ impl Editor {
             let text_top = rect.min.y + 4.0;
             let content_rect = Rect::from_min_size(
                 Pos2::new(rect.min.x + 8.0, text_top),
-                Vec2::new(popup_width - 16.0, self.layout.completion_line_height),
+                Vec2::new(popup_width - 16.0, self.renderer.layout.completion_line_height),
             );
 
             let span_refs: Vec<(&str, bool)> =
                 spans.iter().map(|(t, b)| (t.as_str(), *b)).collect();
             let mut label = GlyphonLabel::new_rich(span_refs, text_color)
-                .font_size(self.layout.completion_font_size)
-                .line_height(self.layout.completion_line_height);
+                .font_size(self.renderer.layout.completion_font_size)
+                .line_height(self.renderer.layout.completion_line_height);
             if let Some(hint) = hints.get(idx) {
                 label = label.hint(hint, hint_color);
             }
@@ -462,22 +495,12 @@ impl Editor {
 
         // -- Apply clicked result --------------------------------------------------
         if let Some(idx) = clicked {
-            self.apply_emoji_completion(colon_offset, replace_end, shortcodes[idx]);
+            self.emoji_completions.apply_completion(
+                &mut self.event.internal_events,
+                colon_offset,
+                replace_end,
+                shortcodes[idx],
+            );
         }
-    }
-
-    fn apply_emoji_completion(
-        &mut self, colon_offset: DocCharOffset, cursor: DocCharOffset, shortcode: &str,
-    ) {
-        self.event.internal_events.push(Event::Replace {
-            region: Region::BetweenLocations {
-                start: Location::DocCharOffset(colon_offset),
-                end: Location::DocCharOffset(cursor),
-            },
-            text: format!(":{}:", shortcode),
-            advance_cursor: true,
-        });
-        self.emoji_completions.selected = 0;
-        self.emoji_completions.suppressed = None;
     }
 }

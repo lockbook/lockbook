@@ -1,9 +1,8 @@
-use super::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
+use super::offset_types::{Byte, Grapheme, Graphemes, RangeExt};
 use super::operation_types::{InverseOperation, Operation, Replace};
 use super::unicode_segs::UnicodeSegs;
 use super::{diff, unicode_segs};
 use std::ops::Index;
-use unicode_segmentation::UnicodeSegmentation;
 use web_time::{Duration, Instant};
 
 /// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
@@ -71,47 +70,69 @@ pub struct Buffer {
 pub struct Snapshot {
     pub text: String,
     pub segs: UnicodeSegs,
-    pub selection: (DocCharOffset, DocCharOffset),
+    pub selection: (Grapheme, Grapheme),
     pub seq: usize,
 }
 
 impl Snapshot {
-    fn apply_select(&mut self, range: (DocCharOffset, DocCharOffset)) -> Response {
+    fn apply_select(&mut self, range: (Grapheme, Grapheme)) -> Response {
         self.selection = range;
         Response::default()
     }
 
-    fn apply_replace(&mut self, replace: &Replace) -> Response {
+    fn apply_replace(&mut self, replace: &Replace) -> (Response, Graphemes) {
         let Replace { range, text } = replace;
         let byte_range = self.segs.range_to_byte(*range);
+
+        // Capture pre-apply segs so `Graphemes::measure_replace` can compute
+        // the buffer delta. It's the only construction path for an
+        // OT-correct grapheme count — bypassing it (e.g.
+        // `text.graphemes(true).count()`) would produce a `usize`, not a
+        // `Graphemes`, so any caller of this function wouldn't compile.
+        let old_segs = self.segs.clone();
 
         self.text
             .replace_range(byte_range.start().0..byte_range.end().0, text);
         self.segs = unicode_segs::calc(&self.text);
-        adjust_subsequent_range(
-            *range,
-            text.graphemes(true).count().into(),
-            false,
-            &mut self.selection,
-        );
 
-        Response { text_updated: true, ..Default::default() }
+        let actual_len = Graphemes::measure_replace(&old_segs, &self.segs, *range);
+
+        adjust_subsequent_range(*range, actual_len, false, &mut self.selection);
+
+        (Response { text_updated: true, ..Default::default() }, actual_len)
     }
 
-    fn invert(&self, op: &Operation) -> InverseOperation {
-        let mut inverse = InverseOperation { replace: None, select: self.selection };
-        if let Operation::Replace(replace) = op {
-            inverse.replace = Some(self.invert_replace(replace));
+    /// Captures the inverse-relevant state from the buffer *before* an op is
+    /// applied. Combined with the actual replacement length (only knowable
+    /// post-apply) by `PartialInverse::finalize` to produce the full inverse.
+    fn invert_pre(&self, op: &Operation) -> PartialInverse {
+        let mut partial = PartialInverse { select: self.selection, replace: None };
+        if let Operation::Replace(Replace { range, text: _ }) = op {
+            let byte_range = self.segs.range_to_byte(*range);
+            let replaced_text = self[byte_range].into();
+            partial.replace = Some((range.start(), replaced_text));
         }
-        inverse
+        partial
     }
+}
 
-    fn invert_replace(&self, replace: &Replace) -> Replace {
-        let Replace { range, text } = replace;
-        let byte_range = self.segs.range_to_byte(*range);
-        let replaced_text = self[byte_range].into();
-        let replacement_range = (range.start(), range.start() + text.graphemes(true).count());
-        Replace { range: replacement_range, text: replaced_text }
+struct PartialInverse {
+    select: (Grapheme, Grapheme),
+    /// (start, replaced_text) — the inverse range's end is `start +
+    /// actual_len`, which `finalize` fills in once apply has measured the
+    /// buffer delta.
+    replace: Option<(Grapheme, String)>,
+}
+
+impl PartialInverse {
+    fn finalize(self, actual_len: Graphemes) -> InverseOperation {
+        InverseOperation {
+            select: self.select,
+            replace: self.replace.map(|(start, replaced_text)| Replace {
+                range: (start, start + actual_len),
+                text: replaced_text,
+            }),
+        }
     }
 }
 
@@ -133,6 +154,15 @@ struct Ops {
     /// undoing operations. The data model differs because an operation that replaces text containing the cursor needs
     /// two operations to revert the text and cursor. Derived from other data and invalidated by some undo/redo flows.
     transformed_inverted: Vec<InverseOperation>,
+
+    /// Actual graphemes contributed by each `transformed` op once spliced
+    /// into the buffer. The `Graphemes` newtype enforces this distinction
+    /// at the type level — populating this field requires a value from
+    /// `Graphemes::measure_replace`, not `text.graphemes(true).count()`,
+    /// which would account for in-isolation counts only and miss seam fusion
+    /// (Devanagari spacing marks, ZWJ sequences). Always 0 for
+    /// `Operation::Select`.
+    transformed_actual_len: Vec<Graphemes>,
 }
 
 impl Ops {
@@ -321,6 +351,7 @@ impl Buffer {
             self.ops.meta.drain(drain_range.clone());
             self.ops.transformed.drain(drain_range.clone());
             self.ops.transformed_inverted.drain(drain_range.clone());
+            self.ops.transformed_actual_len.drain(drain_range.clone());
             self.ops.processed_seq = self.current.seq;
         } else {
             return Response::default();
@@ -332,11 +363,20 @@ impl Buffer {
             let mut op = self.ops.all[idx].clone();
             let meta = &self.ops.meta[idx];
             self.transform(&mut op, meta);
-            self.ops.transformed_inverted.push(self.current.invert(&op));
+            // Capture inverse-relevant state before apply (it needs the
+            // pre-apply text); finalize once redo's apply has measured the
+            // actual contribution and stored it in `transformed_actual_len`.
+            let partial_inverse = self.current.invert_pre(&op);
             self.ops.transformed.push(op.clone());
+            self.ops.transformed_actual_len.push(Graphemes::default());
             self.ops.processed_seq += 1;
 
             result |= self.redo();
+
+            let actual_len = *self.ops.transformed_actual_len.last().unwrap();
+            self.ops
+                .transformed_inverted
+                .push(partial_inverse.finalize(actual_len));
         }
 
         result.seq_after = self.current.seq;
@@ -347,9 +387,10 @@ impl Buffer {
         let base_idx = meta.base - self.base.seq;
         for transforming_idx in base_idx..self.ops.processed_seq {
             let preceding_op = &self.ops.transformed[transforming_idx];
+            let preceding_actual_len = self.ops.transformed_actual_len[transforming_idx];
             if let Operation::Replace(Replace {
                 range: preceding_replaced_range,
-                text: preceding_replacement_text,
+                text: _preceding_replacement_text,
             }) = preceding_op
             {
                 if let Operation::Replace(Replace { range: transformed_range, text }) = op {
@@ -371,7 +412,7 @@ impl Buffer {
                     | Operation::Select(transformed_range) => {
                         adjust_subsequent_range(
                             *preceding_replaced_range,
-                            preceding_replacement_text.graphemes(true).count().into(),
+                            preceding_actual_len,
                             true,
                             transformed_range,
                         );
@@ -392,14 +433,25 @@ impl Buffer {
     pub fn redo(&mut self) -> Response {
         let mut response = Response::default();
         while self.can_redo() {
-            let op = &self.ops.transformed[self.current_idx()];
+            let idx = self.current_idx();
+            // Clone so we can mutate `self` (storing actual_len) without
+            // holding a borrow of `self.ops.transformed`.
+            let op = self.ops.transformed[idx].clone();
 
             self.current.seq += 1;
 
-            response |= match op {
-                Operation::Replace(replace) => self.current.apply_replace(replace),
-                Operation::Select(range) => self.current.apply_select(*range),
+            let actual_len = match &op {
+                Operation::Replace(replace) => {
+                    let (resp, len) = self.current.apply_replace(replace);
+                    response |= resp;
+                    len
+                }
+                Operation::Select(range) => {
+                    response |= self.current.apply_select(*range);
+                    Graphemes::default()
+                }
             };
+            self.ops.transformed_actual_len[idx] = actual_len;
 
             if self.ops.is_undo_checkpoint(self.current_idx()) {
                 break;
@@ -412,10 +464,12 @@ impl Buffer {
         let mut response = Response::default();
         while self.can_undo() {
             self.current.seq -= 1;
-            let op = &self.ops.transformed_inverted[self.current_idx()];
+            // Clone so we can mutate `self.current` while reading the inverse.
+            let op = self.ops.transformed_inverted[self.current_idx()].clone();
 
             if let Some(replace) = &op.replace {
-                response |= self.current.apply_replace(replace);
+                let (resp, _) = self.current.apply_replace(replace);
+                response |= resp;
             }
             response |= self.current.apply_select(op.select);
 
@@ -434,19 +488,17 @@ impl Buffer {
     /// `since_seq` and the current sequence. Returns `None` if the range
     /// intersected a replacement (i.e. the content it referred to was
     /// modified).
-    pub fn transform_range(
-        &self, since_seq: usize, range: &mut (DocCharOffset, DocCharOffset),
-    ) -> bool {
+    pub fn transform_range(&self, since_seq: usize, range: &mut (Grapheme, Grapheme)) -> bool {
         let start = since_seq.saturating_sub(self.base.seq);
         let end = self.current_idx();
-        for op in &self.ops.transformed[start..end] {
+        for (i, op) in self.ops.transformed[start..end].iter().enumerate() {
             if let Operation::Replace(replace) = op {
                 if range.intersects(&replace.range, true)
                     && !(range.is_empty() && replace.range.is_empty())
                 {
                     return false;
                 }
-                let replacement_len = replace.text.graphemes(true).count().into();
+                let replacement_len = self.ops.transformed_actual_len[start + i];
                 adjust_subsequent_range(replace.range, replacement_len, false, range);
             }
         }
@@ -477,8 +529,8 @@ impl From<&str> for Buffer {
 /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
 /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
 pub fn adjust_subsequent_range(
-    replaced_range: (DocCharOffset, DocCharOffset), replacement_len: RelCharOffset,
-    prefer_advance: bool, range: &mut (DocCharOffset, DocCharOffset),
+    replaced_range: (Grapheme, Grapheme), replacement_len: Graphemes, prefer_advance: bool,
+    range: &mut (Grapheme, Grapheme),
 ) {
     for position in [&mut range.0, &mut range.1] {
         adjust_subsequent_position(replaced_range, replacement_len, prefer_advance, position);
@@ -489,8 +541,8 @@ pub fn adjust_subsequent_range(
 /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
 /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
 fn adjust_subsequent_position(
-    replaced_range: (DocCharOffset, DocCharOffset), replacement_len: RelCharOffset,
-    prefer_advance: bool, position: &mut DocCharOffset,
+    replaced_range: (Grapheme, Grapheme), replacement_len: Graphemes, prefer_advance: bool,
+    position: &mut Grapheme,
 ) {
     let replaced_len = replaced_range.len();
     let replacement_start = replaced_range.start();
@@ -507,7 +559,7 @@ fn adjust_subsequent_position(
         bounds.sort();
         bounds
     };
-    let bind = |start: &DocCharOffset, end: &DocCharOffset, pos: &DocCharOffset| {
+    let bind = |start: &Grapheme, end: &Grapheme, pos: &Grapheme| {
         start == &replaced_range.start() && end == &replaced_range.end() && pos == &*position
     };
 
@@ -595,35 +647,35 @@ fn adjust_subsequent_position(
     }
 }
 
-impl Index<(DocByteOffset, DocByteOffset)> for Snapshot {
+impl Index<(Byte, Byte)> for Snapshot {
     type Output = str;
 
-    fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
+    fn index(&self, index: (Byte, Byte)) -> &Self::Output {
         &self.text[index.start().0..index.end().0]
     }
 }
 
-impl Index<(DocCharOffset, DocCharOffset)> for Snapshot {
+impl Index<(Grapheme, Grapheme)> for Snapshot {
     type Output = str;
 
-    fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
+    fn index(&self, index: (Grapheme, Grapheme)) -> &Self::Output {
         let index = self.segs.range_to_byte(index);
         &self.text[index.start().0..index.end().0]
     }
 }
 
-impl Index<(DocByteOffset, DocByteOffset)> for Buffer {
+impl Index<(Byte, Byte)> for Buffer {
     type Output = str;
 
-    fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
+    fn index(&self, index: (Byte, Byte)) -> &Self::Output {
         &self.current[index]
     }
 }
 
-impl Index<(DocCharOffset, DocCharOffset)> for Buffer {
+impl Index<(Grapheme, Grapheme)> for Buffer {
     type Output = str;
 
-    fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
+    fn index(&self, index: (Grapheme, Grapheme)) -> &Self::Output {
         &self.current[index]
     }
 }
@@ -631,7 +683,36 @@ impl Index<(DocCharOffset, DocCharOffset)> for Buffer {
 #[cfg(test)]
 mod test {
     use super::Buffer;
+    use crate::model::text::offset_types::{Grapheme, RangeExt as _};
+    use crate::model::text::operation_types::{Operation, Replace};
     use unicode_segmentation::UnicodeSegmentation;
+
+    fn type_into_selection(buffer: &mut Buffer, text: &str) {
+        let range = buffer.current.selection;
+        buffer.queue(vec![
+            Operation::Replace(Replace { range, text: text.into() }),
+            Operation::Select((range.start(), range.start())),
+        ]);
+        buffer.update();
+    }
+
+    #[test]
+    fn type_into_forward_selection() {
+        let mut buffer = Buffer::from("hello");
+        buffer.current.selection = (Grapheme(0), Grapheme(5));
+        type_into_selection(&mut buffer, "X");
+        assert_eq!(buffer.current.text, "X");
+        assert_eq!(buffer.current.selection, (Grapheme(1), Grapheme(1)));
+    }
+
+    #[test]
+    fn type_into_backward_selection() {
+        let mut buffer = Buffer::from("hello");
+        buffer.current.selection = (Grapheme(5), Grapheme(0));
+        type_into_selection(&mut buffer, "X");
+        assert_eq!(buffer.current.text, "X");
+        assert_eq!(buffer.current.selection, (Grapheme(1), Grapheme(1)));
+    }
 
     #[test]
     fn buffer_merge_nonintersecting_replace() {

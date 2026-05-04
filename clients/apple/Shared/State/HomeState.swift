@@ -16,10 +16,11 @@ class HomeState: ObservableObject {
     @Published var selectSheetInfo: SelectFolderAction? = nil
     @Published var tabsSheetInfo: TabSheetInfo? = nil
 
-    @Published var sidebarState: SidebarState = .open
     #if os(iOS)
+        @Published var sidebarState: SidebarState = .closed
         @Published var isSidebarFloating: Bool = true
     #else
+        @Published var sidebarState: SidebarState = .open
         @Published var isSidebarFloating: Bool = false
     #endif
 
@@ -56,7 +57,18 @@ class HomeState: ObservableObject {
     init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
         self.workspaceOutput = workspaceOutput
         self.filesModel = filesModel
-
+        
+        #if os(iOS)
+        // TODO: Compute whether tabs are empty on first load via workspace
+        DispatchQueue
+            .main
+            .asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                if workspaceOutput.tabCount == 0 {
+                    self?.sidebarState = .open
+                }
+            }
+        #endif
+        
         workspaceOutput.$renameOpenDoc.sink { [weak self] _ in
             guard let openDoc = workspaceOutput.openDoc else {
                 return

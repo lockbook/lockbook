@@ -816,6 +816,9 @@ impl FileTree {
             if !shift_clicked && ui.input(|i| i.raw.modifiers.command) {
                 cmd_clicked = true;
 
+                if file.is_document() {
+                    resp.open_requests.insert(id, OpenRequest::new_tab());
+                }
                 self.selected.insert(id);
             }
 
@@ -1028,16 +1031,13 @@ impl FileTree {
             DocType::from_name(if is_renaming { &self.rename_buffer } else { &file.name });
 
         let mut default_fill = Color32::TRANSPARENT;
+        let primary = theme.bg().get_color(theme.prefs().primary);
+        let bg = theme.neutral_bg();
         if self.selected.contains(&file.id) {
-            ui.visuals_mut().widgets.hovered.bg_fill = theme
-                .bg()
-                .get_color(theme.prefs().primary)
-                .gamma_multiply(0.4);
+            default_fill = primary.lerp_to_gamma(bg, 0.1);
+            ui.visuals_mut().widgets.hovered.bg_fill = primary.lerp_to_gamma(bg, 0.2);
         } else {
-            ui.visuals_mut().widgets.hovered.bg_fill = theme
-                .bg()
-                .get_color(theme.prefs().primary)
-                .gamma_multiply(0.1);
+            ui.visuals_mut().widgets.hovered.bg_fill = bg.lerp_to_gamma(primary, 0.5);
         }
 
         if self.cursor == Some(file.id) && focused {
@@ -1314,7 +1314,7 @@ impl FileTree {
     }
 
     const BTN_ROUNDING: f32 = 5.0;
-    const BTN_MARGIN: Vec2 = egui::vec2(10.0, 0.0);
+    const BTN_MARGIN: Vec2 = egui::vec2(15.0, 0.0);
 }
 
 /// Model related things
