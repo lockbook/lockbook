@@ -82,6 +82,15 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
         self
     }
 
+    /// Per-frame rows with `trailing_precise = vh/2` and the default
+    /// leading pad. Render, persistence, and scroll-target lookups
+    /// must use this so they walk the same row sequence.
+    pub fn for_frame(
+        renderer: &'a MdRender, root: &'ast AstNode<'ast>, viewport_height: f32,
+    ) -> Self {
+        Self::new(renderer, root, viewport_height / 2.0).with_default_leading()
+    }
+
     /// First row whose source range contains `target` (inclusive on both
     /// ends so an end-of-line cursor matches its row).
     pub fn find_text_row(&self, target: Grapheme) -> Option<DocRowId> {
@@ -228,26 +237,15 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
         }
     }
 
-    /// `Block(i)` / `Line(i)` only goes stale by walking off the end
-    /// (insertions/deletions above shift the index but leave it valid).
-    /// Recover to the new last index — keeps the user near where they
-    /// were rather than snapping to the doc's top.
+    /// A stale `Block(i)` / `Line(i)` means the anchor walked off the
+    /// end (insertions/deletions above shift the index but leave it
+    /// valid), so the user was at-or-past the new doc's end. Recover
+    /// to `Trailing`: `at_top_of(Trailing)` lands `pad` from
+    /// `last_bottom`, so `clamp_to_max` snaps to `max_offset` —
+    /// "scrolled to bottom" with the pad visible.
     fn recover_anchor(&self, stale: &DocRowId) -> Option<DocRowId> {
         match stale {
-            DocRowId::Block(_) => {
-                if self.blocks.is_empty() {
-                    Some(DocRowId::Trailing)
-                } else {
-                    Some(DocRowId::Block(self.blocks.len() - 1))
-                }
-            }
-            DocRowId::Line(_) => {
-                if self.line_count == 0 {
-                    Some(DocRowId::Trailing)
-                } else {
-                    Some(DocRowId::Line(self.line_count - 1))
-                }
-            }
+            DocRowId::Block(_) | DocRowId::Line(_) => Some(DocRowId::Trailing),
             // Leading / Trailing are always-present sentinels; if a
             // caller asks to recover one of them something is wrong
             // upstream. Default to first().

@@ -193,8 +193,7 @@ impl MdEdit {
 
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);
-        let content = DocScrollContent::new(&self.renderer, root, canvas_rect.height() / 2.0)
-            .with_default_leading();
+        let content = DocScrollContent::for_frame(&self.renderer, root, canvas_rect.height());
 
         let Some(target_rect) = build_target_reveal(
             &self.renderer,
@@ -205,7 +204,8 @@ impl MdEdit {
         ) else {
             return;
         };
-        self.scroll_area.reveal(&content, target_rect, Align::Nearest);
+        self.scroll_area
+            .reveal(&content, target_rect, Align::Nearest);
     }
 
     pub fn cursor_line(&self, offset: Grapheme) -> Option<[Pos2; 2]> {

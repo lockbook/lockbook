@@ -864,9 +864,11 @@ impl Editor {
                 if let Some((anchor_idx, intra_precise)) = persisted.anchor {
                     let arena = Arena::new();
                     let root = self.edit.renderer.reparse(&arena);
-                    let content =
-                        scroll_content::DocScrollContent::new(&self.edit.renderer, root, 0.0)
-                            .with_default_leading();
+                    let content = scroll_content::DocScrollContent::for_frame(
+                        &self.edit.renderer,
+                        root,
+                        self.edit.scroll_area.state.viewport_height,
+                    );
                     let anchor = if self.edit.renderer.plaintext {
                         DocRowId::Line(anchor_idx)
                     } else {
@@ -984,21 +986,23 @@ impl Editor {
         if !self.edit.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
-        // persistence: write
+        // persistence: write — sync the in-memory store each frame,
+        // flag the disk write only on actual change. Empty-selection
+        // cursor moves must persist too, so the trigger compares
+        // against stored state rather than a within-frame change.
         let mut persistence_updated = false;
-        if resp.selection_updated {
+        let current_selection = self.edit.renderer.buffer.current.selection;
+        {
             let mut persistence = self.persistence.data.write().unwrap();
-            persistence
+            let entry = persistence
                 .markdown
                 .file
                 .entry(self.edit.file_id)
-                .and_modify(|f| f.selection = self.edit.renderer.buffer.current.selection)
-                .or_insert(MdFilePersistence {
-                    anchor: None,
-                    selection: self.edit.renderer.buffer.current.selection,
-                    image_dims: Default::default(),
-                });
-            persistence_updated = true;
+                .or_default();
+            if entry.selection != current_selection {
+                entry.selection = current_selection;
+                persistence_updated = true;
+            }
         }
 
         let mut scroll_end_processed = false;
@@ -1009,15 +1013,21 @@ impl Editor {
                 // Project the persisted offset onto current rows so a
                 // stale anchor (block deleted since save) is recovered
                 // rather than persisted as-is.
-                let content = scroll_content::DocScrollContent::new(&self.edit.renderer, root, 0.0)
-                    .with_default_leading();
+                let content = scroll_content::DocScrollContent::for_frame(
+                    &self.edit.renderer,
+                    root,
+                    self.edit.scroll_area.state.viewport_height,
+                );
                 let anchor =
-                    self.edit.scroll_area.offset(&content).and_then(|off| match off.anchor {
-                        DocRowId::Block(i) | DocRowId::Line(i) => Some((i, off.intra_precise)),
-                        // Cursor in leading/trailing pad isn't a block —
-                        // persist None and let the next open default.
-                        DocRowId::Leading | DocRowId::Trailing => None,
-                    });
+                    self.edit
+                        .scroll_area
+                        .offset(&content)
+                        .and_then(|off| match off.anchor {
+                            DocRowId::Block(i) | DocRowId::Line(i) => Some((i, off.intra_precise)),
+                            // Cursor in leading/trailing pad isn't a block —
+                            // persist None and let the next open default.
+                            DocRowId::Leading | DocRowId::Trailing => None,
+                        });
                 drop(content);
 
                 let image_dims = self.edit.renderer.embeds.image_dims();
@@ -1133,7 +1143,6 @@ impl Editor {
                 let content_x = canvas_rect.min.x
                     + ((canvas_rect.width() - self.edit.renderer.width) / 2.0).max(0.0);
                 ui.scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
-                    let trailing_precise = canvas_rect.height() / 2.0;
                     ui.set_clip_rect(canvas_rect);
                     self.edit.scroll_area.touch_scroll = touch_scroll;
 
@@ -1141,17 +1150,19 @@ impl Editor {
                     // immutable `DocScrollContent` borrow is released
                     // before phase 2's mutable renderer paint.
                     let visible = {
-                        let content = scroll_content::DocScrollContent::new(
+                        let content = scroll_content::DocScrollContent::for_frame(
                             &self.edit.renderer,
                             root,
-                            trailing_precise,
-                        )
-                        .with_default_leading();
+                            canvas_rect.height(),
+                        );
                         let resp = self.edit.scroll_area.show(ui, &content);
                         // Register the scrollbar's track so iOS taps on
                         // it don't fall through to cursor-placement /
                         // keyboard-summon handlers.
-                        self.edit.renderer.touch_consuming_rects.push(resp.scrollbar_track);
+                        self.edit
+                            .renderer
+                            .touch_consuming_rects
+                            .push(resp.scrollbar_track);
                         resp.visible
                     };
 
@@ -1264,12 +1275,11 @@ impl Editor {
 
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
-        let content = scroll_content::DocScrollContent::new(
+        let content = scroll_content::DocScrollContent::for_frame(
             &self.edit.renderer,
             root,
-            canvas_rect.height() / 2.0,
-        )
-        .with_default_leading();
+            canvas_rect.height(),
+        );
 
         let Some(target_rect) = build_target_reveal(
             &self.edit.renderer,
@@ -1280,7 +1290,9 @@ impl Editor {
         ) else {
             return;
         };
-        self.edit.scroll_area.reveal(&content, target_rect, Align::Center);
+        self.edit
+            .scroll_area
+            .reveal(&content, target_rect, Align::Center);
     }
 }
 
@@ -1299,13 +1311,12 @@ impl Editor {
 /// without normalising.
 pub(crate) fn build_target_reveal(
     renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
-    state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>,
-    range: (Grapheme, Grapheme), canvas_rect: Rect,
+    state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, range: (Grapheme, Grapheme),
+    canvas_rect: Rect,
 ) -> Option<Reveal<DocRowId>> {
     let (start, end) = if range.0 <= range.1 { range } else { (range.1, range.0) };
     let top = endpoint_offset(renderer, content, state, start, canvas_rect, EndpointSide::Top)?;
-    let bottom =
-        endpoint_offset(renderer, content, state, end, canvas_rect, EndpointSide::Bottom)?;
+    let bottom = endpoint_offset(renderer, content, state, end, canvas_rect, EndpointSide::Bottom)?;
     Some(Reveal { top, bottom })
 }
 

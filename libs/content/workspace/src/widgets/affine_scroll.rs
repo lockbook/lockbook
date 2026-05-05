@@ -1048,11 +1048,7 @@ pub struct AffineScrollArea<Id: Clone + Eq + std::fmt::Debug> {
 
 impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
     pub fn new(id_salt: impl Hash) -> Self {
-        Self {
-            state: ScrollArea::default(),
-            touch_scroll: false,
-            id_salt: egui::Id::new(id_salt),
-        }
+        Self { state: ScrollArea::default(), touch_scroll: false, id_salt: egui::Id::new(id_salt) }
     }
 
     /// Touch-scroll velocity (precise px/sec). y is vertical; x is
@@ -1119,7 +1115,8 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let raw_scroll_delta =
             if ui.rect_contains_pointer(rect) { ui.input(|i| i.raw_scroll_delta.y) } else { 0.0 };
         if raw_scroll_delta != 0.0 {
-            self.state.handle(rows, Action::ScrollByPixels(-raw_scroll_delta));
+            self.state
+                .handle(rows, Action::ScrollByPixels(-raw_scroll_delta));
         }
 
         // Touch body drag → scroll + velocity tracking.
@@ -1130,13 +1127,15 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         if scrollable && self.touch_scroll && response.dragged() {
             let drag_y = ui.input(|i| i.pointer.delta().y);
             let precise_delta = -drag_y;
-            self.state.handle(rows, Action::ScrollByPixels(precise_delta));
+            self.state
+                .handle(rows, Action::ScrollByPixels(precise_delta));
             self.state.record_drag_sample(precise_delta, dt);
         } else if self.state.velocity_precise.abs() > 1.0 && !response.dragged() {
             const DECAY_PER_SEC: f32 = 4.0;
             let precise_step = self.state.velocity_precise * dt;
             let before = self.state.offset(rows);
-            self.state.handle(rows, Action::ScrollByPixels(precise_step));
+            self.state
+                .handle(rows, Action::ScrollByPixels(precise_step));
             let after = self.state.offset(rows);
             if before == after {
                 self.state.velocity_precise = 0.0;
