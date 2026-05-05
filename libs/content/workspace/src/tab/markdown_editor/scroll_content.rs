@@ -229,6 +229,33 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
             self.renderer.warm_images(self.blocks[*i]);
         }
     }
+
+    /// `Block(i)` / `Line(i)` only goes stale by walking off the end
+    /// (insertions/deletions above shift the index but leave it valid).
+    /// Recover to the new last index — keeps the user near where they
+    /// were rather than snapping to the doc's top.
+    fn recover_anchor(&self, stale: &DocRowId) -> Option<DocRowId> {
+        match stale {
+            DocRowId::Block(_) => {
+                if self.blocks.is_empty() {
+                    Some(DocRowId::Trailing)
+                } else {
+                    Some(DocRowId::Block(self.blocks.len() - 1))
+                }
+            }
+            DocRowId::Line(_) => {
+                if self.line_count == 0 {
+                    Some(DocRowId::Trailing)
+                } else {
+                    Some(DocRowId::Line(self.line_count - 1))
+                }
+            }
+            // Leading / Trailing are always-present sentinels; if a
+            // caller asks to recover one of them something is wrong
+            // upstream. Default to first().
+            DocRowId::Leading | DocRowId::Trailing => self.first(),
+        }
+    }
 }
 
 /// Paint a single row at `top_left` (screen coords). Companion to the

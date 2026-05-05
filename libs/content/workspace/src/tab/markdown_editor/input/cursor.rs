@@ -178,10 +178,10 @@ impl MdEdit {
         }
     }
 
-    pub fn scroll_to_cursor(&mut self, ui: &mut Ui, scroll_id: egui::Id, canvas_rect: Rect) {
+    pub fn scroll_to_cursor(&mut self, canvas_rect: Rect) {
         use crate::tab::markdown_editor::build_target_reveal;
-        use crate::tab::markdown_editor::scroll_content::{DocRowId, DocScrollContent};
-        use crate::widgets::affine_scroll::{AffineScrollArea, Align};
+        use crate::tab::markdown_editor::scroll_content::DocScrollContent;
+        use crate::widgets::affine_scroll::Align;
 
         // Make the moving end of the selection visible. Passed as a
         // zero-length range — `build_target_reveal` handles single-point
@@ -195,18 +195,17 @@ impl MdEdit {
         let root = self.renderer.reparse(&arena);
         let content = DocScrollContent::new(&self.renderer, root, canvas_rect.height() / 2.0)
             .with_default_leading();
-        let scroll = AffineScrollArea::<DocRowId>::new(scroll_id);
 
         let Some(target_rect) = build_target_reveal(
             &self.renderer,
             &content,
-            &scroll.state(ui.ctx()),
+            &self.scroll_area.state,
             (cursor, cursor),
             canvas_rect,
         ) else {
             return;
         };
-        scroll.reveal(ui.ctx(), &content, target_rect, Align::Nearest);
+        self.scroll_area.reveal(&content, target_rect, Align::Nearest);
     }
 
     pub fn cursor_line(&self, offset: Grapheme) -> Option<[Pos2; 2]> {

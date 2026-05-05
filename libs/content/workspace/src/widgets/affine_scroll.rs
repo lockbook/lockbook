@@ -15,14 +15,105 @@
 //! - [`ScrollArea<Id>`] holds offset + viewport + touch-momentum state and
 //!   exposes the affine math via id-typed methods that take a [`Rows`]
 //!   impl by reference. Pure data — no egui dependency.
-//! - [`AffineScrollArea<Id>`] is the egui adapter: persists the
-//!   [`ScrollArea`] in egui memory keyed by id_salt and layers
-//!   wheel/touch-drag/scrollbar-drag input + momentum on top.
+//! - [`AffineScrollArea<Id>`] is the egui adapter: owns a
+//!   [`ScrollArea<Id>`] as a field, layers wheel / touch-drag /
+//!   scrollbar-drag input + momentum on top. Embed in the type that
+//!   owns the scrollable view.
 //! - [`Reveal`] + [`Align`] is the make-visible API.
+//!
+//! # Behaviors
+//!
+//! ## Scroll input
+//!
+//! - Wheel / trackpad scroll: 1 px of input moves content by 1 px,
+//!   regardless of `approx`/`precise` drift.
+//! - Touch body drag (when `touch_scroll = true`): content tracks
+//!   finger motion 1:1.
+//! - Touch fling momentum: after release, content coasts with
+//!   exponential decay; cancelled by tap, drag-start on body or
+//!   scrollbar, programmatic scroll, or hitting a scroll boundary.
+//! - A tap that cancels momentum is consumed by the scroll area; it
+//!   doesn't also place the cursor or toggle interactive elements
+//!   (fold buttons, task-list checkboxes). Embedders gate other touch
+//!   handlers on [`AffineScrollArea::velocity`].
+//! - Scrollbar thumb drag: 1 px of mouse-pointer motion ≈ 1 px of
+//!   thumb motion. The drag rate is in approx units, so it drifts
+//!   gracefully when per-row `approx`/`precise` is off.
+//! - Scrollbar track click: thumb snaps so its center lands at the
+//!   click; offset moves accordingly.
+//!
+//! ## Programmatic positioning
+//!
+//! - [`AffineScrollArea::set_offset`] / [`Action::ScrollToTop`] /
+//!   [`Action::ScrollToBottom`]: jump and clamp.
+//! - [`AffineScrollArea::reveal`] with [`Align::Top`] / [`Align::Bottom`]:
+//!   align the rect's edge with the corresponding viewport edge.
+//! - [`Align::Center`]: rect's vertical midpoint at viewport center.
+//! - [`Align::Nearest`]: no-op if the rect is fully visible; otherwise
+//!   minimum motion to bring it in.
+//! - For rects taller than the viewport (no in-viewport position
+//!   shows the whole rect), all alignments prefer the rect's top.
+//! - Typical use: cursor scroll uses `Nearest`; find-match scroll
+//!   uses `Center`.
+//!
+//! ## Rendering
+//!
+//! - Pull-style: [`AffineScrollArea::show`] returns rows in viewport
+//!   order with per-row top + height in viewport-local coordinates.
+//!   Embedders paint themselves; the widget never invokes a paint
+//!   callback.
+//! - Warm window: [`Rows::warm`] is called for rows in a
+//!   viewport-sized window above and below the visible region — gives
+//!   image caches and similar resources a head start.
+//!
+//! ## Scrollbar
+//!
+//! - Thumb size proportional to the visible fraction; floored at
+//!   [`MIN_THUMB_PX`] for grabability; fills the track when the doc
+//!   fits the viewport.
+//! - Thumb position proportional to scroll progress in approx
+//!   coordinate.
+//! - Track + thumb expressed in window-local pixels; embedder chooses
+//!   track placement and width.
+//!
+//! ## Persistence
+//!
+//! - [`AffineScrollArea::stored_offset`] returns the raw persisted
+//!   anchor without row projection — for change detection and
+//!   serialization.
+//! - On read ([`AffineScrollArea::offset`]), the stored anchor is
+//!   projected onto current rows: live anchor with valid intra-row
+//!   position → as-is; intra-row position larger than the row's
+//!   current `precise` (row shrunk under us) → walk forward by the
+//!   excess, advancing the anchor; anchor's row deleted entirely →
+//!   consult [`Rows::recover_anchor`].
+//!
+//! ## Doc-edit resilience
+//!
+//! - The scroll area holds no layout cache. Every read of `offset`,
+//!   `visible`, or `scrollbar` walks `Rows::approx` / `Rows::precise`
+//!   fresh, so changes to row heights (image load, syntax reveal,
+//!   width change, edits) are picked up without an invalidation step.
+//! - Rows added or removed mid-doc: the projection above keeps the
+//!   user near where they were if the anchor is still valid; if the
+//!   anchor's row is gone, [`Rows::recover_anchor`] supplies the new
+//!   home.
+//! - Empty rows: `offset` returns `None`, `visible` is empty, actions
+//!   are safe no-ops.
+//! - Resize: persisted offset re-clamps against the new viewport on
+//!   the next read.
+//!
+//! ## Performance budget
+//!
+//! - Per frame: O(`precise()` × viewport-rows + `approx()` × doc-rows).
+//!   Document size enters only through the cheap `approx()` walk
+//!   (constant per row, no layout work).
+//! - Every function calling `rows.precise(id)` takes a budget that
+//!   bounds its walk — a `bound: f32` argument, the `delta` of
+//!   `scroll_by`, or the row-shrink excess in `normalize`.
 
 use egui::{Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
 use std::hash::Hash;
-use std::marker::PhantomData;
 
 // ============================================================================
 // Trait + offset
@@ -34,7 +125,7 @@ use std::marker::PhantomData;
 /// is stateless about position. Caches and laid-out content live behind
 /// the impl's interior mutability if needed.
 ///
-/// **Contract.** Implementations should honour:
+/// # Contract
 ///
 /// - `approx(id) == 0.0  ⟺  precise(id) == 0.0` — zero-set agreement.
 ///   A row that contributes nothing in approx must contribute nothing in
@@ -53,8 +144,35 @@ use std::marker::PhantomData;
 ///   removed. Callers (and [`ScrollArea`]) lean on this to detect a
 ///   stale anchor after external mutation.
 ///
-/// Behaviour when contracts are violated is bounded by [`Config::slope_band`]:
-/// the scrollbar may drift, but `ScrollArea` will not panic.
+/// Behaviour when contracts are violated is bounded by the slope-band
+/// clamp on `approx / precise` per row: the scrollbar may drift, but
+/// `ScrollArea` will not panic.
+///
+/// # Choosing a `RowId`
+///
+/// The trait works with two natural design styles. They differ only
+/// in what kind of stability the id has across edits.
+///
+/// **Index-based** (`usize` into a `Vec`). Cheap to compute, cheap to
+/// compare, and the scroll position drifts gracefully under
+/// edits-above-the-anchor: insertions and deletions shift surrounding
+/// indices, so the anchor's id changes meaning to refer to whatever
+/// row took over its position — visually, the user stays put. Goes
+/// stale only when the index runs off the end (e.g., the doc shrunk
+/// past the saved anchor). Override [`recover_anchor`](Rows::recover_anchor)
+/// to clamp to the new last index rather than the default `first()`.
+///
+/// **Stable identity** (hash, generational handle, AST node pointer).
+/// The id refers to *the same content* regardless of edits to other
+/// rows; the row only goes stale when its content is deleted. The
+/// scroll position drifts under edits-above-the-anchor (the row's
+/// physical y changes as siblings are added/removed), but if the
+/// anchor row itself moves, the user follows it. The default
+/// [`recover_anchor`](Rows::recover_anchor) (returning `first()`) is
+/// usually right.
+///
+/// Pick based on which property your UI wants to express: stable
+/// *position* (index) or stable *content reference* (identity).
 pub trait Rows {
     /// Stable identity of a row. `Clone` rather than `Copy` so non-`Copy`
     /// ids — `String` hashes, `Arc<Path>` keys, etc. — can be used
@@ -74,6 +192,21 @@ pub trait Rows {
 
     /// Hint that the row is about to enter the viewport. Default no-op.
     fn warm(&self, _id: &Self::RowId) {}
+
+    /// Called by the scroll area when a stored anchor is no longer in
+    /// the row sequence — i.e. the anchor's row has been removed and
+    /// neither `next` nor `prev` can locate it. The returned `RowId`
+    /// is placed at viewport top, then clamped against `max_offset`.
+    /// `None` means "drop the offset entirely" (treats rows as empty).
+    ///
+    /// Default returns `first()`, suitable for stable-id row impls
+    /// where a deleted anchor is genuinely gone and the user is best
+    /// returned to the top. Index-based impls (whose id "drifts" with
+    /// surrounding edits and only goes stale at the tail end) typically
+    /// override to return the new `last()`.
+    fn recover_anchor(&self, _stale: &Self::RowId) -> Option<Self::RowId> {
+        self.first()
+    }
 }
 
 /// Anchored scroll position. The top of the viewport sits at
@@ -103,6 +236,12 @@ impl<Id> Offset<Id> {
 // ============================================================================
 // Affine math (pure functions over Rows)
 // ============================================================================
+//
+// Cost-class invariant: every function in this module that calls
+// `rows.precise(id)` takes either a `bound: f32` (precise pixels) or
+// the equivalent budget as one of its inputs (`scroll_by`'s `delta`,
+// `normalize`'s row-shrink excess). No public function performs an
+// unbounded `precise()` walk.
 
 mod affine {
     use super::{Offset, Rows};
@@ -156,94 +295,116 @@ mod affine {
         }
     }
 
-    /// Signed precise-pixel distance from `a` to `b`. Positive if `b` is
-    /// below `a`. Returns `NaN` if `b`'s anchor isn't reachable.
-    pub fn signed_distance<R: Rows>(rows: &R, a: &Offset<R::RowId>, b: &Offset<R::RowId>) -> f32 {
-        if a.anchor == b.anchor {
-            return b.intra_precise - a.intra_precise;
-        }
-        let mut id = a.anchor.clone();
-        let mut dist = -a.intra_precise;
-        loop {
-            dist += rows.precise(&id);
-            match rows.next(&id) {
-                Some(next_id) => {
-                    if next_id == b.anchor {
-                        return dist + b.intra_precise;
-                    }
-                    id = next_id;
-                }
-                None => break,
-            }
-        }
-        let mut id = a.anchor.clone();
-        let mut dist = -a.intra_precise;
-        while let Some(prev_id) = rows.prev(&id) {
-            dist -= rows.precise(&prev_id);
-            if prev_id == b.anchor {
-                return dist + b.intra_precise;
-            }
-            id = prev_id;
-        }
-        f32::NAN
+    pub enum Direction {
+        Forward,
+        Backward,
     }
 
-    /// Like `signed_distance` but stops walking once cumulative distance
-    /// exceeds `bound` precise pixels. Used by `Reveal::Nearest` so
-    /// document size doesn't enter the cost.
-    pub fn signed_distance_bounded<R: Rows>(
-        rows: &R, a: &Offset<R::RowId>, b: &Offset<R::RowId>, bound: f32,
-    ) -> Option<f32> {
-        if a.anchor == b.anchor {
-            return Some(b.intra_precise - a.intra_precise);
+    /// Cheap structural probe — does not call `precise()`. Walks
+    /// forward and backward simultaneously from `a_anchor` until one
+    /// side hits `b_anchor`. Returns `None` if `b_anchor` isn't in the
+    /// row sequence.
+    pub fn probe_direction<R: Rows>(
+        rows: &R, a_anchor: &R::RowId, b_anchor: &R::RowId,
+    ) -> Option<Direction> {
+        if a_anchor == b_anchor {
+            return None;
         }
-        let mut id = a.anchor.clone();
-        let mut dist = -a.intra_precise;
+        let mut fwd = a_anchor.clone();
+        let mut bwd = a_anchor.clone();
+        let mut fwd_alive = true;
+        let mut bwd_alive = true;
+        while fwd_alive || bwd_alive {
+            if fwd_alive {
+                match rows.next(&fwd) {
+                    Some(next) if &next == b_anchor => return Some(Direction::Forward),
+                    Some(next) => fwd = next,
+                    None => fwd_alive = false,
+                }
+            }
+            if bwd_alive {
+                match rows.prev(&bwd) {
+                    Some(prev) if &prev == b_anchor => return Some(Direction::Backward),
+                    Some(prev) => bwd = prev,
+                    None => bwd_alive = false,
+                }
+            }
+        }
+        None
+    }
+
+    /// Precise-pixel distance forward from `from` to `to`, walking
+    /// `precise()` per row up to `bound` precise pixels. Returns
+    /// `None` if `to` isn't reached forward within `bound`.
+    pub fn precise_distance_forward<R: Rows>(
+        rows: &R, from: &Offset<R::RowId>, to: &Offset<R::RowId>, bound: f32,
+    ) -> Option<f32> {
+        if from.anchor == to.anchor {
+            let d = to.intra_precise - from.intra_precise;
+            return (d >= 0.0).then_some(d);
+        }
+        let mut id = from.anchor.clone();
+        let mut dist = -from.intra_precise;
         loop {
             dist += rows.precise(&id);
             if dist > bound {
-                break;
+                return None;
             }
             match rows.next(&id) {
                 Some(next_id) => {
-                    if next_id == b.anchor {
-                        return Some(dist + b.intra_precise);
+                    if next_id == to.anchor {
+                        return Some(dist + to.intra_precise);
                     }
                     id = next_id;
-                }
-                None => break,
-            }
-        }
-        let mut id = a.anchor.clone();
-        let mut dist = -a.intra_precise;
-        loop {
-            match rows.prev(&id) {
-                Some(prev_id) => {
-                    dist -= rows.precise(&prev_id);
-                    if dist < -bound {
-                        return None;
-                    }
-                    if prev_id == b.anchor {
-                        return Some(dist + b.intra_precise);
-                    }
-                    id = prev_id;
                 }
                 None => return None,
             }
         }
     }
 
-    pub fn midpoint<R: Rows>(
-        rows: &R, top: Offset<R::RowId>, bottom: Offset<R::RowId>,
-    ) -> Offset<R::RowId> {
-        let dist = signed_distance(rows, &top, &bottom);
-        scroll_by(rows, top, dist / 2.0)
+    /// Signed precise-pixel distance from `a` to `b`, bounded by
+    /// `bound`. Positive if `b` is below `a`. Returns `None` if `b`
+    /// isn't within `bound` of `a` in either direction, or if `b`'s
+    /// anchor isn't in the row sequence.
+    ///
+    /// Implementation: a cheap [`probe_direction`] (no `precise()`
+    /// calls) decides which side to walk, then exactly one
+    /// [`precise_distance_forward`] runs in that direction.
+    pub fn precise_distance<R: Rows>(
+        rows: &R, a: &Offset<R::RowId>, b: &Offset<R::RowId>, bound: f32,
+    ) -> Option<f32> {
+        if a.anchor == b.anchor {
+            let d = b.intra_precise - a.intra_precise;
+            return (d.abs() <= bound).then_some(d);
+        }
+        match probe_direction(rows, &a.anchor, &b.anchor)? {
+            Direction::Forward => precise_distance_forward(rows, a, b, bound),
+            Direction::Backward => precise_distance_forward(rows, b, a, bound).map(|d| -d),
+        }
     }
+
+    /// Offset whose distance from `top` equals its distance from
+    /// `bottom`. `None` if the rect is taller than `bound` precise
+    /// pixels — caller should fall back (e.g. align Top) since no
+    /// midpoint exists within the budget.
+    pub fn midpoint<R: Rows>(
+        rows: &R, top: Offset<R::RowId>, bottom: Offset<R::RowId>, bound: f32,
+    ) -> Option<Offset<R::RowId>> {
+        let dist = precise_distance(rows, &top, &bottom, bound)?;
+        Some(scroll_by(rows, top, dist / 2.0))
+    }
+
+    /// Allowed range for `approx / precise` per row in scrollbar math.
+    /// Out-of-band rows (zero-set agreement violated, or cheap
+    /// estimate is way off true layout) substitute the clamped slope
+    /// — scrollbar geometry drifts proportionally, scroll-input
+    /// fidelity is unaffected.
+    const SLOPE_BAND: (f32, f32) = (1e-3, 1e3);
 
     /// Position of the scroll thumb in approx coordinate. Walks rows
     /// above the anchor for cumulative approx; uses local slope inside
     /// the anchor row.
-    pub fn thumb_approx<R: Rows>(rows: &R, off: &Offset<R::RowId>, band: (f32, f32)) -> f32 {
+    pub fn thumb_approx<R: Rows>(rows: &R, off: &Offset<R::RowId>) -> f32 {
         let mut acc = 0.0;
         let mut id = off.anchor.clone();
         while let Some(prev_id) = rows.prev(&id) {
@@ -253,7 +414,7 @@ mod affine {
         let row_precise = rows.precise(&off.anchor);
         let row_approx = rows.approx(&off.anchor);
         let intra_approx = if row_precise > 0.0 {
-            let slope = (row_approx / row_precise).clamp(band.0, band.1);
+            let slope = (row_approx / row_precise).clamp(SLOPE_BAND.0, SLOPE_BAND.1);
             off.intra_precise * slope
         } else {
             0.0
@@ -262,9 +423,7 @@ mod affine {
     }
 
     /// Inverse of `thumb_approx`.
-    pub fn from_thumb<R: Rows>(
-        rows: &R, approx_pos: f32, band: (f32, f32),
-    ) -> Option<Offset<R::RowId>> {
+    pub fn from_thumb<R: Rows>(rows: &R, approx_pos: f32) -> Option<Offset<R::RowId>> {
         let first = rows.first()?;
         if approx_pos <= 0.0 {
             return Some(Offset::at_top_of(first));
@@ -277,7 +436,8 @@ mod affine {
                 let intra_approx = approx_pos - acc;
                 let row_precise = rows.precise(&id);
                 let intra_precise = if row_approx > 0.0 {
-                    let inv_slope = (row_precise / row_approx).clamp(1.0 / band.1, 1.0 / band.0);
+                    let inv_slope =
+                        (row_precise / row_approx).clamp(1.0 / SLOPE_BAND.1, 1.0 / SLOPE_BAND.0);
                     intra_approx * inv_slope
                 } else {
                     0.0
@@ -317,22 +477,8 @@ mod affine {
 }
 
 // ============================================================================
-// Public types: Action, VisibleRow, HitRow, Reveal, Align, Scrollbar, Config
+// Public types: Action, VisibleRow, HitRow, Reveal, Align, Scrollbar
 // ============================================================================
-
-#[derive(Debug, Clone, Copy)]
-pub struct Config {
-    /// Allowed range for `approx / precise` per row. Rows whose true
-    /// ratio is outside the band substitute the clamped slope in
-    /// scrollbar math. Scroll input fidelity is unaffected.
-    pub slope_band: (f32, f32),
-}
-
-impl Default for Config {
-    fn default() -> Self {
-        Self { slope_band: (1e-3, 1e3) }
-    }
-}
 
 #[derive(Debug, Clone)]
 pub enum Action {
@@ -454,7 +600,6 @@ pub struct ScrollArea<Id: Clone + Eq + std::fmt::Debug> {
     /// which projects onto current rows.
     stored_offset: Option<Offset<Id>>,
     pub viewport_height: f32,
-    pub config: Config,
     /// Touch-scroll velocity (precise px/sec). Positive = content moving
     /// up on screen.
     velocity_precise: f32,
@@ -471,7 +616,6 @@ impl<Id: Clone + Eq + std::fmt::Debug> Default for ScrollArea<Id> {
         Self {
             stored_offset: None,
             viewport_height: 0.0,
-            config: Config::default(),
             velocity_precise: 0.0,
             drag_window: [(0.0, 0.0); DRAG_WINDOW_LEN],
             drag_window_idx: 0,
@@ -504,11 +648,13 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
     ///   `precise(anchor)` below stored `intra_precise`) → walk forward
     ///   by the excess. Patch-through, not clamp.
     pub fn offset<R: Rows<RowId = Id>>(&self, rows: &R) -> Option<Offset<Id>> {
-        let stored = match &self.stored_offset {
-            Some(off) if Self::anchor_valid(rows, &off.anchor) => off.clone(),
-            _ => return rows.first().map(Offset::at_top_of),
-        };
-        Some(Self::normalize(rows, stored))
+        match &self.stored_offset {
+            Some(off) if Self::anchor_valid(rows, &off.anchor) => {
+                Some(Self::normalize(rows, off.clone()))
+            }
+            Some(off) => rows.recover_anchor(&off.anchor).map(Offset::at_top_of),
+            None => rows.first().map(Offset::at_top_of),
+        }
     }
 
     fn normalize<R: Rows<RowId = Id>>(rows: &R, mut off: Offset<Id>) -> Offset<Id> {
@@ -565,8 +711,14 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
         };
         let intra_precise = rows.precise(&last);
         let last_bottom = Offset { anchor: last, intra_precise };
-        let dist_to_end = affine::signed_distance(rows, &off, &last_bottom);
-        if dist_to_end < self.viewport_height { max } else { off }
+        // Directed walk: `last_bottom` is forward of any valid offset
+        // by construction. Bounded by viewport_height — past that we
+        // know there's enough content below to fill the viewport, so
+        // no clamp is needed.
+        match affine::precise_distance_forward(rows, &off, &last_bottom, self.viewport_height) {
+            Some(dist) if dist < self.viewport_height => max,
+            _ => off,
+        }
     }
 
     pub fn total_approx<R: Rows<RowId = Id>>(&self, rows: &R) -> f32 {
@@ -575,15 +727,18 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
 
     pub fn thumb_approx<R: Rows<RowId = Id>>(&self, rows: &R) -> f32 {
         match self.offset(rows) {
-            Some(off) => affine::thumb_approx(rows, &off, self.config.slope_band),
+            Some(off) => affine::thumb_approx(rows, &off),
             None => 0.0,
         }
     }
 
-    pub fn signed_distance<R: Rows<RowId = Id>>(
-        &self, rows: &R, a: &Offset<Id>, b: &Offset<Id>,
-    ) -> f32 {
-        affine::signed_distance(rows, a, b)
+    /// Signed precise-pixel distance from `a` to `b`, bounded by
+    /// `bound`. Positive if `b` is below `a`. Returns `None` if `b`
+    /// isn't within `bound` in either direction.
+    pub fn precise_distance<R: Rows<RowId = Id>>(
+        &self, rows: &R, a: &Offset<Id>, b: &Offset<Id>, bound: f32,
+    ) -> Option<f32> {
+        affine::precise_distance(rows, a, b, bound)
     }
 
     /// The [`Offset`] corresponding to the given viewport-local y. Walks
@@ -644,17 +799,28 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
         }
     }
 
-    /// Place the offset at a specific anchor + intra-row precise. The
-    /// anchor must currently be in rows; otherwise no-op. Result clamps
-    /// so the document still fills the viewport.
+    /// Place the offset at a specific anchor + intra-row precise.
+    /// Result clamps so the document still fills the viewport.
     ///
-    /// Cancels touch-scroll momentum so a programmatic jump isn't fought
-    /// by a coasting flick.
+    /// If the caller's anchor isn't in the row sequence (e.g., a
+    /// persisted index referring to a row that's since been deleted),
+    /// runs [`Rows::recover_anchor`] to obtain a replacement anchor
+    /// and places at its top. Returns silently if rows is empty or
+    /// recovery returns `None`.
+    ///
+    /// Cancels touch-scroll momentum so a programmatic jump isn't
+    /// fought by a coasting flick.
     pub fn set_offset<R: Rows<RowId = Id>>(&mut self, rows: &R, off: Offset<Id>) {
-        if Self::anchor_valid(rows, &off.anchor) {
-            self.stored_offset = Some(self.clamp_to_max(rows, off));
-            self.kill_momentum();
-        }
+        let off = if Self::anchor_valid(rows, &off.anchor) {
+            off
+        } else {
+            match rows.recover_anchor(&off.anchor) {
+                Some(recovered) => Offset::at_top_of(recovered),
+                None => return,
+            }
+        };
+        self.stored_offset = Some(self.clamp_to_max(rows, off));
+        self.kill_momentum();
     }
 
     /// Process an [`Action`]. Stale anchors recover via `offset()` first.
@@ -669,8 +835,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
             Action::ScrollByThumb(delta) => {
                 if self.offset(rows).is_some() {
                     let target = self.thumb_approx(rows) + delta;
-                    if let Some(new_off) = affine::from_thumb(rows, target, self.config.slope_band)
-                    {
+                    if let Some(new_off) = affine::from_thumb(rows, target) {
                         self.stored_offset = Some(self.clamp_to_max(rows, new_off));
                     }
                 }
@@ -703,8 +868,12 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
             Align::Top => rect.top,
             Align::Bottom => affine::scroll_by(rows, rect.bottom, -self.viewport_height),
             Align::Center => {
-                let mid = affine::midpoint(rows, rect.top, rect.bottom);
-                affine::scroll_by(rows, mid, -self.viewport_height / 2.0)
+                // Rect taller than viewport has no meaningful center
+                // anchor inside the viewport; degrade to Top.
+                match affine::midpoint(rows, rect.top.clone(), rect.bottom, self.viewport_height) {
+                    Some(mid) => affine::scroll_by(rows, mid, -self.viewport_height / 2.0),
+                    None => rect.top,
+                }
             }
             Align::Nearest => {
                 let Some(target) = self.nearest_target(rows, rect) else {
@@ -722,11 +891,10 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
         let current = self.offset(rows)?;
         let bound = self.viewport_height;
 
-        let y_top = affine::signed_distance_bounded(rows, &current, &rect.top, bound);
-        let y_bot = affine::signed_distance_bounded(rows, &current, &rect.bottom, bound);
+        let y_top = affine::precise_distance(rows, &current, &rect.top, bound);
+        let y_bot = affine::precise_distance(rows, &current, &rect.bottom, bound);
 
-        let rect_height =
-            affine::signed_distance_bounded(rows, &rect.top, &rect.bottom, bound + 1.0);
+        let rect_height = affine::precise_distance(rows, &rect.top, &rect.bottom, bound + 1.0);
         let rect_taller_than_viewport = rect_height.map(|h| h > bound).unwrap_or(true);
 
         if rect_taller_than_viewport {
@@ -758,11 +926,13 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
                 }
             }
             (None, None) => {
-                let signed = affine::signed_distance(rows, &current, &rect.top);
-                if signed.is_nan() || signed < 0.0 {
-                    Some(rect.top)
-                } else {
-                    Some(affine::scroll_by(rows, rect.bottom, -bound))
+                // Both endpoints are far away; only direction matters.
+                // No `precise()` needed.
+                match affine::probe_direction(rows, &current.anchor, &rect.top.anchor) {
+                    Some(affine::Direction::Forward) => {
+                        Some(affine::scroll_by(rows, rect.bottom, -bound))
+                    }
+                    _ => Some(rect.top),
                 }
             }
         }
@@ -779,7 +949,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
         let thumb_pos = self.thumb_approx(rows);
         let scrollable_approx = self
             .max_offset(rows)
-            .map(|off| affine::thumb_approx(rows, &off, self.config.slope_band))
+            .map(|off| affine::thumb_approx(rows, &off))
             .unwrap_or(0.0);
         let visible_fraction =
             if total > 0.0 { ((total - scrollable_approx) / total).clamp(0.0, 1.0) } else { 1.0 };
@@ -825,85 +995,64 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
 // Egui adapter
 // ============================================================================
 
-/// Egui adapter: persists a [`ScrollArea<Id>`] in egui memory keyed by
-/// `id_salt` and layers wheel / touch-drag / scrollbar-drag input plus
-/// momentum on top.
-pub struct AffineScrollArea<Id> {
+/// Egui adapter that owns a [`ScrollArea<Id>`] and layers wheel /
+/// touch-drag / scrollbar-drag input plus momentum on top. Embed this
+/// directly in the type that owns the scrollable view; it persists
+/// state across frames as a plain field.
+pub struct AffineScrollArea<Id: Clone + Eq + std::fmt::Debug> {
+    pub state: ScrollArea<Id>,
+    /// When true, drag on the body (not just the scrollbar) scrolls
+    /// the content with momentum. Intended for touch input.
+    pub touch_scroll: bool,
+    /// Salt for the scrollbar's interact rect — must be stable across
+    /// frames and unique among visible scroll areas.
     id_salt: egui::Id,
-    /// When true, drag on the body (not just the scrollbar) scrolls the
-    /// content with momentum. Intended for touch input.
-    touch_scroll: bool,
-    _phantom: PhantomData<Id>,
 }
 
-impl<Id> AffineScrollArea<Id>
-where
-    Id: Clone + Eq + std::fmt::Debug + Send + Sync + 'static,
-{
+impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
     pub fn new(id_salt: impl Hash) -> Self {
-        Self { id_salt: egui::Id::new(id_salt), touch_scroll: false, _phantom: PhantomData }
-    }
-
-    pub fn touch_scroll(mut self, enabled: bool) -> Self {
-        self.touch_scroll = enabled;
-        self
-    }
-
-    /// Snapshot the persisted state. Cheap clone of POD + the optional
-    /// offset.
-    pub fn state(&self, ctx: &egui::Context) -> ScrollArea<Id> {
-        ctx.data(|d| d.get_temp::<ScrollArea<Id>>(self.id_salt))
-            .unwrap_or_default()
-    }
-
-    fn write_state(&self, ctx: &egui::Context, state: ScrollArea<Id>) {
-        ctx.data_mut(|d| d.insert_temp(self.id_salt, state));
+        Self {
+            state: ScrollArea::default(),
+            touch_scroll: false,
+            id_salt: egui::Id::new(id_salt),
+        }
     }
 
     /// Touch-scroll velocity (precise px/sec). y is vertical; x is
     /// always 0. Non-zero while momentum is in flight.
-    pub fn velocity(&self, ctx: &egui::Context) -> Vec2 {
-        self.state(ctx).velocity()
+    pub fn velocity(&self) -> Vec2 {
+        self.state.velocity()
     }
 
     /// Raw persisted offset for change-detection (no row projection).
-    /// Cheap egui-memory read.
-    pub fn stored_offset(&self, ctx: &egui::Context) -> Option<Offset<Id>> {
-        self.state(ctx).stored_offset()
+    pub fn stored_offset(&self) -> Option<Offset<Id>> {
+        self.state.stored_offset()
     }
 
     /// Current offset projected onto the given rows, or `None` if rows
     /// is empty.
-    pub fn offset<R: Rows<RowId = Id>>(&self, ctx: &egui::Context, rows: &R) -> Option<Offset<Id>> {
-        self.state(ctx).offset(rows)
+    pub fn offset<R: Rows<RowId = Id>>(&self, rows: &R) -> Option<Offset<Id>> {
+        self.state.offset(rows)
     }
 
     /// Set offset directly. Cancels touch-scroll momentum.
-    pub fn set_offset<R: Rows<RowId = Id>>(&self, ctx: &egui::Context, rows: &R, off: Offset<Id>) {
-        let mut state = self.state(ctx);
-        state.set_offset(rows, off);
-        self.write_state(ctx, state);
-        ctx.request_repaint();
+    pub fn set_offset<R: Rows<RowId = Id>>(&mut self, rows: &R, off: Offset<Id>) {
+        self.state.set_offset(rows, off);
     }
 
     /// Reveal a rect with the given alignment.
-    pub fn reveal<R: Rows<RowId = Id>>(
-        &self, ctx: &egui::Context, rows: &R, rect: Reveal<Id>, align: Align,
-    ) {
-        let mut state = self.state(ctx);
-        state.reveal(rows, rect, align);
-        self.write_state(ctx, state);
-        ctx.request_repaint();
+    pub fn reveal<R: Rows<RowId = Id>>(&mut self, rows: &R, rect: Reveal<Id>, align: Align) {
+        self.state.reveal(rows, rect, align);
     }
 
     /// Per-frame: allocate body + scrollbar hit areas, process input,
-    /// draw scrollbar, return body Response + visible rows. Caller paints
-    /// rows into `body` using the returned `top` offsets.
+    /// draw scrollbar, return body Response + visible rows. Caller
+    /// paints rows into the body using the returned `top` offsets.
     ///
-    /// Walks rows in a viewport-sized window above and below the visible
-    /// region, calling [`Rows::warm`] on each so impls can kick off
-    /// background work for rows about to enter view.
-    pub fn show<R: Rows<RowId = Id>>(&self, ui: &mut Ui, rows: &R) -> ShowResponse<Id> {
+    /// Walks rows in a viewport-sized window above and below the
+    /// visible region, calling [`Rows::warm`] on each so impls can
+    /// kick off background work for rows about to enter view.
+    pub fn show<R: Rows<RowId = Id>>(&mut self, ui: &mut Ui, rows: &R) -> ShowResponse<Id> {
         let rect = ui.max_rect();
         let body_sense = if self.touch_scroll { Sense::click_and_drag() } else { Sense::hover() };
         let response = ui.allocate_rect(rect, body_sense);
@@ -918,15 +1067,13 @@ where
         let bar_id = self.id_salt.with("scrollbar");
         let bar_response = ui.interact(bar_track, bar_id, Sense::click_and_drag());
 
-        let mut state = self.state(ui.ctx());
-        state.handle(rows, Action::Resize(rect.height()));
+        self.state.handle(rows, Action::Resize(rect.height()));
 
-        // Geometry-only snapshot before input — `scrollable_approx` is
-        // a function of (rows, viewport_height, slope_band), independent
-        // of the current offset, so this stays valid through input
-        // processing. Used both to size scrollbar-drag math and to gate
-        // touch-body-drag.
-        let bar_geom = state.scrollbar(rows, bar_track);
+        // `scrollable_approx` is a function of (rows, viewport_height,
+        // slope_band), independent of the current offset, so this
+        // snapshot stays valid through input processing. Used both to
+        // size scrollbar-drag math and to gate touch-body-drag.
+        let bar_geom = self.state.scrollbar(rows, bar_track);
         let scrollable = bar_geom.scrollable_approx > 0.0;
 
         // Wheel: precise pixels. egui convention: positive y = scroll up
@@ -935,36 +1082,36 @@ where
         let raw_scroll_delta =
             if ui.rect_contains_pointer(rect) { ui.input(|i| i.raw_scroll_delta.y) } else { 0.0 };
         if raw_scroll_delta != 0.0 {
-            state.handle(rows, Action::ScrollByPixels(-raw_scroll_delta));
+            self.state.handle(rows, Action::ScrollByPixels(-raw_scroll_delta));
         }
 
         // Touch body drag → scroll + velocity tracking.
         let dt = ui.input(|i| i.stable_dt).max(0.0001);
         if scrollable && self.touch_scroll && response.drag_started() {
-            state.kill_momentum();
+            self.state.kill_momentum();
         }
         if scrollable && self.touch_scroll && response.dragged() {
             let drag_y = ui.input(|i| i.pointer.delta().y);
             let precise_delta = -drag_y;
-            state.handle(rows, Action::ScrollByPixels(precise_delta));
-            state.record_drag_sample(precise_delta, dt);
-        } else if state.velocity_precise.abs() > 1.0 && !response.dragged() {
+            self.state.handle(rows, Action::ScrollByPixels(precise_delta));
+            self.state.record_drag_sample(precise_delta, dt);
+        } else if self.state.velocity_precise.abs() > 1.0 && !response.dragged() {
             const DECAY_PER_SEC: f32 = 4.0;
-            let precise_step = state.velocity_precise * dt;
-            let before = state.offset(rows);
-            state.handle(rows, Action::ScrollByPixels(precise_step));
-            let after = state.offset(rows);
+            let precise_step = self.state.velocity_precise * dt;
+            let before = self.state.offset(rows);
+            self.state.handle(rows, Action::ScrollByPixels(precise_step));
+            let after = self.state.offset(rows);
             if before == after {
-                state.velocity_precise = 0.0;
+                self.state.velocity_precise = 0.0;
             } else {
-                state.velocity_precise *= (-DECAY_PER_SEC * dt).exp();
+                self.state.velocity_precise *= (-DECAY_PER_SEC * dt).exp();
             }
             ui.ctx().request_repaint();
         } else {
-            state.velocity_precise = 0.0;
+            self.state.velocity_precise = 0.0;
         }
         if self.touch_scroll && response.clicked() {
-            state.velocity_precise = 0.0;
+            self.state.velocity_precise = 0.0;
         }
 
         // Scrollbar drag/click. Drag deltas use the pre-input geometry
@@ -975,7 +1122,7 @@ where
             if bar_response.dragged() {
                 let drag_y = ui.input(|i| i.pointer.delta().y);
                 let approx_delta = bar_geom.pixel_to_approx(drag_y);
-                state.handle(rows, Action::ScrollByThumb(approx_delta));
+                self.state.handle(rows, Action::ScrollByThumb(approx_delta));
             } else if let Some(pos) = bar_response.interact_pointer_pos() {
                 let movable = bar_geom.track.height() - bar_geom.thumb.height();
                 let target_thumb_top =
@@ -987,19 +1134,17 @@ where
                     0.0
                 };
                 let delta = target_approx - bar_geom.thumb_approx;
-                state.handle(rows, Action::ScrollByThumb(delta));
+                self.state.handle(rows, Action::ScrollByThumb(delta));
             }
         }
 
-        let visible = state.visible(rows);
+        let visible = self.state.visible(rows);
         warm_around_visible(rows, &visible, rect.height());
 
         if scrollable {
-            let bar_after = state.scrollbar(rows, bar_track);
+            let bar_after = self.state.scrollbar(rows, bar_track);
             draw_scrollbar(ui, bar_after);
         }
-
-        self.write_state(ui.ctx(), state);
 
         ShowResponse { response, visible }
     }

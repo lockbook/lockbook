@@ -192,6 +192,10 @@ pub struct MdEdit {
 
     /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
     pub link_completions: LinkCompletions,
+
+    /// Owns the per-row scroll state (offset, momentum) and renders
+    /// the scrollbar. `id_salt` derived from `file_id` at construction.
+    pub scroll_area: AffineScrollArea<DocRowId>,
 }
 
 impl MdEdit {
@@ -203,6 +207,7 @@ impl MdEdit {
     pub fn empty(ctx: Context) -> Self {
         let mut renderer = MdRender::empty(ctx);
         renderer.readonly = false;
+        let file_id = Uuid::nil();
         Self {
             renderer,
             cursor: Default::default(),
@@ -211,9 +216,10 @@ impl MdEdit {
             in_progress_selection: None,
             pending_scroll: None,
             scroll_area_velocity: Default::default(),
-            file_id: Uuid::nil(),
+            file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
+            scroll_area: AffineScrollArea::new(file_id),
         }
     }
 }
@@ -578,6 +584,7 @@ impl Editor {
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: Default::default(),
+                scroll_area: AffineScrollArea::new(file_id),
             },
 
             core,
@@ -769,8 +776,7 @@ impl Editor {
         self.edit.renderer.apply_theme(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
-        let scroll_id = self.id();
-        let prev_offset = AffineScrollArea::<DocRowId>::new(scroll_id).stored_offset(ui.ctx());
+        let prev_offset = self.edit.scroll_area.stored_offset();
 
         let editor_shown = ui
             .vertical(|ui| {
@@ -842,10 +848,9 @@ impl Editor {
             .inner;
 
         if editor_shown {
-            let scroll = AffineScrollArea::<DocRowId>::new(scroll_id);
-            let new_offset = scroll.stored_offset(ui.ctx());
+            let new_offset = self.edit.scroll_area.stored_offset();
             self.next_resp.scroll_updated = new_offset != prev_offset;
-            self.edit.scroll_area_velocity = scroll.velocity(ui.ctx());
+            self.edit.scroll_area_velocity = self.edit.scroll_area.velocity();
 
             // persistence: read on first frame
             if !self.initialized {
@@ -868,7 +873,7 @@ impl Editor {
                         DocRowId::Block(anchor_idx)
                     };
                     let off = Offset::new(anchor, intra_precise);
-                    scroll.set_offset(ui.ctx(), &content, off);
+                    self.edit.scroll_area.set_offset(&content, off);
                 }
                 // set the selection using low-level API; using internal
                 // events causes touch devices to scroll to cursor on 2nd
@@ -1001,21 +1006,18 @@ impl Editor {
             if unprocessed_scroll.elapsed() > Duration::from_millis(100) && editor_shown {
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
-                let scroll_id = self.id();
-                let scroll = AffineScrollArea::<DocRowId>::new(scroll_id);
                 // Project the persisted offset onto current rows so a
                 // stale anchor (block deleted since save) is recovered
                 // rather than persisted as-is.
                 let content = scroll_content::DocScrollContent::new(&self.edit.renderer, root, 0.0)
                     .with_default_leading();
-                let anchor = scroll.offset(ui.ctx(), &content).and_then(|off| {
-                    match off.anchor {
+                let anchor =
+                    self.edit.scroll_area.offset(&content).and_then(|off| match off.anchor {
                         DocRowId::Block(i) | DocRowId::Line(i) => Some((i, off.intra_precise)),
                         // Cursor in leading/trailing pad isn't a block —
                         // persist None and let the next open default.
                         DocRowId::Leading | DocRowId::Trailing => None,
-                    }
-                });
+                    });
                 drop(content);
 
                 let image_dims = self.edit.renderer.embeds.image_dims();
@@ -1133,11 +1135,11 @@ impl Editor {
                 ui.scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
                     let trailing_precise = canvas_rect.height() / 2.0;
                     ui.set_clip_rect(canvas_rect);
-                    let scroll =
-                        AffineScrollArea::<DocRowId>::new(scroll_id).touch_scroll(touch_scroll);
+                    self.edit.scroll_area.touch_scroll = touch_scroll;
 
-                    // Phase 1: drive scroll math + scrollbar with an
-                    // immutable renderer borrow.
+                    // Phase 1: drive scroll math + scrollbar. The
+                    // immutable `DocScrollContent` borrow is released
+                    // before phase 2's mutable renderer paint.
                     let visible = {
                         let content = scroll_content::DocScrollContent::new(
                             &self.edit.renderer,
@@ -1145,7 +1147,7 @@ impl Editor {
                             trailing_precise,
                         )
                         .with_default_leading();
-                        scroll.show(ui, &content).visible
+                        self.edit.scroll_area.show(ui, &content).visible
                     };
 
                     // Phase 2: paint each visible row with a mutable
@@ -1190,7 +1192,7 @@ impl Editor {
         if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
             self.edit.pending_scroll = None;
             if let Some(canvas_rect) = captured_canvas_rect {
-                self.scroll_to_find_match(ui, scroll_id, canvas_rect);
+                self.scroll_to_find_match(canvas_rect);
             }
         }
     }
@@ -1251,7 +1253,7 @@ impl Editor {
         }
     }
 
-    fn scroll_to_find_match(&mut self, ui: &mut Ui, scroll_id: Id, canvas_rect: Rect) {
+    fn scroll_to_find_match(&mut self, canvas_rect: Rect) {
         let Some(idx) = self.find.current_match else { return };
         let Some(&match_range) = self.find.matches.get(idx) else { return };
 
@@ -1263,18 +1265,17 @@ impl Editor {
             canvas_rect.height() / 2.0,
         )
         .with_default_leading();
-        let scroll = AffineScrollArea::<DocRowId>::new(scroll_id);
 
         let Some(target_rect) = build_target_reveal(
             &self.edit.renderer,
             &content,
-            &scroll.state(ui.ctx()),
+            &self.edit.scroll_area.state,
             match_range,
             canvas_rect,
         ) else {
             return;
         };
-        scroll.reveal(ui.ctx(), &content, target_rect, Align::Center);
+        self.edit.scroll_area.reveal(&content, target_rect, Align::Center);
     }
 }
 
