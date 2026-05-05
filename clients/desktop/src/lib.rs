@@ -1,7 +1,7 @@
 use std::sync::Arc;
 use std::time::Instant;
 
-use egui::{OutputCommand, Pos2, ViewportCommand, ViewportId};
+use egui::{Pos2, ViewportCommand, ViewportId};
 use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, WgpuLockbook};
 use winit::application::ApplicationHandler;
@@ -252,21 +252,10 @@ impl AppState {
             return;
         }
 
-        // Handle platform outputs
+        // egui-winit handles cursor icon, IME, and the clipboard/open-url
+        // OutputCommands (CopyText, CopyImage, OpenUrl) for us.
         self.egui_winit
-            .handle_platform_output(&self.window, platform.clone());
-
-        // Handle clipboard copy
-        for cmd in &platform.commands {
-            if let OutputCommand::CopyText(text) = cmd {
-                if let Err(e) = self.clipboard.set_text(text.clone()) {
-                    log::warn!("clipboard copy failed: {e}");
-                }
-            }
-            if let OutputCommand::OpenUrl(url) = cmd {
-                let _ = open::that(&url.url);
-            }
-        }
+            .handle_platform_output(&self.window, platform);
 
         // Handle viewport commands. Note: viewport.repaint_delay is intentionally
         // not consulted here — the request_repaint callback is the sole scheduler,
