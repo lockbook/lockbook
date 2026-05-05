@@ -89,22 +89,31 @@ impl ImageCache {
         self.last_modified.load(Ordering::Relaxed)
     }
 
-    /// Test-only: inject a `Loaded` state for `url` pointing at a
-    /// pre-allocated `texture_id`, and bump `last_modified` as if a
-    /// worker had just completed.
-    #[cfg(test)]
-    pub fn test_seed_loaded(&self, url: &str, texture_id: TextureId) {
-        let state = Arc::new(Mutex::new(ImageState::Loaded(texture_id)));
-        self.inner
-            .lock()
-            .unwrap()
-            .current
-            .insert(url.to_string(), state);
-        self.last_modified.fetch_add(1, Ordering::Relaxed);
-    }
-
     pub fn ctx(&self) -> &Context {
         &self.ctx
+    }
+
+    pub fn complete_load(&self, url: &str, result: Result<TextureId, String>) {
+        let new_state = match result {
+            Ok(texture_id) => ImageState::Loaded(texture_id),
+            Err(err) => ImageState::Failed(err),
+        };
+        let existing = {
+            let inner = self.inner.lock().unwrap();
+            inner.current.get(url).cloned()
+        };
+        if let Some(state) = existing {
+            *state.lock().unwrap() = new_state;
+        } else {
+            let state = Arc::new(Mutex::new(new_state));
+            self.inner
+                .lock()
+                .unwrap()
+                .current
+                .insert(url.to_string(), state);
+        }
+        self.last_modified.fetch_add(1, Ordering::Relaxed);
+        self.ctx.request_repaint();
     }
 
     pub fn begin_frame(&self) {
@@ -146,25 +155,15 @@ impl ImageCache {
         }
 
         let state: Arc<Mutex<ImageState>> = Default::default();
-        self.spawn_load(
-            url,
-            from_file_id,
-            user_activity,
-            state.clone(),
-            self.last_modified.clone(),
-        );
         inner.current.insert(url.to_string(), state.clone());
+        drop(inner);
+        self.spawn_load(url, from_file_id, user_activity);
         state
     }
 
-    fn spawn_load(
-        &self, url: &str, from_file_id: Uuid, user_activity: bool, state: Arc<Mutex<ImageState>>,
-        last_modified: Arc<AtomicU64>,
-    ) {
+    fn spawn_load(&self, url: &str, from_file_id: Uuid, user_activity: bool) {
         let url = url.to_string();
-        let ctx = self.ctx.clone();
-        let client = self.client.clone();
-        let core = self.core.clone();
+        let cache = self.clone();
 
         let maybe_lb_id = {
             let guard = self.files.read().unwrap();
@@ -178,15 +177,15 @@ impl ImageCache {
         // viewport width is used to scale SVG rasterization — use the screen
         // width as a reasonable upper bound since we load asynchronously
         // before we know the precise render width
-        let viewport_width = ctx.screen_rect().width();
-        let pixels_per_point = ctx.pixels_per_point();
+        let viewport_width = cache.ctx.screen_rect().width();
+        let pixels_per_point = cache.ctx.pixels_per_point();
 
         spawn!({
-            let texture_manager = ctx.tex_manager();
-
             let texture_closure = async_on_wasm!({
                 let image_bytes = if let Some(id) = maybe_lb_id {
-                    core.read_document(id, user_activity)
+                    cache
+                        .core
+                        .read_document(id, user_activity)
                         .map_err(|e| e.to_string())?
                 } else {
                     if !url.starts_with("http://") && !url.starts_with("https://") {
@@ -194,18 +193,18 @@ impl ImageCache {
                     }
                     #[cfg(target_arch = "wasm32")]
                     {
-                        download_image(&client, &url)
+                        download_image(&cache.client, &url)
                             .await
                             .map_err(|e| e.to_string())?
                     }
                     #[cfg(not(target_arch = "wasm32"))]
                     {
-                        download_image(&client, &url).map_err(|e| e.to_string())?
+                        download_image(&cache.client, &url).map_err(|e| e.to_string())?
                     }
                 };
 
                 let is_svg = if let Some(id) = maybe_lb_id {
-                    let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
+                    let file = cache.core.get_file_by_id(id).map_err(|e| e.to_string())?;
                     file.name.ends_with(".svg")
                 } else {
                     url.ends_with(".svg")
@@ -227,9 +226,11 @@ impl ImageCache {
                 let color_image =
                     ColorImage::from_rgba_unmultiplied(size_pixels, &image.to_rgba8());
                 let image_data = egui::ImageData::Color(color_image.into());
-                Ok(texture_manager
-                    .write()
-                    .alloc(url.clone(), image_data, Default::default()))
+                Ok(cache.ctx.tex_manager().write().alloc(
+                    url.clone(),
+                    image_data,
+                    Default::default(),
+                ))
             });
 
             #[cfg(target_arch = "wasm32")]
@@ -237,17 +238,7 @@ impl ImageCache {
             #[cfg(not(target_arch = "wasm32"))]
             let result = texture_closure();
 
-            match result {
-                Ok(texture_id) => {
-                    *state.lock().unwrap() = ImageState::Loaded(texture_id);
-                }
-                Err(err) => {
-                    *state.lock().unwrap() = ImageState::Failed(err);
-                }
-            }
-
-            last_modified.fetch_add(1, Ordering::Relaxed);
-            ctx.request_repaint();
+            cache.complete_load(&url, result);
         });
     }
 }
