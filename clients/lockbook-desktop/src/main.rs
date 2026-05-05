@@ -117,7 +117,10 @@ impl ApplicationHandler for App {
                 state.window.request_redraw();
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
-                state.lb.renderer.set_native_pixels_per_point(scale_factor as f32);
+                state
+                    .lb
+                    .renderer
+                    .set_native_pixels_per_point(scale_factor as f32);
                 state.window.request_redraw();
             }
             WindowEvent::RedrawRequested => {
@@ -127,7 +130,9 @@ impl ApplicationHandler for App {
                 // Handle paste shortcut (Ctrl+V / Cmd+V)
                 if event.state == ElementState::Pressed {
                     let modifiers = state.egui_winit.egui_input().modifiers;
-                    if modifiers.command && event.logical_key == winit::keyboard::Key::Character("v".into()) {
+                    if modifiers.command
+                        && event.logical_key == winit::keyboard::Key::Character("v".into())
+                    {
                         state.pending_paste = true;
                         state.window.request_redraw();
                     }
@@ -155,11 +160,7 @@ impl AppState {
         self.lb.renderer.raw_input = raw_input;
 
         // Run frame
-        let Output {
-            platform,
-            viewport,
-            app: lbeguiapp::Response { close },
-        } = self.lb.frame();
+        let Output { platform, viewport, app: lbeguiapp::Response { close } } = self.lb.frame();
 
         // Handle app close request
         if close {
@@ -217,10 +218,7 @@ impl AppState {
             if let Some(rgba) = rgba {
                 let mut png_bytes = Vec::new();
                 if rgba
-                    .write_to(
-                        &mut std::io::Cursor::new(&mut png_bytes),
-                        image::ImageFormat::Png,
-                    )
+                    .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
                     .is_ok()
                 {
                     let content = vec![ClipContent::Image(png_bytes)];
@@ -253,7 +251,9 @@ fn init_lockbook(window: Arc<Window>, dark_mode: bool) -> WgpuLockbook<'static> 
     init_with_renderer(renderer, dark_mode)
 }
 
-fn init_with_renderer(mut renderer: RendererState<'static>, dark_mode: bool) -> WgpuLockbook<'static> {
+fn init_with_renderer(
+    mut renderer: RendererState<'static>, dark_mode: bool,
+) -> WgpuLockbook<'static> {
     workspace_rs::register_render_callback_resources(
         &renderer.device,
         &renderer.queue,
