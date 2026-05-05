@@ -11,7 +11,7 @@ use winit::window::{Window, WindowId};
 use workspace_rs::tab::{ClipContent, ExtendedInput};
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 
-fn main() {
+pub fn run() {
     env_logger::init();
 
     let event_loop = EventLoop::new().expect("failed to create event loop");
@@ -133,7 +133,9 @@ impl ApplicationHandler for App {
                 // Handle paste shortcut (Ctrl+V / Cmd+V)
                 if event.state == ElementState::Pressed {
                     let modifiers = state.egui_winit.egui_input().modifiers;
-                    if modifiers.command && event.logical_key == winit::keyboard::Key::Character("v".into()) {
+                    if modifiers.command
+                        && event.logical_key == winit::keyboard::Key::Character("v".into())
+                    {
                         state.pending_paste = true;
                         state.window.request_redraw();
                     }
