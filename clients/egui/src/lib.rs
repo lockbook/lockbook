@@ -109,9 +109,18 @@ impl Lockbook {
             // On the account screen, we're just waiting for it to gracefully shutdown or for the user to log out.
             Self::Account(screen) => {
                 screen.update(ctx);
-                if screen.is_shutdown() {
-                    output.close = true;
+
+                // React to the user requesting close (e.g. clicking the window's X button).
+                // Priority: close an open modal first; otherwise begin graceful shutdown.
+                // begin_shutdown is idempotent so it's safe to call repeatedly while the
+                // platform integration keeps signaling close_requested.
+                if ctx.input(|i| i.viewport().close_requested())
+                    && !screen.is_shutdown()
+                    && !screen.close_something()
+                {
+                    screen.begin_shutdown(ctx);
                 }
+
                 if screen.is_shutdown() {
                     output.close = true;
                 }
