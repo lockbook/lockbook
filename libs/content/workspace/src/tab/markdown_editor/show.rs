@@ -47,6 +47,11 @@ impl MdEdit {
     /// `Event::Newline`).
     pub fn handle_input(&mut self, ctx: &Context, id: Id) -> buffer::Response {
         let focused = ctx.memory(|m| m.has_focus(id));
+        let prior_reveal = if !self.renderer.readonly && focused {
+            self.renderer.buffer.current.selection
+        } else {
+            (0.into(), 0.into())
+        };
 
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
@@ -123,10 +128,18 @@ impl MdEdit {
         // after this returns and before `show` — those append-only additions
         // survive into render. `show` itself doesn't touch reveal_ranges.
         self.renderer.reveal_ranges.clear();
-        if !self.renderer.readonly && ctx.memory(|m| m.has_focus(id)) {
+        let new_reveal = if !self.renderer.readonly && ctx.memory(|m| m.has_focus(id)) {
             self.renderer
                 .reveal_ranges
                 .push(self.renderer.buffer.current.selection);
+            self.renderer.buffer.current.selection
+        } else {
+            (0.into(), 0.into())
+        };
+        if !buf_resp.text_updated && prior_reveal != new_reveal {
+            self.renderer
+                .layout_cache
+                .invalidate_reveal_change(prior_reveal, new_reveal);
         }
         self.renderer.text_highlight_range = self
             .emoji_completions

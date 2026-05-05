@@ -68,6 +68,15 @@ pub mod show;
 mod theme;
 mod widget;
 
+#[cfg(test)]
+mod edit_prop_tests;
+#[cfg(test)]
+mod markdown_doc_gen;
+#[cfg(test)]
+mod render_prop_tests;
+#[cfg(test)]
+mod test_harness;
+
 pub use input::Event;
 pub use md_label::MdLabel;
 
@@ -954,14 +963,6 @@ impl Editor {
             // path keyed off `unprocessed_scroll`.
             ui.ctx().request_repaint();
         } else if resp.selection_updated {
-            let new_selection = self
-                .edit
-                .in_progress_selection
-                .unwrap_or(self.edit.renderer.buffer.current.selection);
-            self.edit
-                .renderer
-                .layout_cache
-                .invalidate_reveal_change(prior_selection, new_selection);
             ui.ctx().request_repaint();
         }
         if self.initialized && resp.selection_updated && !all_selected {
