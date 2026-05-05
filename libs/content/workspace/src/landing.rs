@@ -773,66 +773,62 @@ impl Workspace {
                 }
             }
         }
-        let mut descendents: Vec<_> = descendents
-            .into_iter()
-            .filter(|child| {
-                // Search term filter
-                let search_match = if self.landing_page.search_term.is_empty() {
-                    true
-                } else {
-                    child
-                        .name
-                        .to_lowercase()
-                        .contains(&self.landing_page.search_term.to_lowercase())
-                };
+        descendents.retain(|child| {
+            // Search term filter
+            let search_match = if self.landing_page.search_term.is_empty() {
+                true
+            } else {
+                child
+                    .name
+                    .to_lowercase()
+                    .contains(&self.landing_page.search_term.to_lowercase())
+            };
 
-                // Flatten tree filter - hide folders when flattening
-                let flatten_match = !self.landing_page.flatten_tree || child.is_document();
+            // Flatten tree filter - hide folders when flattening
+            let flatten_match = !self.landing_page.flatten_tree || child.is_document();
 
-                // Doc type filter
-                let doc_type_match = if self.landing_page.doc_types.is_empty() {
-                    true
-                } else if child.is_folder() {
-                    // hide folders
-                    false
-                } else {
-                    let child_doc_type = DocType::from_name(&child.name);
-                    self.landing_page
-                        .doc_types
-                        .iter()
-                        .any(|filter_type| filter_type == &child_doc_type)
-                };
+            // Doc type filter
+            let doc_type_match = if self.landing_page.doc_types.is_empty() {
+                true
+            } else if child.is_folder() {
+                // hide folders
+                false
+            } else {
+                let child_doc_type = DocType::from_name(&child.name);
+                self.landing_page
+                    .doc_types
+                    .iter()
+                    .any(|filter_type| filter_type == &child_doc_type)
+            };
 
-                // Collaborator filter
-                let collaborator_match = if self.landing_page.only_me {
-                    // Only show files where the current user is the only collaborator
-                    child.shares.is_empty()
-                } else if self.landing_page.collaborators.is_empty() {
-                    // No collaborator filter
-                    true
-                } else {
-                    // Get all collaborators for this file
-                    let mut file_collaborators = std::collections::HashSet::new();
-                    for share in &child.shares {
-                        if share.shared_with != "<unknown>" && share.shared_with != account.username
-                        {
-                            file_collaborators.insert(&share.shared_with);
-                        }
-                        if share.shared_by != "<unknown>" && share.shared_by != account.username {
-                            file_collaborators.insert(&share.shared_by);
-                        }
+            // Collaborator filter
+            let collaborator_match = if self.landing_page.only_me {
+                // Only show files where the current user is the only collaborator
+                child.shares.is_empty()
+            } else if self.landing_page.collaborators.is_empty() {
+                // No collaborator filter
+                true
+            } else {
+                // Get all collaborators for this file
+                let mut file_collaborators = std::collections::HashSet::new();
+                for share in &child.shares {
+                    if share.shared_with != "<unknown>" && share.shared_with != account.username {
+                        file_collaborators.insert(&share.shared_with);
                     }
+                    if share.shared_by != "<unknown>" && share.shared_by != account.username {
+                        file_collaborators.insert(&share.shared_by);
+                    }
+                }
 
-                    // Check if filter collaborators are a subset of file collaborators
-                    self.landing_page
-                        .collaborators
-                        .iter()
-                        .all(|filter_collab| file_collaborators.contains(&filter_collab))
-                };
+                // Check if filter collaborators are a subset of file collaborators
+                self.landing_page
+                    .collaborators
+                    .iter()
+                    .all(|filter_collab| file_collaborators.contains(&filter_collab))
+            };
 
-                search_match && doc_type_match && flatten_match && collaborator_match
-            })
-            .collect();
+            search_match && doc_type_match && flatten_match && collaborator_match
+        });
 
         // Sort
         match self.landing_page.sort {
