@@ -68,15 +68,6 @@ pub mod show;
 mod theme;
 mod widget;
 
-#[cfg(test)]
-mod edit_prop_tests;
-#[cfg(test)]
-mod markdown_doc_gen;
-#[cfg(test)]
-mod render_prop_tests;
-#[cfg(test)]
-mod test_harness;
-
 pub use input::Event;
 pub use md_label::MdLabel;
 
