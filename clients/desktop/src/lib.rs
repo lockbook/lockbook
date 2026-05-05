@@ -7,9 +7,16 @@ use winit::application::ApplicationHandler;
 use winit::dpi::PhysicalSize;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::window::{Window, WindowId};
+use winit::window::{Icon, Window, WindowId};
 use workspace_rs::tab::{ClipContent, ExtendedInput};
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
+
+fn load_icon() -> Option<Icon> {
+    let png_bytes = include_bytes!("../lockbook.png");
+    let img = image::load_from_memory(png_bytes).ok()?.into_rgba8();
+    let (width, height) = img.dimensions();
+    Icon::from_rgba(img.into_raw(), width, height).ok()
+}
 
 pub fn run() {
     env_logger::init();
@@ -33,6 +40,7 @@ struct AppState {
     clipboard: arboard::Clipboard,
     pending_paste: bool,
     last_pointer_pos: Pos2,
+    close_requested: bool,
 }
 
 impl ApplicationHandler for App {
@@ -43,7 +51,8 @@ impl ApplicationHandler for App {
 
         let window_attrs = Window::default_attributes()
             .with_title("Lockbook")
-            .with_inner_size(PhysicalSize::new(1300, 800));
+            .with_inner_size(PhysicalSize::new(1300, 800))
+            .with_window_icon(load_icon());
 
         let window = Arc::new(
             event_loop
@@ -80,6 +89,7 @@ impl ApplicationHandler for App {
             clipboard,
             pending_paste: false,
             last_pointer_pos: Pos2::ZERO,
+            close_requested: false,
         });
     }
 
@@ -116,7 +126,9 @@ impl ApplicationHandler for App {
 
         match event {
             WindowEvent::CloseRequested => {
-                event_loop.exit();
+                // Don't exit immediately - let the app handle graceful shutdown
+                state.close_requested = true;
+                state.window.request_redraw();
             }
             WindowEvent::Resized(size) => {
                 state.lb.renderer.screen.size_in_pixels = [size.width, size.height];
@@ -159,7 +171,15 @@ impl AppState {
         }
 
         // Gather input from egui-winit
-        let raw_input = self.egui_winit.take_egui_input(&self.window);
+        let mut raw_input = self.egui_winit.take_egui_input(&self.window);
+
+        // Signal close request to egui so app can handle graceful shutdown
+        if self.close_requested {
+            if let Some(viewport) = raw_input.viewports.get_mut(&raw_input.viewport_id) {
+                viewport.events.push(egui::ViewportEvent::Close);
+            }
+        }
+
         self.lb.renderer.raw_input = raw_input;
 
         // Run frame
@@ -201,12 +221,15 @@ impl AppState {
                     ViewportCommand::RequestPaste => {
                         self.handle_paste();
                     }
+                    ViewportCommand::CancelClose => {
+                        self.close_requested = false;
+                    }
                     _ => {}
                 }
             }
 
             // Schedule repaint if needed
-            if viewport.repaint_delay.as_millis() < 1000 {
+            if viewport.repaint_delay.as_millis() < 1000 || self.close_requested {
                 self.window.request_redraw();
             }
         }
