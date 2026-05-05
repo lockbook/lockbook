@@ -1147,7 +1147,12 @@ impl Editor {
                             trailing_precise,
                         )
                         .with_default_leading();
-                        self.edit.scroll_area.show(ui, &content).visible
+                        let resp = self.edit.scroll_area.show(ui, &content);
+                        // Register the scrollbar's track so iOS taps on
+                        // it don't fall through to cursor-placement /
+                        // keyboard-summon handlers.
+                        self.edit.renderer.touch_consuming_rects.push(resp.scrollbar_track);
+                        resp.visible
                     };
 
                     // Phase 2: paint each visible row with a mutable

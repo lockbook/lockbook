@@ -237,6 +237,7 @@ impl<'ast> MdRender {
                 let row_height = self.row_height(node);
                 let width = self.width(node).max(row_height);
                 let mut chars = 0usize;
+                let mut image_height = 0.0f32;
                 for d in node.descendants() {
                     match &d.data.borrow().value {
                         NodeValue::Text(t) => chars += t.chars().count(),
@@ -244,13 +245,25 @@ impl<'ast> MdRender {
                         NodeValue::HtmlInline(s) => chars += s.chars().count(),
                         NodeValue::Math(m) => chars += m.literal.chars().count(),
                         NodeValue::SoftBreak | NodeValue::LineBreak => chars += 1,
+                        // `embeds.size` is a HashMap lookup — returns
+                        // a placeholder before the image loads, the
+                        // actual dimensions after. The layout cache
+                        // invalidates on `embeds_updated`, so this
+                        // value picks up loaded dimensions on the
+                        // next read.
+                        NodeValue::Image(link) => {
+                            let dims = self.embeds.size(&link.url);
+                            image_height += self.image_size(dims, width).y;
+                        }
                         _ => {}
                     }
                 }
                 let char_width = row_height * 0.5;
                 let chars_per_row = (width / char_width).floor().max(1.0) as usize;
                 let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
-                rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing
+                rows * row_height
+                    + (rows - 1.0).max(0.0) * self.layout.row_spacing
+                    + image_height
             }
             NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) => {
                 let row_height = self.row_height(node);

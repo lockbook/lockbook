@@ -474,6 +474,33 @@ mod affine {
             }
         }
     }
+
+    /// Approx-coordinate extent of one viewport's worth of content
+    /// starting from `first()`. Used as the thumb-sizing numerator —
+    /// gives a stable, scroll-position-independent measure of "how
+    /// much approx fits in a viewport". Bounded precise walk.
+    pub fn viewport_extent_in_approx<R: Rows>(rows: &R, viewport_height: f32) -> f32 {
+        let Some(mut id) = rows.first() else {
+            return 0.0;
+        };
+        let mut precise_acc = 0.0;
+        let mut approx_acc = 0.0;
+        loop {
+            let p = rows.precise(&id);
+            let a = rows.approx(&id);
+            if precise_acc + p >= viewport_height {
+                let remaining = viewport_height - precise_acc;
+                let slope = if p > 0.0 { a / p } else { 0.0 };
+                return approx_acc + remaining * slope;
+            }
+            precise_acc += p;
+            approx_acc += a;
+            match rows.next(&id) {
+                Some(next_id) => id = next_id,
+                None => return approx_acc,
+            }
+        }
+    }
 }
 
 // ============================================================================
@@ -951,8 +978,18 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
             .max_offset(rows)
             .map(|off| affine::thumb_approx(rows, &off))
             .unwrap_or(0.0);
+        // Geometric model: thumb top travels [0, scrollable_approx],
+        // thumb body extends viewport_approx below it, so thumb bottom
+        // travels [viewport_approx, scrollable_approx + viewport_approx].
+        // The track represents that full range, so:
+        //     visible_fraction = viewport_approx / (scrollable_approx + viewport_approx)
+        // Edges: scrollable=0 → fraction=1 (thumb fills track). Doc
+        // shorter than viewport but pad makes things scrollable →
+        // scrollable>0, fraction<1 (thumb correctly shows headroom).
+        let viewport_approx = affine::viewport_extent_in_approx(rows, self.viewport_height);
+        let denom = scrollable_approx + viewport_approx;
         let visible_fraction =
-            if total > 0.0 { ((total - scrollable_approx) / total).clamp(0.0, 1.0) } else { 1.0 };
+            if denom > 0.0 { (viewport_approx / denom).clamp(0.0, 1.0) } else { 1.0 };
         let thumb_h = (track.height() * visible_fraction)
             .max(MIN_THUMB_PX)
             .min(track.height());
@@ -1141,12 +1178,10 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let visible = self.state.visible(rows);
         warm_around_visible(rows, &visible, rect.height());
 
-        if scrollable {
-            let bar_after = self.state.scrollbar(rows, bar_track);
-            draw_scrollbar(ui, bar_after);
-        }
+        let bar_after = self.state.scrollbar(rows, bar_track);
+        draw_scrollbar(ui, bar_after);
 
-        ShowResponse { response, visible }
+        ShowResponse { response, visible, scrollbar_track: bar_track }
     }
 }
 
@@ -1159,6 +1194,11 @@ pub struct ShowResponse<Id> {
     /// Visible rows top-down. `top` is viewport-local; add `viewport.min.y`
     /// for screen coordinates.
     pub visible: Vec<VisibleRow<Id>>,
+    /// Track rect of the rendered scrollbar (window-local pixels).
+    /// Embedders register this with their touch-consuming surface so
+    /// taps on the scrollbar don't fall through to other touch handlers
+    /// (cursor placement, virtual keyboard).
+    pub scrollbar_track: Rect,
 }
 
 fn warm_around_visible<R: Rows>(rows: &R, visible: &[VisibleRow<R::RowId>], viewport_height: f32) {

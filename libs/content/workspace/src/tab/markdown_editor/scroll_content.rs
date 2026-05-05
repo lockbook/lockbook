@@ -8,11 +8,11 @@
 //! the same path `MdLabel` and tests use.
 //!
 //! Plus a virtual `Leading` row at the start with `approx = precise =
-//! leading_precise` (real top padding — counted toward the scrollbar)
-//! and a virtual `Trailing` row at the end with `approx = 0`, `precise
-//! = trailing_precise` (overscroll room — not counted toward the
-//! scrollbar) so the last block can scroll into the middle of the
-//! viewport.
+//! leading_precise` (real top padding) and a virtual `Trailing` row at
+//! the end with `approx = precise = trailing_precise` (overscroll room
+//! so the last block can scroll into the middle of the viewport).
+//! Both pads have known sizes, so `approx = precise` keeps the affine
+//! slope = 1 within them — no estimation error on rows we know exactly.
 //!
 //! In plaintext mode (`renderer.plaintext == true`) the rows are source
 //! lines indexed by `DocRowId::Line(idx)` instead of blocks.
@@ -48,13 +48,11 @@ pub struct DocScrollContent<'a, 'ast> {
     /// mode for `Line(idx)` bounds.
     line_count: usize,
     plaintext: bool,
-    /// Precise + approx height of the virtual leading pad row. Counts
-    /// toward the scrollbar — unlike `trailing_precise`, which is
-    /// approx-zero — so the pad behaves like real top padding rather
-    /// than overscroll.
+    /// Height of the virtual leading pad row (real top padding).
+    /// `approx = precise = leading_precise`.
     pub leading_precise: f32,
-    /// Precise height of the virtual trailing pad row (e.g. vh/2).
-    /// Approx height is 0 — overscroll, not content.
+    /// Height of the virtual trailing pad row (e.g. vh/2 of overscroll).
+    /// `approx = precise = trailing_precise`.
     pub trailing_precise: f32,
 }
 
@@ -203,7 +201,7 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
                 self.renderer.height_approx_source_line(*i, width)
                     + self.renderer.layout.row_spacing
             }
-            DocRowId::Trailing => 0.0,
+            DocRowId::Trailing => self.trailing_precise,
         }
     }
 
