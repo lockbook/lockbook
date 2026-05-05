@@ -54,7 +54,13 @@ impl ApplicationHandler for App {
         let dark_mode = dark_light::detect()
             .map(|m| m == dark_light::Mode::Dark)
             .unwrap_or(false);
-        let lb = init_lockbook(Arc::clone(&window), dark_mode);
+        let mut lb = init_lockbook(Arc::clone(&window), dark_mode);
+
+        // Set initial scale factor and screen size
+        let scale_factor = window.scale_factor() as f32;
+        let size = window.inner_size();
+        lb.renderer.set_native_pixels_per_point(scale_factor);
+        lb.renderer.screen.size_in_pixels = [size.width, size.height];
 
         let egui_winit = egui_winit::State::new(
             lb.renderer.context.clone(),
