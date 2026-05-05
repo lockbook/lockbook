@@ -1,41 +1,3 @@
-use std::sync::Arc;
-use std::time::Instant;
-
-use egui::{Pos2, ViewportCommand, ViewportId};
-use egui_wgpu_renderer::RendererState;
-use lbeguiapp::{Output, WgpuLockbook};
-use winit::application::ApplicationHandler;
-use winit::dpi::LogicalSize;
-use winit::event::{ElementState, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
-use winit::window::{Icon, Window, WindowId};
-use workspace_rs::tab::{ClipContent, ExtendedInput};
-use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
-
-#[derive(Debug)]
-enum UserEvent {
-    RepaintRequested { when: Instant, cumulative_pass_nr: u64, viewport_id: ViewportId },
-}
-
-fn load_icon() -> Option<Icon> {
-    let png_bytes = include_bytes!("../lockbook.png");
-    let img = image::load_from_memory(png_bytes).ok()?.into_rgba8();
-    let (width, height) = img.dimensions();
-    Icon::from_rgba(img.into_raw(), width, height).ok()
-}
-
-pub fn run() {
-    env_logger::init();
-
-    let event_loop = EventLoop::<UserEvent>::with_user_event()
-        .build()
-        .expect("failed to create event loop");
-    event_loop.set_control_flow(ControlFlow::Wait);
-
-    let mut app = App { state: None, proxy: event_loop.create_proxy() };
-    event_loop.run_app(&mut app).expect("event loop failed");
-}
-
 struct App {
     state: Option<AppState>,
     proxy: EventLoopProxy<UserEvent>,
@@ -86,7 +48,6 @@ impl ApplicationHandler<UserEvent> for App {
                 });
             });
 
-        // Set initial scale factor and screen size
         let scale_factor = window.scale_factor() as f32;
         let size = window.inner_size();
         lb.renderer.set_native_pixels_per_point(scale_factor);
@@ -121,12 +82,10 @@ impl ApplicationHandler<UserEvent> for App {
             None => return,
         };
 
-        // Track cursor position
         if let WindowEvent::CursorMoved { position, .. } = &event {
             state.last_pointer_pos = Pos2::new(position.x as f32, position.y as f32);
         }
 
-        // Handle file drops before egui-winit consumes the event
         if let WindowEvent::DroppedFile(path) = &event {
             let content = vec![ClipContent::Files(vec![path.clone()])];
             state
@@ -139,7 +98,6 @@ impl ApplicationHandler<UserEvent> for App {
                 });
         }
 
-        // Let egui-winit handle the event
         let response = state.egui_winit.on_window_event(&state.window, &event);
 
         if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {
@@ -148,7 +106,6 @@ impl ApplicationHandler<UserEvent> for App {
 
         match event {
             WindowEvent::CloseRequested => {
-                // Don't exit immediately - let the app handle graceful shutdown
                 state.close_requested = true;
                 state.window.request_redraw();
             }
@@ -167,7 +124,6 @@ impl ApplicationHandler<UserEvent> for App {
                 state.render(event_loop);
             }
             WindowEvent::KeyboardInput { event, .. } => {
-                // Handle paste shortcut (Ctrl+V / Cmd+V)
                 if event.state == ElementState::Pressed {
                     let modifiers = state.egui_winit.egui_input().modifiers;
                     if modifiers.command
@@ -225,18 +181,13 @@ impl ApplicationHandler<UserEvent> for App {
 
 impl AppState {
     fn render(&mut self, event_loop: &ActiveEventLoop) {
-        // Handle pending paste
-        // egui-winit has already pushed Event::Paste(text) for Cmd+V; we only
-        // need to upgrade to an image when the clipboard has one.
         if self.pending_paste {
             self.pending_paste = false;
             self.handle_image_paste();
         }
 
-        // Gather input from egui-winit
         let mut raw_input = self.egui_winit.take_egui_input(&self.window);
 
-        // Signal close request to egui so app can handle graceful shutdown
         if self.close_requested {
             if let Some(viewport) = raw_input.viewports.get_mut(&raw_input.viewport_id) {
                 viewport.events.push(egui::ViewportEvent::Close);
@@ -245,23 +196,16 @@ impl AppState {
 
         self.lb.renderer.raw_input = raw_input;
 
-        // Run frame
         let Output { platform, viewport, app: lbeguiapp::Response { close } } = self.lb.frame();
 
-        // Handle app close request
         if close {
             event_loop.exit();
             return;
         }
 
-        // egui-winit handles cursor icon, IME, and the clipboard/open-url
-        // OutputCommands (CopyText, CopyImage, OpenUrl) for us.
         self.egui_winit
             .handle_platform_output(&self.window, platform);
 
-        // Handle viewport commands. Note: viewport.repaint_delay is intentionally
-        // not consulted here — the request_repaint callback is the sole scheduler,
-        // matching eframe's wgpu_integration.rs pattern.
         if let Some(viewport) = viewport.values().next() {
             for cmd in &viewport.commands {
                 match cmd {
@@ -282,16 +226,8 @@ impl AppState {
         if self.close_requested {
             self.window.request_redraw();
         }
-
-        let causes = self.lb.renderer.context.repaint_causes();
-        if !causes.is_empty() {
-            // println!("REPAINT CAUSES: {causes:?}");
-        }
     }
 
-    /// Push a `workspace_rs::Event::Paste` if the clipboard has an image.
-    /// Returns true if an image was pasted. egui-winit doesn't read images
-    /// from the clipboard, so this is the only path that handles them.
     fn handle_image_paste(&mut self) -> bool {
         let Ok(img) = self.clipboard.get_image() else {
             return false;
@@ -316,9 +252,6 @@ impl AppState {
         true
     }
 
-    /// Full paste handling for `ViewportCommand::RequestPaste` — egui-winit
-    /// has not pushed anything for this command, so we handle both the image
-    /// and text cases ourselves.
     fn handle_paste(&mut self) {
         if self.handle_image_paste() {
             return;
@@ -371,3 +304,41 @@ fn init_with_renderer(
     lb.frame();
     lb
 }
+
+#[derive(Debug)]
+enum UserEvent {
+    RepaintRequested { when: Instant, cumulative_pass_nr: u64, viewport_id: ViewportId },
+}
+
+fn load_icon() -> Option<Icon> {
+    let png_bytes = include_bytes!("../lockbook.png");
+    let img = image::load_from_memory(png_bytes).ok()?.into_rgba8();
+    let (width, height) = img.dimensions();
+    Icon::from_rgba(img.into_raw(), width, height).ok()
+}
+
+pub fn run() {
+    env_logger::init();
+
+    let event_loop = EventLoop::<UserEvent>::with_user_event()
+        .build()
+        .expect("failed to create event loop");
+    event_loop.set_control_flow(ControlFlow::Wait);
+
+    let mut app = App { state: None, proxy: event_loop.create_proxy() };
+    event_loop.run_app(&mut app).expect("event loop failed");
+}
+
+use std::sync::Arc;
+use std::time::Instant;
+
+use egui::{Pos2, ViewportCommand, ViewportId};
+use egui_wgpu_renderer::RendererState;
+use lbeguiapp::{Output, WgpuLockbook};
+use winit::application::ApplicationHandler;
+use winit::dpi::LogicalSize;
+use winit::event::{ElementState, WindowEvent};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
+use winit::window::{Icon, Window, WindowId};
+use workspace_rs::tab::{ClipContent, ExtendedInput};
+use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
