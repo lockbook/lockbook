@@ -101,9 +101,7 @@ impl AccountScreen {
         self.workspace.save_all_tabs();
         // save_all_tabs only queues — kick the launcher so the background save
         // threads actually start before we begin polling for completion.
-        self.workspace
-            .tasks
-            .check_launch(&self.workspace.tabs);
+        self.workspace.tasks.check_launch(&self.workspace.tabs);
         self.perform_final_sync(ctx);
     }
 
@@ -125,9 +123,7 @@ impl AccountScreen {
             // Run the task launcher so any saves queued during this frame's
             // input processing actually start, and refresh done_saving from
             // live queue state so it tracks late-arriving saves correctly.
-            self.workspace
-                .tasks
-                .check_launch(&self.workspace.tabs);
+            self.workspace.tasks.check_launch(&self.workspace.tabs);
             let saves_done = self.workspace.tasks.saves_idle();
             if let Some(s) = self.shutdown.as_mut() {
                 s.done_saving = saves_done;
