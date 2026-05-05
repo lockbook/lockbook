@@ -69,6 +69,7 @@ struct EframeLockbook {
 
 impl eframe::App for EframeLockbook {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
+        println!("UPDATE");
         if !self.deferred_init_completed {
             self.lb.deferred_init(ctx);
             self.deferred_init_completed = true;

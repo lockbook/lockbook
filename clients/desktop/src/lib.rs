@@ -1,15 +1,21 @@
 use std::sync::Arc;
+use std::time::Instant;
 
-use egui::{OutputCommand, Pos2, ViewportCommand};
+use egui::{OutputCommand, Pos2, ViewportCommand, ViewportId};
 use egui_wgpu_renderer::RendererState;
 use lbeguiapp::{Output, WgpuLockbook};
 use winit::application::ApplicationHandler;
-use winit::dpi::PhysicalSize;
+use winit::dpi::LogicalSize;
 use winit::event::{ElementState, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
+use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
 use winit::window::{Icon, Window, WindowId};
 use workspace_rs::tab::{ClipContent, ExtendedInput};
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
+
+#[derive(Debug)]
+enum UserEvent {
+    RepaintRequested { when: Instant, cumulative_pass_nr: u64, viewport_id: ViewportId },
+}
 
 fn load_icon() -> Option<Icon> {
     let png_bytes = include_bytes!("../lockbook.png");
@@ -21,16 +27,18 @@ fn load_icon() -> Option<Icon> {
 pub fn run() {
     env_logger::init();
 
-    let event_loop = EventLoop::new().expect("failed to create event loop");
+    let event_loop = EventLoop::<UserEvent>::with_user_event()
+        .build()
+        .expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Wait);
 
-    let mut app = App::default();
+    let mut app = App { state: None, proxy: event_loop.create_proxy() };
     event_loop.run_app(&mut app).expect("event loop failed");
 }
 
-#[derive(Default)]
 struct App {
     state: Option<AppState>,
+    proxy: EventLoopProxy<UserEvent>,
 }
 
 struct AppState {
@@ -41,9 +49,10 @@ struct AppState {
     pending_paste: bool,
     last_pointer_pos: Pos2,
     close_requested: bool,
+    next_repaint: Option<Instant>,
 }
 
-impl ApplicationHandler for App {
+impl ApplicationHandler<UserEvent> for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
         if self.state.is_some() {
             return;
@@ -51,7 +60,7 @@ impl ApplicationHandler for App {
 
         let window_attrs = Window::default_attributes()
             .with_title("Lockbook")
-            .with_inner_size(PhysicalSize::new(1300, 800))
+            .with_inner_size(LogicalSize::new(1300, 800))
             .with_window_icon(load_icon());
 
         let window = Arc::new(
@@ -64,6 +73,18 @@ impl ApplicationHandler for App {
             .map(|m| m == dark_light::Mode::Dark)
             .unwrap_or(false);
         let mut lb = init_lockbook(Arc::clone(&window), dark_mode);
+
+        let proxy = self.proxy.clone();
+        lb.renderer
+            .context
+            .set_request_repaint_callback(move |info| {
+                let when = Instant::now() + info.delay;
+                let _ = proxy.send_event(UserEvent::RepaintRequested {
+                    when,
+                    cumulative_pass_nr: info.current_cumulative_pass_nr,
+                    viewport_id: info.viewport_id,
+                });
+            });
 
         // Set initial scale factor and screen size
         let scale_factor = window.scale_factor() as f32;
@@ -90,6 +111,7 @@ impl ApplicationHandler for App {
             pending_paste: false,
             last_pointer_pos: Pos2::ZERO,
             close_requested: false,
+            next_repaint: None,
         });
     }
 
@@ -120,7 +142,7 @@ impl ApplicationHandler for App {
         // Let egui-winit handle the event
         let response = state.egui_winit.on_window_event(&state.window, &event);
 
-        if response.repaint {
+        if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {
             state.window.request_redraw();
         }
 
@@ -160,8 +182,44 @@ impl ApplicationHandler for App {
         }
     }
 
-    fn about_to_wait(&mut self, _event_loop: &ActiveEventLoop) {
-        // Nothing needed - we use ControlFlow::Wait and request_redraw()
+    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
+        let Some(state) = &mut self.state else { return };
+        match event {
+            UserEvent::RepaintRequested { when, cumulative_pass_nr, viewport_id } => {
+                let current_pass_nr = state
+                    .lb
+                    .renderer
+                    .context
+                    .cumulative_pass_nr_for(viewport_id);
+                if current_pass_nr != cumulative_pass_nr
+                    && current_pass_nr != cumulative_pass_nr + 1
+                {
+                    return;
+                }
+                state.next_repaint = Some(
+                    state
+                        .next_repaint
+                        .map_or(when, |existing| existing.min(when)),
+                );
+            }
+        }
+    }
+
+    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+        let Some(state) = &mut self.state else { return };
+        match state.next_repaint {
+            Some(deadline) if deadline <= Instant::now() => {
+                state.next_repaint = None;
+                state.window.request_redraw();
+                event_loop.set_control_flow(ControlFlow::Wait);
+            }
+            Some(deadline) => {
+                event_loop.set_control_flow(ControlFlow::WaitUntil(deadline));
+            }
+            None => {
+                event_loop.set_control_flow(ControlFlow::Wait);
+            }
+        }
     }
 }
 
@@ -210,7 +268,9 @@ impl AppState {
             }
         }
 
-        // Handle viewport commands
+        // Handle viewport commands. Note: viewport.repaint_delay is intentionally
+        // not consulted here — the request_repaint callback is the sole scheduler,
+        // matching eframe's wgpu_integration.rs pattern.
         if let Some(viewport) = viewport.values().next() {
             for cmd in &viewport.commands {
                 match cmd {
@@ -226,11 +286,15 @@ impl AppState {
                     _ => {}
                 }
             }
+        }
 
-            // Schedule repaint if needed
-            if viewport.repaint_delay.as_millis() < 1000 || self.close_requested {
-                self.window.request_redraw();
-            }
+        if self.close_requested {
+            self.window.request_redraw();
+        }
+
+        let causes = self.lb.renderer.context.repaint_causes();
+        if !causes.is_empty() {
+            // println!("REPAINT CAUSES: {causes:?}");
         }
     }
 
