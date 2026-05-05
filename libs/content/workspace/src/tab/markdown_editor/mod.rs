@@ -1131,59 +1131,71 @@ impl Editor {
 
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
-                let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
                 // affine render: widget body spans the full canvas
                 // (scrollbar at canvas right); content centers within
                 // that body via `content_x`.
-                self.edit.renderer.galleys.galleys.clear();
-                self.edit.renderer.bounds.wrap_lines.clear();
-                self.edit.renderer.text_areas.clear();
                 let touch_scroll = self.edit.renderer.touch_mode;
                 let content_x = canvas_rect.min.x
                     + ((canvas_rect.width() - self.edit.renderer.width) / 2.0).max(0.0);
-                ui.scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
-                    ui.set_clip_rect(canvas_rect);
-                    self.edit.scroll_area.touch_scroll = touch_scroll;
+                let pre = ui
+                    .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
+                        ui.set_clip_rect(canvas_rect);
+                        self.edit.scroll_area.touch_scroll = touch_scroll;
 
-                    // Phase 1: drive scroll math + scrollbar. The
-                    // immutable `DocScrollContent` borrow is released
-                    // before phase 2's mutable renderer paint.
-                    let visible = {
-                        let content = scroll_content::DocScrollContent::for_frame(
-                            &self.edit.renderer,
-                            root,
-                            canvas_rect.height(),
-                        );
-                        let resp = self.edit.scroll_area.show(ui, &content);
-                        // Register the scrollbar's track so iOS taps on
-                        // it don't fall through to cursor-placement /
-                        // keyboard-summon handlers.
-                        self.edit
-                            .renderer
-                            .touch_consuming_rects
-                            .push(resp.scrollbar_track);
-                        resp.visible
-                    };
+                        // Body alloc → pre_render → scrollbar/content
+                        // ordering puts pre_render's click rect above
+                        // the body's drag (so taps reach it) but below
+                        // the scrollbar (so taps on the bar don't).
+                        let begun = self.edit.scroll_area.begin(ui);
 
-                    // Phase 2: paint each visible row with a mutable
-                    // renderer borrow. Block list re-collected because
-                    // the immutable borrow that held `DocScrollContent`'s
-                    // copy was just dropped.
-                    let blocks: Vec<_> = root.children().collect();
-                    for vrow in &visible {
-                        let top_left = Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
-                        scroll_content::paint_row(
-                            ui,
-                            &mut self.edit.renderer,
-                            root,
-                            &blocks,
-                            &vrow.id,
-                            top_left,
-                            content_x,
-                        );
-                    }
-                });
+                        let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
+
+                        self.edit.renderer.galleys.galleys.clear();
+                        self.edit.renderer.bounds.wrap_lines.clear();
+                        self.edit.renderer.text_areas.clear();
+
+                        // Phase 1: drive scroll math + scrollbar. The
+                        // immutable `DocScrollContent` borrow is released
+                        // before phase 2's mutable renderer paint.
+                        let visible = {
+                            let content = scroll_content::DocScrollContent::for_frame(
+                                &self.edit.renderer,
+                                root,
+                                canvas_rect.height(),
+                            );
+                            let resp = self.edit.scroll_area.finish(ui, begun, &content);
+                            // Register the scrollbar's track so iOS taps
+                            // on it don't fall through to cursor-placement
+                            // / keyboard-summon handlers.
+                            self.edit
+                                .renderer
+                                .touch_consuming_rects
+                                .push(resp.scrollbar_track);
+                            resp.visible
+                        };
+
+                        // Phase 2: paint each visible row with a mutable
+                        // renderer borrow. Block list re-collected
+                        // because the immutable borrow that held
+                        // `DocScrollContent`'s copy was just dropped.
+                        let blocks: Vec<_> = root.children().collect();
+                        for vrow in &visible {
+                            let top_left =
+                                Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
+                            scroll_content::paint_row(
+                                ui,
+                                &mut self.edit.renderer,
+                                root,
+                                &blocks,
+                                &vrow.id,
+                                top_left,
+                                content_x,
+                            );
+                        }
+                        pre
+                    })
+                    .inner;
                 self.edit.renderer.galleys.galleys.sort_by_key(|g| g.range);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);

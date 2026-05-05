@@ -1078,6 +1078,18 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         self.state.reveal(rows, rect, align);
     }
 
+    /// Allocate the body's drag rect. Caller paints content widgets
+    /// between `begin` and [`AffineScrollAreaBegun::finish`]; those
+    /// land at higher z than the body, so click senses on the content
+    /// (e.g. cursor placement) win over the body's drag — see egui's
+    /// `hit_test`.
+    pub fn begin(&self, ui: &mut Ui) -> AffineScrollAreaBegun {
+        let rect = ui.max_rect();
+        let body_sense = if self.touch_scroll { Sense::drag() } else { Sense::hover() };
+        let body_response = ui.allocate_rect(rect, body_sense);
+        AffineScrollAreaBegun { rect, body_response }
+    }
+
     /// Per-frame: allocate body + scrollbar hit areas, process input,
     /// draw scrollbar, return body Response + visible rows. Caller
     /// paints rows into the body using the returned `top` offsets.
@@ -1086,12 +1098,17 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
     /// visible region, calling [`Rows::warm`] on each so impls can
     /// kick off background work for rows about to enter view.
     pub fn show<R: Rows<RowId = Id>>(&mut self, ui: &mut Ui, rows: &R) -> ShowResponse<Id> {
-        let rect = ui.max_rect();
-        let body_sense = if self.touch_scroll { Sense::click_and_drag() } else { Sense::hover() };
-        let response = ui.allocate_rect(rect, body_sense);
+        let begun = self.begin(ui);
+        self.finish(ui, begun, rows)
+    }
 
-        // Scrollbar hit area registered AFTER the body so it shadows
-        // body hover in z-order.
+    pub fn finish<R: Rows<RowId = Id>>(
+        &mut self, ui: &mut Ui, begun: AffineScrollAreaBegun, rows: &R,
+    ) -> ShowResponse<Id> {
+        let AffineScrollAreaBegun { rect, body_response: response } = begun;
+
+        // Scrollbar hit area registered after content so it shadows
+        // both the body and any embedder click rects in z-order.
         const BAR_WIDTH: f32 = 10.0;
         const BAR_INSET: f32 = 3.0;
         let bar_x = rect.max.x - BAR_WIDTH - BAR_INSET;
@@ -1146,7 +1163,11 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         } else {
             self.state.velocity_precise = 0.0;
         }
-        if self.touch_scroll && response.clicked() {
+        // Tap kills momentum without claiming the click.
+        let pressed_in_rect = ui.input(|i| {
+            i.pointer.any_pressed() && i.pointer.press_origin().is_some_and(|p| rect.contains(p))
+        });
+        if self.touch_scroll && pressed_in_rect {
             self.state.velocity_precise = 0.0;
         }
 
@@ -1198,6 +1219,13 @@ pub struct ShowResponse<Id> {
     /// taps on the scrollbar don't fall through to other touch handlers
     /// (cursor placement, virtual keyboard).
     pub scrollbar_track: Rect,
+}
+
+/// Returned by [`AffineScrollArea::begin`]; pass to `finish` after
+/// allocating content widgets.
+pub struct AffineScrollAreaBegun {
+    rect: Rect,
+    body_response: Response,
 }
 
 fn warm_around_visible<R: Rows>(rows: &R, visible: &[VisibleRow<R::RowId>], viewport_height: f32) {
