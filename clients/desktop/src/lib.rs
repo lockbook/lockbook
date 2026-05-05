@@ -226,9 +226,11 @@ impl ApplicationHandler<UserEvent> for App {
 impl AppState {
     fn render(&mut self, event_loop: &ActiveEventLoop) {
         // Handle pending paste
+        // egui-winit has already pushed Event::Paste(text) for Cmd+V; we only
+        // need to upgrade to an image when the clipboard has one.
         if self.pending_paste {
             self.pending_paste = false;
-            self.handle_paste();
+            self.handle_image_paste();
         }
 
         // Gather input from egui-winit
@@ -287,33 +289,40 @@ impl AppState {
         }
     }
 
-    fn handle_paste(&mut self) {
-        let position = self.last_pointer_pos;
-
-        // Try image first
-        if let Ok(img) = self.clipboard.get_image() {
-            let rgba = image::RgbaImage::from_raw(
-                img.width as u32,
-                img.height as u32,
-                img.bytes.into_owned(),
-            );
-            if let Some(rgba) = rgba {
-                let mut png_bytes = Vec::new();
-                if rgba
-                    .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
-                    .is_ok()
-                {
-                    let content = vec![ClipContent::Image(png_bytes)];
-                    self.lb
-                        .renderer
-                        .context
-                        .push_event(workspace_rs::Event::Paste { content, position });
-                    return;
-                }
-            }
+    /// Push a `workspace_rs::Event::Paste` if the clipboard has an image.
+    /// Returns true if an image was pasted. egui-winit doesn't read images
+    /// from the clipboard, so this is the only path that handles them.
+    fn handle_image_paste(&mut self) -> bool {
+        let Ok(img) = self.clipboard.get_image() else {
+            return false;
+        };
+        let Some(rgba) =
+            image::RgbaImage::from_raw(img.width as u32, img.height as u32, img.bytes.into_owned())
+        else {
+            return false;
+        };
+        let mut png_bytes = Vec::new();
+        if rgba
+            .write_to(&mut std::io::Cursor::new(&mut png_bytes), image::ImageFormat::Png)
+            .is_err()
+        {
+            return false;
         }
+        let content = vec![ClipContent::Image(png_bytes)];
+        self.lb
+            .renderer
+            .context
+            .push_event(workspace_rs::Event::Paste { content, position: self.last_pointer_pos });
+        true
+    }
 
-        // Fall back to text
+    /// Full paste handling for `ViewportCommand::RequestPaste` — egui-winit
+    /// has not pushed anything for this command, so we handle both the image
+    /// and text cases ourselves.
+    fn handle_paste(&mut self) {
+        if self.handle_image_paste() {
+            return;
+        }
         if let Ok(text) = self.clipboard.get_text() {
             self.lb
                 .renderer
