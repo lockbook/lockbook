@@ -34,6 +34,26 @@ impl ImageEmbedResolver {
 
 impl EmbedResolver for ImageEmbedResolver {
     fn size(&self, url: &str) -> Vec2 {
+        // When the image is already loaded, read real dims from the
+        // texture manager directly — `dims` is just a write-through
+        // for persistence. Reading the map would lag a frame behind
+        // load completion (it's only populated by `show`/`warm`),
+        // leaving `height()` callers with the placeholder while
+        // `last_modified` already bumped.
+        let state = self.images.get_or_load(url, self.file_id, false);
+        let image_state = state.lock().unwrap().deref().clone();
+        if let ImageState::Loaded(texture_id) = image_state {
+            let size = {
+                let tex_mgr = self.images.ctx().tex_manager();
+                let guard = tex_mgr.read();
+                guard.meta(texture_id).map(|m| m.size)
+            };
+            if let Some(size) = size {
+                let dims = Vec2::new(size[0] as f32, size[1] as f32);
+                self.dims.lock().unwrap().insert(url.to_string(), dims);
+                return dims;
+            }
+        }
         self.dims
             .lock()
             .unwrap()

@@ -89,6 +89,20 @@ impl ImageCache {
         self.last_modified.load(Ordering::Relaxed)
     }
 
+    /// Test-only: inject a `Loaded` state for `url` pointing at a
+    /// pre-allocated `texture_id`, and bump `last_modified` as if a
+    /// worker had just completed.
+    #[cfg(test)]
+    pub fn test_seed_loaded(&self, url: &str, texture_id: TextureId) {
+        let state = Arc::new(Mutex::new(ImageState::Loaded(texture_id)));
+        self.inner
+            .lock()
+            .unwrap()
+            .current
+            .insert(url.to_string(), state);
+        self.last_modified.fetch_add(1, Ordering::Relaxed);
+    }
+
     pub fn ctx(&self) -> &Context {
         &self.ctx
     }
