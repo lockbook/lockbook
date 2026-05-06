@@ -1184,9 +1184,27 @@ impl WsPersistentStore {
         let data = self.data.clone();
         let path = self.path.clone();
         spawn!({
+            let started = web_time::Instant::now();
             let data = data.read().unwrap().clone(); // clone to avoid holding lock during serialization or file write
             let content = serde_json::to_string(&data).unwrap();
-            let _ = fs::write(path, content);
+            let bytes = content.len();
+            match fs::write(&path, content) {
+                Ok(()) if started.elapsed() > Duration::from_millis(50) => {
+                    warn!(?path, bytes, "ws persistence written ({:?})", started.elapsed());
+                }
+                Ok(()) => {
+                    debug!(?path, bytes, "ws persistence written ({:?})", started.elapsed());
+                }
+                Err(err) => {
+                    error!(
+                        ?path,
+                        bytes,
+                        "ws persistence write failed ({:?}): {:?}",
+                        started.elapsed(),
+                        err
+                    );
+                }
+            }
         });
     }
 }

@@ -178,39 +178,34 @@ impl MdEdit {
         }
     }
 
-    pub fn scroll_to_cursor(&mut self, ui: &mut Ui, scroll_id: egui::Id, viewport_height: f32) {
-        let target = self
+    pub fn scroll_to_cursor(&mut self, canvas_rect: Rect) {
+        use crate::tab::markdown_editor::build_target_reveal;
+        use crate::tab::markdown_editor::scroll_content::DocScrollContent;
+        use crate::widgets::affine_scroll::Align;
+
+        // Make the moving end of the selection visible. Passed as a
+        // zero-length range — `build_target_reveal` handles single-point
+        // and multi-line ranges identically.
+        let cursor = self
             .in_progress_selection
             .unwrap_or(self.renderer.buffer.current.selection)
             .1;
 
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);
-        let mut content = crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
-            &mut self.renderer,
-            root,
-            0.0,
-            viewport_height / 2.0,
-        )
-        .with_default_leading();
+        let content = DocScrollContent::for_frame(&self.renderer, root, canvas_rect.height());
 
-        let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
-        let current_offset = scroll.offset(ui.ctx());
-
-        // Inclusive on `end` so an end-of-line cursor matches its row.
-        let offset = crate::widgets::affine_scroll::make_visible_offset(
-            &mut content,
-            viewport_height,
-            current_offset,
-            |c| {
-                c.text_range()
-                    .is_some_and(|(start, end)| target >= start && target <= end)
-            },
-        );
-
-        if let Some(o) = offset {
-            scroll.set_offset(ui.ctx(), o);
-        }
+        let Some(target_rect) = build_target_reveal(
+            &self.renderer,
+            &content,
+            &self.scroll_area.state,
+            (cursor, cursor),
+            canvas_rect,
+        ) else {
+            return;
+        };
+        self.scroll_area
+            .reveal(&content, target_rect, Align::Nearest);
     }
 
     pub fn cursor_line(&self, offset: Grapheme) -> Option<[Pos2; 2]> {
