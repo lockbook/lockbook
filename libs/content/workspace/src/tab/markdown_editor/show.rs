@@ -47,8 +47,6 @@ impl MdEdit {
     /// `Event::Newline`).
     pub fn handle_input(&mut self, ctx: &Context, id: Id) -> buffer::Response {
         let focused = ctx.memory(|m| m.has_focus(id));
-        let prior_reveal_selection =
-            (!self.renderer.readonly && focused).then_some(self.renderer.buffer.current.selection);
 
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
@@ -122,7 +120,7 @@ impl MdEdit {
 
         let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
             .then_some(self.renderer.buffer.current.selection);
-        if prior_reveal_selection != new_reveal_selection {
+        if self.renderer.reveal_selection != new_reveal_selection {
             self.renderer.reveal_selection = new_reveal_selection;
             self.renderer.reveal_seq = self
                 .renderer

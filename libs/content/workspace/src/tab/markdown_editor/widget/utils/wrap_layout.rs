@@ -344,6 +344,17 @@ impl MdRender {
             }
         }
 
+        // Cosmic-text emits no glyphs for combining-mark-only input (e.g. a
+        // standalone `\u{fe0f}`), leaving source bytes uncovered. Extend the
+        // last row's range so every source grapheme has a galley anchor.
+        if !is_override {
+            if let Some(last) = split.last_mut() {
+                if last.range.1 < range.end() {
+                    last.range.1 = range.end();
+                }
+            }
+        }
+
         split
     }
 

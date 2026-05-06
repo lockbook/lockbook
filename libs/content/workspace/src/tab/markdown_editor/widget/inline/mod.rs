@@ -438,7 +438,7 @@ impl<'ast> MdRender {
     /// Returns true if the node's range intersects any reveal range. Drop-in
     /// replacement for `node_intersects_selection` in reveal contexts.
     pub fn node_revealed(&self, node: &'ast AstNode<'ast>) -> bool {
-        self.range_revealed(self.node_range(node), false)
+        self.range_revealed(self.node_range(node), true)
     }
 
     pub fn reveal_ranges(&self) -> impl Iterator<Item = (Grapheme, Grapheme)> + '_ {
