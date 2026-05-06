@@ -24,6 +24,7 @@ use resvg::tiny_skia::Pixmap;
 use resvg::usvg::{self, Transform};
 
 use crate::file_cache::{FileCache, FilesExt as _, ResolvedLink};
+use crate::seq::ws_seq;
 use crate::tab::markdown_editor::HttpClient;
 
 /// Wraps a block in an `async` closure on wasm, a plain closure on native.
@@ -60,10 +61,8 @@ struct Inner {
 #[derive(Clone)]
 pub struct ImageCache {
     inner: Arc<Mutex<Inner>>,
-    /// Monotonic generation counter, bumped every time a load completes.
-    /// Clients cache their last-observed value and invalidate layout when
-    /// it changes. Supports any number of independent consumers.
-    last_modified: Arc<AtomicU64>,
+    seq: Arc<AtomicU64>,
+    ws_seq: Arc<AtomicU64>,
 
     ctx: Context,
     client: HttpClient,
@@ -73,9 +72,11 @@ pub struct ImageCache {
 
 impl ImageCache {
     pub fn new(ctx: Context, client: HttpClient, core: Lb, files: Arc<RwLock<FileCache>>) -> Self {
+        let ws_seq = ws_seq(&ctx);
         Self {
             inner: Default::default(),
-            last_modified: Arc::new(AtomicU64::new(0)),
+            seq: Arc::new(AtomicU64::new(0)),
+            ws_seq,
             ctx,
             client,
             core,
@@ -83,10 +84,8 @@ impl ImageCache {
         }
     }
 
-    /// Current generation. Bumped each time a load completes. Callers can
-    /// compare against a previously-observed value to detect new data.
-    pub fn last_modified(&self) -> u64 {
-        self.last_modified.load(Ordering::Relaxed)
+    pub fn seq(&self) -> u64 {
+        self.seq.load(Ordering::Relaxed)
     }
 
     pub fn ctx(&self) -> &Context {
@@ -137,7 +136,8 @@ impl ImageCache {
             from_file_id,
             user_activity,
             state.clone(),
-            self.last_modified.clone(),
+            self.seq.clone(),
+            self.ws_seq.clone(),
         );
         inner.current.insert(url.to_string(), state.clone());
         state
@@ -145,7 +145,7 @@ impl ImageCache {
 
     fn spawn_load(
         &self, url: &str, from_file_id: Uuid, user_activity: bool, state: Arc<Mutex<ImageState>>,
-        last_modified: Arc<AtomicU64>,
+        embeds_seq: Arc<AtomicU64>, ws_seq: Arc<AtomicU64>,
     ) {
         let url = url.to_string();
         let ctx = self.ctx.clone();
@@ -232,7 +232,7 @@ impl ImageCache {
                 }
             }
 
-            last_modified.fetch_add(1, Ordering::Relaxed);
+            embeds_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
             ctx.request_repaint();
         });
     }

@@ -508,15 +508,13 @@ impl Workspace {
             *self.files.write().unwrap() =
                 FileCache::new(&self.core).expect("failed to refresh file cache");
 
-            // A file appearing/disappearing/renaming changes link resolution
-            // and titles, which the markdown layout cache keys can't see.
             for tab in self.tabs.values_mut() {
                 if let Some(md) = tab.markdown_mut() {
-                    md.edit
-                        .renderer
+                    let renderer = &md.edit.renderer;
+                    renderer
                         .layout_cache
-                        .link_layout_dirty
-                        .store(true, Ordering::Relaxed);
+                        .link_seq
+                        .store(renderer.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
                 }
             }
         }

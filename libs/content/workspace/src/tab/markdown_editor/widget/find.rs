@@ -47,6 +47,8 @@ pub struct Find {
     was_focused: bool,
     /// All match ranges in the document for the current search term.
     pub matches: Vec<(Grapheme, Grapheme)>,
+    /// deps: `(buffer.seq, term, case_sensitive, whole_word, regex)`
+    matches_deps: (usize, Option<String>, bool, bool, bool),
     /// Index into `matches` for the currently focused match, if any.
     pub current_match: Option<usize>,
 }
@@ -65,6 +67,7 @@ impl Default for Find {
             open_requested: false,
             was_focused: false,
             matches: Vec::new(),
+            matches_deps: (0, None, false, false, false),
             current_match: None,
         }
     }
@@ -362,11 +365,8 @@ impl Find {
     /// Recompute `matches` for the current term, positioning `current_match`
     /// at the first match at or after `anchor`.
     fn refresh_matches(&mut self, buffer: &Buffer, anchor: Grapheme) {
-        let term = self.term.clone().unwrap_or_default();
-        self.matches = self.find_all(buffer, &term);
-        if self.matches.is_empty() {
-            self.current_match = None;
-        } else {
+        self.ensure_matches(buffer);
+        if !self.matches.is_empty() {
             let idx = self.matches.iter().position(|m| m.0 >= anchor).unwrap_or(0);
             self.current_match = Some(idx);
         }
@@ -376,6 +376,33 @@ impl Find {
         self.term = None;
         self.matches.clear();
         self.current_match = None;
+    }
+
+    /// Recompute `matches` if any input (buffer text, term, search flags)
+    /// has advanced since last compute.
+    pub fn ensure_matches(&mut self, buffer: &Buffer) {
+        let deps = (
+            buffer.current.seq,
+            self.term.clone(),
+            self.case_sensitive,
+            self.whole_word,
+            self.regex,
+        );
+        if deps == self.matches_deps {
+            return;
+        }
+        self.matches = match &self.term {
+            Some(term) => self.find_all(buffer, term),
+            None => Vec::new(),
+        };
+        if self.matches.is_empty() {
+            self.current_match = None;
+        } else if let Some(idx) = self.current_match {
+            if idx >= self.matches.len() {
+                self.current_match = Some(self.matches.len() - 1);
+            }
+        }
+        self.matches_deps = deps;
     }
 
     /// Compute all match ranges in the document for the given search term.

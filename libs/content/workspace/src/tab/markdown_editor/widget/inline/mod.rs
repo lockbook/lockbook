@@ -442,7 +442,9 @@ impl<'ast> MdRender {
     }
 
     pub fn reveal_ranges(&self) -> impl Iterator<Item = (Grapheme, Grapheme)> + '_ {
-        self.reveal_ranges.iter().copied()
+        self.reveal_selection
+            .into_iter()
+            .chain(self.find_current_match)
     }
 
     /// Returns true if `range` intersects any reveal range.

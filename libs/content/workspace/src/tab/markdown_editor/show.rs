@@ -47,6 +47,8 @@ impl MdEdit {
     /// `Event::Newline`).
     pub fn handle_input(&mut self, ctx: &Context, id: Id) -> buffer::Response {
         let focused = ctx.memory(|m| m.has_focus(id));
+        let prior_reveal_selection =
+            (!self.renderer.readonly && focused).then_some(self.renderer.buffer.current.selection);
 
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
@@ -118,17 +120,16 @@ impl MdEdit {
             self.renderer.reparse(&arena);
         }
 
-        // Populate reveal_ranges with the current selection. The caller may
-        // append additional ranges (e.g. Editor appends the find-match range)
-        // after this returns and before `show` — those append-only additions
-        // survive into render. `show` itself doesn't touch reveal_ranges.
-        self.renderer.reveal_ranges.clear();
-        if !self.renderer.readonly && ctx.memory(|m| m.has_focus(id)) {
-            self.renderer
-                .reveal_ranges
-                .push(self.renderer.buffer.current.selection);
+        let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
+            .then_some(self.renderer.buffer.current.selection);
+        if prior_reveal_selection != new_reveal_selection {
+            self.renderer.reveal_selection = new_reveal_selection;
+            self.renderer.reveal_seq = self
+                .renderer
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
-        self.renderer.text_highlight_range = self
+        self.renderer.search_range = self
             .emoji_completions
             .search_term_range
             .or(self.link_completions.search_term_range);
@@ -418,7 +419,7 @@ impl MdEdit {
     /// memoized by `LayoutCache`, so the subsequent `show` re-uses the
     /// cached work.
     pub fn measure_height(&mut self, width: f32) -> f32 {
-        self.renderer.width = width;
+        self.renderer.set_width(width);
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         self.renderer.height(root)

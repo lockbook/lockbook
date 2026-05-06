@@ -103,8 +103,8 @@ impl EmbedResolver for ImageEmbedResolver {
         }
     }
 
-    fn last_modified(&self) -> u64 {
-        self.images.last_modified()
+    fn seq(&self) -> u64 {
+        self.images.seq()
     }
 
     fn image_dims(&self) -> HashMap<String, [f32; 2]> {

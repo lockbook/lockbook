@@ -1,5 +1,5 @@
 use std::cell::RefCell;
-use std::sync::atomic::AtomicBool;
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
 
@@ -611,6 +611,12 @@ impl<'ast> MdRender {
     /// maintains a stack of currently-open headings as we walk
     /// children left-to-right; each entry is `(level, folded_unrevealed)`.
     pub fn populate_hidden_by_fold(&self, root: &'ast AstNode<'ast>) {
+        let deps = (self.buffer.current.seq as u64, self.reveal_seq);
+        if self.layout_cache.hidden_by_fold_deps.get() == Some(deps) {
+            return;
+        }
+        self.layout_cache.hidden_by_fold_deps.set(Some(deps));
+
         // The root is never hidden; cache it directly so a query for
         // `hidden_by_fold(root)` doesn't fall back to the unwrap
         // default.
@@ -729,21 +735,25 @@ pub enum TitleState {
 type LinePrefixKey = (u64, (Grapheme, Grapheme));
 type LinePrefixValue = (Graphemes, bool);
 
+/// height inputs: `[text_seq, width_seq, embeds_seq, link_seq, reveal_seq]`.
+/// Covers spacing too — spacing is folded into `height()` and shares
+/// these dep stamps.
+pub type HeightDeps = [u64; 5];
+
 #[derive(Default)]
 pub struct LayoutCache {
-    pub height: RefCell<HashMap<(Grapheme, Grapheme), f32>>,
-    pub height_approx: RefCell<HashMap<(Grapheme, Grapheme), f32>>,
+    pub height: RefCell<HashMap<(Grapheme, Grapheme), (f32, HeightDeps)>>,
+    pub height_approx: RefCell<HashMap<(Grapheme, Grapheme), (f32, HeightDeps)>>,
     pub line_prefix_len: RefCell<HashMap<LinePrefixKey, LinePrefixValue>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
-    pub hidden_by_fold: RefCell<HashMap<(Grapheme, Grapheme), bool>>,
-    pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
 
-    /// Set when something outside the editor (file cache refresh, async link
-    /// title fetch completion) changes the resolved width of a link's display
-    /// text. The next reparse drops cached heights so the new width takes
-    /// effect; without this, heights keyed only by node range stay stale.
-    /// Shared via `Arc` so async fetch closures can signal from any thread.
-    pub link_layout_dirty: Arc<AtomicBool>,
+    // deps: `(text_seq, reveal_seq)` last populated, or `None` if never
+    pub hidden_by_fold: RefCell<HashMap<(Grapheme, Grapheme), bool>>,
+    pub hidden_by_fold_deps: std::cell::Cell<Option<(u64, u64)>>,
+
+    // deps: title load state
+    pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
+    pub link_seq: Arc<AtomicU64>,
 }
 
 impl LayoutCache {
@@ -754,6 +764,7 @@ impl LayoutCache {
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
+        self.hidden_by_fold_deps.set(None);
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
 
@@ -767,57 +778,11 @@ impl LayoutCache {
         self.height.borrow_mut().clear();
         self.height_approx.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
+        self.hidden_by_fold_deps.set(None);
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
 
         // glyphon_buffers: content-addressed, preserved across text changes
-    }
-
-    /// Drop heights only. Used when link title resolution changes (file cache
-    /// refresh or async fetch completion): node ranges, fold state, and line
-    /// prefixes are unaffected, but a link's display-text width may differ.
-    pub fn invalidate_link_layout_change(&self) {
-        self.height.borrow_mut().clear();
-        self.height_approx.borrow_mut().clear();
-    }
-
-    /// Invalidates height entries affected by a reveal range change (cursor
-    /// movement or find match change). A node's height depends on its reveal
-    /// state, so we evict nodes intersecting either range plus their ancestors.
-    pub fn invalidate_reveal_change(
-        &self, old_range: (Grapheme, Grapheme), new_range: (Grapheme, Grapheme),
-    ) {
-        let mut cache = self.height.borrow_mut();
-
-        // first pass: find ranges directly affected
-        let mut invalidated: Vec<(Grapheme, Grapheme)> = Vec::new();
-        for range in cache.keys() {
-            if range.intersects(&old_range, true) || range.intersects(&new_range, true) {
-                invalidated.push(*range);
-            }
-        }
-
-        if invalidated.is_empty() {
-            return;
-        }
-
-        // second pass: evict directly affected nodes and their ancestors
-        cache.retain(|range, _| {
-            if range.intersects(&old_range, true) || range.intersects(&new_range, true) {
-                return false;
-            }
-            for inv in &invalidated {
-                if range.contains_range(inv, true, true) {
-                    return false;
-                }
-            }
-            true
-        });
-
-        // hidden_by_fold depends on selection through fold reveal;
-        // a node's visibility can change due to a distant heading/item
-        // becoming revealed, so clear the whole cache
-        self.hidden_by_fold.borrow_mut().clear();
     }
 }
 
@@ -971,31 +936,50 @@ impl MdRender {
 }
 
 impl<'ast> MdRender {
+    fn height_deps(&self) -> HeightDeps {
+        [
+            self.buffer.current.seq as u64,
+            self.width_seq,
+            self.embeds.seq(),
+            self.layout_cache
+                .link_seq
+                .load(std::sync::atomic::Ordering::Relaxed),
+            self.reveal_seq,
+        ]
+    }
+
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
         let range = self.node_range(node);
-        self.layout_cache.height.borrow().get(&range).copied()
+        let deps = self.height_deps();
+        let cache = self.layout_cache.height.borrow();
+        let (v, stamps) = cache.get(&range)?;
+        (*stamps == deps).then_some(*v)
     }
 
     pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32) {
         let range = self.node_range(node);
-        self.layout_cache.height.borrow_mut().insert(range, height);
+        let deps = self.height_deps();
+        self.layout_cache
+            .height
+            .borrow_mut()
+            .insert(range, (height, deps));
     }
 
     pub fn get_cached_node_height_approx(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
         let range = self.node_range(node);
-        self.layout_cache
-            .height_approx
-            .borrow()
-            .get(&range)
-            .copied()
+        let deps = self.height_deps();
+        let cache = self.layout_cache.height_approx.borrow();
+        let (v, stamps) = cache.get(&range)?;
+        (*stamps == deps).then_some(*v)
     }
 
     pub fn set_cached_node_height_approx(&self, node: &'ast AstNode<'ast>, height: f32) {
         let range = self.node_range(node);
+        let deps = self.height_deps();
         self.layout_cache
             .height_approx
             .borrow_mut()
-            .insert(range, height);
+            .insert(range, (height, deps));
     }
 
     pub fn get_cached_line_prefix_len(
