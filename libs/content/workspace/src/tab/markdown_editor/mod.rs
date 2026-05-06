@@ -754,6 +754,12 @@ impl Editor {
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
 
+        let all_selected = self.edit.renderer.buffer.current.selection
+            == (0.into(), self.edit.renderer.last_cursor_position());
+        if self.initialized && resp.selection_updated && !all_selected {
+            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+        }
+
         let ast_elapsed = start.elapsed();
         let print_elapsed = std::time::Duration::ZERO;
         let start = web_time::Instant::now();
@@ -959,18 +965,12 @@ impl Editor {
         }
 
         // post-frame bookkeeping
-        let all_selected = self.edit.renderer.buffer.current.selection
-            == (0.into(), self.edit.renderer.last_cursor_position());
         if embeds_updated || height_updated || width_updated {
             if embeds_updated {
                 self.unprocessed_scroll = Some(Instant::now());
             }
             ui.ctx().request_repaint();
         } else if resp.selection_updated {
-            ui.ctx().request_repaint();
-        }
-        if self.initialized && resp.selection_updated && !all_selected {
-            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
         if self.initialized && self.edit.renderer.touch_mode && height_updated {
