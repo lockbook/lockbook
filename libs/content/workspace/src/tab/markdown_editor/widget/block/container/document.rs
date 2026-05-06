@@ -1,11 +1,14 @@
 use crate::tab::markdown_editor::{syntax_set, syntax_theme};
 use comrak::nodes::AstNode;
-use egui::{Color32, Pos2, Ui};
-use lb_rs::model::text::offset_types::{IntoRangeExt as _, RangeExt as _, RangeIterExt as _};
+use egui::{Color32, Pos2, Rect, Ui, Vec2};
+use lb_rs::model::text::offset_types::{
+    Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
+};
 use syntect::easy::HighlightLines;
 
 use crate::show::syntax_ext_for;
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::galleys::GalleyInfo;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -48,6 +51,7 @@ impl<'ast> MdRender {
     pub fn show_document(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let width = self.width(node);
 
+        let pre_galleys = self.galleys.len();
         let any_children = node.children().next().is_some();
         if any_children && !self.plaintext {
             self.show_block_children(ui, node, top_left);
@@ -60,6 +64,27 @@ impl<'ast> MdRender {
                     top_left.y += self.layout.row_spacing;
                 }
             }
+        }
+
+        // Empty doc renders nothing — the cursor at (0, 0) needs a galley
+        // to anchor against. Push a zero-width sentinel so `cursor_line`
+        // returns Some.
+        if self.galleys.len() == pre_galleys {
+            let row_height = self.layout.row_height;
+            let buffer = self.upsert_glyphon_buffer_unwrapped(
+                "",
+                row_height,
+                row_height,
+                width,
+                &self.text_format_document(),
+            );
+            self.galleys.push(GalleyInfo {
+                is_override: false,
+                range: (Grapheme(0), Grapheme(0)),
+                buffer,
+                rect: Rect::from_min_size(top_left, Vec2::new(0.0, row_height)),
+                padded: false,
+            });
         }
     }
 
