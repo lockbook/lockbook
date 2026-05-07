@@ -364,7 +364,7 @@ impl MdEdit {
         // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
-            self.scroll_to_cursor(ui, id, rect.height());
+            self.scroll_to_cursor(rect);
         }
 
         // lock focus filter so arrow keys / tab / shift+enter keep reaching us

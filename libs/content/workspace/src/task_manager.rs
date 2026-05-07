@@ -205,6 +205,13 @@ impl TaskManager {
             .push(QueuedLoad { request, timing: QueuedTiming::new() });
     }
 
+    /// True when no saves are queued or in progress. Used by graceful shutdown
+    /// to wait for save flushes before closing the window.
+    pub fn saves_idle(&self) -> bool {
+        let tasks = self.tasks.lock().unwrap();
+        tasks.queued_saves.is_empty() && tasks.in_progress_saves.is_empty()
+    }
+
     pub fn queue_save(&mut self, request: SaveRequest) {
         trace!("queued save of file {}", request.id);
         self.tasks
