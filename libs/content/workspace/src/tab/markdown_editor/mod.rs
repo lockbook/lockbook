@@ -468,9 +468,13 @@ impl MdRender {
     /// also invoke [`MdRender::height`] on the returned root.
     pub fn reparse<'a>(&mut self, arena: &'a Arena<'a>) -> &'a AstNode<'a> {
         // Width / link / embed / reveal invalidation flows through
-        // dep-stamp mismatch in the height + spacing caches; nothing to
-        // clear here. `reveal_seq` is bumped at its writers (selection
-        // in `MdEdit::handle_input`, find-match in `Editor::show`).
+        // dep-stamp mismatch in the height + spacing caches. Text changes
+        // can affect any entry (fold-tag-driven cascades, sourcepos shifts),
+        // so the layout cache wipes wholesale here before any reads.
+        // `reveal_seq` is bumped at its writers (selection in
+        // `MdEdit::handle_input`, find-match in `Editor::show`).
+        let text_seq = self.buffer.current.seq as u64;
+        self.layout_cache.ensure_text_consistent(text_seq);
 
         let options = Self::comrak_options();
         let text_with_newline = format!("{}\n", self.buffer.current.text);
@@ -478,7 +482,6 @@ impl MdRender {
 
         // Bounds depend only on text. Skip rebuild + bump bounds_seq
         // when buffer.seq hasn't advanced.
-        let text_seq = self.buffer.current.seq as u64;
         if self.bounds.text_seq != text_seq {
             self.bounds.inline_paragraphs.clear();
             self.calc_source_lines();

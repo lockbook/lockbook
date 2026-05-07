@@ -611,7 +611,7 @@ impl<'ast> MdRender {
     /// maintains a stack of currently-open headings as we walk
     /// children left-to-right; each entry is `(level, folded_unrevealed)`.
     pub fn populate_hidden_by_fold(&self, root: &'ast AstNode<'ast>) {
-        let deps = (self.buffer.current.seq as u64, self.reveal_seq);
+        let deps = self.reveal_seq;
         if self.layout_cache.hidden_by_fold_deps.get() == Some(deps) {
             return;
         }
@@ -735,10 +735,10 @@ pub enum TitleState {
 type LinePrefixKey = (u64, (Grapheme, Grapheme));
 type LinePrefixValue = (Graphemes, bool);
 
-/// height inputs: `[text_seq, width_seq, embeds_seq, link_seq, reveal_seq]`.
-/// Covers spacing too — spacing is folded into `height()` and shares
-/// these dep stamps.
-pub type HeightDeps = [u64; 5];
+/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq]`. Text-
+/// change invalidation is handled wholesale by [`LayoutCache::ensure_text_consistent`]
+/// before any read, so text_seq isn't part of the per-entry stamp.
+pub type HeightDeps = [u64; 4];
 
 #[derive(Default)]
 pub struct LayoutCache {
@@ -747,13 +747,20 @@ pub struct LayoutCache {
     pub line_prefix_len: RefCell<HashMap<LinePrefixKey, LinePrefixValue>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
 
-    // deps: `(text_seq, reveal_seq)` last populated, or `None` if never
+    // deps: `reveal_seq` last populated, or `None` if never
     pub hidden_by_fold: RefCell<HashMap<(Grapheme, Grapheme), bool>>,
-    pub hidden_by_fold_deps: std::cell::Cell<Option<(u64, u64)>>,
+    pub hidden_by_fold_deps: std::cell::Cell<Option<u64>>,
 
     // deps: title load state
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
     pub link_seq: Arc<AtomicU64>,
+
+    /// `buffer.seq` this cache was last consistent with. Drives wholesale
+    /// invalidation in [`Self::ensure_text_consistent`] — text changes
+    /// can affect any entry (fold tag insertions move distant sibling
+    /// heights, AST re-parse shifts sourcepos keys), so per-entry
+    /// stamping wouldn't help.
+    pub text_seq: std::cell::Cell<u64>,
 }
 
 impl LayoutCache {
@@ -768,21 +775,14 @@ impl LayoutCache {
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
 
-    /// Invalidation for text changes. Height and hidden_by_fold depend on
-    /// fold state (fold tags in text) and on each other (height returns 0
-    /// for hidden nodes), so both must be fully cleared — a fold tag
-    /// insertion at one point changes heights of distant sibling nodes.
-    /// Sourcepos-keyed caches are cleared because the AST is re-parsed.
-    /// Glyphon buffers are content-addressed and survive.
-    pub fn invalidate_text_change(&self) {
-        self.height.borrow_mut().clear();
-        self.height_approx.borrow_mut().clear();
-        self.hidden_by_fold.borrow_mut().clear();
-        self.hidden_by_fold_deps.set(None);
-        self.line_prefix_len.borrow_mut().clear();
-        self.node_range.borrow_mut().clear();
-
-        // glyphon_buffers: content-addressed, preserved across text changes
+    /// Wipe and re-stamp if `current` differs from the cache's recorded
+    /// text_seq. Called once per [`MdRender::reparse`] so reads in the
+    /// rest of the frame can rely on the cache reflecting current text.
+    pub fn ensure_text_consistent(&self, current: u64) {
+        if self.text_seq.get() != current {
+            self.clear();
+            self.text_seq.set(current);
+        }
     }
 }
 
@@ -938,7 +938,6 @@ impl MdRender {
 impl<'ast> MdRender {
     fn height_deps(&self) -> HeightDeps {
         [
-            self.buffer.current.seq as u64,
             self.width_seq,
             self.embeds.seq(),
             self.layout_cache
