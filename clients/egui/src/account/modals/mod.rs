@@ -198,7 +198,16 @@ fn show_modal<M: Modal>(
         .unwrap(); // Will never be `None` because `is_open` will always start as `true`.
 
     // Indicate the window closed if the user clicked outside its area.
-    if win_resp.response.clicked_elsewhere() {
+    // We use a simpler check than clicked_elsewhere() because that considers
+    // clicks on other layers (like ComboBox dropdowns) as "elsewhere".
+    let clicked_outside = ctx.input(|i| {
+        if let (Some(pos), true) = (i.pointer.interact_pos(), i.pointer.any_click()) {
+            !win_resp.response.rect.contains(pos)
+        } else {
+            false
+        }
+    });
+    if clicked_outside {
         is_open = false;
     }
 
