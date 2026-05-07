@@ -14,8 +14,10 @@ pub type Paragraphs = Vec<(Grapheme, Grapheme)>;
 
 /// Represents bounds of various text regions in the buffer. Region bounds are (inclusive, exclusive). Regions do not
 /// overlap, have region.0 <= region.1, and are sorted ascending.
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct Bounds {
+    pub text_seq: u64,
+
     /// Source lines are separated by newline characters and include all characters in the document except the newline
     /// characters. These accelerate translating AST source positions to character offsets and back and are computed
     /// early in the frame using few dependencies.
@@ -47,6 +49,18 @@ pub struct Bounds {
     /// * Inline paragraphs can be empty.
     /// * Inline paragraphs cannot touch.
     pub inline_paragraphs: Paragraphs,
+}
+
+impl Default for Bounds {
+    fn default() -> Self {
+        Self {
+            text_seq: u64::MAX,
+            source_lines: SourceLines::default(),
+            words: Words::default(),
+            wrap_lines: Lines::default(),
+            inline_paragraphs: Paragraphs::default(),
+        }
+    }
 }
 
 impl MdRender {

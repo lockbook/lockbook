@@ -266,7 +266,19 @@ pub fn paint_row<'ast>(
     blocks: &[&'ast AstNode<'ast>], id: &DocRowId, top_left: Pos2, content_x: f32,
 ) {
     match id {
-        DocRowId::Leading | DocRowId::Trailing => {} // virtual padding
+        DocRowId::Leading => {} // virtual padding
+        DocRowId::Trailing => {
+            // Empty non-plaintext doc — `DocScrollContent` yields no
+            // Block rows, so `show_document` would never be called and
+            // the cursor would have no galley anchor. Route through
+            // it here so its empty-doc sentinel galley fires. Trailing
+            // sits at the content origin (canvas + leading_precise)
+            // for an empty doc, so painting at `top_left` is correct.
+            if blocks.is_empty() && !renderer.plaintext {
+                let tl = Pos2::new(content_x, top_left.y);
+                renderer.show_block(ui, root, tl);
+            }
+        }
         DocRowId::Block(i) => {
             let node = blocks[*i];
             let mut tl = Pos2::new(content_x, top_left.y);

@@ -71,9 +71,9 @@ impl MdLabel {
     }
 
     fn prepare(&mut self, md: &str, width: f32) {
-        self.renderer.width = width;
+        self.renderer.set_width(width);
         self.renderer.buffer = Buffer::from(md);
-        self.renderer.layout_cache.invalidate_text_change();
+        self.renderer.bump_text_seq();
     }
 
     /// Widest galley rect from the last render — for callers that size a

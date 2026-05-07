@@ -296,7 +296,8 @@ impl<'ast> MdRender {
                 let client = self.client.clone();
                 let ctx = self.ctx.clone();
                 let title_state = arc.clone();
-                let layout_dirty = self.layout_cache.link_layout_dirty.clone();
+                let link_seq = self.layout_cache.link_seq.clone();
+                let ws_seq = self.ws_seq.clone();
                 spawn!({
                     const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
                     const GOOGLEBOT: &str =
@@ -324,7 +325,7 @@ impl<'ast> MdRender {
                         .and_then(|h| extract_html_title(&h))
                         .map(TitleState::Loaded)
                         .unwrap_or(TitleState::Failed);
-                    layout_dirty.store(true, Ordering::Relaxed);
+                    link_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
                     ctx.request_repaint();
                 });
                 arc

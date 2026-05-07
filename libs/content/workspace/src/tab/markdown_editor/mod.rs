@@ -2,7 +2,6 @@ use std::collections::HashMap;
 use std::io::{BufReader, Cursor};
 use std::mem;
 use std::sync::OnceLock;
-use std::sync::atomic::Ordering;
 use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
@@ -99,8 +98,11 @@ pub struct MdRender {
     pub touch_mode: bool,
 
     // document
-    pub bounds: Bounds,
     pub buffer: Buffer,
+    pub text_seq: u64, // buffer.seq includes selection changes
+
+    pub bounds: Bounds,
+    pub bounds_seq: u64,
 
     // render output
     pub galleys: Galleys,
@@ -111,27 +113,22 @@ pub struct MdRender {
     // render input
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
     pub find_current_match: Option<(Grapheme, Grapheme)>,
-    /// Gates fold UI. Stays true in readonly — fold is the one mutation
-    /// allowed there (saves are gated separately).
-    pub interactive: bool,
-    /// Gates click on interactive render elements that mutate the doc
-    /// (task checkbox). Fold clicks ignore it (changes aren't saved)
-    pub readonly: bool,
-    /// When true, render via the per-line source text — no markdown block
-    /// parsing, no fold UI, no completion popups. Set at construction from
-    /// the non-`md` ext check; callers may also flip it directly.
-    pub plaintext: bool,
-    pub reveal_ranges: Vec<(Grapheme, Grapheme)>,
-    pub text_highlight_range: Option<(Grapheme, Grapheme)>,
-    /// Toolbar settings menu: render image nodes as inline link text only,
-    /// skipping the block preview and its reserved space.
-    pub render_images_as_text: bool,
+    pub interactive: bool,    // enables fold buttons
+    pub readonly: bool,       // disables task checkboxes and saving
+    pub plaintext: bool,      // render as source text, not parsed markdown
+    pub disable_images: bool, // skip image rendering (e.g. for the mobile toolbar)
+
+    pub reveal_selection: Option<(Grapheme, Grapheme)>,
+    pub reveal_seq: u64, // includes selection and find matches
+
+    pub search_range: Option<(Grapheme, Grapheme)>, // drawn in accent color for completions
 
     // capabilities
     pub embeds: Box<dyn EmbedResolver>,
     pub link_resolver: Box<dyn LinkResolver>,
     pub client: HttpClient,
     pub files: Arc<RwLock<FileCache>>,
+    pub ws_seq: Arc<std::sync::atomic::AtomicU64>,
 
     // caches
     pub layout_cache: LayoutCache,
@@ -139,10 +136,9 @@ pub struct MdRender {
 
     // viewport
     pub width: f32,
+    pub width_seq: u64,
+
     pub viewport_height: f32,
-    /// Width the layout cache was last populated for; `reparse`
-    /// clears the cache when `width` diverges.
-    last_layout_width: f32,
 
     // debug
     pub debug: bool,
@@ -236,7 +232,10 @@ pub struct Editor {
     pub hmac: Option<DocumentHmac>,
     pub initialized: bool,
 
-    embeds_last_seen: u64,
+    // change detection
+    pub unprocessed_scroll: Option<Instant>,
+    prev_dimensions: Option<Vec2>,
+    embeds_seq: u64,
 
     // interaction widgets (toolbar + find are Editor-owned; completion
     // widgets moved onto MdEdit so a standalone composer inherits them)
@@ -245,12 +244,6 @@ pub struct Editor {
 
     // misc
     pub virtual_keyboard_shown: bool,
-    pub unprocessed_scroll: Option<Instant>,
-
-    /// Last frame's available render area, for change detection. Tracked
-    /// separately from `renderer.width` (the centered content-column width,
-    /// which on wide windows is strictly less than the available width).
-    prev_dimensions: Option<Vec2>,
 
     // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
@@ -264,15 +257,6 @@ pub struct MdPersistence {
     file: HashMap<Uuid, MdFilePersistence>,
 }
 
-impl MdPersistence {
-    pub fn image_dims(&self, file_id: &Uuid) -> HashMap<String, [f32; 2]> {
-        self.file
-            .get(file_id)
-            .map(|f| f.image_dims.clone())
-            .unwrap_or_default()
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdFilePersistence {
     /// `(anchor_block_idx, intra_precise)` — the row index and precise
@@ -282,8 +266,6 @@ pub struct MdFilePersistence {
     #[serde(default)]
     anchor: Option<(usize, f32)>,
     selection: (Grapheme, Grapheme),
-    #[serde(default)]
-    image_dims: HashMap<String, [f32; 2]>,
 }
 
 pub struct MdResources {
@@ -372,44 +354,63 @@ impl MdRender {
         let touch_mode = matches!(ctx.os(), OperatingSystem::Android | OperatingSystem::IOS);
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
         let dark_mode = ctx.style().visuals.dark_mode;
+        let ws_seq = crate::seq::ws_seq(&ctx);
         Self {
             ctx,
             layout,
             dark_mode,
             ext: "md".into(),
             touch_mode,
-            bounds: Default::default(),
             buffer: "".into(),
+            bounds: Default::default(),
+            bounds_seq: 0,
             galleys: Default::default(),
             text_areas: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
-            reveal_ranges: Vec::new(),
-            text_highlight_range: None,
-            render_images_as_text: false,
             in_progress_selection: None,
             find_current_match: None,
             interactive: false,
             readonly: true,
             plaintext: false,
+            disable_images: false,
+            reveal_selection: None,
+            reveal_seq: 0,
+            text_seq: 0,
+            search_range: None,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
             files: Arc::new(RwLock::new(FileCache::empty())),
+            ws_seq,
             layout_cache: Default::default(),
             syntax: Default::default(),
             width: Default::default(),
+            width_seq: 0,
             viewport_height: Default::default(),
-            last_layout_width: f32::NAN,
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
         }
     }
 
+    /// Setter for `width` that bumps `width_seq` only when the value
+    /// actually changes — frame-scoped writers reassign every frame even
+    /// when the layout hasn't moved, and an unconditional bump would
+    /// invalidate every cached height.
+    pub fn set_width(&mut self, width: f32) {
+        if self.width.to_bits() != width.to_bits() {
+            self.width = width;
+            self.width_seq = self
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         let ctx = Context::default();
+        let ws_seq = crate::seq::ws_seq(&ctx);
         Self {
             ctx,
             layout: MdLayout::desktop(),
@@ -422,9 +423,9 @@ impl MdRender {
             text_areas: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
-            reveal_ranges: Vec::new(),
-            text_highlight_range: None,
-            render_images_as_text: false,
+            reveal_selection: None,
+            search_range: None,
+            disable_images: false,
             in_progress_selection: None,
             find_current_match: None,
             interactive: false,
@@ -437,12 +438,25 @@ impl MdRender {
             layout_cache: Default::default(),
             syntax: Default::default(),
             width: Default::default(),
+            width_seq: 0,
             viewport_height: Default::default(),
-            last_layout_width: f32::NAN,
+            reveal_seq: 0,
+            text_seq: 0,
+            bounds_seq: 0,
+            ws_seq,
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
         }
+    }
+
+    /// Bump `text_seq`. Call after any buffer mutation that may change
+    /// text — `LayoutCache::ensure_text_consistent`, `bounds.text_seq`,
+    /// and find-match invalidation all key off this counter.
+    pub fn bump_text_seq(&mut self) {
+        self.text_seq = self
+            .ws_seq
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Re-parse the buffer into a fresh AST and rebuild all text-derived
@@ -450,37 +464,41 @@ impl MdRender {
     /// [`Arena`] — comrak's AST is arena-allocated. Callers who need heights
     /// also invoke [`MdRender::height`] on the returned root.
     pub fn reparse<'a>(&mut self, arena: &'a Arena<'a>) -> &'a AstNode<'a> {
-        // Layout-cache keys are node-range, not width-aware; clear on
-        // width change. Bit-equality covers the initial NaN.
-        if self.width.to_bits() != self.last_layout_width.to_bits() {
-            self.layout_cache.clear();
-            self.last_layout_width = self.width;
-        }
-
-        // File cache refresh or async link-title fetch may have changed a
-        // link's resolved width; drop heights so the next render recomputes.
-        if self
-            .layout_cache
-            .link_layout_dirty
-            .swap(false, Ordering::Relaxed)
-        {
-            self.layout_cache.invalidate_link_layout_change();
-        }
+        // Width / link / embed / reveal invalidation flows through
+        // dep-stamp mismatch in the height + spacing caches. Text changes
+        // can affect any entry (fold-tag-driven cascades, sourcepos shifts),
+        // so the layout cache wipes wholesale here before any reads.
+        // `reveal_seq` is bumped at its writers (selection in
+        // `MdEdit::handle_input`, find-match in `Editor::show`).
+        self.layout_cache.ensure_text_consistent(self.text_seq);
 
         let options = Self::comrak_options();
         let text_with_newline = format!("{}\n", self.buffer.current.text);
         let root = comrak::parse_document(arena, &text_with_newline, &options);
 
-        self.bounds.inline_paragraphs.clear();
-        self.calc_source_lines();
-        // Populate before compute_bounds: pre_spacing_lines (called
-        // from compute_bounds_block_pre_spacing) queries
-        // hidden_by_fold, which now expects every node already
-        // cached.
-        self.populate_hidden_by_fold(root);
-        self.compute_bounds(root);
-        self.bounds.inline_paragraphs.sort();
-        self.calc_words();
+        // Bounds depend only on text. Skip rebuild + bump bounds_seq
+        // when text hasn't changed.
+        if self.bounds.text_seq != self.text_seq {
+            self.bounds.inline_paragraphs.clear();
+            self.calc_source_lines();
+            // Populate before compute_bounds: pre_spacing_lines (called
+            // from compute_bounds_block_pre_spacing) queries
+            // hidden_by_fold, which now expects every node already
+            // cached.
+            self.populate_hidden_by_fold(root);
+            self.compute_bounds(root);
+            self.bounds.inline_paragraphs.sort();
+            self.calc_words();
+            self.bounds.text_seq = self.text_seq;
+            self.bounds_seq = self
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        } else {
+            // Still call populate — its own deps check skips when
+            // text+reveal haven't moved, but this catches reveal-only
+            // changes (text seq same, reveal_seq advanced).
+            self.populate_hidden_by_fold(root);
+        }
 
         root
     }
@@ -530,6 +548,7 @@ impl Editor {
         let layout = if touch_mode { MdLayout::mobile() } else { MdLayout::desktop() };
 
         let client: HttpClient = Default::default();
+        let ws_seq = crate::seq::ws_seq(&ctx);
 
         let renderer = MdRender {
             ctx,
@@ -551,9 +570,9 @@ impl Editor {
             interactive: true,
             readonly,
             plaintext,
-            reveal_ranges: Vec::new(),
-            text_highlight_range: None,
-            render_images_as_text: false,
+            reveal_selection: None,
+            search_range: None,
+            disable_images: false,
 
             embeds,
             link_resolver,
@@ -564,8 +583,12 @@ impl Editor {
             syntax: Default::default(),
 
             width: Default::default(),
+            width_seq: 0,
             viewport_height: Default::default(),
-            last_layout_width: f32::NAN,
+            reveal_seq: 0,
+            text_seq: 0,
+            bounds_seq: 0,
+            ws_seq,
 
             debug: false,
             frame_times: [Instant::now(); 10],
@@ -593,8 +616,7 @@ impl Editor {
             id_salt: Id::NULL,
             hmac,
             initialized: Default::default(),
-
-            embeds_last_seen: 0,
+            embeds_seq: 0,
 
             toolbar: Default::default(),
             find: Default::default(),
@@ -701,19 +723,14 @@ impl Editor {
         }
 
         let start = web_time::Instant::now();
-        let embeds_updated = {
-            let current = self.edit.renderer.embeds.last_modified();
-            let changed = current != self.embeds_last_seen;
-            self.embeds_last_seen = current;
-            changed
-        };
 
-        // Heights depend on `viewport_height` (image clamping) and on
-        // resolved embed dimensions; clear so this frame paints the
-        // updated values. (Width invalidation lives in `reparse`.)
-        if height_updated || embeds_updated {
+        if height_updated {
             self.edit.renderer.layout_cache.clear();
         }
+
+        let embeds_seq = self.edit.renderer.embeds.seq();
+        let embeds_updated = embeds_seq != self.embeds_seq;
+        self.embeds_seq = embeds_seq;
 
         // --- input phase ------------------------------------------------------
         // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
@@ -728,17 +745,8 @@ impl Editor {
 
         if !self.initialized || buf_resp.text_updated {
             resp.text_updated = true;
-            // recompute find matches when text changes
-            if let Some(term) = self.find.term.clone() {
-                self.find.matches = self.find.find_all(&self.edit.renderer.buffer, &term);
-                if self.find.matches.is_empty() {
-                    self.find.current_match = None;
-                } else if let Some(idx) = self.find.current_match {
-                    if idx >= self.find.matches.len() {
-                        self.find.current_match = Some(self.find.matches.len() - 1);
-                    }
-                }
-            }
+            self.find
+                .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
             ui.ctx().request_repaint();
         }
         resp.selection_updated = prior_selection
@@ -746,6 +754,12 @@ impl Editor {
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
+
+        let all_selected = self.edit.renderer.buffer.current.selection
+            == (0.into(), self.edit.renderer.last_cursor_position());
+        if self.initialized && buf_resp.selection_user_moved && !all_selected {
+            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+        }
 
         let ast_elapsed = start.elapsed();
         let print_elapsed = std::time::Duration::ZERO;
@@ -906,6 +920,11 @@ impl Editor {
                     .buffer
                     .queue(vec![lb_rs::model::text::operation_types::Operation::Select(selection)]);
                 self.edit.renderer.buffer.update();
+                self.edit.renderer.reveal_seq = self
+                    .edit
+                    .renderer
+                    .ws_seq
+                    .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             }
         }
 
@@ -947,28 +966,12 @@ impl Editor {
         }
 
         // post-frame bookkeeping
-        let all_selected = self.edit.renderer.buffer.current.selection
-            == (0.into(), self.edit.renderer.last_cursor_position());
         if embeds_updated || height_updated || width_updated {
             if embeds_updated {
                 self.unprocessed_scroll = Some(Instant::now());
             }
-            // Schedule a follow-up frame for the persistence write
-            // path keyed off `unprocessed_scroll`.
             ui.ctx().request_repaint();
         } else if resp.selection_updated {
-            let new_selection = self
-                .edit
-                .in_progress_selection
-                .unwrap_or(self.edit.renderer.buffer.current.selection);
-            self.edit
-                .renderer
-                .layout_cache
-                .invalidate_reveal_change(prior_selection, new_selection);
-            ui.ctx().request_repaint();
-        }
-        if self.initialized && resp.selection_updated && !all_selected {
-            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
         if self.initialized && self.edit.renderer.touch_mode && height_updated {
@@ -1030,7 +1033,6 @@ impl Editor {
                         });
                 drop(content);
 
-                let image_dims = self.edit.renderer.embeds.image_dims();
                 let mut persistence = self.persistence.data.write().unwrap();
                 persistence
                     .markdown
@@ -1038,13 +1040,8 @@ impl Editor {
                     .entry(self.edit.file_id)
                     .and_modify(|f| {
                         f.anchor = anchor;
-                        f.image_dims = image_dims.clone();
                     })
-                    .or_insert(MdFilePersistence {
-                        anchor,
-                        selection: Default::default(),
-                        image_dims,
-                    });
+                    .or_insert(MdFilePersistence { anchor, selection: Default::default() });
                 persistence_updated = true;
 
                 scroll_end_processed = true;
@@ -1082,7 +1079,6 @@ impl Editor {
     }
 
     fn show_scrollable_editor<'a>(&mut self, ui: &mut Ui, _root: &'a AstNode<'a>) {
-        let prev_seq = self.edit.renderer.buffer.current.seq;
         let scroll_id = self.id();
 
         // Captured by the Frame::canvas closure so post-render code
@@ -1110,7 +1106,7 @@ impl Editor {
                 // at the canvas right edge.
                 let max_width = self.edit.renderer.layout.max_width;
                 let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
-                self.edit.renderer.width = col_width;
+                self.edit.renderer.set_width(col_width);
 
                 // Paint find-match highlights first so the editor's text
                 // callback (submitted via post_render) lands on a layer
@@ -1202,20 +1198,8 @@ impl Editor {
                 ui.advance_cursor_after_rect(canvas_rect);
             });
 
-        // if text changed during MdEdit::show, recompute find matches
-        // before painting match highlights (which index by offset).
-        if self.edit.renderer.buffer.current.seq != prev_seq {
-            if let Some(term) = self.find.term.clone() {
-                self.find.matches = self.find.find_all(&self.edit.renderer.buffer, &term);
-                if self.find.matches.is_empty() {
-                    self.find.current_match = None;
-                } else if let Some(idx) = self.find.current_match {
-                    if idx >= self.find.matches.len() {
-                        self.find.current_match = Some(self.find.matches.len() - 1);
-                    }
-                }
-            }
-        }
+        self.find
+            .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
 
         if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
             self.edit.pending_scroll = None;
@@ -1238,8 +1222,12 @@ impl Editor {
             Rect::from_min_size(egui::pos2(content_left, top), egui::vec2(content_width, 0.));
         let prev_match = self.find.current_match_range();
         let scope_resp = ui.scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
-            self.find
-                .show(&self.edit.renderer.buffer, self.virtual_keyboard_shown, ui)
+            self.find.show(
+                &self.edit.renderer.buffer,
+                self.edit.renderer.text_seq,
+                self.virtual_keyboard_shown,
+                ui,
+            )
         });
         let find_output = scope_resp.inner;
         let rendered_rect = scope_resp.response.rect;
@@ -1251,33 +1239,14 @@ impl Editor {
             self.edit.pending_scroll = Some(ScrollTarget::FindMatch);
         }
 
-        // match-driven reveal-cache invalidation, mirroring the cursor-selection path
         let new_match = self.find.current_match_range();
-        if prev_match != new_match {
-            if let Some(old) = prev_match {
-                self.edit
-                    .renderer
-                    .layout_cache
-                    .invalidate_reveal_change(old, old);
-            }
-            if let Some(new) = new_match {
-                self.edit
-                    .renderer
-                    .layout_cache
-                    .invalidate_reveal_change(new, new);
-            }
-        }
-        if find_output.closed {
-            self.edit.renderer.layout_cache.clear();
-        }
-
-        // bridge find state → renderer inputs for this frame's editor render.
-        // Must happen after Find::show so galley_required_ranges and
-        // reveal_ranges reflect the new current_match; otherwise the match
-        // galley isn't built and scroll_to_find_match has nothing to scroll to.
         self.edit.renderer.find_current_match = new_match;
-        if let Some(range) = new_match {
-            self.edit.renderer.reveal_ranges.push(range);
+        if prev_match != new_match {
+            self.edit.renderer.reveal_seq = self
+                .edit
+                .renderer
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
     }
 

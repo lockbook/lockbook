@@ -26,7 +26,7 @@ impl<'ast> MdRender {
             return Default::default();
         }
 
-        if let Some(search_range) = self.text_highlight_range {
+        if let Some(search_range) = self.search_range {
             let start = search_range.0.max(node_range.0);
             let end = search_range.1.min(node_range.1);
             if start < end {
