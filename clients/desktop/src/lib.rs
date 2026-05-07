@@ -199,8 +199,7 @@ impl AppState {
         let Output { platform, viewport, app: lbeguiapp::Response { close } } = self.lb.frame();
 
         if close {
-            event_loop.exit();
-            return;
+            std::process::exit(0);
         }
 
         self.egui_winit
