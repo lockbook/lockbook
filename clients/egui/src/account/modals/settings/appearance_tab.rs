@@ -1,4 +1,4 @@
-use crate::settings::{list_themes, ThemeMode};
+use crate::settings::{ThemeMode, list_themes};
 use crate::theme;
 
 impl super::SettingsModal {

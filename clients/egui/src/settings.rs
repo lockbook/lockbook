@@ -70,7 +70,9 @@ pub enum ThemeMode {
 }
 
 pub fn themes_dir() -> Option<PathBuf> {
-    data_dir().ok().map(|d| PathBuf::from(d).join("egui").join("themes"))
+    data_dir()
+        .ok()
+        .map(|d| PathBuf::from(d).join("egui").join("themes"))
 }
 
 pub fn ensure_themes_dir() {
