@@ -257,15 +257,6 @@ pub struct MdPersistence {
     file: HashMap<Uuid, MdFilePersistence>,
 }
 
-impl MdPersistence {
-    pub fn image_dims(&self, file_id: &Uuid) -> HashMap<String, [f32; 2]> {
-        self.file
-            .get(file_id)
-            .map(|f| f.image_dims.clone())
-            .unwrap_or_default()
-    }
-}
-
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdFilePersistence {
     /// `(anchor_block_idx, intra_precise)` — the row index and precise
@@ -275,8 +266,6 @@ pub struct MdFilePersistence {
     #[serde(default)]
     anchor: Option<(usize, f32)>,
     selection: (Grapheme, Grapheme),
-    #[serde(default)]
-    image_dims: HashMap<String, [f32; 2]>,
 }
 
 pub struct MdResources {
@@ -1044,7 +1033,6 @@ impl Editor {
                         });
                 drop(content);
 
-                let image_dims = self.edit.renderer.embeds.image_dims();
                 let mut persistence = self.persistence.data.write().unwrap();
                 persistence
                     .markdown
@@ -1052,13 +1040,8 @@ impl Editor {
                     .entry(self.edit.file_id)
                     .and_modify(|f| {
                         f.anchor = anchor;
-                        f.image_dims = image_dims.clone();
                     })
-                    .or_insert(MdFilePersistence {
-                        anchor,
-                        selection: Default::default(),
-                        image_dims,
-                    });
+                    .or_insert(MdFilePersistence { anchor, selection: Default::default() });
                 persistence_updated = true;
 
                 scroll_end_processed = true;

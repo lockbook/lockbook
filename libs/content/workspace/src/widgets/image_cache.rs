@@ -16,7 +16,7 @@ use std::ops::Deref;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
-use egui::{ColorImage, Context, TextureId};
+use egui::{ColorImage, Context, TextureId, Vec2};
 use image::{DynamicImage, ImageDecoder};
 use lb_rs::blocking::Lb;
 use lb_rs::{Uuid, spawn};
@@ -26,6 +26,7 @@ use resvg::usvg::{self, Transform};
 use crate::file_cache::{FileCache, FilesExt as _, ResolvedLink};
 use crate::seq::ws_seq;
 use crate::tab::markdown_editor::HttpClient;
+use crate::workspace::WsPersistentStore;
 
 /// Wraps a block in an `async` closure on wasm, a plain closure on native.
 /// Allows the same source to await async HTTP on wasm while running
@@ -68,10 +69,14 @@ pub struct ImageCache {
     client: HttpClient,
     core: Lb,
     files: Arc<RwLock<FileCache>>,
+    persistence: WsPersistentStore, // persist image dims
 }
 
 impl ImageCache {
-    pub fn new(ctx: Context, client: HttpClient, core: Lb, files: Arc<RwLock<FileCache>>) -> Self {
+    pub fn new(
+        ctx: Context, client: HttpClient, core: Lb, files: Arc<RwLock<FileCache>>,
+        persistence: WsPersistentStore,
+    ) -> Self {
         let ws_seq = ws_seq(&ctx);
         Self {
             inner: Default::default(),
@@ -81,15 +86,12 @@ impl ImageCache {
             client,
             core,
             files,
+            persistence,
         }
     }
 
     pub fn seq(&self) -> u64 {
         self.seq.load(Ordering::Relaxed)
-    }
-
-    pub fn ctx(&self) -> &Context {
-        &self.ctx
     }
 
     pub fn begin_frame(&self) {
@@ -131,26 +133,55 @@ impl ImageCache {
         }
 
         let state: Arc<Mutex<ImageState>> = Default::default();
-        self.spawn_load(
-            url,
-            from_file_id,
-            user_activity,
-            state.clone(),
-            self.seq.clone(),
-            self.ws_seq.clone(),
-        );
+        self.spawn_load(url, from_file_id, user_activity, state.clone());
         inner.current.insert(url.to_string(), state.clone());
         state
     }
 
+    /// Real texture dimensions for `url`, if known.
+    pub fn dims(&self, url: &str) -> Option<Vec2> {
+        self.persistence
+            .image_dims()
+            .get(url)
+            .copied()
+            .map(|[w, h]| Vec2::new(w, h))
+    }
+
+    /// Test helper: directly install a `Loaded`/`Failed` state for `url`,
+    /// populate dims from texture metadata (when `Ok`), and bump `seq` —
+    /// mimicking a worker thread completing a load. The dims insert
+    /// happens before the state flip to match the spawn_load ordering.
+    #[cfg(test)]
+    pub fn complete_load(&self, url: &str, result: Result<TextureId, String>) {
+        let state = match result {
+            Ok(tid) => {
+                if let Some(meta) = self.ctx.tex_manager().read().meta(tid) {
+                    let [w, h] = meta.size;
+                    self.persistence
+                        .merge_image_dims(HashMap::from([(url.to_string(), [w as f32, h as f32])]));
+                }
+                ImageState::Loaded(tid)
+            }
+            Err(err) => ImageState::Failed(err),
+        };
+        let mut inner = self.inner.lock().unwrap();
+        inner
+            .current
+            .insert(url.to_string(), Arc::new(Mutex::new(state)));
+        self.seq
+            .store(self.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+    }
+
     fn spawn_load(
         &self, url: &str, from_file_id: Uuid, user_activity: bool, state: Arc<Mutex<ImageState>>,
-        embeds_seq: Arc<AtomicU64>, ws_seq: Arc<AtomicU64>,
     ) {
         let url = url.to_string();
         let ctx = self.ctx.clone();
         let client = self.client.clone();
         let core = self.core.clone();
+        let embeds_seq = self.seq.clone();
+        let ws_seq = self.ws_seq.clone();
+        let persistence = self.persistence.clone();
 
         let maybe_lb_id = {
             let guard = self.files.read().unwrap();
@@ -225,6 +256,11 @@ impl ImageCache {
 
             match result {
                 Ok(texture_id) => {
+                    if let Some(meta) = texture_manager.read().meta(texture_id) {
+                        let [w, h] = meta.size;
+                        persistence
+                            .merge_image_dims(HashMap::from([(url.clone(), [w as f32, h as f32])]));
+                    }
                     *state.lock().unwrap() = ImageState::Loaded(texture_id);
                 }
                 Err(err) => {

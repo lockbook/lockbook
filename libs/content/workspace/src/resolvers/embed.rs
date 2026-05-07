@@ -1,5 +1,3 @@
-use std::collections::HashMap;
-
 use egui::{Rect, Ui, Vec2};
 
 /// Resolves embedded content (images, etc.) for the markdown editor.
@@ -16,9 +14,6 @@ pub trait EmbedResolver {
 
     /// Increment this to signal when any return value could change.
     fn seq(&self) -> u64;
-
-    /// Temporary hack that supports persisting image dimensions.
-    fn image_dims(&self) -> HashMap<String, [f32; 2]>;
 }
 
 impl EmbedResolver for () {
@@ -29,8 +24,5 @@ impl EmbedResolver for () {
     fn warm(&self, _url: &str) {}
     fn seq(&self) -> u64 {
         0
-    }
-    fn image_dims(&self) -> HashMap<String, [f32; 2]> {
-        HashMap::new()
     }
 }

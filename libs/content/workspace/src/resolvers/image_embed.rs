@@ -1,6 +1,4 @@
-use std::collections::HashMap;
 use std::ops::Deref as _;
-use std::sync::Mutex;
 
 use egui::{
     Align2, Color32, CursorIcon, FontId, Id, OpenUrl, Pos2, Rect, Sense, Stroke, Ui, UiBuilder,
@@ -17,29 +15,17 @@ use crate::widgets::image_cache::{ImageCache, ImageState};
 pub struct ImageEmbedResolver {
     images: ImageCache,
     file_id: Uuid,
-    dims: Mutex<HashMap<String, Vec2>>,
 }
 
 impl ImageEmbedResolver {
-    pub fn new(
-        images: ImageCache, file_id: Uuid, persisted_dims: HashMap<String, [f32; 2]>,
-    ) -> Self {
-        let dims = persisted_dims
-            .into_iter()
-            .map(|(url, [w, h])| (url, Vec2::new(w, h)))
-            .collect();
-        Self { images, file_id, dims: Mutex::new(dims) }
+    pub fn new(images: ImageCache, file_id: Uuid) -> Self {
+        Self { images, file_id }
     }
 }
 
 impl EmbedResolver for ImageEmbedResolver {
     fn size(&self, url: &str) -> Vec2 {
-        self.dims
-            .lock()
-            .unwrap()
-            .get(url)
-            .copied()
-            .unwrap_or(Vec2::splat(200.))
+        self.images.dims(url).unwrap_or(Vec2::splat(200.))
     }
 
     fn show(&self, ui: &mut Ui, url: &str, rect: Rect) {
@@ -50,15 +36,6 @@ impl EmbedResolver for ImageEmbedResolver {
                 show_placeholder(ui, rect, Icon::IMAGE, "Loading image...");
             }
             ImageState::Loaded(texture_id) => {
-                let [w, h] = ui.ctx().tex_manager().read().meta(texture_id).unwrap().size;
-                let dims = Vec2::new(w as f32, h as f32);
-                {
-                    let mut cache = self.dims.lock().unwrap();
-                    if cache.get(url) != Some(&dims) {
-                        cache.insert(url.to_string(), dims);
-                    }
-                }
-
                 let resp = ui.interact(rect, Id::new(texture_id), Sense::click());
                 if resp.hovered() {
                     ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
@@ -84,36 +61,11 @@ impl EmbedResolver for ImageEmbedResolver {
     }
 
     fn warm(&self, url: &str) {
-        let state = self.images.get_or_load(url, self.file_id, false);
-        let guard = state.lock().unwrap();
-        if let ImageState::Loaded(texture_id) = *guard {
-            let [w, h] = self
-                .images
-                .ctx()
-                .tex_manager()
-                .read()
-                .meta(texture_id)
-                .unwrap()
-                .size;
-            let dims = Vec2::new(w as f32, h as f32);
-            let mut cache = self.dims.lock().unwrap();
-            if cache.get(url) != Some(&dims) {
-                cache.insert(url.to_string(), dims);
-            }
-        }
+        self.images.get_or_load(url, self.file_id, false);
     }
 
     fn seq(&self) -> u64 {
         self.images.seq()
-    }
-
-    fn image_dims(&self) -> HashMap<String, [f32; 2]> {
-        self.dims
-            .lock()
-            .unwrap()
-            .iter()
-            .map(|(url, v)| (url.clone(), [v.x, v.y]))
-            .collect()
     }
 }
 
