@@ -38,9 +38,19 @@ impl Drop for RenderThread {
 
 fn run_render_loop(backend: &mut RenderBackend<'_>, rx: Receiver<RenderRequest>) {
     while let Ok(mut request) = rx.recv() {
+        let mut queued_texture_sets = std::mem::take(&mut request.prepared.textures_delta.set);
+        let mut queued_texture_frees = std::mem::take(&mut request.prepared.textures_delta.free);
+
         while let Ok(next_request) = rx.try_recv() {
+            queued_texture_sets.append(&mut request.prepared.textures_delta.set);
+            queued_texture_frees.append(&mut request.prepared.textures_delta.free);
             request = next_request;
         }
+
+        queued_texture_sets.append(&mut request.prepared.textures_delta.set);
+        queued_texture_frees.append(&mut request.prepared.textures_delta.free);
+        request.prepared.textures_delta.set = queued_texture_sets;
+        request.prepared.textures_delta.free = queued_texture_frees;
 
         backend.render_prepared_frame(
             request.prepared,

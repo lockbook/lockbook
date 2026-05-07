@@ -423,8 +423,7 @@ class WorkspaceFragment : Fragment() {
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share).isVisible = true
                 binding.workspaceToolbar.menu.findItem(R.id.menu_text_editor_share_externally).isVisible =
                     true
-//                binding.workspaceToolbar.setTitle(tabTitle)
-                binding.workspaceToolbar.setTitle(model.fps.value.toString())
+                binding.workspaceToolbar.setTitle(tabTitle)
             }
         }
     }
@@ -676,10 +675,10 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
                 val nonSloppyTouch = abs(event.x - touchStartX).toInt() < slopTouchThreshold &&
                     abs(event.y - touchStartY).toInt() < slopTouchThreshold
                 println("ad-tra: openning keyboard $bottomSheetExpanded $keyboardShown $duration $nonSloppyTouch")
-//                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch) {
+                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
-//                }
+                }
             }
         }
 

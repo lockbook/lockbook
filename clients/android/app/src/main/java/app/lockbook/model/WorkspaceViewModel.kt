@@ -64,10 +64,6 @@ class WorkspaceViewModel : ViewModel() {
     val bottomInset: LiveData<Int>
         get() = _bottomInset
 
-    val _fps = MutableLiveData<Float>()
-    val fps: LiveData<Float>
-        get() = _fps
-
     /** request workspace view to navigate within tab history **/
     private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
     val workspaceBackRequested: LiveData<Unit>

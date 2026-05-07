@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
@@ -301,6 +302,23 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
+        val dx = pendingDx.getAndSet(0f)
+        val dy = pendingDy.getAndSet(0f)
+        val zoom = pendingZoom.getAndSet(1f)
+        val focusX = pendingFocusX.getAndSet(0f)
+        val focusY = pendingFocusY.getAndSet(0f)
+
+        if (dx != 0f || dy != 0f || zoom != 1f) {
+            Workspace.multiTouch(
+                WGPU_OBJ,
+                dx,
+                dy,
+                zoom, focusX, focusY,
+                gestureStartPositions.map { it.x }.toFloatArray(),
+                gestureStartPositions.map { it.y }.toFloatArray()
+            )
+        }
+
         val res = Workspace.enterFrameOffloaded(WGPU_OBJ)
 
 
@@ -310,7 +328,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         } else {
             null
         }
-
 
         if (response.urlOpened.isNotEmpty()) {
             try {
@@ -365,11 +382,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
         }
 
-//        if (response.redrawIn < 100u) {
+        if (response.redrawIn < 100u) {
             invalidate()
-//        } else {
-//            handler.postDelayed(redrawTask, min(response.redrawIn, 500u).toLong())
-//        }
+        } else {
+            handler.postDelayed(redrawTask, min(response.redrawIn, 500u).toLong())
+        }
     }
 
 
@@ -377,6 +394,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         ignoreSelectionUpdate = true
         drawWorkspace()
         ignoreSelectionUpdate = false
+    }
+
+    override fun draw(canvas: Canvas) {
+        super.draw(canvas)
+
+        drawWorkspace()
     }
 
     fun launchIo(block: suspend () -> Unit) {
@@ -499,7 +522,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             return
         }
 
-        val tab = Workspace.openDoc(WGPU_OBJ, id, newFile)
+        Workspace.openDoc(WGPU_OBJ, id, newFile)
         drawImmediately()
 
         return
@@ -652,7 +675,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
             }
 
-            contextMenu!!.finish()
+            if (contextMenu != null) {
+                contextMenu!!.finish()
+            }
 
             return true
         }
