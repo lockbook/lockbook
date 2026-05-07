@@ -72,8 +72,10 @@ pub use input::Event;
 pub use md_label::MdLabel;
 
 use crate::TextBufferArea;
+use crate::tab::markdown_editor::scroll_content::DocRowId;
 use crate::tab::markdown_editor::widget::toolbar::ToolbarPersistence;
 use crate::theme::palette_v2::ThemeExt as _;
+use crate::widgets::affine_scroll::{AffineScrollArea, Align, Offset, Reveal};
 use crate::workspace::WsPersistentStore;
 
 #[derive(Debug, Default)]
@@ -190,6 +192,10 @@ pub struct MdEdit {
 
     /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
     pub link_completions: LinkCompletions,
+
+    /// Owns the per-row scroll state (offset, momentum) and renders
+    /// the scrollbar. `id_salt` derived from `file_id` at construction.
+    pub scroll_area: AffineScrollArea<DocRowId>,
 }
 
 impl MdEdit {
@@ -201,6 +207,7 @@ impl MdEdit {
     pub fn empty(ctx: Context) -> Self {
         let mut renderer = MdRender::empty(ctx);
         renderer.readonly = false;
+        let file_id = Uuid::nil();
         Self {
             renderer,
             cursor: Default::default(),
@@ -209,9 +216,10 @@ impl MdEdit {
             in_progress_selection: None,
             pending_scroll: None,
             scroll_area_velocity: Default::default(),
-            file_id: Uuid::nil(),
+            file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
+            scroll_area: AffineScrollArea::new(file_id),
         }
     }
 }
@@ -267,8 +275,8 @@ impl MdPersistence {
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
 pub struct MdFilePersistence {
-    /// `(anchor_block_idx, intra_offset_approx)` — the row index and
-    /// approx units within that row at which the scroll offset sits.
+    /// `(anchor_block_idx, intra_precise)` — the row index and precise
+    /// pixels within that row at which the scroll offset sits.
     /// Width-independent (unlike a raw pixel offset) so reopening the
     /// doc at a different width still lands on the right block.
     #[serde(default)]
@@ -576,6 +584,7 @@ impl Editor {
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: Default::default(),
+                scroll_area: AffineScrollArea::new(file_id),
             },
 
             core,
@@ -767,9 +776,7 @@ impl Editor {
         self.edit.renderer.apply_theme(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
-        let scroll_id = self.id();
-        let prev_offset =
-            crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id).offset(ui.ctx());
+        let prev_offset = self.edit.scroll_area.stored_offset();
 
         let editor_shown = ui
             .vertical(|ui| {
@@ -841,10 +848,9 @@ impl Editor {
             .inner;
 
         if editor_shown {
-            let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
-            let new_offset = scroll.offset(ui.ctx());
+            let new_offset = self.edit.scroll_area.stored_offset();
             self.next_resp.scroll_updated = new_offset != prev_offset;
-            self.edit.scroll_area_velocity = scroll.velocity(ui.ctx());
+            self.edit.scroll_area_velocity = self.edit.scroll_area.velocity();
 
             // persistence: read on first frame
             if !self.initialized {
@@ -855,24 +861,21 @@ impl Editor {
                     .get(&self.edit.file_id)
                     .cloned()
                     .unwrap_or_default();
-                if let Some((anchor_idx, intra)) = persisted.anchor {
+                if let Some((anchor_idx, intra_precise)) = persisted.anchor {
                     let arena = Arena::new();
                     let root = self.edit.renderer.reparse(&arena);
-                    let mut content = scroll_content::DocScrollContent::new(
-                        &mut self.edit.renderer,
+                    let content = scroll_content::DocScrollContent::for_frame(
+                        &self.edit.renderer,
                         root,
-                        0.0,
-                        0.0,
-                    )
-                    .with_default_leading();
-                    let offset = crate::widgets::affine_scroll::anchor_to_offset(
-                        &mut content,
-                        anchor_idx,
-                        intra,
+                        self.edit.scroll_area.state.viewport_height,
                     );
-                    crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id)
-                        .set_offset(ui.ctx(), offset);
-                    let _ = content;
+                    let anchor = if self.edit.renderer.plaintext {
+                        DocRowId::Line(anchor_idx)
+                    } else {
+                        DocRowId::Block(anchor_idx)
+                    };
+                    let off = Offset::new(anchor, intra_precise);
+                    self.edit.scroll_area.set_offset(&content, off);
                 }
                 // set the selection using low-level API; using internal
                 // events causes touch devices to scroll to cursor on 2nd
@@ -983,62 +986,68 @@ impl Editor {
         if !self.edit.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
-        // persistence: write
+        // persistence: write — sync the in-memory store each frame,
+        // flag the disk write only on actual change. Empty-selection
+        // cursor moves must persist too, so the trigger compares
+        // against stored state rather than a within-frame change.
         let mut persistence_updated = false;
-        if resp.selection_updated {
+        let current_selection = self.edit.renderer.buffer.current.selection;
+        {
             let mut persistence = self.persistence.data.write().unwrap();
-            persistence
+            let entry = persistence
                 .markdown
                 .file
                 .entry(self.edit.file_id)
-                .and_modify(|f| f.selection = self.edit.renderer.buffer.current.selection)
-                .or_insert(MdFilePersistence {
-                    anchor: None,
-                    selection: self.edit.renderer.buffer.current.selection,
-                    image_dims: Default::default(),
-                });
-            persistence_updated = true;
+                .or_default();
+            if entry.selection != current_selection {
+                entry.selection = current_selection;
+                persistence_updated = true;
+            }
         }
 
         let mut scroll_end_processed = false;
         if let Some(unprocessed_scroll) = self.unprocessed_scroll {
             if unprocessed_scroll.elapsed() > Duration::from_millis(100) && editor_shown {
-                {
-                    let arena = Arena::new();
-                    let root = self.edit.renderer.reparse(&arena);
-                    let scroll_id = self.id();
-                    let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
-                    let offset = scroll.offset(ui.ctx());
-                    let mut content = scroll_content::DocScrollContent::new(
-                        &mut self.edit.renderer,
-                        root,
-                        0.0,
-                        0.0,
-                    )
-                    .with_default_leading();
-                    let anchor =
-                        Some(crate::widgets::affine_scroll::offset_to_anchor(&mut content, offset));
-                    let _ = content;
-
-                    let image_dims = self.edit.renderer.embeds.image_dims();
-                    let mut persistence = self.persistence.data.write().unwrap();
-                    persistence
-                        .markdown
-                        .file
-                        .entry(self.edit.file_id)
-                        .and_modify(|f| {
-                            f.anchor = anchor;
-                            f.image_dims = image_dims.clone();
-                        })
-                        .or_insert(MdFilePersistence {
-                            anchor,
-                            selection: Default::default(),
-                            image_dims,
+                let arena = Arena::new();
+                let root = self.edit.renderer.reparse(&arena);
+                // Project the persisted offset onto current rows so a
+                // stale anchor (block deleted since save) is recovered
+                // rather than persisted as-is.
+                let content = scroll_content::DocScrollContent::for_frame(
+                    &self.edit.renderer,
+                    root,
+                    self.edit.scroll_area.state.viewport_height,
+                );
+                let anchor =
+                    self.edit
+                        .scroll_area
+                        .offset(&content)
+                        .and_then(|off| match off.anchor {
+                            DocRowId::Block(i) | DocRowId::Line(i) => Some((i, off.intra_precise)),
+                            // Cursor in leading/trailing pad isn't a block —
+                            // persist None and let the next open default.
+                            DocRowId::Leading | DocRowId::Trailing => None,
                         });
-                    persistence_updated = true;
+                drop(content);
 
-                    scroll_end_processed = true;
-                }
+                let image_dims = self.edit.renderer.embeds.image_dims();
+                let mut persistence = self.persistence.data.write().unwrap();
+                persistence
+                    .markdown
+                    .file
+                    .entry(self.edit.file_id)
+                    .and_modify(|f| {
+                        f.anchor = anchor;
+                        f.image_dims = image_dims.clone();
+                    })
+                    .or_insert(MdFilePersistence {
+                        anchor,
+                        selection: Default::default(),
+                        image_dims,
+                    });
+                persistence_updated = true;
+
+                scroll_end_processed = true;
             }
         };
 
@@ -1076,6 +1085,11 @@ impl Editor {
         let prev_seq = self.edit.renderer.buffer.current.seq;
         let scroll_id = self.id();
 
+        // Captured by the Frame::canvas closure so post-render code
+        // (find-match scroll) can position galleys against the canvas
+        // origin without re-deriving it.
+        let mut captured_canvas_rect: Option<Rect> = None;
+
         Frame::canvas(ui.style())
             .inner_margin(Margin::ZERO)
             .stroke(Stroke::NONE)
@@ -1087,6 +1101,7 @@ impl Editor {
                 ui.allocate_space(Vec2::new(avail_w, 0.0));
 
                 let canvas_rect = ui.max_rect();
+                captured_canvas_rect = Some(canvas_rect);
                 let canvas_width = canvas_rect.width();
                 let layout_margin = self.edit.renderer.layout.margin;
 
@@ -1116,31 +1131,71 @@ impl Editor {
 
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
-                let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
                 // affine render: widget body spans the full canvas
                 // (scrollbar at canvas right); content centers within
                 // that body via `content_x`.
-                self.edit.renderer.galleys.galleys.clear();
-                self.edit.renderer.bounds.wrap_lines.clear();
-                self.edit.renderer.text_areas.clear();
                 let touch_scroll = self.edit.renderer.touch_mode;
                 let content_x = canvas_rect.min.x
                     + ((canvas_rect.width() - self.edit.renderer.width) / 2.0).max(0.0);
-                ui.scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
-                    let trailing_precise = canvas_rect.height() / 2.0;
-                    let mut content = scroll_content::DocScrollContent::new(
-                        &mut self.edit.renderer,
-                        root,
-                        content_x,
-                        trailing_precise,
-                    )
-                    .with_default_leading();
-                    let mut scroll =
-                        crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id)
-                            .touch_scroll(touch_scroll);
-                    scroll.show(ui, &mut content);
-                });
+                let pre = ui
+                    .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
+                        ui.set_clip_rect(canvas_rect);
+                        self.edit.scroll_area.touch_scroll = touch_scroll;
+
+                        // Body alloc → pre_render → scrollbar/content
+                        // ordering puts pre_render's click rect above
+                        // the body's drag (so taps reach it) but below
+                        // the scrollbar (so taps on the bar don't).
+                        let begun = self.edit.scroll_area.begin(ui);
+
+                        let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
+
+                        self.edit.renderer.galleys.galleys.clear();
+                        self.edit.renderer.bounds.wrap_lines.clear();
+                        self.edit.renderer.text_areas.clear();
+
+                        // Phase 1: drive scroll math + scrollbar. The
+                        // immutable `DocScrollContent` borrow is released
+                        // before phase 2's mutable renderer paint.
+                        let visible = {
+                            let content = scroll_content::DocScrollContent::for_frame(
+                                &self.edit.renderer,
+                                root,
+                                canvas_rect.height(),
+                            );
+                            let resp = self.edit.scroll_area.finish(ui, begun, &content);
+                            // Register the scrollbar's track so iOS taps
+                            // on it don't fall through to cursor-placement
+                            // / keyboard-summon handlers.
+                            self.edit
+                                .renderer
+                                .touch_consuming_rects
+                                .push(resp.scrollbar_track);
+                            resp.visible
+                        };
+
+                        // Phase 2: paint each visible row with a mutable
+                        // renderer borrow. Block list re-collected
+                        // because the immutable borrow that held
+                        // `DocScrollContent`'s copy was just dropped.
+                        let blocks: Vec<_> = root.children().collect();
+                        for vrow in &visible {
+                            let top_left =
+                                Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
+                            scroll_content::paint_row(
+                                ui,
+                                &mut self.edit.renderer,
+                                root,
+                                &blocks,
+                                &vrow.id,
+                                top_left,
+                                content_x,
+                            );
+                        }
+                        pre
+                    })
+                    .inner;
                 self.edit.renderer.galleys.galleys.sort_by_key(|g| g.range);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
@@ -1164,7 +1219,9 @@ impl Editor {
 
         if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
             self.edit.pending_scroll = None;
-            self.scroll_to_find_match(ui, scroll_id, ui.available_height());
+            if let Some(canvas_rect) = captured_canvas_rect {
+                self.scroll_to_find_match(canvas_rect);
+            }
         }
     }
 
@@ -1224,34 +1281,86 @@ impl Editor {
         }
     }
 
-    fn scroll_to_find_match(&mut self, ui: &mut Ui, scroll_id: Id, viewport_height: f32) {
+    fn scroll_to_find_match(&mut self, canvas_rect: Rect) {
         let Some(idx) = self.find.current_match else { return };
-        let Some(&(target, _)) = self.find.matches.get(idx) else { return };
+        let Some(&match_range) = self.find.matches.get(idx) else { return };
 
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
-        let mut content = scroll_content::DocScrollContent::new(
-            &mut self.edit.renderer,
+        let content = scroll_content::DocScrollContent::for_frame(
+            &self.edit.renderer,
             root,
-            0.0,
-            viewport_height / 2.0,
-        )
-        .with_default_leading();
-
-        let offset = crate::widgets::affine_scroll::align_offset(
-            &mut content,
-            viewport_height,
-            crate::widgets::affine_scroll::Align::Center,
-            |c| {
-                c.text_range()
-                    .is_some_and(|(start, end)| target >= start && target <= end)
-            },
+            canvas_rect.height(),
         );
 
-        if let Some(o) = offset {
-            crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id).set_offset(ui.ctx(), o);
-        }
+        let Some(target_rect) = build_target_reveal(
+            &self.edit.renderer,
+            &content,
+            &self.edit.scroll_area.state,
+            match_range,
+            canvas_rect,
+        ) else {
+            return;
+        };
+        self.edit
+            .scroll_area
+            .reveal(&content, target_rect, Align::Center);
     }
+}
+
+/// Build a [`Reveal`] spanning a Grapheme range — works for any of:
+/// single cursor (`(g, g)`), multi-line selection, or wrapped find
+/// match (where the match crosses a wrap boundary so it occupies more
+/// than one screen line).
+///
+/// Each endpoint independently prefers a galley-derived intra-row
+/// position so `Align::Center` lands the actual span at viewport
+/// center and `Align::Nearest` knows precisely which screen lines need
+/// to be in view. Falls back per endpoint to a row-anchor when no
+/// galley exists (e.g. an off-viewport top-level block before the next
+/// render shapes it). The range is reordered to `(min, max)` so
+/// callers can pass the buffer's raw `(anchor, cursor)` selection
+/// without normalising.
+pub(crate) fn build_target_reveal(
+    renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
+    state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, range: (Grapheme, Grapheme),
+    canvas_rect: Rect,
+) -> Option<Reveal<DocRowId>> {
+    let (start, end) = if range.0 <= range.1 { range } else { (range.1, range.0) };
+    let top = endpoint_offset(renderer, content, state, start, canvas_rect, EndpointSide::Top)?;
+    let bottom = endpoint_offset(renderer, content, state, end, canvas_rect, EndpointSide::Bottom)?;
+    Some(Reveal { top, bottom })
+}
+
+#[derive(Clone, Copy)]
+enum EndpointSide {
+    Top,
+    Bottom,
+}
+
+fn endpoint_offset(
+    renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
+    state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, target: Grapheme,
+    canvas_rect: Rect, side: EndpointSide,
+) -> Option<Offset<DocRowId>> {
+    use crate::widgets::affine_scroll::Rows as _;
+    if let Some(galley_idx) = renderer.galleys.galley_at_offset(target) {
+        let galley = &renderer.galleys[galley_idx];
+        let y_range = galley
+            .rect
+            .y_range()
+            .expand(renderer.layout.row_spacing / 2.0);
+        let y = match side {
+            EndpointSide::Top => y_range.min,
+            EndpointSide::Bottom => y_range.max,
+        };
+        return state.offset_at_viewport_y(content, y - canvas_rect.min.y);
+    }
+    let row = content.find_text_row(target)?;
+    Some(match side {
+        EndpointSide::Top => Offset::at_top_of(row),
+        EndpointSide::Bottom => Offset { anchor: row, intra_precise: content.precise(&row) },
+    })
 }
 
 pub fn print_ast<'a>(root: &'a AstNode<'a>) {

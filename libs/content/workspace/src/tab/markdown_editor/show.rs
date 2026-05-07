@@ -274,24 +274,10 @@ impl MdEdit {
                 } else if response.clicked() && modifiers.shift {
                     Some(Region::ToLocation(location))
                 } else if response.clicked() {
-                    if cfg!(target_os = "android") {
-                        // android native context menu: tap-on-selection opens the menu
-                        let offset = self.pos_to_char_offset(pos);
-                        if self
-                            .renderer
-                            .buffer
-                            .current
-                            .selection
-                            .contains(offset, true, true)
-                        {
-                            ctx.set_context_menu(
-                                self.context_menu_pos(self.renderer.buffer.current.selection)
-                                    .unwrap_or(pos),
-                            );
-                            None
-                        } else {
-                            Some(Region::Location(location))
-                        }
+                    if cfg!(target_os = "android") && self.selection_tap(pos) {
+                        let selection = self.renderer.buffer.current.selection;
+                        ctx.set_context_menu(self.context_menu_pos(selection).unwrap_or(pos));
+                        None
                     } else {
                         Some(Region::Location(location))
                     }
@@ -375,14 +361,10 @@ impl MdEdit {
             }
         }
 
-        if ui.ctx().os() == OperatingSystem::Android {
-            self.show_selection_handles(ui);
-        }
-
         // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
-            self.scroll_to_cursor(ui, id, rect.height());
+            self.scroll_to_cursor(rect);
         }
 
         // lock focus filter so arrow keys / tab / shift+enter keep reaching us
@@ -415,6 +397,12 @@ impl MdEdit {
                     ui.clip_rect(),
                     crate::GlyphonRendererCallback::new(text_areas),
                 ));
+        }
+
+        let has_selection_handles = !self.renderer.buffer.current.selection.is_empty()
+            || self.in_progress_selection.is_some();
+        if ui.ctx().os() == OperatingSystem::Android && has_selection_handles {
+            self.show_selection_handles(ui);
         }
 
         // drain renderer's interactive-element events into the edit queue for next frame

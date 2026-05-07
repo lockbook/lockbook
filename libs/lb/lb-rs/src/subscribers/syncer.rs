@@ -296,7 +296,7 @@ impl LocalLb {
 
         let futures = docs_to_pull
             .into_iter()
-            .map(|(id, hmac)| async move { self.fetch_doc(id, hmac).await.map(|_| id) });
+            .map(|(id, hmac)| async move { self.ensure_doc_available(id, hmac).await.map(|_| id) });
 
         let mut stream = stream::iter(futures).buffer_unordered(
             thread::available_parallelism()
@@ -312,15 +312,15 @@ impl LocalLb {
         Ok(())
     }
 
-    pub(crate) async fn fetch_doc(
+    pub(crate) async fn ensure_doc_available(
         &self, id: Uuid, hmac: DocumentHmac,
-    ) -> LbResult<EncryptedDocument> {
+    ) -> LbResult<Option<EncryptedDocument>> {
         // todo: in a lot of cases there is a list of ids we're trying to get, it would be better
         // if the caller managed the event updates, the status would be more meaningful for longer
 
         // in this world, can we get stuck pushing a doc as well? Probably fine for now
-        if let Ok(Some(doc)) = self.docs.maybe_get(id, Some(hmac)).await {
-            return Ok(doc);
+        if self.docs.exists(id, Some(hmac)) {
+            return Ok(None);
         }
 
         self.events
@@ -335,7 +335,16 @@ impl LocalLb {
         self.events
             .sync_update(SyncIncrement::PullingDocument(id, false));
 
-        Ok(remote_document.content)
+        Ok(Some(remote_document.content))
+    }
+
+    pub(crate) async fn fetch_doc(
+        &self, id: Uuid, hmac: DocumentHmac,
+    ) -> LbResult<EncryptedDocument> {
+        match self.ensure_doc_available(id, hmac).await? {
+            Some(doc) => Ok(doc),
+            None => self.docs.get(id, Some(hmac)).await,
+        }
     }
 
     /// Pulls remote changes and constructs a changeset Merge such that Stage<Stage<Stage<Base, Remote>, Local>, Merge> is valid.
@@ -1170,25 +1179,58 @@ impl LocalLb {
 
     #[cfg(not(target_family = "wasm"))]
     async fn send_debug_info(&self, account: Account) {
+        use crate::service::debug;
+
+        let max_panic_time = debug::latest_panic_time(&self.config.writeable_path)
+            .await
+            .unwrap_or_else(|e| {
+                warn!("could not enumerate panic files: {e:?}");
+                None
+            });
+
+        let last_sent = {
+            let tx = self.ro_tx().await;
+            tx.db().last_extracted_panic.get().copied()
+        };
+
+        let should_send = match (last_sent, max_panic_time) {
+            (None, _) => true,
+            (Some(prev), Some(cur)) => cur > prev,
+            (Some(_), None) => false,
+        };
+
+        if !should_send {
+            return;
+        }
+
         let debug_info = self
             .debug_info("none provided - sync".to_string(), false)
             .await
             .unwrap();
 
-        if self.config.background_work {
-            let bg_self = self.clone();
-            tokio::spawn(async move {
-                bg_self
-                    .client
-                    .request(&account, UpsertDebugInfoRequest { debug_info })
-                    .await
-                    .log_and_ignore();
-            });
-        } else {
-            self.client
+        let new_marker = max_panic_time.unwrap_or(0);
+        let bg_self = self.clone();
+        let task = async move {
+            match bg_self
+                .client
                 .request(&account, UpsertDebugInfoRequest { debug_info })
                 .await
-                .log_and_ignore();
+            {
+                Ok(_) => {
+                    let mut tx = bg_self.begin_tx().await;
+                    if let Err(e) = tx.db().last_extracted_panic.insert(new_marker) {
+                        warn!("could not record last_extracted_panic: {e:?}");
+                    }
+                    tx.end();
+                }
+                Err(e) => warn!("send_debug_info failed: {e:?}"),
+            }
+        };
+
+        if self.config.background_work {
+            tokio::spawn(task);
+        } else {
+            task.await;
         }
     }
 
@@ -1350,6 +1392,10 @@ impl LocalLb {
                 continue;
             }
 
+            if self.docs.exists(id, hmac) {
+                continue;
+            }
+
             // skip non-first-party files
             let name = tree.name(&id, &self.keychain)?;
             if !name.ends_with(".md") && !name.ends_with(".svg") {
@@ -1366,7 +1412,7 @@ impl LocalLb {
         // can be
         for (id, hmac) in files_to_pull {
             if let Some(hmac) = hmac {
-                self.fetch_doc(id, hmac).await?;
+                self.ensure_doc_available(id, hmac).await?;
             }
         }
 

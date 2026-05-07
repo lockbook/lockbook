@@ -26,6 +26,24 @@ impl MdEdit {
         }
     }
 
+    pub fn selection_tap(&self, pos: Pos2) -> bool {
+        let selection = self.renderer.buffer.current.selection;
+        let pad_rect = |rect: Rect| {
+            let pad_x = ((48.0 - rect.width()) / 2.0).max(0.0);
+            let pad_y = ((48.0 - rect.height()) / 2.0).max(0.0);
+            rect.expand2(Vec2::new(pad_x, pad_y))
+        };
+        if selection.is_empty() {
+            self.cursor_line(selection.0)
+                .map(|[top, bot]| pad_rect(Rect::from_min_max(top, bot)).contains(pos))
+                .unwrap_or(false)
+        } else {
+            self.range_rects(selection)
+                .iter()
+                .any(|&r| pad_rect(r).contains(pos))
+        }
+    }
+
     pub fn range_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
         let mut result = Vec::new();
 
@@ -77,148 +95,117 @@ impl MdEdit {
         let selection_start_line = self.cursor_line(selection.0);
         let selection_end_line = self.cursor_line(selection.1);
 
-        let radius = 10.0;
+        let radius = 12.0;
 
-        // draw selection handles
-        // handles invisible but still draggable when selection is empty
-        // we must allocate handles to check if they were dragged last frame
         if !self.renderer.buffer.current.selection.is_empty() {
-            if let Some(selection_start_line) = selection_start_line {
-                let selection_start_center = Pos2 {
-                    x: selection_start_line[1].x - radius,
-                    y: selection_start_line[1].y + radius,
-                };
-                ui.painter()
-                    .circle_filled(selection_start_center, radius, color);
-                ui.painter().rect_filled(
-                    Rect {
-                        min: Pos2 {
-                            x: selection_start_center.x,
-                            y: selection_start_center.y - radius,
-                        },
-                        max: Pos2 {
-                            x: selection_start_center.x + radius,
-                            y: selection_start_center.y,
-                        },
-                    },
-                    0.,
-                    color,
-                );
+            if let Some(line) = selection_start_line {
+                self.paint_handle(ui, line, radius, color, true);
             }
-
-            if let Some(selection_end_line) = selection_end_line {
-                let selection_end_center = Pos2 {
-                    x: selection_end_line[1].x + radius,
-                    y: selection_end_line[1].y + radius,
-                };
-                ui.painter()
-                    .circle_filled(selection_end_center, radius, color);
-                ui.painter().rect_filled(
-                    Rect {
-                        min: Pos2 {
-                            x: selection_end_center.x - radius,
-                            y: selection_end_center.y - radius,
-                        },
-                        max: Pos2 { x: selection_end_center.x, y: selection_end_center.y },
-                    },
-                    0.,
-                    color,
-                );
+            if let Some(line) = selection_end_line {
+                self.paint_handle(ui, line, radius, color, false);
             }
         }
 
-        if let Some(selection_start_line) = selection_start_line {
-            // allocate rects to capture selection handle drag
-            let selection_start_handle_rect = Rect {
-                min: Pos2 {
-                    x: selection_start_line[1].x - 2. * radius,
-                    y: selection_start_line[1].y,
-                },
-                max: Pos2 {
-                    x: selection_start_line[1].x,
-                    y: selection_start_line[1].y + 2. * radius,
-                },
-            };
-            let start_response = ui.allocate_rect(selection_start_handle_rect, Sense::drag());
-
-            // adjust cursor based on selection handle drag
-            if start_response.drag_stopped() {
-                if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
-                    let region = Region::from(in_progress_selection);
-                    ui.ctx().push_markdown_event(Event::Select { region });
-                }
-            } else if start_response.dragged() {
-                let region = Region::BetweenLocations {
-                    start: Location::Pos(
-                        ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
-                    ),
-                    end: Location::Grapheme(self.renderer.buffer.current.selection.1),
-                };
-                self.in_progress_selection = Some(self.region_to_range(region));
-            }
+        if let Some(line) = selection_start_line {
+            self.interact_handle(ui, line, radius, true);
         }
-        if let Some(selection_end_line) = selection_end_line {
-            // allocate rects to capture selection handle drag
-            let selection_end_handle_rect = Rect {
-                min: Pos2 { x: selection_end_line[1].x, y: selection_end_line[1].y },
-                max: Pos2 {
-                    x: selection_end_line[1].x + 2. * radius,
-                    y: selection_end_line[1].y + 2. * radius,
-                },
-            };
-            let end_response = ui.allocate_rect(selection_end_handle_rect, Sense::drag());
-
-            // adjust cursor based on selection handle drag
-            if end_response.drag_stopped() {
-                if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
-                    let region = Region::from(in_progress_selection);
-                    ui.ctx().push_markdown_event(Event::Select { region });
-                }
-            } else if end_response.dragged() {
-                let region = Region::BetweenLocations {
-                    start: Location::Grapheme(self.renderer.buffer.current.selection.0),
-                    end: Location::Pos(
-                        ui.input(|i| i.pointer.interact_pos().unwrap_or_default() - 10. * Vec2::Y),
-                    ),
-                };
-                self.in_progress_selection = Some(self.region_to_range(region));
-            }
+        if let Some(line) = selection_end_line {
+            self.interact_handle(ui, line, radius, false);
         }
     }
 
-    pub fn scroll_to_cursor(&mut self, ui: &mut Ui, scroll_id: egui::Id, viewport_height: f32) {
-        let target = self
+    fn paint_handle(&self, ui: &Ui, line: [Pos2; 2], radius: f32, color: Color32, is_start: bool) {
+        let cursor_bot = line[1];
+        let center = Pos2 {
+            x: if is_start { cursor_bot.x - radius } else { cursor_bot.x + radius },
+            y: cursor_bot.y + radius,
+        };
+        ui.painter().circle_filled(center, radius, color);
+        let (rect_min_x, rect_max_x) =
+            if is_start { (center.x, center.x + radius) } else { (center.x - radius, center.x) };
+        ui.painter().rect_filled(
+            Rect::from_min_max(
+                Pos2::new(rect_min_x, center.y - radius),
+                Pos2::new(rect_max_x, center.y),
+            ),
+            0.,
+            color,
+        );
+    }
+
+    fn interact_handle(&mut self, ui: &mut Ui, line: [Pos2; 2], radius: f32, is_start: bool) {
+        let hit_pad = 12.0;
+        let cursor_bot = line[1];
+        let (min_x, max_x) = if is_start {
+            (cursor_bot.x - 2. * radius, cursor_bot.x)
+        } else {
+            (cursor_bot.x, cursor_bot.x + 2. * radius)
+        };
+        let hit_rect = Rect::from_min_max(
+            Pos2::new(min_x, cursor_bot.y),
+            Pos2::new(max_x, cursor_bot.y + 2. * radius),
+        )
+        .expand(hit_pad);
+        let response = ui.allocate_rect(hit_rect, Sense::drag());
+
+        if response.drag_stopped() {
+            if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
+                let region = Region::from(in_progress_selection);
+                ui.ctx().push_markdown_event(Event::Select { region });
+            }
+        } else if response.dragged() {
+            let line_height = line[1].y - line[0].y;
+            let offset = Vec2::new(0.0, -line_height - radius);
+            let mut new_pos = ui.input(|i| i.pointer.interact_pos().unwrap_or_default()) + offset;
+            // stay within the last galley's y-range so `pos_to_range`
+            // uses x-aware placement instead of jumping to doc end
+            if let Some(last) = self.renderer.galleys.galleys.last() {
+                new_pos.y = new_pos.y.min(last.rect.max.y - 1.0);
+            }
+            let selection = self.renderer.buffer.current.selection;
+            let region = if is_start {
+                Region::BetweenLocations {
+                    start: Location::Pos(new_pos),
+                    end: Location::Grapheme(selection.1),
+                }
+            } else {
+                Region::BetweenLocations {
+                    start: Location::Grapheme(selection.0),
+                    end: Location::Pos(new_pos),
+                }
+            };
+            self.in_progress_selection = Some(self.region_to_range(region));
+        }
+    }
+
+    pub fn scroll_to_cursor(&mut self, canvas_rect: Rect) {
+        use crate::tab::markdown_editor::build_target_reveal;
+        use crate::tab::markdown_editor::scroll_content::DocScrollContent;
+        use crate::widgets::affine_scroll::Align;
+
+        // Make the moving end of the selection visible. Passed as a
+        // zero-length range — `build_target_reveal` handles single-point
+        // and multi-line ranges identically.
+        let cursor = self
             .in_progress_selection
             .unwrap_or(self.renderer.buffer.current.selection)
             .1;
 
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);
-        let mut content = crate::tab::markdown_editor::scroll_content::DocScrollContent::new(
-            &mut self.renderer,
-            root,
-            0.0,
-            viewport_height / 2.0,
-        )
-        .with_default_leading();
+        let content = DocScrollContent::for_frame(&self.renderer, root, canvas_rect.height());
 
-        let scroll = crate::widgets::affine_scroll::AffineScrollArea::new(scroll_id);
-        let current_offset = scroll.offset(ui.ctx());
-
-        // Inclusive on `end` so an end-of-line cursor matches its row.
-        let offset = crate::widgets::affine_scroll::make_visible_offset(
-            &mut content,
-            viewport_height,
-            current_offset,
-            |c| {
-                c.text_range()
-                    .is_some_and(|(start, end)| target >= start && target <= end)
-            },
-        );
-
-        if let Some(o) = offset {
-            scroll.set_offset(ui.ctx(), o);
-        }
+        let Some(target_rect) = build_target_reveal(
+            &self.renderer,
+            &content,
+            &self.scroll_area.state,
+            (cursor, cursor),
+            canvas_rect,
+        ) else {
+            return;
+        };
+        self.scroll_area
+            .reveal(&content, target_rect, Align::Nearest);
     }
 
     pub fn cursor_line(&self, offset: Grapheme) -> Option<[Pos2; 2]> {
