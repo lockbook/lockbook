@@ -498,19 +498,33 @@ impl Workspace {
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
             for (i, &key) in NUM_KEYS.iter().enumerate().skip(1).take(8) {
-                if !completions_active && input.consume_key_exact(COMMAND, key)
-                    || (!APPLE && input.consume_key_exact(Modifiers::ALT, key))
-                {
+                let cmd_consumed = !completions_active && input.consume_key_exact(COMMAND, key);
+                let alt_consumed = !APPLE && input.consume_key_exact(Modifiers::ALT, key);
+                if cmd_consumed || alt_consumed {
                     goto_tab = Some(i.min(self.tab_strip.len()) - 1);
+                    if alt_consumed {
+                        let digit = char::from_digit(i as u32, 10).unwrap().to_string();
+                        // kinda wack, could fix in clients/desktop but maybe we'll want that to
+                        // need the macOS beahvior one day
+                        // https://github.com/emilk/egui/issues/5338
+                        // https://github.com/emilk/egui/pull/5347
+                        input
+                            .events
+                            .retain(|e| !matches!(e, egui::Event::Text(t) if *t == digit));
+                    }
                 }
             }
 
             // Cmd+9 to go to last tab
-            if (!completions_active && input.consume_key_exact(COMMAND, Key::Num9)
-                || (!APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9)))
-                && !self.tab_strip.is_empty()
-            {
+            let cmd9_consumed = !completions_active && input.consume_key_exact(COMMAND, Key::Num9);
+            let alt9_consumed = !APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9);
+            if (cmd9_consumed || alt9_consumed) && !self.tab_strip.is_empty() {
                 goto_tab = Some(self.tab_strip.len() - 1);
+                if alt9_consumed {
+                    input
+                        .events
+                        .retain(|e| !matches!(e, egui::Event::Text(t) if *t == "9"));
+                }
             }
 
             // Cmd+Shift+[ or ctrl shift tab to go to previous tab

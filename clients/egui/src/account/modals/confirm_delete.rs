@@ -43,11 +43,13 @@ impl super::Modal for ConfirmDeleteModal {
 
                 ui.add_space(8.0);
 
-                egui::ScrollArea::vertical().max_height(200.0).show(ui, |ui| {
-                    for file in &self.file_ids {
-                        ui.label(format!("• {}", file.name));
-                    }
-                });
+                egui::ScrollArea::vertical()
+                    .max_height(200.0)
+                    .show(ui, |ui| {
+                        for file in &self.file_ids {
+                            ui.label(format!("• {}", file.name));
+                        }
+                    });
 
                 ui.add_space(8.0);
 

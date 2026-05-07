@@ -777,8 +777,7 @@ impl FileTree {
         // no renames for pending shares
         if file_resp.double_clicked() {
             self.init_rename(&file);
-        }
-        else if file_resp.middle_clicked() {
+        } else if file_resp.middle_clicked() {
             if file.is_document() {
                 resp.open_requests.insert(id, OpenRequest::new_tab());
             }
