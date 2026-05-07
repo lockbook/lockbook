@@ -203,7 +203,7 @@ impl ThemeVariant {
 
 impl Theme {
     pub fn default(current: Mode) -> Self {
-        Self::travis(current)
+        Self::default_theme(current)
     }
 
     pub fn with_mode(mut self, mode: Mode) -> Self {
@@ -211,7 +211,8 @@ impl Theme {
         self
     }
 
-    pub fn travis(current: Mode) -> Self {
+    /// The default theme is mnemonic by travis
+    pub fn default_theme(current: Mode) -> Self {
         Self {
             current,
             light: ThemeVariant {
@@ -254,33 +255,35 @@ impl Theme {
     pub fn darcula(current: Mode) -> Self {
         Self {
             current,
-            dark: ThemeVariant {
-                black: hex_color!("#5E5E5E"),
-                red: hex_color!("#972F4D"),
-                green: hex_color!("#628D54"),
-                yellow: hex_color!("#ACA47D"),
-                blue: hex_color!("#5F4BC1"),
-                magenta: hex_color!("#9F395B"),
-                cyan: hex_color!("#4277A0"),
-                white: hex_color!("#F5F5F5"),
-                grey: hex_color!("#E6E6E6"),
+            // Light mode: dark text on light background
+            light: ThemeVariant {
+                black: hex_color!("#000000"),
+                grey: hex_color!("#BFBFBF"),
+                red: hex_color!("#A31515"),
+                green: hex_color!("#008000"),
+                yellow: hex_color!("#795E26"),
+                blue: hex_color!("#0000FF"),
+                magenta: hex_color!("#AF00DB"),
+                cyan: hex_color!("#007ACC"),
+                white: hex_color!("#FFFFFF"),
             },
             light_prefs: Preferences {
-                primary: Palette::Blue,
+                primary: Palette::Cyan,
                 secondary: Palette::Green,
                 tertiary: Palette::Magenta,
-                quaternary: Palette::Cyan,
+                quaternary: Palette::Yellow,
             },
-            light: ThemeVariant {
-                black: hex_color!("#15131F"),
-                grey: hex_color!("#23212B"),
-                red: hex_color!("#D27DAC"),
-                green: hex_color!("#A1EE8D"),
-                yellow: hex_color!("#CBCD7B"),
-                blue: hex_color!("#15131F"),
-                magenta: hex_color!("#DABA82"),
-                cyan: hex_color!("#8E7FE5"),
-                white: hex_color!("#FAFAFA"),
+            // Dark mode: light text on dark background (Darcula-inspired)
+            dark: ThemeVariant {
+                black: hex_color!("#1E1E1E"),
+                grey: hex_color!("#505050"),
+                red: hex_color!("#CF6679"),
+                green: hex_color!("#6A8759"),
+                yellow: hex_color!("#FFC66D"),
+                blue: hex_color!("#6897BB"),
+                magenta: hex_color!("#C586C0"),
+                cyan: hex_color!("#4EC9B0"),
+                white: hex_color!("#D4D4D4"),
             },
             dark_prefs: Preferences {
                 primary: Palette::Blue,
