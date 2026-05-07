@@ -1108,23 +1108,6 @@ impl Editor {
                 let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
                 self.edit.renderer.set_width(col_width);
 
-                // Paint find-match highlights first so the editor's text
-                // callback (submitted via post_render) lands on a layer
-                // above them.
-                if !self.find.matches.is_empty() {
-                    let theme = self.edit.renderer.ctx.get_lb_theme();
-                    let highlight_color = theme.neutral_bg_tertiary();
-                    let current_color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
-                    for (i, &match_range) in self.find.matches.iter().enumerate() {
-                        let color = if self.find.current_match == Some(i) {
-                            current_color
-                        } else {
-                            highlight_color
-                        };
-                        self.edit.show_range(ui, match_range, color);
-                    }
-                }
-
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
 
@@ -1188,6 +1171,23 @@ impl Editor {
                                 top_left,
                                 content_x,
                             );
+                        }
+
+                        // paint find match highlights after galleys positioned
+                        // but before text callback runs
+                        if !self.find.matches.is_empty() {
+                            let theme = self.edit.renderer.ctx.get_lb_theme();
+                            let highlight_color = theme.neutral_bg_tertiary();
+                            let current_color =
+                                theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
+                            for (i, &match_range) in self.find.matches.iter().enumerate() {
+                                let color = if self.find.current_match == Some(i) {
+                                    current_color
+                                } else {
+                                    highlight_color
+                                };
+                                self.edit.show_range(ui, match_range, color);
+                            }
                         }
                         pre
                     })
