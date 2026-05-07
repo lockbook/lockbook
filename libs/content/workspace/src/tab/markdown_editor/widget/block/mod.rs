@@ -742,13 +742,13 @@ pub type HeightDeps = [u64; 4];
 
 #[derive(Default)]
 pub struct LayoutCache {
-    pub height: RefCell<HashMap<(Grapheme, Grapheme), (f32, HeightDeps)>>,
-    pub height_approx: RefCell<HashMap<(Grapheme, Grapheme), (f32, HeightDeps)>>,
+    pub height: RefCell<HashMap<u64, (f32, HeightDeps)>>,
+    pub height_approx: RefCell<HashMap<u64, (f32, HeightDeps)>>,
     pub line_prefix_len: RefCell<HashMap<LinePrefixKey, LinePrefixValue>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
 
-    // deps: `reveal_seq` last populated, or `None` if never
-    pub hidden_by_fold: RefCell<HashMap<(Grapheme, Grapheme), bool>>,
+    // deps: `reveal_seq` last populated, or `None` if never.
+    pub hidden_by_fold: RefCell<HashMap<u64, bool>>,
     pub hidden_by_fold_deps: std::cell::Cell<Option<u64>>,
 
     // deps: title load state
@@ -948,37 +948,37 @@ impl<'ast> MdRender {
     }
 
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
-        let range = self.node_range(node);
+        let key = Self::pack_node_key(node);
         let deps = self.height_deps();
         let cache = self.layout_cache.height.borrow();
-        let (v, stamps) = cache.get(&range)?;
+        let (v, stamps) = cache.get(&key)?;
         (*stamps == deps).then_some(*v)
     }
 
     pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32) {
-        let range = self.node_range(node);
+        let key = Self::pack_node_key(node);
         let deps = self.height_deps();
         self.layout_cache
             .height
             .borrow_mut()
-            .insert(range, (height, deps));
+            .insert(key, (height, deps));
     }
 
     pub fn get_cached_node_height_approx(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
-        let range = self.node_range(node);
+        let key = Self::pack_node_key(node);
         let deps = self.height_deps();
         let cache = self.layout_cache.height_approx.borrow();
-        let (v, stamps) = cache.get(&range)?;
+        let (v, stamps) = cache.get(&key)?;
         (*stamps == deps).then_some(*v)
     }
 
     pub fn set_cached_node_height_approx(&self, node: &'ast AstNode<'ast>, height: f32) {
-        let range = self.node_range(node);
+        let key = Self::pack_node_key(node);
         let deps = self.height_deps();
         self.layout_cache
             .height_approx
             .borrow_mut()
-            .insert(range, (height, deps));
+            .insert(key, (height, deps));
     }
 
     pub fn get_cached_line_prefix_len(
@@ -1022,20 +1022,16 @@ impl<'ast> MdRender {
     }
 
     pub fn get_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> Option<bool> {
-        let range = self.node_range(node);
-        self.layout_cache
-            .hidden_by_fold
-            .borrow()
-            .get(&range)
-            .copied()
+        let key = Self::pack_node_key(node);
+        self.layout_cache.hidden_by_fold.borrow().get(&key).copied()
     }
 
     pub fn set_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>, hidden: bool) {
-        let range = self.node_range(node);
+        let key = Self::pack_node_key(node);
         self.layout_cache
             .hidden_by_fold
             .borrow_mut()
-            .insert(range, hidden);
+            .insert(key, hidden);
     }
 
     /// Pack node info into u64 using bit manipulation - ultra fast cache key
@@ -1049,14 +1045,10 @@ impl<'ast> MdRender {
             sp.end.column as u64,
             node_value_to_discriminant_id(&borrowed.value) as u64,
         );
-
-        // Pack into 64 bits: 15 bits each for start_line, start_column, end_line, end_column
-        // and 4 bits for discriminant (total: 15+15+15+15+4 = 64 bits exactly)
-        // Use bitwise AND for fastest truncation
-        ((start_line & 0x7FFF) << 49)
-            | ((start_column & 0x7FFF) << 34)
-            | ((end_line & 0x7FFF) << 19)
-            | ((end_column & 0x7FFF) << 4)
-            | (discriminant & 0xF)
+        ((start_line & 0x3FFF) << 50)
+            | ((start_column & 0x3FFF) << 36)
+            | ((end_line & 0x3FFF) << 22)
+            | ((end_column & 0x3FFF) << 8)
+            | (discriminant & 0xFF)
     }
 }
