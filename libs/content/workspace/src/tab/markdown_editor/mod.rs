@@ -1268,6 +1268,7 @@ impl Editor {
             &self.edit.scroll_area.state,
             match_range,
             canvas_rect,
+            self.edit.renderer.layout.row_spacing / 2.0,
         ) else {
             return;
         };
@@ -1293,11 +1294,13 @@ impl Editor {
 pub(crate) fn build_target_reveal(
     renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
     state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, range: (Grapheme, Grapheme),
-    canvas_rect: Rect,
+    canvas_rect: Rect, pad: f32,
 ) -> Option<Reveal<DocRowId>> {
     let (start, end) = if range.0 <= range.1 { range } else { (range.1, range.0) };
-    let top = endpoint_offset(renderer, content, state, start, canvas_rect, EndpointSide::Top)?;
-    let bottom = endpoint_offset(renderer, content, state, end, canvas_rect, EndpointSide::Bottom)?;
+    let top =
+        endpoint_offset(renderer, content, state, start, canvas_rect, EndpointSide::Top, pad)?;
+    let bottom =
+        endpoint_offset(renderer, content, state, end, canvas_rect, EndpointSide::Bottom, pad)?;
     Some(Reveal { top, bottom })
 }
 
@@ -1310,15 +1313,12 @@ enum EndpointSide {
 fn endpoint_offset(
     renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
     state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, target: Grapheme,
-    canvas_rect: Rect, side: EndpointSide,
+    canvas_rect: Rect, side: EndpointSide, pad: f32,
 ) -> Option<Offset<DocRowId>> {
     use crate::widgets::affine_scroll::Rows as _;
     if let Some(galley_idx) = renderer.galleys.galley_at_offset(target) {
         let galley = &renderer.galleys[galley_idx];
-        let y_range = galley
-            .rect
-            .y_range()
-            .expand(renderer.layout.row_spacing / 2.0);
+        let y_range = galley.rect.y_range().expand(pad);
         let y = match side {
             EndpointSide::Top => y_range.min,
             EndpointSide::Bottom => y_range.max,

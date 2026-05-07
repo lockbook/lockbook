@@ -289,6 +289,7 @@ impl MdEdit {
                 } else if response.dragged() && modifiers.shift {
                     self.in_progress_selection =
                         Some(self.region_to_range(Region::ToLocation(location)));
+                    self.pending_scroll = Some(ScrollTarget::Cursor);
                     None
                 } else if response.dragged() {
                     if response.drag_started() {
@@ -303,6 +304,7 @@ impl MdEdit {
                     if let Some(sel) = &mut self.in_progress_selection {
                         sel.1 = offset;
                     }
+                    self.pending_scroll = Some(ScrollTarget::Cursor);
                     None
                 } else {
                     None
