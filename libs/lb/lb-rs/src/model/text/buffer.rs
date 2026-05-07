@@ -77,7 +77,7 @@ pub struct Snapshot {
 impl Snapshot {
     fn apply_select(&mut self, range: (Grapheme, Grapheme)) -> Response {
         self.selection = range;
-        Response::default()
+        Response { selection_user_moved: true, ..Response::default() }
     }
 
     fn apply_replace(&mut self, replace: &Replace) -> (Response, Graphemes) {
@@ -216,6 +216,13 @@ struct External {
 #[derive(Default)]
 pub struct Response {
     pub text_updated: bool,
+    /// True iff the selection was set by an explicit `Select` op or by
+    /// `undo`/`redo` restoring a historical selection. False when the
+    /// selection moved only because a `Replace` op OT-shifted its
+    /// offsets — that's a side effect of editing, not a user navigation.
+    /// Callers use this to gate scroll-to-cursor: programmatic edits
+    /// (e.g. fold-button taps) shouldn't pull the viewport.
+    pub selection_user_moved: bool,
     pub open_camera: bool,
     /// Sequence range of operations applied this frame. Use
     /// `buffer.replacements_since(seq_before)` to get the edits.
@@ -226,6 +233,7 @@ pub struct Response {
 impl std::ops::BitOrAssign for Response {
     fn bitor_assign(&mut self, other: Response) {
         self.text_updated |= other.text_updated;
+        self.selection_user_moved |= other.selection_user_moved;
         self.open_camera |= other.open_camera;
         // keep the earliest seq_before and latest seq_after
         if self.seq_before == self.seq_after {

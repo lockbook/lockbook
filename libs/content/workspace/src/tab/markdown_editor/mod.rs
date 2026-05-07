@@ -768,7 +768,7 @@ impl Editor {
 
         let all_selected = self.edit.renderer.buffer.current.selection
             == (0.into(), self.edit.renderer.last_cursor_position());
-        if self.initialized && resp.selection_updated && !all_selected {
+        if self.initialized && buf_resp.selection_user_moved && !all_selected {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
         }
 
