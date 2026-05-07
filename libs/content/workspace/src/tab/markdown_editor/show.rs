@@ -112,6 +112,7 @@ impl MdEdit {
         buf_resp |= self.renderer.buffer.update();
 
         if buf_resp.text_updated {
+            self.renderer.bump_text_seq();
             // reparse to refresh bounds; the new root isn't needed here —
             // `show` re-parses for rendering. `reparse` also wipes the
             // layout cache via `ensure_text_consistent`.
@@ -440,6 +441,7 @@ impl MdEdit {
     /// `true`.
     pub fn clear(&mut self) {
         self.renderer.buffer = Buffer::from("");
+        self.renderer.bump_text_seq();
         self.in_progress_selection = None;
         self.event.internal_events.clear();
     }

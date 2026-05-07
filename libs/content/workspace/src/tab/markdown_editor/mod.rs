@@ -99,6 +99,7 @@ pub struct MdRender {
 
     // document
     pub buffer: Buffer,
+    pub text_seq: u64, // buffer.seq includes selection changes
 
     pub bounds: Bounds,
     pub bounds_seq: u64,
@@ -117,12 +118,8 @@ pub struct MdRender {
     pub plaintext: bool,      // render as source text, not parsed markdown
     pub disable_images: bool, // skip image rendering (e.g. for the mobile toolbar)
 
-    /// Selection contribution to the reveal set. Updated in
-    /// [`MdEdit::handle_input`] alongside the `reveal_seq` bump on
-    /// change. The other contribution is `find_current_match`. Readers
-    /// chain both via [`MdRender::reveal_ranges`].
     pub reveal_selection: Option<(Grapheme, Grapheme)>,
-    pub reveal_seq: u64,
+    pub reveal_seq: u64, // includes selection and find matches
 
     pub search_range: Option<(Grapheme, Grapheme)>, // drawn in accent color for completions
 
@@ -390,6 +387,7 @@ impl MdRender {
             disable_images: false,
             reveal_selection: None,
             reveal_seq: 0,
+            text_seq: 0,
             search_range: None,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
@@ -454,12 +452,22 @@ impl MdRender {
             width_seq: 0,
             viewport_height: Default::default(),
             reveal_seq: 0,
+            text_seq: 0,
             bounds_seq: 0,
             ws_seq,
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
         }
+    }
+
+    /// Bump `text_seq`. Call after any buffer mutation that may change
+    /// text — `LayoutCache::ensure_text_consistent`, `bounds.text_seq`,
+    /// and find-match invalidation all key off this counter.
+    pub fn bump_text_seq(&mut self) {
+        self.text_seq = self
+            .ws_seq
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
     }
 
     /// Re-parse the buffer into a fresh AST and rebuild all text-derived
@@ -473,16 +481,15 @@ impl MdRender {
         // so the layout cache wipes wholesale here before any reads.
         // `reveal_seq` is bumped at its writers (selection in
         // `MdEdit::handle_input`, find-match in `Editor::show`).
-        let text_seq = self.buffer.current.seq as u64;
-        self.layout_cache.ensure_text_consistent(text_seq);
+        self.layout_cache.ensure_text_consistent(self.text_seq);
 
         let options = Self::comrak_options();
         let text_with_newline = format!("{}\n", self.buffer.current.text);
         let root = comrak::parse_document(arena, &text_with_newline, &options);
 
         // Bounds depend only on text. Skip rebuild + bump bounds_seq
-        // when buffer.seq hasn't advanced.
-        if self.bounds.text_seq != text_seq {
+        // when text hasn't changed.
+        if self.bounds.text_seq != self.text_seq {
             self.bounds.inline_paragraphs.clear();
             self.calc_source_lines();
             // Populate before compute_bounds: pre_spacing_lines (called
@@ -493,7 +500,7 @@ impl MdRender {
             self.compute_bounds(root);
             self.bounds.inline_paragraphs.sort();
             self.calc_words();
-            self.bounds.text_seq = text_seq;
+            self.bounds.text_seq = self.text_seq;
             self.bounds_seq = self
                 .ws_seq
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
@@ -590,6 +597,7 @@ impl Editor {
             width_seq: 0,
             viewport_height: Default::default(),
             reveal_seq: 0,
+            text_seq: 0,
             bounds_seq: 0,
             ws_seq,
 
@@ -748,7 +756,8 @@ impl Editor {
 
         if !self.initialized || buf_resp.text_updated {
             resp.text_updated = true;
-            self.find.ensure_matches(&self.edit.renderer.buffer);
+            self.find
+                .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
             ui.ctx().request_repaint();
         }
         resp.selection_updated = prior_selection
@@ -1206,7 +1215,8 @@ impl Editor {
                 ui.advance_cursor_after_rect(canvas_rect);
             });
 
-        self.find.ensure_matches(&self.edit.renderer.buffer);
+        self.find
+            .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
 
         if matches!(self.edit.pending_scroll, Some(ScrollTarget::FindMatch)) {
             self.edit.pending_scroll = None;
@@ -1229,8 +1239,12 @@ impl Editor {
             Rect::from_min_size(egui::pos2(content_left, top), egui::vec2(content_width, 0.));
         let prev_match = self.find.current_match_range();
         let scope_resp = ui.scope_builder(egui::UiBuilder::new().max_rect(find_rect), |ui| {
-            self.find
-                .show(&self.edit.renderer.buffer, self.virtual_keyboard_shown, ui)
+            self.find.show(
+                &self.edit.renderer.buffer,
+                self.edit.renderer.text_seq,
+                self.virtual_keyboard_shown,
+                ui,
+            )
         });
         let find_output = scope_resp.inner;
         let rendered_rect = scope_resp.response.rect;

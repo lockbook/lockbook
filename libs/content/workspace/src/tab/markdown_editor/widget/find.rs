@@ -47,8 +47,8 @@ pub struct Find {
     was_focused: bool,
     /// All match ranges in the document for the current search term.
     pub matches: Vec<(Grapheme, Grapheme)>,
-    /// deps: `(buffer.seq, term, case_sensitive, whole_word, regex)`
-    matches_deps: (usize, Option<String>, bool, bool, bool),
+    /// deps: `(text_seq, term, case_sensitive, whole_word, regex)`
+    matches_deps: (u64, Option<String>, bool, bool, bool),
     /// Index into `matches` for the currently focused match, if any.
     pub current_match: Option<usize>,
 }
@@ -103,7 +103,7 @@ impl Find {
     /// transitions happen inside this call; [`FindOutput`] carries only the
     /// effects the caller must apply (buffer events, scroll hint, close).
     pub fn show(
-        &mut self, buffer: &Buffer, virtual_keyboard_shown: bool, ui: &mut Ui,
+        &mut self, buffer: &Buffer, text_seq: u64, virtual_keyboard_shown: bool, ui: &mut Ui,
     ) -> FindOutput {
         let mut output = FindOutput::default();
 
@@ -116,7 +116,7 @@ impl Find {
                 self.select_all_on_focus = true;
                 ui.memory_mut(|m| m.request_focus(self.id));
                 ui.ctx().set_virtual_keyboard_shown(true);
-                self.refresh_matches(buffer, buffer.current.selection.start());
+                self.refresh_matches(buffer, text_seq, buffer.current.selection.start());
                 output.scroll_to_match = !self.matches.is_empty();
                 return output;
             }
@@ -136,7 +136,7 @@ impl Find {
                     .current_match_range()
                     .map(|m| m.start())
                     .unwrap_or(buffer.current.selection.start());
-                self.refresh_matches(buffer, anchor);
+                self.refresh_matches(buffer, text_seq, anchor);
                 output.scroll_to_match = !self.matches.is_empty();
             }
             self.select_all_on_focus = true;
@@ -146,7 +146,7 @@ impl Find {
         if self.term.is_some() {
             Frame::NONE
                 .inner_margin(Margin::symmetric(10, 10))
-                .show(ui, |ui| self.show_inner(buffer, ui, &mut output));
+                .show(ui, |ui| self.show_inner(buffer, text_seq, ui, &mut output));
         }
 
         let focus_filter =
@@ -175,7 +175,7 @@ impl Find {
         output
     }
 
-    fn show_inner(&mut self, buffer: &Buffer, ui: &mut Ui, output: &mut FindOutput) {
+    fn show_inner(&mut self, buffer: &Buffer, text_seq: u64, ui: &mut Ui, output: &mut FindOutput) {
         ui.vertical(|ui| {
             let Some(term) = &mut self.term else {
                 return;
@@ -326,7 +326,7 @@ impl Find {
                     .current_match_range()
                     .map(|m| m.start())
                     .unwrap_or(buffer.current.selection.start());
-                self.refresh_matches(buffer, anchor);
+                self.refresh_matches(buffer, text_seq, anchor);
                 if !self.matches.is_empty() {
                     output.scroll_to_match = true;
                 }
@@ -364,8 +364,8 @@ impl Find {
 
     /// Recompute `matches` for the current term, positioning `current_match`
     /// at the first match at or after `anchor`.
-    fn refresh_matches(&mut self, buffer: &Buffer, anchor: Grapheme) {
-        self.ensure_matches(buffer);
+    fn refresh_matches(&mut self, buffer: &Buffer, text_seq: u64, anchor: Grapheme) {
+        self.ensure_matches(buffer, text_seq);
         if !self.matches.is_empty() {
             let idx = self.matches.iter().position(|m| m.0 >= anchor).unwrap_or(0);
             self.current_match = Some(idx);
@@ -380,14 +380,8 @@ impl Find {
 
     /// Recompute `matches` if any input (buffer text, term, search flags)
     /// has advanced since last compute.
-    pub fn ensure_matches(&mut self, buffer: &Buffer) {
-        let deps = (
-            buffer.current.seq,
-            self.term.clone(),
-            self.case_sensitive,
-            self.whole_word,
-            self.regex,
-        );
+    pub fn ensure_matches(&mut self, buffer: &Buffer, text_seq: u64) {
+        let deps = (text_seq, self.term.clone(), self.case_sensitive, self.whole_word, self.regex);
         if deps == self.matches_deps {
             return;
         }
