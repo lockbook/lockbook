@@ -1,4 +1,4 @@
-use crate::settings::ThemeMode;
+use crate::settings::{list_themes, ThemeMode};
 use crate::theme;
 
 impl super::SettingsModal {
@@ -15,6 +15,25 @@ impl super::SettingsModal {
                 (ThemeMode::Light, "Light"),
             ] {
                 if ui.selectable_value(&mut s.theme_mode, mode, name).clicked() {
+                    theme::apply_settings(s, ui.ctx());
+                }
+            }
+        });
+
+        ui.add_space(16.0);
+
+        ui.heading("Color Theme:");
+        ui.add_space(8.0);
+
+        let themes = list_themes();
+        ui.horizontal_wrapped(|ui| {
+            let s = &mut self.settings.write().unwrap();
+
+            for theme_name in &themes {
+                if ui
+                    .selectable_value(&mut s.theme_name, theme_name.clone(), theme_name)
+                    .clicked()
+                {
                     theme::apply_settings(s, ui.ctx());
                 }
             }
