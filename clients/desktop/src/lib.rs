@@ -180,7 +180,7 @@ impl ApplicationHandler<UserEvent> for App {
 }
 
 impl AppState {
-    fn render(&mut self, event_loop: &ActiveEventLoop) {
+    fn render(&mut self, _event_loop: &ActiveEventLoop) {
         if self.pending_paste {
             self.pending_paste = false;
             self.handle_image_paste();
