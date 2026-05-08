@@ -1,8 +1,10 @@
-use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::{Event, Increment};
-use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
+use crate::tab::markdown_editor::widget::utils::{
+    NodeValueExt as _, leading_indent_cols, leading_indent_range,
+};
+use crate::tab::markdown_editor::{MdEdit, MdRender};
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
     NodeTaskItem, NodeValue, Sourcepos,
@@ -218,33 +220,27 @@ impl<'ast> MdEdit {
                         let prior_line_deepest_container = self
                             .renderer
                             .deepest_container_block_at_offset(root, prior_line.end());
+                        let first_selected_line_deepest = self
+                            .renderer
+                            .deepest_container_block_at_offset(root, first_selected_line.end());
 
-                        // among blocks on prior line, find the least deep that
-                        // has a prefix on the prior line but not on the first
-                        // selected line. this is the container that the
-                        // selected lines will be tab-indented into. this rule
-                        // accounts for empty-prefix nodes like lists and
-                        // prefix-less situations like paragraph continuation
-                        // text.
+                        // Pick the highest matching ancestor (last
+                        // assignment wins). Use AST ancestry — list-
+                        // item continuation prefixes are claimed
+                        // greedily by the outermost item, so prefix
+                        // presence isn't a reliable "already inside"
+                        // signal. See `consume_indent_columns`.
                         let mut prior_line_container_extension_prefix = None;
                         for prior_line_container in prior_line_deepest_container.ancestors() {
                             let has_prefix_on_prior_line = !self
                                 .renderer
                                 .line_own_prefix(prior_line_container, prior_line)
                                 .is_empty();
-                            let has_prefix_on_first_selected_line =
-                                if self.renderer.node_last_line_idx(prior_line_container)
-                                    < first_selected_line_idx
-                                {
-                                    false
-                                } else {
-                                    !self
-                                        .renderer
-                                        .line_own_prefix(prior_line_container, first_selected_line)
-                                        .is_empty()
-                                };
+                            let already_inside_prior_container = first_selected_line_deepest
+                                .ancestors()
+                                .any(|a| a.same_node(prior_line_container));
 
-                            if has_prefix_on_prior_line && !has_prefix_on_first_selected_line {
+                            if has_prefix_on_prior_line && !already_inside_prior_container {
                                 if let Some(extension_prefix) =
                                     self.renderer.extension_own_prefix(prior_line_container)
                                 {
@@ -258,13 +254,16 @@ impl<'ast> MdEdit {
                             return false;
                         };
 
-                        // prepend container prefix to each line
-                        // todo: only prepend to lines which do not already have
-                        // the prefix; this would improve behavior when lazy
-                        // continuation lines are mixed with
-                        // non-lazy-continuation lines
-                        // todo: more attention to multi-line indentation
+                        // Apply prefix per line, then cascade the
+                        // column shift to descendants so tabbing a
+                        // parent moves nested children with it.
+                        let cols_added =
+                            prior_line_container_extension_prefix.chars().count() as isize;
+                        let mut done = std::collections::BTreeSet::new();
                         for line_idx in selected_lines.iter() {
+                            if !done.insert(line_idx) {
+                                continue;
+                            }
                             let line = self.renderer.bounds.source_lines[line_idx];
                             let container = self
                                 .renderer
@@ -272,109 +271,71 @@ impl<'ast> MdEdit {
                             let container_own_prefix =
                                 self.renderer.line_own_prefix(container, line);
 
+                            // Marker line: insert before the marker
+                            // (whole block shifts). Continuation:
+                            // insert after the prefix (content
+                            // shifts).
                             let insertion_offset =
                                 if Some(self.renderer.buffer[container_own_prefix].to_string())
                                     == self.renderer.extension_own_prefix(container)
                                 {
-                                    // on what could be a subsequent line of a
-                                    // container block, tab to indent the line
-                                    // contents; this is the experience when
-                                    // e.g. tab-indenting the cursor into a
-                                    // preceding container block
                                     container_own_prefix.end()
                                 } else {
-                                    // on what can only be the first line of a
-                                    // container block, tab to indent the block;
-                                    // this is the experience when e.g.
-                                    // tab-indenting a list item into the list
-                                    // item above
                                     container_own_prefix.start()
                                 };
-
                             operations.push(Operation::Replace(Replace {
                                 range: insertion_offset.into_range(),
                                 text: prior_line_container_extension_prefix.clone(),
                             }));
+                            cascade_indent_delta(
+                                &self.renderer,
+                                container,
+                                cols_added,
+                                &mut done,
+                                operations,
+                            );
                         }
 
                         true
                     };
                     if !handled() {
-                        // default -> insert literal `\t`
-                        operations.push(Operation::Replace(Replace {
-                            range: current_selection,
-                            text: "\t".into(),
-                        }));
+                        // default -> do nothing
                     }
                 } else {
-                    // de-indent out of current container block
+                    // Cascade descendants too, so children stay
+                    // nested under a deindented parent.
                     let mut handled = || {
-                        // all lines must have container ancestor prefix
                         for line_idx in selected_lines.iter() {
                             let line = self.renderer.bounds.source_lines[line_idx];
-                            let container = self
-                                .renderer
-                                .deepest_container_block_at_offset(root, line.end());
-                            let container_own_prefix =
-                                self.renderer.line_own_prefix(container, line);
-
-                            // on what can only be the first line of a container
-                            // block, shift-tab to de-indent the block rather
-                            // than its contents
-                            let skip_container =
-                                Some(self.renderer.buffer[container_own_prefix].to_string())
-                                    != self.renderer.extension_own_prefix(container);
-
-                            let mut found_container_ancestor = false;
-                            for ancestor in container.ancestors() {
-                                if container.same_node(ancestor) && skip_container {
-                                    continue;
-                                }
-
-                                let ancestor_own_prefix =
-                                    self.renderer.line_own_prefix(ancestor, line);
-                                if !ancestor_own_prefix.is_empty() {
-                                    found_container_ancestor = true;
-                                }
-                            }
-                            if !found_container_ancestor {
+                            if find_deindent(&self.renderer, root, line).is_none() {
                                 return false;
                             }
                         }
-
-                        // remove container ancestor prefix from each line
+                        let mut done = std::collections::BTreeSet::new();
                         for line_idx in selected_lines.iter() {
+                            if !done.insert(line_idx) {
+                                continue;
+                            }
                             let line = self.renderer.bounds.source_lines[line_idx];
+                            let Some((range, text)) = find_deindent(&self.renderer, root, line)
+                            else {
+                                continue;
+                            };
+                            let cur_cols = leading_indent_cols(&self.renderer.buffer[range]);
+                            let new_cols = text.chars().count();
+                            let delta = -(cur_cols.saturating_sub(new_cols) as isize);
+                            operations.push(Operation::Replace(Replace { range, text }));
                             let container = self
                                 .renderer
                                 .deepest_container_block_at_offset(root, line.end());
-                            let container_own_prefix =
-                                self.renderer.line_own_prefix(container, line);
-
-                            // on what can only be the first line of a container
-                            // block, shift-tab to de-indent the block rather
-                            // than its contents
-                            let skip_container =
-                                Some(self.renderer.buffer[container_own_prefix].to_string())
-                                    != self.renderer.extension_own_prefix(container);
-
-                            for ancestor in container.ancestors() {
-                                if container.same_node(ancestor) && skip_container {
-                                    continue;
-                                }
-
-                                let ancestor_own_prefix =
-                                    self.renderer.line_own_prefix(ancestor, line);
-                                if !ancestor_own_prefix.is_empty() {
-                                    operations.push(Operation::Replace(Replace {
-                                        range: ancestor_own_prefix,
-                                        text: "".into(),
-                                    }));
-                                    break;
-                                }
-                            }
+                            cascade_indent_delta(
+                                &self.renderer,
+                                container,
+                                delta,
+                                &mut done,
+                                operations,
+                            );
                         }
-
                         true
                     };
                     if !handled() {
@@ -1078,6 +1039,98 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
         0.
     } else {
         (coord - range.min).abs().min((coord - range.max).abs())
+    }
+}
+
+/// Buffer edit that deindents `line` past `ancestor`, or `None`.
+/// Items/TaskItems/FootnoteDefinitions nest via whitespace: rewrite
+/// the indent run minus one level's columns (tabs expand to spaces).
+/// BlockQuotes/Alerts nest via `>` markers: drop them, but only when
+/// nested inside another quote/alert (top-level deindent would
+/// silently demote `> foo` to a paragraph).
+fn deindent_replacement<'ast>(
+    renderer: &MdRender, ancestor: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+) -> Option<((Grapheme, Grapheme), String)> {
+    use NodeValue::*;
+    match &ancestor.data.borrow().value {
+        Item(_) | TaskItem(_) | FootnoteDefinition(_) => {
+            let level_cols = renderer.deindent_level_cols(ancestor)?;
+            if level_cols == 0 {
+                return None;
+            }
+            let indent_range = leading_indent_range(&renderer.buffer, line);
+            let cur_cols = leading_indent_cols(&renderer.buffer[indent_range]);
+            if cur_cols < level_cols {
+                return None;
+            }
+            Some((indent_range, " ".repeat(cur_cols - level_cols)))
+        }
+        BlockQuote | Alert(_) => {
+            // No-op at top level — only deindent when there's an
+            // outer quote/alert to escape into.
+            let nested = ancestor
+                .ancestors()
+                .skip(1)
+                .any(|a| matches!(&a.data.borrow().value, BlockQuote | Alert(_)));
+            if !nested {
+                return None;
+            }
+            let own_prefix = renderer.line_own_prefix(ancestor, line);
+            if own_prefix.is_empty() {
+                return None;
+            }
+            Some((own_prefix, String::new()))
+        }
+        _ => None,
+    }
+}
+
+/// First deindent edit produced walking the line's container
+/// ancestors. `skip_container` walks past the deepest container
+/// when the cursor's on its marker line, so shift-tab there
+/// deindents the whole block instead of its content.
+fn find_deindent<'ast>(
+    renderer: &MdRender, root: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+) -> Option<((Grapheme, Grapheme), String)> {
+    let container = renderer.deepest_container_block_at_offset(root, line.end());
+    let container_own_prefix = renderer.line_own_prefix(container, line);
+    let skip_container = Some(renderer.buffer[container_own_prefix].to_string())
+        != renderer.extension_own_prefix(container);
+    container.ancestors().find_map(|ancestor| {
+        if container.same_node(ancestor) && skip_container {
+            return None;
+        }
+        deindent_replacement(renderer, ancestor, line)
+    })
+}
+
+/// Shift every line in `container`'s span by `delta_cols`, skipping
+/// lines already in `done`. Drags descendants along with an
+/// indented/deindented parent. Only fires for whitespace-nested
+/// containers (Item, TaskItem, FootnoteDefinition); quote/alert
+/// nesting is per-line markers with no column delta. Tabs in the
+/// indent expand to spaces.
+fn cascade_indent_delta<'ast>(
+    renderer: &MdRender, container: &'ast AstNode<'ast>, delta_cols: isize,
+    done: &mut std::collections::BTreeSet<usize>, operations: &mut Vec<Operation>,
+) {
+    if !matches!(
+        &container.data.borrow().value,
+        NodeValue::Item(_) | NodeValue::TaskItem(_) | NodeValue::FootnoteDefinition(_)
+    ) {
+        return;
+    }
+    let first = renderer.node_first_line_idx(container);
+    let last = renderer.node_last_line_idx(container);
+    for i in first..=last {
+        if !done.insert(i) {
+            continue;
+        }
+        let line = renderer.bounds.source_lines[i];
+        let range = leading_indent_range(&renderer.buffer, line);
+        let cur = leading_indent_cols(&renderer.buffer[range]) as isize;
+        let new = (cur + delta_cols).max(0) as usize;
+        operations.push(Operation::Replace(Replace { range, text: " ".repeat(new) }));
     }
 }
 
