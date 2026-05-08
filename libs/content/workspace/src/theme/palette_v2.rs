@@ -150,8 +150,8 @@ impl Theme {
     /// mode, off-black in dark mode. Used for UI background in most places.
     pub fn neutral_bg_secondary(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.dark.white.lerp_to_gamma(self.light.grey, 0.2),
-            Mode::Dark => self.light.black.lerp_to_gamma(self.dark.grey, 0.2),
+            Mode::Light => self.dark.white.lerp_to_gamma(self.light.grey, 0.3),
+            Mode::Dark => self.light.black.lerp_to_gamma(self.dark.grey, 0.3),
         }
     }
 
