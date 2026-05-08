@@ -191,7 +191,6 @@ impl<'ast> MdEdit {
                     // default -> delete region
                     let range = self.region_to_range(region);
                     operations.push(Operation::Replace(Replace { range, text: "".into() }));
-                    operations.push(Operation::Select(range.start().to_range()));
                 }
 
                 // advance cursor
