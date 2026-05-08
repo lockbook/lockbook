@@ -40,6 +40,7 @@ fn poll_system_theme(
     let ctx = ctx.clone();
 
     let mut mode = initial_mode;
+    let mut last_error_logged = false;
 
     thread::spawn(move || {
         loop {
@@ -47,6 +48,7 @@ fn poll_system_theme(
             if settings.theme_mode == ThemeMode::System {
                 match dark_light::detect() {
                     Ok(m) => {
+                        last_error_logged = false;
                         if mode != m {
                             mode = m;
                             set_colors(&ctx, m, &settings.theme_name);
@@ -60,13 +62,17 @@ fn poll_system_theme(
                         }
                     }
                     Err(e) => {
-                        eprintln!("Failed to detect current dark/light mode: {e:?}")
+                        // Only log the error once to avoid spamming
+                        if !last_error_logged {
+                            eprintln!("Failed to detect current dark/light mode: {e:?}");
+                            last_error_logged = true;
+                        }
                     }
                 }
             }
             drop(settings);
 
-            thread::sleep(Duration::from_secs(1));
+            thread::sleep(Duration::from_secs(2));
         }
     });
 }

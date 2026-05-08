@@ -141,8 +141,8 @@ impl Theme {
     /// need a background distinct from the UI background.
     pub fn neutral_bg_tertiary(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.light.white.lerp_to_gamma(self.light.grey, 0.8),
-            Mode::Dark => self.dark.black.lerp_to_gamma(self.dark.grey, 0.8),
+            Mode::Light => self.dark.white.lerp_to_gamma(self.light.grey, 0.8),
+            Mode::Dark => self.light.black.lerp_to_gamma(self.dark.grey, 0.8),
         }
     }
 
@@ -150,8 +150,8 @@ impl Theme {
     /// mode, off-black in dark mode. Used for UI background in most places.
     pub fn neutral_bg_secondary(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.light.white.lerp_to_gamma(self.light.grey, 0.2),
-            Mode::Dark => self.dark.black.lerp_to_gamma(self.dark.grey, 0.2),
+            Mode::Light => self.dark.white.lerp_to_gamma(self.light.grey, 0.2),
+            Mode::Dark => self.light.black.lerp_to_gamma(self.dark.grey, 0.2),
         }
     }
 
@@ -160,8 +160,8 @@ impl Theme {
     /// to egui's `extreme_bg_color`.
     pub fn neutral_bg(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.light.white,
-            Mode::Dark => self.dark.black,
+            Mode::Light => self.dark.white,
+            Mode::Dark => self.light.black,
         }
     }
 }
@@ -255,35 +255,33 @@ impl Theme {
     pub fn darcula(current: Mode) -> Self {
         Self {
             current,
-            // Light mode: dark text on light background
-            light: ThemeVariant {
-                black: hex_color!("#000000"),
-                grey: hex_color!("#BFBFBF"),
-                red: hex_color!("#A31515"),
-                green: hex_color!("#008000"),
-                yellow: hex_color!("#795E26"),
-                blue: hex_color!("#0000FF"),
-                magenta: hex_color!("#AF00DB"),
-                cyan: hex_color!("#007ACC"),
-                white: hex_color!("#FFFFFF"),
+            dark: ThemeVariant {
+                black: hex_color!("#5E5E5E"),
+                red: hex_color!("#972F4D"),
+                green: hex_color!("#628D54"),
+                yellow: hex_color!("#ACA47D"),
+                blue: hex_color!("#5F4BC1"),
+                magenta: hex_color!("#9F395B"),
+                cyan: hex_color!("#4277A0"),
+                white: hex_color!("#F5F5F5"),
+                grey: hex_color!("#E6E6E6"),
             },
             light_prefs: Preferences {
-                primary: Palette::Cyan,
+                primary: Palette::Blue,
                 secondary: Palette::Green,
                 tertiary: Palette::Magenta,
-                quaternary: Palette::Yellow,
+                quaternary: Palette::Cyan,
             },
-            // Dark mode: light text on dark background (Darcula-inspired)
-            dark: ThemeVariant {
-                black: hex_color!("#1E1E1E"),
-                grey: hex_color!("#505050"),
-                red: hex_color!("#CF6679"),
-                green: hex_color!("#6A8759"),
-                yellow: hex_color!("#FFC66D"),
-                blue: hex_color!("#6897BB"),
-                magenta: hex_color!("#C586C0"),
-                cyan: hex_color!("#4EC9B0"),
-                white: hex_color!("#D4D4D4"),
+            light: ThemeVariant {
+                black: hex_color!("#15131F"),
+                grey: hex_color!("#23212B"),
+                red: hex_color!("#D27DAC"),
+                green: hex_color!("#A1EE8D"),
+                yellow: hex_color!("#CBCD7B"),
+                blue: hex_color!("#15131F"),
+                magenta: hex_color!("#DABA82"),
+                cyan: hex_color!("#8E7FE5"),
+                white: hex_color!("#FAFAFA"),
             },
             dark_prefs: Preferences {
                 primary: Palette::Blue,
