@@ -640,7 +640,6 @@ impl<'ast> MdEdit {
                         .into();
 
                         operations.push(Operation::Replace(Replace { range, text }));
-                        operations.push(Operation::Select(current_selection));
                     } else {
                         let target_node = self.renderer.deepest_container_block_at_offset(
                             root,
@@ -662,6 +661,9 @@ impl<'ast> MdEdit {
                         }
                     }
                 }
+
+                // advance cursor (affects type change of empty list items)
+                operations.push(Operation::Select(current_selection));
             }
             _ => {}
         }
