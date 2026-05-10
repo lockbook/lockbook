@@ -495,17 +495,11 @@ impl MdEdit {
 
         // -- Apply clicked result --------------------------------------------------
         if let Some(idx) = clicked {
-            let mut completion_events = Vec::new();
             self.emoji_completions.apply_completion(
-                &mut completion_events,
+                &mut self.event.internal_events,
                 colon_offset,
                 replace_end,
                 shortcodes[idx],
-            );
-            self.event.internal_events.extend(
-                completion_events
-                    .into_iter()
-                    .map(super::super::QueuedEvent::immediate),
             );
         }
     }

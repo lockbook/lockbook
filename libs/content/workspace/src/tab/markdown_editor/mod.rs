@@ -90,67 +90,6 @@ pub struct Response {
     pub find_widget_height: f32,
 }
 
-#[derive(Clone, Debug, PartialEq)]
-pub struct QueuedEvent {
-    pub event: Event,
-    pub queued_at: Option<Instant>,
-}
-
-impl QueuedEvent {
-    pub fn immediate(event: Event) -> Self {
-        Self { event, queued_at: None }
-    }
-
-    pub fn timed(event: Event, queued_at: Instant) -> Self {
-        Self { event, queued_at: Some(queued_at) }
-    }
-}
-
-#[derive(Clone, Debug)]
-pub struct LatencyMetrics {
-    samples_ms: VecDeque<f32>,
-}
-
-impl Default for LatencyMetrics {
-    fn default() -> Self {
-        Self { samples_ms: VecDeque::with_capacity(Self::MAX_SAMPLES) }
-    }
-}
-
-impl LatencyMetrics {
-    pub const MAX_SAMPLES: usize = 100;
-
-    pub fn record(&mut self, latency: Duration) {
-        if self.samples_ms.len() == Self::MAX_SAMPLES {
-            self.samples_ms.pop_front();
-        }
-        self.samples_ms.push_back(latency.as_secs_f32() * 1000.0);
-    }
-
-    pub fn last_ms(&self) -> Option<f32> {
-        self.samples_ms.back().copied()
-    }
-
-    pub fn p50_ms(&self) -> Option<f32> {
-        self.percentile_ms(0.50)
-    }
-
-    pub fn p90_ms(&self) -> Option<f32> {
-        self.percentile_ms(0.90)
-    }
-
-    fn percentile_ms(&self, percentile: f32) -> Option<f32> {
-        if self.samples_ms.is_empty() {
-            return None;
-        }
-
-        let mut sorted: Vec<_> = self.samples_ms.iter().copied().collect();
-        sorted.sort_by(|a, b| a.total_cmp(b));
-        let idx = ((sorted.len() - 1) as f32 * percentile).round() as usize;
-        sorted.get(idx).copied()
-    }
-}
-
 pub struct MdRender {
     // context
     pub ctx: Context,
@@ -209,7 +148,6 @@ pub struct MdRender {
     pub debug: bool,
     pub frame_times: [Instant; 100],
     pub frame_times_idx: usize,
-    pub ime_replace_latency: LatencyMetrics,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -466,7 +404,6 @@ impl MdRender {
             debug: false,
             frame_times: [Instant::now(); 100],
             frame_times_idx: 0,
-            ime_replace_latency: Default::default(),
         }
     }
 
@@ -505,7 +442,6 @@ impl MdRender {
             debug: false,
             frame_times: [Instant::now(); 100],
             frame_times_idx: 0,
-            ime_replace_latency: Default::default(),
         }
     }
 
@@ -634,7 +570,6 @@ impl Editor {
             debug: false,
             frame_times: [Instant::now(); 100],
             frame_times_idx: 0,
-            ime_replace_latency: Default::default(),
         };
 
         Self {
@@ -987,10 +922,9 @@ impl Editor {
 
         let render_elapsed = start.elapsed();
 
-        // todo(ad-tra): uncomment this before merge
-        // if cfg!(debug_assertions) && self.edit.renderer.debug {
-        self.edit.renderer.show_debug_metrics(ui);
-        // }
+        if cfg!(debug_assertions) && self.edit.renderer.debug {
+            self.edit.renderer.show_debug_fps(ui);
+        }
 
         if PRINT {
             println!(
@@ -1048,13 +982,11 @@ impl Editor {
             self.unprocessed_scroll = Some(Instant::now());
             ui.ctx().request_repaint();
         }
-        self.edit.event.internal_events.extend(
-            self.edit
-                .renderer
-                .render_events
-                .drain(..)
-                .map(QueuedEvent::immediate),
-        );
+        self.edit
+            .event
+            .internal_events
+            .append(&mut self.edit.renderer.render_events);
+
         if !self.edit.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
@@ -1318,10 +1250,7 @@ impl Editor {
         ui.advance_cursor_after_rect(rendered_rect);
         self.next_resp.find_widget_height = rendered_rect.height();
 
-        self.edit
-            .event
-            .internal_events
-            .extend(find_output.events.into_iter().map(QueuedEvent::immediate));
+        self.edit.event.internal_events.extend(find_output.events);
         if find_output.scroll_to_match {
             self.edit.pending_scroll = Some(ScrollTarget::FindMatch);
         }

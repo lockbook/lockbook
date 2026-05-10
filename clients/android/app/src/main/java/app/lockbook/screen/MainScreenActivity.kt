@@ -26,13 +26,11 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import app.lockbook.workspace.LbStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import net.lockbook.Lb
+import net.lockbook.LbStatus
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -78,10 +76,6 @@ class MainScreenActivity : AppCompatActivity() {
     val workspaceModel: WorkspaceViewModel by viewModels()
 
     private val fileTreeViewModel: FileTreeViewModel by viewModels()
-
-    val jsonParser = Json {
-        ignoreUnknownKeys = true
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -347,7 +341,7 @@ class MainScreenActivity : AppCompatActivity() {
                 }
 
                 lbEvent?.let { event ->
-                    val status: LbStatus = jsonParser.decodeFromString(Lb.getStatus())
+                    val status: LbStatus = Lb.getStatus()
                     fileTreeViewModel.hydrateStatusUpdate(status, event)
                 }
             }

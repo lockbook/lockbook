@@ -397,7 +397,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getTimestampHumanString<'local>(
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jstring {
+) -> jobject {
     let lb = rlb(&mut env, &class);
 
     let lb_usage = lb.get_usage();
@@ -406,9 +406,7 @@ pub extern "system" fn Java_net_lockbook_Lb_getUsage<'local>(
         return throw_err(&mut env, lb_usage.err().unwrap()).into_raw();
     }
 
-    env.new_string(serde_json::to_string(&lb_usage.unwrap()).unwrap())
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
+    j_usage(&mut env, Some(lb_usage.unwrap())).into_raw()
 }
 
 #[unsafe(no_mangle)]
@@ -553,14 +551,11 @@ pub extern "system" fn Java_net_lockbook_Lb_subscribe<'local>(
 #[no_mangle]
 pub extern "system" fn Java_net_lockbook_Lb_getStatus<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>,
-) -> jstring {
+) -> jobject {
     let lb = rlb(&mut env, &class);
 
     let lb_status = lb.status();
-
-    env.new_string(serde_json::to_string(&lb_status).unwrap())
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
+    j_status(&mut env, lb_status).into_raw()
 }
 
 #[unsafe(no_mangle)]
@@ -726,6 +721,161 @@ fn jsubscription_info<'local>(
             .unwrap();
         }
     }
+
+    obj
+}
+
+fn j_usage_item_metric<'local>(
+    env: &mut JNIEnv<'local>, metric: Option<lb_rs::service::usage::UsageItemMetric>,
+) -> JObject<'local> {
+    let Some(metric) = metric else { return JObject::null() };
+
+    let usage_item_class = env.find_class("net/lockbook/Usage$UsageItemMetric").unwrap();
+    let obj = env.alloc_object(usage_item_class).unwrap();
+
+    env.set_field(&obj, "exact", "J", JValue::Long(metric.exact as jlong))
+        .unwrap();
+    let readable = jni_string(env, metric.readable);
+    env.set_field(
+        &obj,
+        "readable",
+        "Ljava/lang/String;",
+        JValue::Object(&readable),
+    )
+    .unwrap();
+
+    obj
+}
+
+fn j_usage<'local>(
+    env: &mut JNIEnv<'local>, usage: Option<lb_rs::service::usage::UsageMetrics>,
+) -> JObject<'local> {
+    let Some(usage) = usage else { return JObject::null() };
+
+    let usage_class = env.find_class("net/lockbook/Usage").unwrap();
+    let obj = env.alloc_object(usage_class).unwrap();
+
+    let server_usage = j_usage_item_metric(env, Some(usage.server_usage));
+    env.set_field(
+        &obj,
+        "serverUsage",
+        "Lnet/lockbook/Usage$UsageItemMetric;",
+        JValue::Object(&server_usage),
+    )
+    .unwrap();
+
+    let data_cap = j_usage_item_metric(env, Some(usage.data_cap));
+    env.set_field(
+        &obj,
+        "dataCap",
+        "Lnet/lockbook/Usage$UsageItemMetric;",
+        JValue::Object(&data_cap),
+    )
+    .unwrap();
+
+    obj
+}
+
+fn juuid_vec_to_string_array<'local, I, T>(env: &mut JNIEnv<'local>, ids: I) -> JObject<'local>
+where
+    I: IntoIterator<Item = T>,
+    T: ToString,
+{
+    let ids: Vec<T> = ids.into_iter().collect();
+    let string_class = env.find_class("java/lang/String").unwrap();
+    let arr = env
+        .new_object_array(ids.len() as i32, string_class, JObject::null())
+        .unwrap();
+
+    for (i, id) in ids.into_iter().enumerate() {
+        let id = jni_string(env, id.to_string());
+        env.set_object_array_element(&arr, i as i32, id).unwrap();
+    }
+
+    JObject::from(arr)
+}
+
+fn j_status<'local>(
+    env: &mut JNIEnv<'local>, status: lb_rs::subscribers::status::Status,
+) -> JObject<'local> {
+    let status_class = env.find_class("net/lockbook/LbStatus").unwrap();
+    let obj = env.alloc_object(status_class).unwrap();
+
+    env.set_field(&obj, "offline", "Z", JValue::Bool(status.offline.into()))
+        .unwrap();
+    env.set_field(&obj, "syncing", "Z", JValue::Bool(status.syncing.into()))
+        .unwrap();
+    env.set_field(&obj, "outOfSpace", "Z", JValue::Bool(status.out_of_space.into()))
+        .unwrap();
+    env.set_field(
+        &obj,
+        "pendingShares",
+        "Z",
+        JValue::Bool(status.pending_shares.into()),
+    )
+    .unwrap();
+    env.set_field(
+        &obj,
+        "updateRequired",
+        "Z",
+        JValue::Bool(status.update_required.into()),
+    )
+    .unwrap();
+
+    let pushing_files = juuid_vec_to_string_array(env, status.pushing_files);
+    env.set_field(
+        &obj,
+        "pushingFiles",
+        "[Ljava/lang/String;",
+        JValue::Object(&pushing_files),
+    )
+    .unwrap();
+
+    let dirty_locally = juuid_vec_to_string_array(env, status.dirty_locally);
+    env.set_field(
+        &obj,
+        "dirtyLocally",
+        "[Ljava/lang/String;",
+        JValue::Object(&dirty_locally),
+    )
+    .unwrap();
+
+    let pulling_files = juuid_vec_to_string_array(env, status.pulling_files);
+    env.set_field(
+        &obj,
+        "pullingFiles",
+        "[Ljava/lang/String;",
+        JValue::Object(&pulling_files),
+    )
+    .unwrap();
+
+    let space_used = j_usage(env, status.space_used);
+    env.set_field(&obj, "spaceUsed", "Lnet/lockbook/Usage;", JValue::Object(&space_used))
+        .unwrap();
+
+    let sync_status = match status.sync_status {
+        Some(sync_status) => JObject::from(jni_string(env, sync_status)),
+        None => JObject::null(),
+    };
+    env.set_field(
+        &obj,
+        "syncStatus",
+        "Ljava/lang/String;",
+        JValue::Object(&sync_status),
+    )
+    .unwrap();
+
+    let unexpected_sync_problem = match status.unexpected_sync_problem {
+        Some(problem) => JObject::from(jni_string(env, problem)),
+        None => JObject::null(),
+    };
+    env.set_field(
+        &obj,
+        "unexpectedSyncProblem",
+        "Ljava/lang/String;",
+        JValue::Object(&unexpected_sync_problem),
+    )
+    .unwrap();
 
     obj
 }

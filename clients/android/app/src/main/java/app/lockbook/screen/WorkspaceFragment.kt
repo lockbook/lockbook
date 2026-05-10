@@ -679,7 +679,6 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             tabSheetScrollDetector.onTouchEvent(event)
         }
 
-        workspaceView.drawImmediately()
 
         return true
     }

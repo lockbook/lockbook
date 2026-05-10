@@ -10,15 +10,13 @@ import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
-import app.lockbook.workspace.LbStatus
-import app.lockbook.workspace.SpaceUsed
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbEvent
+import net.lockbook.LbStatus
+import net.lockbook.Usage
 import java.util.UUID
 
 class FileTreeViewModel(application: Application) : AndroidViewModel(application) {
@@ -55,8 +53,8 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     val isSuggestedDocsVisible: LiveData<Boolean>
         get() = _isSuggestedDocsVisible
 
-    val _usage = MutableLiveData<SpaceUsed?>()
-    val usage: LiveData<SpaceUsed?>
+    val _usage = MutableLiveData<Usage?>()
+    val usage: LiveData<Usage?>
         get() = _usage
 
     val _syncStatus = MutableLiveData<String?>()
@@ -67,18 +65,13 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     val isSyncing: LiveData<Boolean>
         get() = _isSyncing
 
-    val jsonParser = Json {
-        ignoreUnknownKeys = true
-    }
-
     init {
         startUpInRoot()
         getStatus()
     }
 
     private fun getStatus() {
-        val raw = Lb.getStatus()
-        val status: LbStatus = jsonParser.decodeFromString(raw)
+        val status: LbStatus = Lb.getStatus()
         hydrateStatusUpdate(status, null)
     }
 
@@ -171,9 +164,9 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         }
         _isSyncing.value = status.syncing
 
-        _dirtyLocally.value = status.dirtyLocally.mapNotNull { UUID.fromString(it) }.toHashSet()
-        _pullingFiles.value = status.pullingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
-        _pushingFiles.value = status.pushingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
+        _dirtyLocally.value = status.dirtyLocally.orEmpty().mapNotNull { UUID.fromString(it) }.toHashSet()
+        _pullingFiles.value = status.pullingFiles.orEmpty().mapNotNull { UUID.fromString(it) }.toHashSet()
+        _pushingFiles.value = status.pushingFiles.orEmpty().mapNotNull { UUID.fromString(it) }.toHashSet()
 
         val metaOrContentDirty = if (lbEvent == null) { true } else { lbEvent.metadataChanged || lbEvent.pendingSharesChanged || lbEvent.documentWritten }
 

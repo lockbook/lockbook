@@ -14,8 +14,8 @@ import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
 import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
-import app.lockbook.workspace.SpaceUsed
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import net.lockbook.Usage
 
 class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
     lateinit var usageBar: LinearProgressIndicator
@@ -49,7 +49,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         }
     }
 
-    private fun setUpUsagePreference(usage: SpaceUsed) {
+    private fun setUpUsagePreference(usage: Usage) {
         val dataCapExact = usage.dataCap?.exact ?: 1
         val serverUsageExact = usage.serverUsage?.exact ?: 1
         val serverUsage = usage.serverUsage?.readable ?: ""

@@ -26,7 +26,6 @@ use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::IconButton;
 
 use super::MdEdit;
-use super::QueuedEvent;
 use super::input::{Bound, Event, Location, Region};
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
@@ -66,12 +65,11 @@ impl MdEdit {
             file_id,
         );
         if !self.renderer.readonly && !self.renderer.plaintext {
-            let mut completion_events = Vec::new();
             self.emoji_completions.handle_input(
                 ctx,
                 &self.renderer.buffer,
                 focused,
-                &mut completion_events,
+                &mut self.event.internal_events,
             );
             self.link_completions.handle_input(
                 ctx,
@@ -79,11 +77,8 @@ impl MdEdit {
                 &files,
                 file_id,
                 focused,
-                &mut completion_events,
+                &mut self.event.internal_events,
             );
-            self.event
-                .internal_events
-                .extend(completion_events.into_iter().map(QueuedEvent::immediate));
         }
 
         let mut ops = Vec::new();
@@ -93,16 +88,8 @@ impl MdEdit {
         // invalidation fire when undo changes the text.
         let mut direct_resp = buffer::Response::default();
 
-        for queued_event in std::mem::take(&mut self.event.internal_events) {
-            if let (Some(queued_at), Event::Replace { .. }) =
-                (queued_event.queued_at, &queued_event.event)
-            {
-                self.renderer
-                    .ime_replace_latency
-                    .record(queued_at.elapsed());
-            }
-
-            direct_resp |= self.calc_operations(ctx, root, queued_event.event, &mut ops);
+        for event in std::mem::take(&mut self.event.internal_events) {
+            direct_resp |= self.calc_operations(ctx, root, event, &mut ops);
         }
 
         if focused {
@@ -419,12 +406,9 @@ impl MdEdit {
         }
 
         // drain renderer's interactive-element events into the edit queue for next frame
-        self.event.internal_events.extend(
-            self.renderer
-                .render_events
-                .drain(..)
-                .map(QueuedEvent::immediate),
-        );
+        self.event
+            .internal_events
+            .append(&mut self.renderer.render_events);
     }
 
     /// Measure the rendered height at the given `width` without drawing.

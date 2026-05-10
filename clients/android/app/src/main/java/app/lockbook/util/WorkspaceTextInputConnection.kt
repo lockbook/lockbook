@@ -36,15 +36,12 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
 
     var batchEditCount = 0 
-    private var batchEditStartedAtNs = 0L
-    private var batchEditPeakDepth = 0
 
     private var cursorMonitorStatus = CursorMonitorStatus()
 
     private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
     private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
-<<<<<<< Updated upstream
     fun notifySelectionUpdated() {
         val selection = wsEditable.getSelection()
         getInputMethodManager().updateSelection(
@@ -54,35 +51,17 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             wsEditable.composingStart,
             wsEditable.composingEnd
         )
-=======
-    fun notifySelectionUpdated(isImmediate: Boolean = false) {
-        ImePerfStats.measure("ic.notifySelectionUpdated") {
-            if ((batchEditCount == 0 && cursorMonitorStatus.monitor) || isImmediate) {
-                val selection = wsEditable.getSelection()
-
-                getInputMethodManager().updateSelection(
-                    textInputWrapper,
-                    selection.start,
-                    selection.end,
-                    wsEditable.composingStart,
-                    wsEditable.composingEnd
-                )
-            }
-        }
->>>>>>> Stashed changes
     }
 
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
         super.sendKeyEvent(event)
-        ImePerfStats.count("ic.sendKeyEvent")
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
             Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
         }
 
-        workspaceView.kickTypingPump()
         workspaceView.drawImmediately()
 
         return true
@@ -124,8 +103,8 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
                         }
 
                         if (bytes != null) {
-                            Workspace.clipboardSendImage(WorkspaceView.WGPU_OBJ, bytes, true)
                             withContext(Dispatchers.Main) {
+                                Workspace.clipboardSendImage(WorkspaceView.WGPU_OBJ, bytes, true)
                                 workspaceView.drawImmediately()
                             }
                         }
@@ -149,7 +128,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             else -> return false
         }
 
-        workspaceView.kickTypingPump()
         workspaceView.drawImmediately()
 
         return true
@@ -238,12 +216,6 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
         val isImmediate = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0
         val isMonitor = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR) != 0
-        if (isImmediate) {
-            ImePerfStats.count("ic.requestCursorUpdates.immediate")
-        }
-        if (isMonitor) {
-            ImePerfStats.count("ic.requestCursorUpdates.monitor")
-        }
 
         if (isImmediate) {
             notifySelectionUpdated()
@@ -283,50 +255,30 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
     @Synchronized
     override fun getExtractedText(request: ExtractedTextRequest?, flags: Int): ExtractedText {
-        return ImePerfStats.measure("ic.getExtractedText") {
-            val et = ExtractedText()
-            val text: CharSequence = wsEditable
-            et.text = text
-            et.selectionStart = wsEditable.selectionStart
-            et.selectionEnd = wsEditable.selectionEnd
-            et.startOffset = 0
-            et.partialStartOffset = -1
-            et.partialEndOffset = -1
-            et
-        }
+        val et = ExtractedText()
+        val text: CharSequence = wsEditable
+        et.text = text
+        et.selectionStart = wsEditable.selectionStart
+        et.selectionEnd = wsEditable.selectionEnd
+        et.startOffset = 0
+        et.partialStartOffset = -1
+        et.partialEndOffset = -1
+        return et
     }
 
     override fun beginBatchEdit(): Boolean {
-        ImePerfStats.count("ic.beginBatchEdit")
-        if (batchEditCount == 0) {
-            batchEditStartedAtNs = System.nanoTime()
-            batchEditPeakDepth = 0
-        }
         batchEditCount += 1
-        batchEditPeakDepth = maxOf(batchEditPeakDepth, batchEditCount)
 
         return true
     }
 
     override fun endBatchEdit(): Boolean {
-        ImePerfStats.count("ic.endBatchEdit")
         batchEditCount = (batchEditCount - 1).coerceAtLeast(0)
-        notifySelectionUpdated()
-        if (batchEditCount == 0 && batchEditStartedAtNs != 0L) {
-            ImePerfStats.record(
-                "ic.batchEdit.session",
-                System.nanoTime() - batchEditStartedAtNs,
-            )
-            repeat(batchEditPeakDepth) { ImePerfStats.count("ic.batchEdit.depth") }
-            batchEditStartedAtNs = 0L
-            batchEditPeakDepth = 0
-        }
 
         return batchEditCount > 0
     }
 
     override fun getEditable(): Editable {
-        ImePerfStats.count("ic.getEditable")
         return wsEditable
     }
 }

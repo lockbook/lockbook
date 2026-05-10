@@ -50,8 +50,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.selects.onTimeout
 import kotlinx.coroutines.selects.select
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import net.lockbook.Lb
 import java.util.concurrent.ConcurrentLinkedDeque
 import java.util.concurrent.CountDownLatch
@@ -74,27 +72,21 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         invalidate()
     }
     private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
-    private var typingPumpUntilNs = 0L
-    private var typingPumpScheduled = false
 
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    private val frameOutputJsonParser = Json {
-        ignoreUnknownKeys = true
-    }
-
     private val scroller = OverScroller(context)
     private var gestureStartPositions: Array<PointF> = emptyArray()
-    private val pendingDx = AtomicReference(0f)
-    private val pendingDy = AtomicReference(0f)
+    private var pendingDx = 0f
+    private var pendingDy = 0f
     private var propagateFlick = false
 
 
     private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
         override fun onDown(e: MotionEvent): Boolean {
             scroller.abortAnimation()
-            pendingDx.set(0f)
-            pendingDy.set(0f)
+            pendingDx = 0f
+            pendingDy = 0f
             gestureStartPositions = Array(e.pointerCount) { i -> PointF(e.getX(i), e.getY(i)) }
             propagateFlick = false
             return true
@@ -114,8 +106,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             propagateFlick = true
 
-            pendingDx.getAndUpdate { it - distanceX }
-            pendingDy.getAndUpdate { it - distanceY }
+            pendingDx =- distanceX
+            pendingDx =- distanceY
             drawImmediately()
             return true
         }
@@ -147,8 +139,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     val dy = (scroller.currY - lastY).toFloat()
                     lastX = scroller.currX
                     lastY = scroller.currY
-                    pendingDx.getAndUpdate { it + dx }
-                    pendingDy.getAndUpdate { it + dy }
+                    pendingDx += dx
+                    pendingDy += dy
                     drawImmediately()
                     choreographer.postFrameCallback(::tick)
                 }
@@ -159,14 +151,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
 
-    private val pendingZoom = AtomicReference(1f)
-    private val pendingFocusX = AtomicReference(0f)
-    private val pendingFocusY = AtomicReference(0f)
+    private var pendingZoom = 1f
+    private var pendingFocusX = 0f
+    private var pendingFocusY = 0f
 
 
     private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
         override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            pendingZoom.set(1f)
+            pendingZoom = 1f
             val halfSpanX = detector.currentSpanX / 2f
             val halfSpanY = detector.currentSpanY / 2f
             gestureStartPositions = arrayOf(
@@ -177,9 +169,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         override fun onScale(detector: ScaleGestureDetector): Boolean {
-            pendingZoom.getAndUpdate { it * detector.scaleFactor }
-            pendingFocusX.set(detector.focusX)
-            pendingFocusY.set(detector.focusY)
+            pendingZoom *=  detector.scaleFactor
+            pendingFocusX = detector.focusX
+            pendingFocusY = detector.focusY
             drawImmediately()
             return true
         }
@@ -300,75 +292,30 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         drawImmediately()
     }
 
-    fun kickTypingPump(windowMs: Long = 200) {
-//        val now = System.nanoTime()
-//        val requestedUntil = now + windowMs * 1_000_000
-//        typingPumpUntilNs = maxOf(typingPumpUntilNs, requestedUntil)
-
-//        if (typingPumpScheduled) {
-//            return
-//        }
-//
-//        typingPumpScheduled = true
-
-//        fun tick(frameTimeNanos: Long) {
-//            if (!isAttachedToWindow) {
-//                typingPumpScheduled = false
-//                return
-//            }
-//            ignoreSelectionUpdate = true
-//            drawWorkspace()
-//            ignoreSelectionUpdate = false
-//            val batchEditActive =
-//                (wrapperView as? WorkspaceTextInputWrapper)?.wsInputConnection?.batchEditCount ?: 0
-//            val keepGoing = frameTimeNanos < typingPumpUntilNs || batchEditActive > 0
-//
-//            if (keepGoing) {
-//                choreographer.postFrameCallback(::tick)
-//            } else {
-//                typingPumpScheduled = false
-//            }
-//        }
-//
-//        choreographer.postFrameCallback(::tick)
-    }
-
     fun drawWorkspace() {
         if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
             return
         }
 
-        // Guard again right before the native call
-        if (surface?.isValid != true) {
-            return
-        }
-
-        val dx = pendingDx.getAndSet(0f)
-        val dy = pendingDy.getAndSet(0f)
-        val zoom = pendingZoom.getAndSet(1f)
-        val focusX = pendingFocusX.getAndSet(0f)
-        val focusY = pendingFocusY.getAndSet(0f)
-
-        if (dx != 0f || dy != 0f || zoom != 1f) {
+        if (pendingDx != 0f || pendingDy != 0f || pendingZoom != 1f) {
             Workspace.multiTouch(
                 WGPU_OBJ,
-                dx,
-                dy,
-                zoom, focusX, focusY,
+                pendingDx,
+                pendingDy,
+                pendingZoom, pendingFocusX, pendingFocusY,
                 gestureStartPositions.map { it.x }.toFloatArray(),
                 gestureStartPositions.map { it.y }.toFloatArray()
             )
         }
 
-        val res = Workspace.enterFrameOffloaded(WGPU_OBJ)
+        pendingDx = 0f
+        pendingDy = 0f
+        pendingZoom = 1f
+        pendingFocusX = 0f
+        pendingFocusY = 0f
 
+        val response: AndroidResponse = Workspace.enterFrameOffloaded(WGPU_OBJ)
 
-        val response: AndroidResponse = frameOutputJsonParser.decodeFromString(res)
-        val currentTab = if (response.tabsChanged || !response.selectedFile.isNullUUID()) {
-            Workspace.currentTab(WGPU_OBJ).toModelTab()
-        } else {
-            null
-        }
 
         if (response.urlOpened.isNotEmpty()) {
             try {
@@ -387,6 +334,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             (App.applicationContext()
                 .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
                 .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
+        }
+
+        val currentTab = if (response.tabsChanged || !response.selectedFile.isNullUUID()) {
+            Workspace.currentTab(WGPU_OBJ).toModelTab()
+        } else {
+            null
         }
 
         if (currentTab != null) {
@@ -423,10 +376,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
         }
 
-        if (response.redrawIn < 100u) {
+        if (response.redrawIn < 100) {
             invalidate()
         } else {
-            handler.postDelayed(redrawTask, min(response.redrawIn, 500u).toLong())
+            handler.postDelayed(redrawTask, response.redrawIn)
         }
     }
 
