@@ -26,21 +26,11 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     private var composingTag: Any? = null
 
     val selectionStart: Int get() {
-<<<<<<< Updated upstream
-        val ret = getSelection(WGPU_OBJ).start
-        return ret
+        return getSelection(WGPU_OBJ).start
     }
 
     val selectionEnd: Int get() {
-        val ret = getSelection(WGPU_OBJ).end
-        return ret
-=======
-        return ImePerfStats.measure("editable.selectionStart") { getSelection(WGPU_OBJ).start }
-    }
-
-    val selectionEnd: Int get() {
-        return ImePerfStats.measure("editable.selectionEnd") { getSelection(WGPU_OBJ).end }
->>>>>>> Stashed changes
+        getSelection(WGPU_OBJ).end
     }
 
     override fun toString(): String {

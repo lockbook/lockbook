@@ -104,10 +104,6 @@ class WorkspaceFragment : Fragment() {
             workspaceWrapper.workspaceView.createDocAt(it)
         }
 
-//        model.fps.observe(viewLifecycleOwner){
-//            updateToolbarOnTabChange(WorkspaceTabType.Markdown, null)
-//        }
-
         model.closeFile.observe(viewLifecycleOwner) { id ->
             workspaceWrapper.workspaceView.closeDoc(id)
         }
@@ -683,7 +679,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             tabSheetScrollDetector.onTouchEvent(event)
         }
 
-        workspaceView.invalidate()
+        workspaceView.drawImmediately()
 
         return true
     }
