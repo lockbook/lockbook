@@ -132,20 +132,24 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
         for (index in matchedIndices) {
             if (index < parentPathSpan.length) {
-                parentPathSpan.setSpan(
-                    BackgroundColorSpan(highlightColor),
-                    index,
-                    index + 1,
-                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE
-                )
+                if (index >= 0 && index + 1 <= parentPathSpan.length) {
+                    parentPathSpan.setSpan(
+                        BackgroundColorSpan(highlightColor),
+                        index,
+                        index + 1,
+                        Spannable.SPAN_INCLUSIVE_EXCLUSIVE
+                    )
+                }
             } else {
                 val newIndex = index - parentPathSpan.length
-                fileNameSpan.setSpan(
-                    BackgroundColorSpan(highlightColor),
-                    newIndex,
-                    newIndex + 1,
-                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE
-                )
+                if (newIndex >= 0 && newIndex + 1 <= fileNameSpan.length) {
+                    fileNameSpan.setSpan(
+                        BackgroundColorSpan(highlightColor),
+                        newIndex,
+                        newIndex + 1,
+                        Spannable.SPAN_INCLUSIVE_EXCLUSIVE
+                    )
+                }
             }
         }
         return Pair(parentPathSpan, fileNameSpan)

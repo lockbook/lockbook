@@ -1,8 +1,8 @@
-use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
+use crate::tab::markdown_editor::{MdEdit, QueuedEvent};
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
     NodeTaskItem, NodeValue, Sourcepos,
@@ -19,7 +19,7 @@ use super::{Advance, Bound, Location, Region};
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
 pub struct EventState {
-    pub internal_events: Vec<Event>,
+    pub internal_events: Vec<QueuedEvent>,
 }
 
 impl<'ast> MdEdit {

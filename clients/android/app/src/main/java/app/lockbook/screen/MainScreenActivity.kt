@@ -258,6 +258,10 @@ class MainScreenActivity : AppCompatActivity() {
                     }
                 }
             }
+            is UpdateMainScreenUI.OpenFileFromSearch -> {
+                workspaceModel._openFile.value = Pair(update.id, false)
+                navHost().navController.popBackStack()
+            }
             is UpdateMainScreenUI.CloseWorkspacePane -> {
                 slidingPaneLayout.closePane()
             }

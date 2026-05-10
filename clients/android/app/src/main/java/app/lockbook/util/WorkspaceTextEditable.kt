@@ -26,6 +26,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     private var composingTag: Any? = null
 
     val selectionStart: Int get() {
+<<<<<<< Updated upstream
         val ret = getSelection(WGPU_OBJ).start
         return ret
     }
@@ -33,25 +34,39 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     val selectionEnd: Int get() {
         val ret = getSelection(WGPU_OBJ).end
         return ret
+=======
+        return ImePerfStats.measure("editable.selectionStart") { getSelection(WGPU_OBJ).start }
+    }
+
+    val selectionEnd: Int get() {
+        return ImePerfStats.measure("editable.selectionEnd") { getSelection(WGPU_OBJ).end }
+>>>>>>> Stashed changes
     }
 
     override fun toString(): String {
         return Workspace.getAllText(WGPU_OBJ)
     }
 
-    fun getSelection(): JTextRange = getSelection(WorkspaceView.WGPU_OBJ)
+    fun getSelection(): JTextRange =
+        ImePerfStats.measure("editable.getSelection") { getSelection(WorkspaceView.WGPU_OBJ) }
 
     override fun get(index: Int): Char {
-        return Workspace.getTextInRange(WorkspaceView.WGPU_OBJ, index, index).getOrNull(0) ?: '0'
+        return ImePerfStats.measure("editable.getTextInRange.char") {
+            Workspace.getTextInRange(WorkspaceView.WGPU_OBJ, index, index).getOrNull(0) ?: '0'
+        }
     }
 
     override fun subSequence(startIndex: Int, endIndex: Int): CharSequence {
-        return Workspace.getTextInRange(WorkspaceView.WGPU_OBJ, startIndex, endIndex)
+        return ImePerfStats.measure("editable.getTextInRange.subSequence") {
+            Workspace.getTextInRange(WorkspaceView.WGPU_OBJ, startIndex, endIndex)
+        }
     }
 
     override fun getChars(start: Int, end: Int, dest: CharArray?, destoff: Int) {
         dest?.let { realDest ->
-            val text = Workspace.getTextInRange(WorkspaceView.WGPU_OBJ, start, end)
+            val text = ImePerfStats.measure("editable.getTextInRange.getChars") {
+                Workspace.getTextInRange(WorkspaceView.WGPU_OBJ, start, end)
+            }
 
             var index = destoff
 
@@ -150,14 +165,25 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
         if (what == Selection.SELECTION_START) {
+            ImePerfStats.count("editable.setSpan.selectionStart")
             selectionStartSpanFlag = flags
+<<<<<<< Updated upstream
             Workspace.setSelection(WGPU_OBJ, start, end)
             view.drawImmediately()
+=======
+            Workspace.setSelection(WorkspaceView.WGPU_OBJ, start, end)
+>>>>>>> Stashed changes
         } else if (what == Selection.SELECTION_END) {
+            ImePerfStats.count("editable.setSpan.selectionEnd")
             selectionEndSpanFlag = flags
+<<<<<<< Updated upstream
             Workspace.setSelection(WGPU_OBJ, start, end)
             view.drawImmediately()
+=======
+            Workspace.setSelection(WorkspaceView.WGPU_OBJ, start, end)
+>>>>>>> Stashed changes
         } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
+            ImePerfStats.count("editable.setSpan.composing")
             composingFlag = flags
             composingTag = what
             composingStart = start
@@ -171,6 +197,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun removeSpan(what: Any?) {
         if (what == composingTag || ((what ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
+            ImePerfStats.count("editable.removeSpan.composing")
             composingStart = -1
             composingEnd = -1
 
@@ -180,6 +207,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun append(text: CharSequence?): Editable {
         text?.let { realText ->
+            ImePerfStats.count("editable.append")
             Workspace.append(WorkspaceView.WGPU_OBJ, realText.toString())
 
             view.drawImmediately()
@@ -189,15 +217,23 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun append(text: CharSequence?, start: Int, end: Int): Editable {
+<<<<<<< Updated upstream
         val appendText = text?.substring(start, end) ?: return this
         Workspace.append(WorkspaceView.WGPU_OBJ, appendText)
+=======
+        ImePerfStats.count("editable.append.slice")
+        Workspace.append(WorkspaceView.WGPU_OBJ, text?.substring(start, end) ?: "null")
+        view.kickTypingPump()
+>>>>>>> Stashed changes
         view.drawImmediately()
 
         return this
     }
 
     override fun append(text: Char): Editable {
+        ImePerfStats.count("editable.append.char")
         Workspace.append(WorkspaceView.WGPU_OBJ, text.toString())
+        view.kickTypingPump()
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated()
 
@@ -206,9 +242,10 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun replace(st: Int, en: Int, source: CharSequence?, start: Int, end: Int): Editable {
         source?.let { realText ->
+            ImePerfStats.count("editable.replace.slice")
             replace(st, en, realText.subSequence(start, end))
         }
-        view.drawImmediately()
+        view.kickTypingPump()
         return this
     }
 
@@ -226,14 +263,19 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
         text?.let { realText ->
-            if (st == selectionStart && en == selectionEnd) {
-                if (realText == "\n") {
-                    Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
+            ImePerfStats.measure("editable.replace") {
+                if (st == selectionStart && en == selectionEnd) {
+                    if (realText == "\n") {
+                        ImePerfStats.count("editable.replace.cursor.newline")
+                        Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
+                    } else {
+                        ImePerfStats.count("editable.replace.cursor.insertTextAtCursor")
+                        Workspace.insertTextAtCursor(WorkspaceView.WGPU_OBJ, realText.toString())
+                    }
                 } else {
-                    Workspace.insertTextAtCursor(WorkspaceView.WGPU_OBJ, realText.toString())
+                    ImePerfStats.count("editable.replace.region")
+                    Workspace.replace(WorkspaceView.WGPU_OBJ, st, en, realText.toString())
                 }
-            } else {
-                Workspace.replace(WorkspaceView.WGPU_OBJ, st, en, realText.toString())
             }
 
             if (en < composingStart) {
@@ -268,6 +310,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                 }
             }
 
+            view.kickTypingPump()
             view.drawImmediately()
             wsInputConnection.notifySelectionUpdated()
         }
@@ -279,10 +322,14 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         text?.let { realText ->
             val subRealText = realText.substring(start, end)
 
-            if (subRealText == "\n" && selectionEnd == where && selectionStart == where) {
-                Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
-            } else {
-                Workspace.insert(WorkspaceView.WGPU_OBJ, where, subRealText)
+            ImePerfStats.measure("editable.insert.slice") {
+                if (subRealText == "\n" && selectionEnd == where && selectionStart == where) {
+                    ImePerfStats.count("editable.insert.slice.newline")
+                    Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
+                } else {
+                    ImePerfStats.count("editable.insert.slice.region")
+                    Workspace.insert(WorkspaceView.WGPU_OBJ, where, subRealText)
+                }
             }
 
             if (where < composingStart) {
@@ -290,6 +337,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                 composingEnd += subRealText.length
             }
 
+            view.kickTypingPump()
             view.drawImmediately()
             wsInputConnection.notifySelectionUpdated()
         }
@@ -299,10 +347,14 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun insert(where: Int, text: CharSequence?): Editable {
         text?.let { realText ->
-            if (realText == "\n" && selectionEnd == where && selectionStart == where) {
-                Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
-            } else {
-                Workspace.insert(WorkspaceView.WGPU_OBJ, where, realText.toString())
+            ImePerfStats.measure("editable.insert") {
+                if (realText == "\n" && selectionEnd == where && selectionStart == where) {
+                    ImePerfStats.count("editable.insert.newline")
+                    Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
+                } else {
+                    ImePerfStats.count("editable.insert.region")
+                    Workspace.insert(WorkspaceView.WGPU_OBJ, where, realText.toString())
+                }
             }
 
             if (where < composingStart) {
@@ -310,6 +362,7 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
                 composingEnd += realText.length
             }
 
+            view.kickTypingPump()
             view.drawImmediately()
             wsInputConnection.notifySelectionUpdated()
         }
@@ -318,13 +371,16 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun delete(st: Int, en: Int): Editable {
-        Workspace.replace(WorkspaceView.WGPU_OBJ, st, en, "")
+        ImePerfStats.measure("editable.delete") {
+            Workspace.replace(WorkspaceView.WGPU_OBJ, st, en, "")
+        }
 
         if (en < composingStart) {
             composingStart -= (en - st)
             composingEnd -= (en - st)
         }
 
+        view.kickTypingPump()
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated()
 
@@ -332,11 +388,13 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun clear() {
+        ImePerfStats.count("editable.clear")
         Workspace.clear(WorkspaceView.WGPU_OBJ)
 
         composingStart = -1
         composingEnd = -1
 
+        view.kickTypingPump()
         view.drawImmediately()
         wsInputConnection.notifySelectionUpdated()
     }
@@ -353,6 +411,8 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
     override fun getFilters(): Array<InputFilter> = arrayOf()
     override val length: Int get() {
-        return Workspace.getTextLength(WorkspaceView.WGPU_OBJ)
+        return ImePerfStats.measure("editable.length") {
+            Workspace.getTextLength(WorkspaceView.WGPU_OBJ)
+        }
     }
 }

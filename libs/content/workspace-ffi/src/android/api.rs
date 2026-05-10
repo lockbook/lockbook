@@ -6,6 +6,7 @@ use lb_c::Uuid;
 use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
+use std::time::Instant;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 
@@ -604,20 +605,24 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
     mut env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint, text: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let queued_at = Instant::now();
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),
         Err(err) => format!("error: {err:?}"),
     };
 
-    obj.renderer.context.push_markdown_event(Event::Replace {
-        region: Region::BetweenLocations {
-            start: Location::Grapheme(Grapheme(start as usize)),
-            end: Location::Grapheme(Grapheme(end as usize)),
+    obj.renderer.context.push_timed_markdown_event(
+        Event::Replace {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(Grapheme(start as usize)),
+                end: Location::Grapheme(Grapheme(end as usize)),
+            },
+            text,
+            advance_cursor: true,
         },
-        text,
-        advance_cursor: true,
-    })
+        queued_at,
+    )
 }
 
 #[no_mangle]

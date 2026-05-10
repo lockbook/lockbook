@@ -52,7 +52,7 @@ class SearchDocumentsFragment : Fragment() {
 
                 onClick {
                     binding.searchDocumentsSearch.clearFocus()
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.id))
                 }
             }
 
@@ -65,7 +65,7 @@ class SearchDocumentsFragment : Fragment() {
 
                 onClick {
                     binding.searchDocumentsSearch.clearFocus()
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.id))
                 }
             }
         }

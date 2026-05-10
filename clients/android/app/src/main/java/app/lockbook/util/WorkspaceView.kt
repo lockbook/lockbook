@@ -73,6 +73,9 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     private var redrawTask: Runnable = Runnable {
         invalidate()
     }
+    private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
+    private var typingPumpUntilNs = 0L
+    private var typingPumpScheduled = false
 
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -138,7 +141,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             var lastX = 0
             var lastY = 0
 
-            val choreographer = Choreographer.getInstance()
             fun tick(frameTimeNanos: Long) {
                 if (scroller.computeScrollOffset() && isAttachedToWindow) {
                     val dx = (scroller.currX - lastX).toFloat()
@@ -296,6 +298,39 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             )
         }
         drawImmediately()
+    }
+
+    fun kickTypingPump(windowMs: Long = 200) {
+//        val now = System.nanoTime()
+//        val requestedUntil = now + windowMs * 1_000_000
+//        typingPumpUntilNs = maxOf(typingPumpUntilNs, requestedUntil)
+
+//        if (typingPumpScheduled) {
+//            return
+//        }
+//
+//        typingPumpScheduled = true
+
+//        fun tick(frameTimeNanos: Long) {
+//            if (!isAttachedToWindow) {
+//                typingPumpScheduled = false
+//                return
+//            }
+//            ignoreSelectionUpdate = true
+//            drawWorkspace()
+//            ignoreSelectionUpdate = false
+//            val batchEditActive =
+//                (wrapperView as? WorkspaceTextInputWrapper)?.wsInputConnection?.batchEditCount ?: 0
+//            val keepGoing = frameTimeNanos < typingPumpUntilNs || batchEditActive > 0
+//
+//            if (keepGoing) {
+//                choreographer.postFrameCallback(::tick)
+//            } else {
+//                typingPumpScheduled = false
+//            }
+//        }
+//
+//        choreographer.postFrameCallback(::tick)
     }
 
     fun drawWorkspace() {

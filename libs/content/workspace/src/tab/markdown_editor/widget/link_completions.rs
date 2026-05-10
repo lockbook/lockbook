@@ -851,13 +851,19 @@ impl MdEdit {
         // -- Apply clicked result --------------------------------------------------
         if let Some(idx) = clicked {
             let r = &results[idx];
+            let mut completion_events = Vec::new();
             self.link_completions.apply_completion(
-                &mut self.event.internal_events,
+                &mut completion_events,
                 bracket_start,
                 replace_end,
                 &r.name,
                 &r.insert,
                 mode,
+            );
+            self.event.internal_events.extend(
+                completion_events
+                    .into_iter()
+                    .map(super::super::QueuedEvent::immediate),
             );
         }
     }

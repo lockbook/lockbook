@@ -369,7 +369,7 @@ impl TabFailure {
 
 #[derive(Debug, Clone)]
 pub enum Event {
-    Markdown(markdown_editor::Event),
+    Markdown(markdown_editor::QueuedEvent),
     Drop {
         content: Vec<ClipContent>,
         position: egui::Pos2,
@@ -533,6 +533,7 @@ impl ExtendedOutput for egui::Context {
 pub trait ExtendedInput {
     fn push_event(&self, event: Event);
     fn push_markdown_event(&self, event: markdown_editor::Event);
+    fn push_timed_markdown_event(&self, event: markdown_editor::Event, queued_at: Instant);
     fn pop_events(&self) -> Vec<Event>;
     fn pop_events_where(&self, predicate: &mut dyn FnMut(&Event) -> bool) -> Vec<Event>;
     fn read_events(&self) -> Vec<Event>;
@@ -552,7 +553,11 @@ impl ExtendedInput for egui::Context {
     }
 
     fn push_markdown_event(&self, event: markdown_editor::Event) {
-        self.push_event(Event::Markdown(event))
+        self.push_event(Event::Markdown(markdown_editor::QueuedEvent::immediate(event)))
+    }
+
+    fn push_timed_markdown_event(&self, event: markdown_editor::Event, queued_at: Instant) {
+        self.push_event(Event::Markdown(markdown_editor::QueuedEvent::timed(event, queued_at)))
     }
 
     fn pop_events(&self) -> Vec<Event> {
