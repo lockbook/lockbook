@@ -168,6 +168,7 @@ mod lb_wgpu {
         pub fn frame(&mut self) -> Output {
             self.renderer.begin_frame();
             let app_response = self.app.update(&self.renderer.context);
+            self.renderer.set_is_dev(app_response.is_dev);
             let (platform, viewport) = self.renderer.end_frame();
 
             // Queue up the events for the next frame

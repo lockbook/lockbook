@@ -1,4 +1,7 @@
-use std::{iter, time::Instant};
+use std::{
+    iter,
+    time::{Duration, Instant},
+};
 
 use egui::{PlatformOutput, ViewportIdMap, ViewportOutput};
 use egui_wgpu::{Renderer, ScreenDescriptor};
@@ -10,6 +13,10 @@ use wgpu::{
 
 pub use egui_wgpu;
 pub use wgpu;
+
+// The renderer has no portable way to query the display refresh rate; assume
+// 60Hz unless the embedder overrides via `set_frame_budget`.
+const DEFAULT_FRAME_BUDGET: Duration = Duration::from_micros(16_667);
 
 pub struct RendererState<'w> {
     pub context: egui::Context,
@@ -27,6 +34,10 @@ pub struct RendererState<'w> {
     start_time: Instant,
     surface_width: u32,
     surface_height: u32,
+
+    frame_start: Option<Instant>,
+    is_dev: bool,
+    frame_budget: Duration,
 }
 
 impl<'w> RendererState<'w> {
@@ -72,7 +83,23 @@ impl<'w> RendererState<'w> {
             context: Default::default(),
             raw_input: Default::default(),
             start_time: Instant::now(),
+            frame_start: None,
+            is_dev: false,
+            frame_budget: DEFAULT_FRAME_BUDGET,
         }
+    }
+
+    /// When true, frames that exceed `frame_budget` will panic with a
+    /// developer-shaming message at the end of `end_frame`.
+    pub fn set_is_dev(&mut self, is_dev: bool) {
+        self.is_dev = is_dev;
+    }
+
+    /// Override the per-frame budget (default: 16.67ms / 60Hz). Embedders that
+    /// can query the actual display refresh rate (e.g. winit's
+    /// `MonitorHandle::refresh_rate_millihertz`) should set this to match.
+    pub fn set_frame_budget(&mut self, budget: Duration) {
+        self.frame_budget = budget;
     }
 
     /// Call to update the screen ppp based on an up-to-date native ppp. This is
@@ -96,6 +123,7 @@ impl<'w> RendererState<'w> {
     }
 
     pub fn begin_frame(&mut self) {
+        self.frame_start = Some(Instant::now());
         self.configure_surface();
 
         self.set_egui_screen();
@@ -198,7 +226,44 @@ impl<'w> RendererState<'w> {
             self.renderer.free_texture(id);
         }
 
+        self.shame_slow_frame();
+
         (full_output.platform_output, full_output.viewport_output)
+    }
+
+    fn shame_slow_frame(&mut self) {
+        let Some(frame_start) = self.frame_start.take() else {
+            return;
+        };
+        if !self.is_dev {
+            return;
+        }
+        let elapsed = frame_start.elapsed();
+        if elapsed <= self.frame_budget {
+            return;
+        }
+
+        let elapsed_ms = elapsed.as_secs_f64() * 1000.0;
+        let budget_ms = self.frame_budget.as_secs_f64() * 1000.0;
+        let overrun_ms = elapsed_ms - budget_ms;
+        panic!(
+            "\n\
+             ============================================================\n\
+             FRAME BUDGET DESTROYED: {elapsed_ms:.2}ms / {budget_ms:.2}ms ({overrun_ms:.2}ms over)\n\
+             ============================================================\n\
+             \n\
+             Whoever wrote the code that just ran should be ashamed of themselves.\n\
+             Your render loop is moving so slowly the GPU filed a missing-persons report.\n\
+             That frame had ONE job — finish in {budget_ms:.2}ms — and it choked like a\n\
+             freshman bootcamp grad on a whiteboard interview. Geologists are studying\n\
+             your event loop to model glacial retreat. The CPU was sitting there\n\
+             twiddling its silicon thumbs while your single-threaded spaghetti tied\n\
+             itself in knots. Somewhere a hardware engineer just retired early because\n\
+             of code like this. Dropped frames don't grow on trees, you absolute walnut.\n\
+             \n\
+             Hand in your keyboard. Take up woodworking. The compiler deserves better.\n\
+             ============================================================"
+        );
     }
 
     /// inspired by egui_wgpu::RenderState
