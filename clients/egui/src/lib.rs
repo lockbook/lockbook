@@ -36,7 +36,10 @@ pub enum Lockbook {
 #[derive(Debug, Default)]
 pub struct Response {
     pub close: bool,
+    pub is_dev: bool,
 }
+
+pub const DEV_USERS: &[&str] = &["parth", "adam", "travis", "at"];
 
 impl Lockbook {
     pub fn new(ctx: &egui::Context) -> Self {
@@ -124,6 +127,8 @@ impl Lockbook {
                 if screen.is_shutdown() {
                     output.close = true;
                 }
+
+                output.is_dev = screen.is_dev;
             }
         }
         output

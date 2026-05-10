@@ -1,3 +1,5 @@
+static NOOB_FACTOR: f64 = 8.0;
+
 struct App {
     state: Option<AppState>,
     proxy: EventLoopProxy<UserEvent>,
@@ -181,6 +183,8 @@ impl ApplicationHandler<UserEvent> for App {
 
 impl AppState {
     fn render(&mut self, _event_loop: &ActiveEventLoop) {
+        let frame_start = Instant::now();
+
         if self.pending_paste {
             self.pending_paste = false;
             self.handle_image_paste();
@@ -196,7 +200,8 @@ impl AppState {
 
         self.lb.renderer.raw_input = raw_input;
 
-        let Output { platform, viewport, app: lbeguiapp::Response { close } } = self.lb.frame();
+        let Output { platform, viewport, app: lbeguiapp::Response { close, is_dev } } =
+            self.lb.frame();
 
         if close {
             std::process::exit(0);
@@ -222,9 +227,49 @@ impl AppState {
             }
         }
 
+        if is_dev {
+            self.shame_slow_frame(frame_start);
+        }
+
         if self.close_requested {
             self.window.request_redraw();
         }
+    }
+
+    fn shame_slow_frame(&self, frame_start: Instant) {
+        let elapsed = frame_start.elapsed();
+        let refresh_hz = self
+            .window
+            .current_monitor()
+            .and_then(|m| m.refresh_rate_millihertz())
+            .map(|mhz| mhz as f64 / NOOB_FACTOR / 1000.0)
+            .unwrap_or(60.0);
+        let budget = Duration::from_secs_f64(1.0 / refresh_hz);
+        if elapsed <= budget {
+            return;
+        }
+
+        let elapsed_ms = elapsed.as_secs_f64() * 1000.0;
+        let budget_ms = budget.as_secs_f64() * 1000.0;
+        let overrun_ms = elapsed_ms - budget_ms;
+        panic!(
+            "\n\
+             ============================================================\n\
+             FRAME BUDGET DESTROYED: {elapsed_ms:.2}ms / {budget_ms:.2}ms ({refresh_hz:.0}Hz display, {overrun_ms:.2}ms over)\n\
+             ============================================================\n\
+             \n\
+             Whoever wrote the code that just ran should be ashamed of themselves.\n\
+             Your render loop is moving so slowly the GPU filed a missing-persons report.\n\
+             That frame had ONE job — finish in {budget_ms:.2}ms — and it choked like a\n\
+             freshman bootcamp grad on a whiteboard interview. Geologists are studying\n\
+             your event loop to model glacial retreat. The CPU was sitting there\n\
+             twiddling its silicon thumbs while your single-threaded spaghetti tied\n\
+             itself in knots. Somewhere a hardware engineer just retired early because\n\
+             of code like this. Dropped frames don't grow on trees, you absolute walnut.\n\
+             \n\
+             Hand in your keyboard. Take up woodworking. The compiler deserves better.\n\
+             ============================================================"
+        );
     }
 
     fn handle_image_paste(&mut self) -> bool {
@@ -329,7 +374,7 @@ pub fn run() {
 }
 
 use std::sync::Arc;
-use std::time::Instant;
+use std::time::{Duration, Instant};
 
 use egui::{Pos2, ViewportCommand, ViewportId};
 use egui_wgpu_renderer::RendererState;

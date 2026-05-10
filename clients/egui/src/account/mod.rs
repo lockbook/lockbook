@@ -38,6 +38,7 @@ use self::tree::FileTree;
 pub struct AccountScreen {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
+    pub is_dev: bool,
     toasts: egui_notify::Toasts,
 
     update_tx: mpsc::Sender<AccountUpdate>,
@@ -69,9 +70,16 @@ impl AccountScreen {
             .with_margin(egui::vec2(20.0, 20.0))
             .with_padding(egui::vec2(10.0, 10.0));
 
+        let is_dev = core
+            .get_account()
+            .ok()
+            .map(|a| crate::DEV_USERS.contains(&a.username.as_str()))
+            .unwrap_or(false);
+
         let mut result = Self {
             settings,
             core: core.clone(),
+            is_dev,
             toasts,
             update_tx,
             update_rx,
