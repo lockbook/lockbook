@@ -14,9 +14,11 @@ use wgpu::{
 pub use egui_wgpu;
 pub use wgpu;
 
-// The renderer has no portable way to query the display refresh rate; assume
-// 60Hz unless the embedder overrides via `set_frame_budget`.
-const DEFAULT_FRAME_BUDGET: Duration = Duration::from_micros(16_667);
+// The renderer has no portable way to query the display refresh rate, so we
+// assume 60Hz (16.67ms per frame). NOOB_FACTOR widens the budget so dev builds
+// don't constantly trip on debug overhead — bring it down to 1 to be strict.
+const NOOB_FACTOR: u64 = 8;
+const FRAME_BUDGET: Duration = Duration::from_micros(16_667 * NOOB_FACTOR);
 
 pub struct RendererState<'w> {
     pub context: egui::Context,
@@ -37,7 +39,6 @@ pub struct RendererState<'w> {
 
     frame_start: Option<Instant>,
     is_dev: bool,
-    frame_budget: Duration,
 }
 
 impl<'w> RendererState<'w> {
@@ -85,21 +86,13 @@ impl<'w> RendererState<'w> {
             start_time: Instant::now(),
             frame_start: None,
             is_dev: false,
-            frame_budget: DEFAULT_FRAME_BUDGET,
         }
     }
 
-    /// When true, frames that exceed `frame_budget` will panic with a
+    /// When true, frames that exceed `FRAME_BUDGET` will panic with a
     /// developer-shaming message at the end of `end_frame`.
     pub fn set_is_dev(&mut self, is_dev: bool) {
         self.is_dev = is_dev;
-    }
-
-    /// Override the per-frame budget (default: 16.67ms / 60Hz). Embedders that
-    /// can query the actual display refresh rate (e.g. winit's
-    /// `MonitorHandle::refresh_rate_millihertz`) should set this to match.
-    pub fn set_frame_budget(&mut self, budget: Duration) {
-        self.frame_budget = budget;
     }
 
     /// Call to update the screen ppp based on an up-to-date native ppp. This is
@@ -239,12 +232,12 @@ impl<'w> RendererState<'w> {
             return;
         }
         let elapsed = frame_start.elapsed();
-        if elapsed <= self.frame_budget {
+        if elapsed <= FRAME_BUDGET {
             return;
         }
 
         let elapsed_ms = elapsed.as_secs_f64() * 1000.0;
-        let budget_ms = self.frame_budget.as_secs_f64() * 1000.0;
+        let budget_ms = FRAME_BUDGET.as_secs_f64() * 1000.0;
         let overrun_ms = elapsed_ms - budget_ms;
         panic!(
             "\n\

@@ -1,5 +1,3 @@
-static NOOB_FACTOR: f64 = 8.0;
-
 struct App {
     state: Option<AppState>,
     proxy: EventLoopProxy<UserEvent>,
@@ -198,21 +196,7 @@ impl AppState {
 
         self.lb.renderer.raw_input = raw_input;
 
-        // Tell the renderer the actual budget for the display the window is on
-        // so its dev-shame check uses the right number. NOOB_FACTOR widens the
-        // budget for slower-than-real-time development. If the OS doesn't
-        // report a refresh rate, the renderer falls back to its 60Hz default.
-        if let Some(mhz) = self
-            .window
-            .current_monitor()
-            .and_then(|m| m.refresh_rate_millihertz())
-        {
-            let hz = mhz as f64 / 1000.0;
-            let budget = Duration::from_secs_f64(NOOB_FACTOR / hz);
-            self.lb.renderer.set_frame_budget(budget);
-        }
-
-        let Output { platform, viewport, app: lbeguiapp::Response { close, .. } } = self.lb.frame();
+        let Output { platform, viewport, app: lbeguiapp::Response { close } } = self.lb.frame();
 
         if close {
             std::process::exit(0);
@@ -345,7 +329,7 @@ pub fn run() {
 }
 
 use std::sync::Arc;
-use std::time::{Duration, Instant};
+use std::time::Instant;
 
 use egui::{Pos2, ViewportCommand, ViewportId};
 use egui_wgpu_renderer::RendererState;
