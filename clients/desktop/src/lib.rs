@@ -180,7 +180,7 @@ impl ApplicationHandler<UserEvent> for App {
 }
 
 impl AppState {
-    fn render(&mut self, event_loop: &ActiveEventLoop) {
+    fn render(&mut self, _event_loop: &ActiveEventLoop) {
         if self.pending_paste {
             self.pending_paste = false;
             self.handle_image_paste();
@@ -199,8 +199,7 @@ impl AppState {
         let Output { platform, viewport, app: lbeguiapp::Response { close } } = self.lb.frame();
 
         if close {
-            event_loop.exit();
-            return;
+            std::process::exit(0);
         }
 
         self.egui_winit

@@ -175,6 +175,7 @@ impl MdEdit {
                 }
             };
             self.in_progress_selection = Some(self.region_to_range(region));
+            self.pending_scroll = Some(crate::tab::markdown_editor::ScrollTarget::Cursor);
         }
     }
 
@@ -191,6 +192,13 @@ impl MdEdit {
             .unwrap_or(self.renderer.buffer.current.selection)
             .1;
 
+        // expand cursor rect by one row to scroll while drag selecting
+        let pad = if self.in_progress_selection.is_some() {
+            self.renderer.layout.row_height
+        } else {
+            self.renderer.layout.row_spacing / 2.0
+        };
+
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);
         let content = DocScrollContent::for_frame(&self.renderer, root, canvas_rect.height());
@@ -201,6 +209,7 @@ impl MdEdit {
             &self.scroll_area.state,
             (cursor, cursor),
             canvas_rect,
+            pad,
         ) else {
             return;
         };

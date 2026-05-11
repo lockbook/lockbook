@@ -13,6 +13,7 @@ use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::service::events::{self, Actor, Event};
 use lb_rs::{Uuid, spawn};
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
@@ -95,10 +96,14 @@ impl Workspace {
         let writeable_path = writeable_dir.join("ws_persistence.json");
         let files =
             Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")));
-        let images =
-            ImageCache::new(ctx.clone(), HttpClient::default(), core.clone(), Arc::clone(&files));
-
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
+        let images = ImageCache::new(
+            ctx.clone(),
+            HttpClient::default(),
+            core.clone(),
+            Arc::clone(&files),
+            cfg.clone(),
+        );
         ctx.set_zoom_factor(cfg.get_zoom_factor());
         let mut ws = Self {
             tabs: TabCache::new(),
@@ -508,15 +513,13 @@ impl Workspace {
             *self.files.write().unwrap() =
                 FileCache::new(&self.core).expect("failed to refresh file cache");
 
-            // A file appearing/disappearing/renaming changes link resolution
-            // and titles, which the markdown layout cache keys can't see.
             for tab in self.tabs.values_mut() {
                 if let Some(md) = tab.markdown_mut() {
-                    md.edit
-                        .renderer
+                    let renderer = &md.edit.renderer;
+                    renderer
                         .layout_cache
-                        .link_layout_dirty
-                        .store(true, Ordering::Relaxed);
+                        .link_seq
+                        .store(renderer.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
                 }
             }
         }
@@ -746,7 +749,6 @@ impl Workspace {
                                             embeds: Box::new(ImageEmbedResolver::new(
                                                 self.images.clone(),
                                                 id,
-                                                self.cfg.get_markdown().image_dims(&id),
                                             )),
                                         },
                                         MdConfig {
@@ -1065,6 +1067,8 @@ pub struct WsPresistentData {
     auto_sync: bool,
     landing_page: LandingPage,
     zoom_factor: f32,
+    #[serde(default)]
+    image_dims: HashMap<String, [f32; 2]>,
 }
 
 impl Default for WsPresistentData {
@@ -1078,6 +1082,7 @@ impl Default for WsPresistentData {
             markdown: MdPersistence::default(),
             landing_page: LandingPage::default(),
             zoom_factor: 1.,
+            image_dims: HashMap::default(),
         }
     }
 }
@@ -1177,6 +1182,17 @@ impl WsPersistentStore {
     pub fn set_zoom_factor(&mut self, zoom_factor: f32) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.zoom_factor = zoom_factor;
+        self.write_to_file();
+    }
+
+    pub fn image_dims(&self) -> HashMap<String, [f32; 2]> {
+        self.data.read().unwrap().image_dims.clone()
+    }
+
+    pub fn merge_image_dims(&self, new_dims: HashMap<String, [f32; 2]>) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.image_dims.extend(new_dims);
+        drop(data_lock);
         self.write_to_file();
     }
 

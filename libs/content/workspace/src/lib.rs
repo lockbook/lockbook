@@ -5,6 +5,7 @@ pub mod landing;
 pub mod mind_map;
 pub mod output;
 pub mod resolvers;
+pub mod seq;
 pub mod show;
 pub mod space_inspector;
 pub mod tab;

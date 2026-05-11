@@ -3,6 +3,7 @@ use super::operation_types::{InverseOperation, Operation, Replace};
 use super::unicode_segs::UnicodeSegs;
 use super::{diff, unicode_segs};
 use std::ops::Index;
+use unicode_segmentation::UnicodeSegmentation as _;
 use web_time::{Duration, Instant};
 
 /// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
@@ -77,7 +78,7 @@ pub struct Snapshot {
 impl Snapshot {
     fn apply_select(&mut self, range: (Grapheme, Grapheme)) -> Response {
         self.selection = range;
-        Response::default()
+        Response { selection_user_moved: true, ..Response::default() }
     }
 
     fn apply_replace(&mut self, replace: &Replace) -> (Response, Graphemes) {
@@ -170,34 +171,97 @@ impl Ops {
         self.all.len()
     }
 
+    /// Returns the half-open `[start, end)` index range of the frame
+    /// containing `idx` (a frame is a contiguous run of ops sharing
+    /// the same `base`, set by a single `queue` call).
+    fn frame_at(&self, idx: usize) -> (usize, usize) {
+        let base = self.meta[idx].base;
+        let mut start = idx;
+        while start > 0 && self.meta[start - 1].base == base {
+            start -= 1;
+        }
+        let mut end = idx + 1;
+        while end < self.len() && self.meta[end].base == base {
+            end += 1;
+        }
+        (start, end)
+    }
+
+    /// A frame is "typing-shaped" if it represents a single keystroke-
+    /// scale text edit: exactly one `Replace` whose text is at most one
+    /// grapheme (so single-char insertion, backspace from cursor, plain
+    /// `\n`), plus at most one trailing `Select`. Adjacent typing-
+    /// shaped frames within 500ms group into one undo unit.
+    fn frame_is_typing(&self, start: usize, end: usize) -> bool {
+        let mut replaces = 0usize;
+        let mut text_graphemes = 0usize;
+        let mut selects = 0usize;
+        for op in &self.all[start..end] {
+            match op {
+                Operation::Replace(Replace { text, .. }) => {
+                    replaces += 1;
+                    text_graphemes += text.graphemes(true).count();
+                }
+                Operation::Select(_) => selects += 1,
+            }
+        }
+        replaces == 1 && text_graphemes <= 1 && selects <= 1
+    }
+
+    fn frame_has_replace(&self, start: usize, end: usize) -> bool {
+        self.all[start..end]
+            .iter()
+            .any(|op| matches!(op, Operation::Replace(_)))
+    }
+
     fn is_undo_checkpoint(&self, idx: usize) -> bool {
-        // start and end of undo history are checkpoints
-        if idx == 0 {
-            return true;
-        }
-        if idx == self.len() {
+        // boundaries
+        if idx == 0 || idx == self.len() {
             return true;
         }
 
-        // events separated by enough time are checkpoints
-        let meta = &self.meta[idx];
-        let prev_meta = &self.meta[idx - 1];
-        if meta.timestamp - prev_meta.timestamp > Duration::from_millis(500) {
-            return true;
+        // within a single frame, never a checkpoint
+        if self.meta[idx].base == self.meta[idx - 1].base {
+            return false;
         }
 
-        // immediately after a standalone selection is a checkpoint
-        let mut prev_op_standalone = meta.base != prev_meta.base;
-        if idx > 1 {
-            let prev_prev_meta = &self.meta[idx - 2];
-            prev_op_standalone &= prev_meta.base != prev_prev_meta.base;
-        }
-        let prev_op_selection = matches!(&self.all[idx - 1], Operation::Select(..));
-        if prev_op_standalone && prev_op_selection {
-            return true;
+        // current-frame analysis
+        let (curr_start, curr_end) = self.frame_at(idx);
+        if !self.frame_has_replace(curr_start, curr_end) {
+            // select-only frame absorbs into the prev unit
+            return false;
         }
 
-        false
+        // walk back through any select-only frames to find the prev
+        // real frame. Selects absorb backward, so an undo of *this*
+        // unit doesn't revert the cursor placement (click) that came
+        // before it.
+        let mut walk = curr_start;
+        let prev_real = loop {
+            if walk == 0 {
+                break None;
+            }
+            let (s, e) = self.frame_at(walk - 1);
+            if self.frame_has_replace(s, e) {
+                break Some((s, e));
+            }
+            walk = s;
+        };
+
+        // typing-grouping: rapid single-keystroke edits stay in one
+        // unit so a burst of typing undoes together
+        if let Some((prev_start, prev_end)) = prev_real {
+            let curr_typing = self.frame_is_typing(curr_start, curr_end);
+            let prev_typing = self.frame_is_typing(prev_start, prev_end);
+            if curr_typing && prev_typing {
+                let gap = self.meta[curr_start].timestamp - self.meta[prev_end - 1].timestamp;
+                if gap <= Duration::from_millis(500) {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 }
 
@@ -216,6 +280,13 @@ struct External {
 #[derive(Default)]
 pub struct Response {
     pub text_updated: bool,
+    /// True iff the selection was set by an explicit `Select` op or by
+    /// `undo`/`redo` restoring a historical selection. False when the
+    /// selection moved only because a `Replace` op OT-shifted its
+    /// offsets — that's a side effect of editing, not a user navigation.
+    /// Callers use this to gate scroll-to-cursor: programmatic edits
+    /// (e.g. fold-button taps) shouldn't pull the viewport.
+    pub selection_user_moved: bool,
     pub open_camera: bool,
     /// Sequence range of operations applied this frame. Use
     /// `buffer.replacements_since(seq_before)` to get the edits.
@@ -226,6 +297,7 @@ pub struct Response {
 impl std::ops::BitOrAssign for Response {
     fn bitor_assign(&mut self, other: Response) {
         self.text_updated |= other.text_updated;
+        self.selection_user_moved |= other.selection_user_moved;
         self.open_camera |= other.open_camera;
         // keep the earliest seq_before and latest seq_after
         if self.seq_before == self.seq_after {
@@ -1016,5 +1088,289 @@ mod test {
             full_sync(&mut nodes, &mut links);
             assert_converged(&nodes);
         }
+    }
+}
+
+#[cfg(test)]
+mod undo_unit_tests {
+    //! Unit-grouping behavior of `undo`. Each `frame` call simulates
+    //! one `queue() + update()` (one editor frame). After a sequence
+    //! of frames we count how many `undo()` calls it takes to reach a
+    //! given state — that count *is* the number of undo units.
+
+    use super::Buffer;
+    use crate::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
+    use crate::model::text::operation_types::{Operation, Replace};
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    fn frame(buf: &mut Buffer, ops: Vec<Operation>) {
+        buf.queue(ops);
+        buf.update();
+    }
+
+    fn type_str(buf: &mut Buffer, s: &str) {
+        let cursor = buf.current.selection.start();
+        // Select is at the pre-insert cursor; OT advances it to the
+        // end of the inserted text via `prefer_advance`.
+        frame(
+            buf,
+            vec![
+                Operation::Replace(Replace { range: cursor.into_range(), text: s.into() }),
+                Operation::Select(cursor.into_range()),
+            ],
+        );
+    }
+
+    /// Plain Enter at cursor — single `\n` Replace, like the editor
+    /// produces when no auto-prefix kicks in.
+    fn enter(buf: &mut Buffer) {
+        type_str(buf, "\n");
+    }
+
+    fn backspace(buf: &mut Buffer) {
+        let cursor = buf.current.selection.start();
+        if cursor.0 == 0 {
+            return;
+        }
+        let prev = Grapheme(cursor.0 - 1);
+        frame(
+            buf,
+            vec![
+                Operation::Replace(Replace { range: (prev, cursor), text: "".into() }),
+                Operation::Select(prev.into_range()),
+            ],
+        );
+    }
+
+    fn click(buf: &mut Buffer, pos: usize) {
+        frame(buf, vec![Operation::Select(Grapheme(pos).into_range())]);
+    }
+
+    /// Multi-Replace frame, the shape produced by tab/shift-tab
+    /// cascades — explicitly not typing-shaped.
+    fn cmd_indent_lines(buf: &mut Buffer, line_starts: &[usize]) {
+        let mut ops: Vec<Operation> = line_starts
+            .iter()
+            .map(|&s| {
+                Operation::Replace(Replace { range: Grapheme(s).into_range(), text: "  ".into() })
+            })
+            .collect();
+        ops.push(Operation::Select(Grapheme(line_starts[0] + 2).into_range()));
+        frame(buf, ops);
+    }
+
+    fn cmd_deindent_lines(buf: &mut Buffer, line_starts: &[usize]) {
+        let mut ops: Vec<Operation> = line_starts
+            .iter()
+            .map(|&s| {
+                Operation::Replace(Replace {
+                    range: (Grapheme(s), Grapheme(s + 2)),
+                    text: "".into(),
+                })
+            })
+            .collect();
+        ops.push(Operation::Select(Grapheme(line_starts[0]).into_range()));
+        frame(buf, ops);
+    }
+
+    // ─── A: single command undoes in one step ──────────────────────
+    #[test]
+    fn single_command_one_unit() {
+        let mut buf = Buffer::from("ab\ncd\nef\n");
+        cmd_indent_lines(&mut buf, &[0, 3, 6]);
+        assert_eq!(buf.current.text, "  ab\n  cd\n  ef\n");
+        buf.undo();
+        assert_eq!(buf.current.text, "ab\ncd\nef\n");
+    }
+
+    // ─── B: two commands undo independently ────────────────────────
+    #[test]
+    fn two_commands_two_units() {
+        let mut buf = Buffer::from("ab\ncd\nef\n");
+        cmd_indent_lines(&mut buf, &[0, 3, 6]);
+        cmd_indent_lines(&mut buf, &[2, 7, 12]);
+        let after_two = buf.current.text.clone();
+        buf.undo();
+        assert_ne!(buf.current.text, after_two);
+        let after_one_undo = buf.current.text.clone();
+        assert_eq!(after_one_undo, "  ab\n  cd\n  ef\n");
+        buf.undo();
+        assert_eq!(buf.current.text, "ab\ncd\nef\n");
+    }
+
+    // ─── C: click only doesn't form an undoable unit ───────────────
+    #[test]
+    fn click_only_doesnt_create_unit() {
+        let mut buf = Buffer::from("hello");
+        click(&mut buf, 3);
+        // No real edits ever — undo() can technically undo the
+        // selection move, but that's the only thing in history.
+        // Important: it doesn't create a checkpoint that would block
+        // a subsequent edit's undo from reaching past it.
+        type_str(&mut buf, "X");
+        assert_eq!(buf.current.text, "helXlo");
+        buf.undo();
+        assert_eq!(buf.current.text, "hello");
+    }
+
+    // ─── D: click between two commands, click absorbs ──────────────
+    #[test]
+    fn click_between_commands_absorbs() {
+        let mut buf = Buffer::from("ab\ncd\nef\n");
+        cmd_indent_lines(&mut buf, &[0, 3, 6]);
+        click(&mut buf, 0);
+        cmd_indent_lines(&mut buf, &[2, 7, 12]);
+        buf.undo();
+        assert_eq!(buf.current.text, "  ab\n  cd\n  ef\n");
+        buf.undo();
+        assert_eq!(buf.current.text, "ab\ncd\nef\n");
+    }
+
+    // ─── E: rapid typing groups into one unit ──────────────────────
+    #[test]
+    fn rapid_typing_one_unit() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        type_str(&mut buf, "c");
+        assert_eq!(buf.current.text, "abc");
+        buf.undo();
+        assert_eq!(buf.current.text, "");
+    }
+
+    // ─── F: typing with a long pause splits at the gap ─────────────
+    #[test]
+    fn typing_long_pause_splits() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        sleep(Duration::from_millis(600));
+        type_str(&mut buf, "c");
+        type_str(&mut buf, "d");
+        assert_eq!(buf.current.text, "abcd");
+        buf.undo();
+        assert_eq!(buf.current.text, "ab");
+        buf.undo();
+        assert_eq!(buf.current.text, "");
+    }
+
+    // ─── G: type / cmd / type → 3 units ────────────────────────────
+    #[test]
+    fn type_cmd_type_three_units() {
+        let mut buf = Buffer::from("xx\nyy\n");
+        // pre-position cursor at end so type_str appends after the doc
+        buf.current.selection = (Grapheme(6), Grapheme(6));
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        cmd_indent_lines(&mut buf, &[0, 3]);
+        type_str(&mut buf, "c");
+        type_str(&mut buf, "d");
+        let final_text = buf.current.text.clone();
+        buf.undo();
+        assert_ne!(buf.current.text, final_text); // typing 'cd' undone
+        assert_eq!(buf.current.text, "  xx\n  yy\nab");
+        buf.undo();
+        assert_eq!(buf.current.text, "xx\nyy\nab"); // cmd undone
+        buf.undo();
+        assert_eq!(buf.current.text, "xx\nyy\n"); // typing 'ab' undone
+    }
+
+    // ─── H: type / Enter / type → 1 unit (plain Enter is "\n") ─────
+    #[test]
+    fn type_enter_type_one_unit() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        enter(&mut buf);
+        type_str(&mut buf, "c");
+        type_str(&mut buf, "d");
+        assert_eq!(buf.current.text, "ab\ncd");
+        buf.undo();
+        assert_eq!(buf.current.text, "");
+    }
+
+    // ─── I: backspace counts as typing ─────────────────────────────
+    #[test]
+    fn backspace_groups_with_typing() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        backspace(&mut buf);
+        type_str(&mut buf, "c");
+        assert_eq!(buf.current.text, "ac");
+        buf.undo();
+        assert_eq!(buf.current.text, "");
+    }
+
+    // ─── J: paste (>1 grapheme insert) is its own unit ─────────────
+    #[test]
+    fn paste_own_unit() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        // paste = single Replace with multi-grapheme text
+        type_str(&mut buf, "PASTED");
+        type_str(&mut buf, "c");
+        type_str(&mut buf, "d");
+        assert_eq!(buf.current.text, "abPASTEDcd");
+        buf.undo();
+        assert_eq!(buf.current.text, "abPASTED"); // 'cd' undone
+        buf.undo();
+        assert_eq!(buf.current.text, "ab"); // PASTE undone
+        buf.undo();
+        assert_eq!(buf.current.text, ""); // 'ab' undone
+    }
+
+    // ─── K: select-then-overwrite-with-1-char groups with typing ───
+    #[test]
+    fn select_overwrite_groups() {
+        let mut buf = Buffer::from("hello");
+        // simulate user selecting "ell" and typing "X" → one frame
+        // with one Replace of 3-char range with 1-char text
+        buf.current.selection = (Grapheme(1), Grapheme(4));
+        frame(
+            &mut buf,
+            vec![
+                Operation::Replace(Replace { range: (Grapheme(1), Grapheme(4)), text: "X".into() }),
+                Operation::Select(Grapheme(2).into_range()),
+            ],
+        );
+        type_str(&mut buf, "Y");
+        assert_eq!(buf.current.text, "hXYo");
+        buf.undo();
+        assert_eq!(buf.current.text, "hello");
+    }
+
+    // ─── selects absorb backward, not forward — undoing the next
+    //     unit doesn't drag the cursor back across the click and
+    //     scroll the viewport
+    #[test]
+    fn click_then_edit_undoes_to_post_click_cursor() {
+        let mut buf = Buffer::from("hello world");
+        click(&mut buf, 6); // cursor between "hello " and "world"
+        type_str(&mut buf, "X");
+        assert_eq!(buf.current.text, "hello Xworld");
+        buf.undo();
+        assert_eq!(buf.current.text, "hello world");
+        // Cursor stays at the click position, not at wherever the
+        // buffer's initial cursor was before the click.
+        assert_eq!(buf.current.selection, (Grapheme(6), Grapheme(6)));
+    }
+
+    // ─── round-trip repro: shift-tab then tab undoes as 2 units ────
+    #[test]
+    fn round_trip_two_units() {
+        let mut buf = Buffer::from("  foo\n  bar\n");
+        click(&mut buf, 2);
+        cmd_deindent_lines(&mut buf, &[0, 6]);
+        let mid = buf.current.text.clone();
+        assert_eq!(mid, "foo\nbar\n");
+        cmd_indent_lines(&mut buf, &[0, 4]);
+        assert_eq!(buf.current.text, "  foo\n  bar\n");
+        buf.undo();
+        assert_eq!(buf.current.text, mid); // tab reverted
+        buf.undo();
+        assert_eq!(buf.current.text, "  foo\n  bar\n"); // shift-tab reverted
     }
 }
