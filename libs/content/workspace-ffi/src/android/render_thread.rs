@@ -14,9 +14,9 @@ pub struct RenderThread {
 }
 
 impl RenderThread {
-    pub fn spawn(mut backend: RenderBackend<'static>) -> Self {
+    pub fn spawn(context: egui::Context, mut backend: RenderBackend<'static>) -> Self {
         let (tx, rx) = mpsc::channel();
-        let join_handle = thread::spawn(move || run_render_loop(&mut backend, rx));
+        let join_handle = thread::spawn(move || run_render_loop(&context, &mut backend, rx));
 
         Self { tx: Some(tx), join_handle: Some(join_handle) }
     }
@@ -36,26 +36,22 @@ impl Drop for RenderThread {
     }
 }
 
-fn run_render_loop(backend: &mut RenderBackend<'_>, rx: Receiver<RenderRequest>) {
-    while let Ok(mut request) = rx.recv() {
-        let mut queued_texture_sets = std::mem::take(&mut request.prepared.textures_delta.set);
-        let mut queued_texture_frees = std::mem::take(&mut request.prepared.textures_delta.free);
-
-        while let Ok(next_request) = rx.try_recv() {
-            queued_texture_sets.append(&mut request.prepared.textures_delta.set);
-            queued_texture_frees.append(&mut request.prepared.textures_delta.free);
-            request = next_request;
+fn run_render_loop(
+    context: &egui::Context, backend: &mut RenderBackend<'_>, rx: Receiver<RenderRequest>,
+) {
+    while let Ok(mut latest) = rx.recv() {
+        let mut merged_textures = std::mem::take(&mut latest.prepared.textures_delta);
+        for mut next in rx.try_iter() {
+            merged_textures.append(std::mem::take(&mut next.prepared.textures_delta));
+            latest = next;
         }
-
-        queued_texture_sets.append(&mut request.prepared.textures_delta.set);
-        queued_texture_frees.append(&mut request.prepared.textures_delta.free);
-        request.prepared.textures_delta.set = queued_texture_sets;
-        request.prepared.textures_delta.free = queued_texture_frees;
+        latest.prepared.textures_delta = merged_textures;
 
         backend.render_prepared_frame(
-            request.prepared,
-            request.size_in_pixels,
-            request.pixels_per_point,
+            context,
+            latest.prepared,
+            latest.size_in_pixels,
+            latest.pixels_per_point,
         );
     }
 }

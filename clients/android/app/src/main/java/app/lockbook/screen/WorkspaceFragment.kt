@@ -472,7 +472,7 @@ class WorkspaceFragment : Fragment() {
 
         binding.closeAllTabs.setOnClickListener {
             workspaceWrapper.workspaceView.closeAllTabs()
-            workspaceWrapper.workspaceView.drawImmediately()
+            workspaceWrapper.workspaceView.invalidate()
             model._tabListExpanded.postValue(false)
             activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
         }
@@ -753,7 +753,7 @@ class WorkspaceTextInputWrapper(context: Context, val workspaceView: WorkspaceVi
             if (bytes != null) {
                 withContext(Dispatchers.Main){
                     Workspace.clipboardSendImage(WorkspaceView.WGPU_OBJ, bytes, true)
-                    workspaceView.drawImmediately()
+                    workspaceView.invalidate()
                 }
             } else {
                 Toast

@@ -106,9 +106,8 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
             propagateFlick = true
 
-            pendingDx =- distanceX
-            pendingDx =- distanceY
-            drawImmediately()
+            pendingDx -= distanceX
+            pendingDy -= distanceY
             return true
         }
 
@@ -141,7 +140,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                     lastY = scroller.currY
                     pendingDx += dx
                     pendingDy += dy
-                    drawImmediately()
+                    invalidate()
                     choreographer.postFrameCallback(::tick)
                 }
             }
@@ -172,7 +171,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             pendingZoom *=  detector.scaleFactor
             pendingFocusX = detector.focusX
             pendingFocusY = detector.focusY
-            drawImmediately()
             return true
         }
 
@@ -231,7 +229,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                         event.getX(event.actionIndex) / density,
                         event.getY(event.actionIndex) / density,
                     )
-                    drawImmediately()
+                    invalidate()
                 }
             }
             return true
@@ -289,7 +287,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
                 inset,
             )
         }
-        drawImmediately()
+        invalidate()
     }
 
     fun drawWorkspace() {
@@ -404,7 +402,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
         Workspace.createDocAt(WGPU_OBJ, payload.first, payload.second)
 
-        drawImmediately()
+        invalidate()
     }
 
     fun cancelTouches(event: MotionEvent) {
@@ -491,7 +489,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             }
         }
 
-        drawImmediately()
+        invalidate()
     }
 
     private fun getEventPressure(event: MotionEvent, actionIndex: Int): Float {
@@ -515,7 +513,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         Workspace.openDoc(WGPU_OBJ, id, newFile)
-        drawImmediately()
+        invalidate()
 
         return
     }
@@ -527,7 +525,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         val didNavigate = Workspace.back(WGPU_OBJ)
         if (didNavigate) {
-            drawImmediately()
+            invalidate()
         }
 
         return didNavigate
@@ -540,7 +538,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
         val didNavigate = Workspace.forward(WGPU_OBJ)
         if (didNavigate) {
-            drawImmediately()
+            invalidate()
         }
 
         return didNavigate
@@ -576,7 +574,7 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         Workspace.closeDoc(WGPU_OBJ, id)
-        drawImmediately()
+        invalidate()
     }
 
     fun closeAllTabs() {

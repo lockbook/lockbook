@@ -730,19 +730,16 @@ fn j_usage_item_metric<'local>(
 ) -> JObject<'local> {
     let Some(metric) = metric else { return JObject::null() };
 
-    let usage_item_class = env.find_class("net/lockbook/Usage$UsageItemMetric").unwrap();
+    let usage_item_class = env
+        .find_class("net/lockbook/Usage$UsageItemMetric")
+        .unwrap();
     let obj = env.alloc_object(usage_item_class).unwrap();
 
     env.set_field(&obj, "exact", "J", JValue::Long(metric.exact as jlong))
         .unwrap();
     let readable = jni_string(env, metric.readable);
-    env.set_field(
-        &obj,
-        "readable",
-        "Ljava/lang/String;",
-        JValue::Object(&readable),
-    )
-    .unwrap();
+    env.set_field(&obj, "readable", "Ljava/lang/String;", JValue::Object(&readable))
+        .unwrap();
 
     obj
 }
@@ -807,47 +804,22 @@ fn j_status<'local>(
         .unwrap();
     env.set_field(&obj, "outOfSpace", "Z", JValue::Bool(status.out_of_space.into()))
         .unwrap();
-    env.set_field(
-        &obj,
-        "pendingShares",
-        "Z",
-        JValue::Bool(status.pending_shares.into()),
-    )
-    .unwrap();
-    env.set_field(
-        &obj,
-        "updateRequired",
-        "Z",
-        JValue::Bool(status.update_required.into()),
-    )
-    .unwrap();
+    env.set_field(&obj, "pendingShares", "Z", JValue::Bool(status.pending_shares.into()))
+        .unwrap();
+    env.set_field(&obj, "updateRequired", "Z", JValue::Bool(status.update_required.into()))
+        .unwrap();
 
     let pushing_files = juuid_vec_to_string_array(env, status.pushing_files);
-    env.set_field(
-        &obj,
-        "pushingFiles",
-        "[Ljava/lang/String;",
-        JValue::Object(&pushing_files),
-    )
-    .unwrap();
+    env.set_field(&obj, "pushingFiles", "[Ljava/lang/String;", JValue::Object(&pushing_files))
+        .unwrap();
 
     let dirty_locally = juuid_vec_to_string_array(env, status.dirty_locally);
-    env.set_field(
-        &obj,
-        "dirtyLocally",
-        "[Ljava/lang/String;",
-        JValue::Object(&dirty_locally),
-    )
-    .unwrap();
+    env.set_field(&obj, "dirtyLocally", "[Ljava/lang/String;", JValue::Object(&dirty_locally))
+        .unwrap();
 
     let pulling_files = juuid_vec_to_string_array(env, status.pulling_files);
-    env.set_field(
-        &obj,
-        "pullingFiles",
-        "[Ljava/lang/String;",
-        JValue::Object(&pulling_files),
-    )
-    .unwrap();
+    env.set_field(&obj, "pullingFiles", "[Ljava/lang/String;", JValue::Object(&pulling_files))
+        .unwrap();
 
     let space_used = j_usage(env, status.space_used);
     env.set_field(&obj, "spaceUsed", "Lnet/lockbook/Usage;", JValue::Object(&space_used))
@@ -857,13 +829,8 @@ fn j_status<'local>(
         Some(sync_status) => JObject::from(jni_string(env, sync_status)),
         None => JObject::null(),
     };
-    env.set_field(
-        &obj,
-        "syncStatus",
-        "Ljava/lang/String;",
-        JValue::Object(&sync_status),
-    )
-    .unwrap();
+    env.set_field(&obj, "syncStatus", "Ljava/lang/String;", JValue::Object(&sync_status))
+        .unwrap();
 
     let unexpected_sync_problem = match status.unexpected_sync_problem {
         Some(problem) => JObject::from(jni_string(env, problem)),

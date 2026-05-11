@@ -644,7 +644,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
     mut env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint, text: JString,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    let queued_at = Instant::now();
 
     let text: String = match env.get_string(&text) {
         Ok(cont) => cont.into(),

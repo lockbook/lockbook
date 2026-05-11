@@ -1,6 +1,6 @@
 use std::{iter, time::Instant};
 
-use egui::epaint::ClippedPrimitive;
+use egui::epaint::{ClippedPrimitive, ClippedShape};
 use egui::{PlatformOutput, TexturesDelta, ViewportIdMap, ViewportOutput};
 use egui_wgpu::{Renderer, ScreenDescriptor};
 use raw_window_handle::{HasDisplayHandle, HasWindowHandle};
@@ -17,6 +17,8 @@ pub struct RendererState<'w> {
     pub raw_input: egui::RawInput,
     pub screen: ScreenDescriptor,
     pub bottom_inset: Option<u32>,
+    // android has a render thread that needs to take ownership of the backend,
+    // so the backend is an option that can be taken and set back
     backend: Option<RenderBackend<'w>>,
 
     start_time: Instant,
@@ -26,7 +28,8 @@ pub struct PreparedFrame {
     pub platform_output: PlatformOutput,
     pub viewport_output: ViewportIdMap<ViewportOutput>,
     pub textures_delta: TexturesDelta,
-    pub paint_jobs: Vec<ClippedPrimitive>,
+    pub shapes: Vec<ClippedShape>,
+    pub pixels_per_point: f32,
 }
 
 pub struct RenderBackend<'w> {
@@ -38,6 +41,13 @@ pub struct RenderBackend<'w> {
     pub sample_count: u32,
     surface_width: u32,
     surface_height: u32,
+    msaa_texture: Option<wgpu::Texture>,
+    msaa_view: Option<wgpu::TextureView>,
+    msaa_width: u32,
+    msaa_height: u32,
+    msaa_format: Option<TextureFormat>,
+    msaa_mip_level_count: u32,
+    msaa_dimension: Option<wgpu::TextureDimension>,
 }
 
 impl<'w> RendererState<'w> {
@@ -69,6 +79,13 @@ impl<'w> RendererState<'w> {
                 sample_count: 4,
                 surface_width: 0,
                 surface_height: 0,
+                msaa_texture: None,
+                msaa_view: None,
+                msaa_width: 0,
+                msaa_height: 0,
+                msaa_format: None,
+                msaa_mip_level_count: 0,
+                msaa_dimension: None,
             }),
             bottom_inset: None,
             context: Default::default(),
@@ -128,19 +145,12 @@ impl<'w> RendererState<'w> {
         // self.screen for tesselation & render.
         self.screen.pixels_per_point = full_output.pixels_per_point;
 
-        self.context.tessellation_options_mut(|w| {
-            w.feathering = false;
-        });
-
-        let paint_jobs = self
-            .context
-            .tessellate(full_output.shapes, full_output.pixels_per_point);
-
         PreparedFrame {
             platform_output: full_output.platform_output,
             viewport_output: full_output.viewport_output,
             textures_delta: full_output.textures_delta,
-            paint_jobs,
+            shapes: full_output.shapes,
+            pixels_per_point: full_output.pixels_per_point,
         }
     }
 
@@ -155,8 +165,13 @@ impl<'w> RendererState<'w> {
     pub fn render_prepared_frame(&mut self, prepared: PreparedFrame) {
         let size_in_pixels = self.screen.size_in_pixels;
         let pixels_per_point = self.screen.pixels_per_point;
-        self.backend_mut()
-            .render_prepared_frame(prepared, size_in_pixels, pixels_per_point);
+        let context = self.context.clone();
+        self.backend_mut().render_prepared_frame(
+            &context,
+            prepared,
+            size_in_pixels,
+            pixels_per_point,
+        );
     }
 
     pub fn backend(&self) -> &RenderBackend<'w> {
@@ -167,12 +182,9 @@ impl<'w> RendererState<'w> {
         self.backend.as_mut().expect("renderer backend unavailable")
     }
 
+    /// used be android to transfer the backend to a render thread
     pub fn take_backend(&mut self) -> RenderBackend<'w> {
         self.backend.take().expect("renderer backend unavailable")
-    }
-
-    pub fn set_backend(&mut self, backend: RenderBackend<'w>) {
-        self.backend = Some(backend);
     }
 
     /// inspired by egui_wgpu::RenderState
@@ -238,11 +250,51 @@ impl<'w> RendererState<'w> {
 }
 
 impl<'w> RenderBackend<'w> {
+    // optimization to only create a new msaa texture when the output texture changes size or format, since creating a texture is expensive
+    fn ensure_msaa_view(&mut self, output_texture: &wgpu::Texture) {
+        let size = output_texture.size();
+        let format = output_texture.format();
+        let mip_level_count = output_texture.mip_level_count();
+        let dimension = output_texture.dimension();
+
+        let needs_recreate = self.msaa_texture.is_none()
+            || self.msaa_view.is_none()
+            || self.msaa_width != size.width
+            || self.msaa_height != size.height
+            || self.msaa_format != Some(format)
+            || self.msaa_mip_level_count != mip_level_count
+            || self.msaa_dimension != Some(dimension);
+
+        if needs_recreate {
+            let msaa_texture = self.device.create_texture(&TextureDescriptor {
+                label: Some("msaa_texture"),
+                size,
+                mip_level_count,
+                sample_count: self.sample_count,
+                dimension,
+                format,
+                usage: TextureUsages::RENDER_ATTACHMENT,
+                view_formats: &[],
+            });
+            let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+            self.msaa_width = size.width;
+            self.msaa_height = size.height;
+            self.msaa_format = Some(format);
+            self.msaa_mip_level_count = mip_level_count;
+            self.msaa_dimension = Some(dimension);
+            self.msaa_texture = Some(msaa_texture);
+            self.msaa_view = Some(msaa_view);
+        }
+    }
+
     pub fn render_prepared_frame(
-        &mut self, prepared: PreparedFrame, size_in_pixels: [u32; 2], pixels_per_point: f32,
+        &mut self, context: &egui::Context, prepared: PreparedFrame, size_in_pixels: [u32; 2],
+        pixels_per_point: f32,
     ) {
         let screen = ScreenDescriptor { size_in_pixels, pixels_per_point };
         self.configure_surface(size_in_pixels);
+        let paint_jobs = tessellate(context, prepared.shapes, prepared.pixels_per_point);
 
         let output_frame = match self.surface.get_current_texture() {
             Ok(frame) => frame,
@@ -262,19 +314,7 @@ impl<'w> RenderBackend<'w> {
         let output_view = output_frame
             .texture
             .create_view(&wgpu::TextureViewDescriptor::default());
-
-        let msaa_texture = self.device.create_texture(&TextureDescriptor {
-            label: Some("msaa_texture"),
-            size: output_frame.texture.size(),
-            mip_level_count: output_frame.texture.mip_level_count(),
-            sample_count: self.sample_count,
-            dimension: output_frame.texture.dimension(),
-            format: output_frame.texture.format(),
-            usage: TextureUsages::RENDER_ATTACHMENT,
-            view_formats: &[],
-        });
-
-        let msaa_view = msaa_texture.create_view(&wgpu::TextureViewDescriptor::default());
+        self.ensure_msaa_view(&output_frame.texture);
         let mut encoder = self
             .device
             .create_command_encoder(&wgpu::CommandEncoderDescriptor { label: Some("encoder") });
@@ -283,20 +323,16 @@ impl<'w> RenderBackend<'w> {
             self.renderer
                 .update_texture(&self.device, &self.queue, *id, image_delta);
         }
-        self.renderer.update_buffers(
-            &self.device,
-            &self.queue,
-            &mut encoder,
-            &prepared.paint_jobs,
-            &screen,
-        );
+        self.renderer
+            .update_buffers(&self.device, &self.queue, &mut encoder, &paint_jobs, &screen);
 
         // Record all render passes.
         {
+            let msaa_view = self.msaa_view.as_ref().expect("msaa view should exist");
             let pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
                 label: Some("egui_pass"),
                 color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                    view: &msaa_view,
+                    view: msaa_view,
                     resolve_target: Some(&output_view),
                     ops: wgpu::Operations {
                         load: wgpu::LoadOp::Clear(wgpu::Color::TRANSPARENT),
@@ -309,7 +345,7 @@ impl<'w> RenderBackend<'w> {
             });
 
             self.renderer
-                .render(&mut pass.forget_lifetime(), &prepared.paint_jobs, &screen);
+                .render(&mut pass.forget_lifetime(), &paint_jobs, &screen);
         }
 
         // Submit the commands.
@@ -336,11 +372,28 @@ impl<'w> RenderBackend<'w> {
                 present_mode: wgpu::PresentMode::Fifo,
                 alpha_mode: RendererState::text_alpha(&self.adapter, &self.surface),
                 view_formats: vec![],
-                desired_maximum_frame_latency: 1,
+                desired_maximum_frame_latency: 2,
             };
             self.surface.configure(&self.device, &surface_config);
             self.surface_width = size_in_pixels[0];
             self.surface_height = size_in_pixels[1];
+            self.msaa_texture = None;
+            self.msaa_view = None;
+            self.msaa_width = 0;
+            self.msaa_height = 0;
+            self.msaa_format = None;
+            self.msaa_mip_level_count = 0;
+            self.msaa_dimension = None;
         }
     }
+}
+
+fn tessellate(
+    context: &egui::Context, shapes: Vec<ClippedShape>, pixels_per_point: f32,
+) -> Vec<ClippedPrimitive> {
+    context.tessellation_options_mut(|options| {
+        options.feathering = false;
+    });
+
+    context.tessellate(shapes, pixels_per_point)
 }

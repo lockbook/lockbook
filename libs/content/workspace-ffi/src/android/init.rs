@@ -118,8 +118,11 @@ unsafe fn init_ws(
     renderer.context.set_fonts(fonts);
     egui_extras::install_image_loaders(&renderer.context);
 
-    let render_thread =
-        if offloaded { Some(RenderThread::spawn(renderer.take_backend())) } else { None };
+    let render_thread = if offloaded {
+        Some(RenderThread::spawn(renderer.context.clone(), renderer.take_backend()))
+    } else {
+        None
+    };
     let obj = WgpuWorkspace { workspace, renderer, render_thread };
 
     Box::into_raw(Box::new(obj)) as jlong
