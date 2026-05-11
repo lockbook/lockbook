@@ -609,7 +609,7 @@ impl<'ast> Editor {
                             // menu labels: force blue links + plain image-link text
                             let link_resolver =
                                 mem::replace(&mut self.edit.renderer.link_resolver, Box::new(()));
-                            self.edit.renderer.render_images_as_text = true;
+                            self.edit.renderer.disable_images = true;
 
                             self.edit.renderer.layout_cache.clear();
 
@@ -1052,7 +1052,7 @@ impl<'ast> Editor {
                             self.edit.renderer.touch_consuming_rects = touch_consuming_rects;
 
                             self.edit.renderer.link_resolver = link_resolver;
-                            self.edit.renderer.render_images_as_text = false;
+                            self.edit.renderer.disable_images = false;
                         });
                 });
             });

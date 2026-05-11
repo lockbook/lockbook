@@ -93,6 +93,7 @@ impl eframe::App for LbWebApp {
                         HttpClient::default(),
                         self.core.clone(),
                         Arc::clone(&files),
+                        self.cfg.clone(),
                     );
                     self.images = Some(images.clone());
                     self.editor = Some(Editor::new(
@@ -105,11 +106,7 @@ impl eframe::App for LbWebApp {
                             persistence: self.cfg.clone(),
                             files,
                             link_resolver: Box::new(()),
-                            embeds: Box::new(ImageEmbedResolver::new(
-                                images,
-                                file_id,
-                                Default::default(),
-                            )),
+                            embeds: Box::new(ImageEmbedResolver::new(images, file_id)),
                         },
                         MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: true },
                     ));

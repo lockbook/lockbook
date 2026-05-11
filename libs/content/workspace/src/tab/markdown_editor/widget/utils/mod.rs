@@ -1,20 +1,27 @@
+//! Indent math. Two units that diverge once tabs are involved:
+//! **graphemes** for slicing source, **columns** for nesting depth
+//! (CommonMark §2.2: tabs in indent positions act like spaces to
+//! the next 4-col stop). Structural prefix helpers live in
+//! [`super::block::container`].
+
 use comrak::nodes::{AstNode, NodeValue};
-use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _, RangeIterExt};
+use lb_rs::model::text::buffer::Buffer;
+use lb_rs::model::text::offset_types::{Byte, Grapheme, Graphemes, RangeExt as _, RangeIterExt};
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 
 pub(crate) mod wrap_layout;
 
-/// Consume leading whitespace from `text` until the column position reaches
-/// `target_columns`, returning the number of graphemes consumed. Per
-/// CommonMark/GFM §2.2, tabs in indent positions act as if expanded to
-/// spaces with a tab stop of 4 columns (so a tab at column 0 = 4 spaces, at
-/// column 1 = 3 spaces, etc.). Tabs are atomic — consumed wholesale even if
-/// they advance past `target_columns` (you can't strip half a tab from
-/// source). Used by container-block prefix-stripping (list items, task
-/// items, blockquotes) where the parent owns the leading indent and the
-/// renderer needs to skip it before showing the line content.
+/// Consume leading whitespace up to `target_columns` columns,
+/// returning graphemes consumed. A tab is atomic: if its column span
+/// would exceed `target_columns`, it's refused.
+///
+/// `target_columns = usize::MAX` claims all leading whitespace as
+/// one unit (so a tab straddling a nested-block boundary stays with
+/// the outermost block). Editing ops needing per-level granularity
+/// should use [`leading_indent_cols`] +
+/// `MdRender::deindent_level_cols`.
 pub fn consume_indent_columns(text: &str, target_columns: usize) -> usize {
     let mut cols = 0;
     let mut graphemes = 0;
@@ -44,6 +51,36 @@ pub fn consume_indent_columns(text: &str, target_columns: usize) -> usize {
         }
     }
     graphemes
+}
+
+/// Grapheme range of the leading ` ` / `\t` run. Lexical, not
+/// structural — see [`consume_indent_columns`] for why ownership
+/// is ambiguous.
+pub fn leading_indent_range(buffer: &Buffer, line: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
+    let text = &buffer[line];
+    let mut graphemes = 0usize;
+    for c in text.chars() {
+        if c == ' ' || c == '\t' {
+            graphemes += 1;
+        } else {
+            break;
+        }
+    }
+    (line.start(), line.start() + Graphemes(graphemes))
+}
+
+/// Column count of leading whitespace, expanding tabs to 4-col
+/// stops.
+pub fn leading_indent_cols(text: &str) -> usize {
+    let mut cols = 0;
+    for c in text.chars() {
+        match c {
+            ' ' => cols += 1,
+            '\t' => cols = (cols / 4 + 1) * 4,
+            _ => break,
+        }
+    }
+    cols
 }
 
 impl<'ast> MdRender {

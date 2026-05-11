@@ -112,23 +112,23 @@ impl MdEdit {
         buf_resp |= self.renderer.buffer.update();
 
         if buf_resp.text_updated {
-            self.renderer.layout_cache.invalidate_text_change();
+            self.renderer.bump_text_seq();
             // reparse to refresh bounds; the new root isn't needed here —
-            // `show` re-parses for rendering.
+            // `show` re-parses for rendering. `reparse` also wipes the
+            // layout cache via `ensure_text_consistent`.
             self.renderer.reparse(&arena);
         }
 
-        // Populate reveal_ranges with the current selection. The caller may
-        // append additional ranges (e.g. Editor appends the find-match range)
-        // after this returns and before `show` — those append-only additions
-        // survive into render. `show` itself doesn't touch reveal_ranges.
-        self.renderer.reveal_ranges.clear();
-        if !self.renderer.readonly && ctx.memory(|m| m.has_focus(id)) {
-            self.renderer
-                .reveal_ranges
-                .push(self.renderer.buffer.current.selection);
+        let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
+            .then_some(self.renderer.buffer.current.selection);
+        if self.renderer.reveal_selection != new_reveal_selection {
+            self.renderer.reveal_selection = new_reveal_selection;
+            self.renderer.reveal_seq = self
+                .renderer
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
-        self.renderer.text_highlight_range = self
+        self.renderer.search_range = self
             .emoji_completions
             .search_term_range
             .or(self.link_completions.search_term_range);
@@ -289,6 +289,7 @@ impl MdEdit {
                 } else if response.dragged() && modifiers.shift {
                     self.in_progress_selection =
                         Some(self.region_to_range(Region::ToLocation(location)));
+                    self.pending_scroll = Some(ScrollTarget::Cursor);
                     None
                 } else if response.dragged() {
                     if response.drag_started() {
@@ -303,6 +304,7 @@ impl MdEdit {
                     if let Some(sel) = &mut self.in_progress_selection {
                         sel.1 = offset;
                     }
+                    self.pending_scroll = Some(ScrollTarget::Cursor);
                     None
                 } else {
                     None
@@ -418,7 +420,7 @@ impl MdEdit {
     /// memoized by `LayoutCache`, so the subsequent `show` re-uses the
     /// cached work.
     pub fn measure_height(&mut self, width: f32) -> f32 {
-        self.renderer.width = width;
+        self.renderer.set_width(width);
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         self.renderer.height(root)
@@ -441,7 +443,7 @@ impl MdEdit {
     /// `true`.
     pub fn clear(&mut self) {
         self.renderer.buffer = Buffer::from("");
-        self.renderer.layout_cache.invalidate_text_change();
+        self.renderer.bump_text_seq();
         self.in_progress_selection = None;
         self.event.internal_events.clear();
     }

@@ -1,3 +1,8 @@
+//! Container blocks (lists, items, blockquotes, alerts) and per-
+//! line prefix math. Prefixes are graphemes (`line_own_prefix`,
+//! `extension_own_prefix`); nesting depth is columns
+//! (`deindent_level_cols` + helpers in [`super::super::utils`]).
+
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
@@ -423,6 +428,24 @@ impl<'ast> MdRender {
             | NodeValue::TableCell
             | NodeValue::ThematicBreak => unreachable!("not a container block"),
         })
+    }
+
+    /// Columns one nesting level of `node` contributes — what
+    /// shift-tab strips. `Item` uses its own `padding` (not the
+    /// parent list's: comrak merges sibling-compatible lists across
+    /// blank lines and the merged list keeps the first item's
+    /// padding). `BlockQuote`/`Alert` return `None` — they nest via
+    /// `>` markers, deindented through `line_own_prefix` instead.
+    pub fn deindent_level_cols(&self, node: &'ast AstNode<'ast>) -> Option<usize> {
+        match &node.data.borrow().value {
+            NodeValue::Item(item) => Some(item.padding),
+            NodeValue::TaskItem(_) => match &node.parent()?.data.borrow().value {
+                NodeValue::List(list) => Some(list.padding),
+                _ => None,
+            },
+            NodeValue::FootnoteDefinition(_) => Some(2),
+            _ => None,
+        }
     }
 
     /// Returns the prefix required to extend the given node and its ancestors

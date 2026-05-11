@@ -7,8 +7,7 @@ use crate::tab::markdown_editor::MdRender;
 impl<'ast> MdRender {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut result = 0.;
-        // toolbar text-only mode: skip block image; inline path renders alt as link
-        if !self.render_images_as_text {
+        if !self.disable_images {
             for descendant in node.descendants() {
                 if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
                     let NodeLink { url, .. } = &**node_link;
@@ -70,8 +69,7 @@ impl<'ast> MdRender {
             let line = self.bounds.source_lines[line];
             let node_line = self.node_line(node, line);
 
-            // mirror `height_paragraph` text-only mode
-            if !self.render_images_as_text {
+            if !self.disable_images {
                 for descendant in node.descendants() {
                     if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
                         let NodeLink { url, .. } = &**node_link;
