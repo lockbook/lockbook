@@ -20,6 +20,7 @@ use model::api::{
     StripeAccountTier, UnixTimeMillis,
 };
 use service::import_export::ImportStatus;
+use search::{ContentSearcher, PathSearcher};
 use subscribers::search::{SearchConfig, SearchResult};
 
 use std::sync::Arc;
@@ -842,6 +843,170 @@ pub extern "C" fn lb_search(
             LbSearchRes { err: null_mut(), results, results_len }
         }
         Err(err) => LbSearchRes { err: lb_err(err), results: null_mut(), results_len: 0 },
+    }
+}
+
+#[repr(C)]
+pub struct LbPathSearcherResult {
+    id: LbUuid,
+    filename: *mut c_char,
+    parent_path: *mut c_char,
+    matched_indices: *mut u32,
+    matched_indices_len: usize,
+}
+
+#[repr(C)]
+pub struct LbPathSearcherResults {
+    results: *mut LbPathSearcherResult,
+    results_len: usize,
+}
+
+/// Build a `PathSearcher` over the current file tree. The returned handle is owned by the
+/// caller and must be released with `lb_free_path_searcher`. Repeated calls rebuild the index.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_path_searcher_new(lb: *mut Lb) -> *mut PathSearcher {
+    let lb = rlb(lb);
+    Box::into_raw(Box::new(lb.path_searcher()))
+}
+
+/// Update the query and return the current top results. The returned buffer must be released
+/// with `lb_free_path_search_results`. The searcher handle remains owned by the caller.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_path_searcher_query(
+    searcher: *mut PathSearcher, input: *const c_char,
+) -> LbPathSearcherResults {
+    let searcher = unsafe { searcher.as_mut().unwrap() };
+    let input = rstr(input);
+
+    searcher.query(input);
+
+    let results: Vec<LbPathSearcherResult> = searcher
+        .results()
+        .iter()
+        .map(|r| {
+            let (matched_indices, matched_indices_len) = carray(r.path_indices.clone());
+            LbPathSearcherResult {
+                id: r.id.into(),
+                filename: cstring(r.filename.as_str()),
+                parent_path: cstring(r.parent_path.as_str()),
+                matched_indices,
+                matched_indices_len,
+            }
+        })
+        .collect();
+
+    if results.is_empty() {
+        LbPathSearcherResults { results: null_mut(), results_len: 0 }
+    } else {
+        let (results, results_len) = carray(results);
+        LbPathSearcherResults { results, results_len }
+    }
+}
+
+#[repr(C)]
+pub struct LbContentSearcherMatch {
+    range_start: usize,
+    range_end: usize,
+    exact: bool,
+}
+
+#[repr(C)]
+pub struct LbContentSearcherResult {
+    id: LbUuid,
+    filename: *mut c_char,
+    parent_path: *mut c_char,
+    matches: *mut LbContentSearcherMatch,
+    matches_len: usize,
+}
+
+#[repr(C)]
+pub struct LbContentSearcherResults {
+    results: *mut LbContentSearcherResult,
+    results_len: usize,
+}
+
+#[repr(C)]
+pub struct LbContentSearcherSnippet {
+    prefix: *mut c_char,
+    matched: *mut c_char,
+    suffix: *mut c_char,
+}
+
+/// Build a `ContentSearcher` over the current document set. The returned handle is owned by the
+/// caller and must be released with `lb_free_content_searcher`.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_content_searcher_new(lb: *mut Lb) -> *mut ContentSearcher {
+    let lb = rlb(lb);
+    Box::into_raw(Box::new(lb.content_searcher()))
+}
+
+/// Update the query and return the current results. Each match is a byte range into the
+/// document's lowercased content; render it via `lb_content_searcher_snippet`. The returned
+/// buffer must be released with `lb_free_content_search_results`; the searcher handle remains
+/// owned by the caller.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_content_searcher_query(
+    searcher: *mut ContentSearcher, input: *const c_char,
+) -> LbContentSearcherResults {
+    let searcher = unsafe { searcher.as_mut().unwrap() };
+    let input = rstr(input);
+
+    searcher.query(input);
+
+    let results: Vec<LbContentSearcherResult> = searcher
+        .results()
+        .iter()
+        .map(|r| {
+            let matches: Vec<LbContentSearcherMatch> = r
+                .content_matches
+                .iter()
+                .map(|m| LbContentSearcherMatch {
+                    range_start: m.range.start,
+                    range_end: m.range.end,
+                    exact: m.exact,
+                })
+                .collect();
+            let (matches, matches_len) =
+                if matches.is_empty() { (null_mut(), 0) } else { carray(matches) };
+            LbContentSearcherResult {
+                id: r.id.into(),
+                filename: cstring(r.filename.as_str()),
+                parent_path: cstring(r.parent_path.as_str()),
+                matches,
+                matches_len,
+            }
+        })
+        .collect();
+
+    if results.is_empty() {
+        LbContentSearcherResults { results: null_mut(), results_len: 0 }
+    } else {
+        let (results, results_len) = carray(results);
+        LbContentSearcherResults { results, results_len }
+    }
+}
+
+/// Render a single match as a `(prefix, matched, suffix)` snippet triple with `context_chars`
+/// of context on each side. Returns all-null fields if the document or range is unknown. The
+/// returned snippet must be released with `lb_free_content_searcher_snippet`.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_content_searcher_snippet(
+    searcher: *mut ContentSearcher, id: LbUuid, range_start: usize, range_end: usize,
+    context_chars: usize,
+) -> LbContentSearcherSnippet {
+    let searcher = unsafe { searcher.as_ref().unwrap() };
+    let id: Uuid = id.into();
+    match searcher.snippet(id, &(range_start..range_end), context_chars) {
+        Some((prefix, matched, suffix)) => LbContentSearcherSnippet {
+            prefix: cstring(prefix),
+            matched: cstring(matched),
+            suffix: cstring(suffix),
+        },
+        None => LbContentSearcherSnippet {
+            prefix: null_mut(),
+            matched: null_mut(),
+            suffix: null_mut(),
+        },
     }
 }
 

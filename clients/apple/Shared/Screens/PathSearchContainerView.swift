@@ -119,9 +119,9 @@ struct PathSearchContainerView<Content: View>: View {
                         },
                         label: {
                             PathSearchResultView(
-                                name: result.path.nameAndPath().0,
-                                path: result.path.nameAndPath().1,
-                                matchedIndices: result.matchedIndicies,
+                                name: result.filename,
+                                path: result.parentPath,
+                                matchedIndices: result.matchedIndices,
                                 index: index,
                                 isSelected: model.selected == index
                             )
@@ -184,7 +184,7 @@ struct PathSearchContainerView<Content: View>: View {
     let preview = PathSearchViewModel.preview
     preview.isShown = true
     preview.results = [
-        PathSearchResult(id: UUID(), path: "/", score: 1, matchedIndicies: []),
+        PathSearcherResult(id: UUID(), filename: "welcome.md", parentPath: "/", matchedIndices: []),
     ]
 
     return PathSearchContainerView(model: preview) {

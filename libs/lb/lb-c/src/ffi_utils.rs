@@ -7,14 +7,18 @@ use lb_rs::model::errors::LbErr;
 
 use crate::lb_c_err::LbFfiErr;
 
-pub(crate) fn cstring(from: String) -> *mut c_char {
+pub(crate) fn cstring<T: Into<Vec<u8>>>(from: T) -> *mut c_char {
     CString::new(from)
         .expect("Could not Rust String -> C String")
         .into_raw()
 }
 
 pub(crate) fn cstring_array(from: Vec<String>) -> (*mut *mut c_char, usize) {
-    carray(from.into_iter().map(cstring).collect::<Vec<*mut c_char>>())
+    carray(
+        from.into_iter()
+            .map(cstring::<String>)
+            .collect::<Vec<*mut c_char>>(),
+    )
 }
 
 pub(crate) fn carray<T>(mut from: Vec<T>) -> (*mut T, usize) {

@@ -108,7 +108,6 @@ impl FileTree {
     }
 
     fn process_input(&mut self, ui: &mut Ui, resp: &mut Response, scroll_to_cursor: &mut bool) {
-        let full_doc_search_id = Id::from("full_doc_search");
         let suggested_docs_id = Id::from("suggested_docs");
         let file_tree_id = Id::from("file_tree");
 
@@ -123,11 +122,6 @@ impl FileTree {
                     if self.expanded.contains(&self.suggested_docs_folder_id) {
                         self.expanded.remove(&self.suggested_docs_folder_id);
                         self.selected.clear();
-                    } else {
-                        // focus to search
-                        ui.memory_mut(|m| m.request_focus(full_doc_search_id));
-                        self.selected.clear();
-                        self.cursor = None;
                     }
                 } else if self.cursor.is_some() {
                     self.cursor = Some(self.suggested_docs_folder_id);
@@ -179,11 +173,6 @@ impl FileTree {
                             self.selected.clear();
                         }
                         self.selected.insert(prev);
-                    } else {
-                        // focus to search
-                        ui.memory_mut(|m| m.request_focus(full_doc_search_id));
-                        self.selected.clear();
-                        self.cursor = None;
                     }
                 }
             }

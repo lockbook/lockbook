@@ -189,6 +189,10 @@ impl Lb {
         self.block_on(self.lb.list_paths(filter))
     }
 
+    pub fn list_paths_with_ids(&self, filter: Option<Filter>) -> LbResult<Vec<(Uuid, String)>> {
+        self.block_on(self.lb.list_paths_with_ids(filter))
+    }
+
     pub fn get_local_changes(&self) -> LbResult<Vec<Uuid>> {
         Ok(self.block_on(self.lb.local_changes()))
     }
@@ -263,6 +267,14 @@ impl Lb {
     #[cfg(not(target_family = "wasm"))]
     pub fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
         self.block_on(self.lb.search(input, cfg))
+    }
+
+    pub fn path_searcher(&self) -> crate::search::PathSearcher {
+        self.block_on(self.lb.path_searcher())
+    }
+
+    pub fn content_searcher(&self) -> crate::search::ContentSearcher {
+        crate::search::ContentSearcher::new(self)
     }
 
     pub fn validate(&self) -> LbResult<Vec<Warning>> {

@@ -59,6 +59,10 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
             self.landing_page_first_frame = true;
         }
+        // search modal renders after tabs so it draws on top: its cursor icon and
+        // interaction responses take priority over the background editor's
+        self.show_search_modal();
+
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tab_strip, &self.current_tab);
         }

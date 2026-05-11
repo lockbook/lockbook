@@ -4,7 +4,6 @@ mod error;
 mod file_picker;
 mod help;
 mod new_file;
-mod search;
 mod settings;
 
 pub use confirm_delete::ConfirmDeleteModal;
@@ -13,9 +12,7 @@ pub use error::ErrorModal;
 pub use file_picker::{FilePicker, FilePickerAction};
 pub use help::HelpModal;
 pub use new_file::{NewFileParams, NewFolderModal};
-pub use search::SearchModal;
 pub use settings::SettingsModal;
-use workspace_rs::file_cache::FilesExt;
 
 #[derive(Default)]
 pub struct Modals {
@@ -25,7 +22,6 @@ pub struct Modals {
     pub file_picker: Option<FilePicker>,
     pub help: Option<HelpModal>,
     pub new_folder: Option<NewFolderModal>,
-    pub search: Option<SearchModal>,
     pub settings: Option<SettingsModal>,
 }
 
@@ -38,26 +34,6 @@ impl super::AccountScreen {
         if let Some(response) = show(ctx, x_offset, &mut self.modals.settings) {
             if response.closed {
                 self.save_settings();
-            }
-        }
-
-        if let Some(response) = show(ctx, x_offset, &mut self.modals.search) {
-            if let Some(submission) = response.inner {
-                if let Some(file) = self.tree.files.get_by_id(submission.id) {
-                    if file.is_folder() {
-                        self.tree.cursor = Some(file.id);
-                        self.tree.selected.clear();
-                        self.tree.selected.insert(file.id);
-                        self.tree.reveal_selection();
-                        self.tree.scroll_to_cursor = true;
-                    } else {
-                        self.workspace.open_file(submission.id, true, true);
-                    }
-                }
-
-                if submission.close {
-                    self.modals.search = None;
-                }
             }
         }
 
@@ -103,7 +79,6 @@ impl super::AccountScreen {
             || m.new_folder.is_some()
             || m.create_share.is_some()
             || m.file_picker.is_some()
-            || m.search.is_some()
             || m.help.is_some()
             || m.confirm_delete.is_some()
     }
@@ -121,10 +96,6 @@ impl super::AccountScreen {
         }
         if m.create_share.is_some() {
             m.create_share = None;
-            return true;
-        }
-        if m.search.is_some() {
-            m.search = None;
             return true;
         }
         if m.help.is_some() {

@@ -24,6 +24,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
+use crate::search::Search;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::show::DocType;
@@ -58,6 +59,8 @@ pub struct Workspace {
     pub current_tab: Option<Destination>,
     pub landing_page: LandingPage,
     pub account: Account,
+
+    pub search: Search,
 
     // Files and task status
     pub tasks: TaskManager,
@@ -105,6 +108,7 @@ impl Workspace {
             cfg.clone(),
         );
         ctx.set_zoom_factor(cfg.get_zoom_factor());
+        let search = Search::new(core, ctx);
         let mut ws = Self {
             tabs: TabCache::new(),
             tab_strip: Vec::new(),
@@ -133,6 +137,7 @@ impl Workspace {
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
+            search,
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();

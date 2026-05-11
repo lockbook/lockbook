@@ -23,6 +23,7 @@ pub mod io;
 pub mod ipc;
 pub mod macros;
 pub mod model;
+pub mod search;
 pub mod service;
 pub mod subscribers;
 #[cfg(target_family = "wasm")]

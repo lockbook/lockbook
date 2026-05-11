@@ -14,6 +14,8 @@ struct SearchContainerView<Content: View>: View {
             content
         }
         .searchable(text: $model.input, placement: .navigationBarDrawer(displayMode: .automatic), prompt: "Search")
+        .textInputAutocapitalization(.never)
+        .autocorrectionDisabled()
     }
 }
 
