@@ -60,6 +60,7 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
             for (file in files) {
                 try {
                     Lb.deleteFile(file.id)
+                    workspaceModel.isFileTreeSyncedToCurrentTab = false
                     workspaceModel._finishedAction.postValue(FinishedAction.Delete(file.id))
                 } catch (err: LbError) {
                     alertModel.notifyError(err)

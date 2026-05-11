@@ -30,6 +30,8 @@ class WorkspaceViewModel : ViewModel() {
     val currentTab: LiveData<WorkspaceTab>
         get() = _currentTab
 
+    var isFileTreeSyncedToCurrentTab = true
+
     val _finishedAction = SingleMutableLiveData<FinishedAction>()
     val finishedAction: LiveData<FinishedAction>
         get() = _finishedAction

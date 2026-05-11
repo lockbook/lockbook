@@ -11,7 +11,6 @@ import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
-import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbEvent
@@ -28,7 +27,9 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     lateinit var fileModel: FileModel
 
     // / the list of files that the file tree displays in the UI
-    val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
+    val _files = MutableLiveData<List<FileViewHolderInfo>>(emptyList())
+    val files: LiveData<List<FileViewHolderInfo>>
+        get() = _files
 
     val suggestedDocs = emptyDataSourceTyped<SuggestedDocsViewHolderInfo>()
 
@@ -126,10 +127,8 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     private fun startUpInRoot() {
         fileModel = FileModel.createAtRoot()
 
-        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
-
-        maybeToggleSuggestedDocs()
-        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
+        refreshSuggestedDocs()
+        refreshVisibleFiles()
 
         _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
     }
@@ -139,8 +138,8 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         val parent = newParent ?: fileModel.idsAndFiles[fileModel.parent.parent] ?: fileModel.root
         fileModel.enterFolder(parent)
 
-        maybeToggleSuggestedDocs()
-        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
+        updateSuggestedDocsVisibility()
+        refreshVisibleFiles()
 
         _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
     }
@@ -148,14 +147,14 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     fun reloadFiles() {
         fileModel.refreshFiles()
 
-        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
-        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
+        refreshSuggestedDocs()
+        refreshVisibleFiles()
 
         _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
     }
 
     fun maybeToggleSuggestedDocs() {
-        _isSuggestedDocsVisible.value = fileModel.parent.isRoot && !suggestedDocs.isEmpty()
+        updateSuggestedDocsVisibility()
     }
 
     fun hydrateStatusUpdate(status: LbStatus, lbEvent: LbEvent?) {
@@ -174,10 +173,29 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
             fileModel.refreshFiles()
         }
 
-        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
-        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
+        refreshSuggestedDocs()
+        refreshVisibleFiles()
 
         _usage.value = status.spaceUsed
         checkUsage()
+    }
+
+    fun clearSuggestedDocs() {
+        fileModel.suggestedDocs = emptyList()
+        suggestedDocs.clear()
+        updateSuggestedDocsVisibility()
+    }
+
+    private fun refreshVisibleFiles() {
+        _files.value = fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
+    }
+
+    private fun refreshSuggestedDocs() {
+        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
+        updateSuggestedDocsVisibility()
+    }
+
+    private fun updateSuggestedDocsVisibility() {
+        _isSuggestedDocsVisible.value = fileModel.parent.isRoot && fileModel.suggestedDocs.isNotEmpty()
     }
 }

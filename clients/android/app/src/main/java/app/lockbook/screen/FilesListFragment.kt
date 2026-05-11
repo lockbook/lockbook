@@ -14,9 +14,12 @@ import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
+import androidx.recyclerview.widget.RecyclerView
 import app.futured.donut.DonutProgressView
 import app.futured.donut.DonutSection
 import app.lockbook.App
@@ -27,11 +30,12 @@ import app.lockbook.model.MoveFileViewModel.Companion.PARENT_ID
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
-import com.afollestad.recyclical.viewholder.isSelected
 import com.afollestad.recyclical.withItem
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import net.lockbook.File
 import net.lockbook.File.FileType
@@ -49,6 +53,14 @@ class FilesListFragment : Fragment(), FilesFragment {
     private var folderTransitionId = 0
 
     private var currentTab: WorkspaceTab = WorkspaceTab.Welcome
+    private val selectedFileIds: MutableSet<String> = mutableSetOf()
+    private val fileTreeAdapter by lazy {
+        FileTreeAdapter(
+            onItemClick = ::onFileItemClicked,
+            onItemLongClick = ::onFileItemLongClicked,
+        )
+    }
+
     private val actionModeMenuCallback: ActionMode.Callback by lazy {
         object : ActionMode.Callback {
             override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
@@ -59,7 +71,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean = false
 
             override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
-                val selectedFiles = model.files.getSelectedItems()
+                val selectedFiles = getSelectedFiles()
 
                 when (item?.itemId) {
                     R.id.menu_list_files_rename -> {
@@ -71,7 +83,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                         activityModel.launchTransientScreen(TransientScreen.Delete(selectedFiles.intoFileMetadata()))
                     }
                     R.id.menu_list_files_info -> {
-                        if (model.files.getSelectionCount() == 1) {
+                        if (selectedFileIds.size == 1) {
                             activityModel.launchTransientScreen(TransientScreen.Info(selectedFiles[0].fileMetadata))
                         }
                     }
@@ -86,7 +98,7 @@ class FilesListFragment : Fragment(), FilesFragment {
                         }
                     }
                     R.id.menu_list_files_share -> {
-                        if (model.files.getSelectionCount() == 1) {
+                        if (selectedFileIds.size == 1) {
                             activityModel.launchTransientScreen(TransientScreen.ShareFile(selectedFiles[0].fileMetadata))
                             unselectFiles()
                         }
@@ -98,7 +110,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             }
 
             override fun onDestroyActionMode(mode: ActionMode?) {
-                model.files.deselectAll()
+                clearSelection()
                 actionModeMenu = null
             }
         }
@@ -128,6 +140,7 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         setUpFilesList()
+        observeFilesList()
 
         model.breadcrumbItems.observe(viewLifecycleOwner) {
             binding.filesBreadcrumbBar.setBreadCrumbItems(it)
@@ -180,13 +193,15 @@ class FilesListFragment : Fragment(), FilesFragment {
         }
 
         workspaceModel.currentTab.observe(viewLifecycleOwner) {
-            if (currentTab != it) {
+            println("ad-tra: current tab changed isFileTreeSyncedToCurrentTab=${workspaceModel.isFileTreeSyncedToCurrentTab}")
+            if (workspaceModel.isFileTreeSyncedToCurrentTab && currentTab != it){
                 model.fileModel.idsAndFiles[it.id]?.let { child ->
                     model.fileModel.idsAndFiles[child.parent]?.let { parent ->
                         enterFolder(parent, animate = false)
                     }
                 }
             }
+
             currentTab = it
             updateOpenWorkspacePaneButtonVisibility()
         }
@@ -317,130 +332,31 @@ class FilesListFragment : Fragment(), FilesFragment {
             isWorkspacePaneSlideable && !isWelcomeOpen
     }
 
-    private fun setUpFilesList() {
-        recyclerView.setup {
-            withDataSource(model.files)
-            withEmptyView(binding.filesEmptyFolder)
+    private fun observeFilesList() {
+        model.files.observe(viewLifecycleOwner) { files ->
+            val currentFiles = files.orEmpty()
+            val selectionChanged = pruneSelectionToVisibleFiles(currentFiles)
+            fileTreeAdapter.submitList(currentFiles.toList()) {
+                fileTreeAdapter.setSelectedFileIds(selectedFileIds)
+                binding.filesEmptyFolder.visibility = if (currentFiles.isEmpty()) View.VISIBLE else View.GONE
 
-            withItem<FileViewHolderInfo.FolderViewHolderInfo, FolderViewHolder>(R.layout.folder_file_item) {
-                onBind(::FolderViewHolder) { _, item ->
-                    name.text = item.fileMetadata.name
-
-                    when {
-                        isSelected() -> {
-                            val background = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                android.R.color.system_accent1_10
-                            } else {
-                                R.color.md_theme_inverseOnSurface
-                            }
-                            fileItemHolder.setBackgroundResource(background)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_check_small_24)
-                            actionIcon.visibility = View.VISIBLE
-                        }
-                        item.needsToBePulled -> {
-                            fileItemHolder.setBackgroundResource(0)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
-                            actionIcon.visibility = View.VISIBLE
-                        }
-                        item.needToBePushed -> {
-                            fileItemHolder.setBackgroundResource(0)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
-                            actionIcon.visibility = View.VISIBLE
-                        }
-                        item.isShared -> {
-                            fileItemHolder.setBackgroundResource(0)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_group_24)
-                            actionIcon.visibility = View.VISIBLE
-                        }
-                        else -> {
-                            fileItemHolder.setBackgroundResource(0)
-                            actionIcon.visibility = View.GONE
-                        }
-                    }
-                }
-
-                onClick {
-                    if (isSelected() || model.files.hasSelection()) {
-                        toggleSelection()
-                        toggleMenuBar()
-                    } else {
-                        enterFile(item.fileMetadata)
-                    }
-                }
-
-                onLongClick {
-                    this.toggleSelection()
-                    toggleMenuBar()
-                }
-            }
-
-            withItem<FileViewHolderInfo.DocumentViewHolderInfo, DocumentViewHolder>(R.layout.document_file_item) {
-                onBind(::DocumentViewHolder) { _, item ->
-                    name.text = item.fileMetadata.getPrettyName()
-                    if (item.fileMetadata.lastModified != 0L) {
-                        description.visibility = View.VISIBLE
-                        description.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
-                    } else {
-                        description.visibility = View.GONE
-                    }
-
-                    icon.setImageResource(item.fileMetadata.getIconResource())
-
-                    when {
-                        isSelected() -> {
-                            val background = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                                android.R.color.system_accent1_10
-                            } else {
-                                R.color.md_theme_inverseOnSurface
-                            }
-                            fileItemHolder.setBackgroundResource(background)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_check_small_24)
-                            actionIcon.visibility = View.VISIBLE
-                        }
-                        item.needsToBePulled -> {
-                            fileItemHolder.setBackgroundResource(0)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
-                            actionIcon.visibility = View.VISIBLE
-                        }
-                        item.needToBePushed -> {
-                            fileItemHolder.setBackgroundResource(0)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
-                            actionIcon.visibility = View.VISIBLE
-                        }
-                        item.isShared -> {
-                            fileItemHolder.setBackgroundResource(0)
-                            actionIcon.setImageResource(R.drawable.ic_baseline_group_24)
-                            actionIcon.visibility = View.VISIBLE
-                        }
-                        else -> {
-                            fileItemHolder.setBackgroundResource(0)
-                            actionIcon.visibility = View.GONE
-                        }
-                    }
-                }
-
-                onClick {
-                    if (isSelected() || model.files.hasSelection()) {
-                        toggleSelection()
-                        toggleMenuBar()
-                    } else {
-                        enterFile(item.fileMetadata)
-                    }
-                }
-
-                onLongClick {
-                    this.toggleSelection()
+                if (selectionChanged) {
                     toggleMenuBar()
                 }
             }
         }
+    }
+
+
+
+    private fun setUpFilesList() {
+        recyclerView.layoutManager = LinearLayoutManager(requireContext())
+        recyclerView.adapter = fileTreeAdapter
+        recyclerView.itemAnimator = null
 
         binding.suggestedDocsLayout.clearAllBtn.setOnClickListener {
-            model.suggestedDocs.clear()
             Lb.clearSuggested()
-            lifecycleScope.launch {
-                model.maybeToggleSuggestedDocs()
-            }
+            model.clearSuggestedDocs()
         }
 
         binding.suggestedDocsLayout.suggestedDocsList.setup {
@@ -477,6 +393,48 @@ class FilesListFragment : Fragment(), FilesFragment {
                 }
             }
         }
+    }
+
+    private fun onFileItemClicked(item: FileViewHolderInfo) {
+        val fileId = item.fileMetadata.id
+        if (selectedFileIds.contains(fileId) || selectedFileIds.isNotEmpty()) {
+            toggleFileSelection(fileId)
+            toggleMenuBar()
+        } else {
+            enterFile(item.fileMetadata)
+        }
+    }
+
+    private fun onFileItemLongClicked(item: FileViewHolderInfo) {
+        toggleFileSelection(item.fileMetadata.id)
+        toggleMenuBar()
+    }
+
+    private fun toggleFileSelection(fileId: String) {
+        if (selectedFileIds.contains(fileId)) {
+            selectedFileIds.remove(fileId)
+        } else {
+            selectedFileIds.add(fileId)
+        }
+        fileTreeAdapter.setSelectedFileIds(selectedFileIds)
+    }
+
+    private fun clearSelection() {
+        if (selectedFileIds.isEmpty()) {
+            return
+        }
+        selectedFileIds.clear()
+        fileTreeAdapter.setSelectedFileIds(selectedFileIds)
+    }
+
+    private fun getSelectedFiles(): List<FileViewHolderInfo> {
+        val selectedIdsSnapshot = selectedFileIds.toSet()
+        return model.files.value.orEmpty().filter { selectedIdsSnapshot.contains(it.fileMetadata.id) }
+    }
+
+    private fun pruneSelectionToVisibleFiles(files: List<FileViewHolderInfo>): Boolean {
+        val visibleIds = files.mapTo(mutableSetOf()) { it.fileMetadata.id }
+        return selectedFileIds.retainAll(visibleIds)
     }
 
     private fun enterFile(item: File) {
@@ -681,7 +639,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     private fun toggleMenuBar() {
-        when (val selectionCount = model.files.getSelectionCount()) {
+        when (val selectionCount = selectedFileIds.size) {
             0 -> {
                 actionModeMenu?.finish()
             }
@@ -713,7 +671,7 @@ class FilesListFragment : Fragment(), FilesFragment {
             binding.fabSpeedDial.close()
             false
         }
-        model.files.hasSelection() -> {
+        selectedFileIds.isNotEmpty() -> {
             unselectFiles()
             false
         }
@@ -731,7 +689,7 @@ class FilesListFragment : Fragment(), FilesFragment {
     }
 
     override fun unselectFiles() {
-        model.files.deselectAll()
+        clearSelection()
         toggleMenuBar()
     }
 
@@ -750,6 +708,8 @@ class FilesListFragment : Fragment(), FilesFragment {
 private const val FOLDER_TRANSITION_FADE_OUT_DURATION = 70L
 private const val FOLDER_TRANSITION_FADE_IN_DURATION = 160L
 private const val FOLDER_TRANSITION_TRANSLATION_DP = 24f
+private const val ENABLE_DEBUG_FILES_SET_TICK = false
+private const val DEBUG_FILES_SET_TICK_MS = 1_000L
 
 sealed class UpdateFilesUI {
     object UpdateBreadcrumbBar : UpdateFilesUI()

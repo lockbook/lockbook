@@ -96,6 +96,8 @@ class WorkspaceFragment : Fragment() {
         onCreateTabList(workspaceWrapper)
 
         model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
+            println("ad-tra: setting isFileTreeSyncedToCurrentTab=true")
+            model.isFileTreeSyncedToCurrentTab = true
             workspaceWrapper.workspaceView.openDoc(id, newFile)
             activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
         }
@@ -181,6 +183,7 @@ class WorkspaceFragment : Fragment() {
 
             true
         }
+
 
         binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
         binding.workspaceToolbar.setNavigationOnClickListener {

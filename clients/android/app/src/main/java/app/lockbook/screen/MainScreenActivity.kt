@@ -53,10 +53,6 @@ class MainScreenActivity : AppCompatActivity() {
                 is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
                 is FileInfoDialogFragment -> filesFragment.unselectFiles()
                 is DeleteFilesDialogFragment -> {
-                    if (workspaceModel.currentTab.value != null) {
-                        workspaceModel._closeFile.value = workspaceModel.currentTab.value?.id
-                    }
-
                     filesFragment.reloadFiles()
                 }
             }
