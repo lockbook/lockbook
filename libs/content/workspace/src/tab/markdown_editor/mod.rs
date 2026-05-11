@@ -937,15 +937,6 @@ impl Editor {
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
 
-        // Selection can change both in `handle_input` and later during
-        // `MdEdit::show` pointer handling (e.g. double-click word select on
-        // Android). Compute this after render so the response sees both paths.
-        resp.selection_updated |= prior_selection
-            != self
-                .edit
-                .in_progress_selection
-                .unwrap_or(self.edit.renderer.buffer.current.selection);
-
         // Completion popups render last, outside the scroll area's clip, so
         // they composite over the toolbar / find widget when the cursor is
         // near the top of the document. `edit.show` already submitted the

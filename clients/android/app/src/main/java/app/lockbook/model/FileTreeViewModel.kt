@@ -1,3 +1,9 @@
+@file:Suppress(
+    "ktlint:standard:backing-property-naming",
+    "ktlint:standard:no-wildcard-imports",
+    "ktlint:standard:property-naming",
+)
+
 package app.lockbook.model
 
 import android.app.Application
@@ -18,9 +24,10 @@ import net.lockbook.LbStatus
 import net.lockbook.Usage
 import java.util.UUID
 
-class FileTreeViewModel(application: Application) : AndroidViewModel(application) {
-
-    internal val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
+class FileTreeViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
+    val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
     val notifyUpdateFilesUI: LiveData<UpdateFilesUI>
         get() = _notifyUpdateFilesUI
 
@@ -77,41 +84,51 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     }
 
     private fun checkUsage() {
-
         if (usage.value == null || _usage.value?.serverUsage == null) {
             return
         }
 
-        val dataCap = usage.value?.dataCap?.exact?.toFloat() ?: 1f
-        val serverUsage = usage.value?.serverUsage?.exact?.toFloat() ?: 1f
+        val dataCap =
+            usage.value
+                ?.dataCap
+                ?.exact
+                ?.toFloat() ?: 1f
+        val serverUsage =
+            usage.value
+                ?.serverUsage
+                ?.exact
+                ?.toFloat() ?: 1f
 
         val usageRatio = serverUsage / dataCap
 
         val pref = PreferenceManager.getDefaultSharedPreferences(getContext())
 
-        val showOutOfSpace0_9 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_9_key), true)
-        val showOutOfSpace0_8 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_8_key), true)
+        val showOutOfSpace09 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_9_key), true)
+        val showOutOfSpace08 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_8_key), true)
 
         when {
             usageRatio >= 1.0 -> {}
+
             usageRatio > 0.9 -> {
-                if (!showOutOfSpace0_9) {
+                if (!showOutOfSpace09) {
                     return
                 }
             }
+
             usageRatio > 0.8 -> {
-                if (!showOutOfSpace0_8) {
+                if (!showOutOfSpace08) {
                     return
                 }
             }
+
             else -> {
-                if (!showOutOfSpace0_9) {
+                if (!showOutOfSpace09) {
                     pref.edit {
                         putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
                     }
                 }
 
-                if (!showOutOfSpace0_8) {
+                if (!showOutOfSpace08) {
                     pref.edit {
                         putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
                     }
@@ -157,17 +174,39 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         updateSuggestedDocsVisibility()
     }
 
-    fun hydrateStatusUpdate(status: LbStatus, lbEvent: LbEvent?) {
+    fun hydrateStatusUpdate(
+        status: LbStatus,
+        lbEvent: LbEvent?,
+    ) {
         if (status.syncStatus != null) {
             _syncStatus.value = status.syncStatus
         }
         _isSyncing.value = status.syncing
 
-        _dirtyLocally.value = status.dirtyLocally.orEmpty().mapNotNull { UUID.fromString(it) }.toHashSet()
-        _pullingFiles.value = status.pullingFiles.orEmpty().mapNotNull { UUID.fromString(it) }.toHashSet()
-        _pushingFiles.value = status.pushingFiles.orEmpty().mapNotNull { UUID.fromString(it) }.toHashSet()
+        _dirtyLocally.value =
+            status.dirtyLocally
+                .orEmpty()
+                .mapNotNull { UUID.fromString(it) }
+                .toHashSet()
+        _pullingFiles.value =
+            status.pullingFiles
+                .orEmpty()
+                .mapNotNull { UUID.fromString(it) }
+                .toHashSet()
+        _pushingFiles.value =
+            status.pushingFiles
+                .orEmpty()
+                .mapNotNull { UUID.fromString(it) }
+                .toHashSet()
 
-        val metaOrContentDirty = if (lbEvent == null) { true } else { lbEvent.metadataChanged || lbEvent.pendingSharesChanged || lbEvent.documentWritten }
+        val metaOrContentDirty =
+            if (lbEvent ==
+                null
+            ) {
+                true
+            } else {
+                lbEvent.metadataChanged || lbEvent.pendingSharesChanged || lbEvent.documentWritten
+            }
 
         if (metaOrContentDirty) {
             fileModel.refreshFiles()

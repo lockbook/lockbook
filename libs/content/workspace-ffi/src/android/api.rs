@@ -6,7 +6,6 @@ use lb_c::Uuid;
 use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
-use std::time::Instant;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
 use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 

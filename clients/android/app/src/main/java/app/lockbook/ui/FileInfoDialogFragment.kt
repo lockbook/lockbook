@@ -19,14 +19,14 @@ class FileInfoDialogFragment : DialogFragment() {
         const val TAG = "FileInfoDialogFragment"
     }
 
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext(), theme)
-        .setTitle(R.string.popup_info_title)
-        .apply {
-            binding = DialogFileInfoBinding.inflate(layoutInflater)
-            setUpInfo()
-            setView(binding.root)
-        }
-        .create()
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
+        MaterialAlertDialogBuilder(requireContext(), theme)
+            .setTitle(R.string.popup_info_title)
+            .apply {
+                binding = DialogFileInfoBinding.inflate(layoutInflater)
+                setUpInfo()
+                setView(binding.root)
+            }.create()
 
     private fun setUpInfo() {
         val file = (activityModel.transientScreen as TransientScreen.Info).file

@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
@@ -52,7 +54,7 @@ class PendingSharesFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         binding = FragmentPendingSharesBinding.inflate(inflater, container, false)
 
@@ -61,30 +63,33 @@ class PendingSharesFragment : Fragment() {
         val tabLayout = binding.tabLayout
         val viewPager = binding.viewPager
 
-        tabLayout.addOnTabSelectedListener(object : TabLayout.OnTabSelectedListener {
-            override fun onTabSelected(tab: TabLayout.Tab?) {}
-            override fun onTabUnselected(tab: TabLayout.Tab?) {}
-            override fun onTabReselected(tab: TabLayout.Tab?) {
+        tabLayout.addOnTabSelectedListener(
+            object : TabLayout.OnTabSelectedListener {
+                override fun onTabSelected(tab: TabLayout.Tab?) {}
 
-                tab ?: return
-                if (tab.position == 0) {
-                    populatePendingShares()
+                override fun onTabUnselected(tab: TabLayout.Tab?) {}
+
+                override fun onTabReselected(tab: TabLayout.Tab?) {
+                    tab ?: return
+                    if (tab.position == 0) {
+                        populatePendingShares()
+                    }
+                    (childFragmentManager.findFragmentByTag("f${tab.position}") as? TabFragment)
+                        ?.setTabDefaultFiles()
                 }
-                (childFragmentManager.findFragmentByTag("f${tab.position}") as? TabFragment)
-                    ?.setTabDefaultFiles()
-            }
-        })
+            },
+        )
 
         idsAndFiles.observe(
             viewLifecycleOwner,
             { it ->
-                val sharers = it.values
-                    .sortedByDescending { file -> file.lastModified }
-                    .flatMap { file ->
-                        file.shares.map { share -> share.sharedBy.capitalized() }
-                    }
-                    .distinct()
-                    .toMutableList()
+                val sharers =
+                    it.values
+                        .sortedByDescending { file -> file.lastModified }
+                        .flatMap { file ->
+                            file.shares.map { share -> share.sharedBy.capitalized() }
+                        }.distinct()
+                        .toMutableList()
 
                 if (sharers.isEmpty()) {
                     binding.pendingSharesEmptyState.visibility = View.VISIBLE
@@ -94,21 +99,23 @@ class PendingSharesFragment : Fragment() {
                     binding.tabsContainer.visibility = View.VISIBLE
 
                     sharers.add(0, "All")
-                    val existsTabChange = sharers.size != tabLayout.tabCount ||
-                        (0 until tabLayout.tabCount).any { i ->
-                            tabLayout.getTabAt(i)?.text?.toString() != sharers[i]
-                        }
+                    val existsTabChange =
+                        sharers.size != tabLayout.tabCount ||
+                            (0 until tabLayout.tabCount).any { i ->
+                                tabLayout.getTabAt(i)?.text?.toString() != sharers[i]
+                            }
 
                     if (existsTabChange) {
                         tabMediator?.detach() // Detach old one first
                         val adapter = TabPagerAdapter(this, sharers)
                         viewPager.adapter = adapter
-                        tabMediator = TabLayoutMediator(tabLayout, viewPager) { tab, position ->
-                            tab.text = sharers[position]
-                        }.apply { attach() }
+                        tabMediator =
+                            TabLayoutMediator(tabLayout, viewPager) { tab, position ->
+                                tab.text = sharers[position]
+                            }.apply { attach() }
                     }
                 }
-            }
+            },
         )
 
         return binding.root
@@ -121,12 +128,10 @@ class PendingSharesFragment : Fragment() {
 
     private fun populatePendingShares() {
         uiScope.launch(Dispatchers.IO) {
-
             try {
                 val pendingShares = Lb.getPendingShareFiles().toList()
 
                 withContext(Dispatchers.Main) {
-
                     idsAndFiles.value = pendingShares.associateBy { item -> item.id }
                 }
             } catch (err: LbError) {
@@ -147,19 +152,16 @@ class PendingSharesFragment : Fragment() {
 
 class TabPagerAdapter(
     activity: PendingSharesFragment,
-    val tabs: List<String>
+    val tabs: List<String>,
 ) : FragmentStateAdapter(activity) {
-
     override fun getItemCount(): Int = tabs.size
 
-    override fun createFragment(position: Int): Fragment {
-        return TabFragment.newInstance(tabs[position])
-    }
+    override fun createFragment(position: Int): Fragment = TabFragment.newInstance(tabs[position])
 }
 
 class TabFragment : Fragment() {
     private var _binding: FragmentTabBinding? = null
-    private val binding get() = _binding!!
+    val binding get() = _binding!!
 
     private val activityModel: StateViewModel by activityViewModels()
 
@@ -172,7 +174,7 @@ class TabFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentTabBinding.inflate(inflater, container, false)
 
@@ -184,11 +186,10 @@ class TabFragment : Fragment() {
             viewLifecycleOwner,
             { it ->
                 setTabDefaultFiles()
-            }
+            },
         )
 
         binding.sharedFilesList.setup {
-
             withDataSource(files)
             withItem<File, SharedFileViewHolder>(R.layout.pending_shares_file_item) {
                 onBind(::SharedFileViewHolder) { _, item ->
@@ -214,7 +215,6 @@ class TabFragment : Fragment() {
                         popup.setOnMenuItemClickListener { menuItem ->
                             when (menuItem.itemId) {
                                 R.id.accept_share -> {
-
                                     val bundle = Bundle()
                                     bundle.putString(CreateLinkFragment.CREATE_LINK_FILE_ID_KEY, item.id)
                                     val parentNavController = requireParentFragment().findNavController()
@@ -222,14 +222,18 @@ class TabFragment : Fragment() {
                                     parentNavController.navigate(R.id.action_create_link, bundle)
                                     true
                                 }
+
                                 R.id.refuse_share -> {
                                     DeleteSharedDialogFragment.newInstance(arrayListOf(item)).show(
                                         parentFragmentManager, // Use this instead of requireActivity()...
-                                        DeleteSharedDialogFragment.DELETE_SHARED_DIALOG_FRAGMENT
+                                        DeleteSharedDialogFragment.DELETE_SHARED_DIALOG_FRAGMENT,
                                     )
                                     true
                                 }
-                                else -> false
+
+                                else -> {
+                                    false
+                                }
                             }
                         }
 
@@ -264,19 +268,19 @@ class TabFragment : Fragment() {
             }
         }
 
-        val backPressedCallback = object : OnBackPressedCallback(true) {
-            override fun handleOnBackPressed() {
+        val backPressedCallback =
+            object : OnBackPressedCallback(true) {
+                override fun handleOnBackPressed() {
+                    if (onBackPressed()) {
+                        // If onBackPressed() returns true, it means the fragment handled the
+                        // back press (e.g., navigated up a folder), so we do nothing more.
+                        return
+                    }
 
-                if (onBackPressed()) {
-                    // If onBackPressed() returns true, it means the fragment handled the
-                    // back press (e.g., navigated up a folder), so we do nothing more.
-                    return
+                    isEnabled = false
+                    requireActivity().onBackPressedDispatcher.onBackPressed()
                 }
-
-                isEnabled = false
-                requireActivity().onBackPressedDispatcher.onBackPressed()
             }
-        }
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback)
 
         return binding.root
@@ -287,15 +291,14 @@ class TabFragment : Fragment() {
         _binding = null
     }
 
-    fun onBackPressed(): Boolean {
-        return if (currentParent == null) {
+    fun onBackPressed(): Boolean =
+        if (currentParent == null) {
             false
         } else {
             promoteCurrentParent()
             setFilesGroupedByDate()
             true
         }
-    }
 
     fun setTabDefaultFiles() {
         currentParent = null
@@ -309,6 +312,7 @@ class TabFragment : Fragment() {
             pendingSharesFragment?.idsAndFiles?.value?.get(currentParent?.parent)
         currentParent = grandparent
     }
+
     /**
      * group a list of files into 4 buckets:
      * - this week
@@ -320,17 +324,18 @@ class TabFragment : Fragment() {
         val sharer = arguments?.getString("tab_name") ?: ""
         val isAllTab = sharer == "All"
 
-        val files = (parentFragment as? PendingSharesFragment)?.idsAndFiles?.value?.map { (_, file) -> file }?.filter { file ->
-            if (currentParent == null) {
-                if (isAllTab) {
-                    !file.shares.isEmpty()
+        val files =
+            (parentFragment as? PendingSharesFragment)?.idsAndFiles?.value?.map { (_, file) -> file }?.filter { file ->
+                if (currentParent == null) {
+                    if (isAllTab) {
+                        !file.shares.isEmpty()
+                    } else {
+                        file.shares.any { share -> share.sharedBy.capitalized() == sharer }
+                    }
                 } else {
-                    file.shares.any { share -> share.sharedBy.capitalized() == sharer }
+                    file.parent == currentParent?.id
                 }
-            } else {
-                file.parent == currentParent?.id
-            }
-        } ?: emptyList()
+            } ?: emptyList()
 
         val calendar = java.util.Calendar.getInstance()
 
@@ -349,14 +354,22 @@ class TabFragment : Fragment() {
         calendar.set(java.util.Calendar.MILLISECOND, 0)
         val startOfYear = calendar.timeInMillis
 
-        val lastWeek = files.filter { it.lastModified > oneWeekAgoMillis }
-            .sortedByDescending { it.lastModified }
-        val lastMonth = files.filter { it.lastModified in oneMonthAgoMillis..oneWeekAgoMillis }
-            .sortedByDescending { it.lastModified }
-        val earlierThisYear = files.filter { it.lastModified in startOfYear..oneMonthAgoMillis }
-            .sortedByDescending { it.lastModified }
-        val older = files.filter { it.lastModified < startOfYear }
-            .sortedByDescending { it.lastModified }
+        val lastWeek =
+            files
+                .filter { it.lastModified > oneWeekAgoMillis }
+                .sortedByDescending { it.lastModified }
+        val lastMonth =
+            files
+                .filter { it.lastModified in oneMonthAgoMillis..oneWeekAgoMillis }
+                .sortedByDescending { it.lastModified }
+        val earlierThisYear =
+            files
+                .filter { it.lastModified in startOfYear..oneMonthAgoMillis }
+                .sortedByDescending { it.lastModified }
+        val older =
+            files
+                .filter { it.lastModified < startOfYear }
+                .sortedByDescending { it.lastModified }
 
         val filesGroupedByDate: MutableList<Any> = mutableListOf()
         if (lastWeek.isNotEmpty()) {
@@ -401,10 +414,11 @@ class TabFragment : Fragment() {
     }
 }
 
-fun String.capitalized(): String {
-    return this.replaceFirstChar {
-        if (it.isLowerCase())
+fun String.capitalized(): String =
+    this.replaceFirstChar {
+        if (it.isLowerCase()) {
             it.titlecase(Locale.getDefault())
-        else it.toString()
+        } else {
+            it.toString()
+        }
     }
-}

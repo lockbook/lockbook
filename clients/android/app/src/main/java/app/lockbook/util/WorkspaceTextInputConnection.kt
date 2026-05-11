@@ -5,10 +5,8 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.os.Build
-import android.os.Handler
 import android.provider.OpenableColumns
 import android.text.Editable
-import android.text.Selection
 import android.view.KeyEvent
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.ExtractedText
@@ -16,31 +14,38 @@ import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.Toast
-import android.view.inputmethod.TextAttribute
 import app.lockbook.App
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.Workspace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.io.ByteArrayOutputStream
-import java.util.concurrent.atomic.AtomicReference
 
-
-data class CursorMonitorStatus(var monitor: Boolean = false, var editorBounds: Boolean = false, var characterBounds: Boolean = false, var insertionMarker: Boolean = false)
+data class CursorMonitorStatus(
+    var monitor: Boolean = false,
+    var editorBounds: Boolean = false,
+    var characterBounds: Boolean = false,
+    var insertionMarker: Boolean = false,
+)
 
 const val MAX_CONTENT_SIZE = 25 * 1024 * 1024
 
 @SuppressLint("SoonBlockedPrivateApi")
-class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInputWrapper: WorkspaceTextInputWrapper) : BaseInputConnection(textInputWrapper, true) {
-
+class WorkspaceTextInputConnection(
+    val workspaceView: WorkspaceView,
+    val textInputWrapper: WorkspaceTextInputWrapper,
+) : BaseInputConnection(textInputWrapper, true) {
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
 
-    var batchEditCount = 0 
+    var batchEditCount = 0
 
     private var cursorMonitorStatus = CursorMonitorStatus()
 
-    private fun getInputMethodManager(): InputMethodManager = App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-    private fun getClipboardManager(): ClipboardManager = App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+    private fun getInputMethodManager(): InputMethodManager =
+        App.applicationContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
+
+    private fun getClipboardManager(): ClipboardManager =
+        App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
     fun notifySelectionUpdated() {
         val selection = wsEditable.getSelection()
@@ -49,17 +54,24 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             selection.start,
             selection.end,
             wsEditable.composingStart,
-            wsEditable.composingEnd
+            wsEditable.composingEnd,
         )
     }
-
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
         super.sendKeyEvent(event)
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()
-            Workspace.sendKeyEvent(WorkspaceView.WGPU_OBJ, event.keyCode, content, event.action == KeyEvent.ACTION_DOWN, event.isAltPressed, event.isCtrlPressed, event.isShiftPressed)
+            Workspace.sendKeyEvent(
+                WorkspaceView.wgpuObj,
+                event.keyCode,
+                content,
+                event.action == KeyEvent.ACTION_DOWN,
+                event.isAltPressed,
+                event.isCtrlPressed,
+                event.isShiftPressed,
+            )
         }
 
         workspaceView.drawImmediately()
@@ -68,11 +80,19 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
     }
 
     override fun performContextMenuAction(id: Int): Boolean {
-
         when (id) {
-            android.R.id.selectAll -> Workspace.selectAll(WorkspaceView.WGPU_OBJ)
-            android.R.id.cut ->Workspace.clipboardCut(WorkspaceView.WGPU_OBJ)
-            android.R.id.copy -> Workspace.clipboardCopy(WorkspaceView.WGPU_OBJ)
+            android.R.id.selectAll -> {
+                Workspace.selectAll(WorkspaceView.wgpuObj)
+            }
+
+            android.R.id.cut -> {
+                Workspace.clipboardCut(WorkspaceView.wgpuObj)
+            }
+
+            android.R.id.copy -> {
+                Workspace.clipboardCopy(WorkspaceView.wgpuObj)
+            }
+
             android.R.id.paste -> {
                 val clip = getClipboardManager().primaryClip ?: return false
                 if (clip.itemCount < 1) return false
@@ -91,20 +111,21 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
 
                 if (isImageUri(uri, clip.description)) {
                     workspaceView.launchIo {
-                        val bytes = try {
-                            readAllBytesCapped(uri)
-                        } catch (err: Exception) {
-                            withContext(Dispatchers.Main) {
-                                Toast
-                                    .makeText(App.applicationContext(), err.message, Toast.LENGTH_SHORT)
-                                    .show()
+                        val bytes =
+                            try {
+                                readAllBytesCapped(uri)
+                            } catch (err: Exception) {
+                                withContext(Dispatchers.Main) {
+                                    Toast
+                                        .makeText(App.applicationContext(), err.message, Toast.LENGTH_SHORT)
+                                        .show()
+                                }
+                                null
                             }
-                            null
-                        }
 
                         if (bytes != null) {
                             withContext(Dispatchers.Main) {
-                                Workspace.clipboardSendImage(WorkspaceView.WGPU_OBJ, bytes, true)
+                                Workspace.clipboardSendImage(WorkspaceView.wgpuObj, bytes, true)
                                 workspaceView.drawImmediately()
                             }
                         }
@@ -116,16 +137,21 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
                 val clipboardText = item.text
                 if (clipboardText != null) {
                     Workspace.clipboardPaste(
-                        WorkspaceView.WGPU_OBJ,
-                        clipboardText.toString()
+                        WorkspaceView.wgpuObj,
+                        clipboardText.toString(),
                     )
                 }
             }
+
             android.R.id.copyUrl,
             android.R.id.switchInputMethod,
             android.R.id.startSelectingText,
-            android.R.id.stopSelectingText -> {}
-            else -> return false
+            android.R.id.stopSelectingText,
+            -> {}
+
+            else -> {
+                return false
+            }
         }
 
         workspaceView.drawImmediately()
@@ -133,7 +159,10 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         return true
     }
 
-    private fun isImageUri(uri: Uri?, description: android.content.ClipDescription?): Boolean {
+    private fun isImageUri(
+        uri: Uri?,
+        description: android.content.ClipDescription?,
+    ): Boolean {
         if (uri == null) return false
         val resolver = App.applicationContext().contentResolver
         val mime = resolver.getType(uri)
@@ -148,35 +177,40 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
             description.hasMimeType("image/gif")
     }
 
-    fun readAllBytesCapped(uri: Uri, maxBytes: Int = MAX_CONTENT_SIZE): ByteArray? {
+    fun readAllBytesCapped(
+        uri: Uri,
+        maxBytes: Int = MAX_CONTENT_SIZE,
+    ): ByteArray? {
         val resolver = App.applicationContext().contentResolver
 
         // Best-effort size detection: if we know the size, we can allocate once and avoid
         // `ByteArrayOutputStream.toByteArray()`'s extra copy.
-        val expectedSize = run {
-            val fdSize = try {
-                resolver.openAssetFileDescriptor(uri, "r")?.use { afd ->
-                    val len = afd.length
-                    if (len >= 0) len.toInt() else null
-                }
-            } catch (_: Exception) {
-                null
-            }
-
-            fdSize ?: try {
-                resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
-                    val idx = cursor.getColumnIndex(OpenableColumns.SIZE)
-                    if (idx != -1 && cursor.moveToFirst()) {
-                        val size = cursor.getLong(idx)
-                        if (size in 0..Int.MAX_VALUE.toLong()) size.toInt() else null
-                    } else {
+        val expectedSize =
+            run {
+                val fdSize =
+                    try {
+                        resolver.openAssetFileDescriptor(uri, "r")?.use { afd ->
+                            val len = afd.length
+                            if (len >= 0) len.toInt() else null
+                        }
+                    } catch (_: Exception) {
                         null
                     }
+
+                fdSize ?: try {
+                    resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
+                        val idx = cursor.getColumnIndex(OpenableColumns.SIZE)
+                        if (idx != -1 && cursor.moveToFirst()) {
+                            val size = cursor.getLong(idx)
+                            if (size in 0..Int.MAX_VALUE.toLong()) size.toInt() else null
+                        } else {
+                            null
+                        }
+                    }
+                } catch (_: Exception) {
+                    null
                 }
-            } catch (_: Exception) {
-                null
             }
-        }
 
         if (expectedSize != null && expectedSize > maxBytes) throw Exception("Copied image too large")
 
@@ -249,12 +283,16 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         return true
     }
 
-    override fun requestCursorUpdates(cursorUpdateMode: Int, cursorUpdateFilter: Int): Boolean {
-        return requestCursorUpdates(cursorUpdateMode or cursorUpdateFilter)
-    }
+    override fun requestCursorUpdates(
+        cursorUpdateMode: Int,
+        cursorUpdateFilter: Int,
+    ): Boolean = requestCursorUpdates(cursorUpdateMode or cursorUpdateFilter)
 
     @Synchronized
-    override fun getExtractedText(request: ExtractedTextRequest?, flags: Int): ExtractedText {
+    override fun getExtractedText(
+        request: ExtractedTextRequest?,
+        flags: Int,
+    ): ExtractedText {
         val et = ExtractedText()
         val text: CharSequence = wsEditable
         et.text = text
@@ -278,7 +316,5 @@ class WorkspaceTextInputConnection(val workspaceView: WorkspaceView, val textInp
         return batchEditCount > 0
     }
 
-    override fun getEditable(): Editable {
-        return wsEditable
-    }
+    override fun getEditable(): Editable = wsEditable
 }

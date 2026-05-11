@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.model
 
 import android.text.format.DateUtils
@@ -9,13 +11,15 @@ import java.io.File
 import kotlin.collections.ArrayList
 
 class ExportImportModel(
-    private val _updateMainScreenUI: SingleMutableLiveData<UpdateMainScreenUI>
+    private val _updateMainScreenUI: SingleMutableLiveData<UpdateMainScreenUI>,
 ) {
     var isLoadingOverlayVisible = false
 
     companion object {
         private fun getMainShareFolder(cacheDir: File): File = File(cacheDir, "share/")
-        fun createRandomShareFolderInstance(cacheDir: File): File = File(getMainShareFolder(cacheDir), System.currentTimeMillis().toString())
+
+        fun createRandomShareFolderInstance(cacheDir: File): File =
+            File(getMainShareFolder(cacheDir), System.currentTimeMillis().toString())
 
         fun clearShareStorage(cacheDir: File) {
             val shareFolder = getMainShareFolder(cacheDir)
@@ -33,7 +37,10 @@ class ExportImportModel(
         }
     }
 
-    fun exportDocuments(selectedFiles: List<net.lockbook.File>, appDataDir: File) {
+    fun exportDocuments(
+        selectedFiles: List<net.lockbook.File>,
+        appDataDir: File,
+    ) {
         val cacheDir = getMainShareFolder(appDataDir)
 
         isLoadingOverlayVisible = true
@@ -49,10 +56,11 @@ class ExportImportModel(
         shareFolder.mkdirs()
 
         for (file in documents) {
-            val shareItemFolder = File(
-                shareFolder,
-                file.id
-            ).absoluteFile
+            val shareItemFolder =
+                File(
+                    shareFolder,
+                    file.id,
+                ).absoluteFile
 
             shareItemFolder.mkdir()
 
@@ -62,15 +70,15 @@ class ExportImportModel(
                 filesToShare.add(
                     File(
                         shareItemFolder,
-                        file.name
-                    ).absoluteFile
+                        file.name,
+                    ).absoluteFile,
                 )
             } catch (err: LbError) {
                 isLoadingOverlayVisible = false
                 _updateMainScreenUI.postValue(
                     UpdateMainScreenUI.ShowHideProgressOverlay(
-                        isLoadingOverlayVisible
-                    )
+                        isLoadingOverlayVisible,
+                    ),
                 )
                 throw err
             }
@@ -81,17 +89,19 @@ class ExportImportModel(
 
     private fun retrieveSelectedDocuments(
         selectedFiles: List<net.lockbook.File>,
-        documents: MutableList<net.lockbook.File>
+        documents: MutableList<net.lockbook.File>,
     ) {
         for (file in selectedFiles) {
             when (file.type) {
                 FileType.Document -> {
                     documents.add(file)
                 }
+
                 FileType.Folder -> {
                     val children = Lb.getChildren(file.id)
                     retrieveSelectedDocuments(children.toList(), documents)
                 }
+
                 FileType.Link -> {} // won't happen
             }
         }

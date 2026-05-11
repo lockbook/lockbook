@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.model
 
 import android.app.Application
@@ -14,8 +16,10 @@ import net.lockbook.File.FileType
 import net.lockbook.Lb
 import net.lockbook.LbError
 
-class MoveFileViewModel(application: Application, private val startId: String) :
-    AndroidViewModel(application) {
+class MoveFileViewModel(
+    application: Application,
+    private val startId: String,
+) : AndroidViewModel(application) {
     lateinit var currentParent: File
     lateinit var ids: List<String>
 
@@ -66,9 +70,12 @@ class MoveFileViewModel(application: Application, private val startId: String) :
 
     fun refreshOverFolder() {
         try {
-            val tempFiles = Lb.getChildren(currentParent.id).filter { file ->
-                file.type == FileType.Folder && !ids.contains(file.id)
-            }.toMutableList()
+            val tempFiles =
+                Lb
+                    .getChildren(currentParent.id)
+                    .filter { file ->
+                        file.type == FileType.Folder && !ids.contains(file.id)
+                    }.toMutableList()
 
             if (!currentParent.isRoot) {
                 val parent = File()
@@ -101,6 +108,7 @@ class MoveFileViewModel(application: Application, private val startId: String) :
                     setParentAsParent()
                     refreshOverFolder()
                 }
+
                 else -> {
                     currentParent = item
                     refreshOverFolder()

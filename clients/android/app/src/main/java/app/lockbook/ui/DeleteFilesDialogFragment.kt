@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.ui
 
 import android.app.AlertDialog
@@ -35,28 +37,28 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
         const val DELETE_FILES_DIALOG_FRAGMENT = "DeleteFilesDialogFragment"
     }
 
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
-        .apply {
-            val msg = if (files.size == 1) {
-                getString(R.string.delete_1_file_message, files[0].name)
-            } else {
-                getString(R.string.delete_file_message, files.size)
-            }
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
+        MaterialAlertDialogBuilder(requireContext())
+            .apply {
+                val msg =
+                    if (files.size == 1) {
+                        getString(R.string.delete_1_file_message, files[0].name)
+                    } else {
+                        getString(R.string.delete_file_message, files.size)
+                    }
 
-            setMessage(msg)
-        }
-        .setNegativeButton(R.string.cancel, null)
-        .setPositiveButton(R.string.delete_file_delete, null)
-        .create()
-        .apply {
-            setOnShowListener {
-                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
+                setMessage(msg)
+            }.setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.delete_file_delete, null)
+            .create()
+            .apply {
+                setOnShowListener {
+                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
+                }
             }
-        }
 
     private fun onButtonPositive() {
         uiScope.launch(Dispatchers.IO) {
-
             for (file in files) {
                 try {
                     Lb.deleteFile(file.id)
