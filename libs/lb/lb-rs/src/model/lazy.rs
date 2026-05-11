@@ -8,6 +8,7 @@ use crate::model::staged::StagedTree;
 use crate::model::symkey;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::service::keychain::Keychain;
+use db_rs::hasher::UuidIdentityHasherBuilder;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use uuid::Uuid;
@@ -15,19 +16,19 @@ use uuid::Uuid;
 #[derive(Clone, Debug)]
 pub struct LazyTree<T: TreeLike> {
     pub tree: T,
-    pub name: HashMap<Uuid, String>,
-    pub implicit_deleted: HashMap<Uuid, bool>,
-    pub linked_by: HashMap<Uuid, Uuid>,
-    pub children: HashMap<Uuid, HashSet<Uuid>>,
+    pub name: HashMap<Uuid, String, UuidIdentityHasherBuilder>,
+    pub implicit_deleted: HashMap<Uuid, bool, UuidIdentityHasherBuilder>,
+    pub linked_by: HashMap<Uuid, Uuid, UuidIdentityHasherBuilder>,
+    pub children: HashMap<Uuid, Vec<Uuid>, UuidIdentityHasherBuilder>,
 }
 
 impl<T: TreeLike> LazyTree<T> {
     pub fn new(tree: T) -> Self {
         Self {
-            name: HashMap::new(),
-            implicit_deleted: HashMap::new(),
-            children: HashMap::new(),
-            linked_by: HashMap::new(),
+            name: uuid_map(),
+            implicit_deleted: uuid_map(),
+            children: uuid_map(),
+            linked_by: uuid_map(),
             tree,
         }
     }
@@ -70,13 +71,14 @@ impl<T: TreeLike> LazyTree<T> {
         }
     }
 
-    pub fn all_children(&mut self) -> LbResult<&HashMap<Uuid, HashSet<Uuid>>> {
+    pub fn all_children(&mut self) -> LbResult<&HashMap<Uuid, Vec<Uuid>, UuidIdentityHasherBuilder>> {
         if self.children.is_empty() {
-            let mut all_children: HashMap<Uuid, HashSet<Uuid>> = HashMap::new();
+            let mut all_children  =
+                uuid_map();
             for file in self.all_files()? {
                 if !file.is_root() {
-                    let mut children = all_children.remove(file.parent()).unwrap_or_default();
-                    children.insert(*file.id());
+                    let mut children: Vec<Uuid> = all_children.remove(file.parent()).unwrap_or_default();
+                    children.push(*file.id());
                     all_children.insert(*file.parent(), children);
                 }
             }
@@ -237,7 +239,7 @@ impl<T: TreeLike> LazyTree<T> {
 
     /// Returns ids of files whose parent is the argument. Does not include the argument.
     /// TODO could consider returning a reference to the underlying cached value
-    pub fn children(&mut self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
+    pub fn children(&mut self, id: &Uuid) -> LbResult<Vec<Uuid>> {
         // Check cache
         if let Some(children) = self.children.get(id) {
             return Ok(children.clone());
@@ -246,7 +248,7 @@ impl<T: TreeLike> LazyTree<T> {
         // Confirm file exists
         let file = self.find(id)?;
         if !file.is_folder() {
-            return Ok(HashSet::default());
+            return Ok(vec![]);
         }
 
         // Populate cache
@@ -257,10 +259,11 @@ impl<T: TreeLike> LazyTree<T> {
             return Ok(children.clone());
         }
 
-        Ok(HashSet::new())
+        Ok(vec![])
     }
 
     // todo: cache?
+    // todo: use vec?
     pub fn children_using_links(&mut self, id: &Uuid) -> LbResult<HashSet<Uuid>> {
         let mut children = HashSet::new();
         for child in self.children(id)? {
@@ -385,24 +388,24 @@ impl<T: TreeLike> LazyTree<T> {
         // todo: optimize by performing minimal updates on self caches
         LazyTree::<StagedTree<T, T2>> {
             tree: StagedTree::new(self.tree, staged),
-            name: HashMap::new(),
-            implicit_deleted: HashMap::new(),
-            children: HashMap::new(),
-            linked_by: HashMap::new(),
+            name: uuid_map(),
+            implicit_deleted: uuid_map(),
+            children: uuid_map(),
+            linked_by: uuid_map(),
         }
     }
 
     // todo: this is dead code
-    pub fn stage_removals(self, removed: HashSet<Uuid>) -> LazyTree<StagedTree<T, Option<T::F>>> {
-        // todo: optimize by performing minimal updates on self caches
-        LazyTree::<StagedTree<T, Option<T::F>>> {
-            tree: StagedTree::removal(self.tree, removed),
-            name: HashMap::new(),
-            implicit_deleted: HashMap::new(),
-            children: HashMap::new(),
-            linked_by: HashMap::new(),
-        }
-    }
+    // pub fn stage_removals(self, removed: HashSet<Uuid>) -> LazyTree<StagedTree<T, Option<T::F>>> {
+    //     // todo: optimize by performing minimal updates on self caches
+    //     LazyTree::<StagedTree<T, Option<T::F>>> {
+    //         tree: StagedTree::removal(self.tree, removed),
+    //         name: uuid_map(),
+    //         implicit_deleted: uuid_map(),
+    //         children: uuid_map(),
+    //         linked_by: uuid_map(),
+    //     }
+    // }
 
     // todo: optimize
     pub fn assert_names_decryptable(&mut self, keychain: &Keychain) -> LbResult<()> {
@@ -469,10 +472,10 @@ where
             }
         }
         // todo: incremental cache update
-        self.name = HashMap::new();
-        self.implicit_deleted = HashMap::new();
-        self.children = HashMap::new();
-        self.linked_by = HashMap::new();
+        self.name = uuid_map();
+        self.implicit_deleted = uuid_map();
+        self.children = uuid_map();
+        self.linked_by = uuid_map();
         Ok(())
     }
 
@@ -492,10 +495,10 @@ where
             self.tree.remove(id)?;
         }
         // todo: incremental cache update
-        self.name = HashMap::new();
-        self.implicit_deleted = HashMap::new();
-        self.children = HashMap::new();
-        self.linked_by = HashMap::new();
+        self.name = uuid_map();
+        self.implicit_deleted = uuid_map();
+        self.children = uuid_map();
+        self.linked_by = uuid_map();
         Ok(())
     }
 }
@@ -520,10 +523,10 @@ where
 
         Ok(LazyTree {
             tree: base,
-            name: HashMap::new(),
-            implicit_deleted: HashMap::new(),
-            children: HashMap::new(),
-            linked_by: HashMap::new(),
+            name: uuid_map(),
+            implicit_deleted: uuid_map(),
+            children: uuid_map(),
+            linked_by: uuid_map(),
         })
     }
 }
@@ -538,10 +541,10 @@ where
         (
             LazyTree {
                 tree: self.tree.base,
-                name: HashMap::new(),
-                implicit_deleted: HashMap::new(),
-                children: HashMap::new(),
-                linked_by: HashMap::new(),
+                name: uuid_map(),
+                implicit_deleted: uuid_map(),
+                children: uuid_map(),
+                linked_by: uuid_map(),
             },
             self.tree.staged,
         )
@@ -558,4 +561,8 @@ impl<T: TreeLike> TreeLike for LazyTree<T> {
     fn maybe_find(&self, id: &Uuid) -> Option<&Self::F> {
         self.tree.maybe_find(id)
     }
+}
+
+fn uuid_map<V>() -> HashMap<Uuid, V, UuidIdentityHasherBuilder> {
+    HashMap::with_hasher(UuidIdentityHasherBuilder::default())
 }

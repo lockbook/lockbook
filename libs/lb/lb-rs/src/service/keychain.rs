@@ -5,11 +5,12 @@ use crate::LocalLb;
 use crate::model::account::Account;
 use crate::model::crypto::AESKey;
 use crate::model::errors::{LbErrKind, LbResult};
+use db_rs::hasher::UuidIdentityHasherBuilder;
 use libsecp256k1::PublicKey;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
-pub type KeyCache = Arc<RwLock<HashMap<Uuid, AESKey>>>;
+pub type KeyCache = Arc<RwLock<HashMap<Uuid, AESKey, UuidIdentityHasherBuilder>>>;
 
 #[derive(Default, Clone)]
 pub struct Keychain {

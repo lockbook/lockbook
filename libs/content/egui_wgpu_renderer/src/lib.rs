@@ -17,7 +17,7 @@ pub use wgpu;
 // The renderer has no portable way to query the display refresh rate, so we
 // assume 60Hz (16.67ms per frame). NOOB_FACTOR widens the budget so dev builds
 // don't constantly trip on debug overhead — bring it down to 1 to be strict.
-const NOOB_FACTOR: u64 = 8;
+const NOOB_FACTOR: u64 = 1;
 const FRAME_BUDGET: Duration = Duration::from_micros(16_667 * NOOB_FACTOR);
 
 pub struct RendererState<'w> {
