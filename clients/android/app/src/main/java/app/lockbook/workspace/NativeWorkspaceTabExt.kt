@@ -5,7 +5,7 @@ import app.lockbook.model.WorkspaceTabType
 
 fun NativeWorkspaceTab.toModelTab(): WorkspaceTab {
     if (this.type == WorkspaceTabType.Welcome.value || this.id.isNullUUID()) {
-        return WorkspaceTab.Welcome
+        return WorkspaceTab.welcome
     }
 
     val tabType = WorkspaceTabType.fromInt(this.type) ?: WorkspaceTabType.Welcome

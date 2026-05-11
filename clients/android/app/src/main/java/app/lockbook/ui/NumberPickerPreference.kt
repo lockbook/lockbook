@@ -6,15 +6,16 @@ import android.util.AttributeSet
 import androidx.preference.DialogPreference
 import app.lockbook.R
 
-class NumberPickerPreference(context: Context, attributeSet: AttributeSet?) : DialogPreference(
-    context,
-    attributeSet
-) {
+class NumberPickerPreference(
+    context: Context,
+    attributeSet: AttributeSet?,
+) : DialogPreference(
+        context,
+        attributeSet,
+    ) {
     private var durationInMinutes: Int? = null
 
-    fun getDuration(): Int {
-        return durationInMinutes ?: 15
-    }
+    fun getDuration(): Int = durationInMinutes ?: 15
 
     fun setDuration(duration: Int) {
         this.durationInMinutes = duration
@@ -22,16 +23,15 @@ class NumberPickerPreference(context: Context, attributeSet: AttributeSet?) : Di
         persistInt(duration)
     }
 
-    override fun onGetDefaultValue(a: TypedArray, index: Int): Any? {
-        return a.getInt(index, 15)
-    }
+    override fun onGetDefaultValue(
+        a: TypedArray,
+        index: Int,
+    ): Any? = a.getInt(index, 15)
 
     override fun onSetInitialValue(defaultValue: Any?) {
         val trueDefaultValue = defaultValue?.toString()?.toIntOrNull() ?: 15
         setDuration(getPersistedInt(durationInMinutes ?: trueDefaultValue))
     }
 
-    override fun getDialogLayoutResource(): Int {
-        return R.layout.dialog_duration_picker
-    }
+    override fun getDialogLayoutResource(): Int = R.layout.dialog_duration_picker
 }

@@ -6,6 +6,7 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
+import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
@@ -30,250 +31,149 @@ import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
-import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
 import app.lockbook.workspace.isNullUUID
 import app.lockbook.workspace.toModelTab
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
-import kotlinx.coroutines.channels.Channel
-import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.selects.onTimeout
-import kotlinx.coroutines.selects.select
-import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import net.lockbook.Lb
-import java.util.concurrent.ConcurrentLinkedDeque
-import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.locks.ReentrantLock
-import kotlin.concurrent.withLock
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
-class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceView(context), SurfaceHolder.Callback2 {
+class WorkspaceView(
+    context: Context,
+    val model: WorkspaceViewModel,
+) : SurfaceView(context),
+    SurfaceHolder.Callback2 {
     private var surface: Surface? = null
     var wrapperView: View? = null
     var contextMenu: ActionMode? = null
 
-    private val renderScope = CoroutineScope(Dispatchers.Default + SupervisorJob())
-    private var renderJob: Job? = null
+    private var redrawTask: Runnable =
+        Runnable {
+            invalidate()
+        }
+    private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
 
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
-    private val nativeLock = ReentrantLock()
-
-    private val redrawChannel = Channel<Unit>(Channel.CONFLATED)
-    private val frameOutputJsonParser = Json {
-        ignoreUnknownKeys = true
-    }
-
     private val scroller = OverScroller(context)
-
     private var gestureStartPositions: Array<PointF> = emptyArray()
-    private val pendingDx = AtomicReference(0f)
-    private val pendingDy = AtomicReference(0f)
+    private var pendingDx = 0f
+    private var pendingDy = 0f
     private var propagateFlick = false
 
-    var textMutations = AtomicReference(ConcurrentLinkedDeque<Pair<WsTextMutation, Int>>())
+    private val scrollListener =
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDown(e: MotionEvent): Boolean {
+                scroller.abortAnimation()
+                pendingDx = 0f
+                pendingDy = 0f
+                gestureStartPositions = Array(e.pointerCount) { i -> PointF(e.getX(i), e.getY(i)) }
+                propagateFlick = false
+                return true
+            }
 
-    var lastFrameTransform = 0
-
-    var frameCount = AtomicReference(0)
-
-    sealed class WsTextMutation {
-        data class Replace(
-            var start: Int,
-            var end: Int,
-            val text: String,
-            var batchEditCount: Int,
-        ) : WsTextMutation()
-
-        data class InsertAtCursor(
-            val text: String
-        ) : WsTextMutation()
-
-        data class Insert(
-            val where: Int,
-            val text: String
-        ) : WsTextMutation()
-
-        data class Append(
-            val text: String
-        ) : WsTextMutation()
-
-        object NotifySelectionUpdate : WsTextMutation()
-
-        object WsNotifySelectionUpdate : WsTextMutation()
-
-        data class ClipboardPaste(
-            val text: String
-        ) : WsTextMutation()
-
-        data class ClipboardPasteImage(
-            val bytes: ByteArray,
-            val isPaste: Boolean,
-        ) : WsTextMutation()
-
-        data class SendKeyEvent(
-            val keyCode: Int,
-            val content: String,
-            val isDown: Boolean,
-            val isAlt: Boolean,
-            val isCtrl: Boolean,
-            val isShift: Boolean,
-        ) : WsTextMutation()
-
-        data class SetSelection(
-            var start: Int,
-            var end: Int,
-        ) : WsTextMutation()
-
-        object SelectAll : WsTextMutation()
-        object ClipboardCut : WsTextMutation()
-        object ClipboardCopy : WsTextMutation()
-        object Clear : WsTextMutation()
-
-        fun transformed(offset: Int): WsTextMutation {
-            return when (this) {
-                is Replace -> {
-                    this.start += offset
-                    this.end += offset
-                    this
+            override fun onScroll(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                distanceX: Float,
+                distanceY: Float,
+            ): Boolean {
+                if (e2.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
+                    (!isPenOnlyDraw() && e2.pointerCount == 1)
+                ) {
+                    return false
                 }
-                is SetSelection -> {
-                    this.start += offset
-                    this.end += offset
-                    this
+
+                propagateFlick = true
+
+                pendingDx -= distanceX
+                pendingDy -= distanceY
+                return true
+            }
+
+            override fun onFling(
+                e1: MotionEvent?,
+                e2: MotionEvent,
+                velocityX: Float,
+                velocityY: Float,
+            ): Boolean {
+                if (!propagateFlick) {
+                    return false
                 }
-                else -> this
-            }
-        }
 
-        fun delta(): Int {
-            return when (this) {
-                is Replace -> {
-                    this.text.length - (this.start - this.end)
+                scroller.fling(
+                    0,
+                    0,
+                    velocityX.toInt(),
+                    velocityY.toInt(),
+                    Int.MIN_VALUE,
+                    Int.MAX_VALUE,
+                    Int.MIN_VALUE,
+                    Int.MAX_VALUE,
+                )
+
+                var lastX = 0
+                var lastY = 0
+
+                fun tick(frameTimeNanos: Long) {
+                    if (scroller.computeScrollOffset() && isAttachedToWindow) {
+                        val dx = (scroller.currX - lastX).toFloat()
+                        val dy = (scroller.currY - lastY).toFloat()
+                        lastX = scroller.currX
+                        lastY = scroller.currY
+                        pendingDx += dx
+                        pendingDy += dy
+                        invalidate()
+                        choreographer.postFrameCallback(::tick)
+                    }
                 }
-                else -> 0
+                choreographer.postFrameCallback(::tick)
+                return true
             }
         }
-    }
-
-    private val scrollListener = object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDown(e: MotionEvent): Boolean {
-            scroller.abortAnimation()
-            pendingDx.set(0f)
-            pendingDy.set(0f)
-            gestureStartPositions = Array(e.pointerCount) { i -> PointF(e.getX(i), e.getY(i)) }
-            propagateFlick = false
-            return true
-        }
-
-        override fun onScroll(
-            e1: MotionEvent?,
-            e2: MotionEvent,
-            distanceX: Float,
-            distanceY: Float
-        ): Boolean {
-            if (e2.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS ||
-                !isPenOnlyDraw() && e2.pointerCount == 1
-            ) {
-                return false
-            }
-
-            propagateFlick = true
-
-            pendingDx.getAndUpdate { it - distanceX }
-            pendingDy.getAndUpdate { it - distanceY }
-            drawImmediately()
-            return true
-        }
-
-        override fun onFling(
-            e1: MotionEvent?,
-            e2: MotionEvent,
-            velocityX: Float,
-            velocityY: Float
-        ): Boolean {
-            if (!propagateFlick) {
-                return false
-            }
-
-            scroller.fling(
-                0, 0,
-                velocityX.toInt(),
-                velocityY.toInt(),
-                Int.MIN_VALUE, Int.MAX_VALUE,
-                Int.MIN_VALUE, Int.MAX_VALUE
-            )
-
-            var lastX = 0
-            var lastY = 0
-
-            val choreographer = Choreographer.getInstance()
-            fun tick(frameTimeNanos: Long) {
-                if (scroller.computeScrollOffset() && isAttachedToWindow) {
-                    val dx = (scroller.currX - lastX).toFloat()
-                    val dy = (scroller.currY - lastY).toFloat()
-                    lastX = scroller.currX
-                    lastY = scroller.currY
-                    pendingDx.getAndUpdate { it + dx }
-                    pendingDy.getAndUpdate { it + dy }
-                    drawImmediately()
-                    choreographer.postFrameCallback(::tick)
-                }
-            }
-            choreographer.postFrameCallback(::tick)
-            return true
-        }
-    }
     private val scrollDetector: GestureDetector = GestureDetector(context, scrollListener)
 
-    private val pendingZoom = AtomicReference(1f)
-    private val pendingFocusX = AtomicReference(0f)
-    private val pendingFocusY = AtomicReference(0f)
+    private var pendingZoom = 1f
+    private var pendingFocusX = 0f
+    private var pendingFocusY = 0f
 
-    val pendingSelection = AtomicReference(JTextRange(false, 0, 0))
-    val pendingTextLength = AtomicReference(0)
-    val pendingBuffer = AtomicReference("")
+    private val scaleListener =
+        object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
+            override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
+                pendingZoom = 1f
+                val halfSpanX = detector.currentSpanX / 2f
+                val halfSpanY = detector.currentSpanY / 2f
+                gestureStartPositions =
+                    arrayOf(
+                        PointF(detector.focusX - halfSpanX, detector.focusY - halfSpanY),
+                        PointF(detector.focusX + halfSpanX, detector.focusY + halfSpanY),
+                    )
+                return true
+            }
 
-    var lastFrameDirty = false
+            override fun onScale(detector: ScaleGestureDetector): Boolean {
+                pendingZoom *= detector.scaleFactor
+                pendingFocusX = detector.focusX
+                pendingFocusY = detector.focusY
+                return true
+            }
 
-    private val scaleListener = object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
-        override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
-            pendingZoom.set(1f)
-            val halfSpanX = detector.currentSpanX / 2f
-            val halfSpanY = detector.currentSpanY / 2f
-            gestureStartPositions = arrayOf(
-                PointF(detector.focusX - halfSpanX, detector.focusY - halfSpanY),
-                PointF(detector.focusX + halfSpanX, detector.focusY + halfSpanY)
-            )
-            return true
+            override fun onScaleEnd(detector: ScaleGestureDetector) {
+                super.onScaleEnd(detector)
+            }
         }
 
-        override fun onScale(detector: ScaleGestureDetector): Boolean {
-            pendingZoom.getAndUpdate { it * detector.scaleFactor }
-            pendingFocusX.set(detector.focusX)
-            pendingFocusY.set(detector.focusY)
-            drawImmediately()
-            return true
+    val tapListener =
+        object : GestureDetector.SimpleOnGestureListener() {
+            override fun onDoubleTap(e: MotionEvent): Boolean {
+                cancelTouches(e)
+                return true
+            }
         }
-
-        override fun onScaleEnd(detector: ScaleGestureDetector) {
-            super.onScaleEnd(detector)
-        }
-    }
-
-    val tapListener = object : GestureDetector.SimpleOnGestureListener() {
-        override fun onDoubleTap(e: MotionEvent): Boolean {
-            cancelTouches(e)
-            return true
-        }
-    }
 
     private val tapDetector: GestureDetector = GestureDetector(context, tapListener)
     private val scaleDetector: ScaleGestureDetector = ScaleGestureDetector(context, scaleListener)
@@ -284,28 +184,6 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     var motionEventPredictor = MotionEventPredictor.newInstance(this)
-
-    fun startRendering() {
-
-        renderJob?.cancel()
-        renderJob = renderScope.launch {
-            while (isActive) {
-                val delayTime = drawWorkspace()
-
-                select<Unit> {
-                    redrawChannel.onReceive {
-                    }
-                    onTimeout(delayTime) {
-                    }
-                }
-            }
-        }
-    }
-
-    fun stopRendering() {
-        renderJob?.cancel()
-        nativeLock.withLock { }
-    }
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -320,7 +198,10 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             forwardedTouchEvent(event, 0f)
 
             // if they tap outside the toolbar, we want to refocus the text editor to regain text input
-            if (model.currentTab.value?.type?.isTextEdit() ?: true) {
+            if (model.currentTab.value
+                    ?.type
+                    ?.isTextEdit() ?: true
+            ) {
                 wrapperView?.requestFocus()
             }
         }
@@ -335,10 +216,11 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             when (event.actionMasked) {
                 MotionEvent.ACTION_HOVER_MOVE -> {
                     Workspace.mouseMoved(
-                        WGPU_OBJ,
+                        wgpuObj,
                         event.getX(event.actionIndex) / density,
                         event.getY(event.actionIndex) / density,
                     )
+                    invalidate()
                 }
             }
             return true
@@ -347,20 +229,14 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-
         surface = holder.surface
 
-        if (WGPU_OBJ != Long.MAX_VALUE) {
-            Workspace.dropWS(WGPU_OBJ)
-        }
-
-        WGPU_OBJ = Long.MAX_VALUE
-
-        WGPU_OBJ = Workspace.initWS(
-            surface!!,
-            Lb.lb,
-            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
-        )
+        wgpuObj =
+            Workspace.initWSOffloaded(
+                surface!!,
+                Lb.lb,
+                (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
+            )
 
         setWillNotDraw(false)
 
@@ -370,250 +246,147 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         requestFocus()
     }
 
-    override fun surfaceChanged(holder: SurfaceHolder, format: Int, width: Int, height: Int) {
-
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+    override fun surfaceChanged(
+        holder: SurfaceHolder,
+        format: Int,
+        width: Int,
+        height: Int,
+    ) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
 
-        stopRendering()
-
-        nativeLock.withLock {
-            Workspace.resizeWS(
-                WGPU_OBJ,
-                holder.surface,
-                context.resources.displayMetrics.scaledDensity
-            )
-        }
-
-        startRendering()
+        Workspace.resizeWS(
+            wgpuObj,
+            holder.surface,
+            context.resources.displayMetrics.scaledDensity,
+        )
     }
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
-        stopRendering()
+        handler?.removeCallbacks(redrawTask)
+        surface = null
     }
 
     override fun onDetachedFromWindow() {
-        renderScope.cancel()
+        handler?.removeCallbacks(redrawTask)
         ioScope.cancel()
-
         super.onDetachedFromWindow()
     }
 
     fun setBottomInset(inset: Int) {
-        if (WGPU_OBJ != Long.MAX_VALUE && surface != null) {
+        if (wgpuObj != Long.MAX_VALUE && surface != null) {
             Workspace.setBottomInset(
-                WGPU_OBJ,
+                wgpuObj,
                 inset,
             )
         }
-        drawImmediately()
+        invalidate()
     }
 
-    private suspend fun drawWorkspace(): Long {
-        var containsNotify = false
-        var pastedImageThisFrame = false
-        val responseJson = nativeLock.withLock {
-            if (WGPU_OBJ == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
-                return 0
-            }
-
-            val dx = pendingDx.getAndSet(0f)
-            val dy = pendingDy.getAndSet(0f)
-            val zoom = pendingZoom.getAndSet(1f)
-            val focusX = pendingFocusX.getAndSet(0f)
-            val focusY = pendingFocusY.getAndSet(0f)
-
-            if (dx != 0f || dy != 0f || zoom != 1f) {
-                Workspace.multiTouch(
-                    WGPU_OBJ,
-                    dx,
-                    dy,
-                    zoom, focusX, focusY,
-                    gestureStartPositions.map { it.x }.toFloatArray(),
-                    gestureStartPositions.map { it.y }.toFloatArray()
-                )
-            }
-
-            // Guard again right before the native call
-            if (surface?.isValid != true) {
-                return 0
-            }
-
-            val thisFrameDirty = textMutations.get().any { it.first is WsTextMutation.Replace }
-
-            while (true) {
-
-                val event = textMutations.get().pollFirst() ?: break
-                val mutation = event.first
-                if (event.second != -1) {
-                    if (event.second != frameCount.get()) {
-                        if (lastFrameDirty) {
-
-                            mutation.transformed(lastFrameTransform)
-                            if (textMutations.get().isEmpty()) {
-                                lastFrameTransform = 0
-                            }
-                        }
-                    } else {
-                        lastFrameTransform = mutation.delta()
-                        if (lastFrameTransform != 0) {
-                        }
-                    }
-                }
-                when (mutation) {
-                    is WsTextMutation.Replace -> {
-
-                        Workspace.replace(WGPU_OBJ, mutation.start, mutation.end, mutation.text)
-                    }
-                    is WsTextMutation.InsertAtCursor -> {
-
-                        Workspace.insertTextAtCursor(WGPU_OBJ, mutation.text)
-                    }
-                    is WsTextMutation.ClipboardPaste -> {
-                        Workspace.clipboardPaste(WGPU_OBJ, mutation.text)
-                    }
-                    is WsTextMutation.ClipboardPasteImage -> {
-                        pastedImageThisFrame = true
-                        Workspace.clipboardSendImage(WGPU_OBJ, mutation.bytes, mutation.isPaste)
-                    }
-                    is WsTextMutation.SendKeyEvent -> {
-
-                        Workspace.sendKeyEvent(WGPU_OBJ, mutation.keyCode, mutation.content, mutation.isDown, mutation.isAlt, mutation.isCtrl, mutation.isShift)
-                    }
-                    is WsTextMutation.SelectAll -> {
-                        Workspace.selectAll(WGPU_OBJ)
-                    }
-                    is WsTextMutation.ClipboardCut -> {
-                        Workspace.clipboardCut(WGPU_OBJ)
-                    }
-                    is WsTextMutation.ClipboardCopy -> {
-                        Workspace.clipboardCopy(WGPU_OBJ)
-                    }
-                    is WsTextMutation.NotifySelectionUpdate -> {
-                        containsNotify = true
-                    }
-                    WsTextMutation.WsNotifySelectionUpdate -> {
-//                        containsNotify = !lastFrameDirty
-//                        
-                    }
-                    is WsTextMutation.Clear -> {
-
-                        Workspace.clear(WGPU_OBJ)
-                    }
-                    is WsTextMutation.SetSelection -> {
-                        Workspace.setSelection(WGPU_OBJ, mutation.start, mutation.end)
-                    }
-                    is WsTextMutation.Append -> {
-                        Workspace.append(WGPU_OBJ, mutation.text)
-                    }
-                    is WsTextMutation.Insert -> {
-                        Workspace.insert(WGPU_OBJ, mutation.where, mutation.text)
-                    }
-                }
-            }
-
-            val res = Workspace.enterFrame(WGPU_OBJ)
-
-            lastFrameDirty = thisFrameDirty
-            frameCount.getAndUpdate { it + 1 }
-
-            // you get the update here
-            val selection: JTextRange = frameOutputJsonParser.decodeFromString(Workspace.getSelection(WGPU_OBJ))
-
-            pendingSelection.set(JTextRange(selection.none, selection.start, selection.end))
-            pendingTextLength.set(Workspace.getTextLength(WorkspaceView.WGPU_OBJ))
-            pendingBuffer.set(Workspace.getBuffer(WGPU_OBJ))
-
-            if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
-                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-                    if (containsNotify && textMutations.get().isEmpty()) {
-                        textInputWrapper.wsInputConnection.applySelectionNotification()
-                    }
-                }
-            }
-
-            res
+    fun drawWorkspace() {
+        if (wgpuObj == Long.MAX_VALUE || surface == null || surface?.isValid != true) {
+            return
         }
 
-        val response: AndroidResponse = frameOutputJsonParser.decodeFromString(responseJson)
+        if (pendingDx != 0f || pendingDy != 0f || pendingZoom != 1f) {
+            Workspace.multiTouch(
+                wgpuObj,
+                pendingDx,
+                pendingDy,
+                pendingZoom,
+                pendingFocusX,
+                pendingFocusY,
+                gestureStartPositions.map { it.x }.toFloatArray(),
+                gestureStartPositions.map { it.y }.toFloatArray(),
+            )
+        }
 
-        withContext(Dispatchers.Main) {
-            if (response.urlOpened.isNotEmpty()) {
-                try {
-                    val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
-                    startActivity(context, browserIntent, null)
-                } catch (err: Exception) {
-                    Toast.makeText(context, err.message, Toast.LENGTH_SHORT).show()
+        pendingDx = 0f
+        pendingDy = 0f
+        pendingZoom = 1f
+        pendingFocusX = 0f
+        pendingFocusY = 0f
+
+        val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
+
+        if (response.urlOpened.isNotEmpty()) {
+            try {
+                val browserIntent = Intent(Intent.ACTION_VIEW, response.urlOpened.toUri())
+                startActivity(context, browserIntent, null)
+            } catch (err: Exception) {
+                Toast.makeText(context, err.message, Toast.LENGTH_SHORT).show()
+            }
+        }
+
+        if (!response.docCreated.isNullUUID()) {
+            model._openFile.postValue(response.docCreated to true)
+        }
+
+        if (response.copiedText.isNotEmpty()) {
+            (
+                App
+                    .applicationContext()
+                    .getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
+            ).setPrimaryClip(ClipData.newPlainText("", response.copiedText))
+        }
+
+        val currentTab =
+            if (response.tabsChanged || !response.selectedFile.isNullUUID()) {
+                Workspace.currentTab(wgpuObj).toModelTab()
+            } else {
+                null
+            }
+
+        if (currentTab != null) {
+            model._currentTab.value = currentTab
+        }
+
+        if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
+            (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+
+                if (response.textUpdated && contextMenu != null) {
+                    contextMenu?.finish()
                 }
-            }
 
-            if (!response.docCreated.isNullUUID()) {
-                model._openFile.postValue(response.docCreated to true)
-            }
+                if (response.selectionUpdated) {
+                    textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                }
 
-            if (pastedImageThisFrame) {
-                // The rust side has now processed the paste event during `enterFrame()`,
-                // so the imported file should exist and a file tree refresh will pick it up.
-                model._refreshFilesRequested.postValue(Unit)
-            }
+                response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
 
-            if (response.tabTitleClicked) {
-                model._tabTitleClicked.postValue(Unit)
-                Workspace.unfocusTitle(WGPU_OBJ)
-            }
+                if (response.hasEditMenu && contextMenu == null) {
+                    val actionModeCallback =
+                        TextEditorContextMenu(textInputWrapper)
 
-            if (response.copiedText.isNotEmpty()) {
-                (App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager)
-                    .setPrimaryClip(ClipData.newPlainText("", response.copiedText))
-            }
-
-            if (response.tabsChanged) {
-                val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
-                model._currentTab.value = newTab
-            }
-
-            if (!response.selectedFile.isNullUUID()) {
-                val newTab = Workspace.currentTab(WGPU_OBJ).toModelTab()
-                model._currentTab.value = newTab
-            }
-
-            if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
-                (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
-
-                    if (response.textUpdated && contextMenu != null) {
-                        contextMenu?.finish()
-                    }
-
-//                    if (response.selectionUpdated && textInputWrapper.wsInputConnection.batchEditCount.get() == 0) {
-
-//                        textMutations.get().add(WsTextMutation.WsNotifySelectionUpdate to frameCount.get())
-//                    }
-                    response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
-
-                    if (response.hasEditMenu && contextMenu == null) {
-                        val actionModeCallback =
-                            TextEditorContextMenu(textInputWrapper)
-
-                        contextMenu = this@WorkspaceView.startActionMode(
+                    contextMenu =
+                        this@WorkspaceView.startActionMode(
                             FloatingTextEditorContextMenu(
                                 actionModeCallback,
                                 response.editMenuX,
-                                response.editMenuY
+                                response.editMenuY,
                             ),
-                            ActionMode.TYPE_FLOATING
+                            ActionMode.TYPE_FLOATING,
                         )
-                    }
                 }
             }
         }
 
-//        return min(response.redrawIn, 500u).toLong()
-        return response.redrawIn.toLong()
+        if (response.redrawIn < 100) {
+            invalidate()
+        } else {
+            handler.postDelayed(redrawTask, response.redrawIn)
+        }
     }
 
     fun drawImmediately() {
-        redrawChannel.trySend(Unit)
+        drawWorkspace()
+    }
+
+    override fun draw(canvas: Canvas) {
+        super.draw(canvas)
+
+        drawWorkspace()
     }
 
     fun launchIo(block: suspend () -> Unit) {
@@ -621,11 +394,12 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
     }
 
     fun createDocAt(payload: Pair<Boolean, String>) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
-        Workspace.createDocAt(WGPU_OBJ, payload.first, payload.second)
-        drawImmediately()
+        Workspace.createDocAt(wgpuObj, payload.first, payload.second)
+
+        invalidate()
     }
 
     fun cancelTouches(event: MotionEvent) {
@@ -633,17 +407,20 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
             val pointerId = event.getPointerId(i)
             val pressure = event.getPressure(i)
             Workspace.touchesCancelled(
-                WGPU_OBJ,
+                wgpuObj,
                 pointerId,
                 event.getX(i),
                 event.getY(i),
-                pressure
+                pressure,
             )
         }
     }
 
-    fun forwardedTouchEvent(event: MotionEvent, touchOffsetY: Float) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+    fun forwardedTouchEvent(
+        event: MotionEvent,
+        touchOffsetY: Float,
+    ) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
         val action = event.action and MotionEvent.ACTION_MASK
@@ -658,71 +435,78 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
 
                 val pointerId = event.getPointerId(actionIndex)
                 Workspace.touchesBegin(
-                    WGPU_OBJ,
+                    wgpuObj,
                     pointerId,
                     event.getX(actionIndex),
                     event.getY(actionIndex) + touchOffsetY,
-                    pressure
+                    pressure,
                 )
             }
+
             MotionEvent.ACTION_MOVE -> {
                 for (i in 0 until event.pointerCount) {
                     val pointerId = event.getPointerId(i)
                     Workspace.touchesMoved(
-                        WGPU_OBJ,
+                        wgpuObj,
                         pointerId,
                         event.getX(i),
                         event.getY(i) + touchOffsetY,
-                        getEventPressure(event, i)
+                        getEventPressure(event, i),
                     )
                 }
                 motionEventPredictor.predict()?.let { predicted ->
                     val density = resources.displayMetrics.density
                     for (i in 0 until predicted.pointerCount) {
                         Workspace.touchesPredicted(
-                            WGPU_OBJ,
+                            wgpuObj,
                             predicted.getPointerId(i),
                             predicted.getX(i) / density,
                             predicted.getY(i) / density + touchOffsetY,
-                            getEventPressure(predicted, i)
+                            getEventPressure(predicted, i),
                         )
                     }
                     predicted.recycle()
                 }
             }
+
             MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
                 val pointerId = event.getPointerId(actionIndex)
                 Workspace.touchesEnded(
-                    WGPU_OBJ,
+                    wgpuObj,
                     pointerId,
                     event.getX(actionIndex),
                     event.getY(actionIndex) + touchOffsetY,
-                    pressure
+                    pressure,
                 )
             }
+
             MotionEvent.ACTION_CANCEL -> {
                 val pointerId = event.getPointerId(actionIndex)
                 Workspace.touchesCancelled(
-                    WGPU_OBJ,
+                    wgpuObj,
                     pointerId,
                     event.getX(actionIndex),
                     event.getY(actionIndex) + touchOffsetY,
-                    pressure
+                    pressure,
                 )
             }
         }
 
-        drawImmediately()
+        invalidate()
     }
 
-    private fun getEventPressure(event: MotionEvent, actionIndex: Int): Float {
+    private fun getEventPressure(
+        event: MotionEvent,
+        actionIndex: Int,
+    ): Float {
         val touchType = event.getToolType(actionIndex)
 
-        val pressure = if (touchType == MotionEvent.TOOL_TYPE_STYLUS) {
-            event.pressure * 10f // hack: on the z-fold the range is 0-0.1, uplift this to 0-1
-        } else {
-            Float.NaN
-        }
+        val pressure =
+            if (touchType == MotionEvent.TOOL_TYPE_STYLUS) {
+                event.pressure * 10f // hack: on the z-fold the range is 0-0.1, uplift this to 0-1
+            } else {
+                Float.NaN
+            }
         return pressure
     }
 
@@ -730,123 +514,157 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         drawImmediately()
     }
 
-    fun openDoc(id: String, newFile: Boolean): WorkspaceTabType? {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
-            return null
+    fun openDoc(
+        id: String,
+        newFile: Boolean,
+    ) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return
         }
 
-        val tab = Workspace.openDoc(WGPU_OBJ, id, newFile)
-        drawImmediately()
+        Workspace.openDoc(wgpuObj, id, newFile)
+        invalidate()
 
-        return WorkspaceTabType.fromInt(tab)
+        return
     }
 
     fun back(): Boolean {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return false
         }
 
-        val didNavigate = Workspace.back(WGPU_OBJ)
+        val didNavigate = Workspace.back(wgpuObj)
         if (didNavigate) {
-            drawImmediately()
+            invalidate()
         }
 
         return didNavigate
     }
 
     fun forward(): Boolean {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return false
         }
 
-        val didNavigate = Workspace.forward(WGPU_OBJ)
+        val didNavigate = Workspace.forward(wgpuObj)
         if (didNavigate) {
-            drawImmediately()
+            invalidate()
         }
 
         return didNavigate
     }
 
     fun canForward(): Boolean {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return false
         }
 
-        return Workspace.canForward(WGPU_OBJ)
+        return Workspace.canForward(wgpuObj)
     }
 
     fun isPenOnlyDraw(): Boolean {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return false
         }
 
-        return Workspace.isPenOnlyDraw(WGPU_OBJ)
+        return Workspace.isPenOnlyDraw(wgpuObj)
     }
 
     fun getTabs(): Array<String> {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return emptyArray()
         }
 
-        return Workspace.getTabs(WGPU_OBJ)
+        return Workspace.getTabs(wgpuObj)
     }
 
     fun closeDoc(id: String) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
 
-        Workspace.closeDoc(WGPU_OBJ, id)
-        drawImmediately()
+        Workspace.closeDoc(wgpuObj, id)
+        invalidate()
     }
 
     fun closeAllTabs() {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
 
-        Workspace.closeAllTabs(WGPU_OBJ)
+        Workspace.closeAllTabs(wgpuObj)
     }
 
-    fun fileRenamed(id: String, name: String) {
-        if (WGPU_OBJ == Long.MAX_VALUE || surface == null) {
+    fun fileRenamed(
+        id: String,
+        name: String,
+    ) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return
         }
 
-        Workspace.fileRenamed(WGPU_OBJ, id, name)
+        Workspace.fileRenamed(wgpuObj, id, name)
     }
 
     companion object {
-        var WGPU_OBJ = Long.MAX_VALUE
+        var wgpuObj = Long.MAX_VALUE
 
         const val SPEN_ACTION_DOWN = 211
         const val SPEN_ACTION_MOVE = 213
         const val SPEN_ACTION_UP = 212
     }
-    inner class FloatingTextEditorContextMenu(private val textEditorContextMenu: TextEditorContextMenu, val editMenuX: Float, val editMenuY: Float) : ActionMode.Callback2() {
-        override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-            return textEditorContextMenu.onCreateActionMode(mode, menu)
-        }
 
-        override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-            return textEditorContextMenu.onPrepareActionMode(mode, menu)
-        }
+    inner class FloatingTextEditorContextMenu(
+        private val textEditorContextMenu: TextEditorContextMenu,
+        val editMenuX: Float,
+        val editMenuY: Float,
+    ) : ActionMode.Callback2() {
+        override fun onCreateActionMode(
+            mode: ActionMode?,
+            menu: Menu?,
+        ): Boolean = textEditorContextMenu.onCreateActionMode(mode, menu)
 
-        override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
-            return textEditorContextMenu.onActionItemClicked(mode, item)
-        }
+        override fun onPrepareActionMode(
+            mode: ActionMode?,
+            menu: Menu?,
+        ): Boolean = textEditorContextMenu.onPrepareActionMode(mode, menu)
 
-        override fun onDestroyActionMode(mode: ActionMode?) {
-            return textEditorContextMenu.onDestroyActionMode(mode)
-        }
+        override fun onActionItemClicked(
+            mode: ActionMode?,
+            item: MenuItem?,
+        ): Boolean = textEditorContextMenu.onActionItemClicked(mode, item)
 
-        override fun onGetContentRect(mode: ActionMode?, view: View?, outRect: Rect?) {
-            outRect!!.set(Rect((editMenuX * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuY * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuX * context.resources.displayMetrics.scaledDensity).toInt(), (editMenuY * context.resources.displayMetrics.scaledDensity).toInt()))
+        override fun onDestroyActionMode(mode: ActionMode?) = textEditorContextMenu.onDestroyActionMode(mode)
+
+        override fun onGetContentRect(
+            mode: ActionMode?,
+            view: View?,
+            outRect: Rect?,
+        ) {
+            outRect!!.set(
+                Rect(
+                    (editMenuX * context.resources.displayMetrics.scaledDensity).toInt(),
+                    (
+                        editMenuY *
+                            context.resources.displayMetrics.scaledDensity
+                    ).toInt(),
+                    (editMenuX * context.resources.displayMetrics.scaledDensity).toInt(),
+                    (
+                        editMenuY *
+                            context.resources.displayMetrics.scaledDensity
+                    ).toInt(),
+                ),
+            )
         }
     }
 
-    inner class TextEditorContextMenu(private val textInputWrapper: WorkspaceTextInputWrapper) : ActionMode.Callback {
-        override fun onCreateActionMode(mode: ActionMode?, menu: Menu?): Boolean {
+    inner class TextEditorContextMenu(
+        private val textInputWrapper: WorkspaceTextInputWrapper,
+    ) : ActionMode.Callback {
+        override fun onCreateActionMode(
+            mode: ActionMode?,
+            menu: Menu?,
+        ): Boolean {
             if (mode != null) {
                 mode.title = null
                 mode.subtitle = null
@@ -861,34 +679,47 @@ class WorkspaceView(context: Context, val model: WorkspaceViewModel) : SurfaceVi
         }
 
         private fun populateMenuWithItems(menu: Menu) {
-            if (!textInputWrapper.wsInputConnection.wsEditable.getSelection().isEmpty()) {
-                menu.add(Menu.NONE, android.R.id.cut, 0, "Cut")
+            if (!textInputWrapper.wsInputConnection.wsEditable
+                    .getSelection()
+                    .isEmpty()
+            ) {
+                menu
+                    .add(Menu.NONE, android.R.id.cut, 0, "Cut")
                     .setAlphabeticShortcut('x')
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
 
-                menu.add(Menu.NONE, android.R.id.copy, 1, "Copy")
+                menu
+                    .add(Menu.NONE, android.R.id.copy, 1, "Copy")
                     .setAlphabeticShortcut('c')
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
             }
 
-            menu.add(Menu.NONE, android.R.id.paste, 2, "Paste")
+            menu
+                .add(Menu.NONE, android.R.id.paste, 2, "Paste")
                 .setAlphabeticShortcut('v')
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
 
-            menu.add(Menu.NONE, android.R.id.selectAll, 3, "Select all")
+            menu
+                .add(Menu.NONE, android.R.id.selectAll, 3, "Select all")
                 .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
         }
 
-        override fun onPrepareActionMode(mode: ActionMode?, menu: Menu?): Boolean {
-            return true
-        }
+        override fun onPrepareActionMode(
+            mode: ActionMode?,
+            menu: Menu?,
+        ): Boolean = true
 
-        override fun onActionItemClicked(mode: ActionMode?, item: MenuItem?): Boolean {
+        override fun onActionItemClicked(
+            mode: ActionMode?,
+            item: MenuItem?,
+        ): Boolean {
             if (item != null) {
                 textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
             }
 
-            contextMenu!!.finish()
+            if (contextMenu != null) {
+                contextMenu!!.finish()
+            }
 
             return true
         }

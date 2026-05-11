@@ -14,8 +14,10 @@ import net.lockbook.LbError.LbEC
 import timber.log.Timber
 import java.lang.ref.WeakReference
 
-class AlertModel(private val activity: WeakReference<Activity>, view: View? = null) {
-
+class AlertModel(
+    private val activity: WeakReference<Activity>,
+    view: View? = null,
+) {
     private var view: View = view ?: activity.get()!!.findViewById(android.R.id.content)
     private var unexpectedErrorMsg = activity.get()!!.resources.getString(R.string.unexpected_error)
 
@@ -23,28 +25,41 @@ class AlertModel(private val activity: WeakReference<Activity>, view: View? = nu
         notify(unexpectedErrorMsg, onFinish)
     }
 
-    fun notify(msg: String, onFinish: (() -> Unit)? = null) {
+    fun notify(
+        msg: String,
+        onFinish: (() -> Unit)? = null,
+    ) {
         Handler(Looper.getMainLooper()).post {
             val snackBar = Snackbar.make(view, msg, Snackbar.LENGTH_SHORT)
 
             if (onFinish != null) {
-                snackBar.addCallback(object : Snackbar.Callback() {
-                    override fun onDismissed(transientBottomBar: Snackbar?, event: Int) {
-                        super.onDismissed(transientBottomBar, event)
-                        onFinish()
-                    }
-                })
+                snackBar.addCallback(
+                    object : Snackbar.Callback() {
+                        override fun onDismissed(
+                            transientBottomBar: Snackbar?,
+                            event: Int,
+                        ) {
+                            super.onDismissed(transientBottomBar, event)
+                            onFinish()
+                        }
+                    },
+                )
             }
 
             snackBar.show()
         }
     }
 
-    private fun notifyWithDialog(title: String, msg: String, onFinish: (() -> Unit)? = null) {
+    private fun notifyWithDialog(
+        title: String,
+        msg: String,
+        onFinish: (() -> Unit)? = null,
+    ) {
         Handler(Looper.getMainLooper()).post {
-            val dialog = MaterialAlertDialogBuilder(activity.get()!!)
-                .setTitle(title)
-                .setMessage(msg)
+            val dialog =
+                MaterialAlertDialogBuilder(activity.get()!!)
+                    .setTitle(title)
+                    .setMessage(msg)
 
             if (onFinish != null) {
                 dialog.setOnCancelListener {
@@ -56,7 +71,10 @@ class AlertModel(private val activity: WeakReference<Activity>, view: View? = nu
         }
     }
 
-    fun notifyError(error: LbError, onFinish: (() -> Unit)? = null) {
+    fun notifyError(
+        error: LbError,
+        onFinish: (() -> Unit)? = null,
+    ) {
         if (error.kind == LbEC.Unexpected) {
             notifyWithDialog(unexpectedErrorMsg, "${error.msg}\n${error.trace}", onFinish)
             Timber.e("Unexpected Error: $error.msg")

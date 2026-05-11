@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.screen
 
 import android.annotation.SuppressLint
@@ -18,7 +20,6 @@ import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class UpgradeAccountActivity : AppCompatActivity() {
-
     private lateinit var binding: ActivityUpgradeAccountBinding
 
     private val alertModel by lazy {
@@ -65,10 +66,11 @@ class UpgradeAccountActivity : AppCompatActivity() {
             handleBillingEvent(billingEvent)
         }
 
-        val selectedTierCardView = when (selectedTier) {
-            AccountTier.Free -> binding.upgradeAccountTierFree
-            AccountTier.PremiumMonthly -> binding.upgradeAccountTierPremiumMonthly
-        }
+        val selectedTierCardView =
+            when (selectedTier) {
+                AccountTier.Free -> binding.upgradeAccountTierFree
+                AccountTier.PremiumMonthly -> binding.upgradeAccountTierPremiumMonthly
+            }
 
         selectedTierCardView.isChecked = true
         binding.subscribeToPlan.isEnabled = selectedTier != AccountTier.Free
@@ -79,9 +81,12 @@ class UpgradeAccountActivity : AppCompatActivity() {
 
     private fun handleBillingEvent(billingEvent: BillingEvent) {
         when (billingEvent) {
-            BillingEvent.NotifyUnrecoverableError -> alertModel.notify(resources.getString(R.string.unrecoverable_billing_error)) {
-                finish()
+            BillingEvent.NotifyUnrecoverableError -> {
+                alertModel.notify(resources.getString(R.string.unrecoverable_billing_error)) {
+                    finish()
+                }
             }
+
             is BillingEvent.SuccessfulPurchase -> {
                 uiScope.launch {
                     binding.progressOverlay.visibility = View.VISIBLE
@@ -103,8 +108,14 @@ class UpgradeAccountActivity : AppCompatActivity() {
                     }
                 }
             }
-            is BillingEvent.NotifyError -> alertModel.notifyError(billingEvent.error)
-            is BillingEvent.NotifyErrorMsg -> alertModel.notifyWithToast(billingEvent.error)
+
+            is BillingEvent.NotifyError -> {
+                alertModel.notifyError(billingEvent.error)
+            }
+
+            is BillingEvent.NotifyErrorMsg -> {
+                alertModel.notifyWithToast(billingEvent.error)
+            }
         }
     }
 
@@ -118,24 +129,27 @@ class UpgradeAccountActivity : AppCompatActivity() {
         binding.subscribeToPlan.isEnabled = selectedTier != AccountTier.Free
     }
 
-    private val clickListener = View.OnClickListener { tierCardView ->
-        val oldSelectedTier = selectedTier
+    private val clickListener =
+        View.OnClickListener { tierCardView ->
+            val oldSelectedTier = selectedTier
 
-        selectedTier = when (tierCardView) {
-            binding.upgradeAccountTierFree -> AccountTier.Free
-            binding.upgradeAccountTierPremiumMonthly -> AccountTier.PremiumMonthly
-            else -> AccountTier.Free
+            selectedTier =
+                when (tierCardView) {
+                    binding.upgradeAccountTierFree -> AccountTier.Free
+                    binding.upgradeAccountTierPremiumMonthly -> AccountTier.PremiumMonthly
+                    else -> AccountTier.Free
+                }
+
+            val oldTierCardView =
+                when (oldSelectedTier) {
+                    AccountTier.Free -> binding.upgradeAccountTierFree
+                    AccountTier.PremiumMonthly -> binding.upgradeAccountTierPremiumMonthly
+                }
+
+            toggleSubscribeButton()
+            oldTierCardView.isChecked = false
+            (tierCardView as MaterialCardView).isChecked = true
         }
-
-        val oldTierCardView = when (oldSelectedTier) {
-            AccountTier.Free -> binding.upgradeAccountTierFree
-            AccountTier.PremiumMonthly -> binding.upgradeAccountTierPremiumMonthly
-        }
-
-        toggleSubscribeButton()
-        oldTierCardView.isChecked = false
-        (tierCardView as MaterialCardView).isChecked = true
-    }
 
     private fun launchPurchaseFlow(selectedTier: AccountTier) {
         if (selectedTier == AccountTier.PremiumMonthly) {

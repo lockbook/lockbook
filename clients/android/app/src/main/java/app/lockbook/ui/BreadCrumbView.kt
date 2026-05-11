@@ -13,11 +13,10 @@ import app.lockbook.model.BreadCrumbItemClickListener
 import net.lockbook.File
 
 data class BreadCrumbItem(
-    val file: File
+    val file: File,
 )
 
 class BreadCrumbView : FrameLayout {
-
     private lateinit var recyclerView: RecyclerView
     private lateinit var breadCrumbAdapter: BreadCrumbAdapter
 
@@ -26,7 +25,7 @@ class BreadCrumbView : FrameLayout {
     constructor(context: Context, attrs: AttributeSet?, defStyleAttr: Int) : super(
         context,
         attrs,
-        defStyleAttr
+        defStyleAttr,
     ) {
         createAndAddRecyclerView(context)
 
@@ -52,16 +51,23 @@ class BreadCrumbView : FrameLayout {
 
     private fun createAndAddRecyclerView(context: Context) {
         recyclerView = RecyclerView(context)
-        val recyclerViewParams = ViewGroup.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.WRAP_CONTENT
-        )
+        val recyclerViewParams =
+            ViewGroup.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.WRAP_CONTENT,
+            )
 
         recyclerView.layoutManager =
             LinearLayoutManager(context, LinearLayoutManager.HORIZONTAL, false)
-        breadCrumbAdapter = BreadCrumbAdapter(object : BreadCrumbItemClickListener {
-            override fun onItemClick(breadCrumbItem: View, file: File) {}
-        })
+        breadCrumbAdapter =
+            BreadCrumbAdapter(
+                object : BreadCrumbItemClickListener {
+                    override fun onItemClick(
+                        breadCrumbItem: View,
+                        file: File,
+                    ) {}
+                },
+            )
 
         recyclerView.adapter = breadCrumbAdapter
         addView(recyclerView, recyclerViewParams)

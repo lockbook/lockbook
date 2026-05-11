@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.screen
 
 import android.content.ClipData
@@ -26,13 +28,11 @@ import app.lockbook.databinding.ActivityMainScreenBinding
 import app.lockbook.model.*
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import app.lockbook.workspace.LbStatus
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import net.lockbook.Lb
+import net.lockbook.LbStatus
 import java.io.File
 import java.lang.ref.WeakReference
 
@@ -45,26 +45,36 @@ class MainScreenActivity : AppCompatActivity() {
         AlertModel(WeakReference(this))
     }
 
-    private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
-        override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-            val filesFragment = maybeGetFilesFragment() ?: return
+    private val fragmentFinishedCallback =
+        object : FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentDestroyed(
+                fm: FragmentManager,
+                f: Fragment,
+            ) {
+                val filesFragment = maybeGetFilesFragment() ?: return
 
-            when (f) {
-                is MoveFileDialogFragment,
-                is RenameFileDialogFragment -> filesFragment.reloadFiles()
-                is CreateFileDialogFragment -> filesFragment.onNewFileCreated(f.newFile)
-                is FileInfoDialogFragment -> filesFragment.unselectFiles()
-                is DeleteFilesDialogFragment -> {
-                    if (workspaceModel.currentTab.value != null) {
-                        workspaceModel._closeFile.value = workspaceModel.currentTab.value?.id
+                when (f) {
+                    is MoveFileDialogFragment,
+                    is RenameFileDialogFragment,
+                    -> {
+                        filesFragment.reloadFiles()
                     }
 
-                    filesFragment.reloadFiles()
+                    is CreateFileDialogFragment -> {
+                        filesFragment.onNewFileCreated(f.newFile)
+                    }
+
+                    is FileInfoDialogFragment -> {
+                        filesFragment.unselectFiles()
+                    }
+
+                    is DeleteFilesDialogFragment -> {
+                        filesFragment.reloadFiles()
+                    }
                 }
+                filesFragment.unselectFiles()
             }
-            filesFragment.unselectFiles()
         }
-    }
 
     private val onExport =
         registerForActivityResult(ActivityResultContracts.StartActivityForResult()) {
@@ -79,18 +89,15 @@ class MainScreenActivity : AppCompatActivity() {
 
     private val fileTreeViewModel: FileTreeViewModel by viewModels()
 
-    val jsonParser = Json {
-        ignoreUnknownKeys = true
-    }
-
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         enableEdgeToEdge(
-            navigationBarStyle = SystemBarStyle.auto(
-                Color.TRANSPARENT,
-                Color.TRANSPARENT
-            )
+            navigationBarStyle =
+                SystemBarStyle.auto(
+                    Color.TRANSPARENT,
+                    Color.TRANSPARENT,
+                ),
         )
 
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
@@ -102,7 +109,7 @@ class MainScreenActivity : AppCompatActivity() {
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
-            false
+            false,
         )
 
         val wFragment = supportFragmentManager.findFragmentByTag("Workspace")
@@ -121,9 +128,18 @@ class MainScreenActivity : AppCompatActivity() {
                     is BillingEvent.SuccessfulPurchase -> {
                         model.confirmSubscription(billingEvent.purchaseToken, billingEvent.accountId)
                     }
-                    is BillingEvent.NotifyError -> alertModel.notifyError(billingEvent.error)
-                    is BillingEvent.NotifyUnrecoverableError -> alertModel.notifyBasicError()
-                    is BillingEvent.NotifyErrorMsg -> alertModel.notify(billingEvent.error)
+
+                    is BillingEvent.NotifyError -> {
+                        alertModel.notifyError(billingEvent.error)
+                    }
+
+                    is BillingEvent.NotifyUnrecoverableError -> {
+                        alertModel.notifyBasicError()
+                    }
+
+                    is BillingEvent.NotifyErrorMsg -> {
+                        alertModel.notify(billingEvent.error)
+                    }
                 }.exhaustive
             }
         }
@@ -135,7 +151,7 @@ class MainScreenActivity : AppCompatActivity() {
         slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
         model.launchActivityScreen.observe(
-            this
+            this,
         ) { screen ->
             when (screen) {
                 is ActivityScreen.Settings -> {
@@ -147,41 +163,47 @@ class MainScreenActivity : AppCompatActivity() {
 
                     startActivity(intent)
                 }
+
                 null -> {}
             }
         }
 
         model.launchTransientScreen.observe(
-            this
+            this,
         ) { screen ->
             when (screen) {
                 is TransientScreen.Create -> {
                     CreateFileDialogFragment().show(
                         supportFragmentManager,
-                        CreateFileDialogFragment.TAG
+                        CreateFileDialogFragment.TAG,
                     )
                 }
+
                 is TransientScreen.Info -> {
                     FileInfoDialogFragment().show(
                         supportFragmentManager,
-                        FileInfoDialogFragment.TAG
+                        FileInfoDialogFragment.TAG,
                     )
                 }
+
                 is TransientScreen.Move -> {
                     MoveFileDialogFragment().show(
                         supportFragmentManager,
-                        MoveFileDialogFragment.TAG
+                        MoveFileDialogFragment.TAG,
                     )
                 }
+
                 is TransientScreen.Rename -> {
                     RenameFileDialogFragment().show(
                         supportFragmentManager,
-                        RenameFileDialogFragment.TAG
+                        RenameFileDialogFragment.TAG,
                     )
                 }
+
                 is TransientScreen.ShareExport -> {
                     finalizeShare(screen.files)
                 }
+
                 is TransientScreen.ShareFile -> {
                     supportFragmentManager.commit {
                         add<ShareFileFragment>(R.id.detail_container, ShareFileFragment.TAG)
@@ -191,31 +213,20 @@ class MainScreenActivity : AppCompatActivity() {
                         slidingPaneLayout.openPane()
                     }
                 }
+
                 is TransientScreen.Delete -> {
                     DeleteFilesDialogFragment().show(
                         supportFragmentManager,
-                        DeleteFilesDialogFragment.DELETE_FILES_DIALOG_FRAGMENT
+                        DeleteFilesDialogFragment.DELETE_FILES_DIALOG_FRAGMENT,
                     )
                 }
             }.exhaustive
         }
 
         model.updateMainScreenUI.observe(
-            this
+            this,
         ) { update ->
             updateMainScreenUI(update)
-        }
-
-        workspaceModel.tabTitleClicked.observe(this) {
-            workspaceModel.currentTab.value?.let { tab ->
-                fileTreeViewModel.fileModel.idsAndFiles[tab.id]?.let { file ->
-                    model.launchTransientScreen(TransientScreen.Rename(file))
-                }
-            }
-        }
-
-        workspaceModel.shouldShowTabs.observe(this) {
-            workspaceModel._showTabs.postValue(!binding.slidingPaneLayout.isSlideable)
         }
 
         onBackPressedDispatcher.addCallback(
@@ -224,7 +235,9 @@ class MainScreenActivity : AppCompatActivity() {
                 override fun handleOnBackPressed() {
                     if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
                         model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
-                    } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) { // if you are on a small display where only files or an editor show once at a time, you want to handle behavior a bit differently
+                    } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) {
+                        // On small displays where only files or an editor show at once,
+                        // handle back behavior differently.
                         workspaceModel.requestWorkspaceBack()
                     } else if (maybeGetSearchFilesFragment() != null) {
                         updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
@@ -233,19 +246,26 @@ class MainScreenActivity : AppCompatActivity() {
                         onBackPressedDispatcher.onBackPressed()
                     }
                 }
-            }
+            },
         )
 
-        slidingPaneLayout.addPanelSlideListener(object : SlidingPaneLayout.SimplePanelSlideListener() {
-            override fun onPanelOpened(panel: View) {
-                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-            }
-            override fun onPanelClosed(panel: View) {
-                window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
-            }
-            override fun onPanelSlide(panel: View, slideOffset: Float) {
-            }
-        })
+        slidingPaneLayout.addPanelSlideListener(
+            object : SlidingPaneLayout.SimplePanelSlideListener() {
+                override fun onPanelOpened(panel: View) {
+                    window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
+                }
+
+                override fun onPanelClosed(panel: View) {
+                    window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
+                }
+
+                override fun onPanelSlide(
+                    panel: View,
+                    slideOffset: Float,
+                ) {
+                }
+            },
+        )
 
         val navController = navHost().navController
         binding.bottomNavigation.setupWithNavController(navController)
@@ -270,14 +290,28 @@ class MainScreenActivity : AppCompatActivity() {
                     }
                 }
             }
+
+            is UpdateMainScreenUI.OpenFileFromSearch -> {
+                workspaceModel._openFile.value = Pair(update.id, false)
+                navHost().navController.popBackStack()
+            }
+
             is UpdateMainScreenUI.CloseWorkspacePane -> {
                 slidingPaneLayout.closePane()
             }
+
             is UpdateMainScreenUI.OpenWorkspacePane -> {
                 slidingPaneLayout.openPane()
             }
-            is UpdateMainScreenUI.NotifyError -> alertModel.notifyError(update.error)
-            is UpdateMainScreenUI.ShareDocuments -> finalizeShare(update.files)
+
+            is UpdateMainScreenUI.NotifyError -> {
+                alertModel.notifyError(update.error)
+            }
+
+            is UpdateMainScreenUI.ShareDocuments -> {
+                finalizeShare(update.files)
+            }
+
             is UpdateMainScreenUI.ShowHideProgressOverlay -> {
                 if (update.show) {
                     Animate.animateVisibility(binding.progressOverlay, View.VISIBLE, 100, 500)
@@ -285,23 +319,34 @@ class MainScreenActivity : AppCompatActivity() {
                     Animate.animateVisibility(binding.progressOverlay, View.GONE, 0, 500)
                 }
             }
+
             UpdateMainScreenUI.ShowSubscriptionConfirmed -> {
                 alertModel.notifySuccessfulPurchaseConfirm()
             }
+
             UpdateMainScreenUI.PopBackstackToWorkspace -> {
                 if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
                     supportFragmentManager.popBackStack(WorkspaceFragment.BACKSTACK_TAG, FragmentManager.POP_BACK_STACK_INCLUSIVE)
                 }
             }
-            UpdateMainScreenUI.ShowSearch -> navHost().navController.navigate(R.id.action_files_to_search)
-            UpdateMainScreenUI.ShowFiles -> navHost().navController.popBackStack()
-            UpdateMainScreenUI.ToggleBottomViewNavigation -> {
-                binding.bottomNavigation.visibility = if (binding.bottomNavigation.isVisible) {
-                    View.GONE
-                } else {
-                    View.VISIBLE
-                }
+
+            UpdateMainScreenUI.ShowSearch -> {
+                navHost().navController.navigate(R.id.action_files_to_search)
             }
+
+            UpdateMainScreenUI.ShowFiles -> {
+                navHost().navController.popBackStack()
+            }
+
+            UpdateMainScreenUI.ToggleBottomViewNavigation -> {
+                binding.bottomNavigation.visibility =
+                    if (binding.bottomNavigation.isVisible) {
+                        View.GONE
+                    } else {
+                        View.VISIBLE
+                    }
+            }
+
             UpdateMainScreenUI.CloseSlidingPane -> {
                 slidingPaneLayout.closePane()
             }
@@ -316,8 +361,8 @@ class MainScreenActivity : AppCompatActivity() {
                 FileProvider.getUriForFile(
                     this,
                     "app.lockbook.fileprovider",
-                    file
-                )
+                    file,
+                ),
             )
         }
 
@@ -350,12 +395,13 @@ class MainScreenActivity : AppCompatActivity() {
     private fun subscribeToLbEvents() {
         lifecycleScope.launch {
             while (true) {
-                val lbEvent = withContext(Dispatchers.IO) {
-                    Lb.subscribe(Lb.eventsReceiver)
-                }
+                val lbEvent =
+                    withContext(Dispatchers.IO) {
+                        Lb.subscribe(Lb.eventsReceiver)
+                    }
 
                 lbEvent?.let { event ->
-                    val status: LbStatus = jsonParser.decodeFromString(Lb.getStatus())
+                    val status: LbStatus = Lb.getStatus()
                     fileTreeViewModel.hydrateStatusUpdate(status, event)
                 }
             }

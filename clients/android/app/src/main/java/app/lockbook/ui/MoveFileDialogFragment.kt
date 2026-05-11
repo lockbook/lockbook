@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.ui
 
 import android.app.AlertDialog
@@ -23,7 +25,6 @@ import net.lockbook.File
 import java.lang.ref.WeakReference
 
 class MoveFileDialogFragment : DialogFragment() {
-
     private lateinit var binding: DialogMoveFileBinding
 
     private val activityModel: StateViewModel by activityViewModels()
@@ -31,15 +32,16 @@ class MoveFileDialogFragment : DialogFragment() {
         factoryProducer = {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(MoveFileViewModel::class.java))
+                    if (modelClass.isAssignableFrom(MoveFileViewModel::class.java)) {
                         return MoveFileViewModel(
                             requireActivity().application,
-                            (activityModel.transientScreen as TransientScreen.Move).files[0].parent
+                            (activityModel.transientScreen as TransientScreen.Move).files[0].parent,
                         ) as T
+                    }
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
-        }
+        },
     )
 
     private val alertModel by lazy {
@@ -50,21 +52,21 @@ class MoveFileDialogFragment : DialogFragment() {
         const val TAG = "MoveFileDialogFragment"
     }
 
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
-        .setTitle(R.string.move_file_title)
-        .apply {
-            binding = DialogMoveFileBinding.inflate(layoutInflater)
-            setUpView()
-            setView(binding.root)
-        }
-        .setNegativeButton(R.string.cancel, null)
-        .setPositiveButton(R.string.move_file_move, null)
-        .create()
-        .apply {
-            setOnShowListener {
-                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.move_file_title)
+            .apply {
+                binding = DialogMoveFileBinding.inflate(layoutInflater)
+                setUpView()
+                setView(binding.root)
+            }.setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.move_file_move, null)
+            .create()
+            .apply {
+                setOnShowListener {
+                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
+                }
             }
-        }
 
     private fun setUpView() {
         binding.moveFileList.setup {
@@ -87,20 +89,21 @@ class MoveFileDialogFragment : DialogFragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
-    ): View {
-        return binding.root
-    }
+        savedInstanceState: Bundle?,
+    ): View = binding.root
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         model.closeDialog.observe(
-            viewLifecycleOwner
+            viewLifecycleOwner,
         ) {
             dismiss()
         }
 
         model.notifyError.observe(
-            viewLifecycleOwner
+            viewLifecycleOwner,
         ) { error ->
             alertModel.notifyError(error)
             dismiss()
