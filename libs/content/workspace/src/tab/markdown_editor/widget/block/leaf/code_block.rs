@@ -17,17 +17,52 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format
 use crate::theme::palette_v2::ThemeExt as _;
 
 /// Language tokens whose bundled syntect grammar panics inside
-/// `highlight_line` (lazy regex compile failures with fancy-regex).
-/// Skip highlighting upfront — there's no per-line panic safety net,
-/// so an unlisted bad grammar will crash the renderer.
+/// `highlight_line` — fancy-regex can't compile features the
+/// grammars use (`\g` backrefs, non-constant lookbehinds, escape
+/// sequences inside character classes). Enumerated and verified by
+/// [`super::super::super::edit_prop_tests::all_syntect_grammars_highlight_without_panic`]
+/// which iterates every bundled grammar.
 const SKIP_HIGHLIGHT_TOKENS: &[&str] = &[
-    // "JavaScript (Babel)" uses `\g` regex backref that fancy-regex
-    // can't compile. Panics with `ParseError(InvalidEscape("\\g"))`.
+    // ARM Assembly. `s` is the file extension, so a user typing the
+    // opening fence `` ``` `` then `s` momentarily fences an ARM
+    // Assembly block.
+    "s",
+    // Command Help
+    "cmd-help",
+    "help",
+    // JavaScript (Babel)
     "js",
     "javascript",
+    "mjs",
+    "jsx",
+    "babel",
+    "es6",
+    "cjs",
+    // JavaScript (Rails)
+    "js.erb",
+    // LiveScript
+    "ls",
+    "Slakefile",
+    "ls.erb",
+    // PowerShell
+    "ps1",
+    "psm1",
+    "psd1",
+    // QML
+    "qml",
+    "qmlproject",
+    // Regular Expressions (Elixir)
+    "ex.re",
+    // SCSS / Sass
+    "scss",
+    "sass",
+    // Salt State (SLS)
+    "sls",
+    // VimHelp
+    "vimhelp",
 ];
 
-fn should_skip_highlight(info: &str) -> bool {
+pub(crate) fn should_skip_highlight(info: &str) -> bool {
     SKIP_HIGHLIGHT_TOKENS
         .iter()
         .any(|t| t.eq_ignore_ascii_case(info))
