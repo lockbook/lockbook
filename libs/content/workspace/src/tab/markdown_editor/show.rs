@@ -165,7 +165,7 @@ impl MdEdit {
         &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
-        self.renderer.viewport_height = ui.clip_rect().height();
+        self.renderer.set_viewport_height(ui.clip_rect().height());
 
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));

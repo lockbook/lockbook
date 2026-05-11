@@ -139,6 +139,7 @@ pub struct MdRender {
     pub width_seq: u64,
 
     pub viewport_height: f32,
+    pub viewport_seq: u64,
 
     // debug
     pub debug: bool,
@@ -388,6 +389,7 @@ impl MdRender {
             width: Default::default(),
             width_seq: 0,
             viewport_height: Default::default(),
+            viewport_seq: 0,
             debug: false,
             frame_times: [Instant::now(); 10],
             frame_times_idx: 0,
@@ -402,6 +404,15 @@ impl MdRender {
         if self.width.to_bits() != width.to_bits() {
             self.width = width;
             self.width_seq = self
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
+    }
+
+    pub fn set_viewport_height(&mut self, viewport_height: f32) {
+        if self.viewport_height.to_bits() != viewport_height.to_bits() {
+            self.viewport_height = viewport_height;
+            self.viewport_seq = self
                 .ws_seq
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
@@ -440,6 +451,7 @@ impl MdRender {
             width: Default::default(),
             width_seq: 0,
             viewport_height: Default::default(),
+            viewport_seq: 0,
             reveal_seq: 0,
             text_seq: 0,
             bounds_seq: 0,
@@ -585,6 +597,7 @@ impl Editor {
             width: Default::default(),
             width_seq: 0,
             viewport_height: Default::default(),
+            viewport_seq: 0,
             reveal_seq: 0,
             text_seq: 0,
             bounds_seq: 0,

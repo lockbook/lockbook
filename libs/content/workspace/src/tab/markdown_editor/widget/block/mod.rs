@@ -751,10 +751,10 @@ pub enum TitleState {
 type LinePrefixKey = (u64, (Grapheme, Grapheme));
 type LinePrefixValue = (Graphemes, bool);
 
-/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq]`. Text-
+/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq, viewport_seq]`. Text-
 /// change invalidation is handled wholesale by [`LayoutCache::ensure_text_consistent`]
 /// before any read, so text_seq isn't part of the per-entry stamp.
-pub type HeightDeps = [u64; 4];
+pub type HeightDeps = [u64; 5];
 
 #[derive(Default)]
 pub struct LayoutCache {
@@ -960,6 +960,9 @@ impl<'ast> MdRender {
                 .link_seq
                 .load(std::sync::atomic::Ordering::Relaxed),
             self.reveal_seq,
+            // images clamp height to viewport_height; cached heights
+            // are invalid across viewport-height changes
+            self.viewport_seq,
         ]
     }
 
