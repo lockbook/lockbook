@@ -87,6 +87,7 @@ impl LocalLb {
         #[cfg(not(target_family = "wasm"))]
         {
             result.setup_syncer();
+            result.setup_search();
             result.setup_status().await?;
         }
 
