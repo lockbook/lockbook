@@ -18,8 +18,7 @@ default = []
 no-network = ["db-rs/clone"]
 
 [dependencies]
-aead = "0.4.2"
-aes-gcm = "0.9.3"
+aes-gcm = "0.10.3"
 base64 = "0.13.0"
 basic-human-duration = "0.2.0"
 bezier-rs = "0.2.0"

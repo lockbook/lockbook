@@ -6,7 +6,7 @@ use egui::{Image, ScrollArea, UiBuilder};
 use lb::DEFAULT_API_LOCATION;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
-use lb::model::file::File;
+use workspace_rs::file_cache::FileCache;
 use workspace_rs::widgets::Button;
 
 use crate::model::AccountPhraseData;
@@ -15,15 +15,15 @@ use crate::settings::Settings;
 pub struct OnboardHandOff {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
-    pub acct_data: Vec<File>,
+    pub acct_data: FileCache,
     pub is_new_user: bool,
 }
 
 enum AccountUpdate {
-    Created(Result<Vec<File>, LbErr>),
+    Created(Result<FileCache, LbErr>),
     PhraseConfirmation(Result<AccountPhraseData, LbErr>),
     Imported(Option<LbErr>),
-    DataLoaded(Result<Vec<File>, LbErr>),
+    DataLoaded(Result<FileCache, LbErr>),
 }
 
 struct Router {
@@ -363,9 +363,8 @@ impl OnboardScreen {
                                                     let update_tx = self.update_tx.clone();
                                                     let ctx = ctx.clone();
                                                     thread::spawn(move || {
-                                                        let result = load_account_data(&core);
                                                         update_tx
-                                                            .send(AccountUpdate::Created(result))
+                                                            .send(AccountUpdate::Created(FileCache::new(&core)))
                                                             .unwrap();
                                                         ctx.request_repaint();
                                                     });
@@ -498,7 +497,7 @@ You can view your key again in the settings."#
 
             let create_account_result = core
                 .create_account(&uname, &api_url, true)
-                .and_then(|_| load_account_data(&core));
+                .and_then(|_| FileCache::new(&core));
 
             if let Err(create_account_err) = create_account_result {
                 update_tx
@@ -539,7 +538,7 @@ You can view your key again in the settings."#
 
             match core.sync() {
                 Ok(_acct) => {
-                    tx.send(AccountUpdate::DataLoaded(load_account_data(&core)))
+                    tx.send(AccountUpdate::DataLoaded(FileCache::new(&core)))
                         .unwrap();
                 }
                 Err(err) => {
@@ -562,12 +561,6 @@ fn set_button_style(ui: &mut egui::Ui) {
     ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
     ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
     ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-}
-
-fn load_account_data(core: &Lb) -> Result<Vec<File>, LbErr> {
-    let files = core.list_metadatas()?;
-
-    Ok(files)
 }
 
 #[derive(Clone, Copy, PartialEq)]

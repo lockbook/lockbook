@@ -22,6 +22,7 @@ pub struct FileCache {
     pub root: File,
     pub files: Vec<File>,
     pub shared: Vec<File>,
+    pub shared_roots: Vec<File>,
     pub suggested: Vec<Uuid>,
     pub size_bytes_recursive: HashMap<Uuid, u64>,
     pub last_modified_recursive: HashMap<Uuid, u64>,
@@ -54,6 +55,7 @@ impl FileCache {
             last_modified_recursive: Default::default(),
             last_modified_by_recursive: Default::default(),
             last_modified: 0,
+            shared_roots: vec![],
         }
     }
 
@@ -63,6 +65,7 @@ impl FileCache {
         let files = lb.list_metadatas()?;
         let suggested = lb.suggested_docs(Default::default())?;
         let shared = lb.get_pending_share_files()?;
+        let shared_roots = lb.get_pending_shares()?;
 
         let mut size_recursive = HashMap::new();
         let mut modified_recursive = HashMap::new();
@@ -115,6 +118,7 @@ impl FileCache {
             files,
             suggested,
             shared,
+            shared_roots,
             size_bytes_recursive: size_recursive,
             last_modified_recursive: modified_recursive,
             last_modified_by_recursive: modified_by_recursive,

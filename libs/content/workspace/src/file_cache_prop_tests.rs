@@ -142,6 +142,7 @@ fn cache(src: &mut ByteSource) -> FileCache {
         last_modified_recursive: HashMap::new(),
         last_modified_by_recursive: HashMap::new(),
         last_modified: 0,
+        shared_roots: vec![],
     }
 }
 

@@ -1,3 +1,4 @@
+use crate::service::events::Actor;
 use crate::LocalLb;
 use crate::model::errors::LbResult;
 use crate::model::tree_like::TreeLike;
@@ -43,6 +44,7 @@ impl LocalLb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
         db.doc_events.clear()?;
+        self.events.meta_changed(Actor::User);
         Ok(())
     }
 

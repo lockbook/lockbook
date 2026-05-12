@@ -20,7 +20,7 @@ use lb::service::events::broadcast::error::TryRecvError;
 use lb::service::events::{self, Event};
 use lb::service::import_export::ImportStatus;
 use lb::subscribers::status::Status;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{FileCache, FilesExt};
 use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::widgets::Button;
@@ -58,7 +58,7 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(
-        settings: Arc<RwLock<Settings>>, core: &Lb, files: Vec<File>, ctx: &egui::Context,
+        settings: Arc<RwLock<Settings>>, core: &Lb, files: FileCache, ctx: &egui::Context,
         is_new_user: bool,
     ) -> Self {
         let core = core.clone();
@@ -76,7 +76,9 @@ impl AccountScreen {
             .map(|a| crate::DEV_USERS.contains(&a.username.as_str()))
             .unwrap_or(false);
 
-        let mut result = Self {
+        let file_cache = Arc::new(RwLock::new(files));
+
+        Self {
             settings,
             core: core.clone(),
             is_dev,
@@ -84,21 +86,15 @@ impl AccountScreen {
             update_tx,
             update_rx,
             is_new_user,
-            tree: FileTree::new(
-                files,
-                core.get_pending_shares().unwrap(),
-                core.get_pending_share_files().unwrap(),
-            ),
+            tree: FileTree::new(file_cache.clone()),
             full_search_doc: FullDocSearch::default(),
             sync: SyncPanel::new(),
-            workspace: Workspace::new(&core_clone, &ctx.clone(), true),
+            workspace: Workspace::new(&core_clone, &ctx.clone(), true, Some(file_cache)),
             modals: Modals::default(),
             shutdown: None,
             lb_rx: core.subscribe(),
             lb_status: core.status(),
-        };
-        result.tree.recalc_suggested_files(&core, ctx);
-        result
+        }
     }
 
     pub fn begin_shutdown(&mut self, ctx: &egui::Context) {
@@ -239,6 +235,9 @@ impl AccountScreen {
 
                 self.workspace.focused_parent = self.focused_parent();
                 let wso = self.workspace.show(ui);
+                if wso.file_cache_updated {
+                    self.tree.update_files();
+                }
 
                 if self.settings.read().unwrap().zen_mode {
                     let mut min = ui.clip_rect().left_bottom();
@@ -305,9 +304,6 @@ impl AccountScreen {
     fn process_lb_updates(&mut self, ctx: &egui::Context) {
         match self.lb_rx.try_recv() {
             Ok(evt) => match evt {
-                Event::MetadataChanged(_) | Event::PendingSharesChanged => {
-                    self.refresh_tree(ctx);
-                }
                 Event::StatusUpdated => {
                     self.lb_status = self.core.status();
                 }
@@ -361,10 +357,6 @@ impl AccountScreen {
                 },
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
-                AccountUpdate::ReloadTree { files, share_roots, share_files } => {
-                    self.tree.update_files(files, share_roots, share_files);
-                    self.tree.recalc_suggested_files(&self.core, ctx);
-                }
 
                 AccountUpdate::FinalSyncAttemptDone => {
                     if let Some(s) = &mut self.shutdown {
@@ -488,12 +480,10 @@ impl AccountScreen {
 
         if resp.clear_suggested {
             self.core.clear_suggested().unwrap();
-            self.tree.recalc_suggested_files(&self.core, ui.ctx());
         }
 
         if let Some(id) = resp.clear_suggested_id {
             self.core.clear_suggested_id(id).unwrap();
-            self.tree.recalc_suggested_files(&self.core, ui.ctx());
         }
 
         if resp.space_inspector_root.is_some() {
@@ -603,23 +593,6 @@ impl AccountScreen {
         if let Err(err) = self.settings.read().unwrap().to_file() {
             self.modals.error = Some(ErrorModal::new(err));
         }
-    }
-
-    pub fn refresh_tree(&self, ctx: &egui::Context) {
-        let core = self.core.clone();
-        let ctx = ctx.clone();
-
-        let update_tx = self.update_tx.clone();
-
-        thread::spawn(move || {
-            let files = core.list_metadatas().unwrap();
-            let share_roots = core.get_pending_shares().unwrap();
-            let share_files = core.get_pending_share_files().unwrap();
-            update_tx
-                .send(AccountUpdate::ReloadTree { files, share_roots, share_files })
-                .unwrap();
-            ctx.request_repaint();
-        });
     }
 
     fn open_new_folder_modal(&mut self, maybe_parent: Option<File>) {
@@ -860,12 +833,6 @@ pub enum AccountUpdate {
     ShareAccepted(Result<File, String>),
 
     DoneDeleting,
-
-    ReloadTree {
-        files: Vec<File>,
-        share_roots: Vec<File>,
-        share_files: Vec<File>,
-    },
 
     FinalSyncAttemptDone,
 }

@@ -1,7 +1,7 @@
 use crate::model::crypto::*;
-use aead::generic_array::GenericArray;
-use aead::{Aead, NewAead};
 use aes_gcm::Aes256Gcm;
+use aes_gcm::aead::generic_array::GenericArray;
+use aes_gcm::aead::{Aead, KeyInit, Payload};
 use rand::RngCore;
 use rand::rngs::OsRng;
 use serde::Serialize;
@@ -21,7 +21,7 @@ pub fn encrypt<T: Serialize + DeserializeOwned>(
     let serialized = bincode::serialize(to_encrypt).map_unexpected()?;
     let nonce = &generate_nonce();
     let encrypted = convert_key(key)
-        .encrypt(GenericArray::from_slice(nonce), aead::Payload { msg: &serialized, aad: &[] })
+        .encrypt(GenericArray::from_slice(nonce), Payload { msg: &serialized, aad: &[] })
         .map_unexpected()?;
     Ok(AESEncrypted::new(encrypted, nonce.to_vec()))
 }
@@ -29,7 +29,7 @@ pub fn encrypt<T: Serialize + DeserializeOwned>(
 pub fn decrypt<T: DeserializeOwned>(key: &AESKey, to_decrypt: &AESEncrypted<T>) -> LbResult<T> {
     let nonce = GenericArray::from_slice(&to_decrypt.nonce);
     let decrypted = convert_key(key)
-        .decrypt(nonce, aead::Payload { msg: &to_decrypt.value, aad: &[] })
+        .decrypt(nonce, Payload { msg: &to_decrypt.value, aad: &[] })
         .map_err(|err| LbErrKind::Crypto(CryptoError::Decryption(err.to_string())))?;
     let deserialized = bincode::deserialize(&decrypted).map_unexpected()?;
     Ok(deserialized)

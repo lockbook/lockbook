@@ -90,12 +90,15 @@ pub struct Workspace {
 }
 
 impl Workspace {
-    pub fn new(core: &Lb, ctx: &Context, show_tabs: bool) -> Self {
+    pub fn new(
+        core: &Lb, ctx: &Context, show_tabs: bool, file_cache: Option<Arc<RwLock<FileCache>>>,
+    ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
-        let files =
-            Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")));
+        let files = file_cache.unwrap_or_else(|| {
+            Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")))
+        });
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         let images = ImageCache::new(
             ctx.clone(),
@@ -512,6 +515,7 @@ impl Workspace {
         if refresh_cache {
             *self.files.write().unwrap() =
                 FileCache::new(&self.core).expect("failed to refresh file cache");
+            self.out.file_cache_updated = true;
 
             for tab in self.tabs.values_mut() {
                 if let Some(md) = tab.markdown_mut() {

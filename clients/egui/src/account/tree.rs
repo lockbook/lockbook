@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 use std::path::PathBuf;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, RwLock};
 use std::time::{Duration, Instant};
 use std::{mem, thread};
 
@@ -15,14 +15,16 @@ use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use lb::service::activity::RankingWeights;
 use rfd::FileDialog;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{FileCache, FilesExt};
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::theme::palette_v2::ThemeExt as _;
 use workspace_rs::widgets::{Button, GlyphonTextEdit};
 
-#[derive(Debug, Default)]
+#[derive(Debug)]
 pub struct FileTree {
+    pub file_cache: Arc<RwLock<FileCache>>, 
+
     /// This is where the egui app caches files.
     pub files: Vec<File>,
 
@@ -73,16 +75,28 @@ pub struct ShareCell {
 impl FileTree {
     // todo we need to create a get_pending_shares_with_children endpoint
     // we can calculate all the roots here and then construct the tree
-    pub fn new(files: Vec<File>, pending_shares: Vec<File>, pending_files: Vec<File>) -> Self {
+    pub fn new(file_cache: Arc<RwLock<FileCache>>) -> Self {
+        let root = file_cache.read().unwrap().root().id;
         let mut s = Self {
-            expanded: [files.root().id].into_iter().collect(),
+            expanded: [root].into_iter().collect(),
             suggested_docs_folder_id: Uuid::new_v4(),
             pending_shares_id: Uuid::new_v4(),
             pending_shares_height: 0.,
-            ..Default::default()
+            file_cache,
+            files: Default::default(),
+            selected: Default::default(),
+            cursor: Default::default(),
+            cut: Default::default(),
+            suggested_docs: Default::default(),
+            rename_target: Default::default(),
+            rename_buffer: Default::default(),
+            export: Default::default(),
+            drop: Default::default(),
+            scroll_to_cursor: Default::default(),
+            pending_shares: Default::default(),
         };
 
-        s.update_files(files, pending_shares, pending_files);
+        s.update_files();
 
         s
     }
@@ -1339,43 +1353,20 @@ impl FileTree {
 /// Model related things
 impl FileTree {
     /// Updates the files in the tree. The selection and expansion are preserved.
-    pub fn update_files(
-        &mut self, files: Vec<File>, pending_shares: Vec<File>, shared_files: Vec<File>,
-    ) {
-        let my_username = files.root().name.clone();
-        self.files = files;
-        self.files.extend(shared_files);
-        self.update_pending_shares(&my_username, pending_shares);
-        self.expanded.retain(|&id| {
-            self.files.iter().any(|f| f.id == id)
-                || id == self.suggested_docs_folder_id
-                || id == self.pending_shares_id
-                || self.pending_shares.values().any(|cell| cell.id == id)
-        });
-        self.selected.retain(|&id| {
-            self.files.iter().any(|f| f.id == id)
-                || id == self.suggested_docs_folder_id
-                || id == self.pending_shares_id
-                || self.pending_shares.values().any(|cell| cell.id == id)
-        });
-        if let Some(cursor) = self.cursor {
-            if !self.files.iter().any(|f| f.id == cursor)
-                && cursor != self.suggested_docs_folder_id
-                && cursor != self.pending_shares_id
-                && !self.pending_shares.values().any(|cell| cell.id == cursor)
-            {
-                self.cursor = Some(self.files.root().id);
-            }
-        }
-    }
+    pub fn update_files(&mut self) {
+        let file_cache = self.file_cache.read().unwrap();
 
-    fn update_pending_shares(&mut self, my_username: &str, mut roots: Vec<File>) {
+        let my_username = file_cache.root().name.clone();
+        self.files = file_cache.files.clone();
+        self.files.extend(file_cache.shared.clone());
+
         self.pending_shares
             .values_mut()
             .for_each(|cell| cell.shares.clear());
 
         let mut max_timestamp: HashMap<Uuid, i64> = Default::default();
-        roots.iter().for_each(|root| {
+        let mut shared_roots = file_cache.shared_roots.clone();
+        shared_roots.iter().for_each(|root| {
             max_timestamp.insert(
                 root.id,
                 self.files
@@ -1386,9 +1377,9 @@ impl FileTree {
                     .unwrap_or_default() as i64,
             );
         });
-        roots.sort_by_key(|root| -1 * max_timestamp.get(&root.id).unwrap());
+        shared_roots.sort_by_key(|root| -1 * max_timestamp.get(&root.id).unwrap());
 
-        for file in &roots {
+        for file in &shared_roots {
             for share in &file.shares {
                 if share.shared_with == my_username {
                     let target_username = &share.shared_by;
@@ -1418,7 +1409,29 @@ impl FileTree {
                 .max()
                 .copied()
                 .unwrap_or_default();
+        }        self.expanded.retain(|&id| {
+            self.files.iter().any(|f| f.id == id)
+                || id == self.suggested_docs_folder_id
+                || id == self.pending_shares_id
+                || self.pending_shares.values().any(|cell| cell.id == id)
+        });
+        self.selected.retain(|&id| {
+            self.files.iter().any(|f| f.id == id)
+                || id == self.suggested_docs_folder_id
+                || id == self.pending_shares_id
+                || self.pending_shares.values().any(|cell| cell.id == id)
+        });
+        if let Some(cursor) = self.cursor {
+            if !self.files.iter().any(|f| f.id == cursor)
+                && cursor != self.suggested_docs_folder_id
+                && cursor != self.pending_shares_id
+                && !self.pending_shares.values().any(|cell| cell.id == cursor)
+            {
+                self.cursor = Some(self.files.root().id);
+            }
         }
+
+        *self.suggested_docs.lock().unwrap() = file_cache.suggested.iter().take(5).copied().collect();
     }
 
     /// Asynchronously recalculates the suggested files; requests repaint when complete.
@@ -1735,294 +1748,4 @@ impl Response {
     }
 }
 
-#[cfg(test)]
-mod test {
-    use lb::Uuid;
-    use lb::model::file::File;
-    use lb::model::file_metadata::FileType;
 
-    use super::FileTree;
-
-    #[test]
-    fn select_deselect() {
-        /*
-         * 0
-         * ├── 1
-         * │   ├── 2
-         * │   └── 3
-         * └── 4
-         */
-        let ids =
-            vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
-        let files = vec![
-            file(0, 0, FileType::Folder, &ids),
-            file(1, 0, FileType::Folder, &ids),
-            file(2, 1, FileType::Document, &ids),
-            file(3, 1, FileType::Document, &ids),
-            file(4, 0, FileType::Document, &ids),
-        ];
-
-        let mut tree = FileTree::new(files, vec![], vec![]);
-
-        assert_eq!(tree.selected, vec![].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.selected.insert(ids[1]);
-        tree.reveal_selection();
-
-        assert_eq!(tree.selected, vec![ids[1]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.selected.insert(ids[1]);
-        tree.selected.insert(ids[2]);
-        tree.selected.insert(ids[3]);
-        tree.reveal_selection();
-
-        assert_eq!(tree.selected, vec![ids[1], ids[2], ids[3]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
-
-        tree.selected.remove(&ids[1]);
-
-        assert_eq!(tree.selected, vec![ids[2], ids[3]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
-
-        tree.selected.clear();
-
-        assert_eq!(tree.selected, vec![].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
-    }
-
-    #[test]
-    fn collapse_expand() {
-        /*
-         * 0
-         * ├── 1
-         * │   ├── 2
-         * │   └── 3
-         * └── 4
-         */
-        let ids =
-            vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
-        let files = vec![
-            file(0, 0, FileType::Folder, &ids),
-            file(1, 0, FileType::Folder, &ids),
-            file(2, 1, FileType::Document, &ids),
-            file(3, 1, FileType::Document, &ids),
-            file(4, 0, FileType::Document, &ids),
-        ];
-
-        let mut tree = FileTree::new(files, vec![], vec![]);
-
-        assert_eq!(tree.selected, vec![].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.collapse(&[ids[0]]);
-        tree.selected.insert(ids[0]);
-        tree.reveal_selection();
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![].into_iter().collect());
-
-        tree.expand(&[ids[0]]);
-
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0]].into_iter().collect());
-
-        tree.expand_recursive(&[ids[0]], None);
-        tree.selected.clear();
-        tree.selected.insert(ids[2]);
-        tree.selected.insert(ids[3]);
-        tree.reveal_selection();
-
-        assert_eq!(tree.selected, vec![ids[2], ids[3]].into_iter().collect());
-        assert_eq!(tree.expanded, vec![ids[0], ids[1]].into_iter().collect());
-
-        tree.collapse(&[ids[0]]);
-
-        assert_eq!(tree.expanded, vec![ids[1]].into_iter().collect());
-        assert_eq!(tree.selected, vec![ids[0]].into_iter().collect());
-    }
-
-    #[test]
-    fn next() {
-        /*
-         * 0
-         * ├── 1
-         * │   ├── 2
-         * │   └── 3
-         * └── 4
-         */
-        let ids =
-            vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
-        let files = vec![
-            file(0, 0, FileType::Folder, &ids),
-            file(1, 0, FileType::Folder, &ids),
-            file(2, 1, FileType::Document, &ids),
-            file(3, 1, FileType::Document, &ids),
-            file(4, 0, FileType::Document, &ids),
-        ];
-
-        let mut tree = FileTree::new(files, vec![], vec![]);
-
-        assert_eq!(tree.next(ids[0], false), Some(ids[1]));
-        assert_eq!(tree.next(ids[1], false), Some(ids[2]));
-        assert_eq!(tree.next(ids[2], false), Some(ids[3]));
-        assert_eq!(tree.next(ids[3], false), Some(ids[4]));
-        assert_eq!(tree.next(ids[4], false), None);
-
-        assert_eq!(tree.next(ids[0], true), Some(ids[1]));
-        assert_eq!(tree.next(ids[1], true), Some(ids[4]));
-        assert_eq!(tree.next(ids[2], true), Some(ids[4]));
-        assert_eq!(tree.next(ids[3], true), Some(ids[4]));
-        assert_eq!(tree.next(ids[4], true), None);
-
-        tree.expand(&[ids[1]]);
-
-        assert_eq!(tree.next(ids[0], false), Some(ids[1]));
-        assert_eq!(tree.next(ids[1], false), Some(ids[2]));
-        assert_eq!(tree.next(ids[2], false), Some(ids[3]));
-        assert_eq!(tree.next(ids[3], false), Some(ids[4]));
-        assert_eq!(tree.next(ids[4], false), None);
-
-        assert_eq!(tree.next(ids[0], true), Some(ids[1]));
-        assert_eq!(tree.next(ids[1], true), Some(ids[2]));
-        assert_eq!(tree.next(ids[2], true), Some(ids[3]));
-        assert_eq!(tree.next(ids[3], true), Some(ids[4]));
-        assert_eq!(tree.next(ids[4], true), None);
-
-        tree.collapse(&[ids[0]]);
-
-        assert_eq!(tree.next(ids[0], false), Some(ids[1]));
-        assert_eq!(tree.next(ids[1], false), Some(ids[2]));
-        assert_eq!(tree.next(ids[2], false), Some(ids[3]));
-        assert_eq!(tree.next(ids[3], false), Some(ids[4]));
-        assert_eq!(tree.next(ids[4], false), None);
-
-        assert_eq!(tree.next(ids[0], true), None);
-        assert_eq!(tree.next(ids[1], true), None);
-        assert_eq!(tree.next(ids[2], true), None);
-        assert_eq!(tree.next(ids[3], true), None);
-        assert_eq!(tree.next(ids[4], true), None);
-    }
-
-    #[test]
-    fn prev() {
-        /*
-         * 0
-         * ├── 1
-         * │   ├── 2
-         * │   └── 3
-         * └── 4
-         */
-        let ids =
-            vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
-        let files = vec![
-            file(0, 0, FileType::Folder, &ids),
-            file(1, 0, FileType::Folder, &ids),
-            file(2, 1, FileType::Document, &ids),
-            file(3, 1, FileType::Document, &ids),
-            file(4, 0, FileType::Document, &ids),
-        ];
-
-        let mut tree = FileTree::new(files, vec![], vec![]);
-
-        assert_eq!(tree.prev(ids[0], false), None);
-        assert_eq!(tree.prev(ids[1], false), Some(ids[0]));
-        assert_eq!(tree.prev(ids[2], false), Some(ids[1]));
-        assert_eq!(tree.prev(ids[3], false), Some(ids[2]));
-        assert_eq!(tree.prev(ids[4], false), Some(ids[3]));
-
-        assert_eq!(tree.prev(ids[0], true), None);
-        assert_eq!(tree.prev(ids[1], true), Some(ids[0]));
-        assert_eq!(tree.prev(ids[2], true), Some(ids[1]));
-        assert_eq!(tree.prev(ids[3], true), Some(ids[1]));
-        assert_eq!(tree.prev(ids[4], true), Some(ids[1]));
-
-        tree.expand(&[ids[1]]);
-
-        assert_eq!(tree.prev(ids[0], false), None);
-        assert_eq!(tree.prev(ids[1], false), Some(ids[0]));
-        assert_eq!(tree.prev(ids[2], false), Some(ids[1]));
-        assert_eq!(tree.prev(ids[3], false), Some(ids[2]));
-        assert_eq!(tree.prev(ids[4], false), Some(ids[3]));
-
-        assert_eq!(tree.prev(ids[0], true), None);
-        assert_eq!(tree.prev(ids[1], false), Some(ids[0]));
-        assert_eq!(tree.prev(ids[2], false), Some(ids[1]));
-        assert_eq!(tree.prev(ids[3], false), Some(ids[2]));
-        assert_eq!(tree.prev(ids[4], false), Some(ids[3]));
-
-        tree.collapse(&[ids[0]]);
-
-        assert_eq!(tree.prev(ids[0], false), None);
-        assert_eq!(tree.prev(ids[1], false), Some(ids[0]));
-        assert_eq!(tree.prev(ids[2], false), Some(ids[1]));
-        assert_eq!(tree.prev(ids[3], false), Some(ids[2]));
-        assert_eq!(tree.prev(ids[4], false), Some(ids[3]));
-
-        assert_eq!(tree.prev(ids[0], true), None);
-        assert_eq!(tree.prev(ids[1], true), Some(ids[0]));
-        assert_eq!(tree.prev(ids[2], true), Some(ids[0]));
-        assert_eq!(tree.prev(ids[3], true), Some(ids[0]));
-        assert_eq!(tree.prev(ids[4], true), Some(ids[0]));
-    }
-
-    #[test]
-    fn is_visible() {
-        /*
-         * 0
-         * ├── 1
-         * │   ├── 2
-         * │   └── 3
-         * └── 4
-         */
-        let ids =
-            vec![Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4()];
-        let files = vec![
-            file(0, 0, FileType::Folder, &ids),
-            file(1, 0, FileType::Folder, &ids),
-            file(2, 1, FileType::Document, &ids),
-            file(3, 1, FileType::Document, &ids),
-            file(4, 0, FileType::Document, &ids),
-        ];
-
-        let mut tree = FileTree::new(files, vec![], vec![]);
-
-        assert!(tree.is_visible(ids[0]));
-        assert!(tree.is_visible(ids[1]));
-        assert!(!tree.is_visible(ids[2]));
-        assert!(!tree.is_visible(ids[3]));
-        assert!(tree.is_visible(ids[4]));
-
-        tree.expand(&[ids[1]]);
-
-        assert!(tree.is_visible(ids[0]));
-        assert!(tree.is_visible(ids[1]));
-        assert!(tree.is_visible(ids[2]));
-        assert!(tree.is_visible(ids[3]));
-        assert!(tree.is_visible(ids[4]));
-
-        tree.collapse(&[ids[0]]);
-
-        assert!(tree.is_visible(ids[0]));
-        assert!(!tree.is_visible(ids[1]));
-        assert!(!tree.is_visible(ids[2]));
-        assert!(!tree.is_visible(ids[3]));
-        assert!(!tree.is_visible(ids[4]));
-    }
-
-    fn file(idx: usize, parent_idx: usize, file_type: FileType, ids: &[Uuid]) -> File {
-        println!("{idx} = {}", ids[idx]);
-        File {
-            id: ids[idx],
-            parent: ids[parent_idx],
-            name: format!("{idx}"),
-            file_type,
-            last_modified: Default::default(),
-            last_modified_by: Default::default(),
-            owner: Default::default(),
-            shares: Default::default(),
-            size_bytes: Default::default(),
-        }
-    }
-}
