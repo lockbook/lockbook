@@ -14,7 +14,7 @@ use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
 use crate::service::lb_id::LbID;
-use db_rs::hasher::{UuidIdentityHasher, UuidIdentityHasherBuilder};
+use db_rs::hasher::UuidIdentityHasherBuilder;
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
 use std::ops::{Deref, DerefMut};

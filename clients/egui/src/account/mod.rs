@@ -117,7 +117,7 @@ impl AccountScreen {
     }
 
     pub fn update(&mut self, ctx: &egui::Context) {
-        self.process_lb_updates(ctx);
+        self.process_lb_updates();
         self.process_updates(ctx);
         self.process_keys(ctx);
         self.process_dropped_files(ctx);
@@ -301,13 +301,10 @@ impl AccountScreen {
         }
     }
 
-    fn process_lb_updates(&mut self, ctx: &egui::Context) {
+    fn process_lb_updates(&mut self) {
         match self.lb_rx.try_recv() {
-            Ok(evt) => match evt {
-                Event::StatusUpdated => {
-                    self.lb_status = self.core.status();
-                }
-                _ => {}
+            Ok(evt) => if let Event::StatusUpdated = evt {
+                self.lb_status = self.core.status();
             },
             Err(TryRecvError::Empty) => {}
             Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
