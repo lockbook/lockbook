@@ -17,9 +17,10 @@ import java.lang.ref.WeakReference
 
 class InitialLaunchFigureOuter : AppCompatActivity() {
     private var _binding: SplashScreenBinding? = null
+
     // This property is only valid between onCreateView and
     // onDestroyView.
-    private val binding get() = _binding!!
+    val binding get() = _binding!!
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
@@ -54,7 +55,7 @@ class InitialLaunchFigureOuter : AppCompatActivity() {
 
         if (!BiometricModel.isBiometricVerificationAvailable(this) && pref.getString(
                 biometricKey,
-                biometricNoneValue
+                biometricNoneValue,
             ) != biometricNoneValue
         ) {
             pref.edit {

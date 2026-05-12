@@ -1,7 +1,7 @@
 { pkgs ? import <nixpkgs> { } }:
 
 let
-  buildToolsVersion = "35.0.0";
+  buildToolsVersion = "36.0.0";
   androidComposition = pkgs.androidenv.composeAndroidPackages {
     cmdLineToolsVersion = "8.0";
     toolsVersion = "26.1.1";

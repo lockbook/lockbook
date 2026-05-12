@@ -1,5 +1,4 @@
 apply plugin: 'com.android.application'
-apply plugin: 'kotlin-android'
 apply plugin: 'androidx.navigation.safeargs'
 apply plugin: 'org.jmailen.kotlinter'
 apply plugin: 'kotlinx-serialization'
@@ -33,13 +32,6 @@ android {
         }
     }
 
-    lintOptions {
-        warningsAsErrors true
-        htmlReport false
-        xmlReport false
-        abortOnError true
-        lintConfig file('../lint.xml')
-    }
 
     buildTypes {
         release {
@@ -56,18 +48,18 @@ android {
         targetCompatibility JavaVersion.VERSION_17
     }
 
-    kotlinOptions {
-        jvmTarget = "17"
-    }
-
-    kotlinter {
-        disabledRules = ["no-wildcard-imports", "parameter-list-wrapping"]
-    }
-
     testOptions {
         unitTests.all {
             jvmArgs '-Djava.library.path=../lb-rs/src/main/jniLibs/desktop'
         }
+    }
+    lint {
+        abortOnError true
+        disable 'AndroidGradlePluginVersion'
+        htmlReport false
+        lintConfig file('../lint.xml')
+        warningsAsErrors true
+        xmlReport false
     }
 
     android.buildFeatures.viewBinding = true

@@ -410,16 +410,32 @@ impl<'ast> MdRender {
 
     /// Returns true if the given block node is selected for the purposes of
     /// rich editing. All selected nodes are siblings at any given time.
+    ///
+    /// Containers normally yield to a more specific descendant (the cursor
+    /// inside `* a`'s paragraph picks the paragraph, not the item).
+    /// Containers that *fully contain* the selection are picked only when
+    /// no proper descendant block intersects — the empty-container case
+    /// (`* ` with no body), where there's nothing deeper to target.
     pub fn selected_block(&self, node: &'ast AstNode<'ast>) -> bool {
         // the document is never selected
         let Some(parent) = node.parent() else {
             return false;
         };
-
-        self.node_intersects_selection(node)
-            && self.node_contains_selection(parent)
-            && (node.is_container_block() && !self.node_contains_selection(node)
-                || node.is_leaf_block())
+        if !self.node_intersects_selection(node) || !self.node_contains_selection(parent) {
+            return false;
+        }
+        if node.is_leaf_block() {
+            return true;
+        }
+        if !node.is_container_block() {
+            return false;
+        }
+        // multi-block selection that extends past this container, OR
+        // empty container (deepest, no descendant blocks to target)
+        !self.node_contains_selection(node)
+            || !node.descendants().skip(1).any(|d| {
+                (d.is_leaf_block() || d.is_container_block()) && self.node_intersects_selection(d)
+            })
     }
 
     /// Returns the portion of the line that's within the node, excluding line

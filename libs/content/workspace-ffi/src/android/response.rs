@@ -6,25 +6,24 @@ use workspace_rs::tab::markdown_editor::input::{Location, Region};
 #[derive(Serialize)]
 pub struct AndroidResponse {
     // platform response
-    redraw_in: u64,
-    copied_text: String,
-    has_url_opened: bool,
-    url_opened: String,
-    virtual_keyboard_shown: Option<bool>,
+    pub redraw_in: u64,
+    pub copied_text: String,
+    pub has_url_opened: bool,
+    pub url_opened: String,
+    pub virtual_keyboard_shown: Option<bool>,
 
     // widget response
-    selected_file: Uuid,
-    doc_created: Uuid,
+    pub selected_file: Uuid,
+    pub doc_created: Uuid,
 
-    tab_title_clicked: bool,
-    tabs_changed: bool,
+    pub tabs_changed: bool,
 
-    has_edit_menu: bool,
-    edit_menu_x: f32,
-    edit_menu_y: f32,
+    pub has_edit_menu: bool,
+    pub edit_menu_x: f32,
+    pub edit_menu_y: f32,
 
-    selection_updated: bool,
-    text_updated: bool,
+    pub selection_updated: bool,
+    pub text_updated: bool,
 }
 
 impl From<crate::Response> for AndroidResponse {
@@ -37,7 +36,7 @@ impl From<crate::Response> for AndroidResponse {
                     file_moved: _,
                     file_deleted: _,
                     new_folder_clicked: _,
-                    tab_title_clicked,
+                    tab_title_clicked: _,
                     file_created,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
@@ -65,7 +64,6 @@ impl From<crate::Response> for AndroidResponse {
         Self {
             selected_file: selected_file.unwrap_or_default(),
             doc_created,
-            tab_title_clicked,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text,

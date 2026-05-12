@@ -142,7 +142,7 @@ pub struct MdRender {
 
     // debug
     pub debug: bool,
-    pub frame_times: [Instant; 10],
+    pub frame_times: [Instant; 100],
     pub frame_times_idx: usize,
 }
 
@@ -389,7 +389,7 @@ impl MdRender {
             width_seq: 0,
             viewport_height: Default::default(),
             debug: false,
-            frame_times: [Instant::now(); 10],
+            frame_times: [Instant::now(); 100],
             frame_times_idx: 0,
         }
     }
@@ -445,7 +445,7 @@ impl MdRender {
             bounds_seq: 0,
             ws_seq,
             debug: false,
-            frame_times: [Instant::now(); 10],
+            frame_times: [Instant::now(); 100],
             frame_times_idx: 0,
         }
     }
@@ -591,7 +591,7 @@ impl Editor {
             ws_seq,
 
             debug: false,
-            frame_times: [Instant::now(); 10],
+            frame_times: [Instant::now(); 100],
             frame_times_idx: 0,
         };
 
@@ -928,6 +928,15 @@ impl Editor {
             }
         }
 
+        // Selection can change both in `handle_input` and later during
+        // `MdEdit::show` pointer handling (e.g. double-click word select on
+        // Android). Compute this after render so the response sees both paths.
+        resp.selection_updated |= prior_selection
+            != self
+                .edit
+                .in_progress_selection
+                .unwrap_or(self.edit.renderer.buffer.current.selection);
+
         // Completion popups render last, outside the scroll area's clip, so
         // they composite over the toolbar / find widget when the cursor is
         // near the top of the document. `edit.show` already submitted the
@@ -938,7 +947,7 @@ impl Editor {
 
         let render_elapsed = start.elapsed();
 
-        if self.edit.renderer.debug {
+        if cfg!(debug_assertions) && self.edit.renderer.debug {
             self.edit.renderer.show_debug_fps(ui);
         }
 
@@ -986,6 +995,7 @@ impl Editor {
             .event
             .internal_events
             .append(&mut self.edit.renderer.render_events);
+
         if !self.edit.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
@@ -1108,23 +1118,6 @@ impl Editor {
                 let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
                 self.edit.renderer.set_width(col_width);
 
-                // Paint find-match highlights first so the editor's text
-                // callback (submitted via post_render) lands on a layer
-                // above them.
-                if !self.find.matches.is_empty() {
-                    let theme = self.edit.renderer.ctx.get_lb_theme();
-                    let highlight_color = theme.neutral_bg_tertiary();
-                    let current_color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
-                    for (i, &match_range) in self.find.matches.iter().enumerate() {
-                        let color = if self.find.current_match == Some(i) {
-                            current_color
-                        } else {
-                            highlight_color
-                        };
-                        self.edit.show_range(ui, match_range, color);
-                    }
-                }
-
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
 
@@ -1188,6 +1181,23 @@ impl Editor {
                                 top_left,
                                 content_x,
                             );
+                        }
+
+                        // paint find match highlights after galleys positioned
+                        // but before text callback runs
+                        if !self.find.matches.is_empty() {
+                            let theme = self.edit.renderer.ctx.get_lb_theme();
+                            let highlight_color = theme.neutral_bg_tertiary();
+                            let current_color =
+                                theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
+                            for (i, &match_range) in self.find.matches.iter().enumerate() {
+                                let color = if self.find.current_match == Some(i) {
+                                    current_color
+                                } else {
+                                    highlight_color
+                                };
+                                self.edit.show_range(ui, match_range, color);
+                            }
                         }
                         pre
                     })
@@ -1268,6 +1278,7 @@ impl Editor {
             &self.edit.scroll_area.state,
             match_range,
             canvas_rect,
+            self.edit.renderer.layout.row_spacing / 2.0,
         ) else {
             return;
         };
@@ -1293,11 +1304,13 @@ impl Editor {
 pub(crate) fn build_target_reveal(
     renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
     state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, range: (Grapheme, Grapheme),
-    canvas_rect: Rect,
+    canvas_rect: Rect, pad: f32,
 ) -> Option<Reveal<DocRowId>> {
     let (start, end) = if range.0 <= range.1 { range } else { (range.1, range.0) };
-    let top = endpoint_offset(renderer, content, state, start, canvas_rect, EndpointSide::Top)?;
-    let bottom = endpoint_offset(renderer, content, state, end, canvas_rect, EndpointSide::Bottom)?;
+    let top =
+        endpoint_offset(renderer, content, state, start, canvas_rect, EndpointSide::Top, pad)?;
+    let bottom =
+        endpoint_offset(renderer, content, state, end, canvas_rect, EndpointSide::Bottom, pad)?;
     Some(Reveal { top, bottom })
 }
 
@@ -1310,15 +1323,12 @@ enum EndpointSide {
 fn endpoint_offset(
     renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
     state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, target: Grapheme,
-    canvas_rect: Rect, side: EndpointSide,
+    canvas_rect: Rect, side: EndpointSide, pad: f32,
 ) -> Option<Offset<DocRowId>> {
     use crate::widgets::affine_scroll::Rows as _;
     if let Some(galley_idx) = renderer.galleys.galley_at_offset(target) {
         let galley = &renderer.galleys[galley_idx];
-        let y_range = galley
-            .rect
-            .y_range()
-            .expand(renderer.layout.row_spacing / 2.0);
+        let y_range = galley.rect.y_range().expand(pad);
         let y = match side {
             EndpointSide::Top => y_range.min,
             EndpointSide::Bottom => y_range.max,

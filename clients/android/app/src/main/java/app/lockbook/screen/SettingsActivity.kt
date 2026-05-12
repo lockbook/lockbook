@@ -17,9 +17,8 @@ class SettingsActivity : AppCompatActivity() {
             .beginTransaction()
             .replace(
                 R.id.settings_preference_layout,
-                SettingsFragment()
-            )
-            .commit()
+                SettingsFragment(),
+            ).commit()
     }
 
     fun scrollToPreference(): Int? {
@@ -30,7 +29,5 @@ class SettingsActivity : AppCompatActivity() {
         }
     }
 
-    fun upgradeNow(): Boolean? {
-        return intent.extras?.getBoolean(SettingsFragment.UPGRADE_NOW)
-    }
+    fun upgradeNow(): Boolean? = intent.extras?.getBoolean(SettingsFragment.UPGRADE_NOW)
 }

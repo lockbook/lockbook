@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.ui
 
 import android.content.Context
@@ -20,8 +22,10 @@ import net.lockbook.SubscriptionInfo.Stripe
 import java.text.SimpleDateFormat
 import java.util.*
 
-class SubscriptionInfoPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
-
+class SubscriptionInfoPreference(
+    context: Context,
+    attributeSet: AttributeSet?,
+) : Preference(context, attributeSet) {
     private lateinit var subscriptionInfo: TextView
     private lateinit var paymentIssue: TextView
     private lateinit var solvePaymentIssue: Button
@@ -48,61 +52,83 @@ class SubscriptionInfoPreference(context: Context, attributeSet: AttributeSet?) 
 
     private fun setUpSubscriptionInfoPreference(maybeSubscriptionInfo: SubscriptionInfo?) {
         if (maybeSubscriptionInfo != null) {
-            val renewalOrExpirationText = when (maybeSubscriptionInfo.paymentPlatform) {
-                is GooglePlay -> {
-                    when ((maybeSubscriptionInfo.paymentPlatform as GooglePlay).accountState) {
-                        GooglePlay.GooglePlayAccountState.Canceled -> {
-                            context.resources.getString(R.string.expiration_day)
-                        }
-                        GooglePlay.GooglePlayAccountState.GracePeriod -> {
-                            context.resources.getString(R.string.grace_period)
-                        }
-                        GooglePlay.GooglePlayAccountState.OnHold, GooglePlay.GooglePlayAccountState.Ok -> {
-                            context.resources.getString(R.string.next_renewal_day)
+            val renewalOrExpirationText =
+                when (maybeSubscriptionInfo.paymentPlatform) {
+                    is GooglePlay -> {
+                        when ((maybeSubscriptionInfo.paymentPlatform as GooglePlay).accountState) {
+                            GooglePlay.GooglePlayAccountState.Canceled -> {
+                                context.resources.getString(R.string.expiration_day)
+                            }
+
+                            GooglePlay.GooglePlayAccountState.GracePeriod -> {
+                                context.resources.getString(R.string.grace_period)
+                            }
+
+                            GooglePlay.GooglePlayAccountState.OnHold, GooglePlay.GooglePlayAccountState.Ok -> {
+                                context.resources.getString(R.string.next_renewal_day)
+                            }
                         }
                     }
-                }
-                is Stripe -> {
-                    context.resources.getString(R.string.next_renewal_day)
-                }
-                is AppStore -> {
-                    when ((maybeSubscriptionInfo.paymentPlatform as AppStore).accountState) {
-                        AppStore.AppStoreAccountState.Ok -> context.resources.getString(R.string.next_renewal_day)
-                        AppStore.AppStoreAccountState.GracePeriod -> context.resources.getString(R.string.grace_period)
-                        AppStore.AppStoreAccountState.FailedToRenew, AppStore.AppStoreAccountState.Expired -> context.resources.getString(R.string.expiration_day)
+
+                    is Stripe -> {
+                        context.resources.getString(R.string.next_renewal_day)
                     }
-                }
-                else -> context.resources.getString(R.string.basic_error)
-            }.bold()
+
+                    is AppStore -> {
+                        when ((maybeSubscriptionInfo.paymentPlatform as AppStore).accountState) {
+                            AppStore.AppStoreAccountState.Ok -> {
+                                context.resources.getString(R.string.next_renewal_day)
+                            }
+
+                            AppStore.AppStoreAccountState.GracePeriod -> {
+                                context.resources.getString(R.string.grace_period)
+                            }
+
+                            AppStore.AppStoreAccountState.FailedToRenew, AppStore.AppStoreAccountState.Expired -> {
+                                context.resources.getString(
+                                    R.string.expiration_day,
+                                )
+                            }
+                        }
+                    }
+
+                    else -> {
+                        context.resources.getString(R.string.basic_error)
+                    }
+                }.bold()
 
             val accountState = (maybeSubscriptionInfo.paymentPlatform as? GooglePlay)?.accountState
 
-            val gracePeriodViewsVisibility = if (accountState == GooglePlay.GooglePlayAccountState.GracePeriod) {
-                View.VISIBLE
-            } else {
-                View.GONE
-            }
+            val gracePeriodViewsVisibility =
+                if (accountState == GooglePlay.GooglePlayAccountState.GracePeriod) {
+                    View.VISIBLE
+                } else {
+                    View.GONE
+                }
 
             paymentIssue.visibility = gracePeriodViewsVisibility
             solvePaymentIssue.visibility = gracePeriodViewsVisibility
 
             context.resources.apply {
-                subscriptionInfo.text = spannable {
-                    getString(R.string.payment_platform).bold() + " " +
-                        maybeSubscriptionInfo.paymentPlatform.toReadableString() + "\n" +
-                        renewalOrExpirationText + " " + SimpleDateFormat(
-                        "yyyy-MM-dd",
-                        Locale.getDefault()
-                    ).format(Date(maybeSubscriptionInfo.periodEnd))
-                }
+                subscriptionInfo.text =
+                    spannable {
+                        getString(R.string.payment_platform).bold() + " " +
+                            maybeSubscriptionInfo.paymentPlatform.toReadableString() + "\n" +
+                            renewalOrExpirationText + " " +
+                            SimpleDateFormat(
+                                "yyyy-MM-dd",
+                                Locale.getDefault(),
+                            ).format(Date(maybeSubscriptionInfo.periodEnd))
+                    }
             }
         }
     }
 }
 
-fun PaymentPlatform.toReadableString(): String = when (this) {
-    is Stripe -> "Stripe"
-    is GooglePlay -> "Google Play"
-    is AppStore -> "App Store"
-    else -> "Unknown"
-}
+fun PaymentPlatform.toReadableString(): String =
+    when (this) {
+        is Stripe -> "Stripe"
+        is GooglePlay -> "Google Play"
+        is AppStore -> "App Store"
+        else -> "Unknown"
+    }

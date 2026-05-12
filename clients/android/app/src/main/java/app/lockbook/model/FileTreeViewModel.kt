@@ -1,3 +1,9 @@
+@file:Suppress(
+    "ktlint:standard:backing-property-naming",
+    "ktlint:standard:no-wildcard-imports",
+    "ktlint:standard:property-naming",
+)
+
 package app.lockbook.model
 
 import android.app.Application
@@ -10,27 +16,27 @@ import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
-import app.lockbook.workspace.LbStatus
-import app.lockbook.workspace.SpaceUsed
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
-import com.afollestad.recyclical.datasource.emptySelectableDataSourceTyped
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbEvent
+import net.lockbook.LbStatus
+import net.lockbook.Usage
 import java.util.UUID
 
-class FileTreeViewModel(application: Application) : AndroidViewModel(application) {
-
-    internal val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
+class FileTreeViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
+    val _notifyUpdateFilesUI = SingleMutableLiveData<UpdateFilesUI>()
     val notifyUpdateFilesUI: LiveData<UpdateFilesUI>
         get() = _notifyUpdateFilesUI
 
     lateinit var fileModel: FileModel
 
     // / the list of files that the file tree displays in the UI
-    val files = emptySelectableDataSourceTyped<FileViewHolderInfo>()
+    val _files = MutableLiveData<List<FileViewHolderInfo>>(emptyList())
+    val files: LiveData<List<FileViewHolderInfo>>
+        get() = _files
 
     val suggestedDocs = emptyDataSourceTyped<SuggestedDocsViewHolderInfo>()
 
@@ -55,8 +61,8 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     val isSuggestedDocsVisible: LiveData<Boolean>
         get() = _isSuggestedDocsVisible
 
-    val _usage = MutableLiveData<SpaceUsed?>()
-    val usage: LiveData<SpaceUsed?>
+    val _usage = MutableLiveData<Usage?>()
+    val usage: LiveData<Usage?>
         get() = _usage
 
     val _syncStatus = MutableLiveData<String?>()
@@ -67,57 +73,62 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     val isSyncing: LiveData<Boolean>
         get() = _isSyncing
 
-    val jsonParser = Json {
-        ignoreUnknownKeys = true
-    }
-
     init {
         startUpInRoot()
         getStatus()
     }
 
     private fun getStatus() {
-        val raw = Lb.getStatus()
-        val status: LbStatus = jsonParser.decodeFromString(raw)
+        val status: LbStatus = Lb.getStatus()
         hydrateStatusUpdate(status, null)
     }
 
     private fun checkUsage() {
-
         if (usage.value == null || _usage.value?.serverUsage == null) {
             return
         }
 
-        val dataCap = usage.value?.dataCap?.exact?.toFloat() ?: 1f
-        val serverUsage = usage.value?.serverUsage?.exact?.toFloat() ?: 1f
+        val dataCap =
+            usage.value
+                ?.dataCap
+                ?.exact
+                ?.toFloat() ?: 1f
+        val serverUsage =
+            usage.value
+                ?.serverUsage
+                ?.exact
+                ?.toFloat() ?: 1f
 
         val usageRatio = serverUsage / dataCap
 
         val pref = PreferenceManager.getDefaultSharedPreferences(getContext())
 
-        val showOutOfSpace0_9 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_9_key), true)
-        val showOutOfSpace0_8 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_8_key), true)
+        val showOutOfSpace09 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_9_key), true)
+        val showOutOfSpace08 = pref.getBoolean(getString(R.string.show_running_out_of_space_0_8_key), true)
 
         when {
             usageRatio >= 1.0 -> {}
+
             usageRatio > 0.9 -> {
-                if (!showOutOfSpace0_9) {
+                if (!showOutOfSpace09) {
                     return
                 }
             }
+
             usageRatio > 0.8 -> {
-                if (!showOutOfSpace0_8) {
+                if (!showOutOfSpace08) {
                     return
                 }
             }
+
             else -> {
-                if (!showOutOfSpace0_9) {
+                if (!showOutOfSpace09) {
                     pref.edit {
                         putBoolean(getString(R.string.show_running_out_of_space_0_9_key, true), true)
                     }
                 }
 
-                if (!showOutOfSpace0_8) {
+                if (!showOutOfSpace08) {
                     pref.edit {
                         putBoolean(getString(R.string.show_running_out_of_space_0_8_key, true), true)
                     }
@@ -133,10 +144,8 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     private fun startUpInRoot() {
         fileModel = FileModel.createAtRoot()
 
-        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
-
-        maybeToggleSuggestedDocs()
-        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
+        refreshSuggestedDocs()
+        refreshVisibleFiles()
 
         _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
     }
@@ -146,8 +155,8 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
         val parent = newParent ?: fileModel.idsAndFiles[fileModel.parent.parent] ?: fileModel.root
         fileModel.enterFolder(parent)
 
-        maybeToggleSuggestedDocs()
-        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
+        updateSuggestedDocsVisibility()
+        refreshVisibleFiles()
 
         _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
     }
@@ -155,36 +164,77 @@ class FileTreeViewModel(application: Application) : AndroidViewModel(application
     fun reloadFiles() {
         fileModel.refreshFiles()
 
-        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
-        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
+        refreshSuggestedDocs()
+        refreshVisibleFiles()
 
         _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
     }
 
     fun maybeToggleSuggestedDocs() {
-        _isSuggestedDocsVisible.value = fileModel.parent.isRoot && !suggestedDocs.isEmpty()
+        updateSuggestedDocsVisibility()
     }
 
-    fun hydrateStatusUpdate(status: LbStatus, lbEvent: LbEvent?) {
+    fun hydrateStatusUpdate(
+        status: LbStatus,
+        lbEvent: LbEvent?,
+    ) {
         if (status.syncStatus != null) {
             _syncStatus.value = status.syncStatus
         }
         _isSyncing.value = status.syncing
 
-        _dirtyLocally.value = status.dirtyLocally.mapNotNull { UUID.fromString(it) }.toHashSet()
-        _pullingFiles.value = status.pullingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
-        _pushingFiles.value = status.pushingFiles.mapNotNull { UUID.fromString(it) }.toHashSet()
+        _dirtyLocally.value =
+            status.dirtyLocally
+                .orEmpty()
+                .mapNotNull { UUID.fromString(it) }
+                .toHashSet()
+        _pullingFiles.value =
+            status.pullingFiles
+                .orEmpty()
+                .mapNotNull { UUID.fromString(it) }
+                .toHashSet()
+        _pushingFiles.value =
+            status.pushingFiles
+                .orEmpty()
+                .mapNotNull { UUID.fromString(it) }
+                .toHashSet()
 
-        val metaOrContentDirty = if (lbEvent == null) { true } else { lbEvent.metadataChanged || lbEvent.pendingSharesChanged || lbEvent.documentWritten }
+        val metaOrContentDirty =
+            if (lbEvent ==
+                null
+            ) {
+                true
+            } else {
+                lbEvent.metadataChanged || lbEvent.pendingSharesChanged || lbEvent.documentWritten
+            }
 
         if (metaOrContentDirty) {
             fileModel.refreshFiles()
         }
 
-        files.set(fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value))
-        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
+        refreshSuggestedDocs()
+        refreshVisibleFiles()
 
         _usage.value = status.spaceUsed
         checkUsage()
+    }
+
+    fun clearSuggestedDocs() {
+        fileModel.suggestedDocs = emptyList()
+        suggestedDocs.clear()
+        updateSuggestedDocsVisibility()
+    }
+
+    private fun refreshVisibleFiles() {
+        _files.value = fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
+    }
+
+    private fun refreshSuggestedDocs() {
+        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
+        updateSuggestedDocsVisibility()
+    }
+
+    private fun updateSuggestedDocsVisibility() {
+        _isSuggestedDocsVisible.value = fileModel.parent.isRoot && fileModel.suggestedDocs.isNotEmpty()
     }
 }

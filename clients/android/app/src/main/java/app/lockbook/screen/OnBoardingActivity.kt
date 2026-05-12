@@ -42,7 +42,11 @@ import com.journeyapps.barcodescanner.CaptureActivity
 import com.journeyapps.barcodescanner.ScanContract
 import com.journeyapps.barcodescanner.ScanIntentResult
 import com.journeyapps.barcodescanner.ScanOptions
-import kotlinx.coroutines.*
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.lockbook.Lb
 import net.lockbook.LbError
 import kotlin.getValue
@@ -61,7 +65,8 @@ class OnBoardingActivity : AppCompatActivity() {
         setContentView(binding.root)
 
         if (savedInstanceState == null) {
-            supportFragmentManager.beginTransaction()
+            supportFragmentManager
+                .beginTransaction()
                 .replace(R.id.on_boarding_fragment_container, WelcomeFragment())
                 .commit()
         }
@@ -71,26 +76,28 @@ class OnBoardingActivity : AppCompatActivity() {
 class WelcomeFragment : Fragment() {
     private var _welcomeBinding: FragmentOnBoardingWelcomeBinding? = null
 
-    private val welcomeBinding get() = _welcomeBinding!!
+    val welcomeBinding get() = _welcomeBinding!!
 
     private val model: OnboardingViewModel by activityViewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         _welcomeBinding = FragmentOnBoardingWelcomeBinding.inflate(inflater, container, false)
 
         welcomeBinding.loginButton.setOnClickListener {
-            parentFragmentManager.beginTransaction()
+            parentFragmentManager
+                .beginTransaction()
                 .replace(R.id.on_boarding_fragment_container, ImportFragment())
                 .addToBackStack(null)
                 .commit()
         }
 
         welcomeBinding.getStartedButton.setOnClickListener {
-            parentFragmentManager.beginTransaction()
+            parentFragmentManager
+                .beginTransaction()
                 .replace(R.id.on_boarding_fragment_container, CreateFragment())
                 .addToBackStack(null)
                 .commit()
@@ -118,19 +125,20 @@ class WelcomeFragment : Fragment() {
             editText.setText(current)
         }
 
-        val dialog = MaterialAlertDialogBuilder(this.requireContext())
-            .setView(dialogView)
-            .create()
+        val dialog =
+            MaterialAlertDialogBuilder(this.requireContext())
+                .setView(dialogView)
+                .create()
 
         dialogView.findViewById<MaterialButton>(R.id.btn_reset_default).setOnClickListener {
-            model._apiUrl.value = defaultUrl
+            model.setApiUrl(defaultUrl)
             dialog.dismiss()
         }
 
         dialogView.findViewById<MaterialButton>(R.id.btn_submit).setOnClickListener {
             val input = editText.text?.toString()?.trim()
             if (!input.isNullOrEmpty()) {
-                model._apiUrl.value = input
+                model.setApiUrl(input)
             }
             dialog.dismiss()
         }
@@ -144,7 +152,7 @@ class CreateFragment : Fragment() {
 
     // This property is only valid between onCreateView and
     // onDestroyView.
-    private val createBinding get() = _createBinding!!
+    val createBinding get() = _createBinding!!
 
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
     private val model: OnboardingViewModel by activityViewModels()
@@ -152,7 +160,7 @@ class CreateFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         _createBinding = FragmentOnBoardingCreateAccountBinding.inflate(inflater, container, false)
 
@@ -170,7 +178,10 @@ class CreateFragment : Fragment() {
         return createBinding.root
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
 
         createBinding.onBoardingCreateAccountInput.requestFocus()
@@ -181,13 +192,13 @@ class CreateFragment : Fragment() {
     }
 
     private fun createAccount(username: String) {
-
         uiScope.launch {
             try {
                 Lb.createAccount(username, model.apiUrl.value, true)
 
                 withContext(Dispatchers.Main) {
-                    parentFragmentManager.beginTransaction()
+                    parentFragmentManager
+                        .beginTransaction()
                         .replace(R.id.on_boarding_fragment_container, CopyKeyFragment())
                         .commit()
                 }
@@ -207,7 +218,7 @@ class CreateFragment : Fragment() {
 class CopyKeyFragment : Fragment() {
     private var _copyKeyBinding: FragmentOnBoardingCopyKeyBinding? = null
 
-    private val copyKeyBinding get() = _copyKeyBinding!!
+    val copyKeyBinding get() = _copyKeyBinding!!
 
     private lateinit var phrase: String
 
@@ -216,7 +227,7 @@ class CopyKeyFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         _copyKeyBinding = FragmentOnBoardingCopyKeyBinding.inflate(inflater, container, false)
 
@@ -250,13 +261,17 @@ class CopyKeyFragment : Fragment() {
         return copyKeyBinding.root
     }
 
-    private fun createColoredNumberedList(words: List<String>, startIndex: Int = 1): SpannableStringBuilder {
+    private fun createColoredNumberedList(
+        words: List<String>,
+        startIndex: Int = 1,
+    ): SpannableStringBuilder {
         val builder = SpannableStringBuilder()
-        val numberColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            ContextCompat.getColor(requireContext(), android.R.color.system_accent1_300)
-        } else {
-            ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
-        }
+        val numberColor =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                ContextCompat.getColor(requireContext(), android.R.color.system_accent1_300)
+            } else {
+                ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
+            }
 
         words.forEachIndexed { i, word ->
             val numberText = "${startIndex + i}. "
@@ -270,7 +285,7 @@ class CopyKeyFragment : Fragment() {
                 ForegroundColorSpan(numberColor),
                 numberStart,
                 builder.length,
-                0
+                0,
             )
 
             // Add regular text
@@ -286,7 +301,7 @@ class ImportFragment : Fragment() {
 
     // This property is only valid between onCreateView and
     // onDestroyView.
-    private val importBinding get() = _importBinding!!
+    val importBinding get() = _importBinding!!
 
     private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
@@ -294,7 +309,7 @@ class ImportFragment : Fragment() {
 
     private var onQRCodeResult =
         registerForActivityResult(
-            ScanContract()
+            ScanContract(),
         ) { result: ScanIntentResult ->
             if (result.contents != null) {
                 importBinding.onBoardingImportAccountInput.setText(result.contents)
@@ -307,7 +322,7 @@ class ImportFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         _importBinding = FragmentOnBoardingImportAccountBinding.inflate(inflater, container, false)
 
@@ -335,7 +350,6 @@ class ImportFragment : Fragment() {
         }
 
         importBinding.onBoardingQrCodeImport.setOnClickListener {
-
             onQRCodeResult.launch(
                 ScanOptions()
                     .setOrientationLocked(false)
@@ -343,7 +357,7 @@ class ImportFragment : Fragment() {
                     .setPrompt(getString(R.string.import_qr_scanner_prompt))
                     .setBarcodeImageEnabled(true)
                     .setCaptureActivity(CaptureActivityAutoRotate::class.java)
-                    .setBeepEnabled(false)
+                    .setBeepEnabled(false),
             )
         }
 
@@ -355,7 +369,10 @@ class ImportFragment : Fragment() {
         return importBinding.root
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
 
         importBinding.onBoardingImportAccountInput.requestFocus()
@@ -372,7 +389,10 @@ class ImportFragment : Fragment() {
         }
     }
 
-    private fun importAccount(account: String, surfaceError: Boolean) {
+    private fun importAccount(
+        account: String,
+        surfaceError: Boolean,
+    ) {
         val onBoardingActivity = (requireActivity() as OnBoardingActivity)
 
         uiScope.launch {
@@ -397,11 +417,16 @@ class ImportFragment : Fragment() {
     }
 }
 
-class OnboardingViewModel(application: Application) : AndroidViewModel(application) {
-
-    val _apiUrl = MutableLiveData<String>(getString(R.string.default_api_url))
+class OnboardingViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
+    private val _apiUrl = MutableLiveData<String>(getString(R.string.default_api_url))
     val apiUrl: LiveData<String>
         get() = _apiUrl
+
+    fun setApiUrl(value: String) {
+        _apiUrl.value = value
+    }
 }
 
 class CaptureActivityAutoRotate : CaptureActivity()

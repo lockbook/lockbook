@@ -25,17 +25,17 @@ pub struct Response {
 
 impl Response {
     pub fn new(
-        context: &Context, platform: PlatformOutput, viewport: ViewportIdMap<ViewportOutput>,
+        context: &Context, platform: &PlatformOutput, viewport: &ViewportIdMap<ViewportOutput>,
         workspace: workspace_rs::Response,
     ) -> Self {
         let mut redraw_in = None;
         let mut window_title = None;
         let mut request_paste = false;
-        if let Some(viewport) = viewport.into_values().next() {
+        if let Some(viewport) = viewport.values().next() {
             redraw_in = Some(viewport.repaint_delay.as_millis() as _);
-            for cmd in viewport.commands.into_iter() {
+            for cmd in &viewport.commands {
                 match cmd {
-                    ViewportCommand::Title(title) => window_title = Some(title),
+                    ViewportCommand::Title(title) => window_title = Some(title.clone()),
                     ViewportCommand::RequestPaste => request_paste = true,
                     _ => {} // remaining viewport commands ignored (many such cases!)
                 }
