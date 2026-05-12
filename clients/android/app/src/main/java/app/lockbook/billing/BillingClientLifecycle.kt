@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.billing
 
 import android.app.Activity
@@ -16,15 +18,15 @@ import timber.log.Timber
 import java.util.*
 
 class BillingClientLifecycle private constructor(
-    private val applicationContext: Context
+    private val applicationContext: Context,
 ) : DefaultLifecycleObserver,
     PurchasesUpdatedListener,
     BillingClientStateListener,
     ProductDetailsResponseListener,
     PurchasesResponseListener {
-
     private val billingClient: BillingClient by lazy {
-        BillingClient.newBuilder(applicationContext)
+        BillingClient
+            .newBuilder(applicationContext)
             .setListener(this)
             .enablePendingPurchases()
             .build()
@@ -42,11 +44,12 @@ class BillingClientLifecycle private constructor(
     }
 
     fun showInAppMessaging(activity: Activity) {
-        val inAppMessageParams = InAppMessageParams
-            .newBuilder()
-            .addInAppMessageCategoryToShow(InAppMessageParams.InAppMessageCategoryId.TRANSACTIONAL)
-            .addAllInAppMessageCategoriesToShow()
-            .build()
+        val inAppMessageParams =
+            InAppMessageParams
+                .newBuilder()
+                .addInAppMessageCategoryToShow(InAppMessageParams.InAppMessageCategoryId.TRANSACTIONAL)
+                .addAllInAppMessageCategoriesToShow()
+                .build()
 
         billingClient.showInAppMessages(activity, inAppMessageParams) {}
     }
@@ -65,86 +68,118 @@ class BillingClientLifecycle private constructor(
         Timber.i(billingResult.debugMessage)
 
         if (billingResult.responseCode == BillingResponseCode.OK) {
-            val queryProductParams = QueryProductDetailsParams.newBuilder().setProductList(
-                LIST_OF_PRODUCTS.map { productId ->
-                    QueryProductDetailsParams.Product.newBuilder()
-                        .setProductId(productId)
-                        .setProductType(BillingClient.ProductType.SUBS)
-                        .build()
-                }
-            ).build()
+            val queryProductParams =
+                QueryProductDetailsParams
+                    .newBuilder()
+                    .setProductList(
+                        listOfProducts.map { productId ->
+                            QueryProductDetailsParams.Product
+                                .newBuilder()
+                                .setProductId(productId)
+                                .setProductType(BillingClient.ProductType.SUBS)
+                                .build()
+                        },
+                    ).build()
 
-            val queryPurchasesParams = QueryPurchasesParams.newBuilder()
-                .setProductType(BillingClient.ProductType.SUBS)
-                .build()
+            val queryPurchasesParams =
+                QueryPurchasesParams
+                    .newBuilder()
+                    .setProductType(BillingClient.ProductType.SUBS)
+                    .build()
 
             billingClient.queryProductDetailsAsync(queryProductParams, this)
             billingClient.queryPurchasesAsync(queryPurchasesParams, this)
         }
     }
 
-    override fun onProductDetailsResponse(billingResult: BillingResult, productDetailsList: MutableList<ProductDetails>) {
+    override fun onProductDetailsResponse(
+        billingResult: BillingResult,
+        productDetailsList: MutableList<ProductDetails>,
+    ) {
         val response = BillingResponse(billingResult.responseCode)
         Timber.i(billingResult.debugMessage)
 
         when {
             response.isOk -> {
-                if (productDetailsList.size == LIST_OF_PRODUCTS.size) {
+                if (productDetailsList.size == listOfProducts.size) {
                     productDetails = productDetailsList[0]
                 }
             }
-            response.isUnrecoverableError -> _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
+
+            response.isUnrecoverableError -> {
+                _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
+            }
         }
     }
 
-    fun launchBillingFlow(activity: Activity, newTier: UpgradeAccountActivity.AccountTier) {
-        val billingFlowParams = billingFlowParamsBuilder(newTier)
-            ?: return _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(activity.resources, R.string.basic_error)))
+    fun launchBillingFlow(
+        activity: Activity,
+        newTier: UpgradeAccountActivity.AccountTier,
+    ) {
+        val billingFlowParams =
+            billingFlowParamsBuilder(newTier)
+                ?: return _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(activity.resources, R.string.basic_error)))
 
         val response = BillingResponse(billingClient.launchBillingFlow(activity, billingFlowParams).responseCode)
 
         when {
             response.isOk -> {}
-            response.isRecoverableError -> _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)))
-            else -> _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
+
+            response.isRecoverableError -> {
+                _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)))
+            }
+
+            else -> {
+                _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
+            }
         }
     }
 
     private fun billingFlowParamsBuilder(newTier: UpgradeAccountActivity.AccountTier): BillingFlowParams? {
-        val offerTag = when (newTier) {
-            UpgradeAccountActivity.AccountTier.Free -> return null
-            UpgradeAccountActivity.AccountTier.PremiumMonthly -> PREMIUM_MONTHLY_OFFER_ID
-        }
+        val offerTag =
+            when (newTier) {
+                UpgradeAccountActivity.AccountTier.Free -> return null
+                UpgradeAccountActivity.AccountTier.PremiumMonthly -> PREMIUM_MONTHLY_OFFER_ID
+            }
 
-        val offerToken = productDetails?.subscriptionOfferDetails?.filter { it.offerTags[0] == offerTag }?.map { it.offerToken }?.get(0) ?: return null
+        val offerToken =
+            productDetails
+                ?.subscriptionOfferDetails
+                ?.filter { it.offerTags[0] == offerTag }
+                ?.map { it.offerToken }
+                ?.get(0) ?: return null
 
-        return BillingFlowParams.newBuilder()
+        return BillingFlowParams
+            .newBuilder()
             .setProductDetailsParamsList(
                 listOf(
-                    BillingFlowParams.ProductDetailsParams.newBuilder()
+                    BillingFlowParams.ProductDetailsParams
+                        .newBuilder()
                         .setProductDetails(productDetails ?: return null)
                         .setOfferToken(offerToken)
-                        .build()
-                )
-            )
-            .setObfuscatedAccountId(UUID.randomUUID().toString())
+                        .build(),
+                ),
+            ).setObfuscatedAccountId(UUID.randomUUID().toString())
             .build()
     }
 
     override fun onPurchasesUpdated(
         billingResult: BillingResult,
-        purchases: MutableList<Purchase>?
+        purchases: MutableList<Purchase>?,
     ) {
         consumePurchase(billingResult, purchases)
     }
 
-    override fun onQueryPurchasesResponse(billingResult: BillingResult, purchases: MutableList<Purchase>) {
+    override fun onQueryPurchasesResponse(
+        billingResult: BillingResult,
+        purchases: MutableList<Purchase>,
+    ) {
         consumePurchase(billingResult, purchases)
     }
 
     private fun consumePurchase(
         billingResult: BillingResult,
-        purchases: MutableList<Purchase>?
+        purchases: MutableList<Purchase>?,
     ) {
         val billingResponse = BillingResponse(billingResult.responseCode)
         Timber.i(billingResult.debugMessage)
@@ -156,15 +191,20 @@ class BillingClientLifecycle private constructor(
                         BillingEvent.SuccessfulPurchase(
                             purchases[0].purchaseToken,
                             purchases[0].accountIdentifiers?.obfuscatedAccountId
-                                ?: return _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)))
-                        )
+                                ?: return _billingEvent.postValue(
+                                    BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)),
+                                ),
+                        ),
                     )
                 }
             }
+
             billingResponse.isUnrecoverableError -> {
                 _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
             }
+
             billingResponse.isCancelable || billingResponse.isOk -> {}
+
             else -> {
                 _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)))
             }
@@ -177,49 +217,68 @@ class BillingClientLifecycle private constructor(
 
         const val SUBSCRIPTION_URI = "https://play.google.com/store/account/subscriptions?sku=$PREMIUM_PRODUCT_ID&package=app.lockbook"
 
-        private val LIST_OF_PRODUCTS = listOf(
-            PREMIUM_PRODUCT_ID
-        )
+        private val listOfProducts =
+            listOf(
+                PREMIUM_PRODUCT_ID,
+            )
 
         @Volatile
-        private var INSTANCE: BillingClientLifecycle? = null
+        private var instance: BillingClientLifecycle? = null
 
         fun getInstance(applicationContext: Context): BillingClientLifecycle =
-            INSTANCE ?: synchronized(this) {
-                INSTANCE ?: BillingClientLifecycle(applicationContext).also { INSTANCE = it }
+            instance ?: synchronized(this) {
+                instance ?: BillingClientLifecycle(applicationContext).also { instance = it }
             }
     }
 }
 
 sealed class BillingEvent {
-    data class SuccessfulPurchase(val purchaseToken: String, val accountId: String) : BillingEvent()
-    data class NotifyError(val error: LbError) : BillingEvent()
-    data class NotifyErrorMsg(val error: String) : BillingEvent()
+    data class SuccessfulPurchase(
+        val purchaseToken: String,
+        val accountId: String,
+    ) : BillingEvent()
+
+    data class NotifyError(
+        val error: LbError,
+    ) : BillingEvent()
+
+    data class NotifyErrorMsg(
+        val error: String,
+    ) : BillingEvent()
+
     object NotifyUnrecoverableError : BillingEvent()
 }
 
 @JvmInline
-private value class BillingResponse(val code: Int) {
+private value class BillingResponse(
+    val code: Int,
+) {
     val isOk: Boolean
         get() = code == BillingResponseCode.OK
 
     val isCancelable: Boolean
-        get() = code in setOf(
-            BillingResponseCode.USER_CANCELED,
-            BillingResponseCode.ERROR
-        )
+        get() =
+            code in
+                setOf(
+                    BillingResponseCode.USER_CANCELED,
+                    BillingResponseCode.ERROR,
+                )
 
     val isRecoverableError: Boolean
-        get() = code in setOf(
-            BillingResponseCode.SERVICE_DISCONNECTED,
-        )
+        get() =
+            code in
+                setOf(
+                    BillingResponseCode.SERVICE_DISCONNECTED,
+                )
 
     val isUnrecoverableError: Boolean
-        get() = code in setOf(
-            BillingResponseCode.SERVICE_UNAVAILABLE,
-            BillingResponseCode.BILLING_UNAVAILABLE,
-            BillingResponseCode.DEVELOPER_ERROR,
-            BillingResponseCode.ITEM_UNAVAILABLE,
-            BillingResponseCode.FEATURE_NOT_SUPPORTED,
-        )
+        get() =
+            code in
+                setOf(
+                    BillingResponseCode.SERVICE_UNAVAILABLE,
+                    BillingResponseCode.BILLING_UNAVAILABLE,
+                    BillingResponseCode.DEVELOPER_ERROR,
+                    BillingResponseCode.ITEM_UNAVAILABLE,
+                    BillingResponseCode.FEATURE_NOT_SUPPORTED,
+                )
 }

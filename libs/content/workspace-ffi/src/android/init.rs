@@ -18,6 +18,7 @@ use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use workspace_rs::theme::visuals;
 use workspace_rs::workspace::Workspace;
 
+use super::render_thread::RenderThread;
 use crate::WgpuWorkspace;
 
 pub struct NativeWindow {
@@ -75,17 +76,35 @@ impl HasWindowHandle for NativeWindow {
 pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     env: JNIEnv, _: JClass, surface: jobject, core: jlong, dark_mode: bool,
 ) -> jlong {
+    init_ws(env, surface, core, dark_mode, false)
+}
+
+#[no_mangle]
+pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWSOffloaded(
+    env: JNIEnv, _: JClass, surface: jobject, core: jlong, dark_mode: bool,
+) -> jlong {
+    init_ws(env, surface, core, dark_mode, true)
+}
+
+unsafe fn init_ws(
+    env: JNIEnv, surface: jobject, core: jlong, dark_mode: bool, offloaded: bool,
+) -> jlong {
     let core = unsafe { &mut *(core as *mut Lb) };
     let mut native_window = NativeWindow::new(&env, surface);
     let mut renderer =
         RendererState::from_surface(SurfaceTargetUnsafe::from_window(&mut native_window).unwrap());
+    let font_system = workspace_rs::register_font_system(&renderer.context);
+    let sample_count = renderer.backend().sample_count;
+    let format =
+        RendererState::text_format(&renderer.backend().adapter, &renderer.backend().surface);
+    let backend = renderer.backend_mut();
     workspace_rs::register_render_callback_resources(
-        &renderer.device,
-        &renderer.queue,
-        RendererState::text_format(&renderer.adapter, &renderer.surface),
-        &mut renderer.renderer,
-        workspace_rs::register_font_system(&renderer.context),
-        renderer.sample_count,
+        &backend.device,
+        &backend.queue,
+        format,
+        &mut backend.renderer,
+        font_system,
+        sample_count,
     );
 
     visuals::init(&renderer.context);
@@ -99,7 +118,12 @@ pub unsafe extern "system" fn Java_app_lockbook_workspace_Workspace_initWS(
     renderer.context.set_fonts(fonts);
     egui_extras::install_image_loaders(&renderer.context);
 
-    let obj = WgpuWorkspace { workspace, renderer };
+    let render_thread = if offloaded {
+        Some(RenderThread::spawn(renderer.context.clone(), renderer.take_backend()))
+    } else {
+        None
+    };
+    let obj = WgpuWorkspace { workspace, renderer, render_thread };
 
     Box::into_raw(Box::new(obj)) as jlong
 }

@@ -6,11 +6,16 @@ import android.text.Selection
 import android.text.Spannable
 import android.text.Spanned
 import android.view.KeyEvent
+import app.lockbook.util.WorkspaceView.Companion.wgpuObj
 import app.lockbook.workspace.JTextRange
 import app.lockbook.workspace.Workspace
+import app.lockbook.workspace.Workspace.getSelection
+import app.lockbook.workspace.Workspace.getTextInRange
 
-class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: WorkspaceTextInputConnection) : Editable {
-
+class WorkspaceTextEditable(
+    val view: WorkspaceView,
+    val wsInputConnection: WorkspaceTextInputConnection,
+) : Editable {
     private var selectionStartSpanFlag = 0
     private var selectionEndSpanFlag = 0
 
@@ -20,12 +25,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     private var composingFlag = 0
     private var composingTag: Any? = null
 
-    var localQueue: ArrayDeque<WorkspaceView.WsTextMutation> = ArrayDeque()
-
-    val queueId: Int get() {
-        return view.frameCount.get()
-    }
-
     val selectionStart: Int get() {
         return getSelection().start
     }
@@ -34,26 +33,25 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         return getSelection().end
     }
 
-    override fun toString(): String {
-        return Workspace.getAllText(WorkspaceView.WGPU_OBJ)
-    }
+    override fun toString(): String = Workspace.getAllText(wgpuObj)
 
-    fun getSelection(): JTextRange = view.pendingSelection.get()
+    fun getSelection(): JTextRange = getSelection(wgpuObj)
 
-    override fun get(index: Int): Char {
+    override fun get(index: Int): Char = getTextInRange(wgpuObj, index, index)[0]
 
-        return getTextInRange(index, index).getOrNull(0) ?: '0'
-    }
+    override fun subSequence(
+        startIndex: Int,
+        endIndex: Int,
+    ): CharSequence = getTextInRange(wgpuObj, startIndex, endIndex)
 
-    override fun subSequence(startIndex: Int, endIndex: Int): CharSequence {
-
-        return getTextInRange(startIndex, endIndex)
-    }
-
-    override fun getChars(start: Int, end: Int, dest: CharArray?, destoff: Int) {
-
+    override fun getChars(
+        start: Int,
+        end: Int,
+        dest: CharArray?,
+        destoff: Int,
+    ) {
         dest?.let { realDest ->
-            val text = getTextInRange(start, end)
+            val text = getTextInRange(wgpuObj, start, end)
 
             var index = destoff
 
@@ -69,15 +67,20 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
     }
 
-    override fun <T> getSpans(start: Int, end: Int, type: Class<T>?): Array<T> {
-
+    override fun <T> getSpans(
+        start: Int,
+        end: Int,
+        type: Class<T>?,
+    ): Array<T> {
         val spans: MutableList<Any> = mutableListOf()
         val spanRange = start..end
 
         if (type != null) {
             val instanceComposingTag = composingTag
 
-            if (instanceComposingTag != null && type.isAssignableFrom(instanceComposingTag.javaClass) && (spanRange.contains(composingStart) || spanRange.contains(composingEnd))) {
+            if (instanceComposingTag != null && type.isAssignableFrom(instanceComposingTag.javaClass) &&
+                (spanRange.contains(composingStart) || spanRange.contains(composingEnd))
+            ) {
                 spans.add(instanceComposingTag)
             }
 
@@ -91,7 +94,9 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
 
         @Suppress("UNCHECKED_CAST")
-        val returnSpans = java.lang.reflect.Array.newInstance(type, spans.size) as Array<T>
+        val returnSpans =
+            java.lang.reflect.Array
+                .newInstance(type, spans.size) as Array<T>
 
         for (i in spans.indices) {
             returnSpans[i] = spans[i] as T
@@ -101,7 +106,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun getSpanStart(tag: Any?): Int {
-
         if (tag == Selection.SELECTION_START) {
             return selectionStart
         }
@@ -118,7 +122,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun getSpanEnd(tag: Any?): Int {
-
         if (tag == Selection.SELECTION_START || tag == Selection.SELECTION_END) {
             TODO("not needed")
         }
@@ -131,14 +134,15 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun getSpanFlags(tag: Any?): Int {
-
         return when (tag) {
             Selection.SELECTION_START -> {
                 selectionStartSpanFlag
             }
+
             Selection.SELECTION_END -> {
                 selectionEndSpanFlag
             }
+
             else -> {
                 if (tag == composingTag) {
                     return composingFlag
@@ -149,19 +153,25 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
     }
 
-    override fun nextSpanTransition(start: Int, limit: Int, type: Class<*>?): Int {
-        return -1
-    }
+    override fun nextSpanTransition(
+        start: Int,
+        limit: Int,
+        type: Class<*>?,
+    ): Int = -1
 
-    override fun setSpan(what: Any?, start: Int, end: Int, flags: Int) {
-
+    override fun setSpan(
+        what: Any?,
+        start: Int,
+        end: Int,
+        flags: Int,
+    ) {
         if (what == Selection.SELECTION_START) {
             selectionStartSpanFlag = flags
-            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end) to -1)
+            Workspace.setSelection(wgpuObj, start, end)
             view.drawImmediately()
         } else if (what == Selection.SELECTION_END) {
             selectionEndSpanFlag = flags
-            view.textMutations.get().add(WorkspaceView.WsTextMutation.SetSelection(start, end)to -1)
+            Workspace.setSelection(wgpuObj, start, end)
             view.drawImmediately()
         } else if ((flags and Spanned.SPAN_COMPOSING) != 0) {
             composingFlag = flags
@@ -176,7 +186,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun removeSpan(what: Any?) {
-
         if (what == composingTag || ((what ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
             composingStart = -1
             composingEnd = -1
@@ -186,35 +195,43 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     override fun append(text: CharSequence?): Editable {
-
         text?.let { realText ->
-            localQueue.add(WorkspaceView.WsTextMutation.Append(realText.toString()))
+            Workspace.append(wgpuObj, realText.toString())
+
             view.drawImmediately()
         }
 
         return this
     }
 
-    override fun append(text: CharSequence?, start: Int, end: Int): Editable {
-
-        localQueue.add(WorkspaceView.WsTextMutation.Append(text?.substring(start, end) ?: ""))
-
+    override fun append(
+        text: CharSequence?,
+        start: Int,
+        end: Int,
+    ): Editable {
+        val appendText = text?.substring(start, end) ?: return this
+        Workspace.append(wgpuObj, appendText)
         view.drawImmediately()
 
         return this
     }
 
     override fun append(text: Char): Editable {
+        Workspace.append(wgpuObj, text.toString())
 
-        localQueue.add(WorkspaceView.WsTextMutation.Append(text.toString()))
         view.drawImmediately()
-        wsInputConnection.notifySelectionUpdated(true)
+        wsInputConnection.notifySelectionUpdated()
 
         return this
     }
 
-    override fun replace(st: Int, en: Int, source: CharSequence?, start: Int, end: Int): Editable {
-
+    override fun replace(
+        st: Int,
+        en: Int,
+        source: CharSequence?,
+        start: Int,
+        end: Int,
+    ): Editable {
         source?.let { realText ->
             replace(st, en, realText.subSequence(start, end))
         }
@@ -223,7 +240,6 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
     }
 
     private fun getComposingSpansFromSpannable(spannable: Spannable): Pair<Int, Int> {
-
         for (span in spannable.getSpans(0, spannable.length, Object::class.java)) {
             val flags = spannable.getSpanFlags(span)
 
@@ -235,13 +251,22 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         return Pair(-1, -1)
     }
 
-    override fun replace(st: Int, en: Int, text: CharSequence?): Editable {
-
+    override fun replace(
+        st: Int,
+        en: Int,
+        text: CharSequence?,
+    ): Editable {
         text?.let { realText ->
+            if (st == selectionStart && en == selectionEnd) {
+                if (realText == "\n") {
+                    Workspace.sendKeyEvent(wgpuObj, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
+                } else {
+                    Workspace.insertTextAtCursor(wgpuObj, realText.toString())
+                }
+            } else {
+                Workspace.replace(wgpuObj, st, en, realText.toString())
+            }
 
-            val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, realText.toString(), wsInputConnection.batchEditCount.get())
-
-            localQueue.add(pendingCommand)
             if (en < composingStart) {
                 val replacedLen = en - st
 
@@ -251,11 +276,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
 
             val spannableSource = realText as? Spannable
             if (spannableSource != null) {
-                val (sourceComposingStart, sourceComposingEnd) = if (composingTag == null) {
-                    getComposingSpansFromSpannable(spannableSource)
-                } else {
-                    Pair(spannableSource.getSpanStart(composingTag), spannableSource.getSpanEnd(composingTag))
-                }
+                val (sourceComposingStart, sourceComposingEnd) =
+                    if (composingTag == null) {
+                        getComposingSpansFromSpannable(spannableSource)
+                    } else {
+                        Pair(spannableSource.getSpanStart(composingTag), spannableSource.getSpanEnd(composingTag))
+                    }
 
                 if (sourceComposingStart != -1) {
                     val newStart = st + sourceComposingStart
@@ -275,60 +301,48 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             }
 
             view.drawImmediately()
-            wsInputConnection.notifySelectionUpdated(true)
+            wsInputConnection.notifySelectionUpdated()
         }
 
         return this
     }
 
-    override fun insert(where: Int, text: CharSequence?, start: Int, end: Int): Editable {
-
+    override fun insert(
+        where: Int,
+        text: CharSequence?,
+        start: Int,
+        end: Int,
+    ): Editable {
         text?.let { realText ->
             val subRealText = realText.substring(start, end)
 
             if (subRealText == "\n" && selectionEnd == where && selectionStart == where) {
-                localQueue.add(
-                    WorkspaceView.WsTextMutation.SendKeyEvent(
-                        KeyEvent.KEYCODE_ENTER,
-                        "",
-                        true,
-                        false,
-                        false,
-                        false
-                    )
-                )
+                Workspace.sendKeyEvent(wgpuObj, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
             } else {
-                localQueue.add(WorkspaceView.WsTextMutation.Insert(where, subRealText))
+                Workspace.insert(wgpuObj, where, subRealText)
             }
+
             if (where < composingStart) {
                 composingStart += subRealText.length
                 composingEnd += subRealText.length
             }
 
             view.drawImmediately()
-            wsInputConnection.notifySelectionUpdated(true)
+            wsInputConnection.notifySelectionUpdated()
         }
 
         return this
     }
 
-    override fun insert(where: Int, text: CharSequence?): Editable {
-
+    override fun insert(
+        where: Int,
+        text: CharSequence?,
+    ): Editable {
         text?.let { realText ->
-
             if (realText == "\n" && selectionEnd == where && selectionStart == where) {
-                localQueue.add(
-                    WorkspaceView.WsTextMutation.SendKeyEvent(
-                        KeyEvent.KEYCODE_ENTER,
-                        "",
-                        true,
-                        false,
-                        false,
-                        false
-                    )
-                )
+                Workspace.sendKeyEvent(wgpuObj, KeyEvent.KEYCODE_ENTER, "", true, false, false, false)
             } else {
-                localQueue.add(WorkspaceView.WsTextMutation.Insert(where, realText.toString()))
+                Workspace.insert(wgpuObj, where, realText.toString())
             }
 
             if (where < composingStart) {
@@ -337,16 +351,17 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             }
 
             view.drawImmediately()
-            wsInputConnection.notifySelectionUpdated(true)
+            wsInputConnection.notifySelectionUpdated()
         }
 
         return this
     }
 
-    override fun delete(st: Int, en: Int): Editable {
-
-        val pendingCommand = WorkspaceView.WsTextMutation.Replace(st, en, "", wsInputConnection.batchEditCount.get())
-        localQueue.add(pendingCommand)
+    override fun delete(
+        st: Int,
+        en: Int,
+    ): Editable {
+        Workspace.replace(wgpuObj, st, en, "")
 
         if (en < composingStart) {
             composingStart -= (en - st)
@@ -354,24 +369,22 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
         }
 
         view.drawImmediately()
-        wsInputConnection.notifySelectionUpdated(true)
+        wsInputConnection.notifySelectionUpdated()
 
         return this
     }
 
     override fun clear() {
-
-        localQueue.add(WorkspaceView.WsTextMutation.Clear)
+        Workspace.clear(wgpuObj)
 
         composingStart = -1
         composingEnd = -1
 
         view.drawImmediately()
-        wsInputConnection.notifySelectionUpdated(true)
+        wsInputConnection.notifySelectionUpdated()
     }
 
     override fun clearSpans() {
-
         if (composingStart != -1 || composingEnd != -1) {
             composingStart = -1
             composingEnd = -1
@@ -379,23 +392,12 @@ class WorkspaceTextEditable(val view: WorkspaceView, val wsInputConnection: Work
             wsInputConnection.notifySelectionUpdated()
         }
     }
+
     override fun setFilters(filters: Array<out InputFilter>?) {}
 
     override fun getFilters(): Array<InputFilter> = arrayOf()
 
     override val length: Int get() {
-
-        return view.pendingTextLength.get()
-    }
-
-    private fun getTextInRange(st: Int, en: Int): String {
-        return view.pendingBuffer.get().slice(st..<en)
-    }
-
-    fun flushQueue() {
-        while (localQueue.isNotEmpty()) {
-            val mutation = localQueue.removeFirst()
-            view.textMutations.get().add(mutation to queueId)
-        }
+        return Workspace.getTextLength(wgpuObj)
     }
 }

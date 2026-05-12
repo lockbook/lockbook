@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.model
 
 import android.app.Application
@@ -11,7 +13,9 @@ import net.lockbook.Lb
 import net.lockbook.LbError
 import java.io.File
 
-class StateViewModel(application: Application) : AndroidViewModel(application) {
+class StateViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     var activityScreen: ActivityScreen? = null
     var transientScreen: TransientScreen? = null
 
@@ -44,7 +48,10 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         _updateMainScreenUI.postValue(uiUpdate)
     }
 
-    fun shareSelectedFiles(selectedFiles: List<net.lockbook.File>, appDataDir: File) {
+    fun shareSelectedFiles(
+        selectedFiles: List<net.lockbook.File>,
+        appDataDir: File,
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 exportImportModel.exportDocuments(selectedFiles, appDataDir)
@@ -54,14 +61,17 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun confirmSubscription(purchaseToken: String, accountId: String) {
+    fun confirmSubscription(
+        purchaseToken: String,
+        accountId: String,
+    ) {
         viewModelScope.launch(Dispatchers.IO) {
             try {
                 Lb.upgradeAccountGooglePlay(purchaseToken, accountId)
                 _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowSubscriptionConfirmed)
             } catch (err: LbError) {
                 _updateMainScreenUI.postValue(
-                    UpdateMainScreenUI.NotifyError(err)
+                    UpdateMainScreenUI.NotifyError(err),
                 )
             }
         }
@@ -69,31 +79,75 @@ class StateViewModel(application: Application) : AndroidViewModel(application) {
 }
 
 sealed class ActivityScreen {
-    data class Settings(val scrollToPreference: Int? = null) : ActivityScreen()
+    data class Settings(
+        val scrollToPreference: Int? = null,
+    ) : ActivityScreen()
 }
 
 sealed class TransientScreen {
-    data class Move(val files: List<net.lockbook.File>) : TransientScreen()
-    data class Rename(val file: net.lockbook.File) : TransientScreen()
-    data class Create(val parentId: String) : TransientScreen()
-    data class Info(val file: net.lockbook.File) : TransientScreen()
-    data class ShareExport(val files: List<File>) : TransientScreen()
-    data class ShareFile(val file: net.lockbook.File) : TransientScreen()
-    data class Delete(val files: List<net.lockbook.File>) : TransientScreen()
+    data class Move(
+        val files: List<net.lockbook.File>,
+    ) : TransientScreen()
+
+    data class Rename(
+        val file: net.lockbook.File,
+    ) : TransientScreen()
+
+    data class Create(
+        val parentId: String,
+    ) : TransientScreen()
+
+    data class Info(
+        val file: net.lockbook.File,
+    ) : TransientScreen()
+
+    data class ShareExport(
+        val files: List<File>,
+    ) : TransientScreen()
+
+    data class ShareFile(
+        val file: net.lockbook.File,
+    ) : TransientScreen()
+
+    data class Delete(
+        val files: List<net.lockbook.File>,
+    ) : TransientScreen()
 }
 
 sealed class UpdateMainScreenUI {
-    data class OpenFile(val id: String?) : UpdateMainScreenUI()
+    data class OpenFile(
+        val id: String?,
+    ) : UpdateMainScreenUI()
 
-    data class ShowHideProgressOverlay(val show: Boolean) : UpdateMainScreenUI()
-    data class ShareDocuments(val files: ArrayList<File>) : UpdateMainScreenUI()
-    data class NotifyError(val error: LbError) : UpdateMainScreenUI()
+    data class OpenFileFromSearch(
+        val id: String,
+    ) : UpdateMainScreenUI()
+
+    data class ShowHideProgressOverlay(
+        val show: Boolean,
+    ) : UpdateMainScreenUI()
+
+    data class ShareDocuments(
+        val files: ArrayList<File>,
+    ) : UpdateMainScreenUI()
+
+    data class NotifyError(
+        val error: LbError,
+    ) : UpdateMainScreenUI()
+
     object ShowSubscriptionConfirmed : UpdateMainScreenUI()
+
     object ShowSearch : UpdateMainScreenUI()
+
     object ShowFiles : UpdateMainScreenUI()
+
     object PopBackstackToWorkspace : UpdateMainScreenUI()
+
     object ToggleBottomViewNavigation : UpdateMainScreenUI()
+
     object CloseSlidingPane : UpdateMainScreenUI()
+
     object CloseWorkspacePane : UpdateMainScreenUI()
+
     object OpenWorkspacePane : UpdateMainScreenUI()
 }

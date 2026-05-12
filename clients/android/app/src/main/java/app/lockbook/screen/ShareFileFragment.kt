@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.screen
 
 import android.os.Bundle
@@ -17,7 +19,6 @@ import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class ShareFileFragment : Fragment() {
-
     private lateinit var binding: FragmentShareFileBinding
     private val activityModel: StateViewModel by activityViewModels()
     private val fileTreeViewModel: FileTreeViewModel by activityViewModels()
@@ -33,7 +34,7 @@ class ShareFileFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         binding = FragmentShareFileBinding.inflate(inflater, container, false)
 
@@ -74,14 +75,21 @@ class ShareFileFragment : Fragment() {
                 return@setOnClickListener
             }
 
-            val mode = when (modeString) {
-                getString(R.string.share_mode_read) -> ShareMode.Read
-                getString(R.string.share_mode_write) -> ShareMode.Write
-                else -> {
-                    alertModel.notifyWithToast(getString(R.string.basic_error))
-                    return@setOnClickListener
+            val mode =
+                when (modeString) {
+                    getString(R.string.share_mode_read) -> {
+                        ShareMode.Read
+                    }
+
+                    getString(R.string.share_mode_write) -> {
+                        ShareMode.Write
+                    }
+
+                    else -> {
+                        alertModel.notifyWithToast(getString(R.string.basic_error))
+                        return@setOnClickListener
+                    }
                 }
-            }
 
             try {
                 Lb.shareFile(file.id, username, mode == ShareMode.Write)
@@ -93,10 +101,11 @@ class ShareFileFragment : Fragment() {
         }
 
         for (share in file.shares) {
-            val chipGroup = when (share.mode) {
-                ShareMode.Write -> binding.shareFileWriteAccessShares
-                ShareMode.Read -> binding.shareFileReadAccessShares
-            }
+            val chipGroup =
+                when (share.mode) {
+                    ShareMode.Write -> binding.shareFileWriteAccessShares
+                    ShareMode.Read -> binding.shareFileReadAccessShares
+                }
 
             val chip = createShareChip(share.sharedWith)
 
@@ -104,11 +113,12 @@ class ShareFileFragment : Fragment() {
         }
     }
 
-    private fun createShareChip(username: String): Chip = (
-        LayoutInflater.from(requireActivity())
-            .inflate(R.layout.chip_share, null) as Chip
-        )
-        .apply {
+    private fun createShareChip(username: String): Chip =
+        (
+            LayoutInflater
+                .from(requireActivity())
+                .inflate(R.layout.chip_share, null) as Chip
+        ).apply {
             text = username
         }
 }

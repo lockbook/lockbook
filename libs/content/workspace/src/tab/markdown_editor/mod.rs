@@ -142,7 +142,7 @@ pub struct MdRender {
 
     // debug
     pub debug: bool,
-    pub frame_times: [Instant; 10],
+    pub frame_times: [Instant; 100],
     pub frame_times_idx: usize,
 }
 
@@ -389,7 +389,7 @@ impl MdRender {
             width_seq: 0,
             viewport_height: Default::default(),
             debug: false,
-            frame_times: [Instant::now(); 10],
+            frame_times: [Instant::now(); 100],
             frame_times_idx: 0,
         }
     }
@@ -445,7 +445,7 @@ impl MdRender {
             bounds_seq: 0,
             ws_seq,
             debug: false,
-            frame_times: [Instant::now(); 10],
+            frame_times: [Instant::now(); 100],
             frame_times_idx: 0,
         }
     }
@@ -591,7 +591,7 @@ impl Editor {
             ws_seq,
 
             debug: false,
-            frame_times: [Instant::now(); 10],
+            frame_times: [Instant::now(); 100],
             frame_times_idx: 0,
         };
 
@@ -928,6 +928,15 @@ impl Editor {
             }
         }
 
+        // Selection can change both in `handle_input` and later during
+        // `MdEdit::show` pointer handling (e.g. double-click word select on
+        // Android). Compute this after render so the response sees both paths.
+        resp.selection_updated |= prior_selection
+            != self
+                .edit
+                .in_progress_selection
+                .unwrap_or(self.edit.renderer.buffer.current.selection);
+
         // Completion popups render last, outside the scroll area's clip, so
         // they composite over the toolbar / find widget when the cursor is
         // near the top of the document. `edit.show` already submitted the
@@ -938,7 +947,7 @@ impl Editor {
 
         let render_elapsed = start.elapsed();
 
-        if self.edit.renderer.debug {
+        if cfg!(debug_assertions) && self.edit.renderer.debug {
             self.edit.renderer.show_debug_fps(ui);
         }
 
@@ -986,6 +995,7 @@ impl Editor {
             .event
             .internal_events
             .append(&mut self.edit.renderer.render_events);
+
         if !self.edit.event.internal_events.is_empty() {
             ui.ctx().request_repaint();
         }
