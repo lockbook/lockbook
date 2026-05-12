@@ -39,7 +39,7 @@ pub struct RendererState<'w> {
 pub struct PreparedFrame {
     pub platform_output: PlatformOutput,
     pub viewport_output: ViewportIdMap<ViewportOutput>,
-    
+
     pub textures_delta: TexturesDelta,
     pub shapes: Vec<ClippedShape>,
     pub pixels_per_point: f32,
@@ -183,7 +183,6 @@ impl<'w> RendererState<'w> {
         self.render_prepared_frame(prepared);
         (platform_output, viewport_output)
     }
-
 
     pub fn render_prepared_frame(&mut self, prepared: PreparedFrame) {
         let size_in_pixels = self.screen.size_in_pixels;

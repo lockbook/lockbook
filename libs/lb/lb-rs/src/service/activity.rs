@@ -1,7 +1,7 @@
-use crate::service::events::Actor;
 use crate::LocalLb;
 use crate::model::errors::LbResult;
 use crate::model::tree_like::TreeLike;
+use crate::service::events::Actor;
 use serde::{Deserialize, Serialize};
 use std::cmp::{self, Ordering};
 use std::collections::HashMap;

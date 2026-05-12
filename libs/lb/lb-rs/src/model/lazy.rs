@@ -71,13 +71,15 @@ impl<T: TreeLike> LazyTree<T> {
         }
     }
 
-    pub fn all_children(&mut self) -> LbResult<&HashMap<Uuid, Vec<Uuid>, UuidIdentityHasherBuilder>> {
+    pub fn all_children(
+        &mut self,
+    ) -> LbResult<&HashMap<Uuid, Vec<Uuid>, UuidIdentityHasherBuilder>> {
         if self.children.is_empty() {
-            let mut all_children  =
-                uuid_map();
+            let mut all_children = uuid_map();
             for file in self.all_files()? {
                 if !file.is_root() {
-                    let mut children: Vec<Uuid> = all_children.remove(file.parent()).unwrap_or_default();
+                    let mut children: Vec<Uuid> =
+                        all_children.remove(file.parent()).unwrap_or_default();
                     children.push(*file.id());
                     all_children.insert(*file.parent(), children);
                 }
@@ -564,5 +566,5 @@ impl<T: TreeLike> TreeLike for LazyTree<T> {
 }
 
 fn uuid_map<V>() -> HashMap<Uuid, V, UuidIdentityHasherBuilder> {
-    HashMap::with_hasher(UuidIdentityHasherBuilder::default())
+    HashMap::with_hasher(UuidIdentityHasherBuilder)
 }

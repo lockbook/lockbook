@@ -364,7 +364,9 @@ impl OnboardScreen {
                                                     let ctx = ctx.clone();
                                                     thread::spawn(move || {
                                                         update_tx
-                                                            .send(AccountUpdate::Created(FileCache::new(&core)))
+                                                            .send(AccountUpdate::Created(
+                                                                FileCache::new(&core),
+                                                            ))
                                                             .unwrap();
                                                         ctx.request_repaint();
                                                     });

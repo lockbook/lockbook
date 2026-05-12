@@ -303,9 +303,11 @@ impl AccountScreen {
 
     fn process_lb_updates(&mut self) {
         match self.lb_rx.try_recv() {
-            Ok(evt) => if let Event::StatusUpdated = evt {
-                self.lb_status = self.core.status();
-            },
+            Ok(evt) => {
+                if let Event::StatusUpdated = evt {
+                    self.lb_status = self.core.status();
+                }
+            }
             Err(TryRecvError::Empty) => {}
             Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
         }

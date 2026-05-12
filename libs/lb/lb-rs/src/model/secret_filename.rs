@@ -34,10 +34,7 @@ impl SecretFileName {
         let encrypted_value = {
             let nonce = &generate_nonce();
             let encrypted = convert_key(key)
-                .encrypt(
-                    GenericArray::from_slice(nonce),
-                    Payload { msg: &serialized, aad: &[] },
-                )
+                .encrypt(GenericArray::from_slice(nonce), Payload { msg: &serialized, aad: &[] })
                 .map_unexpected()?;
             AESEncrypted::new(encrypted, nonce.to_vec())
         };
