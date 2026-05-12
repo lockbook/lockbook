@@ -66,6 +66,8 @@ impl WgpuWorkspace<'_> {
                 self.renderer.screen.size_in_pixels,
                 self.renderer.screen.pixels_per_point,
             );
+
+            self.renderer.shame_slow_frame();
             return;
         }
 

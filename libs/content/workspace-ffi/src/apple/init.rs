@@ -35,7 +35,7 @@ pub unsafe extern "C" fn init_ws(
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_lb_theme(Theme::default(mode));
 
-    let workspace = Workspace::new(core, &renderer.context, show_tabs);
+    let workspace = Workspace::new(core, &renderer.context, show_tabs, None);
     let mut fonts = FontDefinitions::default();
     register_fonts(&mut fonts);
     renderer.context.set_fonts(fonts);

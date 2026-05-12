@@ -14,6 +14,7 @@ use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
 use crate::service::lb_id::LbID;
+use db_rs::hasher::UuidIdentityHasherBuilder;
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
 use std::ops::{Deref, DerefMut};
@@ -32,8 +33,8 @@ pub struct CoreV4 {
     pub account: Single<Account>,
     pub last_synced: Single<i64>,
     pub root: Single<Uuid>,
-    pub local_metadata: LookupTable<Uuid, SignedMeta>,
-    pub base_metadata: LookupTable<Uuid, SignedMeta>,
+    pub local_metadata: LookupTable<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
+    pub base_metadata: LookupTable<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
 
     /// map from pub key to username
     pub pub_key_lookup: LookupTable<Owner, String>,

@@ -1,4 +1,7 @@
-use std::{iter, time::Instant};
+use std::{
+    iter,
+    time::{Duration, Instant},
+};
 
 use egui::epaint::{ClippedPrimitive, ClippedShape};
 use egui::{PlatformOutput, TexturesDelta, ViewportIdMap, ViewportOutput};
@@ -12,13 +15,22 @@ use wgpu::{
 pub use egui_wgpu;
 pub use wgpu;
 
+mod shame;
+
+const NOOB_FACTOR: u64 = 4;
+const FRAME_BUDGET: Duration = Duration::from_micros((16_667 / 2) * NOOB_FACTOR);
+
 pub struct RendererState<'w> {
+    frame_start: Option<Instant>,
+    is_dev: bool,
+
     pub context: egui::Context,
     pub raw_input: egui::RawInput,
     pub screen: ScreenDescriptor,
     pub bottom_inset: Option<u32>,
-    // android has a render thread that needs to take ownership of the backend,
-    // so the backend is an option that can be taken and set back
+
+    /// android has a render thread that needs to take ownership of the backend,
+    /// so the backend is an option that can be taken and set back
     backend: Option<RenderBackend<'w>>,
 
     start_time: Instant,
@@ -27,6 +39,7 @@ pub struct RendererState<'w> {
 pub struct PreparedFrame {
     pub platform_output: PlatformOutput,
     pub viewport_output: ViewportIdMap<ViewportOutput>,
+
     pub textures_delta: TexturesDelta,
     pub shapes: Vec<ClippedShape>,
     pub pixels_per_point: f32,
@@ -91,6 +104,8 @@ impl<'w> RendererState<'w> {
             context: Default::default(),
             raw_input: Default::default(),
             start_time: Instant::now(),
+            frame_start: None,
+            is_dev: false,
         }
     }
 }
@@ -107,6 +122,12 @@ impl<'w> RendererState<'w> {
     fn instance() -> wgpu::Instance {
         let instance_desc = wgpu::InstanceDescriptor::from_env_or_default();
         wgpu::Instance::new(&instance_desc)
+    }
+
+    /// When true, frames that exceed `FRAME_BUDGET` will panic with a
+    /// developer-shaming message at the end of `end_frame`.
+    pub fn set_is_dev(&mut self, is_dev: bool) {
+        self.is_dev = is_dev;
     }
 
     /// Call to update the screen ppp based on an up-to-date native ppp. This is
@@ -130,6 +151,7 @@ impl<'w> RendererState<'w> {
     }
 
     pub fn begin_frame(&mut self) {
+        self.frame_start = Some(Instant::now());
         self.set_egui_screen();
         self.raw_input.time = Some(self.start_time.elapsed().as_secs_f64());
         self.context.begin_pass(self.raw_input.take());
@@ -172,6 +194,7 @@ impl<'w> RendererState<'w> {
             size_in_pixels,
             pixels_per_point,
         );
+        self.shame_slow_frame();
     }
 
     pub fn backend(&self) -> &RenderBackend<'w> {
@@ -185,6 +208,21 @@ impl<'w> RendererState<'w> {
     /// used be android to transfer the backend to a render thread
     pub fn take_backend(&mut self) -> RenderBackend<'w> {
         self.backend.take().expect("renderer backend unavailable")
+    }
+
+    pub fn shame_slow_frame(&mut self) {
+        let Some(frame_start) = self.frame_start.take() else {
+            return;
+        };
+        if !self.is_dev {
+            return;
+        }
+        let elapsed = frame_start.elapsed();
+        if elapsed <= FRAME_BUDGET {
+            return;
+        }
+
+        shame::frame_budget_destroyed(elapsed, FRAME_BUDGET);
     }
 
     /// inspired by egui_wgpu::RenderState
