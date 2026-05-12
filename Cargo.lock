@@ -1946,19 +1946,9 @@ checksum = "5c297a1c74b71ae29df00c3e22dd9534821d60eb9af5a0192823fa2acea70c2a"
 
 [[package]]
 name = "db-rs"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6a46b34a8497d37efe0cb9896704a5d68da17f7b3767fde1114e272247dfb7d2"
-dependencies = [
- "bincode",
- "fs2",
- "serde",
- "uuid 1.8.0",
-]
-
-[[package]]
-name = "db-rs"
 version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6d7acb9b5f00c93a922b3f4208d968f28b1d6893d25555bd98b0bafab16105db"
 dependencies = [
  "bincode",
  "fs2",
@@ -1968,20 +1958,11 @@ dependencies = [
 
 [[package]]
 name = "db-rs-derive"
-version = "0.3.6"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "262efb7ddd6515d6b7246da966782b7ca48cfedc02ae7405e226c1c8b5581551"
-dependencies = [
- "db-rs 0.3.6",
- "quote",
- "syn 1.0.109",
-]
-
-[[package]]
-name = "db-rs-derive"
 version = "0.3.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03a52c0c6d803f73f9e242d3302bbb7912e7b5cba91c3243c1edea168eb32173"
 dependencies = [
- "db-rs 0.3.6",
+ "db-rs",
  "quote",
  "syn 1.0.109",
 ]
@@ -4186,8 +4167,8 @@ dependencies = [
  "chrono",
  "criterion",
  "crossbeam",
- "db-rs 0.3.7",
- "db-rs-derive 0.3.7",
+ "db-rs",
+ "db-rs-derive",
  "flate2",
  "futures",
  "getrandom 0.2.15",
@@ -4587,8 +4568,8 @@ dependencies = [
  "base64 0.13.1",
  "bincode",
  "constant_time_eq 0.2.6",
- "db-rs 0.3.6",
- "db-rs-derive 0.3.6",
+ "db-rs",
+ "db-rs-derive",
  "futures",
  "google-androidpublisher3",
  "itertools 0.10.5",
