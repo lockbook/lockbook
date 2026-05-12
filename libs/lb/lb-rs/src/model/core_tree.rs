@@ -1,3 +1,5 @@
+use std::hash::BuildHasher;
+
 use crate::model::file_like::FileLike;
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use serde::Serialize;
@@ -5,9 +7,10 @@ use uuid::Uuid;
 
 use super::errors::{LbResult, Unexpected};
 
-impl<F> TreeLike for db_rs::LookupTable<Uuid, F>
+impl<F, S> TreeLike for db_rs::LookupTable<Uuid, F, S>
 where
     F: FileLike + Serialize,
+    S: BuildHasher + Default,
 {
     type F = F;
 
@@ -20,9 +23,10 @@ where
     }
 }
 
-impl<F> TreeLikeMut for db_rs::LookupTable<Uuid, F>
+impl<F, S> TreeLikeMut for db_rs::LookupTable<Uuid, F, S>
 where
     F: FileLike + Serialize,
+    S: BuildHasher + Default,
 {
     fn insert(&mut self, f: Self::F) -> LbResult<Option<Self::F>> {
         db_rs::LookupTable::insert(self, *f.id(), f).map_unexpected()

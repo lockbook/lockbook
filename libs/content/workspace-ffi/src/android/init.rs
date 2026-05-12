@@ -111,7 +111,7 @@ unsafe fn init_ws(
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_lb_theme(Theme::default(mode));
 
-    let workspace = Workspace::new(core, &renderer.context, false);
+    let workspace = Workspace::new(core, &renderer.context, false, None);
 
     let mut fonts = FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);

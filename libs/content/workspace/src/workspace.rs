@@ -11,13 +11,14 @@ use lb_rs::model::filename::NameComponents;
 use lb_rs::model::svg;
 use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::service::events::{self, Actor, Event};
-use lb_rs::{Uuid, spawn};
+use lb_rs::{LbResult, Uuid, spawn};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
-use std::sync::{Arc, RwLock};
+use std::sync::mpsc::{Receiver, Sender};
+use std::sync::{Arc, RwLock, mpsc};
 use tracing::{debug, error, info, instrument, warn};
 use web_time::{Duration, Instant};
 
@@ -87,15 +88,24 @@ pub struct Workspace {
     // Transient rename state for the landing page file table
     pub landing_rename_target: Option<lb_rs::Uuid>,
     pub landing_rename_buffer: String,
+
+    pub ws_rx: Receiver<WsUpdates>,
+}
+
+pub enum WsUpdates {
+    FileCacheComputed(LbResult<FileCache>),
 }
 
 impl Workspace {
-    pub fn new(core: &Lb, ctx: &Context, show_tabs: bool) -> Self {
+    pub fn new(
+        core: &Lb, ctx: &Context, show_tabs: bool, file_cache: Option<Arc<RwLock<FileCache>>>,
+    ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
         let writeable_path = writeable_dir.join("ws_persistence.json");
-        let files =
-            Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")));
+        let files = file_cache.unwrap_or_else(|| {
+            Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")))
+        });
         let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
         let images = ImageCache::new(
             ctx.clone(),
@@ -105,6 +115,9 @@ impl Workspace {
             cfg.clone(),
         );
         ctx.set_zoom_factor(cfg.get_zoom_factor());
+
+        let (ws_tx, ws_rx) = mpsc::channel();
+
         let mut ws = Self {
             tabs: TabCache::new(),
             tab_strip: Vec::new(),
@@ -133,6 +146,7 @@ impl Workspace {
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
+            ws_rx,
         };
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();
@@ -152,7 +166,7 @@ impl Workspace {
         let ctx = ctx.clone();
 
         #[cfg(not(target_family = "wasm"))]
-        spawn!(lb_frames(ctx, core));
+        spawn!(lb_bg_worker(ctx, core, ws_tx));
 
         ws
     }
@@ -467,20 +481,53 @@ impl Workspace {
         self.mark_current_tab_changed();
     }
 
+    pub fn process_bg_tasks(&mut self) {
+        loop {
+            match self.ws_rx.try_recv() {
+                Ok(WsUpdates::FileCacheComputed(file_cache)) => {
+                    *self.files.write().unwrap() = file_cache.unwrap();
+                    self.out.file_cache_updated = true;
+
+                    for tab in self.tabs.values_mut() {
+                        if let Some(md) = tab.markdown_mut() {
+                            let renderer = &md.edit.renderer;
+                            renderer.layout_cache.link_seq.store(
+                                renderer.ws_seq.fetch_add(1, Ordering::Relaxed),
+                                Ordering::Relaxed,
+                            );
+                        }
+                    }
+                    let files = self.files.read().unwrap();
+                    let mut tabs_to_delete = vec![];
+                    for slot in &self.tab_strip {
+                        let id = slot.dest.id();
+                        if files.get_by_id(id).is_none() {
+                            tabs_to_delete.push(id);
+                        }
+                    }
+                    drop(files);
+
+                    for id in tabs_to_delete {
+                        if let Some(idx) = self.tab_strip.iter().position(|s| s.dest.id() == id) {
+                            self.close_tab(idx);
+                        }
+                    }
+                }
+                Err(mpsc::TryRecvError::Empty) => break,
+                Err(mpsc::TryRecvError::Disconnected) => {
+                    error!("ws_rx disconnected");
+                    break;
+                }
+            }
+        }
+    }
+
     #[instrument(level = "trace", skip_all)]
     pub fn process_lb_updates(&mut self) {
-        let mut refresh_cache = false;
-        let mut remove_deleted_file_tabs = false;
         loop {
             match self.lb_rx.try_recv() {
-                Ok(evt) => match evt {
-                    Event::MetadataChanged(_) => {
-                        refresh_cache = true;
-                        remove_deleted_file_tabs = true;
-                    }
-                    Event::DocumentWritten(id, actor) => {
-                        refresh_cache = true;
-
+                Ok(evt) => {
+                    if let Event::DocumentWritten(id, actor) = evt {
                         if actor == Actor::Sync {
                             self.core.app_foregrounded();
                             let has_open_tab = self
@@ -496,8 +543,7 @@ impl Workspace {
                             }
                         }
                     }
-                    _ => {}
-                },
+                }
                 #[cfg(not(target_family = "wasm"))]
                 Err(TryRecvError::Empty) => {
                     break;
@@ -505,39 +551,6 @@ impl Workspace {
                 Err(e) => {
                     eprintln!("cannot recv events from lb-rs {e:?}");
                     break;
-                }
-            }
-        }
-
-        if refresh_cache {
-            *self.files.write().unwrap() =
-                FileCache::new(&self.core).expect("failed to refresh file cache");
-
-            for tab in self.tabs.values_mut() {
-                if let Some(md) = tab.markdown_mut() {
-                    let renderer = &md.edit.renderer;
-                    renderer
-                        .layout_cache
-                        .link_seq
-                        .store(renderer.ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
-                }
-            }
-        }
-        if remove_deleted_file_tabs {
-            let files_arc = Arc::clone(&self.files);
-            let files_guard = files_arc.read().unwrap();
-            let files = &*files_guard;
-            let mut tabs_to_delete = vec![];
-            for slot in &self.tab_strip {
-                let id = slot.dest.id();
-                if files.get_by_id(id).is_none() {
-                    tabs_to_delete.push(id);
-                }
-            }
-
-            for id in tabs_to_delete {
-                if let Some(idx) = self.tab_strip.iter().position(|s| s.dest.id() == id) {
-                    self.close_tab(idx);
                 }
             }
         }
@@ -1224,12 +1237,18 @@ impl WsPersistentStore {
         });
     }
 }
-pub fn lb_frames(ctx: Context, lb: Lb) {
+pub fn lb_bg_worker(ctx: Context, lb: Lb, ws_tx: Sender<WsUpdates>) {
     let mut events = lb.subscribe();
 
     loop {
         match events.blocking_recv() {
             Ok(evt) => match evt {
+                Event::MetadataChanged(_) => {
+                    ws_tx
+                        .send(WsUpdates::FileCacheComputed(FileCache::new(&lb)))
+                        .unwrap();
+                    ctx.request_repaint();
+                }
                 Event::Sync(events::SyncIncrement::SyncFinished(_)) => {
                     ctx.request_repaint();
                 }

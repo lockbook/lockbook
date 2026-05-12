@@ -1,7 +1,8 @@
 use crate::model::crypto::{AESEncrypted, AESKey};
 use crate::model::symkey::{convert_key, generate_nonce};
-use aead::Aead;
-use aead::generic_array::GenericArray;
+use aes_gcm::aead::Aead;
+use aes_gcm::aead::Payload;
+use aes_gcm::aead::generic_array::GenericArray;
 use hmac::{Hmac, Mac, NewMac};
 use serde::{Deserialize, Serialize};
 use sha2::Sha256;
@@ -33,10 +34,7 @@ impl SecretFileName {
         let encrypted_value = {
             let nonce = &generate_nonce();
             let encrypted = convert_key(key)
-                .encrypt(
-                    GenericArray::from_slice(nonce),
-                    aead::Payload { msg: &serialized, aad: &[] },
-                )
+                .encrypt(GenericArray::from_slice(nonce), Payload { msg: &serialized, aad: &[] })
                 .map_unexpected()?;
             AESEncrypted::new(encrypted, nonce.to_vec())
         };
@@ -47,7 +45,7 @@ impl SecretFileName {
     pub fn to_string(&self, key: &AESKey) -> LbResult<String> {
         let nonce = GenericArray::from_slice(&self.encrypted_value.nonce);
         let decrypted = convert_key(key)
-            .decrypt(nonce, aead::Payload { msg: &self.encrypted_value.value, aad: &[] })
+            .decrypt(nonce, Payload { msg: &self.encrypted_value.value, aad: &[] })
             .map_err(|err| LbErrKind::Crypto(CryptoError::Decryption(err.to_string())))?;
         let deserialized = bincode::deserialize(&decrypted).map_unexpected()?;
         Ok(deserialized)

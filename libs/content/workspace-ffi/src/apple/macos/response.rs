@@ -47,6 +47,7 @@ impl From<crate::Response> for MacOSResponse {
                     failure_messages: _,
                     selected_folder_changed,
                     open_camera: _,
+                    file_cache_updated: _,
                 },
             redraw_in,
             copied_text,

@@ -38,6 +38,8 @@ pub struct Response {
     pub close: bool,
 }
 
+pub const DEV_USERS: &[&str] = &["parth", "adam", "travis", "at"];
+
 impl Lockbook {
     pub fn new(ctx: &egui::Context) -> Self {
         let (settings, maybe_settings_err) = match Settings::read_from_file() {
@@ -68,6 +70,15 @@ impl Lockbook {
             Lockbook::Splash(screen) => screen.settings.clone(),
             Lockbook::Onboard(screen) => screen.settings.clone(),
             Lockbook::Account(screen) => screen.settings.clone(),
+        }
+    }
+
+    /// True only once the user is logged in and their username matches a dev
+    /// in `DEV_USERS`. Pre-login screens always return false.
+    pub fn is_dev(&self) -> bool {
+        match self {
+            Lockbook::Account(screen) => screen.is_dev,
+            _ => false,
         }
     }
 
@@ -163,6 +174,7 @@ mod lb_wgpu {
         pub fn frame(&mut self) -> Output {
             self.renderer.begin_frame();
             let app_response = self.app.update(&self.renderer.context);
+            self.renderer.set_is_dev(self.app.is_dev());
             let (platform, viewport) = self.renderer.end_frame();
 
             // Queue up the events for the next frame
