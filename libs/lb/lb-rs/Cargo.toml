@@ -26,8 +26,8 @@ bincode = "1.3.3"
 bip39-dict = "0.1.3"
 chrono = "0.4"
 crossbeam = "0.8.1"
-db-rs-derive = { path = "../../../../../../../db-rs/derive" }
-db-rs = { path = "../../../../../../../db-rs/db" }
+db-rs-derive = "0.3.7"
+db-rs = { path = "0.3.7"
 flate2 = "1.0"
 futures = "0.3.30"
 getrandom = "0.2"

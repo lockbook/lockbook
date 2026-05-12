@@ -10,10 +10,8 @@ use egui::{
 };
 use egui_notify::Toasts;
 use lb::Uuid;
-use lb::blocking::Lb;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
-use lb::service::activity::RankingWeights;
 use rfd::FileDialog;
 use workspace_rs::file_cache::{FileCache, FilesExt};
 use workspace_rs::show::DocType;
@@ -23,7 +21,7 @@ use workspace_rs::widgets::{Button, GlyphonTextEdit};
 
 #[derive(Debug)]
 pub struct FileTree {
-    pub file_cache: Arc<RwLock<FileCache>>, 
+    pub file_cache: Arc<RwLock<FileCache>>,
 
     /// This is where the egui app caches files.
     pub files: Vec<File>,
@@ -1409,7 +1407,8 @@ impl FileTree {
                 .max()
                 .copied()
                 .unwrap_or_default();
-        }        self.expanded.retain(|&id| {
+        }
+        self.expanded.retain(|&id| {
             self.files.iter().any(|f| f.id == id)
                 || id == self.suggested_docs_folder_id
                 || id == self.pending_shares_id
@@ -1431,29 +1430,8 @@ impl FileTree {
             }
         }
 
-        *self.suggested_docs.lock().unwrap() = file_cache.suggested.iter().take(5).copied().collect();
-    }
-
-    /// Asynchronously recalculates the suggested files; requests repaint when complete.
-    pub fn recalc_suggested_files(&mut self, core: &Lb, ctx: &egui::Context) {
-        let core = core.clone();
-        let suggested = self.suggested_docs.clone();
-        let ctx = ctx.clone();
-
-        thread::spawn(move || {
-            let suggested_docs = core.suggested_docs(RankingWeights::default());
-            match suggested_docs {
-                Ok(docs) => {
-                    let mut suggested = suggested.lock().unwrap();
-                    *suggested = docs.into_iter().take(5).collect();
-                }
-                Err(err) => {
-                    // todo: better error surfacing
-                    println!("Failed to calculate suggested files: {err:?}");
-                }
-            }
-            ctx.request_repaint();
-        });
+        *self.suggested_docs.lock().unwrap() =
+            file_cache.suggested.iter().take(5).copied().collect();
     }
 
     /// Expands `ids`. Does not select or deselect anything.
@@ -1747,5 +1725,3 @@ impl Response {
         this
     }
 }
-
-
