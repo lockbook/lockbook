@@ -211,14 +211,12 @@ class WorkspaceView(
 
     override fun onHoverEvent(event: MotionEvent): Boolean {
         if (event.getToolType(0) == MotionEvent.TOOL_TYPE_STYLUS) {
-            val density = context.resources.displayMetrics.density
-
             when (event.actionMasked) {
                 MotionEvent.ACTION_HOVER_MOVE -> {
                     Workspace.mouseMoved(
                         wgpuObj,
-                        event.getX(event.actionIndex) / density,
-                        event.getY(event.actionIndex) / density,
+                        event.getX(event.actionIndex),
+                        event.getY(event.actionIndex),
                     )
                     invalidate()
                 }
@@ -455,13 +453,12 @@ class WorkspaceView(
                     )
                 }
                 motionEventPredictor.predict()?.let { predicted ->
-                    val density = resources.displayMetrics.density
                     for (i in 0 until predicted.pointerCount) {
                         Workspace.touchesPredicted(
                             wgpuObj,
                             predicted.getPointerId(i),
-                            predicted.getX(i) / density,
-                            predicted.getY(i) / density + touchOffsetY,
+                            predicted.getX(i),
+                            predicted.getY(i) + touchOffsetY,
                             getEventPressure(predicted, i),
                         )
                     }
