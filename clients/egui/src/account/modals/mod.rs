@@ -179,26 +179,47 @@ fn show_modal<M: Modal>(
 
     let title = d.title();
 
-    let frame = egui::Frame::window(&ctx.style()).inner_margin(egui::Margin {
-        left: 0,
-        bottom: 0,
-        ..ctx.style().spacing.window_margin
-    });
+    let frame = egui::Frame::window(&ctx.style())
+        .fill(ctx.style().visuals.panel_fill)
+        .inner_margin(egui::Margin {
+            left: 0,
+            bottom: 0,
+            ..ctx.style().spacing.window_margin
+        });
 
+    let title_owned = title.to_string();
     let win_resp = egui::Window::new(title)
         .anchor(M::ANCHOR, egui::vec2(x_offset, M::Y_OFFSET))
-        .title_bar(!title.is_empty())
+        .title_bar(false)
         .open(&mut is_open)
         .collapsible(false)
         .resizable(false)
         .default_width(400.0)
         .default_height(f32::INFINITY)
         .frame(frame)
-        .show(ctx, |ui| d.show(ui))
+        .show(ctx, |ui| {
+            // Custom title bar
+            if !title_owned.is_empty() {
+                ui.horizontal(|ui| {
+                    ui.heading(&title_owned);
+                });
+                ui.add_space(4.0);
+            }
+            d.show(ui)
+        })
         .unwrap(); // Will never be `None` because `is_open` will always start as `true`.
 
     // Indicate the window closed if the user clicked outside its area.
-    if win_resp.response.clicked_elsewhere() {
+    // We use a simpler check than clicked_elsewhere() because that considers
+    // clicks on other layers (like ComboBox dropdowns) as "elsewhere".
+    let clicked_outside = ctx.input(|i| {
+        if let (Some(pos), true) = (i.pointer.interact_pos(), i.pointer.any_click()) {
+            !win_resp.response.rect.contains(pos)
+        } else {
+            false
+        }
+    });
+    if clicked_outside {
         is_open = false;
     }
 

@@ -1,4 +1,4 @@
-use crate::settings::ThemeMode;
+use crate::settings::{list_themes, themes_dir, ThemeMode};
 use crate::theme;
 
 impl super::SettingsModal {
@@ -19,6 +19,38 @@ impl super::SettingsModal {
                 }
             }
         });
+
+        ui.add_space(16.0);
+
+        ui.heading("Color Theme:");
+        ui.add_space(8.0);
+
+        let themes = list_themes();
+        let mut s = self.settings.write().unwrap();
+        let current = s.theme_name.clone();
+
+        egui::ComboBox::from_id_salt("color_theme")
+            .selected_text(&current)
+            .show_ui(ui, |ui| {
+                for theme_name in &themes {
+                    if ui
+                        .selectable_value(&mut s.theme_name, theme_name.clone(), theme_name)
+                        .clicked()
+                    {
+                        theme::apply_settings(&s, ui.ctx());
+                    }
+                }
+            });
+
+        ui.add_space(8.0);
+
+        if let Some(path) = themes_dir() {
+            ui.label(
+                egui::RichText::new(format!("Themes location: {}", path.display()))
+                    .small()
+                    .color(ui.visuals().weak_text_color()),
+            );
+        }
 
         ui.add_space(24.0);
     }

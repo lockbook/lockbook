@@ -3,37 +3,76 @@ use egui::{
     style::{self},
 };
 use epaint::hex_color;
+use serde::{Deserialize, Serialize};
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Theme {
+    #[serde(skip)]
     pub current: Mode,
 
-    light: ThemeVariant,
-    light_prefs: Preferences,
+    pub light: ThemeVariant,
+    pub light_prefs: Preferences,
 
-    dark: ThemeVariant,
-    dark_prefs: Preferences,
+    pub dark: ThemeVariant,
+    pub dark_prefs: Preferences,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct ThemeVariant {
+    #[serde(with = "color32_hex")]
     pub black: Color32,
+    #[serde(with = "color32_hex")]
     pub grey: Color32,
+    #[serde(with = "color32_hex")]
     pub red: Color32,
+    #[serde(with = "color32_hex")]
     pub green: Color32,
+    #[serde(with = "color32_hex")]
     pub yellow: Color32,
+    #[serde(with = "color32_hex")]
     pub blue: Color32,
+    #[serde(with = "color32_hex")]
     pub magenta: Color32,
+    #[serde(with = "color32_hex")]
     pub cyan: Color32,
+    #[serde(with = "color32_hex")]
     pub white: Color32,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Serialize, Deserialize)]
 pub struct Preferences {
     pub primary: Palette,
     pub secondary: Palette,
     pub tertiary: Palette,
     pub quaternary: Palette,
+}
+
+mod color32_hex {
+    use egui::Color32;
+    use serde::{self, Deserialize, Deserializer, Serializer};
+
+    pub fn serialize<S>(color: &Color32, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        let hex = format!("#{:02X}{:02X}{:02X}", color.r(), color.g(), color.b());
+        serializer.serialize_str(&hex)
+    }
+
+    pub fn deserialize<'de, D>(deserializer: D) -> Result<Color32, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        let s = s.trim_start_matches('#');
+        if s.len() != 6 {
+            return Err(serde::de::Error::custom("expected 6 hex digits"));
+        }
+        let r = u8::from_str_radix(&s[0..2], 16).map_err(serde::de::Error::custom)?;
+        let g = u8::from_str_radix(&s[2..4], 16).map_err(serde::de::Error::custom)?;
+        let b = u8::from_str_radix(&s[4..6], 16).map_err(serde::de::Error::custom)?;
+        Ok(Color32::from_rgb(r, g, b))
+    }
 }
 
 impl Theme {
@@ -102,8 +141,8 @@ impl Theme {
     /// need a background distinct from the UI background.
     pub fn neutral_bg_tertiary(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.light.white.lerp_to_gamma(self.light.grey, 0.8),
-            Mode::Dark => self.dark.black.lerp_to_gamma(self.dark.grey, 0.8),
+            Mode::Light => self.dark.white.lerp_to_gamma(self.light.grey, 0.8),
+            Mode::Dark => self.light.black.lerp_to_gamma(self.dark.grey, 0.8),
         }
     }
 
@@ -111,8 +150,8 @@ impl Theme {
     /// mode, off-black in dark mode. Used for UI background in most places.
     pub fn neutral_bg_secondary(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.light.white.lerp_to_gamma(self.light.grey, 0.2),
-            Mode::Dark => self.dark.black.lerp_to_gamma(self.dark.grey, 0.2),
+            Mode::Light => self.dark.white.lerp_to_gamma(self.light.grey, 0.3),
+            Mode::Dark => self.light.black.lerp_to_gamma(self.dark.grey, 0.3),
         }
     }
 
@@ -121,19 +160,21 @@ impl Theme {
     /// to egui's `extreme_bg_color`.
     pub fn neutral_bg(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.light.white,
-            Mode::Dark => self.dark.black,
+            Mode::Light => self.dark.white,
+            Mode::Dark => self.light.black,
         }
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Mode {
+    #[default]
     Light,
     Dark,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
 pub enum Palette {
     Black,
     Red,
@@ -162,10 +203,16 @@ impl ThemeVariant {
 
 impl Theme {
     pub fn default(current: Mode) -> Self {
-        Self::travis(current)
+        Self::default_theme(current)
     }
 
-    pub fn travis(current: Mode) -> Self {
+    pub fn with_mode(mut self, mode: Mode) -> Self {
+        self.current = mode;
+        self
+    }
+
+    /// The default theme is mnemonic by travis
+    pub fn default_theme(current: Mode) -> Self {
         Self {
             current,
             light: ThemeVariant {
