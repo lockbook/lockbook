@@ -59,9 +59,16 @@ impl<'ast> MdRender {
         }
         self.touch_consuming_rects.push(clickable_space);
 
+        let how_on = ui.ctx().animate_bool_with_time_and_easing(
+            checkbox_id.with("animation"),
+            checked,
+            0.25,
+            egui::emath::ease_in_ease_out,
+        );
+
         // draw rect background for checkbox
         ui.painter().rect(
-            checkbox_space,
+            checkbox_space.shrink(2. * how_on), // anticipation for the main animation
             border_radius,
             theme
                 .bg()
@@ -72,12 +79,6 @@ impl<'ast> MdRender {
         );
 
         // animate filled in rect for checked state
-        let how_on = ui.ctx().animate_bool_with_time_and_easing(
-            checkbox_id.with("bg"),
-            checked,
-            0.25,
-            egui::emath::ease_in_ease_out,
-        );
         ui.painter().rect_filled(
             checkbox_space.expand2(checkbox_space.size() * how_on - checkbox_space.size()),
             border_radius,
