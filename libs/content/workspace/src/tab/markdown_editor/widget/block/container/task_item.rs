@@ -55,31 +55,58 @@ impl<'ast> MdRender {
         }
         self.touch_consuming_rects.push(clickable_space);
 
-        // draw checkbox
+        let how_on_bg = ui.ctx().animate_bool_with_time_and_easing(
+            "checkbox_bg_animation".into(), // todo: make this more specific to avoid conflicts between multiple checkboxes
+            checked,                        // todo: false if first frame
+            0.2,
+            egui::emath::ease_in_ease_out,
+        );
+        let how_on_check = ui.ctx().animate_bool_with_time_and_easing(
+            "checkbox_tick_animation".into(), // todo: make this more specific to avoid conflicts between multiple checkboxes
+            checked,                          // todo: false if first frame
+            0.3,
+            egui::emath::ease_in_ease_out,
+        );
+
+        let hover_expand = if checkbox_response.hovered() { 0.5 } else { 0.0 };
         ui.painter().rect(
-            checkbox_space,
+            checkbox_space.expand(hover_expand),
             2,
-            if checkbox_response.hovered() {
-                theme.neutral()
-            } else {
-                theme.neutral_bg_secondary()
-            },
-            Stroke::new(1., theme.neutral()),
+            theme
+                .bg()
+                .get_color(theme.prefs().primary)
+                .gamma_multiply(0.1),
+            Stroke::new(1., theme.fg().get_color(theme.prefs().primary)),
             StrokeKind::Inside,
         );
 
+        ui.painter().rect_filled(
+            checkbox_space
+                .expand2(-checkbox_space.size())
+                .expand2(checkbox_space.size() * how_on_bg),
+            2,
+            theme.bg().get_color(theme.prefs().primary),
+        );
+
         // draw check
-        if checked {
-            let check_space = checkbox_space.shrink(3.);
-            ui.painter().add(Shape::line(
-                vec![
-                    egui::pos2(check_space.left(), check_space.center().y),
-                    egui::pos2(check_space.center().x, check_space.bottom()),
-                    egui::pos2(check_space.right(), check_space.top()),
-                ],
-                Stroke::new(1.5, theme.neutral_fg_secondary()),
-            ));
-        }
+        let check_space = checkbox_space.shrink(4.5);
+        ui.painter().add(Shape::line(
+            vec![
+                egui::pos2(check_space.left(), check_space.center().y),
+                egui::pos2(
+                    check_space.center().x - check_space.width() / 7.0,
+                    check_space.bottom(),
+                ),
+                egui::pos2(check_space.right(), check_space.top()),
+            ],
+            Stroke::new(
+                2.,
+                theme
+                    .fg()
+                    .get_color(crate::theme::palette_v2::Palette::White)
+                    .linear_multiply(how_on_check),
+            ),
+        ));
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
