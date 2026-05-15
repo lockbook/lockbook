@@ -24,10 +24,13 @@ impl<'ast> MdRender {
 
         let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
-        let checkbox_space = Rect::from_center_size(
+        let mut checkbox_space = Rect::from_center_size(
             annotation_space.center(),
             Vec2::splat(annotation_space.size().min_elem()),
         );
+        let border_radius = 2.0;
+
+        let checkbox_id = ui.id().with(self.node_range(node));
 
         // allocate a slightly larger clickable space that makes the checkbox
         // easier to tap without overflowing the annotation space horizontally
@@ -40,7 +43,7 @@ impl<'ast> MdRender {
         let checkbox_response =
             // ui.id().with() instead of Id::new() so two views of the same document
             // get distinct checkbox IDs
-            ui.interact(clickable_space, ui.id().with(self.node_range(node)), sense);
+            ui.interact(clickable_space, checkbox_id, sense);
         if checkbox_response.clicked() {
             let check_offset = self.check_offset(node);
             let new_check = if checked { ' ' } else { 'x' };
@@ -52,40 +55,33 @@ impl<'ast> MdRender {
         }
         if checkbox_response.hovered() && !self.readonly {
             ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+            checkbox_space = checkbox_space.expand(0.5);
         }
         self.touch_consuming_rects.push(clickable_space);
 
-        let how_on_bg = ui.ctx().animate_bool_with_time_and_easing(
-            "checkbox_bg_animation".into(), // todo: make this more specific to avoid conflicts between multiple checkboxes
-            checked,                        // todo: false if first frame
-            0.2,
-            egui::emath::ease_in_ease_out,
-        );
-        let how_on_check = ui.ctx().animate_bool_with_time_and_easing(
-            "checkbox_tick_animation".into(), // todo: make this more specific to avoid conflicts between multiple checkboxes
-            checked,                          // todo: false if first frame
-            0.3,
-            egui::emath::ease_in_ease_out,
-        );
-
-        let hover_expand = if checkbox_response.hovered() { 0.5 } else { 0.0 };
+        // draw rect background for checkbox
         ui.painter().rect(
-            checkbox_space.expand(hover_expand),
-            2,
+            checkbox_space,
+            border_radius,
             theme
                 .bg()
                 .get_color(theme.prefs().primary)
                 .gamma_multiply(0.1),
-            Stroke::new(1., theme.fg().get_color(theme.prefs().primary)),
+            Stroke::new(0.5, theme.fg().get_color(theme.prefs().primary)),
             StrokeKind::Inside,
         );
 
+        // animate filled in rect for checked state
+        let how_on = ui.ctx().animate_bool_with_time_and_easing(
+            checkbox_id.with("bg"),
+            checked,
+            0.25,
+            egui::emath::ease_in_ease_out,
+        );
         ui.painter().rect_filled(
-            checkbox_space
-                .expand2(-checkbox_space.size())
-                .expand2(checkbox_space.size() * how_on_bg),
-            2,
-            theme.bg().get_color(theme.prefs().primary),
+            checkbox_space.expand2(checkbox_space.size() * how_on - checkbox_space.size()),
+            border_radius,
+            theme.fg().get_color(theme.prefs().primary),
         );
 
         // draw check
@@ -104,7 +100,7 @@ impl<'ast> MdRender {
                 theme
                     .fg()
                     .get_color(crate::theme::palette_v2::Palette::White)
-                    .linear_multiply(how_on_check),
+                    .linear_multiply(how_on),
             ),
         ));
 
