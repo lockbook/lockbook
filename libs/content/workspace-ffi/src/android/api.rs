@@ -225,7 +225,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesPredicted(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let force = get_force(pressure);
-    let pos = obj.renderer.pos_from_points(x, y);
+    let pos = obj.renderer.pos_from_pixels(x, y);
 
     obj.renderer
         .context
@@ -238,7 +238,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_mouseMoved(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let pos = obj.renderer.pos_from_points(x, y);
+    let pos = obj.renderer.pos_from_pixels(x, y);
     obj.renderer
         .raw_input
         .events

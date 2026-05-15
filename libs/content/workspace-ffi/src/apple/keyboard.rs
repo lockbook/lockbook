@@ -245,7 +245,10 @@ impl NSKeys {
         }
     }
 
-    pub fn egui_key(&self) -> Option<egui::Key> {
+    /// `shift` is heeded so that the bracket keys produce the curly-bracket
+    /// logical keys, mirroring egui-winit's `get_logical_key_char` (which
+    /// ignores every modifier except shift).
+    pub fn egui_key(&self, shift: bool) -> Option<egui::Key> {
         use NSKeys::*;
         let key = match self {
             A => egui::Key::A,
@@ -329,7 +332,9 @@ impl NSKeys {
             Backslash => egui::Key::Backslash,
             Equals => egui::Key::Equals,
             FrontSlash => egui::Key::Slash,
+            LeftBracket if shift => egui::Key::OpenCurlyBracket,
             LeftBracket => egui::Key::OpenBracket,
+            RightBracket if shift => egui::Key::CloseCurlyBracket,
             RightBracket => egui::Key::CloseBracket,
             Minus => egui::Key::Minus,
             Period => egui::Key::Period,
