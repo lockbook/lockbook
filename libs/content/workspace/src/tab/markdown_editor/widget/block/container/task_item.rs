@@ -59,11 +59,10 @@ impl<'ast> MdRender {
         }
         self.touch_consuming_rects.push(clickable_space);
 
-        let how_on = ui.ctx().animate_bool_with_time_and_easing(
+        let how_on = ui.ctx().animate_value_with_time(
             checkbox_id.with("animation"),
-            checked,
-            0.25,
-            egui::emath::ease_in_ease_out,
+            if checked { 1.0 } else { 0.0 },
+            0.2,
         );
 
         // draw rect background for checkbox
