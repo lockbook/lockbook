@@ -10,7 +10,9 @@ pub fn switch(ui: &mut egui::Ui, on: &mut bool) -> egui::Response {
     }
 
     if ui.is_rect_visible(rect) {
-        let how_on = ui.ctx().animate_bool(response.id, *on);
+        let how_on =
+            ui.ctx()
+                .animate_value_with_time(response.id, if *on { 1.0 } else { 0.0 }, 0.1);
 
         let visuals = ui.style().interact_selectable(&response, *on);
         let rect = rect.expand(visuals.expansion);
