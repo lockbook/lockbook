@@ -17,6 +17,7 @@ members = [
     "clients/admin",
     "utils/lbdev",
     "utils/winstaller",
+    "utils/metrics",
     "public-site/trunk",
     "libs/lb/lb-c",
     "libs/lb/lb-java",

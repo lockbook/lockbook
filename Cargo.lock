@@ -135,7 +135,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "admin"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -2146,6 +2146,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "ed25519"
+version = "1.5.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "91cff35c70bba8a626e3185d8cd48cc11b5437e1a5bcd15b9b5fa3c64b6dfee7"
+dependencies = [
+ "signature",
+]
+
+[[package]]
 name = "eframe"
 version = "0.32.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4123,7 +4132,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lb-c"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "lb-rs",
 ]
@@ -4135,7 +4144,7 @@ source = "git+https://github.com/lockbook/lb-fonts#d777ff8ab8bf198ebaf6b3406daba
 
 [[package]]
 name = "lb-fs"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "cli-rs 0.2.0",
  "lb-rs",
@@ -4147,7 +4156,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "jni",
  "lb-rs",
@@ -4155,8 +4164,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "lb-metrics"
+version = "0.1.0"
+dependencies = [
+ "base64 0.21.7",
+ "chrono",
+ "flate2",
+ "jsonwebtoken",
+ "lazy_static",
+ "macaroon",
+ "prometheus",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "tracing-appender",
+ "tracing-subscriber",
+ "urlencoding",
+ "warp",
+]
+
+[[package]]
 name = "lb-rs"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "aes-gcm",
  "base64 0.13.1",
@@ -4289,7 +4320,7 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "cli-rs 0.1.13",
  "dotenvy",
@@ -4435,6 +4466,18 @@ dependencies = [
 ]
 
 [[package]]
+name = "libsodium-sys"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b779387cd56adfbc02ea4a668e704f729be8d6a6abd2c27ca5ee537849a92fd"
+dependencies = [
+ "cc",
+ "libc",
+ "pkg-config",
+ "walkdir",
+]
+
+[[package]]
 name = "libz-sys"
 version = "1.1.16"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4497,7 +4540,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "arboard",
  "chrono",
@@ -4532,7 +4575,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4554,14 +4597,14 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "lockbook-desktop",
 ]
 
 [[package]]
 name = "lockbook-server"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4600,7 +4643,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "lockbook-desktop",
 ]
@@ -4695,6 +4738,19 @@ name = "mac"
 version = "0.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c41e0c4fef86961ac6d6f8a82609f55f31b05e4fce149ac5710e439df7619ba4"
+
+[[package]]
+name = "macaroon"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "3b15778101dd1d3a58a95fd2af33821b38bc44a408bcf03e0e5e194f42c08050"
+dependencies = [
+ "base64 0.13.1",
+ "log",
+ "serde",
+ "serde_json",
+ "sodiumoxide",
+]
 
 [[package]]
 name = "malloc_buf"
@@ -7221,6 +7277,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "signature"
+version = "1.6.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "74233d3b3b2f6d4b006dc19dee745e73e2a6bfb6f93607cd3b02bd5b00797d7c"
+
+[[package]]
 name = "simd-adler32"
 version = "0.3.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -7437,6 +7499,18 @@ checksum = "ce305eb0b4296696835b71df73eb912e0f1ffd2556a501fcede6e0c50349191c"
 dependencies = [
  "libc",
  "windows-sys 0.52.0",
+]
+
+[[package]]
+name = "sodiumoxide"
+version = "0.2.7"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e26be3acb6c2d9a7aac28482586a7856436af4cfe7100031d219de2d2ecb0028"
+dependencies = [
+ "ed25519",
+ "libc",
+ "libsodium-sys",
+ "serde",
 ]
 
 [[package]]
@@ -7787,7 +7861,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "bincode",
  "itertools 0.10.5",
@@ -9649,7 +9723,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -9685,7 +9759,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -9738,7 +9812,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "26.4.22"
+version = "26.5.15"
 dependencies = [
  "egui",
  "egui_extras",
