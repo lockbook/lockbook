@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="file_tree_item_container_horizontal_inset">8dp</dimen>
+    <dimen name="file_tree_item_container_vertical_inset">2dp</dimen>
+    <dimen name="file_tree_item_container_radius">8dp</dimen>
+</resources>

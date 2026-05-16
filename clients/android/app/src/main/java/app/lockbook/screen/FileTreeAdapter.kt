@@ -1,6 +1,5 @@
 package app.lockbook.screen
 
-import android.os.Build
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
@@ -140,44 +139,36 @@ class FileTreeAdapter(
         actionIcon: ImageView,
     ) {
         val isSelected = selectedFileIds.contains(item.fileMetadata.id)
-        when {
-            isSelected -> {
-                fileItemHolder.setBackgroundResource(getSelectedBackgroundResource())
-                actionIcon.setImageResource(R.drawable.ic_baseline_check_small_24)
-                actionIcon.visibility = View.VISIBLE
-            }
+        fileItemHolder.isSelected = isSelected
 
+
+        when {
             item.needsToBePulled -> {
-                fileItemHolder.setBackgroundResource(0)
                 actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
                 actionIcon.visibility = View.VISIBLE
             }
 
             item.needToBePushed -> {
-                fileItemHolder.setBackgroundResource(0)
                 actionIcon.setImageResource(R.drawable.ic_baseline_cloud_upload_24)
                 actionIcon.visibility = View.VISIBLE
             }
 
             item.isShared -> {
-                fileItemHolder.setBackgroundResource(0)
                 actionIcon.setImageResource(R.drawable.ic_baseline_group_24)
                 actionIcon.visibility = View.VISIBLE
             }
 
             else -> {
-                fileItemHolder.setBackgroundResource(0)
                 actionIcon.visibility = View.GONE
             }
         }
-    }
 
-    private fun getSelectedBackgroundResource(): Int =
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-            android.R.color.system_accent1_10
-        } else {
-            R.color.md_theme_inverseOnSurface
+        if (isSelected){
+            actionIcon.setImageResource(R.drawable.ic_baseline_check_small_24)
+            actionIcon.visibility = View.VISIBLE
         }
+
+    }
 }
 
 private class FileTreeDiffCallback : DiffUtil.ItemCallback<FileViewHolderInfo>() {

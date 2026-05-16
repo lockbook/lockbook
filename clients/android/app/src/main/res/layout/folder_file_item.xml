@@ -2,12 +2,13 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/folder_item_holder"
     android:layout_width="match_parent"
     android:layout_height="70dp"
-    android:id="@+id/folder_item_holder"
-    android:foreground="?attr/selectableItemBackground"
+    android:background="@drawable/file_tree_item_background"
     android:clickable="true"
     android:focusable="true"
+    android:foreground="@drawable/file_tree_item_foreground"
     android:paddingStart="?android:listPreferredItemPaddingStart"
     android:paddingEnd="?android:listPreferredItemPaddingEnd"
     tools:ignore="UnusedAttribute">
@@ -17,31 +18,36 @@
         android:layout_width="30dp"
         android:layout_height="45dp"
         android:contentDescription="@string/folder"
+        android:duplicateParentState="true"
         android:src="@drawable/ic_baseline_folder_24"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="@color/file_tree_item_icon_tint" />
 
     <ImageView
         android:id="@+id/folder_action_icon"
         android:layout_width="20dp"
         android:layout_height="20dp"
         android:background="@drawable/file_tree_action_icon_background"
+        android:contentDescription="@string/folder_action"
+        android:duplicateParentState="true"
         android:padding="3dp"
-        app:tint="?attr/colorOnSecondaryContainer"
         app:layout_constraintBottom_toBottomOf="@+id/folder_icon"
         app:layout_constraintEnd_toEndOf="@+id/folder_icon"
-        android:contentDescription="@string/folder_action" />
+        app:tint="@color/file_tree_action_icon_tint" />
 
     <com.google.android.material.textview.MaterialTextView
         android:id="@+id/folder_name"
-        android:layout_height="wrap_content"
         android:layout_width="0dp"
+        android:layout_height="wrap_content"
         android:layout_gravity="center_vertical"
         android:layout_marginStart="20dp"
+        android:duplicateParentState="true"
         android:ellipsize="end"
         android:maxLines="1"
         android:textAppearance="?attr/textAppearanceTitleSmall"
+        android:textColor="@color/file_tree_item_text_color"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/folder_icon"
