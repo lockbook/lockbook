@@ -2,12 +2,13 @@
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/document_item_holder"
     android:layout_width="match_parent"
     android:layout_height="80dp"
-    android:id="@+id/document_item_holder"
-    android:foreground="?attr/selectableItemBackground"
+    android:background="@drawable/file_tree_item_background"
     android:clickable="true"
     android:focusable="true"
+    android:foreground="@drawable/file_tree_item_foreground"
     android:paddingStart="?android:listPreferredItemPaddingStart"
     android:paddingEnd="?android:listPreferredItemPaddingEnd"
     tools:ignore="UnusedAttribute">
@@ -17,10 +18,12 @@
         android:layout_width="30dp"
         android:layout_height="45dp"
         android:contentDescription="@string/document"
+        android:duplicateParentState="true"
         android:src="@drawable/ic_outline_insert_drive_file_24"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent" />
+        app:layout_constraintTop_toTopOf="parent"
+        app:tint="@color/file_tree_item_icon_tint" />
 
     <ImageView
         android:id="@+id/document_action_icon"
@@ -28,36 +31,42 @@
         android:layout_height="20dp"
         android:background="@drawable/file_tree_action_icon_background"
         android:contentDescription="@string/document_action"
+        android:duplicateParentState="true"
         android:padding="3dp"
-        app:tint="?attr/colorOnSecondaryContainer"
         app:layout_constraintBottom_toBottomOf="@+id/document_icon"
-        app:layout_constraintEnd_toEndOf="@+id/document_icon" />
+        app:layout_constraintEnd_toEndOf="@+id/document_icon"
+        app:tint="@color/file_tree_action_icon_tint" />
 
     <LinearLayout
         android:layout_width="0dp"
         android:layout_height="match_parent"
+        android:layout_marginStart="20dp"
+        android:duplicateParentState="true"
+        android:gravity="center"
+        android:orientation="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toEndOf="@+id/document_icon"
-        app:layout_constraintTop_toTopOf="parent"
-        android:layout_marginStart="20dp"
-        android:gravity="center"
-        android:orientation="vertical">
+        app:layout_constraintTop_toTopOf="parent">
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/document_name"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:layout_marginBottom="5dp"
+            android:duplicateParentState="true"
             android:ellipsize="end"
             android:maxLines="1"
-            android:layout_marginBottom="5dp"
-            android:textAppearance="?attr/textAppearanceTitleSmall" />
+            android:textAppearance="?attr/textAppearanceTitleSmall"
+            android:textColor="@color/file_tree_item_text_color" />
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/document_description"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
+            android:duplicateParentState="true"
             android:textAppearance="?attr/textAppearanceLabelMedium"
+            android:textColor="@color/file_tree_item_description_color"
             app:layout_constraintBottom_toBottomOf="parent" />
 
     </LinearLayout>
