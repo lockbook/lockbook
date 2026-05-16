@@ -62,6 +62,7 @@ impl Workspace {
         }
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tab_strip, &self.current_tab);
+            self.current_tab_changed = false;
         }
 
         let zoom = self.ctx.zoom_factor();
