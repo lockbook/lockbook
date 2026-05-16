@@ -29,6 +29,10 @@ pub struct PdfViewer {
     /// for a smoother experience. Probably less computationally expensive as well.
     page_cache: HashMap<usize, TextureHandle>,
 
+    /// Thumbnail textures, filled in lazily as sidebar slots scroll into view. Same
+    /// lazy-render pattern as [Self::page_cache] / [Self::get_page].
+    thumbnail_cache: HashMap<usize, TextureHandle>,
+
     /// The current scale 1 == 100% zoom
     scale: f32,
 
@@ -62,28 +66,29 @@ pub struct PdfViewer {
     /// immediately and keep animations on, and also not require a safe area at the bottom
     viewport_adjustment: Option<Vec2>,
 
-    /// state related to the sidebar, not present on mobile by default. All thumbnails are rendered
-    /// this is the last O(n) operation. As such the thumbnails are scaled down pretty far so that
-    /// large pdfs are possible. I opened an f150 manual without a problem so it's fine for now,
-    /// but ideally the next round of implementation would allow resizing, and efficient rendering
-    /// and high res thumbnails
+    /// state related to the sidebar, not present on mobile by default. Thumbnails are
+    /// rendered lazily as their slots scroll into view (see [Self::get_thumbnail]).
     sidebar: Option<SideBar>,
 }
 
 struct SideBar {
+    /// one entry per page; size only — texture lives in [PdfViewer::thumbnail_cache]
     thumbnails: Vec<Content>,
     is_visible: bool,
     scroll_target: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Content {
-    texture: egui::TextureHandle,
+    /// display size of the thumbnail slot, computed from the page's aspect ratio so
+    /// the sidebar layout doesn't jump when the texture eventually arrives
+    size: Vec2,
 }
 
 const ZOOM_STOP: f32 = 0.1;
 const SIDEBAR_WIDTH: f32 = 230.0;
 const SPACE_BETWEEN_PAGES: f32 = 10.0;
+const THUMBNAIL_SCALE: f32 = 0.15;
 
 impl PdfViewer {
     pub fn new(id: Uuid, bytes: Vec<u8>, ctx: &egui::Context, is_mobile_viewport: bool) -> Self {
@@ -94,6 +99,7 @@ impl PdfViewer {
             sidebar: Default::default(),
             pdf,
             page_cache: Default::default(),
+            thumbnail_cache: Default::default(),
             page_bounds: Default::default(),
             ctx: ctx.clone(),
             scale: 1.,
@@ -116,26 +122,17 @@ impl PdfViewer {
     }
 
     fn setup_sidebar(&mut self) {
-        let tn_render_settings =
-            RenderSettings { x_scale: 0.15, y_scale: 0.15, ..Default::default() };
+        // matches sidebar_margin in show_sidebar
+        let inner_width = SIDEBAR_WIDTH - 50.0;
 
         let thumbnails = self
             .pdf
             .pages()
             .iter()
             .map(|page| {
-                let image =
-                    hayro::render(page, &InterpreterSettings::default(), &tn_render_settings);
-                let size = [image.width() as _, image.height() as _];
-                let image =
-                    egui::ColorImage::from_rgba_premultiplied(size, image.data_as_u8_slice());
-                Content {
-                    texture: self.ctx.load_texture(
-                        "pdf_thumbnail",
-                        image,
-                        egui::TextureOptions::LINEAR,
-                    ),
-                }
+                let (w, h) = page.render_dimensions();
+                let aspect = if w > 0. { h / w } else { 1. };
+                Content { size: egui::vec2(inner_width, inner_width * aspect) }
             })
             .collect();
 
@@ -325,8 +322,8 @@ impl PdfViewer {
     }
 
     fn show_sidebar(&mut self, ui: &mut egui::Ui) {
-        let sidebar = match &mut self.sidebar {
-            Some(s) => s,
+        let (is_visible, thumbnails) = match &self.sidebar {
+            Some(s) => (s.is_visible, s.thumbnails.clone()),
             None => return,
         };
 
@@ -335,33 +332,29 @@ impl PdfViewer {
         SidePanel::right("pdf_sidebar")
             .resizable(false)
             .show_separator_line(false)
-            .show_animated_inside(ui, sidebar.is_visible, |ui| {
+            .show_animated_inside(ui, is_visible, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     egui::Frame::default()
                         .inner_margin(sidebar_margin)
                         .show(ui, |ui| {
-                            for (i, p) in sidebar.thumbnails.clone().iter_mut().enumerate() {
+                            for (i, p) in thumbnails.iter().enumerate() {
                                 let tint_color = if i == self.current_page {
                                     egui::Color32::WHITE
                                 } else {
                                     egui::Color32::GRAY.linear_multiply(0.5)
                                 };
 
-                                let res = ui.add(
+                                let (rect, res) =
+                                    ui.allocate_exact_size(p.size, egui::Sense::click());
+
+                                if ui.is_rect_visible(rect) {
+                                    let texture = self.get_thumbnail(i);
                                     egui::Image::new(egui::ImageSource::Texture(
-                                        SizedTexture::new(
-                                            &p.texture,
-                                            egui::vec2(
-                                                SIDEBAR_WIDTH - sidebar_margin,
-                                                p.texture.size()[1] as f32
-                                                    * (SIDEBAR_WIDTH - sidebar_margin)
-                                                    / p.texture.size()[0] as f32,
-                                            ),
-                                        ),
+                                        SizedTexture::new(&texture, p.size),
                                     ))
                                     .tint(tint_color)
-                                    .sense(egui::Sense::click()),
-                                );
+                                    .paint_at(ui, rect);
+                                }
 
                                 if res.hovered() {
                                     ui.output_mut(|w| {
@@ -372,9 +365,11 @@ impl PdfViewer {
                                     self.scroll_to = Some(i);
                                 }
 
-                                if i == self.current_page && sidebar.scroll_target != i {
-                                    ui.scroll_to_rect(res.rect, None);
-                                    sidebar.scroll_target = i;
+                                if let Some(sb) = &mut self.sidebar {
+                                    if i == self.current_page && sb.scroll_target != i {
+                                        ui.scroll_to_rect(rect, None);
+                                        sb.scroll_target = i;
+                                    }
                                 }
 
                                 ui.add_space(sidebar_margin);
@@ -518,6 +513,32 @@ impl PdfViewer {
         }));
 
         img
+    }
+
+    fn get_thumbnail(&mut self, idx: usize) -> TextureHandle {
+        let texture = self.thumbnail_cache.get(&idx).cloned().unwrap_or_else(|| {
+            let page = &self.pdf.pages()[idx];
+            let pixmap = hayro::render(
+                page,
+                &InterpreterSettings::default(),
+                &RenderSettings {
+                    x_scale: THUMBNAIL_SCALE,
+                    y_scale: THUMBNAIL_SCALE,
+                    ..Default::default()
+                },
+            );
+            let image = ColorImage::from_rgba_premultiplied(
+                [pixmap.width() as _, pixmap.height() as _],
+                pixmap.data_as_u8_slice(),
+            );
+
+            self.ctx
+                .load_texture("pdf_thumbnail", image, egui::TextureOptions::LINEAR)
+        });
+
+        self.thumbnail_cache.insert(idx, texture.clone());
+
+        texture
     }
 
     fn compute_bounds(&mut self) {
