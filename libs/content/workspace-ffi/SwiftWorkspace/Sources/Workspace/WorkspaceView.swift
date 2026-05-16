@@ -124,14 +124,15 @@ import SwiftUI
                     DispatchQueue.main.async {
                         guard let self else { return }
 
-                        if let currentWrapper = self.inputManager
-                            .currentWrapper,
-                            currentWrapper.canBecomeFirstResponder
+                        let manager = self.inputManager
+
+                        if let currentWrapper = manager.currentWrapper,
+                           currentWrapper.canBecomeFirstResponder,
+                           currentWrapper.becomeFirstResponder()
                         {
-                            currentWrapper.becomeFirstResponder()
-                        } else {
-                            self.inputManager.mtkView.becomeFirstResponder()
+                            return
                         }
+                        manager.mtkView.becomeFirstResponder()
                     }
                 }
                 .store(in: &cancellables)
@@ -220,6 +221,8 @@ import SwiftUI
 
                     currentWrapper = nil
                     mtkView.currentWrapper = nil
+
+                    mtkView.becomeFirstResponder()
                 case .Svg, .Image, .Graph:
                     if let currentWrapper = currentWrapper
                         as? SvgView,
@@ -257,6 +260,8 @@ import SwiftUI
                             equalTo: bottomAnchor
                         ),
                     ])
+
+                    mtkView.becomeFirstResponder()
                 case .PlainText, .Markdown:
                     if let currentWrapper = currentWrapper
                         as? MdView,
