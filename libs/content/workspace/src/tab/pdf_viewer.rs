@@ -1,4 +1,11 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{
+        Arc,
+        mpsc::{self, Receiver, Sender},
+    },
+    thread,
+};
 
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
@@ -14,8 +21,13 @@ pub struct PdfViewer {
 
     ctx: Context,
 
-    /// metadata representation of the PDF
-    pdf: Pdf,
+    /// Per-page render dimensions, delivered by the worker once the PDF is parsed. Empty
+    /// until then. Replaces the previous `pdf: Pdf` field — the `Pdf` itself lives on the
+    /// worker thread, since `hayro::Pdf` / `hayro::Page<'_>` are not trivially `Send`.
+    page_dimensions: Vec<(f32, f32)>,
+
+    /// set when the worker reports [WorkerResponse::ParseFailed]
+    parse_failed: bool,
 
     /// the bounds of all the pages, as influenced by scale. Includes a safe-area as
     /// a last page to address some shortcommings with egui::ScrollArea not being able
@@ -32,6 +44,22 @@ pub struct PdfViewer {
     /// Thumbnail textures, filled in lazily as sidebar slots scroll into view. Same
     /// lazy-render pattern as [Self::page_cache] / [Self::get_page].
     thumbnail_cache: HashMap<usize, TextureHandle>,
+
+    /// 1×1 white texture used in place of a real page/thumbnail while the worker is
+    /// still rendering it. Cached once so we don't allocate a new texture every frame.
+    placeholder: TextureHandle,
+
+    /// Bumped on every scale change so render results that come back at the wrong scale
+    /// can be recognised as stale and dropped. Thumbnails are scale-invariant and always
+    /// use generation 0.
+    generation: Generation,
+
+    /// In-flight render requests, keyed so we don't enqueue the same work twice while
+    /// it's already queued with the worker.
+    requested: HashSet<(usize, RenderKind, Generation)>,
+
+    request_tx: Sender<WorkerRequest>,
+    response_rx: Receiver<WorkerResponse>,
 
     /// The current scale 1 == 100% zoom
     scale: f32,
@@ -69,6 +97,10 @@ pub struct PdfViewer {
     /// state related to the sidebar, not present on mobile by default. Thumbnails are
     /// rendered lazily as their slots scroll into view (see [Self::get_thumbnail]).
     sidebar: Option<SideBar>,
+
+    /// preserved from construction so we know whether to attach the sidebar once the
+    /// worker reports the PDF is parsed
+    is_mobile_viewport: bool,
 }
 
 struct SideBar {
@@ -85,6 +117,32 @@ struct Content {
     size: Vec2,
 }
 
+type Generation = u64;
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum RenderKind {
+    Page,
+    Thumbnail,
+}
+
+enum WorkerRequest {
+    Render { page_idx: usize, kind: RenderKind, scale: f32, generation: Generation },
+}
+
+enum WorkerResponse {
+    /// sent once after the worker parses the PDF successfully
+    Parsed { page_dimensions: Vec<(f32, f32)> },
+    /// sent if `Pdf::new` fails; the worker then exits
+    ParseFailed,
+    /// a render request completed
+    Rendered {
+        page_idx: usize,
+        kind: RenderKind,
+        generation: Generation,
+        image: ColorImage,
+    },
+}
+
 const ZOOM_STOP: f32 = 0.1;
 const SIDEBAR_WIDTH: f32 = 230.0;
 const SPACE_BETWEEN_PAGES: f32 = 10.0;
@@ -92,14 +150,31 @@ const THUMBNAIL_SCALE: f32 = 0.15;
 
 impl PdfViewer {
     pub fn new(id: Uuid, bytes: Vec<u8>, ctx: &egui::Context, is_mobile_viewport: bool) -> Self {
-        let pdf = Pdf::new(Arc::new(bytes)).unwrap();
+        let bytes: Arc<Vec<u8>> = Arc::new(bytes);
+        let (request_tx, request_rx) = mpsc::channel::<WorkerRequest>();
+        let (response_tx, response_rx) = mpsc::channel::<WorkerResponse>();
+        spawn_worker(bytes, request_rx, response_tx, ctx.clone());
 
-        let mut s = Self {
+        let placeholder = ctx.load_texture(
+            "pdf_placeholder",
+            ColorImage::from_rgba_premultiplied([1, 1], &[255, 255, 255, 255]),
+            egui::TextureOptions::LINEAR,
+        );
+
+        // setup_sidebar and compute_bounds run once page_dimensions arrive
+        // (see drain_responses)
+        Self {
             id,
             sidebar: Default::default(),
-            pdf,
+            page_dimensions: Default::default(),
+            parse_failed: false,
             page_cache: Default::default(),
             thumbnail_cache: Default::default(),
+            placeholder,
+            generation: 0,
+            requested: Default::default(),
+            request_tx,
+            response_rx,
             page_bounds: Default::default(),
             ctx: ctx.clone(),
             scale: 1.,
@@ -110,15 +185,8 @@ impl PdfViewer {
             current_viewport: Rect::ZERO,
             viewport_adjustment: Default::default(),
             render_area: Rect::ZERO,
-        };
-
-        if !is_mobile_viewport {
-            s.setup_sidebar();
-        };
-
-        s.compute_bounds();
-
-        s
+            is_mobile_viewport,
+        }
     }
 
     fn setup_sidebar(&mut self) {
@@ -126,11 +194,9 @@ impl PdfViewer {
         let inner_width = SIDEBAR_WIDTH - 50.0;
 
         let thumbnails = self
-            .pdf
-            .pages()
+            .page_dimensions
             .iter()
-            .map(|page| {
-                let (w, h) = page.render_dimensions();
+            .map(|&(w, h)| {
                 let aspect = if w > 0. { h / w } else { 1. };
                 Content { size: egui::vec2(inner_width, inner_width * aspect) }
             })
@@ -140,6 +206,8 @@ impl PdfViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        self.drain_responses();
+
         ui.painter().rect_filled(
             ui.available_rect_before_wrap(),
             0.,
@@ -152,6 +220,75 @@ impl PdfViewer {
 
         self.show_sidebar(ui);
         self.show_pages(ui);
+    }
+
+    /// Apply messages from the worker: store parsed metadata (and finish setup), mark
+    /// parse failure, upload rendered textures into the appropriate cache.
+    fn drain_responses(&mut self) {
+        while let Ok(resp) = self.response_rx.try_recv() {
+            match resp {
+                WorkerResponse::Parsed { page_dimensions } => {
+                    self.page_dimensions = page_dimensions;
+                    self.compute_bounds();
+                    if !self.is_mobile_viewport {
+                        self.setup_sidebar();
+                    }
+                }
+                WorkerResponse::ParseFailed => {
+                    self.parse_failed = true;
+                }
+                WorkerResponse::Rendered { page_idx, kind, generation, image } => {
+                    self.requested.remove(&(page_idx, kind, generation));
+
+                    // drop stale page renders; thumbnails are scale-invariant
+                    if kind == RenderKind::Page && generation != self.generation {
+                        continue;
+                    }
+
+                    let name = match kind {
+                        RenderKind::Page => "pdf_page",
+                        RenderKind::Thumbnail => "pdf_thumbnail",
+                    };
+                    let texture =
+                        self.ctx.load_texture(name, image, egui::TextureOptions::LINEAR);
+                    match kind {
+                        RenderKind::Page => {
+                            self.page_cache.insert(page_idx, texture);
+                        }
+                        RenderKind::Thumbnail => {
+                            self.thumbnail_cache.insert(page_idx, texture);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn enqueue_page(&mut self, idx: usize) {
+        let key = (idx, RenderKind::Page, self.generation);
+        if !self.requested.insert(key) {
+            return;
+        }
+        let scale = self.scale * self.ctx.pixels_per_point();
+        let _ = self.request_tx.send(WorkerRequest::Render {
+            page_idx: idx,
+            kind: RenderKind::Page,
+            scale,
+            generation: self.generation,
+        });
+    }
+
+    fn enqueue_thumbnail(&mut self, idx: usize) {
+        let key = (idx, RenderKind::Thumbnail, 0);
+        if !self.requested.insert(key) {
+            return;
+        }
+        let _ = self.request_tx.send(WorkerRequest::Render {
+            page_idx: idx,
+            kind: RenderKind::Thumbnail,
+            scale: THUMBNAIL_SCALE,
+            generation: 0,
+        });
     }
 
     fn handle_keys(&mut self, ui: &mut egui::Ui) {
@@ -384,6 +521,21 @@ impl PdfViewer {
         let available_height = ui.available_height() * 0.95;
         self.render_area = ui.available_rect_before_wrap();
 
+        // The PDF is parsed on the worker; until the metadata arrives there are no
+        // page bounds to render. Surface the loading / failure state instead.
+        if self.page_bounds.is_empty() {
+            CentralPanel::default().show_inside(ui, |ui| {
+                ui.centered_and_justified(|ui| {
+                    if self.parse_failed {
+                        ui.label("Failed to load PDF");
+                    } else {
+                        ui.label("Loading…");
+                    }
+                });
+            });
+            return;
+        }
+
         CentralPanel::default().show_inside(ui, |ui| {
             ScrollArea::both()
                 .animated(false)
@@ -391,12 +543,12 @@ impl PdfViewer {
                     self.current_viewport = viewport;
 
                     let target_scale = if self.fit_width {
-                        match self.pdf.pages().first().map(|p| p.render_dimensions().0) {
+                        match self.page_dimensions.first().map(|d| d.0) {
                             Some(width) => available_width / width,
                             None => 1.,
                         }
                     } else if self.fit_height {
-                        match self.pdf.pages().first().map(|p| p.render_dimensions().1) {
+                        match self.page_dimensions.first().map(|d| d.1) {
                             Some(height) => available_height / height,
                             None => 1.,
                         }
@@ -479,66 +631,33 @@ impl PdfViewer {
     }
 
     fn get_page(&mut self, idx: usize) -> Image<'_> {
-        let texture = if idx != self.pdf.pages().len() {
-            self.page_cache.get(&idx).cloned().unwrap_or_else(|| {
-                let page = &self.pdf.pages()[idx];
-                let pixmap = hayro::render(
-                    page,
-                    &InterpreterSettings::default(),
-                    &RenderSettings {
-                        x_scale: self.scale * self.ctx.pixels_per_point(),
-                        y_scale: self.scale * self.ctx.pixels_per_point(),
-                        ..Default::default()
-                    },
-                );
-                let image = ColorImage::from_rgba_premultiplied(
-                    [pixmap.width() as _, pixmap.height() as _],
-                    pixmap.data_as_u8_slice(),
-                );
-
-                self.ctx
-                    .load_texture("pdf_page", image, egui::TextureOptions::LINEAR)
-            })
+        let texture = if idx < self.page_dimensions.len() {
+            match self.page_cache.get(&idx).cloned() {
+                Some(t) => t,
+                None => {
+                    self.enqueue_page(idx);
+                    self.placeholder.clone()
+                }
+            }
         } else {
-            let image = ColorImage::from_rgba_premultiplied([1, 1], &[0, 0, 0, 0]);
-            self.ctx
-                .load_texture("pdf_page", image, egui::TextureOptions::LINEAR)
+            // safe-area sentinel page; never has content
+            self.placeholder.clone()
         };
 
-        self.page_cache.insert(idx, texture.clone());
-
-        let img = Image::new(ImageSource::Texture(SizedTexture {
+        Image::new(ImageSource::Texture(SizedTexture {
             id: texture.id(),
             size: texture.size_vec2(),
-        }));
-
-        img
+        }))
     }
 
     fn get_thumbnail(&mut self, idx: usize) -> TextureHandle {
-        let texture = self.thumbnail_cache.get(&idx).cloned().unwrap_or_else(|| {
-            let page = &self.pdf.pages()[idx];
-            let pixmap = hayro::render(
-                page,
-                &InterpreterSettings::default(),
-                &RenderSettings {
-                    x_scale: THUMBNAIL_SCALE,
-                    y_scale: THUMBNAIL_SCALE,
-                    ..Default::default()
-                },
-            );
-            let image = ColorImage::from_rgba_premultiplied(
-                [pixmap.width() as _, pixmap.height() as _],
-                pixmap.data_as_u8_slice(),
-            );
-
-            self.ctx
-                .load_texture("pdf_thumbnail", image, egui::TextureOptions::LINEAR)
-        });
-
-        self.thumbnail_cache.insert(idx, texture.clone());
-
-        texture
+        match self.thumbnail_cache.get(&idx).cloned() {
+            Some(t) => t,
+            None => {
+                self.enqueue_thumbnail(idx);
+                self.placeholder.clone()
+            }
+        }
     }
 
     fn compute_bounds(&mut self) {
@@ -546,8 +665,8 @@ impl PdfViewer {
 
         let mut offset = Pos2::ZERO;
 
-        for page in self.pdf.pages().iter() {
-            let mut dims = Vec2::new(page.render_dimensions().0, page.render_dimensions().1);
+        for &(w, h) in self.page_dimensions.iter() {
+            let mut dims = Vec2::new(w, h);
             dims *= self.scale;
 
             pages.push(Rect { min: offset, max: offset + dims });
@@ -565,6 +684,13 @@ impl PdfViewer {
     /// zoom from indicates the position of the cursor. If None it will zoom from the center
     fn scale_updated(&mut self, new_scale: f32, zoom_from: Option<Pos2>) {
         if self.viewport_adjustment.is_some() {
+            return;
+        }
+        // Bounds aren't computed until the worker delivers parse metadata. Record the
+        // new scale so it takes effect once bounds arrive (via compute_bounds), but
+        // skip the viewport math — there's nothing to anchor it to.
+        if self.page_bounds.is_empty() {
+            self.scale = new_scale;
             return;
         }
         // location in the old viewport
@@ -585,6 +711,11 @@ impl PdfViewer {
         self.scale = new_scale;
         self.page_bounds.clear();
         self.page_cache.clear();
+        self.generation = self.generation.wrapping_add(1);
+        // purge enqueued-but-not-yet-delivered page requests for the old scale; keep
+        // thumbnail requests (those are scale-invariant)
+        self.requested
+            .retain(|(_, kind, g)| *kind == RenderKind::Thumbnail || *g == self.generation);
         self.compute_bounds();
 
         // calculate the new viewport
@@ -597,4 +728,72 @@ impl PdfViewer {
         println!("adjustment {:?}", self.viewport_adjustment);
         self.ctx.request_repaint();
     }
+}
+
+/// Background thread that owns the parsed [Pdf] and services render requests. The
+/// thread exits when [PdfViewer] is dropped (its `request_tx` is dropped, the
+/// receive call returns `Err`).
+fn spawn_worker(
+    bytes: Arc<Vec<u8>>,
+    request_rx: Receiver<WorkerRequest>,
+    response_tx: Sender<WorkerResponse>,
+    ctx: Context,
+) {
+    thread::spawn(move || {
+        let pdf = match Pdf::new(bytes) {
+            Ok(p) => p,
+            Err(_) => {
+                let _ = response_tx.send(WorkerResponse::ParseFailed);
+                ctx.request_repaint();
+                return;
+            }
+        };
+
+        let page_dimensions: Vec<(f32, f32)> =
+            pdf.pages().iter().map(|p| p.render_dimensions()).collect();
+        if response_tx
+            .send(WorkerResponse::Parsed { page_dimensions })
+            .is_err()
+        {
+            return;
+        }
+        ctx.request_repaint();
+
+        while let Ok(req) = request_rx.recv() {
+            match req {
+                WorkerRequest::Render { page_idx, kind, scale, generation } => {
+                    let pages = pdf.pages();
+                    let page = match pages.get(page_idx) {
+                        Some(p) => p,
+                        None => continue,
+                    };
+                    let pixmap = hayro::render(
+                        page,
+                        &InterpreterSettings::default(),
+                        &RenderSettings {
+                            x_scale: scale,
+                            y_scale: scale,
+                            ..Default::default()
+                        },
+                    );
+                    let image = ColorImage::from_rgba_premultiplied(
+                        [pixmap.width() as _, pixmap.height() as _],
+                        pixmap.data_as_u8_slice(),
+                    );
+                    if response_tx
+                        .send(WorkerResponse::Rendered {
+                            page_idx,
+                            kind,
+                            generation,
+                            image,
+                        })
+                        .is_err()
+                    {
+                        return;
+                    }
+                    ctx.request_repaint();
+                }
+            }
+        }
+    });
 }
