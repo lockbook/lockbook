@@ -141,7 +141,6 @@ class FileTreeAdapter(
         val isSelected = selectedFileIds.contains(item.fileMetadata.id)
         fileItemHolder.isSelected = isSelected
 
-
         when {
             item.needsToBePulled -> {
                 actionIcon.setImageResource(R.drawable.ic_baseline_cloud_download_24)
@@ -163,11 +162,10 @@ class FileTreeAdapter(
             }
         }
 
-        if (isSelected){
+        if (isSelected) {
             actionIcon.setImageResource(R.drawable.ic_baseline_check_small_24)
             actionIcon.visibility = View.VISIBLE
         }
-
     }
 }
 
