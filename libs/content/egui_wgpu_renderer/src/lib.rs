@@ -17,7 +17,7 @@ pub use wgpu;
 
 mod shame;
 
-const NOOB_FACTOR: u64 = 400;
+const NOOB_FACTOR: u64 = 4;
 const FRAME_BUDGET: Duration = Duration::from_micros((16_667 / 2) * NOOB_FACTOR);
 
 pub struct RendererState<'w> {
