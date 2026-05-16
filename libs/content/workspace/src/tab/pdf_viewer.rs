@@ -135,12 +135,7 @@ enum WorkerResponse {
     /// sent if `Pdf::new` fails; the worker then exits
     ParseFailed,
     /// a render request completed
-    Rendered {
-        page_idx: usize,
-        kind: RenderKind,
-        generation: Generation,
-        image: ColorImage,
-    },
+    Rendered { page_idx: usize, kind: RenderKind, generation: Generation, image: ColorImage },
 }
 
 const ZOOM_STOP: f32 = 0.1;
@@ -249,8 +244,9 @@ impl PdfViewer {
                         RenderKind::Page => "pdf_page",
                         RenderKind::Thumbnail => "pdf_thumbnail",
                     };
-                    let texture =
-                        self.ctx.load_texture(name, image, egui::TextureOptions::LINEAR);
+                    let texture = self
+                        .ctx
+                        .load_texture(name, image, egui::TextureOptions::LINEAR);
                     match kind {
                         RenderKind::Page => {
                             self.page_cache.insert(page_idx, texture);
@@ -734,9 +730,7 @@ impl PdfViewer {
 /// thread exits when [PdfViewer] is dropped (its `request_tx` is dropped, the
 /// receive call returns `Err`).
 fn spawn_worker(
-    bytes: Arc<Vec<u8>>,
-    request_rx: Receiver<WorkerRequest>,
-    response_tx: Sender<WorkerResponse>,
+    bytes: Arc<Vec<u8>>, request_rx: Receiver<WorkerRequest>, response_tx: Sender<WorkerResponse>,
     ctx: Context,
 ) {
     thread::spawn(move || {
@@ -770,23 +764,14 @@ fn spawn_worker(
                     let pixmap = hayro::render(
                         page,
                         &InterpreterSettings::default(),
-                        &RenderSettings {
-                            x_scale: scale,
-                            y_scale: scale,
-                            ..Default::default()
-                        },
+                        &RenderSettings { x_scale: scale, y_scale: scale, ..Default::default() },
                     );
                     let image = ColorImage::from_rgba_premultiplied(
                         [pixmap.width() as _, pixmap.height() as _],
                         pixmap.data_as_u8_slice(),
                     );
                     if response_tx
-                        .send(WorkerResponse::Rendered {
-                            page_idx,
-                            kind,
-                            generation,
-                            image,
-                        })
+                        .send(WorkerResponse::Rendered { page_idx, kind, generation, image })
                         .is_err()
                     {
                         return;
