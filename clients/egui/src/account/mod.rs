@@ -547,6 +547,10 @@ impl AccountScreen {
         if let Some((f, dest)) = resp.export_file {
             self.export_file(f, dest);
         }
+
+        if let Some((paths, parent_id)) = resp.import_files {
+            self.import_paths(ui.ctx(), paths, parent_id);
+        }
     }
 
     fn show_icon_shelf(&mut self, ui: &mut egui::Ui, anchor_rect: egui::Rect) {
@@ -755,16 +759,20 @@ impl AccountScreen {
     }
 
     fn dropped_files(&self, ctx: &egui::Context, drops: Vec<egui::DroppedFile>, parent: File) {
-        let core = self.core.clone();
-        let ctx = ctx.clone();
-        let update_tx = self.update_tx.clone();
         let paths = drops
             .into_iter()
             .filter_map(|d| d.path)
             .collect::<Vec<path::PathBuf>>();
+        self.import_paths(ctx, paths, parent.id);
+    }
+
+    fn import_paths(&self, ctx: &egui::Context, paths: Vec<path::PathBuf>, parent_id: Uuid) {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
-            let result = core.import_files(&paths, parent.id, &|status| match status {
+            let result = core.import_files(&paths, parent_id, &|status| match status {
                 ImportStatus::CalculatedTotal(count) => {
                     println!("importing {count} files");
                 }

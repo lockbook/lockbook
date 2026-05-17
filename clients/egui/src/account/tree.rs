@@ -51,6 +51,10 @@ pub struct FileTree {
     /// File export targets are selected asynchronously using the system file dialog.
     pub export: Arc<Mutex<Option<(File, PathBuf)>>>,
 
+    /// File import sources are selected asynchronously using the system file dialog.
+    #[allow(clippy::type_complexity)]
+    pub import: Arc<Mutex<Option<(Vec<PathBuf>, Uuid)>>>,
+
     /// Which file is the drag 'n' drop payload being hovered over and since when? Used to expand folders during dnd.
     pub drop: Option<(Uuid, Instant)>,
 
@@ -89,6 +93,7 @@ impl FileTree {
             rename_target: Default::default(),
             rename_buffer: Default::default(),
             export: Default::default(),
+            import: Default::default(),
             drop: Default::default(),
             scroll_to_cursor: Default::default(),
             pending_shares: Default::default(),
@@ -890,6 +895,14 @@ impl FileTree {
         }
         mem::drop(export);
 
+        // file import
+        let mut import = self.import.lock().unwrap();
+        if import.is_some() {
+            resp.import_files = import.clone();
+            *import = None;
+        }
+        mem::drop(import);
+
         // drag 'n' drop:
         // when drag starts, dragged file sets dnd payload
         if self.descends_from_root(file.id) && file_resp.dragged()
@@ -1298,6 +1311,38 @@ impl FileTree {
                 ui.close();
             }
 
+            ui.menu_button("Import", |ui| {
+                let parent_id = if file.is_folder() { file.id } else { file.parent };
+
+                if ui.button("Files").clicked() {
+                    let import = self.import.clone();
+                    let ctx = ui.ctx().clone();
+
+                    thread::spawn(move || {
+                        if let Some(paths) = FileDialog::new().pick_files() {
+                            let mut import = import.lock().unwrap();
+                            *import = Some((paths, parent_id));
+                        }
+                        ctx.request_repaint();
+                    });
+                    ui.close();
+                }
+
+                if ui.button("Folder").clicked() {
+                    let import = self.import.clone();
+                    let ctx = ui.ctx().clone();
+
+                    thread::spawn(move || {
+                        if let Some(paths) = FileDialog::new().pick_folders() {
+                            let mut import = import.lock().unwrap();
+                            *import = Some((paths, parent_id));
+                        }
+                        ctx.request_repaint();
+                    });
+                    ui.close();
+                }
+            });
+
             if self.descends_from_root(file.id) && ui.button("Share").clicked() {
                 let file = self.files.get_by_id(file.id).unwrap().clone();
                 resp.create_share_modal = Some(file);
@@ -1675,6 +1720,7 @@ pub struct Response {
     pub new_file: Option<bool>,
     pub new_drawing: Option<bool>,
     pub export_file: Option<(File, PathBuf)>,
+    pub import_files: Option<(Vec<PathBuf>, Uuid)>,
     pub new_folder_modal: Option<File>,
     pub create_share_modal: Option<File>,
     pub move_requests: Vec<(Uuid, Uuid)>,
@@ -1712,6 +1758,7 @@ impl Response {
         this.new_folder_modal = this.new_folder_modal.or(other.new_folder_modal);
         this.create_share_modal = this.create_share_modal.or(other.create_share_modal);
         this.export_file = this.export_file.or(other.export_file);
+        this.import_files = this.import_files.or(other.import_files);
         this.open_requests.extend(other.open_requests);
         this.move_requests.extend(other.move_requests);
         this.rename_request = this.rename_request.or(other.rename_request);
