@@ -52,6 +52,7 @@ pub struct FileTree {
     pub export: Arc<Mutex<Option<(File, PathBuf)>>>,
 
     /// File import sources are selected asynchronously using the system file dialog.
+    #[allow(clippy::type_complexity)]
     pub import: Arc<Mutex<Option<(Vec<PathBuf>, Uuid)>>>,
 
     /// Which file is the drag 'n' drop payload being hovered over and since when? Used to expand folders during dnd.
