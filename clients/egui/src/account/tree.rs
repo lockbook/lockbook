@@ -1310,20 +1310,37 @@ impl FileTree {
                 ui.close();
             }
 
-            if ui.button("Import").clicked() {
+            ui.menu_button("Import", |ui| {
                 let parent_id = if file.is_folder() { file.id } else { file.parent };
-                let import = self.import.clone();
-                let ctx = ui.ctx().clone();
 
-                thread::spawn(move || {
-                    if let Some(paths) = FileDialog::new().pick_files() {
-                        let mut import = import.lock().unwrap();
-                        *import = Some((paths, parent_id));
-                    }
-                    ctx.request_repaint();
-                });
-                ui.close();
-            }
+                if ui.button("Files").clicked() {
+                    let import = self.import.clone();
+                    let ctx = ui.ctx().clone();
+
+                    thread::spawn(move || {
+                        if let Some(paths) = FileDialog::new().pick_files() {
+                            let mut import = import.lock().unwrap();
+                            *import = Some((paths, parent_id));
+                        }
+                        ctx.request_repaint();
+                    });
+                    ui.close();
+                }
+
+                if ui.button("Folder").clicked() {
+                    let import = self.import.clone();
+                    let ctx = ui.ctx().clone();
+
+                    thread::spawn(move || {
+                        if let Some(paths) = FileDialog::new().pick_folders() {
+                            let mut import = import.lock().unwrap();
+                            *import = Some((paths, parent_id));
+                        }
+                        ctx.request_repaint();
+                    });
+                    ui.close();
+                }
+            });
 
             if self.descends_from_root(file.id) && ui.button("Share").clicked() {
                 let file = self.files.get_by_id(file.id).unwrap().clone();
