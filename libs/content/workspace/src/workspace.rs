@@ -654,16 +654,27 @@ impl Workspace {
                     let files_guard = files_clone.read().unwrap();
 
                     let account = &self.account;
-                    let Some(file) = files_guard.get_by_id(id) else { continue };
+                    let (name, read_only) = if let Some(file) = files_guard.get_by_id(id) {
+                        (file.name.clone(), files_guard.access(id, account) == UserAccessMode::Read)
+                    } else if let Ok(file) = core.get_file_by_id(id) {
+                        // read-through (can remove when we master cache
+                        // refreshes): a freshly created file isn't in the
+                        // async-rebuilt cache yet; without this the
+                        // completed load is discarded and the tab is stuck
+                        // loading forever. New/owned files are writable.
+                        (file.name, false)
+                    } else {
+                        // genuinely gone (e.g. deleted): fail the tab
+                        // rather than discard the load and hang in Loading.
+                        let msg = format!("failed to load file: {id} not found");
+                        error!(msg);
+                        tab.content = ContentState::Failed(TabFailure::SimpleMisc(msg.clone()));
+                        self.out.failure_messages.push(msg);
+                        continue;
+                    };
 
-                    let doc_type = DocType::from_name(&file.name);
-                    let read_only = files_guard.access(id, account) == UserAccessMode::Read;
-                    let ext = file
-                        .name
-                        .split('.')
-                        .next_back()
-                        .unwrap_or_default()
-                        .to_owned();
+                    let doc_type = DocType::from_name(&name);
+                    let ext = name.split('.').next_back().unwrap_or_default().to_owned();
 
                     let (maybe_hmac, bytes) = match content_result {
                         Ok((hmac, bytes)) => (hmac, bytes),

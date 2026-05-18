@@ -233,6 +233,7 @@ pub struct Editor {
     // change detection
     pub unprocessed_scroll: Option<Instant>,
     prev_dimensions: Option<Vec2>,
+    prev_virtual_keyboard_shown: bool,
     embeds_seq: u64,
 
     // interaction widgets (toolbar + find are Editor-owned; completion
@@ -631,6 +632,7 @@ impl Editor {
             unprocessed_scroll: Default::default(),
 
             prev_dimensions: None,
+            prev_virtual_keyboard_shown: cfg!(target_os = "android"),
 
             next_resp: Default::default(),
         }
@@ -988,7 +990,16 @@ impl Editor {
         } else if resp.selection_updated {
             ui.ctx().request_repaint();
         }
-        if self.initialized && self.edit.renderer.touch_mode && height_updated {
+        // Pull the cursor out from behind the virtual keyboard: scroll on
+        // its rising edge, and keep re-asserting while `height_updated`
+        // fires across the keyboard animation so the final settled
+        // viewport also scrolls.
+        let keyboard_just_shown = self.virtual_keyboard_shown && !self.prev_virtual_keyboard_shown;
+        self.prev_virtual_keyboard_shown = self.virtual_keyboard_shown;
+        if self.initialized
+            && self.edit.renderer.touch_mode
+            && (height_updated || keyboard_just_shown)
+        {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
         }
