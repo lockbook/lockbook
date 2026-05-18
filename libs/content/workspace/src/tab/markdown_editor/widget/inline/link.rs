@@ -220,7 +220,7 @@ impl<'ast> MdRender {
 fn node_link_url(node: &AstNode<'_>) -> String {
     use comrak::nodes::NodeValue;
     match &node.data.borrow().value {
-        NodeValue::Link(link) => link.url.clone(),
+        NodeValue::Link(link) | NodeValue::Image(link) => link.url.clone(),
         _ => String::new(),
     }
 }
