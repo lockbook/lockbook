@@ -120,7 +120,8 @@ impl<'ast> MdRender {
                 self.text_format_syntax(),
             );
             self.show_wrap_layout(ui, top_left + self.layout.indent * Vec2::X, &result);
-            let item_rect = Rect::from_min_size(top_left, Vec2::new(self.width(node), result.height));
+            let item_rect =
+                Rect::from_min_size(top_left, Vec2::new(self.width(node), result.height));
             item_rect.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
         };
 

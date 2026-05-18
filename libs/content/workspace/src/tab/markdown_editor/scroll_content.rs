@@ -106,11 +106,7 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
             }
             let last_idx = self.line_count.checked_sub(1)?;
             let (_, last_end) = self.renderer.bounds.source_lines[last_idx];
-            return Some(if target > last_end {
-                DocRowId::Trailing
-            } else {
-                DocRowId::Leading
-            });
+            return Some(if target > last_end { DocRowId::Trailing } else { DocRowId::Leading });
         }
         for (i, node) in self.blocks.iter().enumerate() {
             let (s, e) = self.renderer.node_range(node);

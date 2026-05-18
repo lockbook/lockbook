@@ -521,32 +521,30 @@ fn shape_to_items(
     // Track which open scopes have a bg, so the matching close can
     // emit the trailing `Pad`. AST guarantees LIFO nesting.
     let mut scope_has_bg: Vec<bool> = Vec::new();
-    let emit_event = |items: &mut Vec<InlineItem>,
-                      scope_has_bg: &mut Vec<bool>,
-                      pos: usize,
-                      ev: &FlowEvent| {
-        let p = pos as u32;
-        match ev {
-            FlowEvent::Open(s) => {
-                let bg = s.format.background != egui::Color32::TRANSPARENT;
-                items.push(InlineItem::StyleOpen(s.clone()));
-                if bg {
-                    items.push(InlineItem::Pad(inline_pad));
+    let emit_event =
+        |items: &mut Vec<InlineItem>, scope_has_bg: &mut Vec<bool>, pos: usize, ev: &FlowEvent| {
+            let p = pos as u32;
+            match ev {
+                FlowEvent::Open(s) => {
+                    let bg = s.format.background != egui::Color32::TRANSPARENT;
+                    items.push(InlineItem::StyleOpen(s.clone()));
+                    if bg {
+                        items.push(InlineItem::Pad(inline_pad));
+                    }
+                    scope_has_bg.push(bg);
                 }
-                scope_has_bg.push(bg);
-            }
-            FlowEvent::Close => {
-                let bg = scope_has_bg.pop().unwrap_or(false);
-                if bg {
-                    items.push(InlineItem::Pad(inline_pad));
+                FlowEvent::Close => {
+                    let bg = scope_has_bg.pop().unwrap_or(false);
+                    if bg {
+                        items.push(InlineItem::Pad(inline_pad));
+                    }
+                    items.push(InlineItem::StyleClose);
                 }
-                items.push(InlineItem::StyleClose);
+                FlowEvent::Break(r) => {
+                    items.push(InlineItem::Break { source_range: *r, visible_byte_range: p..p });
+                }
             }
-            FlowEvent::Break(r) => {
-                items.push(InlineItem::Break { source_range: *r, visible_byte_range: p..p });
-            }
-        }
-    };
+        };
 
     if layout.visible.is_empty() {
         // Still emit flow events so the row stack reflects open/close
@@ -1486,13 +1484,10 @@ impl MdRender {
                 {
                     chain_end += 1;
                 }
-                let chain_left =
-                    row.fragments[chain_start].rect.left() + paint_top_left.x;
-                let chain_right =
-                    row.fragments[chain_end - 1].rect.right() + paint_top_left.x;
+                let chain_left = row.fragments[chain_start].rect.left() + paint_top_left.x;
+                let chain_right = row.fragments[chain_end - 1].rect.right() + paint_top_left.x;
                 let row_top = row.fragments[chain_start].rect.top() + paint_top_left.y;
-                let row_bottom =
-                    row.fragments[chain_start].rect.bottom() + paint_top_left.y;
+                let row_bottom = row.fragments[chain_start].rect.bottom() + paint_top_left.y;
                 let bg_rect = Rect::from_min_max(
                     egui::Pos2::new(chain_left, row_top - inline_pad),
                     egui::Pos2::new(chain_right, row_bottom + inline_pad),

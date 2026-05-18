@@ -47,12 +47,17 @@ impl MdEdit {
     fn advance_by_line(&self, offset: Grapheme, x_target: f32, backwards: bool) -> Grapheme {
         // Mirror `fragment_at_offset`'s last-match semantics so navigation
         // agrees with cursor rendering at wrap boundaries.
-        let Some(cur_idx) = self.renderer.fragments.iter().enumerate().rev().find_map(
-            |(i, f)| {
+        let Some(cur_idx) = self
+            .renderer
+            .fragments
+            .iter()
+            .enumerate()
+            .rev()
+            .find_map(|(i, f)| {
                 let (s, e) = f.source_range;
                 (s <= offset && offset <= e).then_some(i)
-            },
-        ) else {
+            })
+        else {
             return offset;
         };
         let cur_frag = &self.renderer.fragments[cur_idx];
