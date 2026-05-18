@@ -10,10 +10,10 @@ pub struct Theme {
     #[serde(skip)]
     pub current: Mode,
 
-    pub light: ThemeVariant,
+    pub dim: ThemeVariant,
     pub light_prefs: Preferences,
 
-    pub dark: ThemeVariant,
+    pub bright: ThemeVariant,
     pub dark_prefs: Preferences,
 }
 
@@ -85,15 +85,15 @@ impl Theme {
 
     pub fn fg(&self) -> ThemeVariant {
         match self.current {
-            Mode::Light => self.light,
-            Mode::Dark => self.dark,
+            Mode::Light => self.dim,
+            Mode::Dark => self.bright,
         }
     }
 
     pub fn bg(&self) -> ThemeVariant {
         match self.current {
-            Mode::Light => self.dark,
-            Mode::Dark => self.light,
+            Mode::Light => self.bright,
+            Mode::Dark => self.dim,
         }
     }
 
@@ -112,8 +112,8 @@ impl Theme {
     /// dark mode. Used for text and icons.
     pub fn neutral_fg(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.light.black,
-            Mode::Dark => self.dark.white,
+            Mode::Light => self.bright.black,
+            Mode::Dark => self.dim.white,
         }
     }
 
@@ -122,8 +122,9 @@ impl Theme {
     /// like markdown list markers and file tree icons.
     pub fn neutral_fg_secondary(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.light.black.lerp_to_gamma(self.light.grey, 0.5),
-            Mode::Dark => self.dark.white.lerp_to_gamma(self.dark.grey, 0.5),
+            Mode::Light => self.bright.grey.lerp_to_gamma(self.bright.black, 0.5),
+            Mode::Dark => self.dim.grey.lerp_to_gamma(self.dim.white, 0.5),
+
         }
     }
 
@@ -131,8 +132,8 @@ impl Theme {
     /// greyed-out text, borders and strokes, and hovered widget backgrounds.
     pub fn neutral(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.light.grey,
-            Mode::Dark => self.dark.grey,
+            Mode::Light => self.bright.grey.lerp_to_gamma(self.bright.black, 0.3),
+            Mode::Dark => self.dim.grey.lerp_to_gamma(self.dim.white, 0.25),
         }
     }
 
@@ -141,8 +142,8 @@ impl Theme {
     /// need a background distinct from the UI background.
     pub fn neutral_bg_tertiary(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.dark.white.lerp_to_gamma(self.light.grey, 0.8),
-            Mode::Dark => self.light.black.lerp_to_gamma(self.dark.grey, 0.8),
+            Mode::Light => self.bright.grey.lerp_to_gamma(self.bright.black, 0.15),
+            Mode::Dark => self.dim.grey.lerp_to_gamma(self.dim.white, 0.15),
         }
     }
 
@@ -150,8 +151,8 @@ impl Theme {
     /// mode, off-black in dark mode. Used for UI background in most places.
     pub fn neutral_bg_secondary(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.dark.white.lerp_to_gamma(self.light.grey, 0.3),
-            Mode::Dark => self.light.black.lerp_to_gamma(self.dark.grey, 0.3),
+            Mode::Light => self.bright.grey,
+            Mode::Dark => self.dim.grey,
         }
     }
 
@@ -160,8 +161,8 @@ impl Theme {
     /// to egui's `extreme_bg_color`.
     pub fn neutral_bg(&self) -> Color32 {
         match self.current {
-            Mode::Light => self.dark.white,
-            Mode::Dark => self.light.black,
+            Mode::Light => self.bright.white,
+            Mode::Dark => self.dim.black,
         }
     }
 }
@@ -215,8 +216,8 @@ impl Theme {
     pub fn default_theme(current: Mode) -> Self {
         Self {
             current,
-            light: ThemeVariant {
-                black: hex_color!("#000000"),
+            dim: ThemeVariant {
+                black: hex_color!("#101010"),
                 red: hex_color!("#DF2040"),
                 green: hex_color!("#00B371"),
                 yellow: hex_color!("#E6AC00"),
@@ -224,7 +225,7 @@ impl Theme {
                 magenta: hex_color!("#7855AA"),
                 cyan: hex_color!("#00BBCC"),
                 white: hex_color!("#FFFFFF"),
-                grey: hex_color!("#D0D0D0"),
+                grey: hex_color!("#1D1D1D"),
             },
             light_prefs: Preferences {
                 primary: Palette::Blue,
@@ -232,9 +233,9 @@ impl Theme {
                 tertiary: Palette::Magenta,
                 quaternary: Palette::Cyan,
             },
-            dark: ThemeVariant {
+            bright: ThemeVariant {
                 black: hex_color!("#101010"),
-                grey: hex_color!("#505050"),
+                grey: hex_color!("#F6F6F6"),
                 red: hex_color!("#FF6680"),
                 green: hex_color!("#67E4B6"),
                 yellow: hex_color!("#FFDB70"),
@@ -255,39 +256,79 @@ impl Theme {
     pub fn darcula(current: Mode) -> Self {
         Self {
             current,
-            dark: ThemeVariant {
-                black: hex_color!("#5E5E5E"),
-                red: hex_color!("#972F4D"),
-                green: hex_color!("#628D54"),
-                yellow: hex_color!("#ACA47D"),
-                blue: hex_color!("#5F4BC1"),
-                magenta: hex_color!("#9F395B"),
-                cyan: hex_color!("#4277A0"),
-                white: hex_color!("#F5F5F5"),
-                grey: hex_color!("#E6E6E6"),
-            },
-            light_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Magenta,
-                quaternary: Palette::Cyan,
-            },
-            light: ThemeVariant {
-                black: hex_color!("#15131F"),
-                grey: hex_color!("#23212B"),
-                red: hex_color!("#D27DAC"),
-                green: hex_color!("#A1EE8D"),
-                yellow: hex_color!("#CBCD7B"),
-                blue: hex_color!("#15131F"),
-                magenta: hex_color!("#DABA82"),
-                cyan: hex_color!("#8E7FE5"),
-                white: hex_color!("#FAFAFA"),
+            dim: ThemeVariant {
+                black: hex_color!("#282A36"),
+                red: hex_color!("#FF5555"),
+                green: hex_color!("#50FA7B"),
+                yellow: hex_color!("#F1FA8C"),
+                blue: hex_color!("#6272A4"),
+                magenta: hex_color!("#BD93F9"),
+                cyan: hex_color!("#8BE9FD"),
+                white: hex_color!("#F8F8F2"),
+                grey: hex_color!("#0E0D11"),
             },
             dark_prefs: Preferences {
-                primary: Palette::Blue,
-                secondary: Palette::Green,
-                tertiary: Palette::Magenta,
+                primary: Palette::Magenta,
+                secondary: Palette::Red,
+                tertiary: Palette::Green,
                 quaternary: Palette::Cyan,
+            },
+            bright: ThemeVariant {
+                black: hex_color!("#1F1F1F"),
+                grey: hex_color!("#CFCFDE"),
+                red: hex_color!("#CB3A2A"),
+                green: hex_color!("#14710A"),
+                yellow: hex_color!("#846E15"),
+                blue: hex_color!("#036A96"),
+                magenta: hex_color!("#644AC9"),
+                cyan: hex_color!("#A3144D"),
+                white: hex_color!("#FFFBEB"),
+            },
+            light_prefs: Preferences {
+                primary: Palette::Magenta,
+                secondary: Palette::Red,
+                tertiary: Palette::Green,
+                quaternary: Palette::Cyan,
+            },
+        }
+    }
+
+    pub fn catppuccin(current: Mode) -> Self {
+        Self {
+            current,
+            bright: ThemeVariant {
+                black: hex_color!("#11111b"),
+                red: hex_color!("#f38ba8"),
+                green: hex_color!("#a6e3a1"),
+                yellow: hex_color!("#f9e2af"),
+                blue: hex_color!("#89b4fa"),
+                magenta: hex_color!("#eba0ac"),
+                cyan: hex_color!("#94e2d5"),
+                white: hex_color!("#cdd6f4"),
+                grey: hex_color!("#7f849c"),
+            },
+            dark_prefs: Preferences {
+                primary: Palette::Red,
+                secondary: Palette::Magenta,
+                tertiary: Palette::Green,
+                quaternary: Palette::Blue,
+            },
+            dim: ThemeVariant {
+                black: hex_color!("#4c4f69"),
+                grey: hex_color!("#8c8fa1"),
+                red: hex_color!("#d20f39"),
+                green: hex_color!("#40a02b"),
+                yellow: hex_color!("#df8e1d"),
+                blue: hex_color!("#1e66f5"),
+                magenta: hex_color!("#e64553"),
+                cyan: hex_color!("#179299"),
+                white: hex_color!("#eff1f5"),
+            },
+            light_prefs: Preferences {
+                primary: Palette::Red,
+                secondary: Palette::Magenta,
+                tertiary: Palette::Green,
+                quaternary: Palette::Blue,
             },
         }
     }

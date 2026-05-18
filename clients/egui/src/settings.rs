@@ -91,6 +91,11 @@ pub fn ensure_themes_dir() {
     if let Ok(json) = serde_json::to_string_pretty(&darcula) {
         let _ = fs::write(dir.join("darcula.json"), json);
     }
+
+    let catppuccin = Theme::catppuccin(Mode::Light);
+    if let Ok(json) = serde_json::to_string_pretty(&catppuccin) {
+        let _ = fs::write(dir.join("cattpuccin.json"), json);
+    }
 }
 
 pub fn list_themes() -> Vec<String> {
