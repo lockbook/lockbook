@@ -1371,7 +1371,11 @@ impl Workspace {
                     ui.add(
                         egui::Label::new(
                             RichText::new(bytes_to_human(
-                                files.size_bytes_recursive[&child.id] as _,
+                                files
+                                    .size_bytes_recursive
+                                    .get(&child.id)
+                                    .copied()
+                                    .unwrap_or_default(),
                             ))
                             .size(secondary_font_size)
                             .color(weak),
@@ -1389,7 +1393,11 @@ impl Workspace {
             let bar_h = (bar_rect.height() * 0.4).min(8.0);
             let inner =
                 Rect::from_center_size(bar_rect.center(), Vec2::new(bar_rect.width(), bar_h));
-            let usage = files.size_bytes_recursive[&child.id] as f32;
+            let usage = files
+                .size_bytes_recursive
+                .get(&child.id)
+                .copied()
+                .unwrap_or_default() as f32;
             let target_w = inner.width() * (usage / max_usage);
             let filled = Rect::from_min_size(inner.min, Vec2::new(target_w, inner.height()));
             let theme = ui.ctx().get_lb_theme();
