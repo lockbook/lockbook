@@ -25,8 +25,6 @@ impl<'ast> MdRender {
         }
         // Reveal when cursor is on the range OR when the html-inline
         // is not a fold marker (regular `<sup>` etc. always show source).
-        // Uses range_revealed to honor reveal_selection (NAVIGATION_NOTES
-        // Phase 3 — no direct selection reads).
         let reveal = self.range_revealed(node_range, true) || self.foldee(node).is_none();
         if reveal {
             layout.push_source(node_range, &self.buffer[node_range], self.text_format_syntax());

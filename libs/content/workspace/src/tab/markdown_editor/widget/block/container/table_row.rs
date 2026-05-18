@@ -94,8 +94,8 @@ impl<'ast> MdRender {
 
     /// Reveal the table row's source when the cursor sits between
     /// cells or after the last cell. Reads `reveal_selection` rather
-    /// than `buffer.current.selection` directly so unfocused frames
-    /// see stable layout (NAVIGATION_NOTES Phase 3).
+    /// than `buffer.current.selection` so unfocused frames see stable
+    /// layout.
     fn reveal_table_row(&self, node: &'ast AstNode<'ast>) -> bool {
         let row_range = self.node_range(node);
         let line = self.node_first_line(node);

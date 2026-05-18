@@ -69,8 +69,8 @@ impl<'ast> MdRender {
 
     /// Reveal table syntax when cursor is on the delimiter row or at
     /// the start of any line in the table. Reads `reveal_selection`
-    /// rather than `buffer.current.selection` directly so unfocused
-    /// frames see stable layout (NAVIGATION_NOTES Phase 3).
+    /// rather than `buffer.current.selection` so unfocused frames see
+    /// stable layout.
     fn reveal_table(&self, node: &'ast AstNode<'ast>) -> bool {
         let delimiter_row_line_idx = self.node_first_line_idx(node) + 1;
         for line_idx in self.node_lines(node).iter() {
