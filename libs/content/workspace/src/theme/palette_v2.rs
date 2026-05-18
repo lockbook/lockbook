@@ -124,7 +124,6 @@ impl Theme {
         match self.current {
             Mode::Light => self.bright.grey.lerp_to_gamma(self.bright.black, 0.5),
             Mode::Dark => self.dim.grey.lerp_to_gamma(self.dim.white, 0.5),
-
         }
     }
 
@@ -263,12 +262,12 @@ impl Theme {
                 red: hex_color!("#CB3A2A"),
                 green: hex_color!("#14710A"),
                 yellow: hex_color!("#FFB86C"),
-                blue: hex_color!("#036A96"),
+                blue: hex_color!("#644AC9"),
                 magenta: hex_color!("#A3144D"),
                 cyan: hex_color!("#036A96"),
             },
             dark_prefs: Preferences {
-                primary: Palette::Magenta,
+                primary: Palette::Blue,
                 secondary: Palette::Green,
                 tertiary: Palette::Yellow,
                 quaternary: Palette::Cyan,
@@ -280,12 +279,12 @@ impl Theme {
                 red: hex_color!("#FF5555"),
                 green: hex_color!("#50FA7B"),
                 yellow: hex_color!("#F1FA8C"),
-                blue: hex_color!("#8BE9FD"),
+                blue: hex_color!("#BD93F9"),
                 magenta: hex_color!("#FF79C6"),
                 cyan: hex_color!("#8BE9FD"),
             },
             light_prefs: Preferences {
-                primary: Palette::Magenta,
+                primary: Palette::Blue,
                 secondary: Palette::Green,
                 tertiary: Palette::Yellow,
                 quaternary: Palette::Cyan,
@@ -297,38 +296,38 @@ impl Theme {
         Self {
             current,
             bright: ThemeVariant {
-                black: hex_color!("#11111b"),
+                black: hex_color!("#4c4f69"),
+                grey: hex_color!("#e6e9ef"),
+                white: hex_color!("#eff1f5"),
                 red: hex_color!("#f38ba8"),
                 green: hex_color!("#a6e3a1"),
                 yellow: hex_color!("#f9e2af"),
                 blue: hex_color!("#89b4fa"),
                 magenta: hex_color!("#eba0ac"),
                 cyan: hex_color!("#94e2d5"),
-                white: hex_color!("#cdd6f4"),
-                grey: hex_color!("#7f849c"),
             },
             dark_prefs: Preferences {
                 primary: Palette::Red,
-                secondary: Palette::Magenta,
+                secondary: Palette::Blue,
                 tertiary: Palette::Green,
-                quaternary: Palette::Blue,
+                quaternary: Palette::Yellow,
             },
             dim: ThemeVariant {
-                black: hex_color!("#4c4f69"),
-                grey: hex_color!("#8c8fa1"),
+                black: hex_color!("#11111b"),
+                grey: hex_color!("#1e1e2e"),
+                white: hex_color!("#cdd6f4"),
                 red: hex_color!("#d20f39"),
                 green: hex_color!("#40a02b"),
                 yellow: hex_color!("#df8e1d"),
                 blue: hex_color!("#1e66f5"),
                 magenta: hex_color!("#e64553"),
                 cyan: hex_color!("#179299"),
-                white: hex_color!("#eff1f5"),
             },
             light_prefs: Preferences {
                 primary: Palette::Red,
-                secondary: Palette::Magenta,
+                secondary: Palette::Blue,
                 tertiary: Palette::Green,
-                quaternary: Palette::Blue,
+                quaternary: Palette::Yellow,
             },
         }
     }
