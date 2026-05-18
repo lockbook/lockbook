@@ -252,11 +252,14 @@ impl<'ast> MdEdit {
                             return false;
                         };
 
-                        // Apply prefix per line, then cascade the
-                        // column shift to descendants so tabbing a
-                        // parent moves nested children with it.
-                        let cols_added =
-                            prior_line_container_extension_prefix.chars().count() as isize;
+                        // Indent only the selected line(s). Children
+                        // keep their absolute indentation and are not
+                        // dragged along; an item with children is
+                        // aligned to its deepest direct child so that
+                        // child's level is unchanged (it detaches to a
+                        // sibling instead of being pushed a level
+                        // deeper). Symmetric to deindent dropping to
+                        // the parent's column.
                         let mut done = std::collections::BTreeSet::new();
                         for line_idx in selected_lines.iter() {
                             if !done.insert(line_idx) {
@@ -273,25 +276,38 @@ impl<'ast> MdEdit {
                             // (whole block shifts). Continuation:
                             // insert after the prefix (content
                             // shifts).
-                            let insertion_offset =
-                                if Some(self.renderer.buffer[container_own_prefix].to_string())
-                                    == self.renderer.extension_own_prefix(container)
+                            let is_continuation =
+                                Some(self.renderer.buffer[container_own_prefix].to_string())
+                                    == self.renderer.extension_own_prefix(container);
+                            let insertion_offset = if is_continuation {
+                                container_own_prefix.end()
+                            } else {
+                                container_own_prefix.start()
+                            };
+
+                            // For a whitespace-nested item with
+                            // children, indent it to its deepest
+                            // direct child's column instead of one
+                            // unit, so the child detaches as a sibling
+                            // at its unchanged level.
+                            let mut insert_text = prior_line_container_extension_prefix.clone();
+                            if !is_continuation
+                                && !insert_text.is_empty()
+                                && insert_text.bytes().all(|b| b == b' ')
+                            {
+                                if let Some(max_child_col) =
+                                    max_child_marker_col(&self.renderer, container)
                                 {
-                                    container_own_prefix.end()
-                                } else {
-                                    container_own_prefix.start()
-                                };
+                                    let cur_col = leading_indent_cols(&self.renderer.buffer[line]);
+                                    let one_unit = insert_text.chars().count();
+                                    let want = (cur_col + one_unit).max(max_child_col);
+                                    insert_text = " ".repeat(want - cur_col);
+                                }
+                            }
                             operations.push(Operation::Replace(Replace {
                                 range: insertion_offset.into_range(),
-                                text: prior_line_container_extension_prefix.clone(),
+                                text: insert_text,
                             }));
-                            cascade_indent_delta(
-                                &self.renderer,
-                                container,
-                                cols_added,
-                                &mut done,
-                                operations,
-                            );
                         }
 
                         true
@@ -326,7 +342,7 @@ impl<'ast> MdEdit {
                             let container = self
                                 .renderer
                                 .deepest_container_block_at_offset(root, line.end());
-                            cascade_indent_delta(
+                            cascade_deindent_delta(
                                 &self.renderer,
                                 container,
                                 delta,
@@ -1048,10 +1064,18 @@ fn deindent_replacement<'ast>(
             }
             let indent_range = leading_indent_range(&renderer.buffer, line);
             let cur_cols = leading_indent_cols(&renderer.buffer[indent_range]);
-            if cur_cols < level_cols {
+            // Land at `ancestor`'s own marker column: escaping a
+            // container drops to its level. Using the marker column
+            // (not `cur - padding`) pops out one full level even when
+            // the source over-indents the nested item — otherwise an
+            // item indented past the minimum only moves part-way and
+            // stays nested.
+            let target_cols =
+                leading_indent_cols(&renderer.buffer[renderer.node_first_line(ancestor)]);
+            if cur_cols <= target_cols {
                 return None;
             }
-            Some((indent_range, " ".repeat(cur_cols - level_cols)))
+            Some((indent_range, " ".repeat(target_cols)))
         }
         BlockQuote | Alert(_) => {
             // No-op at top level — only deindent when there's an
@@ -1092,13 +1116,34 @@ fn find_deindent<'ast>(
     })
 }
 
-/// Shift every line in `container`'s span by `delta_cols`, skipping
-/// lines already in `done`. Drags descendants along with an
-/// indented/deindented parent. Only fires for whitespace-nested
-/// containers (Item, TaskItem, FootnoteDefinition); quote/alert
-/// nesting is per-line markers with no column delta. Tabs in the
-/// indent expand to spaces.
-fn cascade_indent_delta<'ast>(
+/// Largest leading-indent column among `item`'s direct child list
+/// items (the items one level nested under it), or `None` if it has
+/// none. Used so indent can align the item to its child, leaving the
+/// child's level unchanged.
+fn max_child_marker_col<'ast>(renderer: &MdRender, item: &'ast AstNode<'ast>) -> Option<usize> {
+    item.children()
+        .filter(|c| matches!(&c.data.borrow().value, NodeValue::List(_)))
+        .flat_map(|list| list.children())
+        .filter(|n| matches!(&n.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)))
+        .map(|child| {
+            let line = renderer.bounds.source_lines[renderer.node_first_line_idx(child)];
+            leading_indent_cols(&renderer.buffer[line])
+        })
+        .max()
+}
+
+/// Drags `container`'s descendants left with a deindented parent so
+/// children stay nested instead of being stranded — a child left four
+/// or more columns deep with no list-item ancestor reparses as an
+/// indented code block. `delta_cols` is negative (the columns removed
+/// from the parent). Only fires for whitespace-nested containers (Item,
+/// TaskItem, FootnoteDefinition); quote/alert nesting is per-line
+/// markers with no column delta. Tabs in the indent expand to spaces.
+///
+/// There is deliberately no indent counterpart: indenting only the
+/// targeted line(s) can't strand a child (it always retains a list
+/// ancestor), so a tight child simply re-parents to a sibling.
+fn cascade_deindent_delta<'ast>(
     renderer: &MdRender, container: &'ast AstNode<'ast>, delta_cols: isize,
     done: &mut std::collections::BTreeSet<usize>, operations: &mut Vec<Operation>,
 ) {
@@ -1108,6 +1153,7 @@ fn cascade_indent_delta<'ast>(
     ) {
         return;
     }
+
     let first = renderer.node_first_line_idx(container);
     let last = renderer.node_last_line_idx(container);
     for i in first..=last {
