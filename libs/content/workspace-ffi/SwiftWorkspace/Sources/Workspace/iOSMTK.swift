@@ -755,9 +755,11 @@
 
             deleteWord.wantsPriorityOverSystemBehavior = true
 
-            return [
-                deleteWord,
-            ]
+            return [deleteWord] + iOSMTK.workspaceBracketKeyCommands()
+        }
+
+        @objc func forwardBracketCommand(_ command: UIKeyCommand) {
+            mtkView.forwardBracketCommand(command)
         }
 
         @objc func deleteWord() {
@@ -1790,6 +1792,50 @@
             return forward
         }
 
+        override public var keyCommands: [UIKeyCommand]? {
+            iOSMTK.workspaceBracketKeyCommands()
+        }
+
+        @objc func forwardBracketCommand(_ command: UIKeyCommand) {
+            guard let input = command.input else { return }
+            let keyCode: Int
+            switch input {
+            case "[": keyCode = UIKeyboardHIDUsage.keyboardOpenBracket.rawValue
+            case "]": keyCode = UIKeyboardHIDUsage.keyboardCloseBracket.rawValue
+            default: return
+            }
+
+            let mods = command.modifierFlags
+
+            ios_key_event(
+                wsHandle, keyCode, mods.contains(.shift), mods.contains(.control),
+                mods.contains(.alternate), mods.contains(.command), true
+            )
+            ios_key_event(
+                wsHandle, keyCode, mods.contains(.shift), mods.contains(.control),
+                mods.contains(.alternate), mods.contains(.command), false
+            )
+            setNeedsDisplay(frame)
+        }
+
+        static func workspaceBracketKeyCommands() -> [UIKeyCommand] {
+            var commands: [UIKeyCommand] = []
+            let modifierSets: [UIKeyModifierFlags] = [
+                [.command, .shift], [.command, .control, .shift],
+            ]
+            for input in ["[", "]"] {
+                for modifierFlags in modifierSets {
+                    let command = UIKeyCommand(
+                        input: input, modifierFlags: modifierFlags,
+                        action: #selector(iOSMTK.forwardBracketCommand(_:))
+                    )
+                    command.wantsPriorityOverSystemBehavior = true
+                    commands.append(command)
+                }
+            }
+            return commands
+        }
+
         func importContent(_ importFormat: SupportedImportFormat, isPaste: Bool) {
             switch importFormat {
             case let .url(url):
@@ -1831,6 +1877,10 @@
         }
 
         override public var canBecomeFocused: Bool {
+            true
+        }
+
+        override public var canBecomeFirstResponder: Bool {
             true
         }
     }

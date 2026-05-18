@@ -1054,7 +1054,7 @@ pub unsafe extern "C" fn ios_key_event(
     let Some(key) = UIKeys::from(key_code) else { return };
 
     // Event::Key
-    if let Some(key) = key.egui_key() {
+    if let Some(key) = key.egui_key(shift) {
         obj.renderer.raw_input.events.push(egui::Event::Key {
             key,
             physical_key: None,
