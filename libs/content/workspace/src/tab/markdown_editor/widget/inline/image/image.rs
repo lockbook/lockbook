@@ -1,13 +1,11 @@
 use std::f32;
 
-use comrak::nodes::{AstNode, NodeLink};
+use comrak::nodes::AstNode;
 use egui::{self, Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::Grapheme;
 
 use crate::tab::markdown_editor::MdRender;
-
-use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
 
 impl MdRender {
     pub fn warm_images<'a>(&self, node: &'a comrak::nodes::AstNode<'a>) {
@@ -22,19 +20,6 @@ impl MdRender {
 }
 
 impl<'ast> MdRender {
-    pub fn span_image(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
-    ) -> f32 {
-        self.circumfix_span(node, wrap, range)
-    }
-
-    pub fn show_image(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        node_link: &NodeLink, range: (Grapheme, Grapheme),
-    ) -> Response {
-        self.show_link(ui, node, top_left, wrap, node_link, range)
-    }
-
     pub fn height_image(&self, node: &'ast AstNode<'ast>, url: &str) -> f32 {
         let width = self.width(node);
         let dims = self.embeds.size(url);
@@ -72,5 +57,15 @@ impl<'ast> MdRender {
         let width = texture_size.x * height / texture_size.y;
 
         Vec2::new(width, height)
+    }
+
+    /// Inline image. Block-positioned image rendering (the actual
+    /// image-rect) lives in `show_image_block` and runs above the
+    /// paragraph line; this just contributes the inline syntax bytes
+    /// (`![alt](url)`) to the wrap layout — same logic as `layout_link`.
+    pub fn layout_image(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) {
+        self.layout_link(layout, node, range);
     }
 }

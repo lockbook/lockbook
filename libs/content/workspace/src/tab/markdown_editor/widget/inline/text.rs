@@ -1,31 +1,19 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Sense, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt};
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> MdRender {
-    pub fn span_text(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
-    ) -> f32 {
-        self.span_section(wrap, self.node_range(node).trim(&range), self.text_format(node))
-    }
-
-    pub fn show_text(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (Grapheme, Grapheme),
-    ) -> Response {
+    pub fn layout_text(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) {
         let node_range = self.node_range(node).trim(&range);
-        let text_format = self.text_format(node);
-        let sense = if self.inline_clickable(ui, node) { Sense::click() } else { Sense::hover() };
-
         if node_range.is_empty() {
-            return Default::default();
+            return;
         }
-
+        let text_format = self.text_format(node);
         if let Some(search_range) = self.search_range {
             let start = search_range.0.max(node_range.0);
             let end = search_range.1.min(node_range.1);
@@ -33,42 +21,19 @@ impl<'ast> MdRender {
                 let theme = self.ctx.get_lb_theme();
                 let accent = theme.fg().get_color(theme.prefs().primary);
                 let accent_format = Format { color: accent, ..text_format.clone() };
-                let mut resp = Response::default();
                 if node_range.0 < start {
-                    resp |= self.show_override_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        (node_range.0, start),
-                        text_format.clone(),
-                        None,
-                        sense,
-                    );
+                    let r = (node_range.0, start);
+                    layout.push_source(r, &self.buffer[r], text_format.clone());
                 }
-                resp |= self.show_override_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    (start, end),
-                    accent_format,
-                    None,
-                    sense,
-                );
+                let r = (start, end);
+                layout.push_source(r, &self.buffer[r], accent_format);
                 if end < node_range.1 {
-                    resp |= self.show_override_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        (end, node_range.1),
-                        text_format,
-                        None,
-                        sense,
-                    );
+                    let r = (end, node_range.1);
+                    layout.push_source(r, &self.buffer[r], text_format);
                 }
-                return resp;
+                return;
             }
         }
-
-        self.show_override_section(ui, top_left, wrap, node_range, text_format, None, sense)
+        layout.push_source(node_range, &self.buffer[node_range], text_format);
     }
 }

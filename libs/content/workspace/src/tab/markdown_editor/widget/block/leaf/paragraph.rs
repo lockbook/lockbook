@@ -3,6 +3,7 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
 
 impl<'ast> MdRender {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
@@ -32,36 +33,47 @@ impl<'ast> MdRender {
         result
     }
 
+    /// Build a `Layout` for one paragraph line. Shared by height +
+    /// show passes — both consume the resulting `WrapUnitLayout`.
+    /// Walks the paragraph's pre/infix/post slices (handles leading/
+    /// trailing whitespace per CommonMark "raw content" rule), and
+    /// recurses into inline children for the inline range.
+    fn layout_paragraph_line(
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
+    ) -> Layout {
+        let mut layout = Layout::new(node_line);
+        if let Some((pre_node, pre_children, _, post_children, post_node)) =
+            self.split_range(node, node_line)
+        {
+            let fmt = self.text_format(node);
+            if !pre_node.is_empty() {
+                layout.push_source(pre_node, &self.buffer[pre_node], fmt.clone());
+            }
+            if !pre_children.is_empty() {
+                layout.push_source(pre_children, &self.buffer[pre_children], fmt.clone());
+            }
+            self.layout_inline_children(&mut layout, node, node_line);
+            if !post_children.is_empty() {
+                layout.push_source(post_children, &self.buffer[post_children], fmt.clone());
+            }
+            if !post_node.is_empty() {
+                layout.push_source(post_node, &self.buffer[post_node], fmt);
+            }
+        } else {
+            // Empty paragraph line such as in `- [ ] \n  x`.
+            let fmt = self.text_format(node);
+            layout.push_source(node_line, &self.buffer[node_line], fmt);
+        }
+        layout
+    }
+
     pub fn height_paragraph_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
     ) -> f32 {
         let width = self.width(node);
-        let mut wrap = self.new_wrap(width);
-
-        // "The paragraph's raw content is formed by concatenating the lines
-        // and removing initial and final whitespace"
-        if let Some((pre_node, pre_children, _, post_children, post_node)) =
-            self.split_range(node, node_line)
-        {
-            if !pre_node.is_empty() {
-                wrap.offset += self.span_section(&wrap, pre_node, self.text_format(node));
-            }
-            if !pre_children.is_empty() {
-                wrap.offset += self.span_section(&wrap, pre_children, self.text_format(node));
-            }
-            wrap.offset += self.inline_children_span(node, &wrap, node_line);
-            if !post_children.is_empty() {
-                wrap.offset += self.span_section(&wrap, post_children, self.text_format(node));
-            }
-            if !post_node.is_empty() {
-                wrap.offset += self.span_section(&wrap, post_node, self.text_format(node));
-            }
-        } else {
-            // This handles empty paragraph lines such as in "- [ ] \n  x"
-            wrap.offset += self.span_section(&wrap, node_line, self.text_format(node));
-        };
-
-        wrap.height()
+        let layout = self.layout_paragraph_line(node, node_line);
+        self.compute_layout_from(layout, width, self.layout.row_height)
+            .height
     }
 
     pub fn show_paragraph(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
@@ -96,29 +108,9 @@ impl<'ast> MdRender {
         node_line: (Grapheme, Grapheme),
     ) {
         let width = self.width(node);
-        let mut wrap = self.new_wrap(width);
-
-        // "The paragraph's raw content is formed by concatenating the lines
-        // and removing initial and final whitespace"
-        if let Some((pre_node, pre_children, _, post_children, post_node)) =
-            self.split_range(node, node_line)
-        {
-            if !pre_node.is_empty() {
-                self.show_section(ui, top_left, &mut wrap, pre_node, self.text_format(node));
-            }
-            if !pre_children.is_empty() {
-                self.show_section(ui, top_left, &mut wrap, pre_children, self.text_format(node));
-            }
-            self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
-            if !post_children.is_empty() {
-                self.show_section(ui, top_left, &mut wrap, post_children, self.text_format(node));
-            }
-            if !post_node.is_empty() {
-                self.show_section(ui, top_left, &mut wrap, post_node, self.text_format(node));
-            }
-        };
-
-        self.bounds.wrap_lines.extend(wrap.row_ranges);
+        let layout = self.layout_paragraph_line(node, node_line);
+        let result = self.compute_layout_from(layout, width, self.layout.row_height);
+        self.show_wrap_layout(ui, top_left, &result);
     }
 
     pub fn compute_bounds_paragraph(&mut self, node: &'ast AstNode<'ast>) {

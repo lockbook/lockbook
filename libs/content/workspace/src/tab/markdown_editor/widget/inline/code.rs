@@ -1,10 +1,8 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> MdRender {
@@ -19,108 +17,53 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn span_code(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
-    ) -> f32 {
+    /// `Code` has no AST children — the inline content sits in
+    /// `buffer[node_range.start+1 .. node_range.end-1]` directly. Wrap
+    /// the inner range in `StyleOpen`/`StyleClose` carrying the code
+    /// format (bg + monospace + accent color), with backticks as
+    /// syntax-formatted prefix/postfix.
+    pub fn layout_code(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) {
         let node_range = self.node_range(node);
-
-        let prefix_range = (node_range.start(), node_range.start() + 1).trim(&range);
-        let infix_range = (node_range.start() + 1, node_range.end() - 1).trim(&range);
-        let postfix_range = (node_range.end() - 1, node_range.end()).trim(&range);
-
+        // Multi-line paragraphs dispatch every inline child to every
+        // source line's layout. Without this guard the code scope's
+        // `style_open` / `style_close` still emit, and (because code
+        // carries a bg) the walker injects side-padding `Pad`s into
+        // lines that don't actually contain the code.
+        if node_range.trim(&range).is_empty() {
+            return;
+        }
+        let prefix = (node_range.start(), node_range.start() + 1).trim(&range);
+        let infix = (node_range.start() + 1, node_range.end() - 1).trim(&range);
+        let postfix = (node_range.end() - 1, node_range.end()).trim(&range);
         let reveal = self.node_revealed(node);
-        let mut tmp_wrap = wrap.clone();
 
-        if !prefix_range.is_empty() && reveal {
-            tmp_wrap.offset +=
-                self.span_section(&tmp_wrap, prefix_range, self.text_format_syntax());
-        }
-        if !infix_range.is_empty() {
-            tmp_wrap.offset += self.span_section(&tmp_wrap, infix_range, self.text_format(node));
-        }
-        if !postfix_range.is_empty() && reveal {
-            tmp_wrap.offset +=
-                self.span_section(&tmp_wrap, postfix_range, self.text_format_syntax());
-        }
-
-        tmp_wrap.offset - wrap.offset
-    }
-
-    pub fn show_code(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (Grapheme, Grapheme),
-    ) -> Response {
-        let node_range = self.node_range(node);
-
-        let prefix_range = (node_range.start(), node_range.start() + 1).trim(&range);
-        let infix_range = (node_range.start() + 1, node_range.end() - 1).trim(&range);
-        let postfix_range = (node_range.end() - 1, node_range.end()).trim(&range);
-
-        let reveal = self.node_revealed(node);
-        let mut response = Default::default();
-
-        if !prefix_range.is_empty() {
-            // prefix range is empty when it's trimmed to 0 because we're not
-            // rendering the line containing the prefix
+        layout.style_open(StyleInfo {
+            format: self.text_format_code(node.parent().unwrap()),
+            source_range: node_range,
+        });
+        if !prefix.is_empty() {
             if reveal {
-                response |=
-                    self.show_section(ui, top_left, wrap, prefix_range, self.text_format_syntax());
+                layout.push_source(prefix, &self.buffer[prefix], self.text_format_syntax());
             } else {
-                // when syntax is captured, show an empty range
-                // representing the beginning of the prefix, so that clicking
-                // at the start of the circumfix places the cursor before
-                // the syntax
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    prefix_range.start().into_range(),
-                    self.text_format_syntax(),
-                );
+                layout.push_override(prefix.start().into_range(), "", self.text_format_syntax());
             }
         }
-        if !infix_range.is_empty() {
-            let sense = if self.inline_clickable(ui, node) {
-                egui::Sense::click()
-            } else {
-                egui::Sense::hover()
-            };
-            response |= self.show_override_section(
-                ui,
-                top_left,
-                wrap,
-                infix_range,
-                self.text_format(node),
-                None,
-                sense,
+        if !infix.is_empty() {
+            layout.push_source(
+                infix,
+                &self.buffer[infix],
+                self.text_format_code(node.parent().unwrap()),
             );
         }
-        if !postfix_range.is_empty() {
-            // postfix range is empty when it's trimmed to 0 because we're not
-            // rendering the line containing the postfix
+        if !postfix.is_empty() {
             if reveal {
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    postfix_range.trim(&range),
-                    self.text_format_syntax(),
-                );
+                layout.push_source(postfix, &self.buffer[postfix], self.text_format_syntax());
             } else {
-                // when syntax is captured, show an empty range
-                // representing the end of the postfix, so that clicking
-                // at the end of the circumfix places the cursor after
-                // the syntax
-                response |= self.show_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    postfix_range.end().into_range(),
-                    self.text_format_syntax(),
-                );
+                layout.push_override(postfix.end().into_range(), "", self.text_format_syntax());
             }
         }
-
-        response
+        layout.style_close();
     }
 }

@@ -10,6 +10,7 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::bounds::RangesExt as _;
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -92,13 +93,51 @@ impl<'ast> MdRender {
         height_sum
     }
 
-    // blocks are stacked vertically; only visible blocks and blocks whose
-    // node range intersects `galley_required_range` are shown
+    /// Returns the document offset ranges for which fragments must
+    /// exist, covering the selection ± 1 source line so arrow-key
+    /// navigation across the viewport edge has a fragment to land
+    /// on. Also includes the current find match.
+    pub fn fragment_required_ranges(
+        &self, in_progress_selection: Option<(Grapheme, Grapheme)>,
+        find_match: Option<(Grapheme, Grapheme)>,
+    ) -> Vec<(Grapheme, Grapheme)> {
+        if self.bounds.source_lines.is_empty() {
+            return Vec::new();
+        }
+        let mut ranges = Vec::new();
+        let selection = in_progress_selection.unwrap_or(self.buffer.current.selection);
+        ranges.push(self.source_line_range(selection));
+        if let Some(match_range) = find_match {
+            ranges.push(self.source_line_range(match_range));
+        }
+        ranges
+    }
+
+    fn source_line_range(&self, range: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
+        let first_line = self
+            .bounds
+            .source_lines
+            .find_containing(range.start(), true, true)
+            .0
+            .saturating_sub(1);
+        let last_line = self
+            .bounds
+            .source_lines
+            .find_containing(range.end(), true, true)
+            .1
+            .min(self.bounds.source_lines.len() - 1);
+        let start = self.bounds.source_lines[first_line].start();
+        let end = self.bounds.source_lines[last_line].end();
+        (start, end)
+    }
+
+    // blocks are stacked vertically; only visible blocks and blocks
+    // whose node range intersects `fragment_required_ranges` are shown
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
         let required_ranges =
-            self.galley_required_ranges(self.in_progress_selection, self.find_current_match);
+            self.fragment_required_ranges(self.in_progress_selection, self.find_current_match);
         let viewport = ui.clip_rect();
         let buffer = viewport.height();
 

@@ -58,7 +58,7 @@ impl MdLabel {
         let height = self.renderer.height(root);
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
 
-        self.renderer.galleys.galleys.clear();
+        self.renderer.fragments.clear();
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
 
@@ -81,10 +81,9 @@ impl MdLabel {
     /// Returns 0 when nothing has rendered yet.
     pub fn rendered_width(&self) -> f32 {
         self.renderer
-            .galleys
-            .galleys
+            .fragments
             .iter()
-            .map(|g| g.rect.width())
+            .map(|f| f.rect.width())
             .fold(0.0_f32, f32::max)
     }
 }

@@ -1,9 +1,8 @@
 use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
-use egui::{Pos2, Ui};
+use egui::Ui;
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Wrap;
 
 pub(crate) mod code;
 pub(crate) mod emph;
@@ -41,152 +40,6 @@ impl std::ops::BitOrAssign for Response {
 }
 
 impl<'ast> MdRender {
-    pub fn span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme)) -> f32 {
-        match &node.data.borrow().value {
-            NodeValue::FrontMatter(_) => 0.,
-            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
-
-            // container_block
-            NodeValue::Alert(_) => unimplemented!("not an inline"),
-            NodeValue::BlockQuote => unimplemented!("not an inline"),
-            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
-            NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => unimplemented!("not an inline"),
-            NodeValue::FootnoteDefinition(_) => unimplemented!("not an inline"),
-            NodeValue::Item(_) => unimplemented!("not an inline"),
-            NodeValue::List(_) => unimplemented!("not an inline"),
-            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
-            NodeValue::Table(_) => unimplemented!("not an inline"),
-            NodeValue::TableRow(_) => unimplemented!("not an inline"),
-
-            // inline
-            NodeValue::Code(_) => self.span_code(node, wrap, range),
-            NodeValue::Emph => self.span_emph(node, wrap, range),
-            NodeValue::Escaped => self.span_escaped(node, wrap, range),
-            NodeValue::EscapedTag(_) => self.span_escaped_tag(node, wrap, range),
-            NodeValue::FootnoteReference(node_footnote_reference) => {
-                let NodeFootnoteReference { ix, .. } = &**node_footnote_reference;
-                self.span_footnote_reference(node, wrap, *ix, range)
-            }
-            NodeValue::Highlight => self.span_highlight(node, wrap, range),
-            NodeValue::HtmlInline(_) => self.span_html_inline(node, wrap, range),
-            NodeValue::Image(_) => self.span_image(node, wrap, range),
-            NodeValue::LineBreak => self.span_line_break(node, wrap, range),
-            NodeValue::Link(_) => self.span_link(node, wrap, range),
-            NodeValue::Math(_) => self.span_math(node, wrap, range),
-            NodeValue::ShortCode(node_short_code) => {
-                self.span_short_code(node, wrap, range, node_short_code)
-            }
-            NodeValue::SoftBreak => self.span_soft_break(node, wrap, range),
-            NodeValue::SpoileredText => self.span_spoilered_text(node, wrap, range),
-            NodeValue::Strikethrough => self.span_strikethrough(node, wrap, range),
-            NodeValue::Strong => self.span_strong(node, wrap, range),
-            NodeValue::Subscript => self.span_subscript(node, wrap, range),
-            NodeValue::Subtext => unimplemented!("extension disabled"),
-            NodeValue::Superscript => self.span_superscript(node, wrap, range),
-            NodeValue::Text(_) => self.span_text(node, wrap, range),
-            NodeValue::Underline => self.span_underline(node, wrap, range),
-            NodeValue::WikiLink(_) => self.span_wikilink(node, wrap, range),
-
-            // leaf_block
-            NodeValue::CodeBlock(_) => unimplemented!("not an inline"),
-            NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
-            NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(_) => unimplemented!("not an inline"),
-            NodeValue::HtmlBlock(_) => unimplemented!("not an inline"),
-            NodeValue::Paragraph => unimplemented!("not an inline"),
-            NodeValue::TableCell => unimplemented!("not an inline"),
-            NodeValue::TaskItem(_) => unimplemented!("not an inline"),
-            NodeValue::ThematicBreak => unimplemented!("not an inline"),
-        }
-    }
-
-    pub fn show_inline(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (Grapheme, Grapheme),
-    ) -> Response {
-        let ui = &mut self.node_ui(ui, node);
-
-        let span = self.span(node, wrap, range);
-        let pre_offset = wrap.offset;
-
-        let response = match &node.data.borrow().value {
-            NodeValue::FrontMatter(_) => Default::default(),
-            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
-
-            // container_block
-            NodeValue::Alert(_) => unimplemented!("not an inline"),
-            NodeValue::BlockQuote => unimplemented!("not an inline"),
-            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
-            NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => unimplemented!("not an inline"),
-            NodeValue::FootnoteDefinition(_) => unimplemented!("not an inline"),
-            NodeValue::Item(_) => unimplemented!("not an inline"),
-            NodeValue::List(_) => unimplemented!("not an inline"),
-            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
-            NodeValue::Table(_) => unimplemented!("not an inline"),
-            NodeValue::TableRow(_) => unimplemented!("not an inline"),
-            NodeValue::TaskItem(_) => unimplemented!("not an inline"),
-
-            // inline
-            NodeValue::Code(_) => self.show_code(ui, node, top_left, wrap, range),
-            NodeValue::Emph => self.show_emph(ui, node, top_left, wrap, range),
-            NodeValue::Escaped => self.show_escaped(ui, node, top_left, wrap, range),
-            NodeValue::EscapedTag(_) => self.show_escaped_tag(ui, node, top_left, wrap, range),
-            NodeValue::FootnoteReference(node_footnote_reference) => {
-                let NodeFootnoteReference { ix, .. } = &**node_footnote_reference;
-                self.show_footnote_reference(ui, node, top_left, wrap, *ix, range)
-            }
-            NodeValue::Highlight => self.show_highlight(ui, node, top_left, wrap, range),
-            NodeValue::HtmlInline(_) => self.show_html_inline(ui, node, top_left, wrap, range),
-            NodeValue::Image(node_link) => {
-                self.show_image(ui, node, top_left, wrap, node_link, range)
-            }
-            NodeValue::LineBreak => self.show_line_break(node, wrap, range),
-            NodeValue::Link(node_link) => {
-                self.show_link(ui, node, top_left, wrap, node_link, range)
-            }
-            NodeValue::Math(_) => self.show_math(ui, node, top_left, wrap, range),
-            NodeValue::ShortCode(node_short_code) => {
-                self.show_short_code(ui, node, top_left, wrap, range, node_short_code)
-            }
-            NodeValue::SoftBreak => self.show_soft_break(node, wrap, range),
-            NodeValue::SpoileredText => self.show_spoilered_text(ui, node, top_left, wrap, range),
-            NodeValue::Strikethrough => self.show_strikethrough(ui, node, top_left, wrap, range),
-            NodeValue::Strong => self.show_strong(ui, node, top_left, wrap, range),
-            NodeValue::Subscript => self.show_subscript(ui, node, top_left, wrap, range),
-            NodeValue::Subtext => unimplemented!("extension disabled"),
-            NodeValue::Superscript => self.show_superscript(ui, node, top_left, wrap, range),
-            NodeValue::Text(_) => self.show_text(ui, node, top_left, wrap, range),
-            NodeValue::Underline => self.show_underline(ui, node, top_left, wrap, range),
-            NodeValue::WikiLink(node_wiki_link) => {
-                self.show_wikilink(ui, node, top_left, wrap, node_wiki_link, range)
-            }
-
-            // leaf_block
-            NodeValue::CodeBlock(_) => unimplemented!("not an inline"),
-            NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
-            NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
-            NodeValue::Heading(_) => unimplemented!("not an inline"),
-            NodeValue::HtmlBlock(_) => unimplemented!("not an inline"),
-            NodeValue::Paragraph => unimplemented!("not an inline"),
-            NodeValue::TableCell => unimplemented!("not an inline"),
-            NodeValue::ThematicBreak => unimplemented!("not an inline"),
-        };
-
-        let post_offset = wrap.offset;
-        if (span - (post_offset - pre_offset)).abs() > 0.01 && self.debug {
-            println!(
-                "SPAN MISMATCH: {:?} vs {:?} {:?}",
-                span,
-                post_offset - pre_offset,
-                node.data.borrow().value
-            );
-        }
-
-        response
-    }
-
     #[allow(clippy::only_used_in_recursion)]
     pub fn inline_clickable(&self, ui: &Ui, node: &'ast AstNode<'ast>) -> bool {
         match &node.data.borrow().value {
@@ -205,30 +58,6 @@ impl<'ast> MdRender {
         }
     }
 
-    // the span of an inline that contains inlines is the sum of the spans of
-    // the inlines
-    pub fn inline_children_span(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
-    ) -> f32 {
-        let mut tmp_wrap = wrap.clone();
-        for child in node.children() {
-            tmp_wrap.offset += self.span(child, &tmp_wrap, range);
-        }
-        tmp_wrap.offset - wrap.offset
-    }
-
-    // inlines are stacked horizontally and wrapped
-    pub fn show_inline_children(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (Grapheme, Grapheme),
-    ) -> Response {
-        let mut response = Default::default();
-        for child in node.children() {
-            response |= self.show_inline(ui, child, top_left, wrap, range);
-        }
-        response
-    }
-
     /// Returns the range between the start of the node and the start of its
     /// first child, if there is one.
     pub fn prefix_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
@@ -236,14 +65,6 @@ impl<'ast> MdRender {
         let first_child = node.children().next()?;
         let first_child_range = self.node_range(first_child);
         Some((range.start(), first_child_range.start()))
-    }
-
-    pub fn prefix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
-        if let Some(prefix_range) = self.prefix_range(node) {
-            self.span_section(wrap, prefix_range, self.text_format_syntax())
-        } else {
-            0.
-        }
     }
 
     /// Returns the range of the leading syntax characters that define this node
@@ -265,14 +86,6 @@ impl<'ast> MdRender {
         Some((last_child_range.end(), range.end()))
     }
 
-    pub fn postfix_span(&self, node: &'ast AstNode<'ast>, wrap: &Wrap) -> f32 {
-        if let Some(postfix_range) = self.postfix_range(node) {
-            self.span_section(wrap, postfix_range, self.text_format_syntax())
-        } else {
-            0.
-        }
-    }
-
     /// Returns the range of the trailing syntax characters that define this node
     pub fn tail_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
         if matches!(node.data.borrow().value, NodeValue::Code(_)) {
@@ -292,134 +105,6 @@ impl<'ast> MdRender {
         let last_child = node.children().last()?;
         let last_child_range = self.node_range(last_child);
         Some((first_child_range.start(), last_child_range.end()))
-    }
-
-    pub fn circumfix_span(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
-    ) -> f32 {
-        let mut tmp_wrap = wrap.clone();
-
-        let any_children = node.children().next().is_some();
-        if any_children {
-            let reveal = self.node_revealed(node);
-            if reveal {
-                if let Some(prefix_range) = self.prefix_range(node) {
-                    if !prefix_range.trim(&range).is_empty() {
-                        tmp_wrap.offset += self.prefix_span(node, &tmp_wrap);
-                    }
-                }
-            }
-            if let Some(infix_range) = self.infix_range(node) {
-                if !infix_range.trim(&range).is_empty() {
-                    tmp_wrap.offset += self.inline_children_span(node, &tmp_wrap, range);
-                }
-            }
-            if reveal {
-                if let Some(postfix_range) = self.postfix_range(node) {
-                    if !postfix_range.trim(&range).is_empty() {
-                        tmp_wrap.offset += self.postfix_span(node, &tmp_wrap);
-                    }
-                }
-            }
-        } else {
-            let node_range = self.node_range(node);
-            if !node_range.trim(&range).is_empty() {
-                tmp_wrap.offset += self.span_section(wrap, node_range, self.text_format_syntax())
-            }
-        }
-
-        tmp_wrap.offset - wrap.offset
-    }
-
-    pub fn show_circumfix(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (Grapheme, Grapheme),
-    ) -> Response {
-        let mut response = Default::default();
-        let any_children = node.children().next().is_some();
-        if any_children {
-            let reveal = self.node_revealed(node);
-            if let Some(prefix_range) = self.prefix_range(node) {
-                if !prefix_range.trim(&range).is_empty() {
-                    if reveal {
-                        self.show_section(
-                            ui,
-                            top_left,
-                            wrap,
-                            prefix_range,
-                            self.text_format_syntax(),
-                        );
-                    } else {
-                        // when syntax is captured, show an empty range
-                        // representing the beginning of the prefix, so that clicking
-                        // at the start of the circumfix places the cursor before
-                        // the syntax
-                        self.show_empty_marker(
-                            ui,
-                            top_left,
-                            wrap,
-                            prefix_range.start().into_range(),
-                        );
-                    }
-                }
-            }
-            if let Some(infix_range) = self.infix_range(node) {
-                if !infix_range.trim(&range).is_empty() {
-                    response |= self.show_inline_children(ui, node, top_left, wrap, range);
-                }
-            }
-            if let Some(postfix_range) = self.postfix_range(node) {
-                if !postfix_range.trim(&range).is_empty() {
-                    if reveal {
-                        self.show_section(
-                            ui,
-                            top_left,
-                            wrap,
-                            postfix_range,
-                            self.text_format_syntax(),
-                        );
-                    } else {
-                        // when syntax is captured, show an empty range
-                        // representing the end of the postfix, so that clicking
-                        // at the end of the circumfix places the cursor after
-                        // the syntax
-                        self.show_empty_marker(
-                            ui,
-                            top_left,
-                            wrap,
-                            postfix_range.end().into_range(),
-                        );
-                    }
-                }
-            }
-        } else {
-            let node_range = self.node_range(node);
-            if range.contains_range(&node_range, true, true) {
-                response |=
-                    self.show_section(ui, top_left, wrap, node_range, self.text_format_syntax());
-            }
-        }
-
-        response
-    }
-
-    /// 0-width cursor-target marker for hidden circumfix syntax. Rewind past
-    /// row boundaries so it lands on the preceding row — otherwise
-    /// `wrap.height()` (offset-based) wouldn't count it and the parent
-    /// block's height claim would underreport.
-    fn show_empty_marker(
-        &mut self, ui: &mut Ui, top_left: Pos2, wrap: &mut Wrap, range: (Grapheme, Grapheme),
-    ) -> Response {
-        const EPS: f32 = 0.01;
-        let on_boundary = wrap.row_offset() < EPS && wrap.row() > 0;
-        if on_boundary {
-            wrap.offset -= EPS;
-        }
-        let response = self.show_section(ui, top_left, wrap, range, self.text_format_syntax());
-        if on_boundary {
-            wrap.offset += EPS;
-        }
-        response
     }
 
     /// Returns true if the node intersects the current selection. Useful for
@@ -469,5 +154,155 @@ impl<'ast> MdRender {
             range.contains(rr.start(), start_inclusive, end_inclusive)
                 || range.contains(rr.end(), start_inclusive, end_inclusive)
         })
+    }
+}
+
+// ─── inline dispatcher + circumfix helper ───────────────────────────
+
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
+
+impl<'ast> MdRender {
+    /// Emit `InlineItem`s for one inline AST node into `layout`.
+    /// Dispatches on the node's `NodeValue` to a per-kind `layout_X`.
+    pub fn layout_inline(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) {
+        match &node.data.borrow().value {
+            NodeValue::FrontMatter(_) => {}
+            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
+
+            NodeValue::Alert(_)
+            | NodeValue::BlockQuote
+            | NodeValue::DescriptionItem(_)
+            | NodeValue::DescriptionList
+            | NodeValue::Document
+            | NodeValue::FootnoteDefinition(_)
+            | NodeValue::Item(_)
+            | NodeValue::List(_)
+            | NodeValue::MultilineBlockQuote(_)
+            | NodeValue::Table(_)
+            | NodeValue::TableRow(_)
+            | NodeValue::TaskItem(_)
+            | NodeValue::CodeBlock(_)
+            | NodeValue::DescriptionDetails
+            | NodeValue::DescriptionTerm
+            | NodeValue::Heading(_)
+            | NodeValue::HtmlBlock(_)
+            | NodeValue::Paragraph
+            | NodeValue::TableCell
+            | NodeValue::ThematicBreak => {
+                unimplemented!("not an inline: {:?}", node.data.borrow().value)
+            }
+            NodeValue::Subtext => unimplemented!("extension disabled"),
+
+            NodeValue::Code(_) => self.layout_code(layout, node, range),
+            NodeValue::Emph => self.layout_emph(layout, node, range),
+            NodeValue::Escaped => self.layout_escaped(layout, node, range),
+            NodeValue::EscapedTag(_) => self.layout_escaped_tag(layout, node, range),
+            NodeValue::FootnoteReference(node_footnote_reference) => {
+                let NodeFootnoteReference { ix, .. } = &**node_footnote_reference;
+                self.layout_footnote_reference(layout, node, *ix, range)
+            }
+            NodeValue::Highlight => self.layout_highlight(layout, node, range),
+            NodeValue::HtmlInline(_) => self.layout_html_inline(layout, node, range),
+            NodeValue::Image(_) => self.layout_image(layout, node, range),
+            NodeValue::LineBreak => self.layout_line_break(layout, node, range),
+            NodeValue::Link(_) => self.layout_link(layout, node, range),
+            NodeValue::Math(_) => self.layout_math(layout, node, range),
+            NodeValue::ShortCode(node_short_code) => {
+                self.layout_short_code(layout, node, range, node_short_code)
+            }
+            NodeValue::SoftBreak => self.layout_soft_break(layout, node, range),
+            NodeValue::SpoileredText => self.layout_spoilered_text(layout, node, range),
+            NodeValue::Strikethrough => self.layout_strikethrough(layout, node, range),
+            NodeValue::Strong => self.layout_strong(layout, node, range),
+            NodeValue::Subscript => self.layout_subscript(layout, node, range),
+            NodeValue::Superscript => self.layout_superscript(layout, node, range),
+            NodeValue::Text(_) => self.layout_text(layout, node, range),
+            NodeValue::Underline => self.layout_underline(layout, node, range),
+            NodeValue::WikiLink(_) => self.layout_wikilink(layout, node, range),
+        }
+    }
+
+    /// Walk an inline-container node's children, dispatching each.
+    /// Counterpart to `show_inline_children`.
+    pub fn layout_inline_children(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) {
+        for child in node.children() {
+            self.layout_inline(layout, child, range);
+        }
+    }
+
+    /// Emit a circumfix inline (prefix / children / postfix bracketed
+    /// by a `StyleOpen` / `StyleClose`). The visible-content `format`
+    /// applies to the inner children + glued ranges; prefix/postfix
+    /// syntax always uses `text_format_syntax()`. When syntax is
+    /// hidden (cursor not on the node), prefix/postfix collapse to
+    /// zero-visible `push_override` markers — these become row
+    /// anchors so a cursor can still land "at the prefix" / "after
+    /// the postfix" via hit-test.
+    ///
+    /// When the node has no children (comrak collapsed it — e.g. an
+    /// empty `**` or stray `==`), the whole node range renders as
+    /// syntax.
+    pub fn layout_circumfix(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+        format: Format,
+    ) {
+        let node_range = self.node_range(node);
+        // Multi-line paragraphs dispatch every inline child to every
+        // source line. Skip out-of-range nodes here, otherwise the
+        // unconditional style_open/close below pollutes the line's
+        // scope stack (and walker emits stray bg-pad fragments).
+        if node_range.trim(&range).is_empty() {
+            return;
+        }
+        let any_children = node.children().next().is_some();
+        if !any_children {
+            if range.contains_range(&node_range, true, true) {
+                let trimmed = node_range.trim(&range);
+                if !trimmed.is_empty() {
+                    layout.push_source(trimmed, &self.buffer[trimmed], self.text_format_syntax());
+                }
+            }
+            return;
+        }
+        layout.style_open(StyleInfo { format, source_range: node_range });
+        let reveal = self.node_revealed(node);
+        if let Some(prefix_range) = self.prefix_range(node) {
+            let trimmed = prefix_range.trim(&range);
+            if !trimmed.is_empty() {
+                if reveal {
+                    layout.push_source(trimmed, &self.buffer[trimmed], self.text_format_syntax());
+                } else {
+                    layout.push_override(
+                        prefix_range.start().into_range(),
+                        "",
+                        self.text_format_syntax(),
+                    );
+                }
+            }
+        }
+        if let Some(infix_range) = self.infix_range(node) {
+            if !infix_range.trim(&range).is_empty() {
+                self.layout_inline_children(layout, node, range);
+            }
+        }
+        if let Some(postfix_range) = self.postfix_range(node) {
+            let trimmed = postfix_range.trim(&range);
+            if !trimmed.is_empty() {
+                if reveal {
+                    layout.push_source(trimmed, &self.buffer[trimmed], self.text_format_syntax());
+                } else {
+                    layout.push_override(
+                        postfix_range.end().into_range(),
+                        "",
+                        self.text_format_syntax(),
+                    );
+                }
+            }
+        }
+        layout.style_close();
     }
 }

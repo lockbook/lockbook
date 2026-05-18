@@ -16,13 +16,16 @@ impl<'ast> MdRender {
         if self.reveal_table_row(node) {
             let line = self.node_first_line(node);
             let node_line = self.node_line(node, line);
-
+            let width = self.width(node);
             self.layout.block_padding
-                + self.height_section(
-                    &mut self.new_wrap(self.width(node)),
-                    node_line,
-                    self.text_format_syntax(),
-                )
+                + self
+                    .compute_section_layout_new(
+                        node_line,
+                        width,
+                        self.layout.row_height,
+                        self.text_format_syntax(),
+                    )
+                    .height
                 + self.layout.block_padding
         } else {
             // the height of the row is the height of the tallest cell
@@ -43,10 +46,14 @@ impl<'ast> MdRender {
 
             let line = self.node_first_line(node);
             let node_line = self.node_line(node, line);
-
-            let mut wrap = self.new_wrap(self.width(node));
-            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
+            let width = self.width(node);
+            let result = self.compute_section_layout_new(
+                node_line,
+                width,
+                self.layout.row_height,
+                self.text_format_syntax(),
+            );
+            self.show_wrap_layout(ui, top_left, &result);
         } else {
             let height = self.height_table_row(node);
             let width = self.width(node);
@@ -85,8 +92,11 @@ impl<'ast> MdRender {
         }
     }
 
+    /// Reveal the table row's source when the cursor sits between
+    /// cells or after the last cell. Reads `reveal_selection` rather
+    /// than `buffer.current.selection` so unfocused frames see stable
+    /// layout.
     fn reveal_table_row(&self, node: &'ast AstNode<'ast>) -> bool {
-        let selection = self.buffer.current.selection;
         let row_range = self.node_range(node);
         let line = self.node_first_line(node);
         let node_line = self.node_line(node, line);
@@ -104,7 +114,7 @@ impl<'ast> MdRender {
 
             let between_range = (range_start, cell_range.start());
 
-            if between_range.contains_range(&selection, false, false) {
+            if self.range_contains_revealed(between_range, false, false) {
                 return true;
             }
 
@@ -122,13 +132,7 @@ impl<'ast> MdRender {
             };
 
             let between_range = (cell_range.end(), row_range.end());
-            // end_inclusive=false: a cursor AT row.end sits on the
-            // boundary with whatever follows the row (the trailing
-            // newline / the next block). Treating it as "inside the
-            // row" spuriously reveals the row when the user has just
-            // walked past it. The post-row area has its own reveal
-            // handling.
-            if between_range.contains_range(&selection, false, false) {
+            if self.range_contains_revealed(between_range, false, false) {
                 return true;
             }
         }

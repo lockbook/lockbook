@@ -3,9 +3,8 @@ use std::mem;
 use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
+use crate::tab::ExtendedInput as _;
 use crate::tab::markdown_editor::MdEdit;
-
-use crate::tab::{ExtendedInput as _, markdown_editor::galleys::GalleyInfo};
 use crate::theme::palette_v2::ThemeExt as _;
 
 use super::{Event, Location, Region};
@@ -45,32 +44,43 @@ impl MdEdit {
     }
 
     pub fn range_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
-        let mut result = Vec::new();
-
-        // todo: binary search
-        for galley_info in self.renderer.galleys.galleys.iter().rev() {
-            let GalleyInfo { range: galley_range, mut rect, padded, .. } = galley_info;
-            if galley_range.end() < range.start() {
-                break;
-            } else if galley_range.start() > range.end() {
+        let mut result: Vec<Rect> = Vec::new();
+        for frag in self.renderer.fragments.iter() {
+            let frag_range = frag.source_range;
+            // Skip empty-range fragments (anchors) — they contribute
+            // no width, so a selection rect over them would be 0×N
+            // and add noise.
+            if frag_range.start() == frag_range.end() {
                 continue;
             }
-
-            if galley_range.contains_inclusive(range.start()) {
-                rect.min.x = self.renderer.galley_x(galley_info, range.start());
+            if frag_range.end() <= range.start() || frag_range.start() >= range.end() {
+                continue;
             }
-            if galley_range.contains_inclusive(range.end()) {
-                rect.max.x = self.renderer.galley_x(galley_info, range.end());
+            let mut rect = frag.rect;
+            if frag_range.contains_inclusive(range.start()) {
+                rect.min.x = self.renderer.fragment_x(frag, range.start());
             }
-
-            if rect.area() > 0.001 && *padded {
-                rect = rect.expand2(self.renderer.layout.inline_padding * Vec2::X);
+            if frag_range.contains_inclusive(range.end()) {
+                rect.max.x = self.renderer.fragment_x(frag, range.end());
             }
-
+            if rect.area() <= 0.001 {
+                continue;
+            }
+            // Coalesce contiguous same-row rects so each row's
+            // selection paints as one merged rounded rect (outer
+            // corners rounded, no rounding at internal fragment
+            // seams).
+            if let Some(last) = result.last_mut() {
+                let same_row = (last.top() - rect.top()).abs() < 0.001
+                    && (last.bottom() - rect.bottom()).abs() < 0.001;
+                let contiguous = (last.right() - rect.left()).abs() < 0.001;
+                if same_row && contiguous {
+                    last.max.x = rect.max.x;
+                    continue;
+                }
+            }
             result.push(rect);
         }
-
-        result.reverse();
         result
     }
 
@@ -157,9 +167,9 @@ impl MdEdit {
             let line_height = line[1].y - line[0].y;
             let offset = Vec2::new(0.0, -line_height - radius);
             let mut new_pos = ui.input(|i| i.pointer.interact_pos().unwrap_or_default()) + offset;
-            // stay within the last galley's y-range so `pos_to_range`
+            // stay within the last fragment's y-range so `pos_to_range`
             // uses x-aware placement instead of jumping to doc end
-            if let Some(last) = self.renderer.galleys.galleys.last() {
+            if let Some(last) = self.renderer.fragments.last() {
                 new_pos.y = new_pos.y.min(last.rect.max.y - 1.0);
             }
             let selection = self.renderer.buffer.current.selection;
@@ -218,10 +228,9 @@ impl MdEdit {
     }
 
     pub fn cursor_line(&self, offset: Grapheme) -> Option<[Pos2; 2]> {
-        let galley_idx = self.renderer.galleys.galley_at_offset(offset)?;
-        let galley = &self.renderer.galleys[galley_idx];
-        let x = self.renderer.galley_x(galley, offset);
-        let y_range = galley
+        let frag = self.renderer.fragment_at_offset(offset)?;
+        let x = self.renderer.fragment_x(frag, offset);
+        let y_range = frag
             .rect
             .y_range()
             .expand(self.renderer.layout.row_spacing / 2.);

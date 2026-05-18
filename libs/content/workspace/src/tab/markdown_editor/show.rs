@@ -145,7 +145,7 @@ impl MdEdit {
         let root = self.renderer.reparse(&arena);
         let pre = self.pre_render(ui, rect, id, root);
 
-        self.renderer.galleys.galleys.clear();
+        self.renderer.fragments.clear();
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         let height = self.renderer.height(root);
@@ -153,7 +153,7 @@ impl MdEdit {
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
             self.renderer.show_block(ui, root, rect.min);
         });
-        self.renderer.galleys.galleys.sort_by_key(|g| g.range);
+        self.renderer.fragments.sort_by_key(|f| f.source_range);
 
         self.post_render(ui, rect, id, pre);
     }
@@ -241,12 +241,12 @@ impl MdEdit {
         }
 
         // --- pointer → selection change ---------------------------------------
-        // Reads last-frame galleys to resolve pos → offset. Skipped when
-        // galleys is empty (first frame / empty doc) — the click will land
-        // next frame once render populates galleys.
+        // Reads last-frame fragments to resolve pos → offset. Skipped
+        // when fragments is empty (first frame / empty doc) — the
+        // click will land next frame once render populates them.
         let modifiers = ui.ctx().input(|i| i.modifiers);
         let ctx = ui.ctx().clone();
-        let have_galleys = !self.renderer.galleys.galleys.is_empty();
+        let have_galleys = !self.renderer.fragments.is_empty();
         if have_galleys {
             if let Some(pos) = response.interact_pointer_pos() {
                 let location = Location::Pos(pos);

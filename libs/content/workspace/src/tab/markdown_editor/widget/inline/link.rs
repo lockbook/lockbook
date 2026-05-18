@@ -1,6 +1,5 @@
-use comrak::nodes::{AstNode, NodeLink, NodeValue};
-use egui::{OpenUrl, Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
+use comrak::nodes::{AstNode, NodeValue};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::spawn;
 use scraper::{Html, Selector};
 use std::collections::hash_map::Entry;
@@ -12,9 +11,7 @@ use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::block::TitleState;
-use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
-use crate::theme::icons::Icon;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -36,159 +33,39 @@ impl<'ast> MdRender {
         Format { color, underline: true, ..parent_text_format }
     }
 
-    pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> Format {
-        Format { family: FontFamily::Icons, ..self.text_format_link(parent, LinkState::Normal) }
-    }
-
     fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
         self.infix_range(node)
             .is_some_and(|r| &self.buffer[r] == url)
     }
 
-    fn link_is_revealed(&self, node: &'ast AstNode<'ast>, is_auto: bool) -> bool {
-        let node_range = self.node_range(node);
-        let selection = &self.buffer.current.selection;
-        // auto links also reveal when cursor sits at a boundary, so backspacing
-        // from the right side doesn't repeatedly replace the display text
-        node_range.intersects(selection, is_auto)
-    }
-
-    pub fn span_link(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
-    ) -> f32 {
-        let mut tmp_wrap = wrap.clone();
+    /// Emit a link as a normal circumfix (children styled with link
+    /// format, prefix/postfix syntax revealed by cursor). For empty
+    /// or auto links with a fetched title, swap the URL bytes for
+    /// the fetched title via `push_override`. Sense routing (click
+    /// to open, touch-mode "open in new tab" button) lives in the
+    /// fragment paint / hit-test layer, not in walker emit.
+    pub fn layout_link(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) {
         let node_range = self.node_range(node);
         let url = node_link_url(node);
         let is_auto = self.link_is_auto(node, &url);
+        let parent = node.parent().unwrap();
+        let link_fmt = self.text_format_link(parent, self.link_state_for_url(&url));
+        let revealed = self.range_revealed(node_range, is_auto);
 
-        let used_override = (node.children().next().is_none() || is_auto)
-            && !self.link_is_revealed(node, is_auto)
-            && !node_range.trim(&range).is_empty()
-            && match self.get_link_title(&url) {
-                DestinationTitle::Ready(t) => {
-                    tmp_wrap.offset += self.span_override_section(
-                        &tmp_wrap,
-                        &t,
-                        self.text_format_link(node.parent().unwrap(), LinkState::Normal),
-                    );
-                    true
-                }
-                DestinationTitle::Absent => false,
-            };
-
-        if !used_override {
-            tmp_wrap.offset += self.circumfix_span(node, &tmp_wrap, range);
-        }
-
-        if range.contains_inclusive(node_range.end()) && self.touch_mode {
-            tmp_wrap.offset += self.span_override_section(
-                &tmp_wrap,
-                " ",
-                self.text_format(node.parent().unwrap()),
-            );
-            tmp_wrap.offset += self.span_override_section(
-                &tmp_wrap,
-                Icon::OPEN_IN_NEW.icon,
-                self.text_format_link_button(node.parent().unwrap()),
-            );
-        }
-
-        tmp_wrap.offset - wrap.offset
-    }
-
-    pub fn show_link(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        node_link: &NodeLink, range: (Grapheme, Grapheme),
-    ) -> Response {
-        let node_range = self.node_range(node);
-        let is_auto = self.link_is_auto(node, &node_link.url);
-        let mut response = if (node.children().next().is_none() || is_auto)
-            && !self.link_is_revealed(node, is_auto)
-        {
-            // empty or auto link: show the fetched title in place of the URL
+        // Empty link with title fetched: replace URL bytes with title.
+        if (node.children().next().is_none() || is_auto) && !revealed {
             let trimmed = node_range.trim(&range);
             if !trimmed.is_empty() {
-                match self.get_link_title(&node_link.url) {
-                    DestinationTitle::Ready(t) => self.show_override_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        trimmed,
-                        self.text_format_link(node.parent().unwrap(), LinkState::Normal),
-                        Some(&t),
-                        Sense::hover(),
-                    ),
-                    DestinationTitle::Absent => {
-                        // no title yet (loading, failed, or never had one)
-                        self.show_circumfix(ui, node, top_left, wrap, range)
-                    }
-                }
-            } else {
-                // has title
-                self.show_circumfix(ui, node, top_left, wrap, range)
-            }
-        } else {
-            // has children or is revealed
-            self.show_circumfix(ui, node, top_left, wrap, range)
-        };
-
-        response.hovered &= self.inline_clickable(ui, node);
-
-        if range.contains_inclusive(self.node_range(node).end()) && self.touch_mode {
-            response |= self.show_override_section(
-                ui,
-                top_left,
-                wrap,
-                self.node_range(node).end().into_range(),
-                self.text_format(node.parent().unwrap()),
-                Some(" "),
-                Sense::focusable_noninteractive(),
-            );
-            response |= self.show_override_section(
-                ui,
-                top_left,
-                wrap,
-                self.node_range(node).end().into_range(),
-                self.text_format_link_button(node.parent().unwrap()),
-                Some(Icon::OPEN_IN_NEW.icon),
-                Sense::click(),
-            );
-        }
-
-        if response.hovered {
-            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            if let LinkState::Warning { message } | LinkState::Broken { message } =
-                self.link_state_for_url(&node_link.url)
-            {
-                if let Some(pos) = ui.ctx().pointer_hover_pos() {
-                    egui::Area::new(ui.id().with("link_warning"))
-                        .order(egui::Order::Tooltip)
-                        .fixed_pos(pos + egui::vec2(8.0, 16.0))
-                        .show(ui.ctx(), |ui| {
-                            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                ui.label(&message);
-                            });
-                        });
+                if let DestinationTitle::Ready(t) = self.get_link_title(&url) {
+                    layout.push_override(trimmed, &t, link_fmt);
+                    return;
                 }
             }
         }
-        if response.clicked {
-            let cmd = ui.input(|i| i.modifiers.command);
-            match self.resolve_link(&node_link.url) {
-                Some(ResolvedLink::File(id)) => {
-                    ui.ctx().open_file(id, cmd);
-                }
-                Some(ResolvedLink::External(url)) => {
-                    ui.ctx().open_url(OpenUrl { url, new_tab: cmd });
-                }
-                None => {
-                    ui.ctx()
-                        .open_url(OpenUrl { url: node_link.url.clone(), new_tab: cmd });
-                }
-            }
-        }
-
-        response
+        // Otherwise: emit as a circumfix with link format.
+        self.layout_circumfix(layout, node, range, link_fmt);
     }
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
@@ -343,7 +220,7 @@ impl<'ast> MdRender {
 fn node_link_url(node: &AstNode<'_>) -> String {
     use comrak::nodes::NodeValue;
     match &node.data.borrow().value {
-        NodeValue::Link(link) => link.url.clone(),
+        NodeValue::Link(link) | NodeValue::Image(link) => link.url.clone(),
         _ => String::new(),
     }
 }

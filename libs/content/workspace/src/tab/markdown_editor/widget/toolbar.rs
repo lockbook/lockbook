@@ -601,7 +601,7 @@ impl<'ast> Editor {
                             let inline_paragraphs =
                                 mem::take(&mut self.edit.renderer.bounds.inline_paragraphs);
 
-                            let galleys = mem::take(&mut self.edit.renderer.galleys.galleys);
+                            let fragments = mem::take(&mut self.edit.renderer.fragments);
                             let wrap_lines = mem::take(&mut self.edit.renderer.bounds.wrap_lines);
                             let touch_consuming_rects =
                                 mem::take(&mut self.edit.renderer.touch_consuming_rects);
@@ -1047,7 +1047,7 @@ impl<'ast> Editor {
                             self.edit.renderer.bounds.inline_paragraphs = inline_paragraphs;
                             self.edit.renderer.calc_words();
 
-                            self.edit.renderer.galleys.galleys = galleys;
+                            self.edit.renderer.fragments = fragments;
                             self.edit.renderer.bounds.wrap_lines = wrap_lines;
                             self.edit.renderer.touch_consuming_rects = touch_consuming_rects;
 
@@ -1109,6 +1109,7 @@ impl<'ast> Editor {
 
         // pre-render work
         self.edit.renderer.calc_source_lines();
+        self.edit.renderer.populate_hidden_by_fold(root);
         self.edit.renderer.compute_bounds(root);
         self.edit.renderer.bounds.inline_paragraphs.sort();
         self.edit.renderer.calc_words();
@@ -1143,6 +1144,7 @@ impl<'ast> Editor {
 
         // pre-render work
         self.edit.renderer.calc_source_lines();
+        self.edit.renderer.populate_hidden_by_fold(root);
         self.edit.renderer.compute_bounds(root);
         self.edit.renderer.bounds.inline_paragraphs.sort();
         self.edit.renderer.calc_words();

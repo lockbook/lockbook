@@ -116,18 +116,15 @@ impl<'ast> MdRender {
         } else {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
-
-            let mut wrap = self.new_wrap(self.width(node));
-            let resp = self.show_section(
-                ui,
-                top_left + self.layout.indent * Vec2::X,
-                &mut wrap,
+            let width = self.width(node);
+            let result = self.compute_section_layout_new(
                 line_content,
+                width,
+                self.layout.row_height,
                 self.text_format_document(),
             );
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
-
-            resp.hovered
+            self.show_wrap_layout(ui, top_left + self.layout.indent * Vec2::X, &result);
+            false
         };
 
         // fold button

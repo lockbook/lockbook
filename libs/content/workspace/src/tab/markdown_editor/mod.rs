@@ -17,7 +17,6 @@ use egui::{
     Context, EventFilter, FontData, FontDefinitions, FontFamily, FontTweak, Frame, Id, Margin,
     Pos2, Rect, Stroke, Ui, UiBuilder, Vec2,
 };
-use galleys::Galleys;
 use input::cursor::CursorState;
 use input::mutation::EventState;
 use lb_rs::Uuid;
@@ -58,7 +57,6 @@ pub fn syntax_theme() -> &'static Theme {
 }
 
 pub mod bounds;
-mod galleys;
 pub mod input;
 pub mod md_label;
 pub mod output;
@@ -105,7 +103,7 @@ pub struct MdRender {
     pub bounds_seq: u64,
 
     // render output
-    pub galleys: Galleys,
+    pub fragments: Vec<widget::utils::wrap_layout::Fragment>,
     pub text_areas: Vec<TextBufferArea>,
     pub render_events: Vec<input::Event>,
     pub touch_consuming_rects: Vec<Rect>,
@@ -364,7 +362,7 @@ impl MdRender {
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
-            galleys: Default::default(),
+            fragments: Vec::new(),
             text_areas: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
@@ -407,6 +405,13 @@ impl MdRender {
         }
     }
 
+    /// Test setter for the viewport height — used by property tests
+    /// that want to drive layout at a known viewport size without
+    /// running a full egui frame.
+    pub fn set_viewport_height(&mut self, viewport_height: f32) {
+        self.viewport_height = viewport_height;
+    }
+
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         let ctx = Context::default();
@@ -419,7 +424,7 @@ impl MdRender {
             touch_mode: false,
             bounds: Default::default(),
             buffer: md.into(),
-            galleys: Default::default(),
+            fragments: Vec::new(),
             text_areas: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
@@ -560,7 +565,7 @@ impl Editor {
             bounds: Default::default(),
             buffer: md.into(),
 
-            galleys: Default::default(),
+            fragments: Vec::new(),
             text_areas: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
@@ -1140,7 +1145,7 @@ impl Editor {
 
                         let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
-                        self.edit.renderer.galleys.galleys.clear();
+                        self.edit.renderer.fragments.clear();
                         self.edit.renderer.bounds.wrap_lines.clear();
                         self.edit.renderer.text_areas.clear();
 
@@ -1202,7 +1207,7 @@ impl Editor {
                         pre
                     })
                     .inner;
-                self.edit.renderer.galleys.galleys.sort_by_key(|g| g.range);
+                self.edit.renderer.fragments.sort_by_key(|f| f.source_range);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 ui.advance_cursor_after_rect(canvas_rect);
@@ -1288,19 +1293,15 @@ impl Editor {
     }
 }
 
-/// Build a [`Reveal`] spanning a Grapheme range — works for any of:
-/// single cursor (`(g, g)`), multi-line selection, or wrapped find
-/// match (where the match crosses a wrap boundary so it occupies more
-/// than one screen line).
-///
-/// Each endpoint independently prefers a galley-derived intra-row
-/// position so `Align::Center` lands the actual span at viewport
-/// center and `Align::Nearest` knows precisely which screen lines need
-/// to be in view. Falls back per endpoint to a row-anchor when no
-/// galley exists (e.g. an off-viewport top-level block before the next
-/// render shapes it). The range is reordered to `(min, max)` so
-/// callers can pass the buffer's raw `(anchor, cursor)` selection
-/// without normalising.
+/// Build a [`Reveal`] spanning a Grapheme range — works for a single
+/// cursor (`(g, g)`), a multi-line selection, or a find match that
+/// crosses a wrap boundary. Each endpoint independently prefers a
+/// fragment-derived intra-row position so `Align::Center` lands the
+/// span at viewport center and `Align::Nearest` knows precisely which
+/// screen lines need to be in view; falls back to a row-anchor when
+/// no fragment exists (off-viewport block not yet shaped). The range
+/// is reordered to `(min, max)` so callers can pass raw `(anchor,
+/// cursor)` selections.
 pub(crate) fn build_target_reveal(
     renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
     state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, range: (Grapheme, Grapheme),
@@ -1326,9 +1327,8 @@ fn endpoint_offset(
     canvas_rect: Rect, side: EndpointSide, pad: f32,
 ) -> Option<Offset<DocRowId>> {
     use crate::widgets::affine_scroll::Rows as _;
-    if let Some(galley_idx) = renderer.galleys.galley_at_offset(target) {
-        let galley = &renderer.galleys[galley_idx];
-        let y_range = galley.rect.y_range().expand(pad);
+    if let Some(frag) = renderer.fragment_at_offset(target) {
+        let y_range = frag.rect.y_range().expand(pad);
         let y = match side {
             EndpointSide::Top => y_range.min,
             EndpointSide::Bottom => y_range.max,

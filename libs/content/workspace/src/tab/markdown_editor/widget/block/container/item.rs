@@ -19,12 +19,14 @@ impl<'ast> MdRender {
         } else {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
-
-            self.height_section(
-                &mut self.new_wrap(self.width(node) - self.layout.indent),
+            let width = self.width(node) - self.layout.indent;
+            self.compute_section_layout_new(
                 line_content,
+                width,
+                self.layout.row_height,
                 self.text_format_syntax(),
             )
+            .height
         }
     }
 
@@ -110,18 +112,17 @@ impl<'ast> MdRender {
         } else {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
-
-            let mut wrap = self.new_wrap(self.width(node) - self.layout.indent);
-            let resp = self.show_section(
-                ui,
-                top_left + self.layout.indent * Vec2::X,
-                &mut wrap,
+            let width = self.width(node) - self.layout.indent;
+            let result = self.compute_section_layout_new(
                 line_content,
+                width,
+                self.layout.row_height,
                 self.text_format_syntax(),
             );
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
-
-            resp.hovered
+            self.show_wrap_layout(ui, top_left + self.layout.indent * Vec2::X, &result);
+            let item_rect =
+                Rect::from_min_size(top_left, Vec2::new(self.width(node), result.height));
+            item_rect.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
         };
 
         // fold button
@@ -201,20 +202,13 @@ impl<'ast> MdRender {
             //
             // "If a line is empty, then it need not be indented."
             //
-            // Two regimes. If this line contains an indented `CodeBlock`
-            // child (non-fenced), we're in code-block territory — defer
-            // all stripping to `code_block.rs`, which does a combined
-            // (item.padding + 4) column-aware strip. A tab straddling
-            // the item/code-block boundary would otherwise get
-            // attributed to one side, making tab and 4sp forms render
-            // differently. Otherwise it's paragraph continuation —
-            // strip all leading ws so tab and space forms parse-
-            // equivalently. Scan children via sourcepos (cheap) rather
-            // than `node_range` (expensive recursion).
-            // Our current line number (1-based). `line.start()` is a
-            // `Grapheme` boundary into `source_lines` — use
-            // `find_containing` to locate its index, then convert to
-            // 1-based.
+            // Two regimes: an indented-code-block child line defers
+            // stripping to `code_block.rs` (combined item.padding+4
+            // column-aware strip — needed so a tab straddling the
+            // item/code boundary doesn't render differently from
+            // 4 spaces). All other continuation lines strip leading
+            // ws here. Child detection uses sourcepos (cheap) instead
+            // of `node_range` (recursive).
             let line_1_based = self
                 .bounds
                 .source_lines
