@@ -45,99 +45,111 @@ impl MdEdit {
     }
 
     fn advance_by_line(&self, offset: Grapheme, x_target: f32, backwards: bool) -> Grapheme {
-        let fragments = &self.renderer.fragments;
-        // Last-match wins (mirrors `fragment_at_offset`): at a wrap
-        // boundary, cursor rendering uses the row-N+1 fragment, so
-        // navigation must too — otherwise down-arrow would target row
-        // N+1 from a cur_idx anchored on row N's glue and no-op.
-        let cur_idx = fragments.iter().enumerate().rev().find_map(|(i, f)| {
-            let (s, e) = f.source_range;
-            (s <= offset && offset <= e).then_some(i)
-        });
-        let Some(cur_idx) = cur_idx else { return offset };
-        self.advance_by_line_from(cur_idx, x_target, backwards, offset)
-    }
-
-    /// Inner helper: jump to the closest fragment on the row above
-    /// (or below) the fragment at `cur_idx`, snapping x to `x_target`.
-    fn advance_by_line_from(
-        &self, cur_idx: usize, x_target: f32, backwards: bool, fallback_offset: Grapheme,
-    ) -> Grapheme {
-        let fragments = &self.renderer.fragments;
-        let cur_frag = &fragments[cur_idx];
-        // (x-distance, decorative-bit) — empty-range fragments
-        // (pill pads, scope-boundary pads, anchors) lose ties to real
-        // glyph fragments but win when they're the only candidate
-        // (e.g. blank-line rows).
-        let score = |f: &crate::tab::markdown_editor::widget::utils::wrap_layout::Fragment| -> (f32, u8) {
-            let distance =
-                (f.rect.left().max(x_target).min(f.rect.right()) - x_target).abs();
-            let kind = if f.source_range.start() == f.source_range.end() { 1 } else { 0 };
-            (distance, kind)
+        // Mirror `fragment_at_offset`'s last-match semantics so navigation
+        // agrees with cursor rendering at wrap boundaries.
+        let Some(cur_idx) = self.renderer.fragments.iter().enumerate().rev().find_map(
+            |(i, f)| {
+                let (s, e) = f.source_range;
+                (s <= offset && offset <= e).then_some(i)
+            },
+        ) else {
+            return offset;
         };
+        let cur_frag = &self.renderer.fragments[cur_idx];
         if backwards {
-            let mut best: Option<(usize, (f32, u8))> = None;
+            // jump to the closest fragment above that's not above another fragment that's above
+            let mut closest_offset: Option<Grapheme> = None;
+            let mut closest_distance = f32::INFINITY;
             let mut row_above_top: Option<f32> = None;
-            for idx in (0..cur_idx).rev() {
-                let f = &fragments[idx];
-                let is_above = f.rect.bottom() < cur_frag.rect.top();
-                let too_above = row_above_top.is_some_and(|t| f.rect.bottom() < t);
-                if too_above {
+            for new_idx in (0..cur_idx).rev() {
+                let new_frag = &self.renderer.fragments[new_idx];
+                let new_is_above = new_frag.rect.bottom() < cur_frag.rect.top();
+                let new_too_above = if let Some(row_above_top) = row_above_top {
+                    new_frag.rect.bottom() < row_above_top
+                } else {
+                    false
+                };
+
+                if new_too_above {
                     break;
-                }
-                if !is_above {
-                    continue;
-                }
-                row_above_top = Some(f.rect.top());
-                let s = score(f);
-                if best.is_none_or(|(_, bs)| s < bs) {
-                    best = Some((idx, s));
+                } else if new_is_above {
+                    row_above_top = Some(new_frag.rect.top());
+
+                    let new_offset = self.renderer.fragment_offset(new_frag, x_target);
+                    let new_x = self.renderer.fragment_x(new_frag, new_offset);
+
+                    let distance = (new_x - x_target).abs(); // closest as in closest to target
+
+                    // prefer empty fragments which are placed deliberately to affect such behavior
+                    if distance < closest_distance
+                        || (distance == closest_distance
+                            && new_frag.source_range.start() == new_frag.source_range.end())
+                    {
+                        closest_offset = Some(new_offset);
+                        closest_distance = distance;
+                    }
+                } else {
+                    continue; // keep going until we're on the prev row (if there is one)
                 }
             }
-            let Some((idx, _)) = best else { return fallback_offset };
-            let f = &fragments[idx];
-            let new_x = x_target.clamp(f.rect.left(), f.rect.right());
-            self.renderer.fragment_offset(f, new_x)
+
+            closest_offset.unwrap_or(offset)
         } else {
-            let mut best: Option<(usize, (f32, u8))> = None;
+            // jump to the closest fragment below that's not below another fragment that's below
+            let mut closest_offset: Option<Grapheme> = None;
+            let mut closest_distance = f32::INFINITY;
             let mut row_below_bottom: Option<f32> = None;
-            for (idx, f) in fragments.iter().enumerate().skip(cur_idx + 1) {
-                let is_below = f.rect.top() > cur_frag.rect.bottom();
-                let too_below = row_below_bottom.is_some_and(|b| f.rect.top() > b);
-                if too_below {
+            for new_idx in cur_idx + 1..self.renderer.fragments.len() {
+                let new_frag = &self.renderer.fragments[new_idx];
+                let new_is_below = new_frag.rect.top() > cur_frag.rect.bottom();
+                let new_too_below = if let Some(row_below_bottom) = row_below_bottom {
+                    new_frag.rect.top() > row_below_bottom
+                } else {
+                    false
+                };
+
+                if new_too_below {
                     break;
-                }
-                if !is_below {
-                    continue;
-                }
-                row_below_bottom = Some(f.rect.bottom());
-                let s = score(f);
-                if best.is_none_or(|(_, bs)| s < bs) {
-                    best = Some((idx, s));
+                } else if new_is_below {
+                    row_below_bottom = Some(new_frag.rect.bottom());
+
+                    let new_offset = self.renderer.fragment_offset(new_frag, x_target);
+                    let new_x = self.renderer.fragment_x(new_frag, new_offset);
+
+                    let distance = (new_x - x_target).abs(); // closest as in closest to target
+
+                    // prefer empty fragments which are placed deliberately to affect such behavior
+                    if distance < closest_distance
+                        || (distance == closest_distance
+                            && new_frag.source_range.start() == new_frag.source_range.end())
+                    {
+                        closest_offset = Some(new_offset);
+                        closest_distance = distance;
+                    }
+                } else {
+                    continue; // keep going until we're on the next row (if there is one)
                 }
             }
-            if let Some((idx, _)) = best {
-                let f = &fragments[idx];
-                let new_x = x_target.clamp(f.rect.left(), f.rect.right());
-                self.renderer.fragment_offset(f, new_x)
+
+            if let Some(closest_offset) = closest_offset {
+                closest_offset
             } else if !self
                 .renderer
                 .bounds
                 .source_lines
-                .find_containing(fallback_offset, true, true)
+                .find_containing(offset, true, true)
                 .contains(self.renderer.bounds.source_lines.len() - 1, true, false)
             {
-                // The cursor is in the last fragment but not the last
-                // source line — likely the last fragment is hidden (folded).
+                // if we're in the last fragment but not the last source line it's
+                // because the last fragment is hidden (perhaps by a folded node)
                 self.renderer.buffer.current.segs.last_cursor_position()
             } else {
-                fallback_offset
+                offset
             }
         }
     }
 
-    /// Cursor screen x for `offset` (used by line-advance to lock
-    /// `x_target` and by `x_target` initialization).
+    /// returns the x coordinate of the absolute position of `self` in `fragment`
     fn x(&self, offset: Grapheme) -> Option<f32> {
         let frag = self.renderer.fragment_at_offset(offset)?;
         Some(self.renderer.fragment_x(frag, offset))
