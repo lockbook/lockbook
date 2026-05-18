@@ -190,28 +190,33 @@ class FilesListFragment :
             }
         }
 
-        val fabBackgroundColor = getMaterialColorOrFallback(
-            com.google.android.material.R.attr.colorPrimary,
-            R.color.md_theme_primary,
-        )
-        val fabIconColor = getMaterialColorOrFallback(
-            com.google.android.material.R.attr.colorOnPrimary,
-            R.color.md_theme_onPrimary,
-        )
+        val fabBackgroundColor =
+            getMaterialColorOrFallback(
+                com.google.android.material.R.attr.colorPrimary,
+                R.color.md_theme_primary,
+            )
+        val fabIconColor =
+            getMaterialColorOrFallback(
+                com.google.android.material.R.attr.colorOnPrimary,
+                R.color.md_theme_onPrimary,
+            )
 
         binding.fabSpeedDial.addAllActionItems(
             listOf(
-                SpeedDialActionItem.Builder(R.id.fab_create_folder, R.drawable.ic_baseline_folder_24)
+                SpeedDialActionItem
+                    .Builder(R.id.fab_create_folder, R.drawable.ic_baseline_folder_24)
                     .setLabel(R.string.folder)
                     .setFabBackgroundColor(fabBackgroundColor)
                     .setFabImageTintColor(fabIconColor)
                     .create(),
-                SpeedDialActionItem.Builder(R.id.fab_create_document, R.drawable.ic_outline_insert_drive_file_24)
+                SpeedDialActionItem
+                    .Builder(R.id.fab_create_document, R.drawable.ic_outline_insert_drive_file_24)
                     .setLabel(R.string.document)
                     .setFabBackgroundColor(fabBackgroundColor)
                     .setFabImageTintColor(fabIconColor)
                     .create(),
-                SpeedDialActionItem.Builder(R.id.fab_create_drawing, R.drawable.ic_outline_draw_24)
+                SpeedDialActionItem
+                    .Builder(R.id.fab_create_drawing, R.drawable.ic_outline_draw_24)
                     .setLabel(R.string.drawing)
                     .setFabBackgroundColor(fabBackgroundColor)
                     .setFabImageTintColor(fabIconColor)
@@ -333,7 +338,10 @@ class FilesListFragment :
         workspaceModel._createDocAt.value = isDrawing to model.fileModel.parent.id
     }
 
-    private fun getMaterialColorOrFallback(attr: Int, fallbackColor: Int): Int =
+    private fun getMaterialColorOrFallback(
+        attr: Int,
+        fallbackColor: Int,
+    ): Int =
         runCatching {
             MaterialColors.getColor(binding.fabSpeedDial, attr)
         }.getOrElse {
