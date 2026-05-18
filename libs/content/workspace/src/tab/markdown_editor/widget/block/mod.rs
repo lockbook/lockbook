@@ -26,12 +26,9 @@ impl<'ast> MdRender {
         let parent = || node.parent().unwrap();
         let parent_width = || self.width(parent());
         let parent_indent = || self.indent(parent());
-        // `parent_width - parent_indent` can go negative for deeply
-        // nested containers at narrow doc widths (e.g. a table cell
-        // inside three blockquotes at ~200px). Clamp to 0 so child
-        // computations don't propagate nonsense; `show_block` /
-        // `height` separately bail when width falls below the
-        // "can't fit anything" threshold.
+        // Clamp at 0: deeply nested containers at narrow doc widths
+        // can drive `parent_width - parent_indent` negative; `show_block`
+        // / `height` bail separately when width is genuinely too small.
         let indented_width = || (parent_width() - parent_indent()).max(0.0);
 
         let value = &node.data.borrow().value;
@@ -110,15 +107,18 @@ impl<'ast> MdRender {
         {
             let mut height = 0.;
 
+            let width = self.width(node);
+            let row_height = self.layout.row_height;
             for line in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line];
                 let node_line = self.node_line(node, line);
-
-                height += self.height_section(
-                    &mut self.new_wrap(self.width(node)),
+                let l = self.compute_section_layout_new(
                     node_line,
+                    width,
+                    row_height,
                     self.text_format_syntax(),
                 );
+                height += l.height;
                 height += self.layout.block_spacing;
             }
             if height > 0. {
@@ -321,16 +321,22 @@ impl<'ast> MdRender {
             && node.data.borrow().value.is_container_block()
             && self.reveal(node)
         {
+            let width = self.width(node);
+            let row_height = self.layout.row_height;
             for line in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line];
                 let node_line = self.node_line(node, line);
 
-                let mut wrap = self.new_wrap(self.width(node));
-                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
-
-                top_left.y += wrap.height();
+                let result = self.compute_section_layout_new(
+                    node_line,
+                    width,
+                    row_height,
+                    self.text_format_syntax(),
+                );
+                let h = result.height;
+                self.show_wrap_layout(ui, top_left, &result);
+                top_left.y += h;
                 top_left.y += self.layout.block_spacing;
-                self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
 
             return;

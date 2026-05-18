@@ -1,15 +1,12 @@
 use crate::tab::markdown_editor::{syntax_set, syntax_theme};
 use comrak::nodes::AstNode;
-use egui::{Color32, Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{
-    Grapheme, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
-};
+use egui::{Color32, Pos2, Ui};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 use syntect::easy::HighlightLines;
 
 use crate::show::syntax_ext_for;
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::galleys::GalleyInfo;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Layout};
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> MdRender {
@@ -51,7 +48,7 @@ impl<'ast> MdRender {
     pub fn show_document(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let width = self.width(node);
 
-        let pre_galleys = self.galleys.len();
+        let pre_lines = self.bounds.wrap_lines.len();
         let any_children = node.children().next().is_some();
         if any_children && !self.plaintext {
             self.show_block_children(ui, node, top_left);
@@ -66,44 +63,29 @@ impl<'ast> MdRender {
             }
         }
 
-        // Empty doc renders nothing — the cursor at (0, 0) needs a galley
-        // to anchor against. Push a zero-width sentinel so `cursor_line`
-        // returns Some.
-        if self.galleys.len() == pre_galleys {
+        // Empty doc renders nothing — the cursor at offset 0 needs a
+        // row anchor to land on. Compute a layout with a zero-visible
+        // override at (0, 0) so `bounds.wrap_lines` gets an entry and
+        // `fragment_at_pos`/`fragment_at_offset` can resolve.
+        if self.bounds.wrap_lines.len() == pre_lines {
             let row_height = self.layout.row_height;
-            let buffer = self.upsert_glyphon_buffer_unwrapped(
-                "",
-                row_height,
-                row_height,
-                width,
-                &self.text_format_document(),
-            );
-            self.galleys.push(GalleyInfo {
-                is_override: false,
-                range: (Grapheme(0), Grapheme(0)),
-                buffer,
-                rect: Rect::from_min_size(top_left, Vec2::new(0.0, row_height)),
-                padded: false,
-            });
+            let mut layout = Layout::new((Grapheme(0), Grapheme(0)));
+            layout.push_override((Grapheme(0), Grapheme(0)), "", self.text_format_document());
+            let result = self.compute_layout_from(layout, width, row_height);
+            self.show_wrap_layout(ui, top_left, &result);
         }
     }
 
-    /// Renders one source line at `top_left` and returns its height.
-    /// Used by both `show_document`'s plaintext branch and by
-    /// `DocScrollContent` when iterating per-source-line rows.
-    pub fn show_source_line(
-        &mut self, ui: &mut Ui, top_left: Pos2, line_idx: usize, width: f32,
-    ) -> f32 {
+    /// Build a `Layout` for one source line with optional per-region
+    /// syntax highlighting (matches the prior plaintext rendering
+    /// path). One push_source per highlighted region with that
+    /// region's color, or one for the whole line when no highlighter
+    /// applies.
+    fn layout_source_line(&self, line_idx: usize) -> Layout {
         let line = self.bounds.source_lines[line_idx];
-        let mut wrap = self.new_wrap(width);
-        let has_syntax = syntax_set()
-            .find_syntax_by_extension(syntax_ext_for(&self.ext))
-            .is_some();
-
-        if has_syntax {
-            let syntax = syntax_set()
-                .find_syntax_by_extension(syntax_ext_for(&self.ext))
-                .unwrap();
+        let mut layout = Layout::new(line);
+        let highlighter_syntax = syntax_set().find_syntax_by_extension(syntax_ext_for(&self.ext));
+        if let Some(syntax) = highlighter_syntax {
             let mut highlighter = HighlightLines::new(syntax, syntax_theme());
             let line_text = &self.buffer[line];
             let regions = if let Some(regions) = self.syntax.get(line_text, line) {
@@ -122,31 +104,33 @@ impl<'ast> MdRender {
                 self.syntax.insert(line_text.into(), line, regions.clone());
                 regions
             };
-
             let mut text_format = self.text_format_syntax();
-            if regions.is_empty() {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    line.start().into_range(),
-                    text_format.clone(),
-                );
-            }
             for (style, region) in regions {
                 let hex =
                     Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
                         .to_hex();
                 let hex = hex.strip_suffix("ff").unwrap();
                 text_format.color = self.syntax_color_for_hex(hex);
-                self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
+                if !region.is_empty() {
+                    layout.push_source(region, &self.buffer[region], text_format.clone());
+                }
             }
-        } else {
-            self.show_section(ui, top_left, &mut wrap, line, self.text_format_syntax());
+        } else if !line.is_empty() {
+            layout.push_source(line, &self.buffer[line], self.text_format_syntax());
         }
+        layout
+    }
 
-        let h = wrap.height();
-        self.bounds.wrap_lines.extend(wrap.row_ranges);
+    /// Renders one source line at `top_left` and returns its height.
+    /// Used by both `show_document`'s plaintext branch and by
+    /// `DocScrollContent` when iterating per-source-line rows.
+    pub fn show_source_line(
+        &mut self, ui: &mut Ui, top_left: Pos2, line_idx: usize, width: f32,
+    ) -> f32 {
+        let layout = self.layout_source_line(line_idx);
+        let result = self.compute_layout_from(layout, width, self.layout.row_height);
+        let h = result.height;
+        self.show_wrap_layout(ui, top_left, &result);
         h
     }
 
@@ -167,34 +151,9 @@ impl<'ast> MdRender {
     /// Cheap measurement of a single source line. Doesn't write to the
     /// syntax cache (callers can be `&self`).
     pub fn height_source_line(&self, line_idx: usize, width: f32) -> f32 {
-        let line = self.bounds.source_lines[line_idx];
-        let mut wrap = self.new_wrap(width);
-        let highlighter_syntax = syntax_set().find_syntax_by_extension(syntax_ext_for(&self.ext));
-        if let Some(syntax) = highlighter_syntax {
-            let mut highlighter = HighlightLines::new(syntax, syntax_theme());
-            let line_text = &self.buffer[line];
-            let regions = if let Some(regions) = self.syntax.get(line_text, line) {
-                regions
-            } else {
-                let mut regions = Vec::new();
-                let mut region_start = self.offset_to_byte(line.start());
-                for (style, region_str) in
-                    highlighter.highlight_line(line_text, syntax_set()).unwrap()
-                {
-                    let region_end = region_start + region_str.len();
-                    let region = self.range_to_char((region_start, region_end));
-                    regions.push((style, region));
-                    region_start = region_end;
-                }
-                regions
-            };
-            for (_, region) in regions {
-                wrap.offset += self.span_section(&wrap, region, self.text_format_syntax());
-            }
-        } else {
-            wrap.offset += self.span_section(&wrap, line, self.text_format_syntax());
-        }
-        wrap.height()
+        let layout = self.layout_source_line(line_idx);
+        self.compute_layout_from(layout, width, self.layout.row_height)
+            .height
     }
 
     pub fn compute_bounds_document(&mut self, node: &'ast AstNode<'ast>) {

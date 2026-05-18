@@ -16,6 +16,8 @@ impl<'ast> MdRender {
 
     pub fn height_block_quote(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut result = 0.;
+        let width = self.width(node);
+        let row_height = self.layout.row_height;
 
         let first_line_idx = self.node_first_line_idx(node);
         let any_children = node.children().next().is_some();
@@ -29,11 +31,13 @@ impl<'ast> MdRender {
                 if line_idx != first_line_idx {
                     result += self.layout.block_spacing;
                 }
-                result += self.height_section(
-                    &mut self.new_wrap(self.width(node)),
+                let l = self.compute_section_layout_new(
                     line_content,
+                    width,
+                    row_height,
                     self.text_format_syntax(),
                 );
+                result += l.height;
             }
         }
 
@@ -52,6 +56,8 @@ impl<'ast> MdRender {
         );
 
         top_left.x += annotation_space.width();
+        let width = self.width(node);
+        let row_height = self.layout.row_height;
 
         let first_line_idx = self.node_first_line_idx(node);
         let any_children = node.children().next().is_some();
@@ -66,10 +72,15 @@ impl<'ast> MdRender {
                     top_left.y += self.layout.block_spacing;
                 }
 
-                let mut wrap = self.new_wrap(self.width(node));
-                self.show_section(ui, top_left, &mut wrap, line_content, self.text_format_syntax());
-                top_left.y += wrap.height();
-                self.bounds.wrap_lines.extend(wrap.row_ranges);
+                let result = self.compute_section_layout_new(
+                    line_content,
+                    width,
+                    row_height,
+                    self.text_format_syntax(),
+                );
+                let h = result.height;
+                self.show_wrap_layout(ui, top_left, &result);
+                top_left.y += h;
             }
         }
     }

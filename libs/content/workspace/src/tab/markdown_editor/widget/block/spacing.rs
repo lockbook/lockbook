@@ -99,6 +99,7 @@ impl<'ast> MdRender {
         };
 
         let width = self.width(node);
+        let row_height = self.layout.row_height;
         let mut result = 0.;
 
         if node.previous_sibling().is_some() {
@@ -108,12 +109,13 @@ impl<'ast> MdRender {
         for line_idx in line_range {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
-
-            result += self.height_section(
-                &mut self.new_wrap(width),
+            let l = self.compute_section_layout_new(
                 node_line,
+                width,
+                row_height,
                 self.text_format_document(),
             );
+            result += l.height;
             result += self.layout.block_spacing;
         }
 
@@ -128,6 +130,7 @@ impl<'ast> MdRender {
         };
 
         let width = self.width(node);
+        let row_height = self.layout.row_height;
 
         if node.previous_sibling().is_some() {
             top_left.y += self.layout.block_spacing;
@@ -136,12 +139,16 @@ impl<'ast> MdRender {
         for line_idx in line_range {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
-
-            let mut wrap = self.new_wrap(width);
-            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_document());
-            top_left.y += wrap.height();
+            let result = self.compute_section_layout_new(
+                node_line,
+                width,
+                row_height,
+                self.text_format_document(),
+            );
+            let h = result.height;
+            self.show_wrap_layout(ui, top_left, &result);
+            top_left.y += h;
             top_left.y += self.layout.block_spacing;
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
         }
     }
 
@@ -151,6 +158,7 @@ impl<'ast> MdRender {
         };
 
         let width = self.width(node);
+        let row_height = self.layout.row_height;
         let mut result = 0.;
 
         for line_idx in line_range {
@@ -158,12 +166,13 @@ impl<'ast> MdRender {
             let node_line = self.node_line(node, line);
 
             result += self.layout.block_spacing;
-
-            result += self.height_section(
-                &mut self.new_wrap(width),
+            let l = self.compute_section_layout_new(
                 node_line,
+                width,
+                row_height,
                 self.text_format_document(),
             );
+            result += l.height;
         }
 
         result
@@ -177,17 +186,22 @@ impl<'ast> MdRender {
         };
 
         let width = self.width(node);
+        let row_height = self.layout.row_height;
 
         for line_idx in line_range {
             let line = self.bounds.source_lines[line_idx];
             let node_line = self.node_line(node, line);
 
             top_left.y += self.layout.block_spacing;
-
-            let mut wrap = self.new_wrap(width);
-            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_document());
-            top_left.y += wrap.height();
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
+            let result = self.compute_section_layout_new(
+                node_line,
+                width,
+                row_height,
+                self.text_format_document(),
+            );
+            let h = result.height;
+            self.show_wrap_layout(ui, top_left, &result);
+            top_left.y += h;
         }
     }
 

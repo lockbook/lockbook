@@ -1,10 +1,8 @@
 use comrak::nodes::AstNode;
-use egui::{Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
 use crate::theme::palette_v2::ThemeExt as _;
 
 impl<'ast> MdRender {
@@ -15,82 +13,31 @@ impl<'ast> MdRender {
         }
     }
 
-    pub fn span_footnote_reference(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, ix: u32, range: (Grapheme, Grapheme),
-    ) -> f32 {
+    pub fn layout_footnote_reference(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, ix: u32, range: (Grapheme, Grapheme),
+    ) {
         let node_range = self.node_range(node);
-
-        if self.node_revealed(node) {
-            let prefix_range = (node_range.start(), node_range.start() + 2);
-            let infix_range = (node_range.start() + 2, node_range.end() - 1);
-            let postfix_range = (node_range.end() - 1, node_range.end());
-
-            let mut span = 0.0;
-
-            if range.contains_range(&prefix_range, true, true) {
-                span += self.span_section(wrap, prefix_range, self.text_format_syntax());
-            }
-            if range.contains_range(&infix_range, true, true) {
-                span += self.span_section(wrap, infix_range, self.text_format(node));
-            }
-            if range.contains_range(&postfix_range, true, true) {
-                span += self.span_section(wrap, postfix_range, self.text_format_syntax());
-            }
-
-            span
-        } else {
-            let node_range = self.node_range(node);
-            if range.contains_range(&node_range, true, true) {
-                let text = format!("{ix}");
-                self.span_override_section(wrap, &text, self.text_format(node))
-            } else {
-                0.0
-            }
+        if !range.contains_range(&node_range, true, true) {
+            return;
         }
-    }
-
-    // [^footnotereference]
-    pub fn show_footnote_reference(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        ix: u32, range: (Grapheme, Grapheme),
-    ) -> Response {
-        let node_range = self.node_range(node);
-
-        let prefix_range = (node_range.start(), node_range.start() + 2);
-        let infix_range = (node_range.start() + 2, node_range.end() - 1);
-        let postfix_range = (node_range.end() - 1, node_range.end());
-
-        let mut response = Default::default();
-
         if self.node_revealed(node) {
-            if range.contains_range(&prefix_range, true, true) {
-                response |=
-                    self.show_section(ui, top_left, wrap, prefix_range, self.text_format_syntax());
-            }
-            if range.contains_range(&infix_range, true, true) {
-                response |=
-                    self.show_section(ui, top_left, wrap, infix_range, self.text_format(node));
-            }
-            if range.contains_range(&postfix_range, true, true) {
-                response |=
-                    self.show_section(ui, top_left, wrap, postfix_range, self.text_format_syntax());
-            }
+            let prefix = (node_range.start(), node_range.start() + 2);
+            let infix = (node_range.start() + 2, node_range.end() - 1);
+            let postfix = (node_range.end() - 1, node_range.end());
+            layout.push_source(prefix, &self.buffer[prefix], self.text_format_syntax());
+            layout.push_source(
+                infix,
+                &self.buffer[infix],
+                self.text_format_footnote_reference(node.parent().unwrap()),
+            );
+            layout.push_source(postfix, &self.buffer[postfix], self.text_format_syntax());
         } else {
-            let node_range = self.node_range(node);
-            if range.contains_range(&node_range, true, true) {
-                let text = format!("{ix}");
-                response |= self.show_override_section(
-                    ui,
-                    top_left,
-                    wrap,
-                    (node_range.end() - 1).into_range(),
-                    self.text_format(node),
-                    Some(&text),
-                    Sense::hover(),
-                );
-            }
+            let text = format!("{ix}");
+            layout.push_override(
+                node_range,
+                &text,
+                self.text_format_footnote_reference(node.parent().unwrap()),
+            );
         }
-
-        response
     }
 }

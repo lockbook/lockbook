@@ -6,6 +6,7 @@ use lb_rs::model::text::offset_types::{
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::Response;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
 
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
@@ -30,32 +31,67 @@ impl<'ast> MdRender {
         text_height + if level <= 2 { self.layout.block_spacing } else { 0. }
     }
 
+    /// Build `Layout` for a setext heading's content line (non-underline
+    /// row of a setext heading). When syntax is revealed, leading
+    /// indentation and the source-line prefix come through as syntax-
+    /// formatted text; otherwise just the inline children.
+    fn layout_setext_heading_line(
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
+    ) -> Layout {
+        let mut layout = Layout::new(node_line);
+        let Some((indentation, prefix, _, postfix_whitespace, _)) =
+            self.split_range(node, node_line)
+        else {
+            unreachable!("setext headings never have empty lines");
+        };
+        if reveal {
+            if !indentation.is_empty() {
+                layout.push_source(
+                    indentation,
+                    &self.buffer[indentation],
+                    self.text_format_syntax(),
+                );
+            }
+            if !prefix.is_empty() {
+                layout.push_source(prefix, &self.buffer[prefix], self.text_format_syntax());
+            }
+        }
+        self.layout_inline_children(&mut layout, node, node_line);
+        if reveal && !postfix_whitespace.is_empty() {
+            layout.push_source(
+                postfix_whitespace,
+                &self.buffer[postfix_whitespace],
+                self.text_format(node),
+            );
+        }
+        layout
+    }
+
     // https://github.github.com/gfm/#setext-headings
     fn height_setext_heading(&self, node: &'ast AstNode<'ast>) -> f32 {
         let width = self.width(node);
+        let row_height = self.row_height(node);
         let reveal = self.reveal_setext_syntax(node);
         let mut result = 0.;
 
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
-
             let node_line = self.node_line(node, line);
 
             if line_idx < last_line_idx {
-                // non-underline content
                 result += self.height_setext_heading_line(node, node_line, reveal);
                 result += self.layout.row_spacing;
-            } else {
-                // setext heading underline
-                if reveal {
-                    let mut wrap = self.new_wrap(width);
-                    wrap.row_height = self.row_height(node);
-                    wrap.offset = self.span_section(&wrap, node_line, self.text_format_syntax());
-
-                    result += wrap.height();
-                    result += self.layout.row_spacing;
-                }
+            } else if reveal {
+                // setext heading underline as its own wrap unit
+                let underline = self.compute_section_layout_new(
+                    node_line,
+                    width,
+                    row_height,
+                    self.text_format_syntax(),
+                );
+                result += underline.height;
+                result += self.layout.row_spacing;
             }
         }
 
@@ -66,25 +102,9 @@ impl<'ast> MdRender {
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
     ) -> f32 {
         let width = self.width(node);
-        let mut wrap = self.new_wrap(width);
-        wrap.row_height = self.row_height(node);
-
-        if let Some((indentation, prefix, _, postfix_whitespace, _)) =
-            self.split_range(node, node_line)
-        {
-            if reveal {
-                wrap.offset += self.span_section(&wrap, indentation, self.text_format_syntax());
-                wrap.offset += self.span_section(&wrap, prefix, self.text_format_syntax());
-            }
-            wrap.offset += self.inline_children_span(node, &wrap, node_line);
-            if reveal {
-                wrap.offset += self.span_section(&wrap, postfix_whitespace, self.text_format(node));
-            }
-        } else {
-            unreachable!("setext headings never have empty lines");
-        }
-
-        wrap.height()
+        let row_height = self.row_height(node);
+        let layout = self.layout_setext_heading_line(node, node_line, reveal);
+        self.compute_layout_from(layout, width, row_height).height
     }
 
     pub fn reveal_setext_syntax(&self, node: &'ast AstNode<'ast>) -> bool {
@@ -99,40 +119,59 @@ impl<'ast> MdRender {
         false
     }
 
-    // https://github.github.com/gfm/#atx-headings
-    fn height_atx_heading(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let width = self.width(node);
-        let mut wrap = self.new_wrap(width);
-        wrap.row_height = self.row_height(node);
-
-        let line = self.node_first_line(node); // more like node_ONLY_line amirite?
-        let node_line = self.node_line(node, line);
-
-        let reveal = self.range_revealed(line, true);
-
+    /// Build `Layout` for an ATX heading line (`# heading`).
+    /// Indentation + prefix `#`s + inline children + postfix
+    /// whitespace, with syntax visibility driven by reveal. Empty
+    /// heading falls back to rendering the whole line as syntax
+    /// (Obsidian-inspired).
+    fn layout_atx_heading_line(
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), reveal: bool,
+    ) -> Layout {
+        let mut layout = Layout::new(node_line);
         if let Some((indentation, prefix_range, _, postfix_range, _)) =
             self.split_range(node, node_line)
         {
             if reveal {
                 if !indentation.is_empty() {
-                    wrap.offset += self.span_section(&wrap, indentation, self.text_format_syntax());
+                    layout.push_source(
+                        indentation,
+                        &self.buffer[indentation],
+                        self.text_format_syntax(),
+                    );
                 }
-                wrap.offset += self.span_section(&wrap, prefix_range, self.text_format_syntax());
+                if !prefix_range.is_empty() {
+                    layout.push_source(
+                        prefix_range,
+                        &self.buffer[prefix_range],
+                        self.text_format_syntax(),
+                    );
+                }
             }
-
             if self.infix_range(node).is_some() {
-                wrap.offset += self.inline_children_span(node, &wrap, node_line);
+                self.layout_inline_children(&mut layout, node, node_line);
             }
-
             if reveal && !postfix_range.is_empty() {
-                wrap.offset += self.span_section(&wrap, postfix_range, self.text_format(node));
+                layout.push_source(
+                    postfix_range,
+                    &self.buffer[postfix_range],
+                    self.text_format(node),
+                );
             }
         } else {
-            // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            wrap.offset += self.span_section(&wrap, node_line, self.text_format_syntax());
+            layout.push_source(node_line, &self.buffer[node_line], self.text_format_syntax());
         }
+        layout
+    }
 
-        wrap.height()
+    // https://github.github.com/gfm/#atx-headings
+    fn height_atx_heading(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let width = self.width(node);
+        let row_height = self.row_height(node);
+        let line = self.node_first_line(node); // more like node_ONLY_line amirite?
+        let node_line = self.node_line(node, line);
+        let reveal = self.range_revealed(line, true);
+        let layout = self.layout_atx_heading_line(node, node_line, reveal);
+        self.compute_layout_from(layout, width, row_height).height
     }
 
     pub fn show_heading(
@@ -183,41 +222,34 @@ impl<'ast> MdRender {
     fn show_setext_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, level: u8,
     ) -> Response {
-        let mut resp = Default::default();
-
+        let resp = Default::default();
         let width = self.width(node);
+        let row_height = self.row_height(node);
         let reveal = self.reveal_setext_syntax(node);
 
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
-
             let node_line = self.node_line(node, line);
 
             if line_idx < last_line_idx {
-                // non-underline content
-                resp |= self.show_setext_heading_line(ui, node, top_left, node_line, reveal);
-
-                top_left.y += self.height_setext_heading_line(node, node_line, reveal);
+                let layout = self.layout_setext_heading_line(node, node_line, reveal);
+                let result = self.compute_layout_from(layout, width, row_height);
+                let h = result.height;
+                self.show_wrap_layout(ui, top_left, &result);
+                top_left.y += h;
                 top_left.y += self.layout.row_spacing;
-            } else {
-                // setext heading underline
-                if reveal {
-                    let mut wrap = self.new_wrap(width);
-                    wrap.row_height = self.row_height(node);
-
-                    self.show_section(
-                        ui,
-                        top_left,
-                        &mut wrap,
-                        node_line,
-                        self.text_format_syntax(),
-                    );
-
-                    top_left.y += wrap.height();
-                    top_left.y += self.layout.row_spacing;
-                    self.bounds.wrap_lines.extend(wrap.row_ranges);
-                }
+            } else if reveal {
+                let underline = self.compute_section_layout_new(
+                    node_line,
+                    width,
+                    row_height,
+                    self.text_format_syntax(),
+                );
+                let h = underline.height;
+                self.show_wrap_layout(ui, top_left, &underline);
+                top_left.y += h;
+                top_left.y += self.layout.row_spacing;
             }
         }
 
@@ -225,52 +257,6 @@ impl<'ast> MdRender {
         if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
-
-        resp
-    }
-
-    #[allow(clippy::too_many_arguments)]
-    fn show_setext_heading_line(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_line: (Grapheme, Grapheme), reveal: bool,
-    ) -> Response {
-        let mut resp = Default::default();
-
-        let width = self.width(node);
-        let mut wrap = self.new_wrap(width);
-        wrap.row_height = self.row_height(node);
-
-        if let Some((indentation, prefix, _children, postfix_whitespace, _)) =
-            self.split_range(node, node_line)
-        {
-            if reveal {
-                if !indentation.is_empty() {
-                    self.show_section(
-                        ui,
-                        top_left,
-                        &mut wrap,
-                        indentation,
-                        self.text_format_syntax(),
-                    );
-                }
-                if !prefix.is_empty() {
-                    self.show_section(ui, top_left, &mut wrap, prefix, self.text_format_syntax());
-                }
-            }
-            self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
-            if reveal && !postfix_whitespace.is_empty() {
-                resp |= self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    postfix_whitespace,
-                    self.text_format(node),
-                );
-            }
-        } else {
-            unreachable!("setext headings never have empty lines");
-        }
-
         resp
     }
 
@@ -278,64 +264,22 @@ impl<'ast> MdRender {
     fn show_atx_heading(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2, level: u8,
     ) -> Response {
-        let mut resp = Default::default();
-
+        let resp = Default::default();
         let width = self.width(node);
-        let mut wrap = self.new_wrap(width);
-        wrap.row_height = self.row_height(node);
-
+        let row_height = self.row_height(node);
         let line = self.node_first_line(node); // more like node_ONLY_line amirite?
         let node_line = self.node_line(node, line);
-
-        let height = self.height_atx_heading(node);
         let reveal = self.range_revealed(line, true);
 
-        if let Some((indentation, prefix_range, _, postfix_range, _)) =
-            self.split_range(node, node_line)
-        {
-            if reveal {
-                if !indentation.is_empty() {
-                    resp |= self.show_section(
-                        ui,
-                        top_left,
-                        &mut wrap,
-                        indentation,
-                        self.text_format_syntax(),
-                    );
-                }
-                resp |= self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    prefix_range,
-                    self.text_format_syntax(),
-                );
-            }
-            if self.infix_range(node).is_some() {
-                resp |= self.show_inline_children(ui, node, top_left, &mut wrap, node_line);
-            }
-
-            if reveal && !postfix_range.is_empty() {
-                resp |= self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    postfix_range,
-                    self.text_format(node),
-                );
-            }
-        } else {
-            // heading is empty - show the syntax regardless if cursored (Obsidian-inspired)
-            resp |=
-                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
-        }
+        let layout = self.layout_atx_heading_line(node, node_line, reveal);
+        let result = self.compute_layout_from(layout, width, row_height);
+        let height = result.height;
+        self.show_wrap_layout(ui, top_left, &result);
 
         top_left.y += height;
-        self.bounds.wrap_lines.extend(wrap.row_ranges);
         if level <= 2 {
             self.show_heading_rule(ui, top_left, width);
         }
-
         resp
     }
 

@@ -1,10 +1,9 @@
 use comrak::nodes::AstNode;
-use egui::{Color32, Pos2, Ui};
+use egui::Color32;
 use lb_rs::model::text::offset_types::Grapheme;
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Wrap};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
 use crate::theme::palette_v2::ThemeExt;
 
 impl<'ast> MdRender {
@@ -16,16 +15,10 @@ impl<'ast> MdRender {
         Format { background: self.background_color_highlight(), ..self.text_format(parent) }
     }
 
-    pub fn span_highlight(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (Grapheme, Grapheme),
-    ) -> f32 {
-        self.circumfix_span(node, wrap, range)
-    }
-
-    pub fn show_highlight(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        range: (Grapheme, Grapheme),
-    ) -> Response {
-        self.show_circumfix(ui, node, top_left, wrap, range)
+    pub fn layout_highlight(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) {
+        let fmt = self.text_format_highlight(node.parent().unwrap());
+        self.layout_circumfix(layout, node, range, fmt);
     }
 }

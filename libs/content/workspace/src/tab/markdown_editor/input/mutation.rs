@@ -1,5 +1,4 @@
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
-use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
     NodeValueExt as _, leading_indent_cols, leading_indent_range,
@@ -883,6 +882,18 @@ impl<'ast> MdEdit {
 
     // todo: self by shared reference
     pub fn region_to_range(&mut self, region: Region) -> (Grapheme, Grapheme) {
+        // Pointer click ends an up/down chain — the next arrow must
+        // start from the click x, not the stale column.
+        let has_pos = |loc: &Location| matches!(loc, Location::Pos(_));
+        let clicked = match &region {
+            Region::Location(loc) | Region::ToLocation(loc) => has_pos(loc),
+            Region::BetweenLocations { start, end } => has_pos(start) || has_pos(end),
+            Region::BoundAt { location, .. } => has_pos(location),
+            _ => false,
+        };
+        if clicked {
+            self.cursor.x_target = None;
+        }
         let mut current_selection = self.renderer.buffer.current.selection;
         match region {
             Region::Location(location) => self.location_to_range(location),
@@ -974,65 +985,41 @@ impl<'ast> MdEdit {
 
     // todo: find a better home
     pub fn pos_to_range(&self, pos: Pos2) -> (Grapheme, Grapheme) {
-        let galleys = &self.renderer.galleys;
-        let galley_idx = pos_to_galley(pos, galleys);
-        let galley = &galleys[galley_idx];
+        let Some(frag_idx) = self.renderer.closest_fragment_at_pos(pos) else {
+            return Grapheme(0).into_range();
+        };
+        let frag = &self.renderer.fragments[frag_idx];
 
-        if galley.range.is_empty() {
-            // empty galley range means every position in the galley maps to
-            // that location
-            let result = galley.range.start();
-            result.into_range()
-        } else if galley_idx == galleys.len() - 1 && pos.y > galley.rect.max.y {
-            // every position lower than the final galley's bottom maps to the last cursor position
-            self.renderer
+        // Past the last fragment's bottom: jump to doc end.
+        let is_last = frag_idx + 1 == self.renderer.fragments.len();
+        if is_last && pos.y > frag.rect.max.y {
+            return self
+                .renderer
                 .buffer
                 .current
                 .segs
                 .last_cursor_position()
-                .into_range()
+                .into_range();
+        }
+
+        if frag.source_range.is_empty() {
+            // Anchor / empty-range fragment: every position maps to
+            // its source point.
+            frag.source_range.start().into_range()
+        } else if frag.atomic {
+            // Override / atomic fragment: hit-test snaps to the
+            // nearest edge of its source range, returning the full
+            // range so callers that want "select the whole thing"
+            // get that semantics.
+            frag.source_range
         } else {
-            #[allow(clippy::collapsible_else_if)]
-            if galley.is_override {
-                // click an override galley to select the whole thing
-                galley.range
-            } else {
-                self.renderer.galley_offset(galley_idx, pos).into_range()
-            }
+            self.renderer.fragment_offset(frag, pos.x).into_range()
         }
     }
 
     pub fn pos_to_char_offset(&self, pos: Pos2) -> Grapheme {
         self.pos_to_range(pos).0
     }
-}
-
-pub fn pos_to_galley(pos: Pos2, galleys: &Galleys) -> usize {
-    // every position lower than the final galley's bottom maps to it
-    if pos.y >= galleys.galleys.last().unwrap().rect.bottom() {
-        return galleys.galleys.len() - 1;
-    }
-
-    let mut closest_galley = None;
-    let mut closest_distance = (f32::INFINITY, f32::INFINITY);
-    for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
-        if galley.rect.contains(pos) {
-            return galley_idx; // galleys do not overlap
-        }
-
-        // this ain't yo mama's distance metric
-        let x_distance = distance(pos.x, galley.rect.x_range());
-        let y_distance = distance(pos.y, galley.rect.y_range());
-
-        // prefer empty galleys which are placed deliberately to affect such behavior
-        if ((y_distance, x_distance) < closest_distance)
-            || (((y_distance, x_distance) == closest_distance) && galley.range.is_empty())
-        {
-            closest_galley = Some(galley_idx);
-            closest_distance = (y_distance, x_distance);
-        }
-    }
-    closest_galley.expect("there must always be a galley")
 }
 
 pub fn distance(coord: f32, range: Rangef) -> f32 {

@@ -91,8 +91,11 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
         Self::new(renderer, root, viewport_height / 2.0).with_default_leading()
     }
 
-    /// First row whose source range contains `target` (inclusive on both
-    /// ends so an end-of-line cursor matches its row).
+    /// Row whose source range contains `target` (endpoints inclusive,
+    /// so an end-of-line cursor matches). Targets past every row
+    /// resolve to `Trailing`, before every row to `Leading` — covers
+    /// `last_cursor_position` past the doc's trailing `\n`, which lies
+    /// outside any block's `node_range`.
     pub fn find_text_row(&self, target: Grapheme) -> Option<DocRowId> {
         if self.plaintext {
             for i in 0..self.line_count {
@@ -101,15 +104,23 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
                     return Some(DocRowId::Line(i));
                 }
             }
-        } else {
-            for (i, node) in self.blocks.iter().enumerate() {
-                let (s, e) = self.renderer.node_range(node);
-                if target >= s && target <= e {
-                    return Some(DocRowId::Block(i));
-                }
+            let last_idx = self.line_count.checked_sub(1)?;
+            let (_, last_end) = self.renderer.bounds.source_lines[last_idx];
+            return Some(if target > last_end {
+                DocRowId::Trailing
+            } else {
+                DocRowId::Leading
+            });
+        }
+        for (i, node) in self.blocks.iter().enumerate() {
+            let (s, e) = self.renderer.node_range(node);
+            if target >= s && target <= e {
+                return Some(DocRowId::Block(i));
             }
         }
-        None
+        let last_node = self.blocks.last()?;
+        let (_, last_end) = self.renderer.node_range(last_node);
+        Some(if target > last_end { DocRowId::Trailing } else { DocRowId::Leading })
     }
 }
 
@@ -258,9 +269,9 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
 /// pull-style [`crate::widgets::affine_scroll::AffineScrollArea::show`]
 /// loop: the caller iterates `visible` and invokes this per row.
 ///
-/// Takes `&mut MdRender` because `show_*` functions push galleys and
-/// text areas; takes `blocks` separately so the caller can drop the
-/// `&MdRender` borrow held by [`DocScrollContent`] before painting.
+/// Takes `&mut MdRender` because `show_*` functions push fragments
+/// and text areas; takes `blocks` separately so the caller can drop
+/// the `&MdRender` borrow held by [`DocScrollContent`] before painting.
 pub fn paint_row<'ast>(
     ui: &mut Ui, renderer: &mut MdRender, root: &'ast AstNode<'ast>,
     blocks: &[&'ast AstNode<'ast>], id: &DocRowId, top_left: Pos2, content_x: f32,
@@ -269,11 +280,10 @@ pub fn paint_row<'ast>(
         DocRowId::Leading => {} // virtual padding
         DocRowId::Trailing => {
             // Empty non-plaintext doc — `DocScrollContent` yields no
-            // Block rows, so `show_document` would never be called and
-            // the cursor would have no galley anchor. Route through
-            // it here so its empty-doc sentinel galley fires. Trailing
-            // sits at the content origin (canvas + leading_precise)
-            // for an empty doc, so painting at `top_left` is correct.
+            // Block rows, so `show_document` is never called and the
+            // cursor has no anchor fragment. Route through it here so
+            // the empty-doc sentinel fires. Trailing sits at the
+            // content origin for an empty doc, so `top_left` is correct.
             if blocks.is_empty() && !renderer.plaintext {
                 let tl = Pos2::new(content_x, top_left.y);
                 renderer.show_block(ui, root, tl);
