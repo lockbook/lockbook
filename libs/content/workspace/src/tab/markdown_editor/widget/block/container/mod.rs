@@ -507,13 +507,21 @@ impl<'ast> MdRender {
     /// Returns the prefix required to insert a new node of the same type after
     /// the given prior node, extending all ancestors.
     pub fn insertion_prefix(&self, prior_node: &'ast AstNode<'ast>) -> Option<String> {
-        let mut result = if let Some(parent) = prior_node.parent() {
+        let line = self.node_first_line(prior_node);
+
+        let is_list_item =
+            matches!(prior_node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_));
+        let mut result = if is_list_item {
+            // Preserve the prior item's actual source indentation rather than
+            // reconstructing it from ancestor marker widths, which drops any
+            // indentation deeper than the minimum (e.g. tab / 4-space nesting).
+            self.buffer[self.line_ancestors_prefix(prior_node, line)].to_string()
+        } else if let Some(parent) = prior_node.parent() {
             self.extension_prefix(parent)?
         } else {
             Default::default()
         };
 
-        let line = self.node_first_line(prior_node);
         let own_prefix = self.line_own_prefix(prior_node, line);
 
         match &prior_node.data.borrow().value {
