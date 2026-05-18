@@ -30,8 +30,10 @@ import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
+import com.leinardi.android.speeddial.SpeedDialActionItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import net.lockbook.File
@@ -188,7 +190,34 @@ class FilesListFragment :
             }
         }
 
-        binding.fabSpeedDial.inflate(R.menu.menu_files_list_speed_dial)
+        val fabBackgroundColor = getMaterialColorOrFallback(
+            com.google.android.material.R.attr.colorPrimary,
+            R.color.md_theme_primary,
+        )
+        val fabIconColor = getMaterialColorOrFallback(
+            com.google.android.material.R.attr.colorOnPrimary,
+            R.color.md_theme_onPrimary,
+        )
+
+        binding.fabSpeedDial.addAllActionItems(
+            listOf(
+                SpeedDialActionItem.Builder(R.id.fab_create_folder, R.drawable.ic_baseline_folder_24)
+                    .setLabel(R.string.folder)
+                    .setFabBackgroundColor(fabBackgroundColor)
+                    .setFabImageTintColor(fabIconColor)
+                    .create(),
+                SpeedDialActionItem.Builder(R.id.fab_create_document, R.drawable.ic_outline_insert_drive_file_24)
+                    .setLabel(R.string.document)
+                    .setFabBackgroundColor(fabBackgroundColor)
+                    .setFabImageTintColor(fabIconColor)
+                    .create(),
+                SpeedDialActionItem.Builder(R.id.fab_create_drawing, R.drawable.ic_outline_draw_24)
+                    .setLabel(R.string.drawing)
+                    .setFabBackgroundColor(fabBackgroundColor)
+                    .setFabImageTintColor(fabIconColor)
+                    .create(),
+            ),
+        )
         binding.fabSpeedDial.setOnActionSelectedListener {
             when (it.id) {
                 R.id.fab_create_drawing -> {
@@ -303,6 +332,13 @@ class FilesListFragment :
     private fun createDocAtParent(isDrawing: Boolean) {
         workspaceModel._createDocAt.value = isDrawing to model.fileModel.parent.id
     }
+
+    private fun getMaterialColorOrFallback(attr: Int, fallbackColor: Int): Int =
+        runCatching {
+            MaterialColors.getColor(binding.fabSpeedDial, attr)
+        }.getOrElse {
+            ContextCompat.getColor(requireContext(), fallbackColor)
+        }
 
     private fun setUpToolbar() {
         binding.filesToolbar.setNavigationOnClickListener {
