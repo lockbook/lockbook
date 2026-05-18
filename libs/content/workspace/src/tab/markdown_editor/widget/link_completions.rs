@@ -13,6 +13,7 @@ use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
+use crate::tab::markdown_editor::widget::completion_popup_rect;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::GlyphonLabel;
 
@@ -751,16 +752,13 @@ impl MdEdit {
             .fold(0.0_f32, f32::max);
 
         let popup_height = results.len() as f32 * self.renderer.layout.completion_row_height;
-        let screen_rect = ui.ctx().screen_rect();
-        let popup_y = if cursor_top.y - popup_height >= screen_rect.min.y {
-            cursor_top.y - popup_height
-        } else {
-            cursor_bot.y
-        };
-        let popup_rect = Rect::from_min_size(
-            Pos2::new(cursor_top.x, popup_y),
+        let popup_rect = completion_popup_rect(
+            cursor_top,
+            cursor_bot,
             Vec2::new(popup_width, popup_height),
+            ui.ctx().screen_rect(),
         );
+        let popup_width = popup_rect.width();
         self.renderer.touch_consuming_rects.push(popup_rect);
 
         let row_rects: Vec<Rect> = (0..results.len())

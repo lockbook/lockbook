@@ -1,5 +1,5 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{CornerRadius, Rect, Stroke, StrokeKind, Ui, UiBuilder};
+use egui::{CornerRadius, Pos2, Rect, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
@@ -485,4 +485,37 @@ impl<'ast> MdRender {
             }
         }
     }
+}
+
+/// Gap kept between the completion popup and every window edge. Matches
+/// the scroll area's scrollbar footprint (`BAR_WIDTH` 10 + `BAR_INSET` 3
+/// in `affine_scroll.rs`) so the popup also clears the scrollbar.
+const COMPLETION_POPUP_MARGIN: f32 = 13.0;
+
+/// Positions a completion popup near the text cursor while keeping it
+/// inside the visible window with a [`COMPLETION_POPUP_MARGIN`] gap from
+/// every edge. Prefers placing the popup above the cursor, falls back to
+/// below, and clamps both axes (and the width) so it never draws
+/// off-screen or up against an edge.
+pub(crate) fn completion_popup_rect(
+    cursor_top: Pos2, cursor_bot: Pos2, size: Vec2, screen_rect: Rect,
+) -> Rect {
+    let area = screen_rect.shrink(COMPLETION_POPUP_MARGIN);
+
+    let width = size.x.min(area.width());
+    let height = size.y;
+
+    let x = cursor_top.x.min(area.max.x - width).max(area.min.x);
+
+    let fits_above = cursor_top.y - height >= area.min.y;
+    let fits_below = cursor_bot.y + height <= area.max.y;
+    let y = if fits_above {
+        cursor_top.y - height
+    } else if fits_below {
+        cursor_bot.y
+    } else {
+        cursor_bot.y.min(area.max.y - height).max(area.min.y)
+    };
+
+    Rect::from_min_size(Pos2::new(x, y), Vec2::new(width, height))
 }
