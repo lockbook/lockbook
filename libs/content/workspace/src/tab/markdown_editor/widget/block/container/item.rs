@@ -120,9 +120,8 @@ impl<'ast> MdRender {
                 self.text_format_syntax(),
             );
             self.show_wrap_layout(ui, top_left + self.layout.indent * Vec2::X, &result);
-            // hover signal will be re-derived from fragment sense in
-            // a later cleanup; default to children-only check for now
-            false
+            let item_rect = Rect::from_min_size(top_left, Vec2::new(self.width(node), result.height));
+            item_rect.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
         };
 
         // fold button
