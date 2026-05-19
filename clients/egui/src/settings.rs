@@ -101,6 +101,11 @@ pub fn ensure_themes_dir() {
     if let Ok(json) = serde_json::to_string_pretty(&intellij) {
         let _ = fs::write(dir.join("intellij.json"), json);
     }
+
+    let vscode = Theme::vscode(Mode::Light);
+    if let Ok(json) = serde_json::to_string_pretty(&vscode) {
+        let _ = fs::write(dir.join("vscode.json"), json);
+    }
 }
 
 pub fn list_themes() -> Vec<String> {

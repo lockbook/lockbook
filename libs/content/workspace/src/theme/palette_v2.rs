@@ -332,6 +332,46 @@ impl Theme {
         }
     }
 
+    pub fn vscode(current: Mode) -> Self {
+        Self {
+            current,
+            dim: ThemeVariant {
+                black: hex_color!("#1E1E1E"),
+                grey: hex_color!("#333333"),
+                white: hex_color!("#ffffff"),
+                red: hex_color!("#D0372D"),
+                green: hex_color!("#377E22"),
+                yellow: hex_color!("#6F5529"),
+                blue: hex_color!("#0000F5"),
+                magenta: hex_color!("#96261F"),
+                cyan: hex_color!("#3478C6"),
+            },
+            dark_prefs: Preferences {
+                primary: Palette::Cyan,
+                secondary: Palette::Blue,
+                tertiary: Palette::Green,
+                quaternary: Palette::Magenta,
+            },
+            bright: ThemeVariant {
+                black: hex_color!("#000000"),
+                grey: hex_color!("#F3F3F3"),
+                white: hex_color!("#FFFFFF"),
+                red: hex_color!("#D0372D"),
+                green: hex_color!("#6BA456"),
+                yellow: hex_color!("#DCDCAF"),
+                blue: hex_color!("#679BD1"),
+                magenta: hex_color!("#C5947C"),
+                cyan: hex_color!("#3478C6"),
+            },
+            light_prefs: Preferences {
+                primary: Palette::Cyan,
+                secondary: Palette::Blue,
+                tertiary: Palette::Green,
+                quaternary: Palette::Magenta,
+            },
+        }
+    }
+
     pub fn catppuccin(current: Mode) -> Self {
         Self {
             current,
