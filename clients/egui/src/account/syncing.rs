@@ -109,7 +109,6 @@ impl super::AccountScreen {
             .text("Sync")
             .icon(&icon)
             .icon_alignment(egui::Align::RIGHT)
-            .padding(egui::vec2(15.0, 6.0))
             .frame(true)
             .rounding(5.0)
             .is_loading(self.lb_status.syncing)
