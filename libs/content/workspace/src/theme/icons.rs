@@ -74,8 +74,8 @@ impl Icon {
     pub const LOCK_CLOSED: Self = ic("\u{f033e}"); // 󰌾
     pub const MONEY: Self = ic("\u{ef8d}"); // 
     pub const NUMBER_LIST: Self = ic("\u{f027b}"); // 󰉻
-    pub const NEW_FOLDER: Self = ic("\u{ea80}"); // 
-    pub const NEW_FILE: Self = ic("\u{ea7f}"); // 
+    pub const NEW_FOLDER: Self = ic("\u{f0b9d}"); // 
+    pub const NEW_FILE: Self = ic("\u{f4d0}"); // 
     pub const PERSON: Self = ic("\u{f007}"); // 
     pub const PEOPLE: Self = ic("\u{f0c0}"); // 
     pub const SETTINGS: Self = ic("\u{f0493}"); // 󰒓

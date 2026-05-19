@@ -23,6 +23,7 @@ use lb::subscribers::status::Status;
 use workspace_rs::file_cache::{FileCache, FilesExt};
 use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
+use workspace_rs::theme::palette_v2::ThemeExt as _;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
 
@@ -179,7 +180,7 @@ impl AccountScreen {
                         .inner_margin(egui::Margin::symmetric(20, 20))
                         .show(ui, |ui| {
                             self.show_usage_panel(ui);
-                            self.show_sync_btn(ui);
+                            self.show_sidebar_action_row(ui);
 
                             ui.add_space(15.0);
                         });
@@ -584,6 +585,77 @@ impl AccountScreen {
             ui.ctx().request_repaint();
         };
         settings_btn.on_hover_text("Settings");
+    }
+
+    fn show_sidebar_action_row(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.set_width(ui.available_width());
+            self.show_sync_btn(ui);
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                let theme = ui.ctx().get_lb_theme();
+                let primary_fg = theme.fg().get_color(theme.prefs().primary);
+                let primary_bg = theme.bg().get_color(theme.prefs().primary);
+
+                self.show_create_button(
+                    ui,
+                    &Icon::NEW_FOLDER,
+                    primary_bg,
+                    "New folder",
+                    |this, _| {
+                        let parent = this.workspace_focused_parent();
+                        this.update_tx
+                            .send(OpenModal::NewFolder(parent).into())
+                            .unwrap();
+                    },
+                );
+                ui.add_space(6.0);
+
+                self.show_create_button(
+                    ui,
+                    &Icon::NEW_FILE,
+                    primary_fg,
+                    "New document",
+                    |this, ui| {
+                        this.workspace.create_doc(false);
+                        ui.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f)));
+                    },
+                );
+            });
+        });
+    }
+
+    fn show_create_button(
+        &mut self, ui: &mut egui::Ui, icon: &Icon, bg: egui::Color32, tooltip: &str,
+        on_click: impl FnOnce(&mut Self, &mut egui::Ui),
+    ) {
+        let theme = ui.ctx().get_lb_theme();
+        let icon_color = theme.neutral_bg();
+
+        let visuals_before_button = ui.style().clone();
+        ui.visuals_mut().widgets.hovered.bg_fill = bg.linear_multiply(0.85);
+
+        let button = Button::default()
+            .icon(icon)
+            .icon_color(icon_color)
+            .padding(egui::vec2(8.0, 6.0))
+            .rounding(5.0)
+            .frame(true)
+            .default_fill(bg)
+            .show(ui);
+
+        ui.set_style(visuals_before_button);
+
+        if button.clicked() {
+            on_click(self, ui);
+        }
+
+        button.on_hover_text(tooltip);
+    }
+
+    fn workspace_focused_parent(&self) -> Option<File> {
+        let parent = self.workspace.focused_parent?;
+        self.workspace.files.read().ok()?.get_by_id(parent).cloned()
     }
 
     fn update_zen_mode(&mut self, new_value: bool) {
