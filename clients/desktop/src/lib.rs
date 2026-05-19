@@ -98,10 +98,12 @@ impl ApplicationHandler<UserEvent> for App {
                 });
         }
 
-        let response = state.egui_winit.on_window_event(&state.window, &event);
+        if !matches!(event, WindowEvent::ThemeChanged(_)) {
+            let response = state.egui_winit.on_window_event(&state.window, &event);
 
-        if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {
-            state.window.request_redraw();
+            if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {
+                state.window.request_redraw();
+            }
         }
 
         match event {
