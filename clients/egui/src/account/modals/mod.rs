@@ -181,11 +181,7 @@ fn show_modal<M: Modal>(
 
     let frame = egui::Frame::window(&ctx.style())
         .fill(ctx.style().visuals.panel_fill)
-        .inner_margin(egui::Margin {
-            left: 0,
-            bottom: 0,
-            ..ctx.style().spacing.window_margin
-        });
+        .inner_margin(egui::Margin { left: 0, bottom: 0, ..ctx.style().spacing.window_margin });
 
     let title_owned = title.to_string();
     let win_resp = egui::Window::new(title)
