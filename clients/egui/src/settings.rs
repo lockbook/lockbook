@@ -96,6 +96,11 @@ pub fn ensure_themes_dir() {
     if let Ok(json) = serde_json::to_string_pretty(&catppuccin) {
         let _ = fs::write(dir.join("cattpuccin.json"), json);
     }
+
+    let intellij = Theme::intellij(Mode::Light);
+    if let Ok(json) = serde_json::to_string_pretty(&intellij) {
+        let _ = fs::write(dir.join("intellij.json"), json);
+    }
 }
 
 pub fn list_themes() -> Vec<String> {

@@ -292,6 +292,46 @@ impl Theme {
         }
     }
 
+    pub fn intellij(current: Mode) -> Self {
+        Self {
+            current,
+            dim: ThemeVariant {
+                black: hex_color!("#1E1F22"),
+                grey: hex_color!("#2B2D30"),
+                white: hex_color!("#DFE1E5"),
+                red: hex_color!("#DB5860"),
+                green: hex_color!("#59A869"),
+                yellow: hex_color!("#C56823"),
+                blue: hex_color!("#3574F0"),
+                magenta: hex_color!("#871094"),
+                cyan: hex_color!("#00627A"),
+            },
+            dark_prefs: Preferences {
+                primary: Palette::Blue,
+                secondary: Palette::Green,
+                tertiary: Palette::Yellow,
+                quaternary: Palette::Cyan,
+            },
+            bright: ThemeVariant {
+                black: hex_color!("#27282E"),
+                grey: hex_color!("#EBECF0"),
+                white: hex_color!("#FFFFFF"),
+                red: hex_color!("#FF6B68"),
+                green: hex_color!("#A5C261"),
+                yellow: hex_color!("#CC7832"),
+                blue: hex_color!("#6897BB"),
+                magenta: hex_color!("#9876AA"),
+                cyan: hex_color!("#A9B7C6"),
+            },
+            light_prefs: Preferences {
+                primary: Palette::Blue,
+                secondary: Palette::Green,
+                tertiary: Palette::Yellow,
+                quaternary: Palette::Cyan,
+            },
+        }
+    }
+
     pub fn catppuccin(current: Mode) -> Self {
         Self {
             current,
