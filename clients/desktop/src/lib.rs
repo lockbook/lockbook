@@ -20,16 +20,26 @@ impl ApplicationHandler<UserEvent> for App {
             return;
         }
 
+        let icon_data = load_icon_data();
+        let window_icon = icon_data
+            .as_ref()
+            .and_then(|i| Icon::from_rgba(i.rgba.clone(), i.width, i.height).ok());
+
         let window_attrs = Window::default_attributes()
             .with_title("Lockbook")
             .with_inner_size(LogicalSize::new(1300, 800))
-            .with_window_icon(load_icon());
+            .with_window_icon(window_icon);
 
         let window = Arc::new(
             event_loop
                 .create_window(window_attrs)
                 .expect("failed to create window"),
         );
+
+        #[cfg(target_os = "macos")]
+        if let Some(icon) = &icon_data {
+            set_macos_app_icon(&icon.rgba, icon.width, icon.height);
+        }
 
         let dark_mode = dark_light::detect()
             .map(|m| m == dark_light::Mode::Dark)
@@ -314,11 +324,63 @@ enum UserEvent {
     RepaintRequested { when: Instant, cumulative_pass_nr: u64, viewport_id: ViewportId },
 }
 
-fn load_icon() -> Option<Icon> {
+struct IconData {
+    rgba: Vec<u8>,
+    width: u32,
+    height: u32,
+}
+
+fn load_icon_data() -> Option<IconData> {
     let png_bytes = include_bytes!("../lockbook.png");
     let img = image::load_from_memory(png_bytes).ok()?.into_rgba8();
     let (width, height) = img.dimensions();
-    Icon::from_rgba(img.into_raw(), width, height).ok()
+    Some(IconData { rgba: img.into_raw(), width, height })
+}
+
+// `winit::Window::with_window_icon` is unsupported on macOS, so we set the dock
+// / app-switcher icon directly via `NSApplication.setApplicationIconImage`.
+#[cfg(target_os = "macos")]
+fn set_macos_app_icon(rgba: &[u8], width: u32, height: u32) {
+    use objc2::ClassType as _;
+    use objc2_app_kit::{NSApplication, NSBitmapImageRep, NSDeviceRGBColorSpace, NSImage};
+    use objc2_foundation::NSSize;
+
+    unsafe extern "C" {
+        static NSApp: Option<&'static NSApplication>;
+    }
+
+    let mut bytes = rgba.to_vec();
+
+    unsafe {
+        let Some(app) = NSApp else {
+            log::debug!("NSApp is null; skipping app icon");
+            return;
+        };
+
+        let Some(image_rep) = NSBitmapImageRep::initWithBitmapDataPlanes_pixelsWide_pixelsHigh_bitsPerSample_samplesPerPixel_hasAlpha_isPlanar_colorSpaceName_bytesPerRow_bitsPerPixel(
+            NSBitmapImageRep::alloc(),
+            [bytes.as_mut_ptr()].as_mut_ptr(),
+            width as isize,
+            height as isize,
+            8,
+            4,
+            true,
+            false,
+            NSDeviceRGBColorSpace,
+            (width * 4) as isize,
+            32,
+        ) else {
+            log::warn!("failed to create NSBitmapImageRep for app icon");
+            return;
+        };
+
+        let app_icon = NSImage::initWithSize(
+            NSImage::alloc(),
+            NSSize::new(width as f64, height as f64),
+        );
+        app_icon.addRepresentation(&image_rep);
+        app.setApplicationIconImage(Some(&app_icon));
+    }
 }
 
 pub fn run() {
