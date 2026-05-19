@@ -83,7 +83,7 @@ impl super::AccountScreen {
                     ProgressBar::new().percent(usage.percent).show(ui);
                 });
             }
-            ui.add_space(15.0);
+            ui.add_space(25.0);
         }
     }
 
@@ -109,7 +109,6 @@ impl super::AccountScreen {
             .text("Sync")
             .icon(&icon)
             .icon_alignment(egui::Align::RIGHT)
-            .padding(egui::vec2(20.0, 7.0))
             .frame(true)
             .rounding(5.0)
             .is_loading(self.lb_status.syncing)
