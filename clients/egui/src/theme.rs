@@ -56,6 +56,10 @@ fn poll_system_theme(
                             // since updating from egui 0.28 to 0.30, this is
                             // necessary to prevent light/dark mode switching
                             // from resetting font sizes to default
+                            //
+                            // update -- this is only needed if you're running from eframe, and we
+                            // could consider removing this. I feel like it adds some latency but
+                            // I'm not sure, didn't measure.
                             visuals::init(&ctx);
 
                             ctx.request_repaint();
