@@ -1400,8 +1400,8 @@ impl FileTree {
         let file_cache = self.file_cache.read().unwrap();
 
         let my_username = file_cache.root().name.clone();
-        self.files = file_cache.files.clone();
-        self.files.extend(file_cache.shared.clone());
+        self.files = file_cache.files.values().cloned().collect();
+        self.files.extend(file_cache.shared.values().cloned());
 
         self.pending_shares
             .values_mut()
