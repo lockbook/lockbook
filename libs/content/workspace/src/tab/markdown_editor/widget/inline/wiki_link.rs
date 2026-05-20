@@ -21,7 +21,7 @@ impl<'ast> MdRender {
         let cmd = self.ctx.input(|i| i.modifiers.command);
         if cmd {
             let salt = Self::link_interaction_id_salt(self.node_range(node));
-            layout.interaction_open(salt, egui::Sense::CLICK);
+            layout.interaction_open(salt, egui::Sense::click());
         }
         self.layout_circumfix(layout, node, range, fmt);
         if cmd {

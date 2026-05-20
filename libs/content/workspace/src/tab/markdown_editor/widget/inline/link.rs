@@ -62,10 +62,7 @@ impl<'ast> MdRender {
         let cmd = self.ctx.input(|i| i.modifiers.command);
         if cmd {
             let salt = Self::link_interaction_id_salt(node_range);
-            // `CLICK` (not `Sense::click()`) — no `FOCUSABLE` flag,
-            // so clicking the link doesn't steal focus from the
-            // editor and stick the hover cursor on after open.
-            layout.interaction_open(salt, egui::Sense::CLICK);
+            layout.interaction_open(salt, egui::Sense::click());
         }
 
         let trimmed = node_range.trim(&range);
