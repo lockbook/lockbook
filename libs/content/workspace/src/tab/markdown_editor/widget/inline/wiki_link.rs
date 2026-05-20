@@ -18,6 +18,14 @@ impl<'ast> MdRender {
             _ => String::new(),
         };
         let fmt = self.text_format_link(node.parent().unwrap(), self.link_state_for_wikilink(&url));
+        let cmd = self.ctx.input(|i| i.modifiers.command);
+        if cmd {
+            let salt = Self::link_interaction_id_salt(self.node_range(node));
+            layout.interaction_open(salt, egui::Sense::CLICK);
+        }
         self.layout_circumfix(layout, node, range, fmt);
+        if cmd {
+            layout.interaction_close();
+        }
     }
 }

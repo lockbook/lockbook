@@ -38,12 +38,17 @@ impl<'ast> MdRender {
             .is_some_and(|r| &self.buffer[r] == url)
     }
 
-    /// Emit a link as a normal circumfix (children styled with link
-    /// format, prefix/postfix syntax revealed by cursor). For empty
-    /// or auto links with a fetched title, swap the URL bytes for
-    /// the fetched title via `push_override`. Sense routing (click
-    /// to open, touch-mode "open in new tab" button) lives in the
-    /// fragment paint / hit-test layer, not in walker emit.
+    /// Shared by producer + consumer so `ui.id().with(salt)` resolves
+    /// to the same id on both sides.
+    pub fn link_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
+        egui::Id::new(("md_link", node_range))
+    }
+
+    /// Emit a link as a circumfix. For empty/auto links with a fetched
+    /// title, swap the URL bytes for the title via `push_override`.
+    /// With cmd held, opens a `Sense::click` interaction scope so egui
+    /// z-order routes cmd-click here; without cmd no scope is opened
+    /// and clicks fall through to the editor.
     pub fn layout_link(
         &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
     ) {
@@ -54,18 +59,33 @@ impl<'ast> MdRender {
         let link_fmt = self.text_format_link(parent, self.link_state_for_url(&url));
         let revealed = self.range_revealed(node_range, is_auto);
 
-        // Empty link with title fetched: replace URL bytes with title.
-        if (node.children().next().is_none() || is_auto) && !revealed {
-            let trimmed = node_range.trim(&range);
-            if !trimmed.is_empty() {
-                if let DestinationTitle::Ready(t) = self.get_link_title(&url) {
-                    layout.push_override(trimmed, &t, link_fmt);
-                    return;
-                }
-            }
+        let cmd = self.ctx.input(|i| i.modifiers.command);
+        if cmd {
+            let salt = Self::link_interaction_id_salt(node_range);
+            // `CLICK` (not `Sense::click()`) — no `FOCUSABLE` flag,
+            // so clicking the link doesn't steal focus from the
+            // editor and stick the hover cursor on after open.
+            layout.interaction_open(salt, egui::Sense::CLICK);
         }
-        // Otherwise: emit as a circumfix with link format.
-        self.layout_circumfix(layout, node, range, link_fmt);
+
+        let trimmed = node_range.trim(&range);
+        let title =
+            if (node.children().next().is_none() || is_auto) && !revealed && !trimmed.is_empty() {
+                match self.get_link_title(&url) {
+                    DestinationTitle::Ready(t) => Some(t),
+                    DestinationTitle::Absent => None,
+                }
+            } else {
+                None
+            };
+        match title {
+            Some(t) => layout.push_override(trimmed, &t, link_fmt),
+            None => self.layout_circumfix(layout, node, range, link_fmt),
+        }
+
+        if cmd {
+            layout.interaction_close();
+        }
     }
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
@@ -131,6 +151,66 @@ impl<'ast> MdRender {
         }
         for url in urls {
             ctx.open_url(url);
+        }
+    }
+
+    /// Hover → `PointingHand` + Warning/Broken tooltip; click → open
+    /// in a new tab. The producer only opens an interaction scope
+    /// when cmd is held, so the response's presence is the cmd-gate.
+    pub fn handle_link_interactions(&self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
+        let parent_base = ui.id();
+        for node in root.descendants() {
+            let (url, is_wikilink) = match &node.data.borrow().value {
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
+                NodeValue::Link(nl) | NodeValue::Image(nl) => (nl.url.clone(), false),
+                _ => continue,
+            };
+            let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
+            let Some(response) = self.interaction_responses.get(&id) else {
+                continue;
+            };
+
+            if response.hovered() {
+                ui.ctx()
+                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+
+                let state = if is_wikilink {
+                    self.link_state_for_wikilink(&url)
+                } else {
+                    self.link_state_for_url(&url)
+                };
+                if let LinkState::Warning { message } | LinkState::Broken { message } = &state {
+                    if let Some(pos) = ui.ctx().pointer_hover_pos() {
+                        egui::Area::new(id.with("link_warning"))
+                            .order(egui::Order::Tooltip)
+                            .fixed_pos(pos + egui::vec2(8.0, 16.0))
+                            .show(ui.ctx(), |ui| {
+                                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                    ui.label(message);
+                                });
+                            });
+                    }
+                }
+            }
+
+            if response.clicked() {
+                if is_wikilink {
+                    if let Some(file_id) = self.resolve_wikilink(&url) {
+                        ui.ctx().open_file(file_id, true);
+                    }
+                } else {
+                    match self.resolve_link(&url) {
+                        Some(ResolvedLink::File(file_id)) => ui.ctx().open_file(file_id, true),
+                        Some(ResolvedLink::External(target)) => ui
+                            .ctx()
+                            .open_url(egui::OpenUrl { url: target, new_tab: true }),
+                        None => ui
+                            .ctx()
+                            .open_url(egui::OpenUrl { url: url.clone(), new_tab: true }),
+                    }
+                }
+                return;
+            }
         }
     }
 

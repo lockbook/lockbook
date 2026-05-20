@@ -1,5 +1,4 @@
 use comrak::nodes::{AstNode, NodeFootnoteReference, NodeValue};
-use egui::Ui;
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
@@ -40,24 +39,6 @@ impl std::ops::BitOrAssign for Response {
 }
 
 impl<'ast> MdRender {
-    #[allow(clippy::only_used_in_recursion)]
-    pub fn inline_clickable(&self, ui: &Ui, node: &'ast AstNode<'ast>) -> bool {
-        match &node.data.borrow().value {
-            NodeValue::Link(_) | NodeValue::WikiLink(_) | NodeValue::Image(_) => {
-                let is_mobile = ui.ctx().os() == egui::os::OperatingSystem::Android
-                    || ui.ctx().os() == egui::os::OperatingSystem::IOS;
-                if is_mobile { false } else { ui.input(|i| i.modifiers.command) }
-            }
-            _ => {
-                if let Some(parent) = node.parent() {
-                    self.inline_clickable(ui, parent)
-                } else {
-                    false
-                }
-            }
-        }
-    }
-
     /// Returns the range between the start of the node and the start of its
     /// first child, if there is one.
     pub fn prefix_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {

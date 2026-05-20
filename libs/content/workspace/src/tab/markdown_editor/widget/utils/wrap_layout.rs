@@ -132,11 +132,17 @@ pub enum InlineItem {
     /// newlines (soft_break). Has a source range for cursor
     /// positioning; treated by the row builder like a wrap-break-
     /// glue (zero-width fragment, excluded from row source_range).
-    Break { source_range: (Grapheme, Grapheme), visible_byte_range: std::ops::Range<u32> },
+    Break {
+        source_range: (Grapheme, Grapheme),
+        visible_byte_range: std::ops::Range<u32>,
+    },
     /// Open an inline-box style scope.
     StyleOpen(StyleInfo),
     /// Close the most recent open. AST nesting guarantees LIFO.
     StyleClose,
+    /// Tags subsequent fragments until `InteractionClose`.
+    InteractionOpen(egui::Id, egui::Sense),
+    InteractionClose,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -230,6 +236,9 @@ pub struct Fragment {
     /// text; set from `SourceSegment::one_to_one == false` for
     /// override segments.
     pub atomic: bool,
+    /// Id salt + sense for `interact_fragments`. Innermost open
+    /// scope wins; `None` means no per-fragment interact.
+    pub interaction: Option<(egui::Id, egui::Sense)>,
 }
 
 /// What a fragment renders.
@@ -305,6 +314,8 @@ enum FlowEvent {
     /// Translates to an `InlineItem::Break` at this point in the
     /// shaped stream.
     Break((Grapheme, Grapheme)),
+    InteractionOpen(egui::Id, egui::Sense),
+    InteractionClose,
 }
 
 impl Layout {
@@ -378,6 +389,18 @@ impl Layout {
     pub fn push_break(&mut self, source_range: (Grapheme, Grapheme)) {
         self.events
             .push((self.visible.len(), FlowEvent::Break(source_range)));
+    }
+
+    /// Open an interaction scope; fragments emitted before the matching
+    /// `interaction_close` carry `(id, sense)`.
+    pub fn interaction_open(&mut self, id: egui::Id, sense: egui::Sense) {
+        self.events
+            .push((self.visible.len(), FlowEvent::InteractionOpen(id, sense)));
+    }
+
+    pub fn interaction_close(&mut self) {
+        self.events
+            .push((self.visible.len(), FlowEvent::InteractionClose));
     }
 }
 
@@ -543,6 +566,12 @@ fn shape_to_items(
                 }
                 FlowEvent::Break(r) => {
                     items.push(InlineItem::Break { source_range: *r, visible_byte_range: p..p });
+                }
+                FlowEvent::InteractionOpen(id, sense) => {
+                    items.push(InlineItem::InteractionOpen(*id, *sense));
+                }
+                FlowEvent::InteractionClose => {
+                    items.push(InlineItem::InteractionClose);
                 }
             }
         };
@@ -1173,6 +1202,9 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                 scope_bg_stack.pop();
                 i += 1;
             }
+            InlineItem::InteractionOpen(..) | InlineItem::InteractionClose => {
+                i += 1;
+            }
         }
     }
     breaks.push(items.len());
@@ -1184,7 +1216,11 @@ fn item_advance(item: &InlineItem) -> f32 {
         InlineItem::Box { advance, .. } => *advance,
         InlineItem::Glue { natural, .. } => *natural,
         InlineItem::Pad(a) => *a,
-        InlineItem::Break { .. } | InlineItem::StyleOpen(_) | InlineItem::StyleClose => 0.0,
+        InlineItem::Break { .. }
+        | InlineItem::StyleOpen(_)
+        | InlineItem::StyleClose
+        | InlineItem::InteractionOpen(..)
+        | InlineItem::InteractionClose => 0.0,
     }
 }
 
@@ -1204,6 +1240,7 @@ pub fn build_rows(
     let ascent = row_height * 0.8;
     let descent = row_height * 0.2;
     let mut style_stack: Vec<StyleInfo> = Vec::new();
+    let mut interaction_stack: Vec<(egui::Id, egui::Sense)> = Vec::new();
     let mut y_top = 0.0f32;
 
     for win in breaks.windows(2) {
@@ -1253,6 +1290,7 @@ pub fn build_rows(
                 style_stack: style_stack.clone(),
                 content: FragmentContent::Spacer,
                 atomic: false,
+                interaction: interaction_stack.last().copied(),
             });
             x += inline_pad;
         }
@@ -1293,6 +1331,7 @@ pub fn build_rows(
                             cluster_advances: cluster_advances.clone(),
                         },
                         atomic: *atomic,
+                        interaction: interaction_stack.last().copied(),
                     });
                     x += advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1348,6 +1387,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content,
                         atomic: false,
+                        interaction: interaction_stack.last().copied(),
                     });
                     x += effective_advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1371,6 +1411,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Spacer,
                         atomic: false,
+                        interaction: interaction_stack.last().copied(),
                     });
                     x += advance;
                 }
@@ -1396,11 +1437,18 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Spacer,
                         atomic: false,
+                        interaction: interaction_stack.last().copied(),
                     });
                 }
                 InlineItem::StyleOpen(info) => style_stack.push(info.clone()),
                 InlineItem::StyleClose => {
                     style_stack.pop();
+                }
+                InlineItem::InteractionOpen(id, sense) => {
+                    interaction_stack.push((*id, *sense));
+                }
+                InlineItem::InteractionClose => {
+                    interaction_stack.pop();
                 }
             }
         }
@@ -1424,6 +1472,7 @@ pub fn build_rows(
                 style_stack: style_stack.clone(),
                 content: FragmentContent::Spacer,
                 atomic: false,
+                interaction: interaction_stack.last().copied(),
             });
         }
 
@@ -1618,6 +1667,7 @@ impl MdRender {
                     style_stack: Vec::new(),
                     content: FragmentContent::Spacer,
                     atomic: false,
+                    interaction: None,
                 });
             }
 
@@ -1663,6 +1713,32 @@ impl MdRender {
     /// returns the rect owner.
     pub fn fragment_at_pos(&self, pos: Pos2) -> Option<&Fragment> {
         self.fragments.iter().rev().find(|f| f.rect.contains(pos))
+    }
+
+    /// Allocate `ui.interact` for every fragment tagged with
+    /// `(salt, sense)` and union the per-fragment responses by parent
+    /// id into `self.interaction_responses`. Consumers compute
+    /// `ui.id().with(salt)` to look up the merged response.
+    ///
+    /// Must run after the editor's own `ui.interact` so per-fragment
+    /// rects sit on top in egui's z-order.
+    pub fn interact_fragments(&mut self, ui: &mut egui::Ui) {
+        let mut per_parent: std::collections::HashMap<egui::Id, egui::Response> =
+            std::collections::HashMap::new();
+        let parent_base = ui.id();
+        for (i, f) in self.fragments.iter().enumerate() {
+            let Some((salt, sense)) = f.interaction else {
+                continue;
+            };
+            let parent_id = parent_base.with(salt);
+            let r = ui.interact(f.rect, parent_id.with(i), sense);
+            let merged = match per_parent.remove(&parent_id) {
+                Some(prev) => prev.union(r),
+                None => r,
+            };
+            per_parent.insert(parent_id, merged);
+        }
+        self.interaction_responses = per_parent;
     }
 
     /// Find the closest fragment to `pos` by (y_dist, x_dist), with
