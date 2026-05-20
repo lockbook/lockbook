@@ -960,7 +960,7 @@ impl Editor {
 
         let render_elapsed = start.elapsed();
 
-        if cfg!(debug_assertions) && self.edit.renderer.debug {
+        if self.edit.renderer.debug {
             self.edit.renderer.show_debug_fps(ui);
         }
 
