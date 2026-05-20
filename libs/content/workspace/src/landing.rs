@@ -761,13 +761,13 @@ impl Workspace {
             if self.landing_page.flatten_tree {
                 // When flattening, include all shared files (documents will
                 // survive the flatten filter below, just like own-tree files)
-                for f in &files.shared {
+                for f in files.shared.values() {
                     descendents.push(f);
                 }
             } else {
                 // When not flattening, include only share roots
-                for f in &files.shared {
-                    if files.shared.get_by_id(f.parent).is_none() {
+                for f in files.shared.values() {
+                    if !files.shared.contains_key(&f.parent) {
                         descendents.push(f);
                     }
                 }
@@ -1132,7 +1132,7 @@ impl Workspace {
                         &child.name
                     });
 
-                    let is_pending = files.shared.get_by_id(child.id).is_some();
+                    let is_pending = files.shared.contains_key(&child.id);
                     let is_shared = is_pending || !child.shares.is_empty();
                     let theme = ui.ctx().get_lb_theme();
                     if child.is_folder() {

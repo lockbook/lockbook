@@ -186,6 +186,11 @@ impl MdEdit {
             ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::Text);
         }
 
+        // Per-fragment interacts must come after the editor's main
+        // interact above so they sit on top in z-order.
+        self.renderer.interact_fragments(ui);
+        self.renderer.handle_link_interactions(root, ui);
+
         let mut ops = Vec::new();
 
         // --- context menu (desktop only) -------------------------------------

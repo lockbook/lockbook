@@ -20,8 +20,8 @@ pub enum ResolvedLink {
 
 pub struct FileCache {
     pub root: File,
-    pub files: Vec<File>,
-    pub shared: Vec<File>,
+    pub files: HashMap<Uuid, File>,
+    pub shared: HashMap<Uuid, File>,
     pub shared_roots: Vec<File>,
     pub suggested: Vec<Uuid>,
     pub size_bytes_recursive: HashMap<Uuid, u64>,
@@ -48,8 +48,8 @@ impl FileCache {
                 shares: vec![],
                 size_bytes: 0,
             },
-            files: vec![],
-            shared: vec![],
+            files: Default::default(),
+            shared: Default::default(),
             suggested: vec![],
             size_bytes_recursive: Default::default(),
             last_modified_recursive: Default::default(),
@@ -113,6 +113,9 @@ impl FileCache {
             .max()
             .unwrap_or(0);
 
+        let files: HashMap<Uuid, File> = files.into_iter().map(|f| (f.id, f)).collect();
+        let shared: HashMap<Uuid, File> = shared.into_iter().map(|f| (f.id, f)).collect();
+
         Ok(Self {
             root,
             files,
@@ -140,7 +143,7 @@ impl FileCache {
 
     /// Iterates all known files: the user's own tree plus pending shares.
     pub fn all_files(&self) -> impl Iterator<Item = &File> {
-        self.files.iter().chain(self.shared.iter())
+        self.files.values().chain(self.shared.values())
     }
 
     /// Returns path segments for a file, each annotated with whether that file
@@ -531,13 +534,11 @@ impl FilesExt for Vec<File> {
 
 impl FilesExt for FileCache {
     fn root(&self) -> &File {
-        self.files.root()
+        &self.root
     }
 
     fn get_by_id(&self, id: Uuid) -> Option<&File> {
-        self.files
-            .get_by_id(id)
-            .or_else(|| self.shared.get_by_id(id))
+        self.files.get(&id).or_else(|| self.shared.get(&id))
     }
 
     fn children(&self, id: Uuid) -> Vec<&File> {

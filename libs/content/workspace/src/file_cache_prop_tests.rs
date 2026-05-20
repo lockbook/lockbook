@@ -135,8 +135,8 @@ fn cache(src: &mut ByteSource) -> FileCache {
 
     FileCache {
         root: own_root,
-        files,
-        shared,
+        files: files.into_iter().map(|f| (f.id, f)).collect(),
+        shared: shared.into_iter().map(|f| (f.id, f)).collect(),
         suggested: vec![],
         size_bytes_recursive: HashMap::new(),
         last_modified_recursive: HashMap::new(),

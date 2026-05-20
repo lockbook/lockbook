@@ -107,6 +107,9 @@ pub struct MdRender {
     pub text_areas: Vec<TextBufferArea>,
     pub render_events: Vec<input::Event>,
     pub touch_consuming_rects: Vec<Rect>,
+    /// Per-frame, keyed by `ui.id().with(salt)`; populated by
+    /// `interact_fragments`, consumed by handlers in each node type.
+    pub interaction_responses: std::collections::HashMap<egui::Id, egui::Response>,
 
     // render input
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
@@ -367,6 +370,7 @@ impl MdRender {
             text_areas: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
+            interaction_responses: Default::default(),
             in_progress_selection: None,
             find_current_match: None,
             interactive: false,
@@ -429,6 +433,7 @@ impl MdRender {
             text_areas: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
+            interaction_responses: Default::default(),
             reveal_selection: None,
             search_range: None,
             disable_images: false,
@@ -570,6 +575,7 @@ impl Editor {
             text_areas: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
+            interaction_responses: Default::default(),
 
             in_progress_selection: None,
             find_current_match: None,
@@ -954,7 +960,7 @@ impl Editor {
 
         let render_elapsed = start.elapsed();
 
-        if cfg!(debug_assertions) && self.edit.renderer.debug {
+        if self.edit.renderer.debug {
             self.edit.renderer.show_debug_fps(ui);
         }
 

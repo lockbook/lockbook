@@ -4,6 +4,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
+use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
 pub trait BufferExt {
     fn shaped_size(&self, ppi: f32) -> Vec2;
@@ -131,11 +132,17 @@ pub enum InlineItem {
     /// newlines (soft_break). Has a source range for cursor
     /// positioning; treated by the row builder like a wrap-break-
     /// glue (zero-width fragment, excluded from row source_range).
-    Break { source_range: (Grapheme, Grapheme), visible_byte_range: std::ops::Range<u32> },
+    Break {
+        source_range: (Grapheme, Grapheme),
+        visible_byte_range: std::ops::Range<u32>,
+    },
     /// Open an inline-box style scope.
     StyleOpen(StyleInfo),
     /// Close the most recent open. AST nesting guarantees LIFO.
     StyleClose,
+    /// Tags subsequent fragments until `InteractionClose`.
+    InteractionOpen(egui::Id, egui::Sense),
+    InteractionClose,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -229,6 +236,9 @@ pub struct Fragment {
     /// text; set from `SourceSegment::one_to_one == false` for
     /// override segments.
     pub atomic: bool,
+    /// Id salt + sense for `interact_fragments`. Innermost open
+    /// scope wins; `None` means no per-fragment interact.
+    pub interaction: Option<(egui::Id, egui::Sense)>,
 }
 
 /// What a fragment renders.
@@ -304,6 +314,8 @@ enum FlowEvent {
     /// Translates to an `InlineItem::Break` at this point in the
     /// shaped stream.
     Break((Grapheme, Grapheme)),
+    InteractionOpen(egui::Id, egui::Sense),
+    InteractionClose,
 }
 
 impl Layout {
@@ -377,6 +389,18 @@ impl Layout {
     pub fn push_break(&mut self, source_range: (Grapheme, Grapheme)) {
         self.events
             .push((self.visible.len(), FlowEvent::Break(source_range)));
+    }
+
+    /// Open an interaction scope; fragments emitted before the matching
+    /// `interaction_close` carry `(id, sense)`.
+    pub fn interaction_open(&mut self, id: egui::Id, sense: egui::Sense) {
+        self.events
+            .push((self.visible.len(), FlowEvent::InteractionOpen(id, sense)));
+    }
+
+    pub fn interaction_close(&mut self) {
+        self.events
+            .push((self.visible.len(), FlowEvent::InteractionClose));
     }
 }
 
@@ -543,6 +567,12 @@ fn shape_to_items(
                 FlowEvent::Break(r) => {
                     items.push(InlineItem::Break { source_range: *r, visible_byte_range: p..p });
                 }
+                FlowEvent::InteractionOpen(id, sense) => {
+                    items.push(InlineItem::InteractionOpen(*id, *sense));
+                }
+                FlowEvent::InteractionClose => {
+                    items.push(InlineItem::InteractionClose);
+                }
             }
         };
 
@@ -559,6 +589,9 @@ fn shape_to_items(
     let fs: Arc<Mutex<glyphon::FontSystem>> = renderer
         .ctx
         .data(|d| d.get_temp::<Arc<Mutex<glyphon::FontSystem>>>(egui::Id::NULL))?;
+    let cache: Arc<Mutex<GlyphonCache>> = renderer
+        .ctx
+        .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))?;
     let ppi = renderer.ctx.pixels_per_point();
 
     // Build the set of byte positions where a chunk *must* end.
@@ -634,7 +667,7 @@ fn shape_to_items(
         // paint will use; the advance comes from the buffer's
         // measured glyph extent.
         let shape_result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-            shape_chunk(&fs, chunk_text, &format, row_height, width, ppi)
+            shape_chunk(&fs, &cache, chunk_text, &format, row_height, width, ppi)
         }));
         let (buffer, measured_advance) = match shape_result {
             Ok(v) => v,
@@ -700,6 +733,7 @@ fn shape_to_items(
                     renderer,
                     layout,
                     &fs,
+                    &cache,
                     &mut items,
                     chunk_text,
                     chunk_lo,
@@ -735,37 +769,47 @@ fn shape_to_items(
     Some(items)
 }
 
-/// Shape a single chunk of text with a single `Format` into a new
-/// glyphon `Buffer`. Returns the buffer wrapped in `Arc<RwLock<_>>`
-/// (for sharing with paint) and the buffer's painted-glyph extent
-/// in logical pixels. Buffer is shaped at device-pixel metrics so
-/// paint can hand it to `TextBufferArea` unchanged.
+/// Shape a single chunk of text with a single `Format` into a glyphon
+/// `Buffer`. Routes through `GlyphonCache` so repeat-shapes of the
+/// same (text, format, width) get a cache hit and skip rustybuzz /
+/// ttf_parser entirely. Returns the buffer wrapped in
+/// `Arc<RwLock<_>>` (for sharing with paint) and the buffer's
+/// painted-glyph extent in logical pixels.
 fn shape_chunk(
-    fs: &std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>, text: &str, format: &Format,
+    fs: &std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>,
+    cache: &std::sync::Arc<std::sync::Mutex<GlyphonCache>>, text: &str, format: &Format,
     row_height: f32, width: f32, ppi: f32,
 ) -> (std::sync::Arc<std::sync::RwLock<glyphon::Buffer>>, f32) {
-    use std::sync::{Arc, RwLock};
+    let metric = row_height * ppi;
+    let w = (width * ppi).max(1.0);
+    let key = shape_cache_key(text, format, metric, w);
+
     let buffer = {
-        let mut guard = fs.lock().unwrap();
-        let metric = row_height * ppi;
-        let mut b = glyphon::Buffer::new(&mut guard, glyphon::Metrics::new(metric, metric));
-        b.set_size(&mut guard, Some((width * ppi).max(1.0)), None);
-        b.set_wrap(&mut guard, glyphon::Wrap::None);
-        b.set_tab_width(&mut guard, 4);
-        let attrs = format_to_attrs(format, metric);
-        b.set_rich_text(
-            &mut guard,
-            std::iter::once((text, attrs.as_attrs())),
-            &attrs.as_attrs(),
-            glyphon::Shaping::Advanced,
-            None,
-        );
-        b
+        let format = format.clone();
+        let fs = fs.clone();
+        cache.lock().unwrap().get_or_shape(key, move || {
+            let mut guard = fs.lock().unwrap();
+            let mut b = glyphon::Buffer::new(&mut guard, glyphon::Metrics::new(metric, metric));
+            b.set_size(&mut guard, Some(w), None);
+            b.set_wrap(&mut guard, glyphon::Wrap::None);
+            b.set_tab_width(&mut guard, 4);
+            let attrs = format_to_attrs(&format, metric);
+            b.set_rich_text(
+                &mut guard,
+                std::iter::once((text, attrs.as_attrs())),
+                &attrs.as_attrs(),
+                glyphon::Shaping::Advanced,
+                None,
+            );
+            b
+        })
     };
+
     let advance = {
+        let guard = buffer.read().unwrap();
         let mut min_x = f32::INFINITY;
         let mut max_x = f32::NEG_INFINITY;
-        for run in buffer.layout_runs() {
+        for run in guard.layout_runs() {
             for g in run.glyphs.iter() {
                 let l = g.x;
                 let r = g.x + g.w;
@@ -779,7 +823,30 @@ fn shape_chunk(
         }
         if min_x.is_finite() && max_x > min_x { (max_x - min_x) / ppi } else { 0.0 }
     };
-    (Arc::new(RwLock::new(buffer)), advance)
+    (buffer, advance)
+}
+
+/// Build the `GlyphonCache` key for a single-span shape. Super/sub
+/// scales the per-span metric to 0.75×, so we mirror that into the
+/// key's `font_size_bits` to keep cache entries separate from same-
+/// text non-super/sub shapes. `width_bits ^ 1` matches the
+/// `Wrap::None` marker convention from `block::height_buffer`.
+fn shape_cache_key(text: &str, format: &Format, metric: f32, width_px: f32) -> GlyphonCacheKey {
+    let key_metric = if format.superscript || format.subscript { metric * 0.75 } else { metric };
+    GlyphonCacheKey::single(
+        text,
+        match format.family {
+            FontFamily::Sans => GlyphonFontFamily::SansSerif,
+            FontFamily::Mono => GlyphonFontFamily::Monospace,
+            FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols".into()),
+        },
+        format.bold,
+        format.italic,
+        Some(format.color.to_array()),
+        key_metric.to_bits(),
+        key_metric.to_bits(),
+        width_px.to_bits() ^ 1,
+    )
 }
 
 /// Per-source-grapheme advances read from a pre-shaped chunk
@@ -859,7 +926,8 @@ fn default_format() -> Format {
 #[allow(clippy::too_many_arguments)]
 fn emit_cluster_split_boxes(
     renderer: &MdRender, layout: &Layout,
-    fs: &std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>, items: &mut Vec<InlineItem>,
+    fs: &std::sync::Arc<std::sync::Mutex<glyphon::FontSystem>>,
+    cache: &std::sync::Arc<std::sync::Mutex<GlyphonCache>>, items: &mut Vec<InlineItem>,
     chunk_text: &str, chunk_lo: usize, source_range: (Grapheme, Grapheme), format: &Format,
     cluster_advances: &[f32], row_height: f32, width: f32, ppi: f32,
 ) {
@@ -913,7 +981,8 @@ fn emit_cluster_split_boxes(
         let sub_source_end =
             if i + 1 == cluster_count { source_range.end() } else { start_g + i + 1 };
         let sub_text = &chunk_text[cluster_byte_lo[i]..cluster_byte_hi[i]];
-        let (sub_buffer, sub_advance) = shape_chunk(fs, sub_text, format, row_height, width, ppi);
+        let (sub_buffer, sub_advance) =
+            shape_chunk(fs, cache, sub_text, format, row_height, width, ppi);
         items.push(InlineItem::Box {
             advance: sub_advance,
             source_range: (start_g + i, sub_source_end),
@@ -1133,6 +1202,9 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                 scope_bg_stack.pop();
                 i += 1;
             }
+            InlineItem::InteractionOpen(..) | InlineItem::InteractionClose => {
+                i += 1;
+            }
         }
     }
     breaks.push(items.len());
@@ -1144,7 +1216,11 @@ fn item_advance(item: &InlineItem) -> f32 {
         InlineItem::Box { advance, .. } => *advance,
         InlineItem::Glue { natural, .. } => *natural,
         InlineItem::Pad(a) => *a,
-        InlineItem::Break { .. } | InlineItem::StyleOpen(_) | InlineItem::StyleClose => 0.0,
+        InlineItem::Break { .. }
+        | InlineItem::StyleOpen(_)
+        | InlineItem::StyleClose
+        | InlineItem::InteractionOpen(..)
+        | InlineItem::InteractionClose => 0.0,
     }
 }
 
@@ -1164,6 +1240,7 @@ pub fn build_rows(
     let ascent = row_height * 0.8;
     let descent = row_height * 0.2;
     let mut style_stack: Vec<StyleInfo> = Vec::new();
+    let mut interaction_stack: Vec<(egui::Id, egui::Sense)> = Vec::new();
     let mut y_top = 0.0f32;
 
     for win in breaks.windows(2) {
@@ -1213,6 +1290,7 @@ pub fn build_rows(
                 style_stack: style_stack.clone(),
                 content: FragmentContent::Spacer,
                 atomic: false,
+                interaction: interaction_stack.last().copied(),
             });
             x += inline_pad;
         }
@@ -1253,6 +1331,7 @@ pub fn build_rows(
                             cluster_advances: cluster_advances.clone(),
                         },
                         atomic: *atomic,
+                        interaction: interaction_stack.last().copied(),
                     });
                     x += advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1308,6 +1387,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content,
                         atomic: false,
+                        interaction: interaction_stack.last().copied(),
                     });
                     x += effective_advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1331,6 +1411,7 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Spacer,
                         atomic: false,
+                        interaction: interaction_stack.last().copied(),
                     });
                     x += advance;
                 }
@@ -1356,11 +1437,18 @@ pub fn build_rows(
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Spacer,
                         atomic: false,
+                        interaction: interaction_stack.last().copied(),
                     });
                 }
                 InlineItem::StyleOpen(info) => style_stack.push(info.clone()),
                 InlineItem::StyleClose => {
                     style_stack.pop();
+                }
+                InlineItem::InteractionOpen(id, sense) => {
+                    interaction_stack.push((*id, *sense));
+                }
+                InlineItem::InteractionClose => {
+                    interaction_stack.pop();
                 }
             }
         }
@@ -1384,6 +1472,7 @@ pub fn build_rows(
                 style_stack: style_stack.clone(),
                 content: FragmentContent::Spacer,
                 atomic: false,
+                interaction: interaction_stack.last().copied(),
             });
         }
 
@@ -1578,6 +1667,7 @@ impl MdRender {
                     style_stack: Vec::new(),
                     content: FragmentContent::Spacer,
                     atomic: false,
+                    interaction: None,
                 });
             }
 
@@ -1623,6 +1713,32 @@ impl MdRender {
     /// returns the rect owner.
     pub fn fragment_at_pos(&self, pos: Pos2) -> Option<&Fragment> {
         self.fragments.iter().rev().find(|f| f.rect.contains(pos))
+    }
+
+    /// Allocate `ui.interact` for every fragment tagged with
+    /// `(salt, sense)` and union the per-fragment responses by parent
+    /// id into `self.interaction_responses`. Consumers compute
+    /// `ui.id().with(salt)` to look up the merged response.
+    ///
+    /// Must run after the editor's own `ui.interact` so per-fragment
+    /// rects sit on top in egui's z-order.
+    pub fn interact_fragments(&mut self, ui: &mut egui::Ui) {
+        let mut per_parent: std::collections::HashMap<egui::Id, egui::Response> =
+            std::collections::HashMap::new();
+        let parent_base = ui.id();
+        for (i, f) in self.fragments.iter().enumerate() {
+            let Some((salt, sense)) = f.interaction else {
+                continue;
+            };
+            let parent_id = parent_base.with(salt);
+            let r = ui.interact(f.rect, parent_id.with(i), sense);
+            let merged = match per_parent.remove(&parent_id) {
+                Some(prev) => prev.union(r),
+                None => r,
+            };
+            per_parent.insert(parent_id, merged);
+        }
+        self.interaction_responses = per_parent;
     }
 
     /// Find the closest fragment to `pos` by (y_dist, x_dist), with

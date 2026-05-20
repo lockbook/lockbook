@@ -30,6 +30,11 @@ members = [
 # [profile.bench]
 # debug = true
 
+# release-equivalent with debug symbols, for `samply` / `cargo flamegraph`.
+[profile.profiling]
+inherits = "release"
+debug = true
+
 # optimize all dependencies in dev mode so debug builds run at reasonable speed
 # see https://bevy-cheatbook.github.io/pitfalls/performance.html
 [profile.dev.package."*"]
