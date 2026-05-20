@@ -11,7 +11,7 @@ use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::block::TitleState;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -79,7 +79,11 @@ impl<'ast> MdRender {
                 None
             };
         match title {
-            Some(t) => layout.push_override(trimmed, &t, link_fmt),
+            Some(t) => {
+                layout.style_open(StyleInfo { format: link_fmt.clone(), source_range: node_range });
+                layout.push_override(trimmed, &t, link_fmt);
+                layout.style_close();
+            }
             None => self.layout_circumfix(layout, node, range, link_fmt),
         }
 
