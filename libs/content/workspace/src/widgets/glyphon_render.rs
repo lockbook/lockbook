@@ -13,6 +13,13 @@ use glyphon::{
 use super::glyphon_cache::GlyphonCache;
 
 pub fn register_font_system(ctx: &egui::Context) -> Arc<Mutex<FontSystem>> {
+    // Idempotent: callers (workspace boot, test harness per-frame) may
+    // invoke this repeatedly. Reusing the existing FontSystem +
+    // GlyphonCache preserves the shaped-buffer cache across frames.
+    if let Some(font_system) = ctx.data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL)) {
+        return font_system;
+    }
+
     let mut db = fontdb::Database::new();
     crate::font::load(&mut db);
     let font_system = Arc::new(Mutex::new(FontSystem::new_with_locale_and_db("en-US".into(), db)));

@@ -15,18 +15,24 @@ impl MdRender {
         let elapsed = now.duration_since(oldest).as_secs_f32();
         let fps = if elapsed > 0.0 { self.frame_times.len() as f32 / elapsed } else { 0.0 };
 
-        let debug_text = format!("{:.0} fps", fps);
-        let rect = ui.max_rect();
-        let pos = rect.right_top() + Vec2::new(-60., 5.);
-        ui.painter().text(
+        let pos = ui.max_rect().right_top() + Vec2::new(-60., 5.);
+        let color = self
+            .ctx
+            .get_lb_theme()
+            .fg()
+            .get_color(self.ctx.get_lb_theme().prefs().primary);
+        // Foreground layer so the editor's text callback (wgpu glyphon
+        // pass) doesn't paint over it.
+        let painter = ui.ctx().layer_painter(egui::LayerId::new(
+            egui::Order::Foreground,
+            egui::Id::new("md_debug_fps"),
+        ));
+        painter.text(
             pos,
             egui::Align2::RIGHT_TOP,
-            debug_text,
+            format!("{:.0} fps", fps),
             egui::FontId::monospace(14.),
-            self.ctx
-                .get_lb_theme()
-                .fg()
-                .get_color(self.ctx.get_lb_theme().prefs().primary),
+            color,
         );
     }
 
