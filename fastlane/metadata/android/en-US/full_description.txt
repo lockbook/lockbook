@@ -1,0 +1,18 @@
+Privacy shouldn't be a compromise. That's why we created Lockbook, a secure note-taking app that lets you record, sync, and share your thoughts. We collect no personal information and encrypt your notes so even we can't see them. Don't take our word for it: Lockbook is 100% open-source: https://github.com/lockbook/lockbook
+
+Polished:
+We built Lockbook for everyday use because we use Lockbook every day. Our native apps feel at home on every platform, and we've gone the extra mile to ensure they're fast, stable, efficient, and delightful to use. We can't wait for you to try them.
+
+Secure:
+Keep your thoughts to yourself. Lockbook encrypts your notes with keys that are generated on your devices and stay on your devices. Only you and the users you share your notes with can see them; no one else, including infrastructure providers, state actors, or Lockbook employees, can access your data.
+
+Private:
+Know your customer? We sure don't. We don't collect your email, phone number, or name. We don't need a password. Lockbook is for people with better things to worry about than privacy.
+
+Honest:
+Be the customer, not the product. We sell a note-taking app, not your data.
+
+Developer Friendly:
+The Lockbook CLI will fit right into your favorite chain of piped-together Unix commands. Search your notes with fzf, edit them with vim, and schedule backups with cron. When scripting doesn't cut it, use our Rust library for a robust programmatic interface.
+
+Website: https://lockbook.net
