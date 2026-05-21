@@ -11,7 +11,10 @@ use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::block::TitleState;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    FontFamily, Format, Layout, StyleInfo,
+};
+use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -31,6 +34,16 @@ impl<'ast> MdRender {
             LinkState::Broken { .. } => theme.fg().red,
         };
         Format { color, underline: true, ..parent_text_format }
+    }
+
+    /// Link-coloured `Icon` glyph (no underline) used for the touch-mode
+    /// "open link" affordance appended after each link.
+    pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> Format {
+        Format {
+            family: FontFamily::Icons,
+            underline: false,
+            ..self.text_format_link(parent, LinkState::Normal)
+        }
     }
 
     fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
@@ -60,8 +73,8 @@ impl<'ast> MdRender {
         let revealed = self.range_revealed(node_range, is_auto);
 
         let cmd = self.ctx.input(|i| i.modifiers.command);
+        let salt = Self::link_interaction_id_salt(node_range);
         if cmd {
-            let salt = Self::link_interaction_id_salt(node_range);
             layout.interaction_open(salt, egui::Sense::click());
         }
 
@@ -78,13 +91,29 @@ impl<'ast> MdRender {
         match title {
             Some(t) => {
                 layout.style_open(StyleInfo { format: link_fmt.clone(), source_range: node_range });
-                layout.push_override(trimmed, &t, link_fmt);
+                layout.push_override(trimmed, &t, link_fmt.clone());
                 layout.style_close();
             }
-            None => self.layout_circumfix(layout, node, range, link_fmt),
+            None => self.layout_circumfix(layout, node, range, link_fmt.clone()),
         }
 
         if cmd {
+            layout.interaction_close();
+        }
+
+        // Touch-mode open-link affordance: tap the trailing icon to open
+        // the link (no cmd modifier on mobile). Only emit on the row that
+        // contains the link's end.
+        if self.touch_mode && range.contains_inclusive(node_range.end()) {
+            let anchor = (node_range.end(), node_range.end());
+            let parent_fmt = self.text_format(parent);
+            layout.push_override(anchor, " ", parent_fmt);
+            layout.interaction_open(salt, egui::Sense::click());
+            layout.push_override(
+                anchor,
+                Icon::OPEN_IN_NEW.icon,
+                self.text_format_link_button(parent),
+            );
             layout.interaction_close();
         }
     }
@@ -156,8 +185,9 @@ impl<'ast> MdRender {
     }
 
     /// Hover → `PointingHand` + Warning/Broken tooltip; click → open
-    /// in a new tab. The producer only opens an interaction scope
-    /// when cmd is held, so the response's presence is the cmd-gate.
+    /// in a new tab. The producer only opens an interaction scope when
+    /// cmd is held (desktop) or for the trailing open-link affordance
+    /// (touch); the response's presence is the gate.
     pub fn handle_link_interactions(&self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.id();
         for node in root.descendants() {
