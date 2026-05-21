@@ -20,7 +20,7 @@ pub struct Button<'a> {
     indent: f32,
     default_fill: Option<egui::Color32>,
 }
-const SPINNER_RADIUS: u32 = 6;
+const SPINNER_RADIUS: u32 = 5;
 
 impl<'a> Button<'a> {
     pub fn icon(self, icon: &'a Icon) -> Self {
@@ -189,7 +189,7 @@ impl<'a> Button<'a> {
 
                     if self.is_loading {
                         let spinner_pos = egui::pos2(
-                            rect.max.x - padding.x - (SPINNER_RADIUS * 2) as f32,
+                            rect.max.x - padding.x / 2.0 - (SPINNER_RADIUS * 2) as f32,
                             rect.center().y,
                         );
 
