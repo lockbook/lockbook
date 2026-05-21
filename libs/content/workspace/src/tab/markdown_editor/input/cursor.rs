@@ -156,7 +156,10 @@ impl MdEdit {
             Pos2::new(max_x, cursor_bot.y + 2. * radius),
         )
         .expand(hit_pad);
-        let response = ui.allocate_rect(hit_rect, Sense::drag());
+        let id =
+            ui.id()
+                .with(if is_start { "selection_handle_start" } else { "selection_handle_end" });
+        let response = ui.interact(hit_rect, id, Sense::drag());
 
         if response.drag_stopped() {
             if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
