@@ -1,7 +1,8 @@
 use egui::{Stroke, TextStyle, TextWrapMode, WidgetText};
 
+use crate::GlyphonRendererCallback;
 use crate::theme::icons::Icon;
-use crate::widgets::GlyphonLabel;
+use crate::widgets::{GlyphonLabel, TextOverflow};
 
 #[derive(Default)]
 pub struct Button<'a> {
@@ -19,6 +20,7 @@ pub struct Button<'a> {
     margin: egui::Vec2,
     indent: f32,
     default_fill: Option<egui::Color32>,
+    text_overflow: TextOverflow,
 }
 const SPINNER_RADIUS: u32 = 5;
 
@@ -83,6 +85,10 @@ impl<'a> Button<'a> {
         Self { default_fill: Some(default_fill), ..self }
     }
 
+    pub fn text_overflow(self, text_overflow: TextOverflow) -> Self {
+        Self { text_overflow, ..self }
+    }
+
     pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
         egui::Frame::new()
             .outer_margin(self.margin)
@@ -117,6 +123,8 @@ impl<'a> Button<'a> {
                     .map(|f| f.size)
                     .unwrap_or(14.0);
 
+                let has_text = self.text.is_some();
+
                 // Extract the raw text string so we can measure it for layout
                 // and then render it with the post-allocation interaction color.
                 let maybe_text_str: Option<String> = self.text.map(|text| match &text {
@@ -130,14 +138,23 @@ impl<'a> Button<'a> {
                     WidgetText::Text(s) => s.to_string(),
                 });
 
+                let icon_width = maybe_icon_galley.as_ref().map_or(0.0, |icon| icon.size().x);
+                let icon_text_gap =
+                    if self.icon.is_some() && has_text { padding.x / 2.0 } else { 0.0 };
+                let max_text_width =
+                    (wrap_width - padding.x * 2.0 - self.indent - icon_width - icon_text_gap)
+                        .max(0.0);
+
                 // Measure once; reused below for text_rect to avoid a second shape pass.
                 let text_width = maybe_text_str.as_deref().map(|text_str| {
                     let w = GlyphonLabel::new(text_str, egui::Color32::default())
                         .font_size(font_size)
                         .line_height(text_height)
-                        .max_width(wrap_width)
+                        .max_width(max_text_width)
+                        .text_overflow(self.text_overflow)
                         .measure(ui)
-                        .x;
+                        .x
+                        .min(max_text_width);
                     width += w;
                     w
                 });
@@ -227,13 +244,23 @@ impl<'a> Button<'a> {
                     if let (Some(ref text_str), Some(w)) = (&maybe_text_str, text_width) {
                         let text_rect =
                             egui::Rect::from_min_size(text_pos, egui::vec2(w, text_height));
-                        ui.put(
-                            text_rect,
-                            GlyphonLabel::new(text_str, text_visuals.text_color())
+                        let text_clip = text_rect.intersect(rect).intersect(ui.clip_rect());
+
+                        if text_clip.width() > 0.0 && text_clip.height() > 0.0 {
+                            let shaped = GlyphonLabel::new(text_str, text_visuals.text_color())
                                 .font_size(font_size)
                                 .line_height(text_height)
-                                .max_width(wrap_width),
-                        );
+                                .max_width(max_text_width)
+                                .text_overflow(self.text_overflow)
+                                .build(ui.ctx());
+                            let text_area = shaped.text_area(text_rect, ui.ctx(), text_clip);
+                            ui.painter().add(
+                                egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                                    text_clip,
+                                    GlyphonRendererCallback::new(vec![text_area]),
+                                ),
+                            );
+                        }
                     }
                 }
 
