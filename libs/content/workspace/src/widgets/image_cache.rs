@@ -314,14 +314,36 @@ pub fn decode_with_orientation(image_bytes: &[u8]) -> Result<DynamicImage, Strin
     Ok(img)
 }
 
+/// Browser-like UA: Wikipedia (and other large hosts) reject the default
+/// `reqwest/<version>` UA with an HTML error page that downstream image
+/// decoders can't parse.
+const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+
 #[cfg(not(target_arch = "wasm32"))]
-fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, reqwest::Error> {
-    let response = client.get(url).send()?.bytes()?.to_vec();
-    Ok(response)
+fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, String> {
+    let response = client
+        .get(url)
+        .header("User-Agent", USER_AGENT)
+        .send()
+        .map_err(|e| e.to_string())?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("{} {}", status.as_u16(), status.canonical_reason().unwrap_or("")));
+    }
+    Ok(response.bytes().map_err(|e| e.to_string())?.to_vec())
 }
 
 #[cfg(target_arch = "wasm32")]
-async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, reqwest::Error> {
-    let response = client.get(url).send().await?.bytes().await?.to_vec();
-    Ok(response)
+async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, String> {
+    let response = client
+        .get(url)
+        .header("User-Agent", USER_AGENT)
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    let status = response.status();
+    if !status.is_success() {
+        return Err(format!("{} {}", status.as_u16(), status.canonical_reason().unwrap_or("")));
+    }
+    Ok(response.bytes().await.map_err(|e| e.to_string())?.to_vec())
 }
