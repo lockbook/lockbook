@@ -190,6 +190,7 @@ impl MdEdit {
         // interact above so they sit on top in z-order.
         self.renderer.interact_fragments(ui);
         self.renderer.handle_link_interactions(root, ui);
+        self.renderer.handle_spoiler_interactions(root, ui);
 
         let mut ops = Vec::new();
 

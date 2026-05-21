@@ -336,7 +336,7 @@ impl<'ast> MdRender {
             NodeValue::Math(_) => self.text_format_math(parent()),
             NodeValue::ShortCode(_) => self.text_format_short_code(parent()),
             NodeValue::SoftBreak => parent_text_format(),
-            NodeValue::SpoileredText => self.text_format_spoilered_text(parent()),
+            NodeValue::SpoileredText => self.text_format_spoilered_text(node, parent()),
             NodeValue::Strikethrough => self.text_format_strikethrough(parent()),
             NodeValue::Strong => self.text_format_strong(parent()),
             NodeValue::Subscript => self.text_format_subscript(parent()),
