@@ -638,6 +638,7 @@ class WorkspaceWrapperView(
         currentWrapper = null
 
         if (wrapper is WorkspaceTextInputWrapper) {
+            wrapper.wsInputConnection.detachEditable()
             wrapper.wsInputConnection.closeConnection()
             wrapper.clearFocus()
             (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
@@ -745,7 +746,9 @@ class WorkspaceTextInputWrapper(
 
     override fun onCheckIsTextEditor(): Boolean = true
 
-    override fun onCreateInputConnection(outAttrs: EditorInfo?): InputConnection {
+    override fun onCreateInputConnection(outAttrs: EditorInfo?): InputConnection? {
+        val editable = wsInputConnection.wsEditable ?: return null
+
         if (outAttrs != null) {
             outAttrs.initialCapsMode = wsInputConnection.getCursorCapsMode(EditorInfo.TYPE_CLASS_TEXT)
             outAttrs.hintText = "Type here"
@@ -757,8 +760,8 @@ class WorkspaceTextInputWrapper(
             EditorInfoCompat.setContentMimeTypes(outAttrs, arrayOf("image/*"))
 
             outAttrs.imeOptions = EditorInfo.IME_FLAG_NO_FULLSCREEN
-            outAttrs.initialSelStart = wsInputConnection.wsEditable.selectionStart
-            outAttrs.initialSelEnd = wsInputConnection.wsEditable.selectionEnd
+            outAttrs.initialSelStart = editable.selectionStart
+            outAttrs.initialSelEnd = editable.selectionEnd
         }
 
         if (outAttrs == null) {
@@ -775,6 +778,10 @@ class WorkspaceTextInputWrapper(
         inputContentInfo: InputContentInfoCompat,
         flags: Int,
     ): Boolean {
+        if (wsInputConnection.wsEditable == null) {
+            return false
+        }
+
         val isImage = inputContentInfo.description.hasMimeType("image/*")
         if (!isImage) {
             Toast

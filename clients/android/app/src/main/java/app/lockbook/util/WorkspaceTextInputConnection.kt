@@ -35,7 +35,8 @@ class WorkspaceTextInputConnection(
     val workspaceView: WorkspaceView,
     val textInputWrapper: WorkspaceTextInputWrapper,
 ) : BaseInputConnection(textInputWrapper, true) {
-    val wsEditable = WorkspaceTextEditable(workspaceView, this)
+    var wsEditable: WorkspaceTextEditable? = WorkspaceTextEditable(workspaceView, this)
+        private set
 
     var batchEditCount = 0
 
@@ -47,18 +48,27 @@ class WorkspaceTextInputConnection(
     private fun getClipboardManager(): ClipboardManager =
         App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
+    fun detachEditable() {
+        wsEditable = null
+    }
+
     fun notifySelectionUpdated() {
-        val selection = wsEditable.getSelection()
+        val editable = wsEditable ?: return
+        val selection = editable.getSelection()
         getInputMethodManager().updateSelection(
             textInputWrapper,
             selection.start,
             selection.end,
-            wsEditable.composingStart,
-            wsEditable.composingEnd,
+            editable.composingStart,
+            editable.composingEnd,
         )
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
+        if (wsEditable == null) {
+            return false
+        }
+
         super.sendKeyEvent(event)
 
         if (event != null) {
@@ -80,6 +90,10 @@ class WorkspaceTextInputConnection(
     }
 
     override fun performContextMenuAction(id: Int): Boolean {
+        if (wsEditable == null) {
+            return false
+        }
+
         when (id) {
             android.R.id.selectAll -> {
                 Workspace.selectAll(WorkspaceView.wgpuObj)
@@ -242,12 +256,11 @@ class WorkspaceTextInputConnection(
         return null
     }
 
-    private fun readAllBytesCapped(uri: Uri?): ByteArray? {
-        if (uri == null) return null
-        return readAllBytesCapped(uri, MAX_CONTENT_SIZE)
-    }
-
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
+        if (wsEditable == null) {
+            return false
+        }
+
         val isImmediate = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0
         val isMonitor = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR) != 0
 
@@ -292,12 +305,13 @@ class WorkspaceTextInputConnection(
     override fun getExtractedText(
         request: ExtractedTextRequest?,
         flags: Int,
-    ): ExtractedText {
+    ): ExtractedText? {
+        val editable = wsEditable ?: return null
         val et = ExtractedText()
-        val text: CharSequence = wsEditable
+        val text: CharSequence = editable
         et.text = text
-        et.selectionStart = wsEditable.selectionStart
-        et.selectionEnd = wsEditable.selectionEnd
+        et.selectionStart = editable.selectionStart
+        et.selectionEnd = editable.selectionEnd
         et.startOffset = 0
         et.partialStartOffset = -1
         et.partialEndOffset = -1
@@ -305,16 +319,24 @@ class WorkspaceTextInputConnection(
     }
 
     override fun beginBatchEdit(): Boolean {
+        if (wsEditable == null) {
+            return false
+        }
+
         batchEditCount += 1
 
         return true
     }
 
     override fun endBatchEdit(): Boolean {
+        if (wsEditable == null) {
+            return false
+        }
+
         batchEditCount = (batchEditCount - 1).coerceAtLeast(0)
 
         return batchEditCount > 0
     }
 
-    override fun getEditable(): Editable = wsEditable
+    override fun getEditable(): Editable? = wsEditable
 }

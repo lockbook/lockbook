@@ -676,10 +676,8 @@ class WorkspaceView(
         }
 
         private fun populateMenuWithItems(menu: Menu) {
-            if (!textInputWrapper.wsInputConnection.wsEditable
-                    .getSelection()
-                    .isEmpty()
-            ) {
+            val editable = textInputWrapper.wsInputConnection.wsEditable
+            if (editable != null && !editable.getSelection().isEmpty()) {
                 menu
                     .add(Menu.NONE, android.R.id.cut, 0, "Cut")
                     .setAlphabeticShortcut('x')
