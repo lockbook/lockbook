@@ -17,7 +17,7 @@ use workspace_rs::file_cache::{FileCache, FilesExt};
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
 use workspace_rs::theme::palette_v2::ThemeExt as _;
-use workspace_rs::widgets::{Button, GlyphonTextEdit};
+use workspace_rs::widgets::{Button, GlyphonTextEdit, TextOverflow};
 
 #[derive(Debug)]
 pub struct FileTree {
@@ -1123,6 +1123,7 @@ impl FileTree {
             .hexpand(true)
             .indent(indent)
             .padding(vec2(15., 7.))
+            .text_overflow(TextOverflow::EndEllipsis)
             .icon(&icon)
             .icon_color(icon_color);
 
