@@ -110,6 +110,10 @@ pub struct MdRender {
     /// Per-frame, keyed by `ui.id().with(salt)`; populated by
     /// `interact_fragments`, consumed by handlers in each node type.
     pub interaction_responses: std::collections::HashMap<egui::Id, egui::Response>,
+    /// Spoilers the user has tapped to reveal. Persistent across frames;
+    /// cleared by `bump_text_seq` whenever the doc text changes so a
+    /// fresh edit re-hides every spoiler.
+    pub revealed_spoilers: std::collections::HashSet<egui::Id>,
 
     // render input
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
@@ -371,6 +375,7 @@ impl MdRender {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            revealed_spoilers: Default::default(),
             in_progress_selection: None,
             find_current_match: None,
             interactive: false,
@@ -434,6 +439,7 @@ impl MdRender {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            revealed_spoilers: Default::default(),
             reveal_selection: None,
             search_range: None,
             disable_images: false,
@@ -468,6 +474,7 @@ impl MdRender {
         self.text_seq = self
             .ws_seq
             .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.revealed_spoilers.clear();
     }
 
     /// Re-parse the buffer into a fresh AST and rebuild all text-derived
@@ -576,6 +583,7 @@ impl Editor {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            revealed_spoilers: Default::default(),
 
             in_progress_selection: None,
             find_current_match: None,
