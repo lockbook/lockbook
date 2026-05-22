@@ -1705,7 +1705,11 @@ impl MdRender {
             // zero-width Spacer fragments in screen coords so cursor
             // / hit-test lookups can resolve them via the same
             // `fragments` list. They have empty `style_stack` so paint
-            // doesn't draw anything for them.
+            // doesn't draw anything for them. `atomic` so a click on
+            // an invisible override (e.g. the fold-tag HTML comment at
+            // a heading's end) selects the whole source range —
+            // typing then replaces the tag and unfolds the section
+            // rather than inserting next to it.
             for anchor in &row.anchors {
                 let pos = paint_top_left + Vec2::new(anchor.x, anchor.y_top);
                 let rect = Rect::from_min_size(pos, Vec2::new(0.0, anchor.height));
@@ -1715,7 +1719,7 @@ impl MdRender {
                     source_range: anchor.source_range,
                     style_stack: Vec::new(),
                     content: FragmentContent::Spacer,
-                    atomic: false,
+                    atomic: true,
                     interaction: None,
                 });
             }
@@ -1791,8 +1795,12 @@ impl MdRender {
     }
 
     /// Find the closest fragment to `pos` by (y_dist, x_dist), with
-    /// preference for empty-range fragments (anchors). Returns
-    /// `None` only when `self.fragments` is empty.
+    /// preference for empty-range fragments (anchors) and for
+    /// atomic Spacer anchors (invisible-override markers like the
+    /// fold tag, which need to win the tie against the adjacent text
+    /// box so a click resolves to "select the whole override" via
+    /// `pos_to_range`'s atomic branch). Returns `None` only when
+    /// `self.fragments` is empty.
     pub fn closest_fragment_at_pos(&self, pos: Pos2) -> Option<usize> {
         let mut closest: Option<usize> = None;
         let mut closest_dist = (f32::INFINITY, f32::INFINITY);
@@ -1815,9 +1823,10 @@ impl MdRender {
                     .min((pos.x - f.rect.right()).abs())
             };
             let dist = (y_dist, x_dist);
-            let prefer_empty =
-                dist == closest_dist && f.source_range.start() == f.source_range.end();
-            if dist < closest_dist || prefer_empty {
+            let prefer = dist == closest_dist
+                && (f.source_range.start() == f.source_range.end()
+                    || (f.atomic && matches!(f.content, FragmentContent::Spacer)));
+            if dist < closest_dist || prefer {
                 closest = Some(i);
                 closest_dist = dist;
             }
