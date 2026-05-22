@@ -1174,32 +1174,74 @@ impl Editor {
                         self.edit.renderer.bounds.wrap_lines.clear();
                         self.edit.renderer.text_areas.clear();
 
-                        // Phase 1: drive scroll math + scrollbar. The
-                        // immutable `DocScrollContent` borrow is released
-                        // before phase 2's mutable renderer paint.
-                        let visible = {
+                        // Phase 1: drive scroll math + scrollbar, and
+                        // pick up to one viewport's worth of rows above
+                        // and below the visible window so navigation
+                        // (advance_by_line) finds fragments on off-
+                        // screen rows. Without this buffer, holding
+                        // up/down arrow at a viewport edge sticks
+                        // because `fragments` only contains visible-row
+                        // entries. The immutable `DocScrollContent`
+                        // borrow is released here before phase 2's
+                        // mutable renderer paint.
+                        let (visible, neighbors, scrollbar_track) = {
+                            use crate::widgets::affine_scroll::{Rows as _, VisibleRow};
+
                             let content = scroll_content::DocScrollContent::for_frame(
                                 &self.edit.renderer,
                                 root,
                                 canvas_rect.height(),
                             );
                             let resp = self.edit.scroll_area.finish(ui, begun, &content);
-                            // Register the scrollbar's track so iOS taps
-                            // on it don't fall through to cursor-placement
-                            // / keyboard-summon handlers.
-                            self.edit
-                                .renderer
-                                .touch_consuming_rects
-                                .push(resp.scrollbar_track);
-                            resp.visible
+
+                            let viewport_height = canvas_rect.height();
+                            let mut neighbors: Vec<VisibleRow<scroll_content::DocRowId>> =
+                                Vec::new();
+                            if let Some(first) = resp.visible.first() {
+                                let mut id = first.id;
+                                let mut top = first.top;
+                                let mut walked = 0.0f32;
+                                while walked < viewport_height {
+                                    let Some(prev_id) = content.prev(&id) else { break };
+                                    let height = content.precise(&prev_id);
+                                    top -= height;
+                                    neighbors.push(VisibleRow { id: prev_id, top, height });
+                                    walked += height;
+                                    id = prev_id;
+                                }
+                            }
+                            if let Some(last) = resp.visible.last() {
+                                let mut id = last.id;
+                                let mut top = last.top + last.height;
+                                let mut walked = 0.0f32;
+                                while walked < viewport_height {
+                                    let Some(next_id) = content.next(&id) else { break };
+                                    let height = content.precise(&next_id);
+                                    neighbors.push(VisibleRow { id: next_id, top, height });
+                                    top += height;
+                                    walked += height;
+                                    id = next_id;
+                                }
+                            }
+                            (resp.visible, neighbors, resp.scrollbar_track)
                         };
+                        // Register the scrollbar's track so iOS taps
+                        // on it don't fall through to cursor-placement
+                        // / keyboard-summon handlers.
+                        self.edit
+                            .renderer
+                            .touch_consuming_rects
+                            .push(scrollbar_track);
 
                         // Phase 2: paint each visible row with a mutable
                         // renderer borrow. Block list re-collected
                         // because the immutable borrow that held
                         // `DocScrollContent`'s copy was just dropped.
+                        // Neighbor rows paint off-screen — clipped by
+                        // the canvas — only to register fragments and
+                        // wrap-line bounds for navigation.
                         let blocks: Vec<_> = root.children().collect();
-                        for vrow in &visible {
+                        for vrow in visible.iter().chain(neighbors.iter()) {
                             let top_left =
                                 Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
                             scroll_content::paint_row(
@@ -1233,6 +1275,11 @@ impl Editor {
                     })
                     .inner;
                 self.edit.renderer.fragments.sort_by_key(|f| f.source_range);
+                // Neighbor rows above the visible window paint after
+                // visible rows, so wrap-lines lose their natural source
+                // order. `Bound::Line` lookup is a linear `range_before`
+                // / `range_after` walk that assumes sorted ranges.
+                self.edit.renderer.bounds.wrap_lines.sort_by_key(|r| r.0);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 ui.advance_cursor_after_rect(canvas_rect);

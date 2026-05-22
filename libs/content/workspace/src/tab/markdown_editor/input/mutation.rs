@@ -728,9 +728,20 @@ impl<'ast> MdEdit {
             if self.renderer.selected_block(node) {
                 any_selected_blocks = true;
 
-                let target_node =
-                    if node.is_container_block() { node } else { node.parent().unwrap() };
-                unapply |= &target_node.node_type() == style
+                // Walk up the ancestor chain: the selected block (a leaf
+                // like Paragraph, or its immediate container) may sit
+                // several levels below the structural container that
+                // bears the toggled style. `* foo` has `List > Item >
+                // Paragraph` — the bullet style lives on `List`, two
+                // levels above the selected Paragraph.
+                let mut maybe = if node.is_container_block() { Some(node) } else { node.parent() };
+                while let Some(ancestor) = maybe {
+                    if &ancestor.node_type() == style {
+                        unapply = true;
+                        break;
+                    }
+                    maybe = ancestor.parent();
+                }
             }
         }
 
@@ -1253,8 +1264,20 @@ impl NodeType for NodeValue {
             NodeValue::Document => NodeValue::Document,
             NodeValue::FrontMatter(_) => NodeValue::FrontMatter(Default::default()),
             NodeValue::BlockQuote => NodeValue::BlockQuote,
-            NodeValue::List(_) => NodeValue::List(Default::default()),
-            NodeValue::Item(_) => NodeValue::Item(Default::default()),
+            // Preserve the discriminating fields so toggle-style
+            // comparisons can tell bullet / ordered / task lists apart.
+            // Other NodeList fields (padding, start, etc.) are layout
+            // and shouldn't affect type equality.
+            NodeValue::List(l) => NodeValue::List(NodeList {
+                list_type: l.list_type,
+                is_task_list: l.is_task_list,
+                ..Default::default()
+            }),
+            NodeValue::Item(l) => NodeValue::Item(NodeList {
+                list_type: l.list_type,
+                is_task_list: l.is_task_list,
+                ..Default::default()
+            }),
             NodeValue::DescriptionList => NodeValue::DescriptionList,
             NodeValue::DescriptionItem(_) => NodeValue::DescriptionItem(Default::default()),
             NodeValue::DescriptionTerm => NodeValue::DescriptionTerm,

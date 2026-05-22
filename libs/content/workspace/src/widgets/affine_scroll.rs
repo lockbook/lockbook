@@ -1129,11 +1129,14 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         // Wheel: precise pixels. egui convention: positive y = scroll up
         // (content moves down). We want offset to grow when user scrolls
         // down (content moves up), so negate.
-        let raw_scroll_delta =
-            if ui.rect_contains_pointer(rect) { ui.input(|i| i.raw_scroll_delta.y) } else { 0.0 };
-        if raw_scroll_delta != 0.0 {
+        let smooth_scroll_delta = if ui.rect_contains_pointer(rect) {
+            ui.input(|i| i.smooth_scroll_delta.y)
+        } else {
+            0.0
+        };
+        if smooth_scroll_delta != 0.0 {
             self.state
-                .handle(rows, Action::ScrollByPixels(-raw_scroll_delta));
+                .handle(rows, Action::ScrollByPixels(-smooth_scroll_delta));
         }
 
         // Touch body drag → scroll + velocity tracking.
