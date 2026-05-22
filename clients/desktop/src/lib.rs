@@ -246,10 +246,13 @@ impl AppState {
                 })
                 .collect();
             if !images.is_empty() {
-                self.lb.renderer.context.push_event(workspace_rs::Event::Paste {
-                    content: images,
-                    position: self.last_pointer_pos,
-                });
+                self.lb
+                    .renderer
+                    .context
+                    .push_event(workspace_rs::Event::Paste {
+                        content: images,
+                        position: self.last_pointer_pos,
+                    });
                 return true;
             }
         }
