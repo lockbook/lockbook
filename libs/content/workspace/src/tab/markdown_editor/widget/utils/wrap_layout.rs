@@ -126,8 +126,13 @@ pub enum InlineItem {
     },
     /// Rigid advance with no glyphs and no break opportunity.
     /// Emitted around backgrounded-inline-scope boundaries so
-    /// `Fragment::rect` includes the bg breathing room.
-    Pad(f32),
+    /// `Fragment::rect` includes the bg breathing room. `source_pos`
+    /// is where a click on the pad should place the cursor — the
+    /// scope's start for a leading pad, its end for a trailing pad.
+    Pad {
+        advance: f32,
+        source_pos: Grapheme,
+    },
     /// Forced row break. Emitted by `<br>` (line_break) and bare
     /// newlines (soft_break). Has a source range for cursor
     /// positioning; treated by the row builder like a wrap-break-
@@ -542,46 +547,58 @@ fn shape_to_items(
 ) -> Option<Vec<InlineItem>> {
     use std::sync::{Arc, Mutex};
 
-    // Track which open scopes have a bg, so the matching close can
-    // emit the trailing `Pad`. AST guarantees LIFO nesting.
-    let mut scope_has_bg: Vec<bool> = Vec::new();
-    let emit_event =
-        |items: &mut Vec<InlineItem>, scope_has_bg: &mut Vec<bool>, pos: usize, ev: &FlowEvent| {
-            let p = pos as u32;
-            match ev {
-                FlowEvent::Open(s) => {
-                    let bg = s.format.background != egui::Color32::TRANSPARENT;
-                    items.push(InlineItem::StyleOpen(s.clone()));
-                    if bg {
-                        items.push(InlineItem::Pad(inline_pad));
-                    }
-                    scope_has_bg.push(bg);
-                }
-                FlowEvent::Close => {
-                    let bg = scope_has_bg.pop().unwrap_or(false);
-                    if bg {
-                        items.push(InlineItem::Pad(inline_pad));
-                    }
-                    items.push(InlineItem::StyleClose);
-                }
-                FlowEvent::Break(r) => {
-                    items.push(InlineItem::Break { source_range: *r, visible_byte_range: p..p });
-                }
-                FlowEvent::InteractionOpen(id, sense) => {
-                    items.push(InlineItem::InteractionOpen(*id, *sense));
-                }
-                FlowEvent::InteractionClose => {
-                    items.push(InlineItem::InteractionClose);
+    // Track open bg-scopes' source ranges, so the matching close can
+    // emit the trailing `Pad` with the scope's end as its source
+    // position. `None` entries hold place for non-bg scopes (Pad not
+    // emitted, but stack depth must mirror StyleOpen/Close). AST
+    // guarantees LIFO nesting.
+    let mut bg_scope_stack: Vec<Option<(Grapheme, Grapheme)>> = Vec::new();
+    let emit_event = |items: &mut Vec<InlineItem>,
+                      bg_scope_stack: &mut Vec<Option<(Grapheme, Grapheme)>>,
+                      pos: usize,
+                      ev: &FlowEvent| {
+        let p = pos as u32;
+        match ev {
+            FlowEvent::Open(s) => {
+                let bg = s.format.background != egui::Color32::TRANSPARENT;
+                items.push(InlineItem::StyleOpen(s.clone()));
+                if bg {
+                    items.push(InlineItem::Pad {
+                        advance: inline_pad,
+                        source_pos: s.source_range.start(),
+                    });
+                    bg_scope_stack.push(Some(s.source_range));
+                } else {
+                    bg_scope_stack.push(None);
                 }
             }
-        };
+            FlowEvent::Close => {
+                if let Some(Some(scope_range)) = bg_scope_stack.pop() {
+                    items.push(InlineItem::Pad {
+                        advance: inline_pad,
+                        source_pos: scope_range.end(),
+                    });
+                }
+                items.push(InlineItem::StyleClose);
+            }
+            FlowEvent::Break(r) => {
+                items.push(InlineItem::Break { source_range: *r, visible_byte_range: p..p });
+            }
+            FlowEvent::InteractionOpen(id, sense) => {
+                items.push(InlineItem::InteractionOpen(*id, *sense));
+            }
+            FlowEvent::InteractionClose => {
+                items.push(InlineItem::InteractionClose);
+            }
+        }
+    };
 
     if layout.visible.is_empty() {
         // Still emit flow events so the row stack reflects open/close
         // and any naked break carries through.
         let mut items = Vec::new();
         for (pos, ev) in &layout.events {
-            emit_event(&mut items, &mut scope_has_bg, *pos, ev);
+            emit_event(&mut items, &mut bg_scope_stack, *pos, ev);
         }
         return Some(items);
     }
@@ -651,7 +668,7 @@ fn shape_to_items(
         // Flush flow events at positions in [prev_chunk_end, chunk_lo].
         while ev_idx < layout.events.len() && layout.events[ev_idx].0 <= chunk_lo {
             let (pos, ev) = &layout.events[ev_idx];
-            emit_event(&mut items, &mut scope_has_bg, *pos, ev);
+            emit_event(&mut items, &mut bg_scope_stack, *pos, ev);
             ev_idx += 1;
         }
 
@@ -762,7 +779,7 @@ fn shape_to_items(
     // Flush trailing flow events.
     while ev_idx < layout.events.len() {
         let (pos, ev) = &layout.events[ev_idx];
-        emit_event(&mut items, &mut scope_has_bg, *pos, ev);
+        emit_event(&mut items, &mut bg_scope_stack, *pos, ev);
         ev_idx += 1;
     }
 
@@ -1183,7 +1200,7 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                 }
                 i += 1;
             }
-            InlineItem::Pad(advance) => {
+            InlineItem::Pad { advance, .. } => {
                 cur_width += advance;
                 i += 1;
             }
@@ -1215,7 +1232,7 @@ fn item_advance(item: &InlineItem) -> f32 {
     match item {
         InlineItem::Box { advance, .. } => *advance,
         InlineItem::Glue { natural, .. } => *natural,
-        InlineItem::Pad(a) => *a,
+        InlineItem::Pad { advance, .. } => *advance,
         InlineItem::Break { .. }
         | InlineItem::StyleOpen(_)
         | InlineItem::StyleClose
@@ -1396,7 +1413,7 @@ pub fn build_rows(
                             .map_or(visible_byte_range.end, |v| v.max(visible_byte_range.end)),
                     );
                 }
-                InlineItem::Pad(advance) => {
+                InlineItem::Pad { advance, source_pos } => {
                     let rect = Rect::from_min_max(
                         Pos2::new(x, y_top),
                         Pos2::new(x + advance, y_top + ascent + descent),
@@ -1404,10 +1421,7 @@ pub fn build_rows(
                     row_fragments.push(Fragment {
                         rect,
                         content_inset: FragmentInset::default(),
-                        source_range: style_stack
-                            .last()
-                            .map(|s| (s.source_range.start(), s.source_range.start()))
-                            .unwrap_or((layout.source_range.start(), layout.source_range.start())),
+                        source_range: (*source_pos, *source_pos),
                         style_stack: style_stack.clone(),
                         content: FragmentContent::Spacer,
                         atomic: false,
@@ -1455,12 +1469,19 @@ pub fn build_rows(
 
         // Per-row pills: if this row ends still inside a bg scope (the
         // StyleClose lives in a future row), append a synthetic right-
-        // pad fragment so the row's pill has a right edge.
+        // pad fragment so the row's pill has a right edge. Source-
+        // position resolves to the end of this row's last fragment so
+        // a click on the pad lands at the row's end rather than
+        // jumping to the bg scope's start on an earlier row.
         if style_stack
             .last()
             .is_some_and(|s| s.format.background != egui::Color32::TRANSPARENT)
         {
             let info = style_stack.last().unwrap();
+            let source_pos = row_fragments
+                .last()
+                .map(|f| f.source_range.end())
+                .unwrap_or(info.source_range.start());
             let rect = Rect::from_min_max(
                 Pos2::new(x, y_top),
                 Pos2::new(x + inline_pad, y_top + ascent + descent),
@@ -1468,7 +1489,7 @@ pub fn build_rows(
             row_fragments.push(Fragment {
                 rect,
                 content_inset: FragmentInset::default(),
-                source_range: (info.source_range.start(), info.source_range.start()),
+                source_range: (source_pos, source_pos),
                 style_stack: style_stack.clone(),
                 content: FragmentContent::Spacer,
                 atomic: false,
