@@ -183,12 +183,18 @@ impl ApplicationHandler<UserEvent> for App {
 
 impl AppState {
     fn render(&mut self, _event_loop: &ActiveEventLoop) {
-        if self.pending_paste {
+        let paste_intercepted = self.pending_paste && {
             self.pending_paste = false;
-            self.handle_image_paste();
-        }
+            self.handle_image_paste()
+        };
 
         let mut raw_input = self.egui_winit.take_egui_input(&self.window);
+
+        if paste_intercepted {
+            raw_input
+                .events
+                .retain(|e| !matches!(e, egui::Event::Paste(_)));
+        }
 
         if self.close_requested {
             if let Some(viewport) = raw_input.viewports.get_mut(&raw_input.viewport_id) {
@@ -230,6 +236,27 @@ impl AppState {
     }
 
     fn handle_image_paste(&mut self) -> bool {
+        if let Ok(paths) = self.clipboard.get().file_list() {
+            let images: Vec<ClipContent> = paths
+                .into_iter()
+                .filter_map(|p| {
+                    let bytes = std::fs::read(&p).ok()?;
+                    image::guess_format(&bytes).ok()?;
+                    Some(ClipContent::Image(bytes))
+                })
+                .collect();
+            if !images.is_empty() {
+                self.lb
+                    .renderer
+                    .context
+                    .push_event(workspace_rs::Event::Paste {
+                        content: images,
+                        position: self.last_pointer_pos,
+                    });
+                return true;
+            }
+        }
+
         let Ok(img) = self.clipboard.get_image() else {
             return false;
         };

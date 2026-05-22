@@ -4,7 +4,7 @@ version = "26.4.22"
 edition = "2021"
 
 [dependencies]
-arboard = { version = "3", features = ["image", "wayland-data-control"] }
+arboard = { version = "3.6", features = ["image", "wayland-data-control"] }
 dark-light = "2.0.0"
 egui = "0.32.3"
 egui-winit = "0.32.3"
