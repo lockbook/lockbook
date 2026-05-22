@@ -1320,6 +1320,21 @@ pub fn build_rows(
         for (rel_idx, it) in items[start..end].iter().enumerate() {
             let abs_idx = start + rel_idx;
             let is_wrap_break = wrap_break_idx == Some(abs_idx);
+            // Super/sub shrink glyphs to 75% of the row metric; shift
+            // the fragment rect vertically so the smaller glyph sits at
+            // the top of the row (super) or the bottom (sub). Glue/Box
+            // only — Pads and Breaks inherit full row height so
+            // surrounding pills/decorations stay aligned with siblings.
+            let (item_y_min, item_y_max) = {
+                let f = style_stack.last().map(|s| &s.format);
+                let full = ascent + descent;
+                let small = full * 0.75;
+                match f {
+                    Some(f) if f.superscript => (y_top, y_top + small),
+                    Some(f) if f.subscript => (y_top + (full - small), y_top + full),
+                    _ => (y_top, y_top + full),
+                }
+            };
             match it {
                 InlineItem::Box {
                     advance,
@@ -1333,8 +1348,8 @@ pub fn build_rows(
                     // time only; it extends outside the rect and fits
                     // into `row_spacing` (= 2 × inline_pad).
                     let rect = Rect::from_min_max(
-                        Pos2::new(x, y_top),
-                        Pos2::new(x + advance, y_top + ascent + descent),
+                        Pos2::new(x, item_y_min),
+                        Pos2::new(x + advance, item_y_max),
                     );
                     src_lo = src_lo.min(source_range.start());
                     src_hi = src_hi.max(source_range.end());
@@ -1371,8 +1386,8 @@ pub fn build_rows(
                 } => {
                     let effective_advance = if is_wrap_break { 0.0 } else { *natural };
                     let rect = Rect::from_min_max(
-                        Pos2::new(x, y_top),
-                        Pos2::new(x + effective_advance, y_top + ascent + descent),
+                        Pos2::new(x, item_y_min),
+                        Pos2::new(x + effective_advance, item_y_max),
                     );
                     // Wrap-break-glue contributes zero-width fragment
                     // but DOES claim its source range so a char-arrow
