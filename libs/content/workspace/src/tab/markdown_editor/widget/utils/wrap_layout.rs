@@ -1290,7 +1290,11 @@ pub fn build_rows(
         // (the StyleOpen was processed in a prior row), prepend a
         // synthetic left-pad fragment so the row's pill has a left
         // edge. The matching scope-close-side pad is the walker's
-        // explicit `Pad` item before `StyleClose`.
+        // explicit `Pad` item before `StyleClose`. `source_range` is
+        // patched to `(src_lo, src_lo)` after the item loop so a
+        // click on the pad lands at the row's first visible offset,
+        // not back at the bg scope's start on a previous row.
+        let mut left_pad_idx: Option<usize> = None;
         if style_stack
             .last()
             .is_some_and(|s| s.format.background != egui::Color32::TRANSPARENT)
@@ -1300,6 +1304,7 @@ pub fn build_rows(
                 Pos2::new(x, y_top),
                 Pos2::new(x + inline_pad, y_top + ascent + descent),
             );
+            left_pad_idx = Some(row_fragments.len());
             row_fragments.push(Fragment {
                 rect,
                 content_inset: FragmentInset::default(),
@@ -1467,21 +1472,29 @@ pub fn build_rows(
             }
         }
 
+        // Patch the row's synthetic left-pad source position to the
+        // first visible offset on this row (excluding wrap-break-glue,
+        // which `src_lo` already skips). A click on the pad lands at
+        // row start instead of the scope's start on a previous row.
+        if let Some(idx) = left_pad_idx {
+            if src_lo <= src_hi {
+                row_fragments[idx].source_range = (src_lo, src_lo);
+            }
+        }
+
         // Per-row pills: if this row ends still inside a bg scope (the
         // StyleClose lives in a future row), append a synthetic right-
-        // pad fragment so the row's pill has a right edge. Source-
-        // position resolves to the end of this row's last fragment so
-        // a click on the pad lands at the row's end rather than
-        // jumping to the bg scope's start on an earlier row.
+        // pad fragment so the row's pill has a right edge. Source
+        // position is `src_hi` — the row's last visible offset within
+        // the scope, excluding wrap-break-glue — so a click on the
+        // pad lands at the row's end rather than the wrap boundary
+        // (which renders on the next row).
         if style_stack
             .last()
             .is_some_and(|s| s.format.background != egui::Color32::TRANSPARENT)
         {
             let info = style_stack.last().unwrap();
-            let source_pos = row_fragments
-                .last()
-                .map(|f| f.source_range.end())
-                .unwrap_or(info.source_range.start());
+            let source_pos = if src_lo <= src_hi { src_hi } else { info.source_range.start() };
             let rect = Rect::from_min_max(
                 Pos2::new(x, y_top),
                 Pos2::new(x + inline_pad, y_top + ascent + descent),
