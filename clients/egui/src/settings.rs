@@ -12,6 +12,8 @@ pub struct Settings {
     pub open_new_files: bool,
     pub sidebar_usage: bool,
     pub zen_mode: bool, // hide side panel and maximize the content workspace
+    #[cfg(target_os = "linux")]
+    pub allow_wayland: bool,
     #[serde(skip_serializing, skip_deserializing)]
     path: String,
 }
@@ -58,6 +60,8 @@ impl Default for Settings {
             sidebar_usage: true,
             path: "".to_string(),
             zen_mode: false,
+            #[cfg(target_os = "linux")]
+            allow_wayland: false,
         }
     }
 }
