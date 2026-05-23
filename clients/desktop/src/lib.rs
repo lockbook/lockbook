@@ -353,9 +353,24 @@ fn load_icon() -> Option<Icon> {
 pub fn run() {
     env_logger::init();
 
-    let event_loop = EventLoop::<UserEvent>::with_user_event()
-        .build()
-        .expect("failed to create event loop");
+    let mut builder = EventLoop::<UserEvent>::with_user_event();
+
+    #[cfg(target_os = "linux")]
+    {
+        // winit's Wayland backend doesn't deliver file drag-and-drop events. Default to X11
+        // unless the user has opted in via settings (or set WINIT_UNIX_BACKEND).
+        use winit::platform::x11::EventLoopBuilderExtX11;
+
+        let allow_wayland = lbeguiapp::Settings::read_from_file()
+            .map(|s| s.allow_wayland)
+            .unwrap_or(false);
+
+        if !allow_wayland && std::env::var_os("WINIT_UNIX_BACKEND").is_none() {
+            builder.with_x11();
+        }
+    }
+
+    let event_loop = builder.build().expect("failed to create event loop");
     event_loop.set_control_flow(ControlFlow::Wait);
 
     let mut app = App { state: None, proxy: event_loop.create_proxy() };
