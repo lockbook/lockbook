@@ -12,20 +12,25 @@ import com.google.android.material.button.MaterialButton
 import net.lockbook.File
 
 @SuppressLint("NotifyDataSetChanged")
-class BreadCrumbAdapter(var breadCrumbItemClickListener: BreadCrumbItemClickListener) : RecyclerView.Adapter<BreadCrumbAdapter.ViewHolder>() {
-
+class BreadCrumbAdapter(
+    var breadCrumbItemClickListener: BreadCrumbItemClickListener,
+) : RecyclerView.Adapter<BreadCrumbAdapter.ViewHolder>() {
     private var breadCrumbItemsData: MutableList<BreadCrumbItem> = mutableListOf()
     private var arrowDrawable: Int = R.drawable.ic_baseline_keyboard_arrow_right_24
     private var textColor: Int = 10
     private var textSize: Int = 10
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
-        return ViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.bread_crumb_item, parent, false))
-    }
+    override fun onCreateViewHolder(
+        parent: ViewGroup,
+        viewType: Int,
+    ): ViewHolder = ViewHolder(LayoutInflater.from(parent.context).inflate(R.layout.bread_crumb_item, parent, false))
 
     override fun getItemCount(): Int = breadCrumbItemsData.size
 
-    override fun onBindViewHolder(holder: ViewHolder, position: Int) {
+    override fun onBindViewHolder(
+        holder: ViewHolder,
+        position: Int,
+    ) {
         val item = breadCrumbItemsData[position]
 
         if (position == 0) {
@@ -57,7 +62,9 @@ class BreadCrumbAdapter(var breadCrumbItemClickListener: BreadCrumbItemClickList
         notifyDataSetChanged()
     }
 
-    inner class ViewHolder(breadCrumbItem: View) : RecyclerView.ViewHolder(breadCrumbItem) {
+    inner class ViewHolder(
+        breadCrumbItem: View,
+    ) : RecyclerView.ViewHolder(breadCrumbItem) {
         var breadCrumbTitle: MaterialButton = itemView.findViewById(R.id.bread_crumb_title)
         var breadCrumbSeparator: ImageView = itemView.findViewById(R.id.bread_crumb_separator)
 
@@ -74,5 +81,8 @@ class BreadCrumbAdapter(var breadCrumbItemClickListener: BreadCrumbItemClickList
 }
 
 interface BreadCrumbItemClickListener {
-    fun onItemClick(breadCrumbItem: View, file: File)
+    fun onItemClick(
+        breadCrumbItem: View,
+        file: File,
+    )
 }

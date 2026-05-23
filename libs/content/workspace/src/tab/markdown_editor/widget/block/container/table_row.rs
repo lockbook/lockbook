@@ -2,11 +2,11 @@ use comrak::nodes::AstNode;
 use egui::{Pos2, Rangef, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::RangeExt;
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_table_row(&self, parent: &AstNode<'_>, is_header_row: bool) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { bold: is_header_row, ..parent_text_format }
@@ -16,20 +16,22 @@ impl<'ast> Editor {
         if self.reveal_table_row(node) {
             let line = self.node_first_line(node);
             let node_line = self.node_line(node, line);
-
+            let width = self.width(node);
             self.layout.block_padding
-                + self.height_section(
-                    &mut self.new_wrap(self.width(node)),
-                    node_line,
-                    self.text_format_syntax(),
-                )
+                + self
+                    .compute_section_layout_new(
+                        node_line,
+                        width,
+                        self.layout.row_height,
+                        self.text_format_syntax(),
+                    )
+                    .height
                 + self.layout.block_padding
         } else {
             // the height of the row is the height of the tallest cell
             let mut cell_height_max = 0.0f32;
-            let children = self.sorted_children(node);
-            for table_cell in &children {
-                cell_height_max = cell_height_max.max(self.height(table_cell, &children));
+            for table_cell in node.children() {
+                cell_height_max = cell_height_max.max(self.height(table_cell));
             }
 
             cell_height_max
@@ -44,10 +46,14 @@ impl<'ast> Editor {
 
             let line = self.node_first_line(node);
             let node_line = self.node_line(node, line);
-
-            let mut wrap = self.new_wrap(self.width(node));
-            self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
+            let width = self.width(node);
+            let result = self.compute_section_layout_new(
+                node_line,
+                width,
+                self.layout.row_height,
+                self.text_format_syntax(),
+            );
+            self.show_wrap_layout(ui, top_left, &result);
         } else {
             let height = self.height_table_row(node);
             let width = self.width(node);
@@ -86,16 +92,18 @@ impl<'ast> Editor {
         }
     }
 
+    /// Reveal the table row's source when the cursor sits between
+    /// cells or after the last cell. Reads `reveal_selection` rather
+    /// than `buffer.current.selection` so unfocused frames see stable
+    /// layout.
     fn reveal_table_row(&self, node: &'ast AstNode<'ast>) -> bool {
-        let selection = self.buffer.current.selection;
         let row_range = self.node_range(node);
-        let children = self.sorted_children(node); // todo: these will always already be sorted
         let line = self.node_first_line(node);
         let node_line = self.node_line(node, line);
 
         // check for cursor between cells
         let mut range_start = row_range.start();
-        for cell in &children {
+        for cell in node.children() {
             let cell_range = if let Some((_, _, cell_children_range, _, _)) =
                 self.split_range(cell, node_line)
             {
@@ -106,7 +114,7 @@ impl<'ast> Editor {
 
             let between_range = (range_start, cell_range.start());
 
-            if between_range.contains_range(&selection, false, false) {
+            if self.range_contains_revealed(between_range, false, false) {
                 return true;
             }
 
@@ -114,7 +122,7 @@ impl<'ast> Editor {
         }
 
         // check for cursor after last cell
-        if let Some(cell) = children.last() {
+        if let Some(cell) = node.children().last() {
             let cell_range = if let Some((_, _, cell_children_range, _, _)) =
                 self.split_range(cell, node_line)
             {
@@ -124,7 +132,7 @@ impl<'ast> Editor {
             };
 
             let between_range = (cell_range.end(), row_range.end());
-            if between_range.contains_range(&selection, false, true) {
+            if self.range_contains_revealed(between_range, false, false) {
                 return true;
             }
         }

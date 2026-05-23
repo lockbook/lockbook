@@ -29,6 +29,7 @@ pub fn release(clean_and_build: bool, gh: bool, app_store: bool) -> CliResult<()
 fn archive() -> CliResult<()> {
     Command::new("xcodebuild")
         .args([
+            "-allowProvisioningUpdates",
             "-workspace",
             "clients/apple/Lockbook.xcworkspace",
             "-scheme",

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true">
+        <inset
+            android:insetLeft="@dimen/file_tree_item_container_horizontal_inset"
+            android:insetTop="@dimen/file_tree_item_container_vertical_inset"
+            android:insetRight="@dimen/file_tree_item_container_horizontal_inset"
+            android:insetBottom="@dimen/file_tree_item_container_vertical_inset">
+            <shape android:shape="rectangle">
+                <corners android:radius="@dimen/file_tree_item_container_radius" />
+                <solid android:color="?attr/colorSecondaryContainer" />
+            </shape>
+        </inset>
+    </item>
+    <item android:drawable="@android:color/transparent" />
+</selector>

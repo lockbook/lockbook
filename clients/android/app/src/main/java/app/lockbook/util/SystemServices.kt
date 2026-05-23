@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.util
 
 import android.app.Application
@@ -20,64 +22,62 @@ import net.lockbook.File
 
 fun AndroidViewModel.getString(
     @StringRes stringRes: Int,
-    vararg formatArgs: Any = emptyArray()
-): String {
-    return getString(this.getRes(), stringRes, *formatArgs)
-}
+    vararg formatArgs: Any = emptyArray(),
+): String = getString(this.getRes(), stringRes, *formatArgs)
 
-fun AndroidViewModel.getContext(): Context {
-    return this.getApplication<Application>()
-}
+fun AndroidViewModel.getContext(): Context = this.getApplication<Application>()
 
-fun AndroidViewModel.getRes(): Resources {
-    return this.getApplication<Application>().resources
-}
+fun AndroidViewModel.getRes(): Resources = this.getApplication<Application>().resources
 
 fun Window?.requestKeyboardFocus(view: View?) {
     this?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
     view?.requestFocus()
-    (view?.context?.getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager?)?.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
+    (
+        view?.context?.getSystemService(
+            Context.INPUT_METHOD_SERVICE,
+        ) as? InputMethodManager?
+    )?.showSoftInput(view, InputMethodManager.SHOW_IMPLICIT)
 }
 
-fun Preference.getSettingsFragment(): SettingsFragment {
-    return (context as SettingsActivity).supportFragmentManager.fragments[0] as SettingsFragment
-}
+fun Preference.getSettingsFragment(): SettingsFragment =
+    (context as SettingsActivity).supportFragmentManager.fragments[0] as SettingsFragment
 
-fun Fragment.getSettingsActivity(): SettingsActivity {
-    return (context as SettingsActivity)
-}
+fun Fragment.getSettingsActivity(): SettingsActivity = (context as SettingsActivity)
 
-fun AndroidViewModel.getApp(): App {
-    return getApplication()
-}
+fun AndroidViewModel.getApp(): App = getApplication()
 
-fun AppCompatActivity.getApp(): App {
-    return application as App
-}
+fun AppCompatActivity.getApp(): App = application as App
 
-fun Fragment.getApp(): App {
-    return requireActivity().application as App
-}
+fun Fragment.getApp(): App = requireActivity().application as App
 
-fun MainScreenActivity.navHost(): NavHostFragment =
-    (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment)
+fun MainScreenActivity.navHost(): NavHostFragment = (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment)
 
 fun MainScreenActivity.getFilesFragment(): FilesFragment =
     (supportFragmentManager.findFragmentById(R.id.files_container) as NavHostFragment).childFragmentManager.fragments[0] as FilesFragment
 
 fun MainScreenActivity.maybeGetFilesFragment(): FilesFragment? =
-    (supportFragmentManager.findFragmentById(R.id.files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? FilesFragment
+    (
+        supportFragmentManager.findFragmentById(
+            R.id.files_container,
+        ) as? NavHostFragment
+    )?.childFragmentManager?.fragments?.get(0) as? FilesFragment
 
 fun MainScreenActivity.maybeGetSearchFilesFragment(): SearchDocumentsFragment? =
-    (supportFragmentManager.findFragmentById(R.id.files_container) as? NavHostFragment)?.childFragmentManager?.fragments?.get(0) as? SearchDocumentsFragment
+    (
+        supportFragmentManager.findFragmentById(
+            R.id.files_container,
+        ) as? NavHostFragment
+    )?.childFragmentManager?.fragments?.get(0) as? SearchDocumentsFragment
 
 fun getString(
     res: Resources,
     @StringRes stringRes: Int,
-    vararg formatArgs: Any = emptyArray()
+    vararg formatArgs: Any = emptyArray(),
 ): String = res.getString(stringRes, *formatArgs)
 
-class ExtensionHelper(val fileName: String) {
+class ExtensionHelper(
+    val fileName: String,
+) {
     private val extension: String
         get() {
             val indexOfDot = fileName.lastIndexOf('.')
@@ -90,21 +90,29 @@ class ExtensionHelper(val fileName: String) {
         }
 
     val isImage: Boolean
-        get() = extension in setOf(
-            "jpeg",
-            "jpg",
-            "png"
-        )
+        get() =
+            extension in
+                setOf(
+                    "jpeg",
+                    "jpg",
+                    "png",
+                )
 
     val isDrawing: Boolean get() = extension == "svg"
 
     val isPdf: Boolean get() = extension == "pdf"
 }
 
-fun File.getIconResource(): Int {
-    return when (this.type) {
-        File.FileType.Folder -> R.drawable.ic_baseline_folder_24
-        File.FileType.Link -> R.drawable.ic_baseline_miscellaneous_services_24
+fun File.getIconResource(): Int =
+    when (this.type) {
+        File.FileType.Folder -> {
+            R.drawable.ic_baseline_folder_24
+        }
+
+        File.FileType.Link -> {
+            R.drawable.ic_baseline_miscellaneous_services_24
+        }
+
         File.FileType.Document -> {
             val extensionHelper = ExtensionHelper(this.name)
             when {
@@ -115,7 +123,6 @@ fun File.getIconResource(): Int {
             }
         }
     }
-}
 
 val <T> T.exhaustive: T
     get() = this

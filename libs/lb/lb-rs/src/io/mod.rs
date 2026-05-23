@@ -8,12 +8,13 @@
 pub mod docs;
 pub mod network;
 
-use crate::Lb;
+use crate::LocalLb;
 use crate::model::account::Account;
 use crate::model::file_metadata::Owner;
 use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
 use crate::service::lb_id::LbID;
+use db_rs::hasher::UuidIdentityHasherBuilder;
 use db_rs::{Db, List, LookupTable, Single, TxHandle};
 use db_rs_derive::Schema;
 use std::ops::{Deref, DerefMut};
@@ -32,14 +33,20 @@ pub struct CoreV4 {
     pub account: Single<Account>,
     pub last_synced: Single<i64>,
     pub root: Single<Uuid>,
-    pub local_metadata: LookupTable<Uuid, SignedMeta>,
-    pub base_metadata: LookupTable<Uuid, SignedMeta>,
+    pub local_metadata: LookupTable<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
+    pub base_metadata: LookupTable<Uuid, SignedMeta, UuidIdentityHasherBuilder>,
 
     /// map from pub key to username
     pub pub_key_lookup: LookupTable<Owner, String>,
 
     pub doc_events: List<DocEvent>,
     pub id: Single<LbID>,
+    pub pinned_files: List<Uuid>,
+
+    /// Sentinel for `send_debug_info` throttling: the millisecond timestamp of the
+    /// most recent panic file we've already uploaded. `None` means we have never
+    /// sent debug info; `Some(0)` means we've sent before but no panic file existed.
+    pub last_extracted_panic: Single<i64>,
 }
 
 pub struct LbRO<'a> {
@@ -67,7 +74,7 @@ impl LbTx<'_> {
     }
 }
 
-impl Lb {
+impl LocalLb {
     pub async fn ro_tx(&self) -> LbRO<'_> {
         let start = Instant::now();
 

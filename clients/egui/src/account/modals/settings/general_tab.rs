@@ -39,6 +39,27 @@ impl super::SettingsModal {
                 switch(ui, &mut s.sidebar_usage);
                 ui.label("Show usage in sidebar");
             });
+
+            #[cfg(target_os = "linux")]
+            {
+                ui.add_space(5.0);
+
+                ui.horizontal(|ui| {
+                    switch(ui, &mut s.allow_wayland);
+                    ui.label("Allow Wayland (restart required)");
+                });
+
+                ui.add_space(2.0);
+                ui.horizontal_wrapped(|ui| {
+                    ui.spacing_mut().item_spacing.x = 0.0;
+                    ui.label("Wayland enables fractional display scaling but disables drag-and-drop. See ");
+                    ui.hyperlink_to(
+                        "issue #4607",
+                        "https://github.com/lockbook/lockbook/issues/4607",
+                    );
+                    ui.label(" for details.");
+                });
+            }
         });
     }
 }

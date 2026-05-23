@@ -10,19 +10,19 @@ class FileModel(
     var children: List<File>,
     var suggestedDocs: List<File>,
 ) {
-
     companion object {
         // Returns Ok(null) if there is no root
         fun createAtRoot(): FileModel {
             val root = Lb.getRoot()
 
-            val fileModel = FileModel(
-                root,
-                root,
-                emptyMap(),
-                listOf(),
-                listOf(),
-            )
+            val fileModel =
+                FileModel(
+                    root,
+                    root,
+                    emptyMap(),
+                    listOf(),
+                    listOf(),
+                )
             fileModel.refreshFiles()
 
             return fileModel
@@ -54,15 +54,15 @@ class FileModel(
         temp.reverse()
         return temp
     }
+
     fun enterFolder(newParent: File) {
         parent = newParent
         refreshChildren()
     }
+
     private fun refreshChildren() {
         children = sortFiles(idsAndFiles.values.filter { it.parent == parent.id && it.id != it.parent })
     }
 
-    fun getChildren(fileId: String): List<File> {
-        return sortFiles(idsAndFiles.values.filter { it.parent == fileId && it.id != it.parent })
-    }
+    fun getChildren(fileId: String): List<File> = sortFiles(idsAndFiles.values.filter { it.parent == fileId && it.id != it.parent })
 }

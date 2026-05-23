@@ -1,16 +1,14 @@
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 use crate::theme::palette_v2::ThemeExt as _;
 use comrak::nodes::{AlertType, AstNode, NodeAlert};
-use egui::{Pos2, Rect, Sense, Stroke, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
-use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RangeIterExt as _, RelCharOffset,
-};
+use egui::{Pos2, Rect, Stroke, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
+use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _, RangeIterExt as _};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
 use crate::theme::icons::Icon;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_alert(&self, parent: &AstNode<'_>, node_alert: &NodeAlert) -> Format {
         let parent_text_format = self.text_format(parent);
         Format {
@@ -27,6 +25,8 @@ impl<'ast> Editor {
 
     pub fn height_alert(&self, node: &'ast AstNode<'ast>, node_alert: &NodeAlert) -> f32 {
         let mut result = self.height_alert_title_line(node, node_alert);
+        let width = self.width(node);
+        let row_height = self.layout.row_height;
 
         let first_line_idx = self.node_first_line_idx(node);
         let any_children = node.children().next().is_some();
@@ -40,11 +40,13 @@ impl<'ast> Editor {
 
                 if line_idx != first_line_idx {
                     result += self.layout.block_spacing;
-                    result += self.height_section(
-                        &mut self.new_wrap(self.width(node)),
+                    let l = self.compute_section_layout_new(
                         line_content,
+                        width,
+                        row_height,
                         self.text_format_syntax(),
                     );
+                    result += l.height;
                 }
             }
         }
@@ -54,9 +56,9 @@ impl<'ast> Editor {
 
     pub fn show_alert(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        node_alert: &NodeAlert, siblings: &[&'ast AstNode<'ast>],
+        node_alert: &NodeAlert,
     ) {
-        let height = self.height(node, siblings);
+        let height = self.height(node);
         let annotation_size = Vec2 { x: self.layout.indent, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
@@ -67,6 +69,8 @@ impl<'ast> Editor {
         );
 
         top_left.x += self.layout.indent;
+        let width = self.width(node) - self.layout.indent;
+        let row_height = self.layout.row_height;
 
         // title line is shown & revealed separately from block syntax as if
         // it's a child block - see also: special handling in spacing.rs
@@ -85,17 +89,15 @@ impl<'ast> Editor {
 
                 if line != first_line {
                     top_left.y += self.layout.block_spacing;
-
-                    let mut wrap = self.new_wrap(self.width(node) - self.layout.indent);
-                    self.show_section(
-                        ui,
-                        top_left,
-                        &mut wrap,
+                    let result = self.compute_section_layout_new(
                         line_content,
+                        width,
+                        row_height,
                         self.text_format_syntax(),
                     );
-                    top_left.y += wrap.height();
-                    self.bounds.wrap_lines.extend(wrap.row_ranges);
+                    let h = result.height;
+                    self.show_wrap_layout(ui, top_left, &result);
+                    top_left.y += h;
                 }
             }
         }
@@ -104,27 +106,30 @@ impl<'ast> Editor {
     pub fn height_alert_title_line(
         &self, node: &'ast AstNode<'ast>, node_alert: &NodeAlert,
     ) -> f32 {
-        let mut result = 0.;
-
+        let row_height = self.layout.row_height;
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
         if self.range_revealed(line_content, true) {
-            result += self.height_section(
-                &mut self.new_wrap(self.width(node) - self.layout.indent),
+            let width = self.width(node) - self.layout.indent;
+            self.compute_section_layout_new(
                 line_content,
+                width,
+                row_height,
                 self.text_format_syntax(),
-            );
+            )
+            .height
         } else {
             let title_width =
                 self.width(node) - self.layout.indent - self.layout.row_height - self.layout.indent;
-
             let (_type, title) = self.alert_type_title_ranges(node);
             if node_alert.title.is_some() {
-                result += self.height_section(
-                    &mut self.new_wrap(title_width),
+                self.compute_section_layout_new(
                     title,
+                    title_width,
+                    row_height,
                     self.text_format(node),
-                );
+                )
+                .height
             } else {
                 let type_display_text = match node_alert.alert_type {
                     AlertType::Note => "Note",
@@ -133,28 +138,35 @@ impl<'ast> Editor {
                     AlertType::Warning => "Warning",
                     AlertType::Caution => "Caution",
                 };
-                result += self.height_override_section(
-                    &mut self.new_wrap(title_width),
+                self.compute_override_section_layout_new(
+                    title,
                     type_display_text,
+                    title_width,
+                    row_height,
                     self.text_format(node),
-                );
+                )
+                .height
             }
         }
-
-        result
     }
 
     pub fn show_alert_title_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, node_alert: &NodeAlert,
     ) {
+        let row_height = self.layout.row_height;
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
         if self.range_revealed(line_content, true) {
             // note and title line are revealed separately from block syntax as
             // if they're a child block
-            let mut wrap = self.new_wrap(self.width(node) - self.layout.indent);
-            self.show_section(ui, top_left, &mut wrap, line_content, self.text_format_syntax());
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
+            let width = self.width(node) - self.layout.indent;
+            let result = self.compute_section_layout_new(
+                line_content,
+                width,
+                row_height,
+                self.text_format_syntax(),
+            );
+            self.show_wrap_layout(ui, top_left, &result);
         } else {
             let icon_space = Rect::from_min_size(top_left, Vec2::splat(self.layout.row_height));
             let display_text_top_left = top_left + Vec2::X * self.layout.indent;
@@ -181,15 +193,13 @@ impl<'ast> Editor {
 
             let (_type, title) = self.alert_type_title_ranges(node);
             if node_alert.title.is_some() {
-                let mut wrap = self.new_wrap(title_width);
-                self.show_section(
-                    ui,
-                    display_text_top_left,
-                    &mut wrap,
+                let result = self.compute_section_layout_new(
                     title,
+                    title_width,
+                    row_height,
                     self.text_format(node),
                 );
-                self.bounds.wrap_lines.extend(wrap.row_ranges);
+                self.show_wrap_layout(ui, display_text_top_left, &result);
             } else {
                 let type_display_text = match node_alert.alert_type {
                     AlertType::Note => "Note",
@@ -198,22 +208,21 @@ impl<'ast> Editor {
                     AlertType::Warning => "Warning",
                     AlertType::Caution => "Caution",
                 };
-                self.show_override_section(
-                    ui,
-                    display_text_top_left,
-                    &mut self.new_wrap(title_width),
-                    (line_content.end() - 1).into_range(),
+                let result = self.compute_override_section_layout_new(
+                    title,
+                    type_display_text,
+                    title_width,
+                    row_height,
                     self.text_format(node),
-                    Some(type_display_text),
-                    Sense::hover(),
                 );
+                self.show_wrap_layout(ui, display_text_top_left, &result);
             }
         }
     }
 
     pub fn own_prefix_len_alert(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<Graphemes> {
         self.own_prefix_len_block_quote(node, line)
     }
 
@@ -237,7 +246,7 @@ impl<'ast> Editor {
 
     fn alert_type_title_ranges(
         &self, node: &'ast AstNode<'ast>,
-    ) -> ((DocCharOffset, DocCharOffset), (DocCharOffset, DocCharOffset)) {
+    ) -> ((Grapheme, Grapheme), (Grapheme, Grapheme)) {
         let line = self.node_first_line(node);
         let line_content = self.line_content(node, line);
         let line_content_text = &self.buffer[line_content].to_uppercase();

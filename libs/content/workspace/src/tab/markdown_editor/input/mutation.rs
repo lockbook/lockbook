@@ -1,9 +1,9 @@
-use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
-use crate::tab::markdown_editor::galleys::Galleys;
 use crate::tab::markdown_editor::input::{Event, Increment};
-use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
-use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
+use crate::tab::markdown_editor::widget::utils::{
+    NodeValueExt as _, leading_indent_cols, leading_indent_range,
+};
+use crate::tab::markdown_editor::{MdEdit, MdRender};
 use comrak::nodes::{
     AstNode, LineColumn, ListType, NodeAlert, NodeHeading, NodeLink, NodeList, NodeShortCode,
     NodeTaskItem, NodeValue, Sourcepos,
@@ -11,8 +11,7 @@ use comrak::nodes::{
 use egui::{Pos2, Rangef};
 use lb_rs::model::text::buffer::{self};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt, RelByteOffset, RelCharOffset,
-    ToRangeExt as _,
+    Bytes, Grapheme, Graphemes, IntoRangeExt, RangeExt as _, RangeIterExt, ToRangeExt as _,
 };
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
@@ -24,14 +23,14 @@ pub struct EventState {
     pub internal_events: Vec<Event>,
 }
 
-impl<'ast> Editor {
+impl<'ast> MdEdit {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
     /// Dispatches events that aren't buffer operations. Returns a (text_updated, selection_updated) pair.
     pub fn calc_operations(
         &mut self, ctx: &egui::Context, root: &'ast AstNode<'ast>, event: Event,
         operations: &mut Vec<Operation>,
     ) -> buffer::Response {
-        let current_selection = self.buffer.current.selection;
+        let current_selection = self.renderer.buffer.current.selection;
         let mut response = buffer::Response::default();
         match event {
             Event::Select { region } => {
@@ -45,7 +44,11 @@ impl<'ast> Editor {
                 }
             }
             Event::ToggleStyle { region, style } => {
-                self.toggle_style(root, region, style, current_selection, operations);
+                // ToggleStyle inserts markdown syntax (e.g. `**…**`); the
+                // syntax would render as literal text in plaintext mode.
+                if !self.renderer.plaintext {
+                    self.toggle_style(root, region, style, current_selection, operations);
+                }
             }
             Event::Camera => {
                 response.open_camera = true;
@@ -54,17 +57,23 @@ impl<'ast> Editor {
                 // insert/extend/terminate container blocks
                 let mut handled = || {
                     // selection must be empty
-                    let Some(offset) = self.selection_offset() else {
+                    let Some(offset) = self.renderer.selection_offset() else {
                         return false;
                     };
 
-                    let container = self.deepest_container_block_at_offset(root, offset);
-                    let line = self.line_at_offset(offset);
-                    let line_content = self.line_content(container, line);
-                    let own_prefix = self.line_own_prefix(container, line);
+                    let container = self
+                        .renderer
+                        .deepest_container_block_at_offset(root, offset);
+                    let line = self.renderer.line_at_offset(offset);
+                    let line_content = self.renderer.line_content(container, line);
+                    let own_prefix = self.renderer.line_own_prefix(container, line);
 
                     let in_code_block = matches!(
-                        self.leaf_block_at_offset(root, offset).data.borrow().value,
+                        self.renderer
+                            .leaf_block_at_offset(root, offset)
+                            .data
+                            .borrow()
+                            .value,
                         NodeValue::CodeBlock(_)
                     );
 
@@ -74,7 +83,7 @@ impl<'ast> Editor {
                             range: current_selection,
                             text: "\n".into(),
                         }));
-                        if let Some(extension_prefix) = self.extension_prefix(container) {
+                        if let Some(extension_prefix) = self.renderer.extension_prefix(container) {
                             operations.push(Operation::Replace(Replace {
                                 range: current_selection,
                                 text: extension_prefix,
@@ -98,7 +107,7 @@ impl<'ast> Editor {
                             range: current_selection,
                             text: "\n".into(),
                         }));
-                        if let Some(insertion_prefix) = self.insertion_prefix(container) {
+                        if let Some(insertion_prefix) = self.renderer.insertion_prefix(container) {
                             operations.push(Operation::Replace(Replace {
                                 range: current_selection,
                                 text: insertion_prefix,
@@ -108,18 +117,18 @@ impl<'ast> Editor {
 
                     // code block auto-indentation
                     if in_code_block {
-                        let line_content_start = self.offset_to_byte(line_content.start());
-                        let indentation_len = RelByteOffset(
-                            self.buffer[line_content].len()
-                                - self.buffer[line_content].trim_start().len(),
+                        let line_content_start = self.renderer.offset_to_byte(line_content.start());
+                        let indentation_len = Bytes(
+                            self.renderer.buffer[line_content].len()
+                                - self.renderer.buffer[line_content].trim_start().len(),
                         );
                         let indentation =
                             (line_content_start, line_content_start + indentation_len);
-                        let indentation = self.range_to_char(indentation);
+                        let indentation = self.renderer.range_to_char(indentation);
 
                         operations.push(Operation::Replace(Replace {
                             range: current_selection,
-                            text: self.buffer[indentation].to_string(),
+                            text: self.renderer.buffer[indentation].to_string(),
                         }));
                     }
 
@@ -151,14 +160,16 @@ impl<'ast> Editor {
                     }
 
                     // selection must be empty
-                    let Some(offset) = self.selection_offset() else {
+                    let Some(offset) = self.renderer.selection_offset() else {
                         return false;
                     };
 
-                    let container = self.deepest_container_block_at_offset(root, offset);
-                    let line = self.line_at_offset(offset);
-                    let own_prefix = self.line_own_prefix(container, line);
-                    let content = self.line_content(container, line);
+                    let container = self
+                        .renderer
+                        .deepest_container_block_at_offset(root, offset);
+                    let line = self.renderer.line_at_offset(offset);
+                    let own_prefix = self.renderer.line_own_prefix(container, line);
+                    let content = self.renderer.line_content(container, line);
 
                     // selection must be at content start
                     if offset != content.start() {
@@ -179,7 +190,6 @@ impl<'ast> Editor {
                     // default -> delete region
                     let range = self.region_to_range(region);
                     operations.push(Operation::Replace(Replace { range, text: "".into() }));
-                    operations.push(Operation::Select(range.start().to_range()));
                 }
 
                 // advance cursor
@@ -187,11 +197,13 @@ impl<'ast> Editor {
             }
             Event::Indent { deindent } => {
                 let selected_lines = self
+                    .renderer
                     .bounds
                     .source_lines
                     .find_intersecting(current_selection, true);
                 let first_selected_line_idx = selected_lines.0;
-                let first_selected_line = self.bounds.source_lines[first_selected_line_idx];
+                let first_selected_line =
+                    self.renderer.bounds.source_lines[first_selected_line_idx];
 
                 if !deindent {
                     // indent into extension of block on prior line
@@ -202,36 +214,33 @@ impl<'ast> Editor {
                         }
 
                         let prior_line_idx = first_selected_line_idx - 1;
-                        let prior_line = self.bounds.source_lines[prior_line_idx];
-                        let prior_line_deepest_container =
-                            self.deepest_container_block_at_offset(root, prior_line.end());
+                        let prior_line = self.renderer.bounds.source_lines[prior_line_idx];
+                        let prior_line_deepest_container = self
+                            .renderer
+                            .deepest_container_block_at_offset(root, prior_line.end());
+                        let first_selected_line_deepest = self
+                            .renderer
+                            .deepest_container_block_at_offset(root, first_selected_line.end());
 
-                        // among blocks on prior line, find the least deep that
-                        // has a prefix on the prior line but not on the first
-                        // selected line. this is the container that the
-                        // selected lines will be tab-indented into. this rule
-                        // accounts for empty-prefix nodes like lists and
-                        // prefix-less situations like paragraph continuation
-                        // text.
+                        // Pick the highest matching ancestor (last
+                        // assignment wins). Use AST ancestry — list-
+                        // item continuation prefixes are claimed
+                        // greedily by the outermost item, so prefix
+                        // presence isn't a reliable "already inside"
+                        // signal. See `consume_indent_columns`.
                         let mut prior_line_container_extension_prefix = None;
                         for prior_line_container in prior_line_deepest_container.ancestors() {
                             let has_prefix_on_prior_line = !self
+                                .renderer
                                 .line_own_prefix(prior_line_container, prior_line)
                                 .is_empty();
-                            let has_prefix_on_first_selected_line = if self
-                                .node_last_line_idx(prior_line_container)
-                                < first_selected_line_idx
-                            {
-                                false
-                            } else {
-                                !self
-                                    .line_own_prefix(prior_line_container, first_selected_line)
-                                    .is_empty()
-                            };
+                            let already_inside_prior_container = first_selected_line_deepest
+                                .ancestors()
+                                .any(|a| a.same_node(prior_line_container));
 
-                            if has_prefix_on_prior_line && !has_prefix_on_first_selected_line {
+                            if has_prefix_on_prior_line && !already_inside_prior_container {
                                 if let Some(extension_prefix) =
-                                    self.extension_own_prefix(prior_line_container)
+                                    self.renderer.extension_own_prefix(prior_line_container)
                                 {
                                     prior_line_container_extension_prefix = Some(extension_prefix);
                                 }
@@ -243,40 +252,61 @@ impl<'ast> Editor {
                             return false;
                         };
 
-                        // prepend container prefix to each line
-                        // todo: only prepend to lines which do not already have
-                        // the prefix; this would improve behavior when lazy
-                        // continuation lines are mixed with
-                        // non-lazy-continuation lines
-                        // todo: more attention to multi-line indentation
+                        // Indent only the selected line(s). Children
+                        // keep their absolute indentation and are not
+                        // dragged along; an item with children is
+                        // aligned to its deepest direct child so that
+                        // child's level is unchanged (it detaches to a
+                        // sibling instead of being pushed a level
+                        // deeper). Symmetric to deindent dropping to
+                        // the parent's column.
+                        let mut done = std::collections::BTreeSet::new();
                         for line_idx in selected_lines.iter() {
-                            let line = self.bounds.source_lines[line_idx];
-                            let container =
-                                self.deepest_container_block_at_offset(root, line.end());
-                            let container_own_prefix = self.line_own_prefix(container, line);
+                            if !done.insert(line_idx) {
+                                continue;
+                            }
+                            let line = self.renderer.bounds.source_lines[line_idx];
+                            let container = self
+                                .renderer
+                                .deepest_container_block_at_offset(root, line.end());
+                            let container_own_prefix =
+                                self.renderer.line_own_prefix(container, line);
 
-                            let insertion_offset =
-                                if Some(self.buffer[container_own_prefix].to_string())
-                                    == self.extension_own_prefix(container)
+                            // Marker line: insert before the marker
+                            // (whole block shifts). Continuation:
+                            // insert after the prefix (content
+                            // shifts).
+                            let is_continuation =
+                                Some(self.renderer.buffer[container_own_prefix].to_string())
+                                    == self.renderer.extension_own_prefix(container);
+                            let insertion_offset = if is_continuation {
+                                container_own_prefix.end()
+                            } else {
+                                container_own_prefix.start()
+                            };
+
+                            // For a whitespace-nested item with
+                            // children, indent it to its deepest
+                            // direct child's column instead of one
+                            // unit, so the child detaches as a sibling
+                            // at its unchanged level.
+                            let mut insert_text = prior_line_container_extension_prefix.clone();
+                            if !is_continuation
+                                && !insert_text.is_empty()
+                                && insert_text.bytes().all(|b| b == b' ')
+                            {
+                                if let Some(max_child_col) =
+                                    max_child_marker_col(&self.renderer, container)
                                 {
-                                    // on what could be a subsequent line of a
-                                    // container block, tab to indent the line
-                                    // contents; this is the experience when
-                                    // e.g. tab-indenting the cursor into a
-                                    // preceding container block
-                                    container_own_prefix.end()
-                                } else {
-                                    // on what can only be the first line of a
-                                    // container block, tab to indent the block;
-                                    // this is the experience when e.g.
-                                    // tab-indenting a list item into the list
-                                    // item above
-                                    container_own_prefix.start()
-                                };
-
+                                    let cur_col = leading_indent_cols(&self.renderer.buffer[line]);
+                                    let one_unit = insert_text.chars().count();
+                                    let want = (cur_col + one_unit).max(max_child_col);
+                                    insert_text = " ".repeat(want - cur_col);
+                                }
+                            }
                             operations.push(Operation::Replace(Replace {
                                 range: insertion_offset.into_range(),
-                                text: prior_line_container_extension_prefix.clone(),
+                                text: insert_text,
                             }));
                         }
 
@@ -286,68 +316,40 @@ impl<'ast> Editor {
                         // default -> do nothing
                     }
                 } else {
-                    // de-indent out of current container block
+                    // Cascade descendants too, so children stay
+                    // nested under a deindented parent.
                     let mut handled = || {
-                        // all lines must have container ancestor prefix
                         for line_idx in selected_lines.iter() {
-                            let line = self.bounds.source_lines[line_idx];
-                            let container =
-                                self.deepest_container_block_at_offset(root, line.end());
-                            let container_own_prefix = self.line_own_prefix(container, line);
-
-                            // on what can only be the first line of a container
-                            // block, shift-tab to de-indent the block rather
-                            // than its contents
-                            let skip_container =
-                                Some(self.buffer[container_own_prefix].to_string())
-                                    != self.extension_own_prefix(container);
-
-                            let mut found_container_ancestor = false;
-                            for ancestor in container.ancestors() {
-                                if container.same_node(ancestor) && skip_container {
-                                    continue;
-                                }
-
-                                let ancestor_own_prefix = self.line_own_prefix(ancestor, line);
-                                if !ancestor_own_prefix.is_empty() {
-                                    found_container_ancestor = true;
-                                }
-                            }
-                            if !found_container_ancestor {
+                            let line = self.renderer.bounds.source_lines[line_idx];
+                            if find_deindent(&self.renderer, root, line).is_none() {
                                 return false;
                             }
                         }
-
-                        // remove container ancestor prefix from each line
+                        let mut done = std::collections::BTreeSet::new();
                         for line_idx in selected_lines.iter() {
-                            let line = self.bounds.source_lines[line_idx];
-                            let container =
-                                self.deepest_container_block_at_offset(root, line.end());
-                            let container_own_prefix = self.line_own_prefix(container, line);
-
-                            // on what can only be the first line of a container
-                            // block, shift-tab to de-indent the block rather
-                            // than its contents
-                            let skip_container =
-                                Some(self.buffer[container_own_prefix].to_string())
-                                    != self.extension_own_prefix(container);
-
-                            for ancestor in container.ancestors() {
-                                if container.same_node(ancestor) && skip_container {
-                                    continue;
-                                }
-
-                                let ancestor_own_prefix = self.line_own_prefix(ancestor, line);
-                                if !ancestor_own_prefix.is_empty() {
-                                    operations.push(Operation::Replace(Replace {
-                                        range: ancestor_own_prefix,
-                                        text: "".into(),
-                                    }));
-                                    break;
-                                }
+                            if !done.insert(line_idx) {
+                                continue;
                             }
+                            let line = self.renderer.bounds.source_lines[line_idx];
+                            let Some((range, text)) = find_deindent(&self.renderer, root, line)
+                            else {
+                                continue;
+                            };
+                            let cur_cols = leading_indent_cols(&self.renderer.buffer[range]);
+                            let new_cols = text.chars().count();
+                            let delta = -(cur_cols.saturating_sub(new_cols) as isize);
+                            operations.push(Operation::Replace(Replace { range, text }));
+                            let container = self
+                                .renderer
+                                .deepest_container_block_at_offset(root, line.end());
+                            cascade_deindent_delta(
+                                &self.renderer,
+                                container,
+                                delta,
+                                &mut done,
+                                operations,
+                            );
                         }
-
                         true
                     };
                     if !handled() {
@@ -355,78 +357,13 @@ impl<'ast> Editor {
                     }
                 }
 
-                // advance cursor
                 operations.push(Operation::Select(current_selection));
             }
-            Event::FindSearch { term } => {
-                let old_match = self
-                    .find
-                    .current_match
-                    .and_then(|idx| self.find.matches.get(idx).copied());
-
-                // remember position of current match to find nearest after recompute;
-                // use selection start so a match containing the cursor is found
-                let anchor = old_match
-                    .map(|m| m.0)
-                    .unwrap_or(self.buffer.current.selection.start());
-
-                self.find.term = Some(term.clone());
-                self.find.matches = self.find_all(&term);
-                if !self.find.matches.is_empty() {
-                    // pick the nearest match at or after the anchor position
-                    let idx = self
-                        .find
-                        .matches
-                        .iter()
-                        .position(|m| m.0 >= anchor)
-                        .unwrap_or(0);
-                    self.find.current_match = Some(idx);
-                    self.scroll_to_find_match = true;
-                } else {
-                    self.find.current_match = None;
-                }
-
-                let new_match = self
-                    .find
-                    .current_match
-                    .and_then(|idx| self.find.matches.get(idx).copied());
-                if old_match != new_match {
-                    if let Some(old) = old_match {
-                        self.layout_cache.invalidate_reveal_change(old, old);
-                    }
-                    if let Some(new) = new_match {
-                        self.layout_cache.invalidate_reveal_change(new, new);
-                    }
-                }
-            }
-            Event::FindNavigate { backwards } => {
-                let old_match = self
-                    .find
-                    .current_match
-                    .and_then(|idx| self.find.matches.get(idx).copied());
-
-                if self.find_navigate(!backwards) {
-                    self.scroll_to_find_match = true;
-                }
-
-                let new_match = self
-                    .find
-                    .current_match
-                    .and_then(|idx| self.find.matches.get(idx).copied());
-                if old_match != new_match {
-                    if let Some(old) = old_match {
-                        self.layout_cache.invalidate_reveal_change(old, old);
-                    }
-                    if let Some(new) = new_match {
-                        self.layout_cache.invalidate_reveal_change(new, new);
-                    }
-                }
-            }
             Event::Undo => {
-                response |= self.buffer.undo();
+                response |= self.renderer.buffer.undo();
             }
             Event::Redo => {
-                response |= self.buffer.redo();
+                response |= self.renderer.buffer.redo();
             }
             Event::Cut => {
                 let range = if !current_selection.is_empty() {
@@ -435,7 +372,7 @@ impl<'ast> Editor {
                     self.clipboard_current_line()
                 };
 
-                ctx.copy_text(self.buffer[range].into());
+                ctx.copy_text(self.renderer.buffer[range].into());
                 operations.push(Operation::Replace(Replace { range, text: "".into() }));
             }
             Event::Copy => {
@@ -445,10 +382,10 @@ impl<'ast> Editor {
                     self.clipboard_current_line()
                 };
 
-                ctx.copy_text(self.buffer[range].into());
+                ctx.copy_text(self.renderer.buffer[range].into());
             }
             Event::ToggleDebug => {
-                self.debug = !self.debug;
+                self.renderer.debug = !self.renderer.debug;
             }
             Event::IncrementBaseFontSize => {
                 // self.appearance.base_font_size =
@@ -464,17 +401,20 @@ impl<'ast> Editor {
                 let unapply = self.unapply_fold(root);
                 for node in root.descendants() {
                     if matches!(node.data().value, NodeValue::Heading(_))
-                        && self.selected_block(node)
+                        && self.renderer.selected_block(node)
                     {
-                        let siblings = self.sorted_siblings(node);
-                        self.apply_fold(node, self.heading_contents(node, &siblings), unapply);
+                        self.renderer.apply_fold(
+                            node,
+                            self.renderer.heading_contents(node),
+                            unapply,
+                        );
                     }
 
                     if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
-                        && self.selected_fold_item(node)
+                        && self.renderer.selected_fold_item(node)
                     {
-                        let siblings = self.sorted_siblings(node);
-                        self.apply_fold(node, self.item_contents(node, &siblings), unapply);
+                        self.renderer
+                            .apply_fold(node, self.renderer.item_contents(node), unapply);
                     }
                 }
             }
@@ -485,7 +425,7 @@ impl<'ast> Editor {
 
     fn toggle_style(
         &mut self, root: &'ast AstNode<'ast>, region: Region, style: NodeValue,
-        current_selection: (DocCharOffset, DocCharOffset), operations: &mut Vec<Operation>,
+        current_selection: (Grapheme, Grapheme), operations: &mut Vec<Operation>,
     ) {
         let range = self.region_to_range(region);
 
@@ -494,7 +434,7 @@ impl<'ast> Editor {
             _ if style.is_inline() => {
                 let unapply = self.unapply_inline(root, range, &style);
 
-                for inline_paragraph in &self.bounds.inline_paragraphs {
+                for inline_paragraph in &self.renderer.bounds.inline_paragraphs {
                     if inline_paragraph.intersects(&range, true) {
                         let paragraph_range = (
                             range.start().max(inline_paragraph.start()),
@@ -518,7 +458,7 @@ impl<'ast> Editor {
 
                 let mut handled = false;
                 for node in root.descendants() {
-                    if self.selected_block(node) {
+                    if self.renderer.selected_block(node) {
                         handled = true;
 
                         // apply heading to ATX heading: replace existing heading
@@ -529,9 +469,9 @@ impl<'ast> Editor {
                                 ..
                             }) = node.data.borrow().value
                             {
-                                for line_idx in self.node_lines(node).iter() {
-                                    let line = self.bounds.source_lines[line_idx];
-                                    let node_line = self.node_line(node, line);
+                                for line_idx in self.renderer.node_lines(node).iter() {
+                                    let line = self.renderer.bounds.source_lines[line_idx];
+                                    let node_line = self.renderer.node_line(node, line);
 
                                     if level > node_level {
                                         let add_levels = level - node_level;
@@ -543,11 +483,12 @@ impl<'ast> Editor {
                                         // remove heading
                                         let mut range = (
                                             node_line.start(),
-                                            node_line.start() + RelCharOffset(node_level as _),
+                                            node_line.start() + Graphemes(node_level as _),
                                         );
-                                        if self.buffer.current.segs.last_cursor_position()
+                                        if self.renderer.buffer.current.segs.last_cursor_position()
                                             > range.end()
-                                            && &self.buffer[(range.end(), range.end() + 1)] == " "
+                                            && &self.renderer.buffer[(range.end(), range.end() + 1)]
+                                                == " "
                                         {
                                             range.1 += 1;
                                         }
@@ -561,21 +502,23 @@ impl<'ast> Editor {
                                         operations.push(Operation::Replace(Replace {
                                             range: (
                                                 node_line.start(),
-                                                node_line.start()
-                                                    + RelCharOffset(remove_levels as _),
+                                                node_line.start() + Graphemes(remove_levels as _),
                                             ),
                                             text: "".into(),
                                         }));
                                     }
                                 }
                             } else if NodeValue::Paragraph == node.data.borrow().value {
-                                for line_idx in self.node_lines(node).iter() {
-                                    let line = self.bounds.source_lines[line_idx];
-                                    let node_line = self.node_line(node, line);
+                                for line_idx in self.renderer.node_lines(node).iter() {
+                                    let line = self.renderer.bounds.source_lines[line_idx];
+                                    let node_line = self.renderer.node_line(node, line);
 
                                     // count paragraph soft breaks as node breaks
                                     if node.data.borrow().value == NodeValue::Paragraph
-                                        && !line.intersects(&self.buffer.current.selection, true)
+                                        && !line.intersects(
+                                            &self.renderer.buffer.current.selection,
+                                            true,
+                                        )
                                     {
                                         continue;
                                     }
@@ -594,10 +537,10 @@ impl<'ast> Editor {
                             } else {
                                 node.parent().unwrap()
                             };
-                            for line_idx in self.node_lines(node).iter() {
-                                let line = self.bounds.source_lines[line_idx];
+                            for line_idx in self.renderer.node_lines(node).iter() {
+                                let line = self.renderer.bounds.source_lines[line_idx];
 
-                                let prefix = self.line_own_prefix(target_node, line);
+                                let prefix = self.renderer.line_own_prefix(target_node, line);
 
                                 operations.push(Operation::Replace(Replace {
                                     range: prefix,
@@ -607,18 +550,24 @@ impl<'ast> Editor {
 
                             if !unapply {
                                 let mut first_line = true;
-                                for line_idx in self.node_lines(node).iter() {
-                                    let line = self.bounds.source_lines[line_idx];
+                                for line_idx in self.renderer.node_lines(node).iter() {
+                                    let line = self.renderer.bounds.source_lines[line_idx];
 
                                     // count paragraph soft breaks as node breaks
                                     if node.data.borrow().value == NodeValue::Paragraph
-                                        && !line.intersects(&self.buffer.current.selection, true)
+                                        && !line.intersects(
+                                            &self.renderer.buffer.current.selection,
+                                            true,
+                                        )
                                     {
                                         continue;
                                     }
 
-                                    let range =
-                                        self.line_ancestors_prefix(node, line).end().into_range();
+                                    let range = self
+                                        .renderer
+                                        .line_ancestors_prefix(node, line)
+                                        .end()
+                                        .into_range();
                                     let text = match style {
                                         NodeValue::Heading(_) => unreachable!(),
                                         NodeValue::BlockQuote => "> ",
@@ -706,19 +655,19 @@ impl<'ast> Editor {
                         .into();
 
                         operations.push(Operation::Replace(Replace { range, text }));
-                        operations.push(Operation::Select(current_selection));
                     } else {
-                        let target_node = self.deepest_container_block_at_offset(
+                        let target_node = self.renderer.deepest_container_block_at_offset(
                             root,
-                            self.buffer.current.selection.start(),
+                            self.renderer.buffer.current.selection.start(),
                         );
                         if style == target_node.node_type() {
                             let line_idx = self
+                                .renderer
                                 .range_lines(current_selection.start().into_range())
                                 .start();
-                            let line = self.bounds.source_lines[line_idx];
+                            let line = self.renderer.bounds.source_lines[line_idx];
 
-                            let prefix = self.line_own_prefix(target_node, line);
+                            let prefix = self.renderer.line_own_prefix(target_node, line);
 
                             operations.push(Operation::Replace(Replace {
                                 range: prefix,
@@ -727,6 +676,9 @@ impl<'ast> Editor {
                         }
                     }
                 }
+
+                // advance cursor (affects type change of empty list items)
+                operations.push(Operation::Select(current_selection));
             }
             _ => {}
         }
@@ -734,11 +686,14 @@ impl<'ast> Editor {
 
     /// Returns true if all text in the given range has style `style`
     pub fn inline_styled(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &NodeValue,
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), style: &NodeValue,
     ) -> bool {
         for node in root.descendants() {
             if &node.node_type() == style
-                && self.node_range(node).contains_range(&range, true, true)
+                && self
+                    .renderer
+                    .node_range(node)
+                    .contains_range(&range, true, true)
             {
                 return true;
             }
@@ -749,10 +704,10 @@ impl<'ast> Editor {
 
     /// Returns true if an inline style would be unapplied instead of applied
     pub fn unapply_inline(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: &NodeValue,
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), style: &NodeValue,
     ) -> bool {
         let mut unapply = false;
-        for inline_paragraph in &self.bounds.inline_paragraphs {
+        for inline_paragraph in &self.renderer.bounds.inline_paragraphs {
             if inline_paragraph.intersects(&range, true) {
                 let paragraph_range = (
                     range.start().max(inline_paragraph.start()),
@@ -770,12 +725,23 @@ impl<'ast> Editor {
         let mut unapply = false;
         let mut any_selected_blocks = false;
         for node in root.descendants() {
-            if self.selected_block(node) {
+            if self.renderer.selected_block(node) {
                 any_selected_blocks = true;
 
-                let target_node =
-                    if node.is_container_block() { node } else { node.parent().unwrap() };
-                unapply |= &target_node.node_type() == style
+                // Walk up the ancestor chain: the selected block (a leaf
+                // like Paragraph, or its immediate container) may sit
+                // several levels below the structural container that
+                // bears the toggled style. `* foo` has `List > Item >
+                // Paragraph` — the bullet style lives on `List`, two
+                // levels above the selected Paragraph.
+                let mut maybe = if node.is_container_block() { Some(node) } else { node.parent() };
+                while let Some(ancestor) = maybe {
+                    if &ancestor.node_type() == style {
+                        unapply = true;
+                        break;
+                    }
+                    maybe = ancestor.parent();
+                }
             }
         }
 
@@ -783,7 +749,11 @@ impl<'ast> Editor {
             // selecting sequence of contiguous empty/whitespace-only lines:
             // check for matching container block
             return &self
-                .deepest_container_block_at_offset(root, self.buffer.current.selection.start())
+                .renderer
+                .deepest_container_block_at_offset(
+                    root,
+                    self.renderer.buffer.current.selection.start(),
+                )
                 .node_type()
                 == style;
         }
@@ -796,15 +766,15 @@ impl<'ast> Editor {
         let mut unapply = false;
         for node in root.descendants() {
             if matches!(node.data().value, NodeValue::Heading(_))
-                && self.selected_block(node)
-                && self.fold(node).is_some()
+                && self.renderer.selected_block(node)
+                && self.renderer.fold(node).is_some()
             {
                 unapply = true;
             }
 
             if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
-                && self.selected_fold_item(node)
-                && self.fold(node).is_some()
+                && self.renderer.selected_fold_item(node)
+                && self.renderer.fold(node).is_some()
             {
                 unapply = true;
             }
@@ -815,53 +785,18 @@ impl<'ast> Editor {
 
     #[allow(clippy::collapsible_else_if)]
     pub fn apply_fold(
-        &mut self, node: &'ast AstNode<'ast>, contents: (DocCharOffset, DocCharOffset),
-        unapply: bool,
+        &mut self, node: &'ast AstNode<'ast>, contents: (Grapheme, Grapheme), unapply: bool,
     ) {
-        if unapply {
-            println!("UNapply fold to selected heading");
-            if let Some(fold) = self.fold(node) {
-                self.event.internal_events.push(Event::Replace {
-                    region: self.node_range(fold).into(),
-                    text: "".into(),
-                    advance_cursor: false,
-                });
-            }
-        } else {
-            println!("apply fold to selected heading");
-            if let Some(foldable) = self.foldable(node) {
-                self.event.internal_events.push(Event::Replace {
-                    region: self.node_range(foldable).end().into_range().into(),
-                    text: FOLD_TAG.into(),
-                    advance_cursor: false,
-                });
-
-                // when folding a section that intersects the cursor, adjust the selection
-                // this ensures the folded section appears folded / avoids immediate selection reveal
-                let selection = self.buffer.current.selection;
-
-                if contents.intersects(&selection, true)
-                    && !selection.contains_range(&contents, true, true)
-                {
-                    self.event.internal_events.push(Event::Select {
-                        region: (
-                            selection.start().min(contents.start()),
-                            selection.end().min(contents.start()),
-                        )
-                            .into(),
-                    });
-                }
-            }
-        }
+        self.renderer.apply_fold(node, contents, unapply);
     }
 
     /// Applies or unapplies `style` to `cursor`, splitting or joining surrounding styles as necessary.
     fn apply_inline_style(
-        &self, root: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset), style: NodeValue,
+        &self, root: &'ast AstNode<'ast>, range: (Grapheme, Grapheme), style: NodeValue,
         unapply: bool, operations: &mut Vec<Operation>,
     ) {
-        let selection = self.buffer.current.selection;
-        if self.buffer.current.text.is_empty() {
+        let selection = self.renderer.buffer.current.selection;
+        if self.renderer.buffer.current.text.is_empty() {
             self.insert_head(range.start(), style.clone(), operations);
             operations.push(Operation::Select(selection));
             self.insert_tail(range.start(), style, operations);
@@ -872,14 +807,21 @@ impl<'ast> Editor {
         let mut start_node: Option<&'ast AstNode<'ast>> = None;
         for node in root.descendants() {
             if node.node_type() == style
-                && self.node_range(node).contains(range.start(), true, true)
+                && self
+                    .renderer
+                    .node_range(node)
+                    .contains(range.start(), true, true)
             {
                 start_node = Some(node);
             }
         }
         let mut end_node: Option<&'ast AstNode<'ast>> = None;
         for node in root.descendants() {
-            if node.node_type() == style && self.node_range(node).contains(range.end(), true, true)
+            if node.node_type() == style
+                && self
+                    .renderer
+                    .node_range(node)
+                    .contains(range.end(), true, true)
             {
                 end_node = Some(node);
             }
@@ -903,7 +845,7 @@ impl<'ast> Editor {
         if unapply {
             // if unapplying, tail or dehead node containing start to crop styled region to selection
             if let Some(start_node) = start_node {
-                if self.head_range(start_node).unwrap().end() < range.start() {
+                if self.renderer.head_range(start_node).unwrap().end() < range.start() {
                     let offset = self.adjust_for_whitespace(range.start(), true);
                     self.insert_tail(offset, style.clone(), operations);
                 } else {
@@ -916,7 +858,7 @@ impl<'ast> Editor {
 
             // if unapplying, head or detail node containing end to crop styled region to selection
             if let Some(end_node) = end_node {
-                if self.tail_range(end_node).unwrap().start() > range.end() {
+                if self.renderer.tail_range(end_node).unwrap().start() > range.end() {
                     let offset = self.adjust_for_whitespace(range.end(), false);
                     self.insert_head(offset, style.clone(), operations);
                 } else {
@@ -958,7 +900,7 @@ impl<'ast> Editor {
             }
 
             let style_matches = node.node_type() == style;
-            if style_matches && self.node_range(node).intersects(&range, true) {
+            if style_matches && self.renderer.node_range(node).intersects(&range, true) {
                 self.dehead_ast_node(node, operations);
                 self.detail_ast_node(node, operations);
             }
@@ -966,8 +908,20 @@ impl<'ast> Editor {
     }
 
     // todo: self by shared reference
-    pub fn region_to_range(&mut self, region: Region) -> (DocCharOffset, DocCharOffset) {
-        let mut current_selection = self.buffer.current.selection;
+    pub fn region_to_range(&mut self, region: Region) -> (Grapheme, Grapheme) {
+        // Pointer click ends an up/down chain — the next arrow must
+        // start from the click x, not the stale column.
+        let has_pos = |loc: &Location| matches!(loc, Location::Pos(_));
+        let clicked = match &region {
+            Region::Location(loc) | Region::ToLocation(loc) => has_pos(loc),
+            Region::BetweenLocations { start, end } => has_pos(start) || has_pos(end),
+            Region::BoundAt { location, .. } => has_pos(location),
+            _ => false,
+        };
+        if clicked {
+            self.cursor.x_target = None;
+        }
+        let mut current_selection = self.renderer.buffer.current.selection;
         match region {
             Region::Location(location) => self.location_to_range(location),
             Region::ToLocation(location) => {
@@ -1005,46 +959,47 @@ impl<'ast> Editor {
             Region::Bound { bound, backwards } => {
                 let offset = current_selection.1;
                 offset
-                    .range_bound(bound, backwards, false, &self.bounds)
+                    .range_bound(bound, backwards, false, &self.renderer.bounds)
                     .unwrap_or((offset, offset))
             }
             Region::BoundAt { bound, location, backwards } => {
                 let offset = self.location_to_char_offset(location);
                 offset
-                    .range_bound(bound, backwards, true, &self.bounds)
+                    .range_bound(bound, backwards, true, &self.renderer.bounds)
                     .unwrap_or((offset, offset))
             }
         }
     }
 
-    pub fn location_to_range(&self, location: Location) -> (DocCharOffset, DocCharOffset) {
+    pub fn location_to_range(&self, location: Location) -> (Grapheme, Grapheme) {
         match location {
-            Location::CurrentCursor => self.buffer.current.selection,
-            Location::DocCharOffset(o) => o.into_range(),
+            Location::CurrentCursor => self.renderer.buffer.current.selection,
+            Location::Grapheme(o) => o.into_range(),
             Location::Pos(pos) => self.pos_to_range(pos),
         }
     }
 
-    pub fn location_to_char_offset(&self, location: Location) -> DocCharOffset {
+    pub fn location_to_char_offset(&self, location: Location) -> Grapheme {
         self.location_to_range(location).0
     }
 
-    fn clipboard_current_line(&self) -> (DocCharOffset, DocCharOffset) {
-        let current_selection = self.buffer.current.selection;
+    fn clipboard_current_line(&self) -> (Grapheme, Grapheme) {
+        let current_selection = self.renderer.buffer.current.selection;
         let paragraph_idx = self
+            .renderer
             .bounds
             .source_lines
             .find_containing(current_selection.1, true, true)
             .0;
 
-        let mut result = self.bounds.source_lines[paragraph_idx];
+        let mut result = self.renderer.bounds.source_lines[paragraph_idx];
 
         // capture leading newline, if any
         if paragraph_idx != 0 {
-            let line = self.bounds.source_lines[paragraph_idx];
-            let prev_line = self.bounds.source_lines[paragraph_idx - 1];
+            let line = self.renderer.bounds.source_lines[paragraph_idx];
+            let prev_line = self.renderer.bounds.source_lines[paragraph_idx - 1];
             let range_between_lines = (prev_line.1, line.0);
-            let rbl_text = &self.buffer[range_between_lines];
+            let rbl_text = &self.renderer.buffer[range_between_lines];
             if rbl_text.ends_with("\r\n") {
                 result.0 -= 2;
             } else if rbl_text.ends_with('\n') || rbl_text.ends_with('\r') {
@@ -1056,61 +1011,42 @@ impl<'ast> Editor {
     }
 
     // todo: find a better home
-    pub fn pos_to_range(&self, pos: Pos2) -> (DocCharOffset, DocCharOffset) {
-        let galleys = &self.galleys;
-        let galley_idx = pos_to_galley(pos, galleys);
-        let galley = &galleys[galley_idx];
+    pub fn pos_to_range(&self, pos: Pos2) -> (Grapheme, Grapheme) {
+        let Some(frag_idx) = self.renderer.closest_fragment_at_pos(pos) else {
+            return Grapheme(0).into_range();
+        };
+        let frag = &self.renderer.fragments[frag_idx];
 
-        if galley.range.is_empty() {
-            // empty galley range means every position in the galley maps to
-            // that location
-            let result = galley.range.start();
-            result.into_range()
-        } else if galley_idx == galleys.len() - 1 && pos.y > galley.rect.max.y {
-            // every position lower than the final galley's bottom maps to the last cursor position
-            self.buffer.current.segs.last_cursor_position().into_range()
+        // Past the last fragment's bottom: jump to doc end.
+        let is_last = frag_idx + 1 == self.renderer.fragments.len();
+        if is_last && pos.y > frag.rect.max.y {
+            return self
+                .renderer
+                .buffer
+                .current
+                .segs
+                .last_cursor_position()
+                .into_range();
+        }
+
+        if frag.source_range.is_empty() {
+            // Anchor / empty-range fragment: every position maps to
+            // its source point.
+            frag.source_range.start().into_range()
+        } else if frag.atomic {
+            // Override / atomic fragment: hit-test snaps to the
+            // nearest edge of its source range, returning the full
+            // range so callers that want "select the whole thing"
+            // get that semantics.
+            frag.source_range
         } else {
-            #[allow(clippy::collapsible_else_if)]
-            if galley.is_override {
-                // click an override galley to select the whole thing
-                galley.range
-            } else {
-                self.galley_offset(galley_idx, pos).into_range()
-            }
+            self.renderer.fragment_offset(frag, pos.x).into_range()
         }
     }
 
-    pub fn pos_to_char_offset(&self, pos: Pos2) -> DocCharOffset {
+    pub fn pos_to_char_offset(&self, pos: Pos2) -> Grapheme {
         self.pos_to_range(pos).0
     }
-}
-
-pub fn pos_to_galley(pos: Pos2, galleys: &Galleys) -> usize {
-    // every position lower than the final galley's bottom maps to it
-    if pos.y >= galleys.galleys.last().unwrap().rect.bottom() {
-        return galleys.galleys.len() - 1;
-    }
-
-    let mut closest_galley = None;
-    let mut closest_distance = (f32::INFINITY, f32::INFINITY);
-    for (galley_idx, galley) in galleys.galleys.iter().enumerate() {
-        if galley.rect.contains(pos) {
-            return galley_idx; // galleys do not overlap
-        }
-
-        // this ain't yo mama's distance metric
-        let x_distance = distance(pos.x, galley.rect.x_range());
-        let y_distance = distance(pos.y, galley.rect.y_range());
-
-        // prefer empty galleys which are placed deliberately to affect such behavior
-        if ((y_distance, x_distance) < closest_distance)
-            || (((y_distance, x_distance) == closest_distance) && galley.range.is_empty())
-        {
-            closest_galley = Some(galley_idx);
-            closest_distance = (y_distance, x_distance);
-        }
-    }
-    closest_galley.expect("there must always be a galley")
 }
 
 pub fn distance(coord: f32, range: Rangef) -> f32 {
@@ -1121,31 +1057,153 @@ pub fn distance(coord: f32, range: Rangef) -> f32 {
     }
 }
 
-impl<'ast> Editor {
+/// Buffer edit that deindents `line` past `ancestor`, or `None`.
+/// Items/TaskItems/FootnoteDefinitions nest via whitespace: rewrite
+/// the indent run minus one level's columns (tabs expand to spaces).
+/// BlockQuotes/Alerts nest via `>` markers: drop them, but only when
+/// nested inside another quote/alert (top-level deindent would
+/// silently demote `> foo` to a paragraph).
+fn deindent_replacement<'ast>(
+    renderer: &MdRender, ancestor: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+) -> Option<((Grapheme, Grapheme), String)> {
+    use NodeValue::*;
+    match &ancestor.data.borrow().value {
+        Item(_) | TaskItem(_) | FootnoteDefinition(_) => {
+            let level_cols = renderer.deindent_level_cols(ancestor)?;
+            if level_cols == 0 {
+                return None;
+            }
+            let indent_range = leading_indent_range(&renderer.buffer, line);
+            let cur_cols = leading_indent_cols(&renderer.buffer[indent_range]);
+            // Land at `ancestor`'s own marker column: escaping a
+            // container drops to its level. Using the marker column
+            // (not `cur - padding`) pops out one full level even when
+            // the source over-indents the nested item — otherwise an
+            // item indented past the minimum only moves part-way and
+            // stays nested.
+            let target_cols =
+                leading_indent_cols(&renderer.buffer[renderer.node_first_line(ancestor)]);
+            if cur_cols <= target_cols {
+                return None;
+            }
+            Some((indent_range, " ".repeat(target_cols)))
+        }
+        BlockQuote | Alert(_) => {
+            // No-op at top level — only deindent when there's an
+            // outer quote/alert to escape into.
+            let nested = ancestor
+                .ancestors()
+                .skip(1)
+                .any(|a| matches!(&a.data.borrow().value, BlockQuote | Alert(_)));
+            if !nested {
+                return None;
+            }
+            let own_prefix = renderer.line_own_prefix(ancestor, line);
+            if own_prefix.is_empty() {
+                return None;
+            }
+            Some((own_prefix, String::new()))
+        }
+        _ => None,
+    }
+}
+
+/// First deindent edit produced walking the line's container
+/// ancestors. `skip_container` walks past the deepest container
+/// when the cursor's on its marker line, so shift-tab there
+/// deindents the whole block instead of its content.
+fn find_deindent<'ast>(
+    renderer: &MdRender, root: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+) -> Option<((Grapheme, Grapheme), String)> {
+    let container = renderer.deepest_container_block_at_offset(root, line.end());
+    let container_own_prefix = renderer.line_own_prefix(container, line);
+    let skip_container = Some(renderer.buffer[container_own_prefix].to_string())
+        != renderer.extension_own_prefix(container);
+    container.ancestors().find_map(|ancestor| {
+        if container.same_node(ancestor) && skip_container {
+            return None;
+        }
+        deindent_replacement(renderer, ancestor, line)
+    })
+}
+
+/// Largest leading-indent column among `item`'s direct child list
+/// items (the items one level nested under it), or `None` if it has
+/// none. Used so indent can align the item to its child, leaving the
+/// child's level unchanged.
+fn max_child_marker_col<'ast>(renderer: &MdRender, item: &'ast AstNode<'ast>) -> Option<usize> {
+    item.children()
+        .filter(|c| matches!(&c.data.borrow().value, NodeValue::List(_)))
+        .flat_map(|list| list.children())
+        .filter(|n| matches!(&n.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)))
+        .map(|child| {
+            let line = renderer.bounds.source_lines[renderer.node_first_line_idx(child)];
+            leading_indent_cols(&renderer.buffer[line])
+        })
+        .max()
+}
+
+/// Drags `container`'s descendants left with a deindented parent so
+/// children stay nested instead of being stranded — a child left four
+/// or more columns deep with no list-item ancestor reparses as an
+/// indented code block. `delta_cols` is negative (the columns removed
+/// from the parent). Only fires for whitespace-nested containers (Item,
+/// TaskItem, FootnoteDefinition); quote/alert nesting is per-line
+/// markers with no column delta. Tabs in the indent expand to spaces.
+///
+/// There is deliberately no indent counterpart: indenting only the
+/// targeted line(s) can't strand a child (it always retains a list
+/// ancestor), so a tight child simply re-parents to a sibling.
+fn cascade_deindent_delta<'ast>(
+    renderer: &MdRender, container: &'ast AstNode<'ast>, delta_cols: isize,
+    done: &mut std::collections::BTreeSet<usize>, operations: &mut Vec<Operation>,
+) {
+    if !matches!(
+        &container.data.borrow().value,
+        NodeValue::Item(_) | NodeValue::TaskItem(_) | NodeValue::FootnoteDefinition(_)
+    ) {
+        return;
+    }
+
+    let first = renderer.node_first_line_idx(container);
+    let last = renderer.node_last_line_idx(container);
+    for i in first..=last {
+        if !done.insert(i) {
+            continue;
+        }
+        let line = renderer.bounds.source_lines[i];
+        let range = leading_indent_range(&renderer.buffer, line);
+        let cur = leading_indent_cols(&renderer.buffer[range]) as isize;
+        let new = (cur + delta_cols).max(0) as usize;
+        operations.push(Operation::Replace(Replace { range, text: " ".repeat(new) }));
+    }
+}
+
+impl<'ast> MdEdit {
     fn dehead_ast_node(&self, node: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) {
-        if let Some(range) = self.head_range(node) {
+        if let Some(range) = self.renderer.head_range(node) {
             operations.push(Operation::Replace(Replace { range, text: "".into() }));
         }
     }
 
     fn detail_ast_node(&self, node: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) {
-        if let Some(range) = self.tail_range(node) {
+        if let Some(range) = self.renderer.tail_range(node) {
             operations.push(Operation::Replace(Replace { range, text: "".into() }));
         }
     }
 
-    fn adjust_for_whitespace(&self, mut offset: DocCharOffset, tail: bool) -> DocCharOffset {
+    fn adjust_for_whitespace(&self, mut offset: Grapheme, tail: bool) -> Grapheme {
         loop {
             let c = if tail {
                 if offset == 0 {
                     break;
                 }
-                &(&self.buffer)[(offset - 1, offset)]
+                &(&self.renderer.buffer)[(offset - 1, offset)]
             } else {
-                if offset == self.buffer.current.segs.last_cursor_position() {
+                if offset == self.renderer.buffer.current.segs.last_cursor_position() {
                     break;
                 }
-                &(&self.buffer)[(offset, offset + 1)]
+                &(&self.renderer.buffer)[(offset, offset + 1)]
             };
             if c == " " {
                 if tail { offset -= 1 } else { offset += 1 }
@@ -1156,16 +1214,12 @@ impl<'ast> Editor {
         offset
     }
 
-    fn insert_head(
-        &self, offset: DocCharOffset, style: NodeValue, operations: &mut Vec<Operation>,
-    ) {
+    fn insert_head(&self, offset: Grapheme, style: NodeValue, operations: &mut Vec<Operation>) {
         let text = style.node_type().head().to_string();
         operations.push(Operation::Replace(Replace { range: offset.to_range(), text }));
     }
 
-    fn insert_tail(
-        &self, offset: DocCharOffset, style: NodeValue, operations: &mut Vec<Operation>,
-    ) {
+    fn insert_tail(&self, offset: Grapheme, style: NodeValue, operations: &mut Vec<Operation>) {
         let text = style.node_type().tail().to_string();
         if let NodeValue::Link(link) = style {
             let NodeLink { url, .. } = *link;
@@ -1210,8 +1264,20 @@ impl NodeType for NodeValue {
             NodeValue::Document => NodeValue::Document,
             NodeValue::FrontMatter(_) => NodeValue::FrontMatter(Default::default()),
             NodeValue::BlockQuote => NodeValue::BlockQuote,
-            NodeValue::List(_) => NodeValue::List(Default::default()),
-            NodeValue::Item(_) => NodeValue::Item(Default::default()),
+            // Preserve the discriminating fields so toggle-style
+            // comparisons can tell bullet / ordered / task lists apart.
+            // Other NodeList fields (padding, start, etc.) are layout
+            // and shouldn't affect type equality.
+            NodeValue::List(l) => NodeValue::List(NodeList {
+                list_type: l.list_type,
+                is_task_list: l.is_task_list,
+                ..Default::default()
+            }),
+            NodeValue::Item(l) => NodeValue::Item(NodeList {
+                list_type: l.list_type,
+                is_task_list: l.is_task_list,
+                ..Default::default()
+            }),
             NodeValue::DescriptionList => NodeValue::DescriptionList,
             NodeValue::DescriptionItem(_) => NodeValue::DescriptionItem(Default::default()),
             NodeValue::DescriptionTerm => NodeValue::DescriptionTerm,

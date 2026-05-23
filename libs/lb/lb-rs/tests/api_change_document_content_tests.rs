@@ -10,7 +10,7 @@ async fn change_document_content() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
     let doc = core.create_at_path("test.md").await.unwrap().id;
-    let doc = core
+    let doc = local(&core)
         .begin_tx()
         .await
         .db()
@@ -21,8 +21,9 @@ async fn change_document_content() {
         .clone();
 
     // create document
-    core.client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
+    local(&core)
+        .client
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
         .await
         .unwrap();
 
@@ -34,9 +35,10 @@ async fn change_document_content() {
 
     let diff = FileDiff::edit(doc1, doc2);
     // change document content
-    core.client
+    local(&core)
+        .client
         .request(
-            account,
+            &account,
             ChangeDocRequestV2 {
                 diff,
                 new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },
@@ -51,7 +53,7 @@ async fn change_document_content_not_found() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
     let doc = core.create_at_path("test.md").await.unwrap().id;
-    let mut doc = core
+    let mut doc = local(&core)
         .begin_tx()
         .await
         .db()
@@ -62,8 +64,9 @@ async fn change_document_content_not_found() {
         .clone();
 
     // create document
-    core.client
-        .request(account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
+    local(&core)
+        .client
+        .request(&account, UpsertRequestV2 { updates: vec![FileDiff::new(doc.clone())] })
         .await
         .unwrap();
 
@@ -76,10 +79,10 @@ async fn change_document_content_not_found() {
 
     let diff = FileDiff::edit(doc1, doc2);
     // change document content
-    let res = core
+    let res = local(&core)
         .client
         .request(
-            account,
+            &account,
             ChangeDocRequestV2 {
                 diff,
                 new_content: AESEncrypted { value: vec![], nonce: vec![], _t: Default::default() },

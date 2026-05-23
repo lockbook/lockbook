@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.screen
 
 import android.os.Bundle
@@ -36,7 +38,7 @@ class CreateLinkFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         binding = FragmentCreateLinkBinding.inflate(inflater, container, false)
 
@@ -59,19 +61,19 @@ class CreateLinkFragment : Fragment() {
         }
 
         model.updateTitle.observe(
-            viewLifecycleOwner
+            viewLifecycleOwner,
         ) { title ->
             binding.createLinkToolbar.title = title
         }
 
         model.closeFragment.observe(
-            viewLifecycleOwner
+            viewLifecycleOwner,
         ) {
             popBackStack()
         }
 
         model.notifyError.observe(
-            viewLifecycleOwner
+            viewLifecycleOwner,
         ) { error ->
             alertModel.notifyError(error) {
                 popBackStack()

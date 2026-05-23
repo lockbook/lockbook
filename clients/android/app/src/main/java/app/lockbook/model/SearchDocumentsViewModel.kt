@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.model
 
 import android.app.Application
@@ -20,8 +22,9 @@ import net.lockbook.SearchResult
 import net.lockbook.SearchResult.DocumentMatch.ContentMatch
 import java.io.File
 
-class SearchDocumentsViewModel(application: Application) : AndroidViewModel(application) {
-
+class SearchDocumentsViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val _updateSearchUI = SingleMutableLiveData<UpdateSearchUI>()
 
     val updateSearchUI: LiveData<UpdateSearchUI>
@@ -32,11 +35,12 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
     var isProgressSpinnerShown = false
     var isNoSearchResultsShown = false
 
-    private val highlightColor = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-        ContextCompat.getColor(getContext(), android.R.color.system_accent1_600)
-    } else {
-        ContextCompat.getColor(getContext(), R.color.md_theme_inversePrimary)
-    }
+    private val highlightColor =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+            ContextCompat.getColor(getContext(), android.R.color.system_accent1_600)
+        } else {
+            ContextCompat.getColor(getContext(), R.color.md_theme_inversePrimary)
+        }
 
     init {
         viewModelScope.launch(Dispatchers.IO) {
@@ -60,14 +64,25 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
                 is SearchResult.PathMatch -> {
                     val (parentPathSpan, fileNameSpan) = highlightMatchedPathParts(result.path, result.matchedIndices)
 
-                    filesResultsSource.add(SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(result.id, parentPathSpan, fileNameSpan, result.score))
+                    filesResultsSource.add(
+                        SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(result.id, parentPathSpan, fileNameSpan, result.score),
+                    )
                 }
+
                 is SearchResult.DocumentMatch -> {
                     val (parentPath, fileName) = getPathAndParentFile(result.path)
                     val contentMatches = highlightMatchedParagraph(result.contentMatches)
 
                     for (contentMatch in contentMatches) {
-                        filesResultsSource.add(SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(result.id, parentPath, fileName, contentMatch.second, contentMatch.first))
+                        filesResultsSource.add(
+                            SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
+                                result.id,
+                                parentPath,
+                                fileName,
+                                contentMatch.second,
+                                contentMatch.first,
+                            ),
+                        )
                     }
                 }
             }
@@ -126,34 +141,36 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
     private fun highlightMatchedPathParts(
         path: String,
-        matchedIndices: IntArray
+        matchedIndices: IntArray,
     ): Pair<SpannableString, SpannableString> {
         val (parentPathSpan, fileNameSpan) = getPathAndParentFile(path)
 
         for (index in matchedIndices) {
             if (index < parentPathSpan.length) {
-                parentPathSpan.setSpan(
-                    BackgroundColorSpan(highlightColor),
-                    index,
-                    index + 1,
-                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE
-                )
+                if (index >= 0 && index + 1 <= parentPathSpan.length) {
+                    parentPathSpan.setSpan(
+                        BackgroundColorSpan(highlightColor),
+                        index,
+                        index + 1,
+                        Spannable.SPAN_INCLUSIVE_EXCLUSIVE,
+                    )
+                }
             } else {
                 val newIndex = index - parentPathSpan.length
-                fileNameSpan.setSpan(
-                    BackgroundColorSpan(highlightColor),
-                    newIndex,
-                    newIndex + 1,
-                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE
-                )
+                if (newIndex >= 0 && newIndex + 1 <= fileNameSpan.length) {
+                    fileNameSpan.setSpan(
+                        BackgroundColorSpan(highlightColor),
+                        newIndex,
+                        newIndex + 1,
+                        Spannable.SPAN_INCLUSIVE_EXCLUSIVE,
+                    )
+                }
             }
         }
         return Pair(parentPathSpan, fileNameSpan)
     }
 
-    private fun highlightMatchedParagraph(
-        contentMatches: Array<ContentMatch>
-    ): List<Pair<SpannableString, Int>> {
+    private fun highlightMatchedParagraph(contentMatches: Array<ContentMatch>): List<Pair<SpannableString, Int>> {
         val paragraphsSpan: MutableList<Pair<SpannableString, Int>> = mutableListOf()
 
         for (contentMatch in contentMatches) {
@@ -170,7 +187,7 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
                     BackgroundColorSpan(highlightColor),
                     index,
                     index + 1,
-                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE
+                    Spannable.SPAN_INCLUSIVE_EXCLUSIVE,
                 )
             }
         }
@@ -189,6 +206,10 @@ class SearchDocumentsViewModel(application: Application) : AndroidViewModel(appl
 
 sealed class UpdateSearchUI {
     object ToggleNoSearchResults : UpdateSearchUI()
+
     object ToggleProgressSpinner : UpdateSearchUI()
-    data class Error(val error: LbError) : UpdateSearchUI()
+
+    data class Error(
+        val error: LbError,
+    ) : UpdateSearchUI()
 }

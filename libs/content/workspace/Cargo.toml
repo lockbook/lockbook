@@ -1,6 +1,6 @@
 [package]
 name = "workspace"
-version = "26.4.14"
+version = "26.5.22"
 edition = "2021"
 
 [lib]
@@ -34,6 +34,7 @@ lb-rs = { path = "../../lb/lb-rs" }
 linkify = "0.10.0"
 lyon = "1.0.1"
 rand = "0.8.5"
+unicode-linebreak = "0.1"
 rayon = "1.10.0"
 regex = "1.10.6"
 resvg = "0.41.0"

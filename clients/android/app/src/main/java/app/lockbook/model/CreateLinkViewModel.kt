@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.model
 
 import android.app.Application
@@ -15,8 +17,9 @@ import net.lockbook.Lb
 import net.lockbook.LbError
 
 // todo: refactor to use the file model instead of using lb. get children
-class CreateLinkViewModel(application: Application) :
-    AndroidViewModel(application) {
+class CreateLinkViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     lateinit var currentParent: File
 
     var files = emptyDataSourceTyped<File>()

@@ -3,21 +3,21 @@ use std::sync::{Arc, RwLock, mpsc};
 use lb::blocking::Lb;
 use lb::model::core_config::Config;
 use lb::model::errors::LbErrKind;
-use lb::model::file::File;
+use workspace_rs::file_cache::FileCache;
 
 use crate::settings::Settings;
 
 pub struct SplashHandOff {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
-    pub maybe_files: Option<Vec<File>>,
+    pub maybe_files: Option<FileCache>,
 }
 
 #[allow(clippy::large_enum_variant)]
 enum SplashUpdate {
     Status(String),
     Error(String),
-    Done((Lb, Option<Vec<File>>)),
+    Done((Lb, Option<FileCache>)),
 }
 
 pub struct SplashScreen {
@@ -72,7 +72,7 @@ impl SplashScreen {
                 tx.send(SplashUpdate::Status("Loading files...".to_string()))
                     .unwrap();
 
-                let files = match core.list_metadatas() {
+                let files = match FileCache::new(&core) {
                     Ok(files) => files,
                     Err(err) => {
                         tx.send(SplashUpdate::Error(format!("{err:?}"))).unwrap();

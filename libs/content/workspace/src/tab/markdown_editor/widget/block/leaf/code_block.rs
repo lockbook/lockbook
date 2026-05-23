@@ -4,16 +4,69 @@ use std::collections::{HashMap, HashSet};
 
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt};
 use syntect::easy::HighlightLines;
 use syntect::highlighting::Style;
 
-use crate::tab::markdown_editor::Editor;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use comrak::nodes::NodeValue;
+
+use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Layout};
 
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+/// Language tokens whose bundled syntect grammar panics inside
+/// `highlight_line` — fancy-regex can't compile features the
+/// grammars use (`\g` backrefs, non-constant lookbehinds, escape
+/// sequences inside character classes).
+const SKIP_HIGHLIGHT_TOKENS: &[&str] = &[
+    // ARM Assembly. `s` is the file extension, so a user typing the
+    // opening fence `` ``` `` then `s` momentarily fences an ARM
+    // Assembly block.
+    "s",
+    // Command Help
+    "cmd-help",
+    "help",
+    // JavaScript (Babel)
+    "js",
+    "javascript",
+    "mjs",
+    "jsx",
+    "babel",
+    "es6",
+    "cjs",
+    // JavaScript (Rails)
+    "js.erb",
+    // LiveScript
+    "ls",
+    "Slakefile",
+    "ls.erb",
+    // PowerShell
+    "ps1",
+    "psm1",
+    "psd1",
+    // QML
+    "qml",
+    "qmlproject",
+    // Regular Expressions (Elixir)
+    "ex.re",
+    // SCSS / Sass
+    "scss",
+    "sass",
+    // Salt State (SLS)
+    "sls",
+    // VimHelp
+    "vimhelp",
+];
+
+pub fn should_skip_highlight(info: &str) -> bool {
+    SKIP_HIGHLIGHT_TOKENS
+        .iter()
+        .any(|t| t.eq_ignore_ascii_case(info))
+}
+
+impl<'ast> MdRender {
     pub fn text_format_code_block(&self, parent: &AstNode<'_>) -> Format {
         let parent_text_format = self.text_format(parent);
         Format { family: FontFamily::Mono, ..parent_text_format }
@@ -44,6 +97,7 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
     ) -> f32 {
         let width = self.width(node) - 2. * self.layout.block_padding;
+        let row_height = self.layout.row_height;
 
         let mut result = self.layout.block_padding;
         result -= self.layout.row_spacing;
@@ -63,11 +117,13 @@ impl<'ast> Editor {
             if is_opening_fence || is_closing_fence {
                 if reveal {
                     result += self.layout.row_spacing;
-                    result += self.height_section(
-                        &mut self.new_wrap(width),
+                    let fence_layout = self.compute_section_layout_new(
                         node_line,
+                        width,
+                        row_height,
                         self.text_format_syntax(),
                     );
+                    result += fence_layout.height;
                 }
             } else {
                 result += self.layout.row_spacing;
@@ -84,6 +140,7 @@ impl<'ast> Editor {
     ) {
         let mut width = self.width(node);
         let height = self.height_fenced_code_block(node, node_code_block);
+        let row_height = self.layout.row_height;
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
         ui.painter().rect_stroke(
@@ -113,16 +170,15 @@ impl<'ast> Editor {
             if is_opening_fence || is_closing_fence {
                 if reveal {
                     top_left.y += self.layout.row_spacing;
-                    let mut wrap = self.new_wrap(width);
-                    self.show_section(
-                        ui,
-                        top_left,
-                        &mut wrap,
+                    let fence_layout = self.compute_section_layout_new(
                         node_line,
+                        width,
+                        row_height,
                         self.text_format_syntax(),
                     );
-                    top_left.y += wrap.height();
-                    self.bounds.wrap_lines.extend(wrap.row_ranges);
+                    let h = fence_layout.height;
+                    self.show_wrap_layout(ui, top_left, &fence_layout);
+                    top_left.y += h;
                 }
             } else {
                 top_left.y += self.layout.row_spacing;
@@ -154,6 +210,8 @@ impl<'ast> Editor {
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock, synthetic: bool,
     ) -> f32 {
         let mut result = 0.;
+        let width = self.width(node) - 2. * self.layout.block_padding;
+        let row_height = self.layout.row_height;
 
         let reveal = self.reveal_indented_code_block(node, synthetic);
         let first_line_idx = self.node_first_line_idx(node);
@@ -163,11 +221,13 @@ impl<'ast> Editor {
 
             if reveal {
                 let node_line = self.node_line(node, line);
-                result += self.height_section(
-                    &mut self.new_wrap(self.width(node) - 2. * self.layout.block_padding),
+                let l = self.compute_section_layout_new(
                     node_line,
+                    width,
+                    row_height,
                     self.text_format_syntax(),
                 );
+                result += l.height;
             } else {
                 result += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
@@ -188,6 +248,8 @@ impl<'ast> Editor {
         node_code_block: &NodeCodeBlock, synthetic: bool,
     ) {
         let width = self.width(node);
+        let inner_width = width - 2. * self.layout.block_padding;
+        let row_height = self.layout.row_height;
         let height = self.height_indented_code_block(node, node_code_block, synthetic);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
@@ -209,10 +271,15 @@ impl<'ast> Editor {
 
             if reveal {
                 let node_line = self.node_line(node, line);
-                let mut wrap = self.new_wrap(width);
-                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
-                top_left.y += wrap.height();
-                self.bounds.wrap_lines.extend(wrap.row_ranges);
+                let l = self.compute_section_layout_new(
+                    node_line,
+                    inner_width,
+                    row_height,
+                    self.text_format_syntax(),
+                );
+                let h = l.height;
+                self.show_wrap_layout(ui, top_left, &l);
+                top_left.y += h;
             } else {
                 self.show_code_block_line(ui, node, top_left, node_code_block, line, synthetic);
                 top_left.y += self.height_code_block_line(node, node_code_block, line, synthetic);
@@ -248,20 +315,18 @@ impl<'ast> Editor {
         reveal
     }
 
-    fn height_code_block_line(
+    /// Compute the `(chunk_start, end)` slice of `node_line` that's the
+    /// actual content of a code-block line (fence indent stripped for
+    /// fenced; 4-col indent stripped for indented, combined with parent
+    /// item padding if any).
+    fn code_line_range(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-        line: (DocCharOffset, DocCharOffset), synthetic: bool,
-    ) -> f32 {
-        let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
-
-        let node_line = self.node_line(node, line);
-
-        let code_line = if *fenced {
+        node_line: (Grapheme, Grapheme), synthetic: bool,
+    ) -> (Grapheme, Grapheme) {
+        let NodeCodeBlock { fenced, fence_offset, .. } = node_code_block;
+        if *fenced {
             // "If the leading code fence is indented N spaces, then up to N spaces
-            // of indentation are removed from each line of the content (if
-            // present). (If a content line is not indented, it is preserved
-            // unchanged. If it is indented less than N spaces, all of the
-            // indentation is removed.)"
+            // of indentation are removed from each line of the content..."
             // https://github.github.com/gfm/#fenced-code-blocks
             let text = &self.buffer[node_line];
             let indentation = text
@@ -271,149 +336,110 @@ impl<'ast> Editor {
                 .min(*fence_offset);
             (node_line.start() + indentation, node_line.end())
         } else {
-            // "An indented code block is composed of one or more indented chunks
-            // separated by blank lines. An indented chunk is a sequence of
-            // non-blank lines, each indented four or more spaces. The contents of
-            // the code block are the literal contents of the lines, including
-            // trailing line endings, minus four spaces of indentation."
+            // "An indented code block ... minus four spaces of indentation."
             // https://github.github.com/gfm/#indented-code-blocks
-            let chunk_start =
-                (node_line.start() + if synthetic { 0 } else { 4 }).min(node_line.end());
-            (chunk_start, node_line.end())
-        };
-        let code_line_text = &self.buffer[code_line];
-
-        // syntax highlighting
-        let mut highlighter = syntax_set()
-            .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
-
-        let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
-
-        if let Some(highlighter) = highlighter.as_mut() {
-            let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
-                // cached regions
-                regions
+            //
+            // Strip column-aware. If inside a list item, combine with
+            // the item's padding so a tab straddling the boundary
+            // doesn't get attributed entirely to one side.
+            let target_cols = if synthetic {
+                0
             } else {
-                // new regions
-                let mut regions = Vec::new();
-                let mut region_start = self.offset_to_byte(code_line.start());
-                for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, syntax_set())
-                    .unwrap()
-                {
-                    let region_end = region_start + region_str.len();
-                    let region = self.range_to_char((region_start, region_end));
-                    regions.push((style, region));
-                    region_start = region_end;
-                }
-                self.syntax
-                    .insert(code_line_text.into(), code_line, regions.clone());
-                regions
+                let parent_item_padding = node
+                    .ancestors()
+                    .find_map(|a| match &a.data.borrow().value {
+                        NodeValue::Item(nl) => Some(nl.padding),
+                        _ => None,
+                    })
+                    .unwrap_or(0);
+                parent_item_padding + 4
             };
-
-            let text_format = self.text_format(node);
-            for (_, region) in regions {
-                // color doesn't matter for layout, just how the regions are divided
-                wrap.offset += self.span_section(&wrap, region, text_format.clone());
-            }
-        } else {
-            // no syntax highlighting
-            wrap.offset += self.span_section(&wrap, code_line, self.text_format(node));
+            let text = &self.buffer[node_line];
+            let strip_graphemes = consume_indent_columns(text, target_cols);
+            let chunk_start = (node_line.start() + strip_graphemes).min(node_line.end());
+            (chunk_start, node_line.end())
         }
-
-        wrap.height()
     }
 
-    fn show_code_block_line(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        node_code_block: &NodeCodeBlock, line: (DocCharOffset, DocCharOffset), synthetic: bool,
-    ) {
-        let NodeCodeBlock { fenced, fence_offset, info, .. } = node_code_block;
-
-        let node_line = self.node_line(node, line);
-
-        let code_line = if *fenced {
-            // "If the leading code fence is indented N spaces, then up to N spaces
-            // of indentation are removed from each line of the content (if
-            // present). (If a content line is not indented, it is preserved
-            // unchanged. If it is indented less than N spaces, all of the
-            // indentation is removed.)"
-            // https://github.github.com/gfm/#fenced-code-blocks
-            let text = &self.buffer[node_line];
-            let indentation = text
-                .chars()
-                .take_while(|&c| c == ' ')
-                .count()
-                .min(*fence_offset);
-            (node_line.start() + indentation, node_line.end())
-        } else {
-            // "An indented code block is composed of one or more indented chunks
-            // separated by blank lines. An indented chunk is a sequence of
-            // non-blank lines, each indented four or more spaces. The contents of
-            // the code block are the literal contents of the lines, including
-            // trailing line endings, minus four spaces of indentation."
-            // https://github.github.com/gfm/#indented-code-blocks
-            let chunk_start =
-                (node_line.start() + if synthetic { 0 } else { 4 }).min(node_line.end());
-            (chunk_start, node_line.end())
-        };
-        let code_line_text = &self.buffer[code_line];
-
-        // syntax highlighting
+    /// Compute syntax-highlighted regions for a code line, or `None`
+    /// if no highlighter applies. Caches into `self.syntax`.
+    fn code_line_regions(
+        &self, info: &str, code_line: (Grapheme, Grapheme), code_line_text: &str,
+    ) -> Option<SyntaxHighlightResult> {
+        if should_skip_highlight(info) {
+            return None;
+        }
         let mut highlighter = syntax_set()
             .find_syntax_by_token(info)
-            .map(|syntax| HighlightLines::new(syntax, syntax_theme()));
-
-        let mut wrap = self.new_wrap(self.width(node) - 2. * self.layout.block_padding);
-
-        if let Some(highlighter) = highlighter.as_mut() {
-            let regions = if let Some(regions) = self.syntax.get(code_line_text, code_line) {
-                // cached regions
-                regions
-            } else {
-                // new regions
-                let mut regions = Vec::new();
-                let mut region_start = self.offset_to_byte(code_line.start());
-                for (style, region_str) in highlighter
-                    .highlight_line(code_line_text, syntax_set())
-                    .unwrap()
-                {
-                    let region_end = region_start + region_str.len();
-                    let region = self.range_to_char((region_start, region_end));
-                    regions.push((style, region));
-                    region_start = region_end;
-                }
-                self.syntax
-                    .insert(code_line_text.into(), code_line, regions.clone());
-                regions
-            };
-
-            let mut text_format = self.text_format(node);
-            if regions.is_empty() {
-                self.show_section(
-                    ui,
-                    top_left,
-                    &mut wrap,
-                    code_line.start().into_range(),
-                    text_format.clone(),
-                );
+            .map(|syntax| HighlightLines::new(syntax, syntax_theme()))?;
+        self.syntax.get(code_line_text, code_line).or_else(|| {
+            let line_start = self.offset_to_byte(code_line.start());
+            let highlighted = highlighter
+                .highlight_line(code_line_text, syntax_set())
+                .ok()?;
+            let mut regions = Vec::new();
+            let mut region_start = line_start;
+            for (style, region_str) in highlighted {
+                let region_end = region_start + region_str.len();
+                let region = self.range_to_char((region_start, region_end));
+                regions.push((style, region));
+                region_start = region_end;
             }
+            self.syntax
+                .insert(code_line_text.into(), code_line, regions.clone());
+            Some(regions)
+        })
+    }
+
+    /// Build a `Layout` for one code-block line. Each highlighted
+    /// region becomes its own `push_source` with a per-region color
+    /// (mono font + colored). Without highlighting, the whole line
+    /// goes in as one push_source with the default code format.
+    fn layout_code_block_line(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        line: (Grapheme, Grapheme), synthetic: bool,
+    ) -> Layout {
+        let node_line = self.node_line(node, line);
+        let code_line = self.code_line_range(node, node_code_block, node_line, synthetic);
+        let code_line_text = &self.buffer[code_line];
+        let mut layout = Layout::new(code_line);
+        let regions = self.code_line_regions(&node_code_block.info, code_line, code_line_text);
+        if let Some(regions) = regions {
+            let mut text_format = self.text_format(node);
             for (style, region) in regions {
                 let hex =
                     Color32::from_rgb(style.foreground.r, style.foreground.g, style.foreground.b)
                         .to_hex();
                 let hex = hex.strip_suffix("ff").unwrap();
                 text_format.color = self.syntax_color_for_hex(hex);
-
-                self.show_section(ui, top_left, &mut wrap, region, text_format.clone());
+                if !region.is_empty() {
+                    layout.push_source(region, &self.buffer[region], text_format.clone());
+                }
             }
-        } else {
-            // no syntax highlighting
-            self.show_section(ui, top_left, &mut wrap, code_line, self.text_format(node));
+        } else if !code_line.is_empty() {
+            layout.push_source(code_line, code_line_text, self.text_format(node));
         }
+        layout
+    }
 
-        self.bounds.wrap_lines.extend(wrap.row_ranges);
+    fn height_code_block_line(
+        &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
+        line: (Grapheme, Grapheme), synthetic: bool,
+    ) -> f32 {
+        let width = self.width(node) - 2. * self.layout.block_padding;
+        let layout = self.layout_code_block_line(node, node_code_block, line, synthetic);
+        self.compute_layout_from(layout, width, self.layout.row_height)
+            .height
+    }
+
+    fn show_code_block_line(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
+        node_code_block: &NodeCodeBlock, line: (Grapheme, Grapheme), synthetic: bool,
+    ) {
+        let width = self.width(node) - 2. * self.layout.block_padding;
+        let layout = self.layout_code_block_line(node, node_code_block, line, synthetic);
+        let result = self.compute_layout_from(layout, width, self.layout.row_height);
+        self.show_wrap_layout(ui, top_left, &result);
     }
 
     // "The closing code fence may be indented up to three spaces, and may be
@@ -422,7 +448,7 @@ impl<'ast> Editor {
 
     fn is_closing_fence(
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
-        line: (DocCharOffset, DocCharOffset),
+        line: (Grapheme, Grapheme),
     ) -> bool {
         let NodeCodeBlock { fence_char, fence_length, .. } = node_code_block;
         let fence_char = *fence_char as char;
@@ -467,54 +493,66 @@ impl<'ast> Editor {
 #[derive(Clone, Eq, PartialEq, Hash, Debug)]
 struct SyntaxCacheKey {
     text: String,
-    range: (DocCharOffset, DocCharOffset),
+    range: (Grapheme, Grapheme),
 }
 
-impl SyntaxCacheKey {
-    fn new(text: String, range: (DocCharOffset, DocCharOffset)) -> Self {
-        Self { text, range }
-    }
-}
+pub type SyntaxHighlightResult = Vec<(Style, (Grapheme, Grapheme))>;
 
-pub type SyntaxHighlightResult = Vec<(Style, (DocCharOffset, DocCharOffset))>;
-
-#[derive(Clone, Default)]
+#[derive(Clone)]
 pub struct SyntaxHighlightCache {
     map: RefCell<HashMap<SyntaxCacheKey, SyntaxHighlightResult>>,
-    used_this_frame: RefCell<HashSet<SyntaxCacheKey>>,
+    /// Hashes of keys touched this frame. `u64` instead of full keys
+    /// avoids per-lookup `String` clones for the bookkeeping side.
+    used_this_frame: RefCell<HashSet<u64>>,
+    hasher: std::collections::hash_map::RandomState,
+}
+
+impl Default for SyntaxHighlightCache {
+    fn default() -> Self {
+        Self {
+            map: RefCell::default(),
+            used_this_frame: RefCell::default(),
+            hasher: std::collections::hash_map::RandomState::new(),
+        }
+    }
 }
 
 impl SyntaxHighlightCache {
-    pub fn insert(
-        &self, text: String, range: (DocCharOffset, DocCharOffset), value: SyntaxHighlightResult,
-    ) {
-        let key = SyntaxCacheKey::new(text, range);
-        self.used_this_frame.borrow_mut().insert(key.clone());
+    pub fn insert(&self, text: String, range: (Grapheme, Grapheme), value: SyntaxHighlightResult) {
+        let key = SyntaxCacheKey { text, range };
+        self.used_this_frame
+            .borrow_mut()
+            .insert(self.hash_key(&key));
         self.map.borrow_mut().insert(key, value);
     }
 
-    pub fn get(
-        &self, text: &str, range: (DocCharOffset, DocCharOffset),
-    ) -> Option<SyntaxHighlightResult> {
-        let key = SyntaxCacheKey::new(text.to_string(), range);
-        self.used_this_frame.borrow_mut().insert(key.clone());
+    pub fn get(&self, text: &str, range: (Grapheme, Grapheme)) -> Option<SyntaxHighlightResult> {
+        // std HashMap doesn't expose raw_entry stably, so the lookup
+        // still needs an owned key — but the used_this_frame side
+        // gets a u64 instead of a second clone.
+        let key = SyntaxCacheKey { text: text.to_string(), range };
+        self.used_this_frame
+            .borrow_mut()
+            .insert(self.hash_key(&key));
         self.map.borrow().get(&key).cloned()
     }
 
     pub fn garbage_collect(&self) {
-        // Remove entries that weren't accessed this frame
-        let keys: Vec<SyntaxCacheKey> = self.map.borrow().keys().cloned().collect();
         let used = self.used_this_frame.borrow();
-        let mut map = self.map.borrow_mut();
-        for key in keys {
-            if !used.contains(&key) {
-                map.remove(&key);
-            }
-        }
+        self.map
+            .borrow_mut()
+            .retain(|key, _| used.contains(&self.hash_key(key)));
+        drop(used);
+        self.used_this_frame.borrow_mut().clear();
     }
 
     pub fn clear(&self) {
         self.map.borrow_mut().clear();
         self.used_this_frame.borrow_mut().clear();
+    }
+
+    fn hash_key(&self, key: &SyntaxCacheKey) -> u64 {
+        use std::hash::BuildHasher;
+        self.hasher.hash_one(key)
     }
 }

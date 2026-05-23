@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <item name="fab_create_folder" type="id" />
+    <item name="fab_create_document" type="id" />
+    <item name="fab_create_drawing" type="id" />
+</resources>

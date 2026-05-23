@@ -54,24 +54,29 @@ class ShareReceiverActivity : AppCompatActivity() {
         factoryProducer = {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(MoveFileViewModel::class.java))
+                    if (modelClass.isAssignableFrom(MoveFileViewModel::class.java)) {
                         return MoveFileViewModel(
                             application,
-                            Lb.getRoot().id
+                            Lb.getRoot().id,
                         ) as T
+                    }
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
-        }
+        },
     )
 
-    private val fragmentFinishedCallback = object : FragmentManager.FragmentLifecycleCallbacks() {
-        override fun onFragmentDestroyed(fm: FragmentManager, f: Fragment) {
-            if (f is CreateFileDialogFragment) {
-                model.refreshOverFolder()
+    private val fragmentFinishedCallback =
+        object : FragmentManager.FragmentLifecycleCallbacks() {
+            override fun onFragmentDestroyed(
+                fm: FragmentManager,
+                f: Fragment,
+            ) {
+                if (f is CreateFileDialogFragment) {
+                    model.refreshOverFolder()
+                }
             }
         }
-    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -86,6 +91,7 @@ class ShareReceiverActivity : AppCompatActivity() {
                     uris = receivedUris
                 }
             }
+
             Intent.ACTION_SEND -> {
                 val receivedUri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
                 if (receivedUri != null) {
@@ -104,25 +110,26 @@ class ShareReceiverActivity : AppCompatActivity() {
         }
 
         val sharedFilesCount = uris.count()
-        val subTitle = if (sharedFilesCount > 1) {
-            "Importing $sharedFilesCount files"
-        } else if (sharedFilesCount == 1) {
-            "Importing " + getUriFileName(uris[0])
-        } else {
-            ""
-        }
+        val subTitle =
+            if (sharedFilesCount > 1) {
+                "Importing $sharedFilesCount files"
+            } else if (sharedFilesCount == 1) {
+                "Importing " + getUriFileName(uris[0])
+            } else {
+                ""
+            }
         binding.toolbar.setSubtitle(subTitle)
 
         supportFragmentManager.registerFragmentLifecycleCallbacks(
             fragmentFinishedCallback,
-            false
+            false,
         )
 
         binding.toolbar.setOnMenuItemClickListener {
             activityModel.launchTransientScreen(TransientScreen.Create(model.currentParent.id))
             CreateFileDialogFragment().show(
                 supportFragmentManager,
-                CreateFileDialogFragment.TAG
+                CreateFileDialogFragment.TAG,
             )
             true
         }
@@ -135,7 +142,7 @@ class ShareReceiverActivity : AppCompatActivity() {
                 startActivity(
                     Intent(this, MainScreenActivity::class.java).apply {
                         putExtra(IMPORTED_FILE_KEY, id)
-                    }
+                    },
                 )
             }
         }

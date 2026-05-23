@@ -37,7 +37,7 @@ pub unsafe extern "C" fn key_event(
             .events
             .push(Event::Text(text.to_string()));
     }
-    if let Some(key) = key.egui_key() {
+    if let Some(key) = key.egui_key(shift) {
         obj.renderer.raw_input.events.push(Event::Key {
             key,
             physical_key: None,

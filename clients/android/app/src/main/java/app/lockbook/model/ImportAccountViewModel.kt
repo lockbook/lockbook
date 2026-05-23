@@ -10,8 +10,9 @@ import kotlinx.coroutines.launch
 import net.lockbook.Lb
 import net.lockbook.LbError
 
-class ImportAccountViewModel(application: Application) : AndroidViewModel(application) {
-
+class ImportAccountViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     var isErrorVisible = false
     private val _updateImportUI = SingleMutableLiveData<UpdateImportUI>()
 
@@ -32,6 +33,9 @@ class ImportAccountViewModel(application: Application) : AndroidViewModel(applic
 }
 
 sealed class UpdateImportUI {
-    data class NotifyError(val error: LbError) : UpdateImportUI()
+    data class NotifyError(
+        val error: LbError,
+    ) : UpdateImportUI()
+
     object FinishedSync : UpdateImportUI()
 }

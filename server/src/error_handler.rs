@@ -349,7 +349,11 @@ impl From<LbErr> for ServerError<UpsertError> {
 
 impl From<LbErr> for ServerError<ChangeDocError> {
     fn from(err: LbErr) -> Self {
-        internal!("{:?}", err)
+        use lb_rs::model::api::ChangeDocError::*;
+        match err.kind {
+            LbErrKind::InsufficientPermission => ClientError(NotPermissioned),
+            _ => internal!("{:?}", err),
+        }
     }
 }
 

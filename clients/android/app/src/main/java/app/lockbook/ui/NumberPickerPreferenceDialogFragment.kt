@@ -31,18 +31,23 @@ class NumberPickerPreferenceDialogFragment : PreferenceDialogFragmentCompat() {
         }
     }
 
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
-        .apply {
-            binding = DialogDurationPickerBinding.inflate(layoutInflater)
-            setUpInfo()
-            setView(binding.root)
-        }
-        .setNegativeButton(R.string.cancel, null)
-        .setPositiveButton(R.string.confirm) { _: DialogInterface, _: Int -> onPositiveButton() }
-        .create()
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
+        MaterialAlertDialogBuilder(requireContext())
+            .apply {
+                binding = DialogDurationPickerBinding.inflate(layoutInflater)
+                setUpInfo()
+                setView(binding.root)
+            }.setNegativeButton(R.string.cancel, null)
+            .setPositiveButton(R.string.confirm) { _: DialogInterface, _: Int -> onPositiveButton() }
+            .create()
 
-    private fun checkIfDurationTooLow(dayNumberPicker: NumberPicker?, hourNumberPicker: NumberPicker?, minuteNumberPicker: NumberPicker?) {
-        val durationInMinutes = (dayNumberPicker?.value ?: 0) * 1440 + (hourNumberPicker?.value ?: 0) * 60 + (minuteNumberPicker?.value ?: 15)
+    private fun checkIfDurationTooLow(
+        dayNumberPicker: NumberPicker?,
+        hourNumberPicker: NumberPicker?,
+        minuteNumberPicker: NumberPicker?,
+    ) {
+        val durationInMinutes =
+            (dayNumberPicker?.value ?: 0) * 1440 + (hourNumberPicker?.value ?: 0) * 60 + (minuteNumberPicker?.value ?: 15)
 
         if (durationInMinutes < 15) {
             minuteNumberPicker?.value = 15

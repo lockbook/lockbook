@@ -4,9 +4,8 @@ use std::io;
 use std::panic::Location;
 use std::sync::PoisonError;
 
-use hmac::crypto_mac::MacError;
 use serde::ser::SerializeStruct;
-use serde::{Serialize, Serializer};
+use serde::{Deserialize, Serialize, Serializer};
 use tracing::error;
 use uuid::Uuid;
 
@@ -17,10 +16,20 @@ use super::api;
 
 pub type LbResult<T> = Result<T, LbErr>;
 
-#[derive(Debug)]
+/// An error raised anywhere in lb-rs.
+///
+/// The backtrace is rendered to a `String` at capture time (via
+/// `Backtrace`'s `Display` impl, which resolves symbols) so the struct is
+/// straightforwardly serializable and survives an IPC round-trip with the
+/// original call site intact on the other side.
+///
+/// An empty `backtrace` means "not captured" (e.g., the error was built
+/// somewhere that doesn't go through `From<LbErrKind>`); the empty `String`
+/// here doesn't allocate.
+#[derive(Debug, Serialize, Deserialize)]
 pub struct LbErr {
     pub kind: LbErrKind,
-    pub backtrace: Option<Backtrace>,
+    pub backtrace: String,
 }
 
 /// Using this within core has limited meaning as the unexpected / expected error
@@ -68,7 +77,6 @@ impl Display for LbErrKind {
             }
             LbErrKind::DiskPathInvalid => write!(f, "That disk path is invalid"),
             LbErrKind::DiskPathTaken => write!(f, "That disk path is not available"),
-            LbErrKind::DrawingInvalid => write!(f, "That drawing is invalid"),
             LbErrKind::ExistingRequestPending => {
                 write!(f, "Existing billing request in progress, please wait and try again")
             }
@@ -161,8 +169,19 @@ impl Display for LbErrKind {
 
 impl From<LbErrKind> for LbErr {
     fn from(kind: LbErrKind) -> Self {
-        Self { kind, backtrace: Some(Backtrace::force_capture()) }
+        Self { kind, backtrace: capture_backtrace() }
     }
+}
+
+/// Render a backtrace at the current call site.
+///
+/// Uses `Backtrace::to_string()`, which resolves symbols into the same
+/// indented format `std::backtrace` produces when printed. Resolution isn't
+/// free — if a hot path ever starts burning time here we can switch to
+/// `Display`-on-demand with a `Cow<str>`, but error construction isn't that
+/// path today.
+fn capture_backtrace() -> String {
+    Backtrace::force_capture().to_string()
 }
 
 pub trait Unexpected<T> {
@@ -198,12 +217,12 @@ impl<T, E: std::fmt::Debug> Unexpected<T> for Result<T, E> {
 #[derive(Debug)]
 pub struct UnexpectedError {
     pub msg: String,
-    pub backtrace: Option<Backtrace>,
+    pub backtrace: String,
 }
 
 impl UnexpectedError {
     pub fn new(s: impl ToString) -> Self {
-        Self { msg: s.to_string(), backtrace: Some(Backtrace::force_capture()) }
+        Self { msg: s.to_string(), backtrace: capture_backtrace() }
     }
 }
 
@@ -265,7 +284,7 @@ macro_rules! unexpected_only {
     }};
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum LbErrKind {
     AccountExists,
     AccountNonexistent,
@@ -288,7 +307,6 @@ pub enum LbErrKind {
     CurrentUsageIsMoreThanNewTier,
     DiskPathInvalid,
     DiskPathTaken,
-    DrawingInvalid,
     ExistingRequestPending,
     // todo: Group
     FileNameContainsSlash,
@@ -334,7 +352,7 @@ pub enum LbErrKind {
     Unexpected(String),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DiffError {
     OldVersionIncorrect,
     OldFileNotFound,
@@ -344,20 +362,20 @@ pub enum DiffError {
     SizeModificationInvalid,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum SignError {
     SignatureInvalid,
     // todo: candidate for unexpected
-    SignatureParseError(libsecp256k1::Error),
+    SignatureParseError(String),
     WrongPublicKey,
     SignatureInTheFuture(u64),
     SignatureExpired(u64),
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum CryptoError {
-    Decryption(aead::Error),
-    HmacVerification(MacError),
+    Decryption(String),
+    HmacVerification(String),
 }
 
 impl From<bincode::Error> for LbErr {
@@ -531,7 +549,7 @@ impl From<ApiError<api::GetUsageError>> for LbErr {
     }
 }
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub enum Warning {
     EmptyFile(Uuid),
     InvalidUTF8(Uuid),

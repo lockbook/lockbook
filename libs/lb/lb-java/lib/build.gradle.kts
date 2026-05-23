@@ -1,4 +1,6 @@
 import org.gradle.internal.os.OperatingSystem
+import org.gradle.process.ExecOperations
+import javax.inject.Inject
 
 plugins {
     // Apply the java-library plugin for API and implementation separation.
@@ -13,11 +15,13 @@ dependencies {
     // JUnit test framework
     testImplementation("junit:junit:4.13.2")
 
+    compileOnly("com.google.code.findbugs:jsr305:3.0.2")
+
     // Expose the commons math library to consumers
     api("org.apache.commons:commons-math3:3.6.1")
 
     // Internal dependencies
-    implementation("com.google.guava:guava:33.2.1-jre")
+    implementation("com.google.guava:guava:33.6.0-jre")
 }
 
 java {
@@ -26,15 +30,21 @@ java {
     }
 }
 
+interface InjectedExecOps {
+    @get:Inject
+    val execOps: ExecOperations
+}
+
+val injectedExecOps = objects.newInstance<InjectedExecOps>()
+
 tasks.register("buildNativeLibs") {
     group = "build"
 
     doLast {
         val rustProjectDir = file("../")
 
-        exec {
+        injectedExecOps.execOps.exec {
             workingDir = rustProjectDir
-
             commandLine("cargo", "ndk",
                 "-t", "armeabi-v7a",
                 "-t", "arm64-v8a",
@@ -62,7 +72,7 @@ tasks.register("buildTestNativeLibs") {
         val targetDir = file("./src/main/jniLibs/desktop")
         targetDir.mkdirs()
 
-        exec {
+        injectedExecOps.execOps.exec {
             workingDir = rustProjectDir
             commandLine("cargo", "build", "--lib", "--release")
         }

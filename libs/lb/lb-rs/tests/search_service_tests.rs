@@ -39,7 +39,7 @@ async fn search_paths_successfully() {
         core.create_at_path(file_path).await.unwrap();
     }
 
-    core.build_index().await.unwrap();
+    local(&core).build_index().await.unwrap();
 
     let search1 = core.search("", SearchConfig::Paths).await.unwrap();
     assert_eq!(search1.len(), 0);
@@ -91,7 +91,7 @@ async fn search_content_successfully() {
         .unwrap();
 
     time::sleep(Duration::from_millis(10)).await;
-    core.build_index().await.unwrap();
+    local(&core).build_index().await.unwrap();
 
     let search1 = core
         .search("", SearchConfig::PathsAndDocuments)
@@ -99,7 +99,7 @@ async fn search_content_successfully() {
         .unwrap();
     assert_eq!(search1.len(), 1);
 
-    core.search.tantivy_reader.reload().unwrap();
+    local(&core).search.tantivy_reader.reload().unwrap();
     let results1 = core
         .search(MATCHED_CONTENT_1.0, SearchConfig::PathsAndDocuments)
         .await
@@ -162,7 +162,7 @@ async fn search_exclude_pending_share() {
         .await
         .unwrap();
 
-    core2.build_index().await.unwrap();
+    local(&core2).build_index().await.unwrap();
 
     let search1 = core2
         .search("", SearchConfig::PathsAndDocuments)
@@ -191,8 +191,8 @@ async fn search_content_cleans_up_after_deletion() {
         .await
         .unwrap();
 
-    core.build_index().await.unwrap();
-    core.search.tantivy_reader.reload().unwrap();
+    local(&core).build_index().await.unwrap();
+    local(&core).search.tantivy_reader.reload().unwrap();
 
     let results_after_creation = core
         .search(MATCHED_CONTENT_1.0, SearchConfig::PathsAndDocuments)
@@ -203,8 +203,8 @@ async fn search_content_cleans_up_after_deletion() {
 
     core.delete(&file.id).await.unwrap();
 
-    core.build_index().await.unwrap();
-    core.search.tantivy_reader.reload().unwrap();
+    local(&core).build_index().await.unwrap();
+    local(&core).search.tantivy_reader.reload().unwrap();
 
     let results_after_deletion = core
         .search(MATCHED_CONTENT_1.0, SearchConfig::PathsAndDocuments)

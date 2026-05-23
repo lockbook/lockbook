@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.model
 
 import android.app.Application
@@ -7,17 +9,17 @@ import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.viewModelScope
 import app.lockbook.R
 import app.lockbook.util.*
-import app.lockbook.workspace.LbStatus
-import app.lockbook.workspace.SpaceUsed
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.serialization.decodeFromString
-import kotlinx.serialization.json.Json
 import net.lockbook.Lb
 import net.lockbook.LbError
+import net.lockbook.LbStatus
 import net.lockbook.SubscriptionInfo
+import net.lockbook.Usage
 
-class SettingsViewModel(application: Application) : AndroidViewModel(application) {
+class SettingsViewModel(
+    application: Application,
+) : AndroidViewModel(application) {
     private val _sendBreadcrumb = SingleMutableLiveData<String>()
     private val _determineSettingsInfo = MutableLiveData<SettingsInfo>()
     private val _exit = SingleMutableLiveData<Unit>()
@@ -35,10 +37,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
     val notifyError: LiveData<LbError>
         get() = _notifyError
 
-    private val jsonParser = Json {
-        ignoreUnknownKeys = true
-    }
-
     init {
         updateUsage()
     }
@@ -51,8 +49,7 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 
     private fun computeUsage() {
         try {
-            val raw = Lb.getStatus()
-            val status: LbStatus = jsonParser.decodeFromString(raw)
+            val status: LbStatus = Lb.getStatus()
             val subscriptionInfo = Lb.getSubscriptionInfo()
 
             status.spaceUsed?.let {
@@ -93,6 +90,6 @@ class SettingsViewModel(application: Application) : AndroidViewModel(application
 }
 
 data class SettingsInfo(
-    val usage: SpaceUsed,
-    val subscriptionInfo: SubscriptionInfo?
+    val usage: Usage,
+    val subscriptionInfo: SubscriptionInfo?,
 )

@@ -1,15 +1,16 @@
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
 
-use crate::Lb;
+use crate::LocalLb;
 use crate::model::account::Account;
 use crate::model::crypto::AESKey;
 use crate::model::errors::{LbErrKind, LbResult};
+use db_rs::hasher::UuidIdentityHasherBuilder;
 use libsecp256k1::PublicKey;
 use tokio::sync::OnceCell;
 use uuid::Uuid;
 
-pub type KeyCache = Arc<RwLock<HashMap<Uuid, AESKey>>>;
+pub type KeyCache = Arc<RwLock<HashMap<Uuid, AESKey, UuidIdentityHasherBuilder>>>;
 
 #[derive(Default, Clone)]
 pub struct Keychain {
@@ -37,7 +38,7 @@ impl From<Option<&Account>> for Keychain {
     }
 }
 
-impl Lb {
+impl LocalLb {
     pub fn get_account(&self) -> LbResult<&Account> {
         self.keychain.get_account()
     }

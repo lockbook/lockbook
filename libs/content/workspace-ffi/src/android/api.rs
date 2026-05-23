@@ -1,13 +1,13 @@
 use egui::{PointerButton, TouchDeviceId, TouchId, TouchPhase};
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JPrimitiveArray, JString};
-use jni::sys::{jboolean, jfloat, jint, jlong, jobjectArray, jstring};
+use jni::objects::{JByteArray, JClass, JObject, JPrimitiveArray, JString, JValue};
+use jni::sys::{jboolean, jfloat, jint, jlong, jobject, jobjectArray, jstring};
 use lb_c::Uuid;
-use lb_c::model::text::offset_types::DocCharOffset;
+use lb_c::model::text::offset_types::Grapheme;
 use serde::Serialize;
 use std::panic::catch_unwind;
 use workspace_rs::tab::markdown_editor::input::{Event, Location, Region};
-use workspace_rs::tab::{ContentState, ExtendedInput, TabContent};
+use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 
 use super::keyboard::AndroidKeys;
 use super::response::*;
@@ -15,35 +15,107 @@ use crate::WgpuWorkspace;
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
-    env: JNIEnv, _: JClass, obj: jlong,
-) -> jstring {
+    mut env: JNIEnv, _: JClass, obj: jlong,
+) -> jobject {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
         let response: AndroidResponse = obj.frame().into();
-        serde_json::to_string(&response).unwrap()
+        response
     });
 
     match maybe_err {
-        Ok(ok) => env
-            .new_string(ok)
-            .expect("Couldn't create JString from rust string!")
-            .into_raw(),
+        Ok(ok) => android_response_to_java(&mut env, ok).into_raw(),
         Err(err) => {
-            if let Some(err_str) = err.downcast_ref::<&str>() {
-                env.new_string(*err_str)
-                    .expect("Couldn't create JString from rust string!")
-                    .into_raw()
+            let msg = if let Some(err_str) = err.downcast_ref::<&str>() {
+                *err_str
             } else if let Some(err_string) = err.downcast_ref::<String>() {
-                env.new_string(err_string.as_str())
-                    .expect("Couldn't create JString from rust string!")
-                    .into_raw()
+                err_string.as_str()
             } else {
-                env.new_string("Unknown error occurred")
-                    .expect("Couldn't create JString from rust string!")
-                    .into_raw()
-            }
+                "Unknown error occurred"
+            };
+            let _ = env.throw_new("java/lang/RuntimeException", msg);
+            JObject::null().into_raw()
         }
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrameOffloaded(
+    mut env: JNIEnv, _: JClass, obj: jlong,
+) -> jobject {
+    let maybe_err = catch_unwind(|| {
+        let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+        let response: AndroidResponse = obj.frame_offloaded().into();
+        response
+    });
+
+    match maybe_err {
+        Ok(ok) => android_response_to_java(&mut env, ok).into_raw(),
+        Err(err) => {
+            let msg = if let Some(err_str) = err.downcast_ref::<&str>() {
+                *err_str
+            } else if let Some(err_string) = err.downcast_ref::<String>() {
+                err_string.as_str()
+            } else {
+                "Unknown error occurred"
+            };
+            let _ = env.throw_new("java/lang/RuntimeException", msg);
+            JObject::null().into_raw()
+        }
+    }
+}
+
+fn android_response_to_java<'local>(
+    env: &mut JNIEnv<'local>, response: AndroidResponse,
+) -> JObject<'local> {
+    let redraw_in = i64::try_from(response.redraw_in).unwrap_or(i64::MAX);
+    let cls = env
+        .find_class("app/lockbook/workspace/AndroidResponse")
+        .expect("find AndroidResponse class");
+    let copied_text = env
+        .new_string(response.copied_text)
+        .expect("create copied_text string");
+    let url_opened = env
+        .new_string(response.url_opened)
+        .expect("create url_opened string");
+    let selected_file = env
+        .new_string(response.selected_file.to_string())
+        .expect("create selected_file string");
+    let doc_created = env
+        .new_string(response.doc_created.to_string())
+        .expect("create doc_created string");
+
+    let virtual_keyboard_shown: JObject = match response.virtual_keyboard_shown {
+        Some(value) => {
+            let bool_cls = env
+                .find_class("java/lang/Boolean")
+                .expect("find Boolean class");
+            env.new_object(bool_cls, "(Z)V", &[JValue::Bool(if value { 1 } else { 0 })])
+                .expect("create Boolean")
+        }
+        None => JObject::null(),
+    };
+
+    env.new_object(
+        cls,
+        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZ)V",
+        &[
+            JValue::Long(redraw_in),
+            JValue::Object(&JObject::from(copied_text)),
+            JValue::Bool(if response.has_url_opened { 1 } else { 0 }),
+            JValue::Object(&JObject::from(url_opened)),
+            JValue::Object(&virtual_keyboard_shown),
+            JValue::Object(&JObject::from(selected_file)),
+            JValue::Object(&JObject::from(doc_created)),
+            JValue::Bool(if response.tabs_changed { 1 } else { 0 }),
+            JValue::Bool(if response.has_edit_menu { 1 } else { 0 }),
+            JValue::Float(response.edit_menu_x),
+            JValue::Float(response.edit_menu_y),
+            JValue::Bool(if response.selection_updated { 1 } else { 0 }),
+            JValue::Bool(if response.text_updated { 1 } else { 0 }),
+        ],
+    )
+    .expect("create AndroidResponse")
 }
 
 #[no_mangle]
@@ -153,7 +225,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesPredicted(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let force = get_force(pressure);
-    let pos = obj.renderer.pos_from_points(x, y);
+    let pos = obj.renderer.pos_from_pixels(x, y);
 
     obj.renderer
         .context
@@ -166,7 +238,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_mouseMoved(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let pos = obj.renderer.pos_from_points(x, y);
+    let pos = obj.renderer.pos_from_pixels(x, y);
     obj.renderer
         .raw_input
         .events
@@ -303,15 +375,11 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
 
     if let Some(tab_id) = obj
         .workspace
-        .tabs
+        .tab_strip
         .iter()
-        .position(|tab| tab.id() == Some(id))
+        .position(|s| s.dest.id() == id)
     {
         obj.workspace.close_tab(tab_id);
-    } else {
-        for i in 0..obj.workspace.tabs.len() {
-            obj.workspace.close_tab(i);
-        }
     }
 }
 
@@ -321,18 +389,47 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    for i in 0..obj.workspace.tabs.len() {
-        obj.workspace.close_tab(i);
+    while !obj.workspace.tab_strip.is_empty() {
+        obj.workspace.close_tab(0);
     }
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_showTabs(
-    _env: JNIEnv, _: JClass, obj: jlong, show: jboolean,
-) {
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_back(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    obj.workspace.show_tabs = show == 1;
+    if obj.workspace.can_back() {
+        obj.workspace.back();
+        true
+    } else {
+        false
+    }
+    .into()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_forward(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    if obj.workspace.can_forward() {
+        obj.workspace.forward();
+        true
+    } else {
+        false
+    }
+    .into()
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_canForward(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.can_forward().into()
 }
 
 #[no_mangle]
@@ -341,7 +438,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
 ) -> jobjectArray {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let ids = obj.workspace.tabs.iter().filter_map(|t| t.id());
+    let ids = obj.workspace.tab_strip.iter().map(|s| s.dest.id());
 
     let string_class = env.find_class("java/lang/String").unwrap();
 
@@ -360,11 +457,29 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
-    _env: JNIEnv, _: JClass, obj: jlong,
-) -> jint {
+    mut _env: JNIEnv, _: JClass, obj: jlong,
+) -> jobject {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    get_current_tab(obj)
+    let tab_type = get_current_tab(obj);
+    let id = obj
+        .workspace
+        .current_tab_id()
+        .unwrap_or_default()
+        .to_string();
+
+    let cls = _env
+        .find_class("app/lockbook/workspace/NativeWorkspaceTab")
+        .expect("find NativeWorkspaceTab class");
+    let id = _env.new_string(id).expect("create tab id string");
+
+    _env.new_object(
+        cls,
+        "(Ljava/lang/String;I)V",
+        &[JValue::Object(&JObject::from(id)), JValue::Int(tab_type)],
+    )
+    .expect("create NativeWorkspaceTab")
+    .into_raw()
 }
 
 fn get_current_tab(obj: &mut WgpuWorkspace<'_>) -> i32 {
@@ -378,6 +493,7 @@ fn get_current_tab(obj: &mut WgpuWorkspace<'_>) -> i32 {
                 TabContent::Svg(_) => 6,
                 TabContent::MindMap(_) => 7,
                 TabContent::SpaceInspector(_) => 8,
+                TabContent::Chat(_) => 9,
             },
             _ => 1,
         },
@@ -404,8 +520,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_unfocusTitle(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    if let Some(tab) = obj.workspace.current_tab_mut() {
-        tab.rename = None;
+    if let Some(dest) = obj.workspace.current_tab.clone() {
+        if let Some(slot) = obj.workspace.tab_strip.iter_mut().find(|s| s.dest == dest) {
+            slot.rename = None;
+        }
     }
 }
 
@@ -425,28 +543,35 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
         }
     };
 
-    env.new_string(&markdown.buffer.current.text)
+    env.new_string(&markdown.edit.renderer.buffer.current.text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_getSelection(
-    env: JNIEnv, _: JClass, obj: jlong,
-) -> jstring {
+    mut env: JNIEnv, _: JClass, obj: jlong,
+) -> jobject {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let resp = match obj.workspace.current_tab_markdown_mut() {
+    let (none, start, end) = match obj.workspace.current_tab_markdown_mut() {
         Some(markdown) => {
-            let (start, end) = markdown.buffer.current.selection;
-            JTextRange { none: false, start: start.0, end: end.0 }
+            let (start, end) = markdown.edit.renderer.buffer.current.selection;
+            (false, start.0, end.0)
         }
-        None => JTextRange { none: true, start: 0, end: 0 },
+        None => (true, 0, 0),
     };
 
-    env.new_string(serde_json::to_string(&resp).unwrap())
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
+    let class = env.find_class("app/lockbook/workspace/JTextRange").unwrap();
+    let obj = env
+        .new_object(
+            class,
+            "(ZII)V",
+            &[JValue::Bool(none as u8), JValue::Int(start as i32), JValue::Int(end as i32)],
+        )
+        .unwrap();
+
+    obj.into_raw()
 }
 
 #[no_mangle]
@@ -457,8 +582,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSelection(
 
     obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(start as usize)),
-            end: Location::DocCharOffset(DocCharOffset(end as usize)),
+            start: Location::Grapheme(Grapheme(start as usize)),
+            end: Location::Grapheme(Grapheme(end as usize)),
         },
     });
 }
@@ -474,7 +599,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextLength(
         None => return -1,
     };
 
-    markdown.buffer.current.segs.last_cursor_position().0 as jint
+    markdown
+        .edit
+        .renderer
+        .buffer
+        .current
+        .segs
+        .last_cursor_position()
+        .0 as jint
 }
 
 #[no_mangle]
@@ -490,8 +622,16 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position()),
+            start: Location::Grapheme(Grapheme(0)),
+            end: Location::Grapheme(
+                markdown
+                    .edit
+                    .renderer
+                    .buffer
+                    .current
+                    .segs
+                    .last_cursor_position(),
+            ),
         },
         text: "".to_string(),
         advance_cursor: false,
@@ -511,8 +651,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_replace(
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(start as usize)),
-            end: Location::DocCharOffset(DocCharOffset(end as usize)),
+            start: Location::Grapheme(Grapheme(start as usize)),
+            end: Location::Grapheme(Grapheme(end as usize)),
         },
         text,
         advance_cursor: true,
@@ -530,7 +670,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insert(
         Err(err) => format!("error: {err:?}"),
     };
 
-    let loc = Location::DocCharOffset(DocCharOffset(index as usize));
+    let loc = Location::Grapheme(Grapheme(index as usize));
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
@@ -555,7 +695,15 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
         Err(err) => format!("error: {err:?}"),
     };
 
-    let loc = Location::DocCharOffset(markdown.buffer.current.segs.last_cursor_position());
+    let loc = Location::Grapheme(
+        markdown
+            .edit
+            .renderer
+            .buffer
+            .current
+            .segs
+            .last_cursor_position(),
+    );
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
@@ -580,30 +728,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
         }
     };
 
-    let selection = (DocCharOffset(start as usize), DocCharOffset(end as usize));
-    env.new_string(&markdown.buffer[selection])
-        .expect("Couldn't create JString from rust string!")
-        .into_raw()
-}
-
-#[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_getBuffer(
-    env: JNIEnv, _: JClass, obj: jlong,
-) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
-        Some(markdown) => markdown,
-        None => {
-            return env
-                .new_string("")
-                .expect("Couldn't create JString from rust string!")
-                .into_raw();
-        }
-    };
-
-    let selection = (DocCharOffset(0), markdown.buffer.current.segs.last_cursor_position());
-    env.new_string(&markdown.buffer[selection])
+    let selection = (Grapheme(start as usize), Grapheme(end as usize));
+    env.new_string(&markdown.edit.renderer.buffer[selection])
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -619,12 +745,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
         None => return,
     };
 
-    let segs = &markdown.buffer.current.segs;
+    let segs = &markdown.edit.renderer.buffer.current.segs;
 
     obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
-            start: Location::DocCharOffset(DocCharOffset(0)),
-            end: Location::DocCharOffset(segs.last_cursor_position()),
+            start: Location::Grapheme(Grapheme(0)),
+            end: Location::Grapheme(segs.last_cursor_position()),
         },
     });
 }
@@ -660,6 +786,31 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardPaste(
         .raw_input
         .events
         .push(egui::Event::Paste(content));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardSendImage(
+    env: JNIEnv, _: JClass, obj: jlong, content: JByteArray, is_paste: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let img = match env.convert_byte_array(&content) {
+        Ok(bytes) => bytes,
+        Err(_) => return,
+    };
+
+    let content = vec![ClipContent::Image(img)];
+    let position = egui::Pos2::ZERO; // todo: cursor position
+
+    if is_paste == 1 {
+        obj.renderer
+            .context
+            .push_event(workspace_rs::Event::Paste { content, position });
+    } else {
+        obj.renderer
+            .context
+            .push_event(workspace_rs::Event::Drop { content, position });
+    }
 }
 
 #[no_mangle]

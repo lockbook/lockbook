@@ -14,9 +14,10 @@ import app.lockbook.util.getApp
 
 class ImportAccountActivity : AppCompatActivity() {
     private var _binding: ActivityImportAccountBinding? = null
+
     // This property is only valid between onCreateView and
     // onDestroyView.
-    private val binding get() = _binding!!
+    val binding get() = _binding!!
 
     private val model: ImportAccountViewModel by viewModels()
 
@@ -39,7 +40,7 @@ class ImportAccountActivity : AppCompatActivity() {
         }
 
         model.updateImportUI.observe(
-            this
+            this,
         ) { updateImportUI ->
             when (updateImportUI) {
                 UpdateImportUI.FinishedSync -> {
@@ -49,6 +50,7 @@ class ImportAccountActivity : AppCompatActivity() {
 
                     finishAffinity()
                 }
+
                 is UpdateImportUI.NotifyError -> {
                     binding.importAccountProgressBar.visibility = View.GONE
                     binding.importExitApp.visibility = View.VISIBLE
@@ -67,7 +69,7 @@ class ImportAccountActivity : AppCompatActivity() {
                     intent.flags = Intent.FLAG_ACTIVITY_NEW_TASK
                     startActivity(intent)
                 }
-            }
+            },
         )
     }
 }

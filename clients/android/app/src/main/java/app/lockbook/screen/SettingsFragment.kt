@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.screen
 
 import android.content.ClipData
@@ -34,7 +36,6 @@ import java.lang.ref.WeakReference
 import kotlin.system.exitProcess
 
 class SettingsFragment : PreferenceFragmentCompat() {
-
     companion object {
         const val SCROLL_TO_PREFERENCE_KEY = "scroll_to_item_key"
         const val UPGRADE_NOW = "upgrade_now_key"
@@ -55,20 +56,27 @@ class SettingsFragment : PreferenceFragmentCompat() {
         factoryProducer = {
             object : ViewModelProvider.Factory {
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
-                    if (modelClass.isAssignableFrom(SettingsViewModel::class.java))
+                    if (modelClass.isAssignableFrom(SettingsViewModel::class.java)) {
                         return SettingsViewModel(requireActivity().application) as T
+                    }
                     throw IllegalArgumentException("Unknown ViewModel class")
                 }
             }
-        }
+        },
     )
 
-    override fun onCreatePreferences(savedInstanceState: Bundle?, rootKey: String?) {
+    override fun onCreatePreferences(
+        savedInstanceState: Bundle?,
+        rootKey: String?,
+    ) {
         setPreferencesFromResource(R.xml.settings_preference, rootKey)
         setUpPreferences()
     }
 
-    override fun onViewCreated(view: View, savedInstanceState: Bundle?) {
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
         super.onViewCreated(view, savedInstanceState)
 
         getSettingsActivity().scrollToPreference()?.let { preference ->
@@ -80,26 +88,26 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         model.sendBreadcrumb.observe(
-            viewLifecycleOwner
+            viewLifecycleOwner,
         ) { msg ->
             alertModel.notify(msg)
         }
 
         model.determineSettingsInfo.observe(
-            viewLifecycleOwner
+            viewLifecycleOwner,
         ) { settingsInfo ->
             addDataToPreferences(settingsInfo)
         }
 
         model.exit.observe(
-            viewLifecycleOwner
+            viewLifecycleOwner,
         ) {
             requireActivity().finishAffinity()
             exitProcess(0)
         }
 
         model.notifyError.observe(
-            viewLifecycleOwner
+            viewLifecycleOwner,
         ) { error ->
             alertModel.notifyError(error)
         }
@@ -109,7 +117,10 @@ class SettingsFragment : PreferenceFragmentCompat() {
         val maybePaymentPlatform = settingsInfo.subscriptionInfo?.paymentPlatform
 
         val isPremium = settingsInfo.usage.dataCap?.exact == UsageBarPreference.PAID_TIER_USAGE_BYTES
-        val isOkState = (maybePaymentPlatform as? GooglePlay)?.accountState == GooglePlay.GooglePlayAccountState.Ok || (maybePaymentPlatform as? Stripe) != null || (maybePaymentPlatform as? AppStore)?.accountState == AppStore.AppStoreAccountState.Ok
+        val isOkState =
+            (maybePaymentPlatform as? GooglePlay)?.accountState == GooglePlay.GooglePlayAccountState.Ok ||
+                (maybePaymentPlatform as? Stripe) != null ||
+                (maybePaymentPlatform as? AppStore)?.accountState == AppStore.AppStoreAccountState.Ok
 
         findPreference<PreferenceCategory>(getString(R.string.premium_key))!!.isVisible = isPremium
         findPreference<Preference>(getString(R.string.cancel_subscription_key))!!.isVisible = isPremium && isOkState
@@ -123,7 +134,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
                     VerificationItem.BiometricsSettingsChange,
                     {
                         findPreference<ListPreference>(getString(R.string.biometric_key))?.value = newValue
-                    }
+                    },
                 )
             }
 
@@ -131,12 +142,13 @@ class SettingsFragment : PreferenceFragmentCompat() {
         }
 
         findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
-            PreferenceManager.getDefaultSharedPreferences(
-                requireContext()
-            ).getBoolean(
-                getString(R.string.background_sync_enabled_key),
-                true
-            )
+            PreferenceManager
+                .getDefaultSharedPreferences(
+                    requireContext(),
+                ).getBoolean(
+                    getString(R.string.background_sync_enabled_key),
+                    true,
+                )
 
         if (!BiometricModel.isBiometricVerificationAvailable(requireContext())) {
             findPreference<ListPreference>(getString(R.string.biometric_key))?.isEnabled = false
@@ -157,59 +169,78 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     override fun onPreferenceTreeClick(preference: Preference): Boolean {
         when (preference.key) {
-            getString(R.string.export_account_qr_key) -> BiometricModel.verify(
-                requireActivity(),
-                VerificationItem.ViewPrivateKey,
-                ::exportAccountQR
-            )
-            getString(R.string.export_account_raw_key) -> BiometricModel.verify(
-                requireActivity(),
-                VerificationItem.ViewPrivateKey,
-                ::exportAccountRaw
-            )
-            getString(R.string.export_account_phrase_key) -> BiometricModel.verify(
-                requireActivity(),
-                VerificationItem.ViewPrivateKey,
-                ::exportAccountPhrase
-            )
-            getString(R.string.debug_info_key) -> startActivity(Intent(context, DebugInfoActivity::class.java))
-            getString(R.string.background_sync_enabled_key) ->
+            getString(R.string.export_account_qr_key) -> {
+                BiometricModel.verify(
+                    requireActivity(),
+                    VerificationItem.ViewPrivateKey,
+                    ::exportAccountQR,
+                )
+            }
+
+            getString(R.string.export_account_raw_key) -> {
+                BiometricModel.verify(
+                    requireActivity(),
+                    VerificationItem.ViewPrivateKey,
+                    ::exportAccountRaw,
+                )
+            }
+
+            getString(R.string.export_account_phrase_key) -> {
+                BiometricModel.verify(
+                    requireActivity(),
+                    VerificationItem.ViewPrivateKey,
+                    ::exportAccountPhrase,
+                )
+            }
+
+            getString(R.string.debug_info_key) -> {
+                startActivity(Intent(context, DebugInfoActivity::class.java))
+            }
+
+            getString(R.string.background_sync_enabled_key) -> {
                 findPreference<Preference>(getString(R.string.background_sync_period_key))?.isEnabled =
                     (preference as SwitchPreference).isChecked
+            }
+
             getString(R.string.cancel_subscription_key) -> {
-                val dialog = MaterialAlertDialogBuilder(requireContext())
-                    .setTitle(R.string.settings_cancel_sub_confirmation_title)
-                    .setMessage(R.string.settings_cancel_sub_confirmation_details)
-                    .setPositiveButton(R.string.yes) { _, _ ->
-                        model.cancelSubscription()
-                    }
-                    .setNegativeButton(R.string.no, null)
+                val dialog =
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.settings_cancel_sub_confirmation_title)
+                        .setMessage(R.string.settings_cancel_sub_confirmation_details)
+                        .setPositiveButton(R.string.yes) { _, _ ->
+                            model.cancelSubscription()
+                        }.setNegativeButton(R.string.no, null)
 
                 dialog.show()
             }
+
             getString(R.string.logout_key) -> {
-                val dialog = MaterialAlertDialogBuilder(requireContext())
-                    .setTitle(R.string.logout)
-                    .setMessage(R.string.logout_confirmation_details)
-                    .setPositiveButton(R.string.yes) { _, _ ->
-                        model.logout()
-                    }
-                    .setNegativeButton(R.string.no, null)
+                val dialog =
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.logout)
+                        .setMessage(R.string.logout_confirmation_details)
+                        .setPositiveButton(R.string.yes) { _, _ ->
+                            model.logout()
+                        }.setNegativeButton(R.string.no, null)
 
                 dialog.show()
             }
+
             getString(R.string.delete_account_key) -> {
-                val dialog = MaterialAlertDialogBuilder(requireContext())
-                    .setTitle(R.string.delete_account)
-                    .setMessage(R.string.delete_account_confirmation_details)
-                    .setPositiveButton(R.string.yes) { _, _ ->
-                        model.deleteAccount()
-                    }
-                    .setNegativeButton(R.string.no, null)
+                val dialog =
+                    MaterialAlertDialogBuilder(requireContext())
+                        .setTitle(R.string.delete_account)
+                        .setMessage(R.string.delete_account_confirmation_details)
+                        .setPositiveButton(R.string.yes) { _, _ ->
+                            model.deleteAccount()
+                        }.setNegativeButton(R.string.no, null)
 
                 dialog.show()
             }
-            else -> super.onPreferenceTreeClick(preference)
+
+            else -> {
+                super.onPreferenceTreeClick(preference)
+            }
         }
 
         return true
@@ -217,18 +248,20 @@ class SettingsFragment : PreferenceFragmentCompat() {
 
     private fun exportAccountQR() {
         try {
-            val bitmap = BarcodeEncoder().encodeBitmap(
-                Lb.exportAccountPrivateKey(),
-                BarcodeFormat.QR_CODE,
-                400,
-                400
-            )
+            val bitmap =
+                BarcodeEncoder().encodeBitmap(
+                    Lb.exportAccountPrivateKey(),
+                    BarcodeFormat.QR_CODE,
+                    400,
+                    400,
+                )
 
-            val qrCodeView = layoutInflater.inflate(
-                R.layout.popup_window_qr_code,
-                view as ViewGroup,
-                false
-            )
+            val qrCodeView =
+                layoutInflater.inflate(
+                    R.layout.popup_window_qr_code,
+                    view as ViewGroup,
+                    false,
+                )
             qrCodeView.findViewById<ImageView>(R.id.qr_code).setImageBitmap(bitmap)
             val popUpWindow = PopupWindow(qrCodeView, 900, 900, true)
             popUpWindow.showAtLocation(view, Gravity.CENTER, 0, 0)
@@ -248,6 +281,7 @@ class SettingsFragment : PreferenceFragmentCompat() {
             alertModel.notifyError(err)
         }
     }
+
     private fun exportAccountPhrase() {
         try {
             val clipBoard: ClipboardManager =

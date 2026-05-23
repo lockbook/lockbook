@@ -19,9 +19,10 @@ use lb::service::events::broadcast::error::TryRecvError;
 use lb::service::events::{self, Event};
 use lb::service::import_export::ImportStatus;
 use lb::subscribers::status::Status;
-use workspace_rs::file_cache::FilesExt;
+use workspace_rs::file_cache::{FileCache, FilesExt};
 use workspace_rs::show::InputStateExt;
 use workspace_rs::theme::icons::Icon;
+use workspace_rs::theme::palette_v2::ThemeExt as _;
 use workspace_rs::widgets::Button;
 use workspace_rs::workspace::Workspace;
 
@@ -36,6 +37,7 @@ use self::tree::FileTree;
 pub struct AccountScreen {
     pub settings: Arc<RwLock<Settings>>,
     pub core: Lb,
+    pub is_dev: bool,
     toasts: egui_notify::Toasts,
 
     update_tx: mpsc::Sender<AccountUpdate>,
@@ -54,7 +56,7 @@ pub struct AccountScreen {
 
 impl AccountScreen {
     pub fn new(
-        settings: Arc<RwLock<Settings>>, core: &Lb, files: Vec<File>, ctx: &egui::Context,
+        settings: Arc<RwLock<Settings>>, core: &Lb, files: FileCache, ctx: &egui::Context,
         is_new_user: bool,
     ) -> Self {
         let core = core.clone();
@@ -66,33 +68,42 @@ impl AccountScreen {
             .with_margin(egui::vec2(20.0, 20.0))
             .with_padding(egui::vec2(10.0, 10.0));
 
-        let mut result = Self {
+        let is_dev = core
+            .get_account()
+            .ok()
+            .map(|a| crate::DEV_USERS.contains(&a.username.as_str()))
+            .unwrap_or(false);
+
+        let file_cache = Arc::new(RwLock::new(files));
+
+        Self {
             settings,
             core: core.clone(),
+            is_dev,
             toasts,
             update_tx,
             update_rx,
             is_new_user,
-            tree: FileTree::new(
-                files,
-                core.get_pending_shares().unwrap(),
-                core.get_pending_share_files().unwrap(),
-            ),
+            tree: FileTree::new(file_cache.clone()),
             sync: SyncPanel::new(),
-            workspace: Workspace::new(&core_clone, &ctx.clone(), true),
+            workspace: Workspace::new(&core_clone, &ctx.clone(), true, Some(file_cache)),
             modals: Modals::default(),
             shutdown: None,
             lb_rx: core.subscribe(),
             lb_status: core.status(),
-        };
-        result.tree.recalc_suggested_files(&core, ctx);
-        result
+        }
     }
 
-    pub fn begin_shutdown(&mut self) {
+    pub fn begin_shutdown(&mut self, ctx: &egui::Context) {
+        if self.shutdown.is_some() {
+            return;
+        }
         self.shutdown = Some(AccountShutdownProgress::default());
         self.workspace.save_all_tabs();
-        // todo: wait for saves to complete
+        // save_all_tabs only queues — kick the launcher so the background save
+        // threads actually start before we begin polling for completion.
+        self.workspace.tasks.check_launch(&self.workspace.tabs);
+        self.perform_final_sync(ctx);
     }
 
     pub fn is_shutdown(&self) -> bool {
@@ -103,13 +114,21 @@ impl AccountScreen {
     }
 
     pub fn update(&mut self, ctx: &egui::Context) {
-        self.process_lb_updates(ctx);
+        self.process_lb_updates();
         self.process_updates(ctx);
         self.process_keys(ctx);
         self.process_dropped_files(ctx);
         self.toasts.show(ctx);
 
         if self.shutdown.is_some() {
+            // Run the task launcher so any saves queued during this frame's
+            // input processing actually start, and refresh done_saving from
+            // live queue state so it tracks late-arriving saves correctly.
+            self.workspace.tasks.check_launch(&self.workspace.tabs);
+            let saves_done = self.workspace.tasks.saves_idle();
+            if let Some(s) = self.shutdown.as_mut() {
+                s.done_saving = saves_done;
+            }
             egui::CentralPanel::default()
                 .show(ctx, |ui| ui.centered_and_justified(|ui| ui.label("Shutting down...")));
             return Default::default();
@@ -140,7 +159,7 @@ impl AccountScreen {
                         .inner_margin(egui::Margin::symmetric(20, 20))
                         .show(ui, |ui| {
                             self.show_usage_panel(ui);
-                            self.show_sync_btn(ui);
+                            self.show_sidebar_action_row(ui);
 
                             ui.add_space(15.0);
                         });
@@ -163,6 +182,9 @@ impl AccountScreen {
 
                 self.workspace.focused_parent = self.focused_parent();
                 let wso = self.workspace.show(ui);
+                if wso.file_cache_updated {
+                    self.tree.update_files();
+                }
 
                 if self.settings.read().unwrap().zen_mode {
                     let mut min = ui.clip_rect().left_bottom();
@@ -226,17 +248,13 @@ impl AccountScreen {
         }
     }
 
-    fn process_lb_updates(&mut self, ctx: &egui::Context) {
+    fn process_lb_updates(&mut self) {
         match self.lb_rx.try_recv() {
-            Ok(evt) => match evt {
-                Event::MetadataChanged(_) | Event::PendingSharesChanged => {
-                    self.refresh_tree(ctx);
-                }
-                Event::StatusUpdated => {
+            Ok(evt) => {
+                if let Event::StatusUpdated = evt {
                     self.lb_status = self.core.status();
                 }
-                _ => {}
-            },
+            }
             Err(TryRecvError::Empty) => {}
             Err(e) => eprintln!("cannot recv events from lb-rs {e:?}"),
         }
@@ -278,10 +296,6 @@ impl AccountScreen {
                 },
                 AccountUpdate::FileCreated(result) => self.file_created(ctx, result),
                 AccountUpdate::DoneDeleting => self.modals.confirm_delete = None,
-                AccountUpdate::ReloadTree { files, share_roots, share_files } => {
-                    self.tree.update_files(files, share_roots, share_files);
-                    self.tree.recalc_suggested_files(&self.core, ctx);
-                }
 
                 AccountUpdate::FinalSyncAttemptDone => {
                     if let Some(s) = &mut self.shutdown {
@@ -391,12 +405,10 @@ impl AccountScreen {
 
         if resp.clear_suggested {
             self.core.clear_suggested().unwrap();
-            self.tree.recalc_suggested_files(&self.core, ui.ctx());
         }
 
         if let Some(id) = resp.clear_suggested_id {
             self.core.clear_suggested_id(id).unwrap();
-            self.tree.recalc_suggested_files(&self.core, ui.ctx());
         }
 
         if resp.space_inspector_root.is_some() {
@@ -461,6 +473,10 @@ impl AccountScreen {
         if let Some((f, dest)) = resp.export_file {
             self.export_file(f, dest);
         }
+
+        if let Some((paths, parent_id)) = resp.import_files {
+            self.import_paths(ui.ctx(), paths, parent_id);
+        }
     }
 
     fn show_icon_shelf(&mut self, ui: &mut egui::Ui) {
@@ -498,6 +514,70 @@ impl AccountScreen {
         });
     }
 
+    fn show_sidebar_action_row(&mut self, ui: &mut egui::Ui) {
+        ui.horizontal(|ui| {
+            ui.set_width(ui.available_width());
+            self.show_create_button(
+                ui,
+                &Icon::NEW_FILE,
+                "New document",
+                Some(ui.spacing().button_padding + egui::vec2(6.0, 0.0)),
+                |this, ui| {
+                    this.workspace.create_doc(false);
+                    ui.memory_mut(|m| m.focused().map(|f| m.surrender_focus(f)));
+                },
+            );
+
+            ui.add_space(6.0);
+
+            self.show_create_button(ui, &Icon::NEW_FOLDER, "New folder", None, |this, _| {
+                let parent = this.workspace_focused_parent();
+                this.update_tx
+                    .send(OpenModal::NewFolder(parent).into())
+                    .unwrap();
+            });
+
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                self.show_sync_btn(ui);
+            });
+        });
+    }
+
+    fn show_create_button(
+        &mut self, ui: &mut egui::Ui, icon: &Icon, tooltip: &str, padding: Option<egui::Vec2>,
+        on_click: impl FnOnce(&mut Self, &mut egui::Ui),
+    ) {
+        let theme = ui.ctx().get_lb_theme();
+        let bg = theme.bg().get_color(theme.prefs().primary);
+
+        let icon_color = theme.neutral_fg();
+
+        let visuals_before_button = ui.style().clone();
+        ui.visuals_mut().widgets.hovered.bg_fill = bg.linear_multiply(0.85);
+
+        let button = Button::default()
+            .icon(icon)
+            .icon_color(icon_color)
+            .rounding(5.0)
+            .padding(padding.unwrap_or(ui.spacing().button_padding))
+            .frame(true)
+            .default_fill(bg)
+            .show(ui);
+
+        ui.set_style(visuals_before_button);
+
+        if button.clicked() {
+            on_click(self, ui);
+        }
+
+        button.on_hover_text(tooltip);
+    }
+
+    fn workspace_focused_parent(&self) -> Option<File> {
+        let parent = self.workspace.focused_parent?;
+        self.workspace.files.read().ok()?.get_by_id(parent).cloned()
+    }
+
     fn update_zen_mode(&mut self, new_value: bool) {
         if let Err(err) = self.settings.write().unwrap().write_zen_mode(new_value) {
             self.modals.error = Some(ErrorModal::new(err));
@@ -508,23 +588,6 @@ impl AccountScreen {
         if let Err(err) = self.settings.read().unwrap().to_file() {
             self.modals.error = Some(ErrorModal::new(err));
         }
-    }
-
-    pub fn refresh_tree(&self, ctx: &egui::Context) {
-        let core = self.core.clone();
-        let ctx = ctx.clone();
-
-        let update_tx = self.update_tx.clone();
-
-        thread::spawn(move || {
-            let files = core.list_metadatas().unwrap();
-            let share_roots = core.get_pending_shares().unwrap();
-            let share_files = core.get_pending_share_files().unwrap();
-            update_tx
-                .send(AccountUpdate::ReloadTree { files, share_roots, share_files })
-                .unwrap();
-            ctx.request_repaint();
-        });
     }
 
     fn open_new_folder_modal(&mut self, maybe_parent: Option<File>) {
@@ -688,16 +751,20 @@ impl AccountScreen {
     }
 
     fn dropped_files(&self, ctx: &egui::Context, drops: Vec<egui::DroppedFile>, parent: File) {
-        let core = self.core.clone();
-        let ctx = ctx.clone();
-        let update_tx = self.update_tx.clone();
         let paths = drops
             .into_iter()
             .filter_map(|d| d.path)
             .collect::<Vec<path::PathBuf>>();
+        self.import_paths(ctx, paths, parent.id);
+    }
+
+    fn import_paths(&self, ctx: &egui::Context, paths: Vec<path::PathBuf>, parent_id: Uuid) {
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        let update_tx = self.update_tx.clone();
 
         thread::spawn(move || {
-            let result = core.import_files(&paths, parent.id, &|status| match status {
+            let result = core.import_files(&paths, parent_id, &|status| match status {
                 ImportStatus::CalculatedTotal(count) => {
                     println!("importing {count} files");
                 }
@@ -765,12 +832,6 @@ pub enum AccountUpdate {
     ShareAccepted(Result<File, String>),
 
     DoneDeleting,
-
-    ReloadTree {
-        files: Vec<File>,
-        share_roots: Vec<File>,
-        share_files: Vec<File>,
-    },
 
     FinalSyncAttemptDone,
 }

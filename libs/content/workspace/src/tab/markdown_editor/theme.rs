@@ -1,10 +1,10 @@
 use egui::style::{WidgetVisuals, Widgets};
 use egui::{Stroke, Ui};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::theme::palette_v2::ThemeExt;
 
-impl Editor {
+impl MdRender {
     // todo: all egui needs to be themed this way and this should be removed
     pub fn apply_theme(&self, ui: &mut Ui) {
         let theme = self.ctx.get_lb_theme();

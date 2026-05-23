@@ -22,6 +22,7 @@ pub trait FileLike: PartialEq + Debug + Clone {
     fn document_hmac(&self) -> Option<&DocumentHmac>;
     fn user_access_keys(&self) -> &Vec<UserAccessInfo>;
     fn folder_access_key(&self) -> &EncryptedFolderAccessKey;
+    fn doc_size(&self) -> Option<usize>;
 
     fn display(&self) -> String {
         match self.file_type() {
@@ -116,6 +117,12 @@ impl FileLike for Meta {
             Meta::V1 { folder_access_key, .. } => folder_access_key,
         }
     }
+
+    fn doc_size(&self) -> Option<usize> {
+        match self {
+            Meta::V1 { doc_size, .. } => *doc_size,
+        }
+    }
 }
 
 impl<F> FileLike for F
@@ -165,6 +172,11 @@ where
     fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
         let fm: &FileMetadata = self.as_ref();
         &fm.folder_access_key
+    }
+
+    fn doc_size(&self) -> Option<usize> {
+        // FileMetadata doesn't have doc_size field
+        None
     }
 }
 
@@ -222,6 +234,10 @@ impl FileLike for SignedMeta {
     fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
         self.timestamped_value.value.folder_access_key()
     }
+
+    fn doc_size(&self) -> Option<usize> {
+        *self.timestamped_value.value.doc_size()
+    }
 }
 
 impl FileLike for ServerMeta {
@@ -259,5 +275,9 @@ impl FileLike for ServerMeta {
 
     fn folder_access_key(&self) -> &EncryptedFolderAccessKey {
         self.file.timestamped_value.value.folder_access_key()
+    }
+
+    fn doc_size(&self) -> Option<usize> {
+        *self.file.timestamped_value.value.doc_size()
     }
 }

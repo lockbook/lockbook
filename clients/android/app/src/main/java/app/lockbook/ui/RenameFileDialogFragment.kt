@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.ui
 
 import android.app.AlertDialog
@@ -49,14 +51,15 @@ class RenameFileDialogFragment : DialogFragment() {
                 }
 
                 setView(binding.root)
-            }
-            .setNegativeButton(R.string.cancel, null)
+            }.setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.rename_file_rename, null)
             .create()
             .apply {
                 window.requestKeyboardFocus(binding.renameFile)
 
-                binding.renameFile.text?.lastIndexOf(".")?.takeIf { it > 0 }
+                binding.renameFile.text
+                    ?.lastIndexOf(".")
+                    ?.takeIf { it > 0 }
                     ?.let { binding.renameFile.setSelection(0, it) }
 
                 setOnShowListener {

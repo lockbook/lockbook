@@ -22,8 +22,7 @@ use lb_rs::model::api::{
 use lb_rs::model::clock::get_time;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
-use lb_rs::model::lazy::LazyTree;
-use lb_rs::model::server_meta::{IntoServerMeta, ServerMeta};
+use lb_rs::model::server_meta::IntoServerMeta;
 use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use lb_rs::model::usage::bytes_to_human;
@@ -156,65 +155,34 @@ where
         let db = lock.deref_mut();
 
         let cap = Self::get_cap(db, &context.public_key)?;
+        let owner = Owner(context.public_key);
 
         let mut tree = ServerTree::new(
-            Owner(context.public_key),
+            owner,
             &mut db.owned_files,
             &mut db.shared_files,
             &mut db.file_children,
             &mut db.metas,
         )?
         .to_lazy();
-        let usages = Self::get_usage_helper(&mut tree)?;
-        Ok(GetUsageResponse { usages, cap })
-    }
 
-    pub fn get_usage_helper<T>(
-        tree: &mut LazyTree<T>,
-    ) -> Result<Vec<FileUsage>, ServerError<GetUsageHelperError>>
-    where
-        T: TreeLike<F = ServerMeta>,
-    {
-        let ids = tree.ids();
-        let root_id = ids
-            .iter()
-            .find(|file_id| match tree.find(file_id) {
-                Ok(f) => f.is_root(),
-                Err(_) => false,
-            })
-            .ok_or(ClientError(GetUsageHelperError::UserDeleted))?;
-
-        let root_owner = tree
-            .maybe_find(root_id)
-            .ok_or(ClientError(GetUsageHelperError::UserDeleted))?
-            .owner();
-
-        let result = ids
-            .iter()
-            .filter_map(|&file_id| {
-                let file = match tree.find(&file_id) {
-                    Ok(file) => {
-                        if file.owner() != root_owner {
-                            return None;
-                        }
-                        file.clone()
-                    }
-                    _ => {
-                        return None;
-                    }
-                };
-
-                match tree.calculate_deleted(&file_id).unwrap_or(true) {
-                    true => None,
-                    false => {
-                        let file_size =
-                            file.file.timestamped_value.value.doc_size().unwrap_or(0) as u64;
-                        Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
-                    }
+        let usages = tree
+            .ids()
+            .into_iter()
+            .filter_map(|file_id| {
+                if tree.calculate_deleted(&file_id).unwrap_or(true) {
+                    return None;
                 }
+                let file = tree.find(&file_id).ok()?;
+                if file.owner() != owner {
+                    return None;
+                }
+                let file_size = file.doc_size().unwrap_or(0) as u64;
+                Some(FileUsage { file_id, size_bytes: file_size + METADATA_FEE })
             })
             .collect();
-        Ok(result)
+
+        Ok(GetUsageResponse { usages, cap })
     }
 
     pub fn get_cap(
@@ -403,13 +371,7 @@ where
         )?
         .to_lazy();
 
-        let usage: u64 = Self::get_usage_helper(&mut tree)
-            .map_err(|err| {
-                internal!("Cannot find user's usage, owner: {:?}, err: {:?}", owner, err)
-            })?
-            .iter()
-            .map(|a| a.size_bytes)
-            .sum();
+        let usage = tree.calculate_usage(owner)?;
 
         let usage_str = bytes_to_human(usage);
 
@@ -504,7 +466,6 @@ where
 #[derive(Debug)]
 pub enum GetUsageHelperError {
     UserNotFound,
-    UserDeleted,
 }
 
 #[derive(Debug)]

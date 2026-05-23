@@ -2,8 +2,9 @@ pub mod buffer;
 pub mod offset_types;
 pub mod operation_types;
 pub mod unicode_segs;
+pub mod units;
 
-use offset_types::{DocByteOffset, RangeExt as _};
+use offset_types::{Byte, RangeExt as _};
 use operation_types::Replace;
 
 use similar::DiffableStrRef as _;
@@ -17,15 +18,15 @@ pub fn diff(from: &str, to: &str) -> Vec<Replace> {
 
     let mut from_words: Vec<_> = from
         .split_word_bound_indices()
-        .map(|(idx, _)| DocByteOffset(idx))
+        .map(|(idx, _)| Byte(idx))
         .collect();
-    from_words.push(DocByteOffset(from.len()));
+    from_words.push(Byte(from.len()));
 
     let mut to_words: Vec<_> = to
         .split_word_bound_indices()
-        .map(|(idx, _)| DocByteOffset(idx))
+        .map(|(idx, _)| Byte(idx))
         .collect();
-    to_words.push(DocByteOffset(to.len()));
+    to_words.push(Byte(to.len()));
 
     let diff = similar::TextDiff::configure()
         .algorithm(similar::Algorithm::Myers)

@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.ui
 
 import android.app.AlertDialog
@@ -46,15 +48,15 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
 
         return MaterialAlertDialogBuilder(requireContext())
             .apply {
-                val msg = if (files.size == 1) {
-                    getString(R.string.delete_shared_1_message, files[0].name)
-                } else {
-                    getString(R.string.delete_shared_message, files.size)
-                }
+                val msg =
+                    if (files.size == 1) {
+                        getString(R.string.delete_shared_1_message, files[0].name)
+                    } else {
+                        getString(R.string.delete_shared_message, files.size)
+                    }
 
                 setMessage(msg)
-            }
-            .setNegativeButton(R.string.cancel, null)
+            }.setNegativeButton(R.string.cancel, null)
             .setPositiveButton(R.string.delete_shared_reject, null)
             .create()
             .apply {

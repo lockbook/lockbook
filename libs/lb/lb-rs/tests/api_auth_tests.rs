@@ -18,7 +18,7 @@ async fn upsert_id_takeover() {
         let id = core1.create_at_path("/test.md").await.unwrap().id;
         core1.sync().await.unwrap();
 
-        core1
+        local(&core1)
             .client
             .request(acc1, GetUpdatesRequestV2 { since_metadata_version: 0 })
             .await
@@ -35,7 +35,7 @@ async fn upsert_id_takeover() {
     }
 
     // If this succeeded account2 would be able to control file1
-    let result = core2
+    let result = local(&core2)
         .client
         .request(acc2, UpsertRequestV2 { updates: vec![FileDiff::new(file1)] })
         .await;
@@ -55,9 +55,9 @@ async fn upsert_id_takeover_change_parent() {
     let file1 = {
         let id = core1.create_at_path("/test.md").await.unwrap().id;
         core1.sync().await.unwrap();
-        core1
+        local(&core1)
             .client
-            .request(account1, GetUpdatesRequestV2 { since_metadata_version: 0 })
+            .request(&account1, GetUpdatesRequestV2 { since_metadata_version: 0 })
             .await
             .unwrap()
             .file_metadata
@@ -68,9 +68,9 @@ async fn upsert_id_takeover_change_parent() {
     };
 
     // If this succeeded account2 would be able to control file1
-    let result = core2
+    let result = local(&core2)
         .client
-        .request(account2, UpsertRequestV2 { updates: vec![FileDiff::new(file1)] })
+        .request(&account2, UpsertRequestV2 { updates: vec![FileDiff::new(file1)] })
         .await;
     assert_matches!(
         result,
@@ -87,7 +87,8 @@ async fn change_document_content() {
         let id = core1.create_at_path("/test.md").await.unwrap().id;
         core1.sync().await.unwrap();
 
-        let mut tx = core1.begin_tx().await;
+        let core1_lb = local(&core1);
+        let mut tx = core1_lb.begin_tx().await;
         tx.db().base_metadata.get().get(&id).unwrap().clone()
     };
 
@@ -98,7 +99,7 @@ async fn change_document_content() {
         .set_hmac_and_size(Some([0; 32]), Some(1));
 
     let acc2 = &core2.get_account().unwrap();
-    let result = core2
+    let result = local(&core2)
         .client
         .request(
             acc2,
@@ -128,14 +129,15 @@ async fn get_someone_else_document() {
         core1.write_document(id, &[1, 2, 3]).await.unwrap();
         core1.sync().await.unwrap();
 
-        let mut tx = core1.begin_tx().await;
+        let core1_lb = local(&core1);
+        let mut tx = core1_lb.begin_tx().await;
         tx.db().base_metadata.get().get(&id).unwrap().clone()
     };
 
     let req = GetDocRequest { id: *file.id(), hmac: *file.document_hmac().unwrap() };
 
     let acc2 = &core2.get_account().unwrap();
-    let result = core2.client.request(acc2, req).await;
+    let result = local(&core2).client.request(acc2, req).await;
     assert_matches!(
         result,
         Err(ApiError::<GetDocumentError>::Endpoint(GetDocumentError::NotPermissioned))

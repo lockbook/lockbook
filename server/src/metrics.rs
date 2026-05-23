@@ -317,11 +317,7 @@ where
         let time_one_hour_ago = get_time().0 as u64 - TWO_HOURS_IN_MILLIS as u64;
         let is_user_active_v2 = not_the_welcome_doc && last_seen > time_one_hour_ago;
 
-        let total_bytes: u64 = Self::get_usage_helper(&mut tree)
-            .unwrap_or_default()
-            .iter()
-            .map(|f| f.size_bytes)
-            .sum();
+        let total_bytes = tree.calculate_usage(owner).unwrap_or_default();
 
         let total_documents = if let Some(owned_files) = db.owned_files.get().get(&owner) {
             owned_files.len() as i64

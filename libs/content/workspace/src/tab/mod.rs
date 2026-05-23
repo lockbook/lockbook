@@ -2,6 +2,7 @@ use crate::file_cache::FilesExt;
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
 use crate::space_inspector::show::SpaceInspector;
+use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
@@ -19,49 +20,87 @@ use lb_rs::model::errors::{LbErr, LbErrKind};
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::{DocumentHmac, FileType};
 use lb_rs::model::svg;
-use std::ops::IndexMut;
+use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
+pub mod chat;
 pub mod image_viewer;
 pub mod markdown_editor;
 pub mod pdf_viewer;
 pub mod svg_editor;
 
-pub struct Tab {
-    pub content: ContentState,
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum Destination {
+    File(Uuid),
+    MindMap(Uuid),
+    SpaceInspector(Uuid),
+}
+
+impl Destination {
+    pub fn id(&self) -> Uuid {
+        match self {
+            Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
+        }
+    }
+}
+
+#[derive(Clone)]
+pub struct TabSlot {
+    pub dest: Destination,
     pub back: Vec<Uuid>,
     pub forward: Vec<Uuid>,
+    pub rename: Option<String>,
+}
+
+impl TabSlot {
+    pub fn new(dest: Destination) -> Self {
+        Self { dest, back: Vec::new(), forward: Vec::new(), rename: None }
+    }
+}
+
+pub struct Tab {
+    pub destination: Destination,
+    pub content: ContentState,
 
     pub last_changed: Instant,
     pub last_saved: Instant,
-
-    pub rename: Option<String>,
-    pub is_closing: bool,
     pub read_only: bool,
 }
 
 impl Tab {
     pub fn id(&self) -> Option<Uuid> {
-        match &self.content {
-            ContentState::Loading(id) => Some(*id),
-            ContentState::Open(content) => content.id(),
-            _ => None,
-        }
+        Some(self.destination.id())
     }
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.hmac,
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
+            ContentState::Open(TabContent::Chat(chat)) => chat.hmac,
             _ => None,
         }
     }
 
     pub fn seq(&self) -> usize {
         match &self.content {
-            ContentState::Open(TabContent::Markdown(md)) => md.buffer.current.seq,
+            ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.buffer.current.seq,
+            ContentState::Open(TabContent::Chat(chat)) => chat.seq,
             _ => 0,
+        }
+    }
+
+    pub fn chat(&self) -> Option<&Chat> {
+        match &self.content {
+            ContentState::Open(TabContent::Chat(chat)) => Some(chat),
+            _ => None,
+        }
+    }
+
+    pub fn chat_mut(&mut self) -> Option<&mut Chat> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Chat(chat)) => Some(chat),
+            _ => None,
         }
     }
 
@@ -132,34 +171,67 @@ impl Tab {
         }
     }
 
+    pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        self.show_inner(ui)
+    }
+
+    fn show_inner(&mut self, ui: &mut egui::Ui) -> Response {
+        match &mut self.content {
+            ContentState::Loading(_) => {
+                ui.spinner();
+                Response::default()
+            }
+            ContentState::Failed(fail) => {
+                ui.label(fail.msg());
+                Response::default()
+            }
+            ContentState::Open(content) => {
+                let mut resp = Response::default();
+                match content {
+                    TabContent::Chat(chat) => {
+                        if chat.show(ui) {
+                            self.last_changed = Instant::now();
+                        }
+                    }
+                    TabContent::Markdown(md) => {
+                        let initialized = md.initialized;
+                        let md_resp = md.show(ui);
+                        if !self.read_only && md_resp.text_updated && initialized {
+                            self.last_changed = Instant::now();
+                        }
+                        resp.open_camera = md_resp.open_camera;
+                        resp.text_updated = md_resp.text_updated;
+                        resp.selection_updated = md_resp.selection_updated;
+                        resp.scroll_updated = md_resp.scroll_updated;
+                        resp.find_widget_height = md_resp.find_widget_height;
+                    }
+                    TabContent::Image(img) => img.show(ui),
+                    TabContent::Pdf(pdf) => pdf.show(ui),
+                    TabContent::Svg(svg) => {
+                        let res = svg.show(ui);
+                        if res.request_save {
+                            self.last_changed = Instant::now();
+                        }
+                    }
+                    #[cfg(not(target_family = "wasm"))]
+                    TabContent::MindMap(mm) => {
+                        resp.open_file = mm.show(ui);
+                    }
+                    TabContent::SpaceInspector(sv) => {
+                        sv.show(ui);
+                    }
+                }
+                resp
+            }
+        }
+    }
+
     pub fn is_dirty(&self, tasks: &TaskManager) -> bool {
         if let Some(queued_at) = self.id().and_then(|id| tasks.save_queued_at(id)) {
             self.last_changed > queued_at
         } else {
             self.last_changed > self.last_saved
         }
-    }
-}
-
-pub trait TabsExt: IndexMut<usize, Output = Tab> {
-    fn position_by_id(&self, id: Uuid) -> Option<usize>;
-    fn get_by_id(&self, id: Uuid) -> Option<&Tab> {
-        self.position_by_id(id).map(|pos| &self[pos])
-    }
-    fn get_mut_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
-        self.position_by_id(id).map(move |pos| &mut self[pos])
-    }
-}
-
-impl TabsExt for [Tab] {
-    fn position_by_id(&self, id: Uuid) -> Option<usize> {
-        self.iter().position(|tab| tab.id() == Some(id))
-    }
-}
-
-impl TabsExt for Vec<Tab> {
-    fn position_by_id(&self, id: Uuid) -> Option<usize> {
-        self.iter().position(|tab| tab.id() == Some(id))
     }
 }
 
@@ -172,6 +244,7 @@ pub enum ContentState {
 
 #[allow(clippy::large_enum_variant)]
 pub enum TabContent {
+    Chat(Chat),
     Image(ImageViewer),
     Markdown(Markdown),
     Pdf(PdfViewer),
@@ -184,6 +257,7 @@ pub enum TabContent {
 impl std::fmt::Debug for TabContent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            TabContent::Chat(_) => write!(f, "TabContent::Chat"),
             TabContent::Image(_) => write!(f, "TabContent::Image"),
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
             TabContent::Pdf(_) => write!(f, "TabContent::Pdf"),
@@ -198,7 +272,8 @@ impl std::fmt::Debug for TabContent {
 impl TabContent {
     pub fn id(&self) -> Option<Uuid> {
         match self {
-            TabContent::Markdown(md) => Some(md.file_id),
+            TabContent::Chat(chat) => Some(chat.id),
+            TabContent::Markdown(md) => Some(md.edit.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
             TabContent::Image(image_viewer) => Some(image_viewer.id),
             TabContent::Pdf(pdf_viewer) => Some(pdf_viewer.id),
@@ -210,6 +285,7 @@ impl TabContent {
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match self {
+            TabContent::Chat(chat) => chat.hmac,
             TabContent::Markdown(md) => md.hmac,
             TabContent::Svg(svg) => svg.open_file_hmac,
             _ => None,
@@ -218,7 +294,8 @@ impl TabContent {
 
     pub fn seq(&self) -> usize {
         match self {
-            TabContent::Markdown(md) => md.buffer.current.seq,
+            TabContent::Chat(chat) => chat.seq,
+            TabContent::Markdown(md) => md.edit.renderer.buffer.current.seq,
             _ => 0,
         }
     }
@@ -227,8 +304,9 @@ impl TabContent {
     /// content type is not editable.
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
+            TabContent::Chat(chat) => Some(TabSaveContent::Bytes(chat.to_bytes())),
             TabContent::Markdown(md) => {
-                Some(TabSaveContent::String(md.buffer.current.text.clone()))
+                Some(TabSaveContent::String(md.edit.renderer.buffer.current.text.clone()))
             }
             TabContent::Svg(svg) => Some(TabSaveContent::Svg(Box::new(svg.buffer.clone()))),
             _ => None,
@@ -253,6 +331,16 @@ impl TabSaveContent {
             TabSaveContent::Svg(buffer) => buffer.serialize().into_bytes(),
         }
     }
+}
+
+#[derive(Default)]
+pub struct Response {
+    pub text_updated: bool,
+    pub selection_updated: bool,
+    pub scroll_updated: bool,
+    pub open_camera: bool,
+    pub find_widget_height: f32,
+    pub open_file: Option<Uuid>,
 }
 
 #[derive(Debug)]
@@ -348,7 +436,8 @@ impl TabStatus {
 
 impl Workspace {
     pub fn tab_status(&self, i: usize) -> TabStatus {
-        if let Some(tab) = self.tabs.get(i) {
+        let tab = self.tab_strip.get(i).and_then(|s| self.tabs.get(&s.dest));
+        if let Some(tab) = tab {
             if let Some(id) = tab.id() {
                 if self.tasks.load_in_progress(id) {
                     return TabStatus::LoadInProgress;
@@ -445,6 +534,7 @@ pub trait ExtendedInput {
     fn push_event(&self, event: Event);
     fn push_markdown_event(&self, event: markdown_editor::Event);
     fn pop_events(&self) -> Vec<Event>;
+    fn pop_events_where(&self, predicate: &mut dyn FnMut(&Event) -> bool) -> Vec<Event>;
     fn read_events(&self) -> Vec<Event>;
     fn drain(&self);
 }
@@ -474,6 +564,26 @@ impl ExtendedInput for egui::Context {
             m.data
                 .insert_temp(Id::new("custom_events"), Vec::<Event>::new());
             events
+        })
+    }
+
+    fn pop_events_where(&self, predicate: &mut dyn FnMut(&Event) -> bool) -> Vec<Event> {
+        self.memory_mut(|m| {
+            let all: Vec<Event> = m
+                .data
+                .get_temp(Id::new("custom_events"))
+                .unwrap_or_default();
+            let mut matching = Vec::new();
+            let mut rest = Vec::new();
+            for event in all {
+                if predicate(&event) {
+                    matching.push(event);
+                } else {
+                    rest.push(event);
+                }
+            }
+            m.data.insert_temp(Id::new("custom_events"), rest);
+            matching
         })
     }
 

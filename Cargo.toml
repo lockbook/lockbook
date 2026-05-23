@@ -13,9 +13,11 @@ members = [
     "clients/egui",
     "clients/linux",
     "clients/windows",
+    "clients/desktop",
     "clients/admin",
     "utils/lbdev",
     "utils/winstaller",
+    "utils/metrics",
     "public-site/trunk",
     "libs/lb/lb-c",
     "libs/lb/lb-java",
@@ -27,6 +29,11 @@ members = [
 # debug = true
 # [profile.bench]
 # debug = true
+
+# release-equivalent with debug symbols, for `samply` / `cargo flamegraph`.
+[profile.profiling]
+inherits = "release"
+debug = true
 
 # optimize all dependencies in dev mode so debug builds run at reasonable speed
 # see https://bevy-cheatbook.github.io/pitfalls/performance.html

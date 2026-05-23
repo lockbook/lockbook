@@ -215,9 +215,9 @@ pub unsafe extern "C" fn close_tab(obj: *mut c_void, id: *const c_char) {
 
     if let Some(tab_id) = obj
         .workspace
-        .tabs
+        .tab_strip
         .iter()
-        .position(|tab| tab.id() == Some(id))
+        .position(|s| s.dest.id() == id)
     {
         obj.workspace.close_tab(tab_id);
     }

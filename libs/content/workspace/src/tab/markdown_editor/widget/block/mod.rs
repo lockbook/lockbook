@@ -1,4 +1,5 @@
 use std::cell::RefCell;
+use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
 
@@ -8,29 +9,32 @@ use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
 };
 
-use crate::tab::markdown_editor::Editor;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
+use crate::tab::markdown_editor::{Event, MdRender};
 
 pub(crate) mod container;
 pub(crate) mod leaf;
 pub(crate) mod spacing;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn width(&self, node: &'ast AstNode<'ast>) -> f32 {
         let parent = || node.parent().unwrap();
         let parent_width = || self.width(parent());
         let parent_indent = || self.indent(parent());
-        let indented_width = || parent_width() - parent_indent();
+        // Clamp at 0: deeply nested containers at narrow doc widths
+        // can drive `parent_width - parent_indent` negative; `show_block`
+        // / `height` bail separately when width is genuinely too small.
+        let indented_width = || (parent_width() - parent_indent()).max(0.0);
 
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
         match value {
-            NodeValue::FrontMatter(_) => self.width - 2. * self.layout.margin,
+            NodeValue::FrontMatter(_) => self.width,
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
@@ -38,7 +42,7 @@ impl<'ast> Editor {
             NodeValue::BlockQuote => indented_width(),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => self.width - 2. * self.layout.margin,
+            NodeValue::Document => self.width,
             NodeValue::FootnoteDefinition(_) => indented_width(),
             NodeValue::Item(_) => indented_width(),
             NodeValue::List(_) => indented_width(), // indentation handled by items
@@ -83,9 +87,17 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn height(&self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>]) -> f32 {
+    pub fn height(&self, node: &'ast AstNode<'ast>) -> f32 {
         if let Some(cached) = self.get_cached_node_height(node) {
             return cached;
+        }
+
+        // Block too narrow to fit anything meaningful: render nothing.
+        // `show_block` short-circuits on the same condition, so this
+        // matches what gets painted.
+        if self.width(node) < self.layout.row_height {
+            self.set_cached_node_height(node, 0.0);
+            return 0.0;
         }
 
         // container blocks: if revealed, show source lines instead
@@ -95,15 +107,18 @@ impl<'ast> Editor {
         {
             let mut height = 0.;
 
+            let width = self.width(node);
+            let row_height = self.layout.row_height;
             for line in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line];
                 let node_line = self.node_line(node, line);
-
-                height += self.height_section(
-                    &mut self.new_wrap(self.width(node)),
+                let l = self.compute_section_layout_new(
                     node_line,
+                    width,
+                    row_height,
                     self.text_format_syntax(),
                 );
+                height += l.height;
                 height += self.layout.block_spacing;
             }
             if height > 0. {
@@ -114,7 +129,7 @@ impl<'ast> Editor {
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node, siblings) {
+        if self.hidden_by_fold(node) {
             return 0.;
         }
 
@@ -183,34 +198,152 @@ impl<'ast> Editor {
         height
     }
 
+    /// Cheap height estimate keyed on char count × presumed char
+    /// width, no cosmic-text shaping. Drifts from precise layout —
+    /// safe for off-screen sizing (scrollbar) only; visible content
+    /// must use [`Self::height`].
+    pub fn height_approx(&self, node: &'ast AstNode<'ast>) -> f32 {
+        if let Some(cached) = self.get_cached_node_height_approx(node) {
+            return cached;
+        }
+        if self.hidden_by_fold(node) {
+            self.set_cached_node_height_approx(node, 0.);
+            return 0.;
+        }
+        if self.width(node) < self.layout.row_height {
+            self.set_cached_node_height_approx(node, 0.);
+            return 0.;
+        }
+        let value = &node.data.borrow().value;
+        let height = match value {
+            NodeValue::Document
+            | NodeValue::List(_)
+            | NodeValue::BlockQuote
+            | NodeValue::Item(_)
+            | NodeValue::TaskItem(_)
+            | NodeValue::Alert(_)
+            | NodeValue::Table(_)
+            | NodeValue::TableRow(_)
+            | NodeValue::FootnoteDefinition(_) => {
+                let mut total = 0.;
+                for child in node.children() {
+                    total += self.block_pre_spacing_height_approx(child);
+                    total += self.height_approx(child);
+                    total += self.block_post_spacing_height_approx(child);
+                }
+                total
+            }
+            NodeValue::Paragraph | NodeValue::Heading(_) | NodeValue::TableCell => {
+                let row_height = self.row_height(node);
+                let width = self.width(node).max(row_height);
+                let mut chars = 0usize;
+                let mut image_height = 0.0f32;
+                for d in node.descendants() {
+                    match &d.data.borrow().value {
+                        NodeValue::Text(t) => chars += t.chars().count(),
+                        NodeValue::Code(c) => chars += c.literal.chars().count(),
+                        NodeValue::HtmlInline(s) => chars += s.chars().count(),
+                        NodeValue::Math(m) => chars += m.literal.chars().count(),
+                        NodeValue::SoftBreak | NodeValue::LineBreak => chars += 1,
+                        // `embeds.size` is a HashMap lookup — returns
+                        // a placeholder before the image loads, the
+                        // actual dimensions after. The layout cache
+                        // invalidates on `embeds_updated`, so this
+                        // value picks up loaded dimensions on the
+                        // next read.
+                        NodeValue::Image(link) => {
+                            let dims = self.embeds.size(&link.url);
+                            image_height += self.image_size(dims, width).y;
+                        }
+                        _ => {}
+                    }
+                }
+                let char_width = row_height * 0.5;
+                let chars_per_row = (width / char_width).floor().max(1.0) as usize;
+                let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
+                rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing + image_height
+            }
+            NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) => {
+                let row_height = self.row_height(node);
+                let n = (self.node_last_line_idx(node) - self.node_first_line_idx(node) + 1) as f32;
+                n * row_height + (n - 1.0).max(0.0) * self.layout.row_spacing
+            }
+            NodeValue::ThematicBreak => self.height_thematic_break(),
+            NodeValue::FrontMatter(_) => self.height_front_matter(node),
+            _ => 0.,
+        };
+        self.set_cached_node_height_approx(node, height);
+        height
+    }
+
+    /// Approx-y of the top of the last top-level block — i.e., the
+    /// scroll offset at which the last block's top sits at viewport
+    /// top. Function of doc + width only.
+    pub fn approx_y_top_last_block(&self, root: &'ast AstNode<'ast>) -> f32 {
+        let last = match root.last_child() {
+            Some(l) => l,
+            None => return 0.,
+        };
+        let mut y = 0.;
+        let mut child = root.first_child();
+        while let Some(c) = child {
+            if std::ptr::eq(c, last) {
+                break;
+            }
+            y += self.block_pre_spacing_height_approx(c);
+            y += self.height_approx(c);
+            y += self.block_post_spacing_height_approx(c);
+            child = c.next_sibling();
+        }
+        y += self.block_pre_spacing_height_approx(last);
+        y
+    }
+
+    /// Approx scroll extent — used to seed the affine widget's
+    /// `max_offset` when reading persisted state.
+    pub fn scroll_extent(&self, root: &'ast AstNode<'ast>, viewport_height: f32) -> f32 {
+        self.approx_y_top_last_block(root) + viewport_height
+    }
+
     pub(crate) fn show_block(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
     ) {
         let ui = &mut self.node_ui(ui, node);
+
+        // Block too narrow to fit anything meaningful: skip. `height`
+        // returns 0 for the same condition so the layout stays aligned.
+        if self.width(node) < self.layout.row_height {
+            return;
+        }
 
         // container blocks: if revealed, show source lines instead
         if node.parent().is_some()
             && node.data.borrow().value.is_container_block()
             && self.reveal(node)
         {
+            let width = self.width(node);
+            let row_height = self.layout.row_height;
             for line in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line];
                 let node_line = self.node_line(node, line);
 
-                let mut wrap = self.new_wrap(self.width(node));
-                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
-
-                top_left.y += wrap.height();
+                let result = self.compute_section_layout_new(
+                    node_line,
+                    width,
+                    row_height,
+                    self.text_format_syntax(),
+                );
+                let h = result.height;
+                self.show_wrap_layout(ui, top_left, &result);
+                top_left.y += h;
                 top_left.y += self.layout.block_spacing;
-                self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
 
             return;
         }
 
         // hide folded nodes only if they are not revealed
-        if self.hidden_by_fold(node, siblings) {
+        if self.hidden_by_fold(node) {
             return;
         }
 
@@ -221,15 +354,13 @@ impl<'ast> Editor {
             NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
 
             // container_block
-            NodeValue::Alert(node_alert) => {
-                self.show_alert(ui, node, top_left, node_alert, siblings)
-            }
-            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left, siblings),
+            NodeValue::Alert(node_alert) => self.show_alert(ui, node, top_left, node_alert),
+            NodeValue::BlockQuote => self.show_block_quote(ui, node, top_left),
             NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
             NodeValue::DescriptionList => unimplemented!("extension disabled"),
             NodeValue::Document => self.show_document(ui, node, top_left),
             NodeValue::FootnoteDefinition(_) => self.show_footnote_definition(ui, node, top_left),
-            NodeValue::Item(_) => self.show_item(ui, node, top_left, siblings),
+            NodeValue::Item(_) => self.show_item(ui, node, top_left),
             NodeValue::List(_) => self.show_block_children(ui, node, top_left),
             NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
             NodeValue::Table(_) => self.show_table(ui, node, top_left),
@@ -237,7 +368,7 @@ impl<'ast> Editor {
                 self.show_table_row(ui, node, top_left, *is_header_row)
             }
             NodeValue::TaskItem(node_task_item) => {
-                self.show_task_item(ui, node, top_left, node_task_item, siblings)
+                self.show_task_item(ui, node, top_left, node_task_item)
             }
 
             // inline
@@ -274,7 +405,7 @@ impl<'ast> Editor {
             NodeValue::DescriptionDetails => unimplemented!("extension disabled"),
             NodeValue::DescriptionTerm => unimplemented!("extension disabled"),
             NodeValue::Heading(NodeHeading { level, setext, .. }) => {
-                self.show_heading(ui, node, top_left, *level, *setext, siblings)
+                self.show_heading(ui, node, top_left, *level, *setext)
             }
             NodeValue::HtmlBlock(_) => self.show_html_block(ui, node, top_left),
             NodeValue::Paragraph => self.show_paragraph(ui, node, top_left),
@@ -285,38 +416,32 @@ impl<'ast> Editor {
 
     /// Returns true if the given block node is selected for the purposes of
     /// rich editing. All selected nodes are siblings at any given time.
+    ///
+    /// Containers normally yield to a more specific descendant (the cursor
+    /// inside `* a`'s paragraph picks the paragraph, not the item).
+    /// Containers that *fully contain* the selection are picked only when
+    /// no proper descendant block intersects — the empty-container case
+    /// (`* ` with no body), where there's nothing deeper to target.
     pub fn selected_block(&self, node: &'ast AstNode<'ast>) -> bool {
         // the document is never selected
         let Some(parent) = node.parent() else {
             return false;
         };
-
-        self.node_intersects_selection(node)
-            && self.node_contains_selection(parent)
-            && (node.is_container_block() && !self.node_contains_selection(node)
-                || node.is_leaf_block())
-    }
-
-    /// Returns the children of the given node. With footnotes disabled,
-    /// comrak reports children in sourcepos order so no sorting is needed.
-    pub fn sorted_children(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        node.children().collect()
-    }
-
-    /// Returns the siblings of the given node in sourcepos order.
-    pub fn sorted_siblings(&self, node: &'ast AstNode<'ast>) -> Vec<&'ast AstNode<'ast>> {
-        if let Some(parent) = node.parent() { self.sorted_children(parent) } else { vec![node] }
-    }
-
-    pub fn sibling_index(
-        &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
-    ) -> usize {
-        let this_sibling_index = sorted_siblings
-            .iter()
-            .position(|sibling| node.same_node(sibling))
-            .unwrap();
-
-        this_sibling_index
+        if !self.node_intersects_selection(node) || !self.node_contains_selection(parent) {
+            return false;
+        }
+        if node.is_leaf_block() {
+            return true;
+        }
+        if !node.is_container_block() {
+            return false;
+        }
+        // multi-block selection that extends past this container, OR
+        // empty container (deepest, no descendant blocks to target)
+        !self.node_contains_selection(node)
+            || !node.descendants().skip(1).any(|d| {
+                (d.is_leaf_block() || d.is_container_block()) && self.node_intersects_selection(d)
+            })
     }
 
     /// Returns the portion of the line that's within the node, excluding line
@@ -324,8 +449,8 @@ impl<'ast> Editor {
     /// to [`line_own_prefix`] + [`line_content`]. For leaf blocks, which have
     /// no prefix, this is equivalent to [`line_content`].
     pub fn node_line(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let Some(parent) = node.parent() else { return line }; // document has no prefix
         let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
 
@@ -355,13 +480,13 @@ impl<'ast> Editor {
 
     /// Returns the first line, the whole first line, and nothing but the first
     /// line of the given node.
-    pub fn node_first_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn node_first_line(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         self.bounds.source_lines[self.node_first_line_idx(node)]
     }
 
     /// Returns the last line, the whole last line, and nothing but the last line
     /// of the given node.
-    pub fn node_last_line(&self, node: &'ast AstNode<'ast>) -> (DocCharOffset, DocCharOffset) {
+    pub fn node_last_line(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         self.bounds.source_lines[self.node_last_line_idx(node)]
     }
 
@@ -440,6 +565,45 @@ impl<'ast> Editor {
         None
     }
 
+    #[allow(clippy::collapsible_else_if)]
+    pub fn apply_fold(
+        &mut self, node: &'ast AstNode<'ast>, contents: (Grapheme, Grapheme), unapply: bool,
+    ) {
+        if unapply {
+            if let Some(fold) = self.fold(node) {
+                self.render_events.push(Event::Replace {
+                    region: self.node_range(fold).into(),
+                    text: "".into(),
+                    advance_cursor: false,
+                });
+            }
+        } else {
+            if let Some(foldable) = self.foldable(node) {
+                self.render_events.push(Event::Replace {
+                    region: self.node_range(foldable).end().into_range().into(),
+                    text: FOLD_TAG.into(),
+                    advance_cursor: false,
+                });
+
+                // when folding a section that intersects the cursor, adjust the selection
+                // this ensures the folded section appears folded / avoids immediate selection reveal
+                let selection = self.buffer.current.selection;
+
+                if contents.intersects(&selection, true)
+                    && !selection.contains_range(&contents, true, true)
+                {
+                    self.render_events.push(Event::Select {
+                        region: (
+                            selection.start().min(contents.start()),
+                            selection.end().min(contents.start()),
+                        )
+                            .into(),
+                    });
+                }
+            }
+        }
+    }
+
     /// Returns the node that this node is folding, if there is one
     pub fn foldee(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
         let mut root = node;
@@ -458,68 +622,80 @@ impl<'ast> Editor {
         None
     }
 
-    pub fn hidden_by_fold(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
-        if let Some(cached) = self.get_cached_hidden_by_fold(node) {
-            return cached;
-        }
-
-        let result = self.compute_hidden_by_fold(node, siblings);
-        self.set_cached_hidden_by_fold(node, result);
-        result
+    pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.get_cached_hidden_by_fold(node)
+            .expect("hidden_by_fold queried for a node not in the current AST")
     }
 
-    fn compute_hidden_by_fold(
-        &self, node: &'ast AstNode<'ast>, sorted_siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
-        // show only the first block in folded ancestor blocks
-        if node.previous_sibling().is_some() {
-            for ancestor in node.ancestors().skip(1) {
-                if matches!(
-                    &ancestor.data.borrow().value,
-                    NodeValue::Item(_) | NodeValue::TaskItem(_)
-                ) && !self.item_fold_reveal(ancestor, &self.sorted_siblings(ancestor))
-                    && self.fold(ancestor).is_some()
-                {
-                    return true;
-                }
-            }
+    /// One DFS over the tree. Carries `item_fold_active` down through
+    /// the recursion (any folded-unrevealed Item/TaskItem ancestor
+    /// turns it on, hiding all but the first child). Per parent,
+    /// maintains a stack of currently-open headings as we walk
+    /// children left-to-right; each entry is `(level, folded_unrevealed)`.
+    pub fn populate_hidden_by_fold(&self, root: &'ast AstNode<'ast>) {
+        let deps = self.reveal_seq;
+        if self.layout_cache.hidden_by_fold_deps.get() == Some(deps) {
+            return;
         }
+        self.layout_cache.hidden_by_fold_deps.set(Some(deps));
 
-        // show only the blocks that have no folded heading; headings with
-        // another equal or more significant heading between them and the target
-        // node don't count; headings intersecting the selection don't count
-        let sibling_index = self.sibling_index(node, sorted_siblings);
+        // The root is never hidden; cache it directly so a query for
+        // `hidden_by_fold(root)` doesn't fall back to the unwrap
+        // default.
+        self.set_cached_hidden_by_fold(root, false);
+        self.populate_hidden_by_fold_subtree(root, false);
+    }
 
-        let mut most_significant_unfolded_heading =
-            if let NodeValue::Heading(heading) = &node.data.borrow().value {
-                heading.level
-            } else {
-                7 // max heading level + 1
+    fn populate_hidden_by_fold_subtree(&self, parent: &'ast AstNode<'ast>, item_fold_active: bool) {
+        // Per-parent state. Stack invariant: levels strictly
+        // increasing from bottom to top.
+        let mut heading_stack: Vec<(u8, bool)> = Vec::new();
+        let mut sibling_index: usize = 0;
+        let mut child = parent.first_child();
+        while let Some(c) = child {
+            // Pull only the bits we need out of the borrow — copying
+            // the heading level and the variant kind avoids cloning
+            // the whole `NodeValue` (which carries owned `String`s
+            // for inline payloads).
+            let (heading_level, is_item_or_task) = {
+                let value = &c.data.borrow().value;
+                (
+                    if let NodeValue::Heading(h) = value { Some(h.level) } else { None },
+                    matches!(value, NodeValue::Item(_) | NodeValue::TaskItem(_)),
+                )
             };
-        for sibling in sorted_siblings[0..sibling_index].iter().rev() {
-            if let NodeValue::Heading(heading) = &sibling.data.borrow().value {
-                if heading.level < most_significant_unfolded_heading {
-                    most_significant_unfolded_heading = heading.level;
-                    if !self.heading_fold_reveal(sibling, sorted_siblings)
-                        && self.fold(sibling).is_some()
-                    {
-                        // our node is contained by a folded, unrevealed heading
-                        return true;
-                    }
+
+            // Headings end prior headings at >= their level — pop
+            // before the visibility check so the popped headings
+            // don't count as containers of this heading.
+            if let Some(level) = heading_level {
+                while heading_stack.last().is_some_and(|&(lvl, _)| lvl >= level) {
+                    heading_stack.pop();
                 }
             }
+
+            let hidden_by_item = sibling_index > 0 && item_fold_active;
+            // Any folded heading currently on the stack hides us.
+            let hidden_by_heading = heading_stack.iter().any(|&(_, folded)| folded);
+            self.set_cached_hidden_by_fold(c, hidden_by_item || hidden_by_heading);
+
+            // Push self onto the heading stack so subsequent siblings
+            // know we exist as a section container. Even unfolded
+            // headings get pushed — they "block" prior less-significant
+            // folded headings from contributing past us.
+            if let Some(level) = heading_level {
+                let folded = self.fold(c).is_some() && !self.heading_fold_reveal(c);
+                heading_stack.push((level, folded));
+            }
+
+            let child_item_fold_active = item_fold_active
+                || (is_item_or_task && self.fold(c).is_some() && !self.item_fold_reveal(c));
+            self.populate_hidden_by_fold_subtree(c, child_item_fold_active);
+
+            child = c.next_sibling();
+            sibling_index += 1;
         }
-
-        false
     }
-}
-
-#[derive(Default)]
-pub struct CacheEntry<T> {
-    range: (DocCharOffset, DocCharOffset),
-    value: T,
 }
 
 // Fast integer mapping for NodeValue variants - no hashing needed
@@ -572,244 +748,284 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
     }
 }
 
-pub struct LinePrefixCacheEntry {
-    node_key_hash: u64,
-    line: (DocCharOffset, DocCharOffset),
-    value: (RelCharOffset, bool),
-}
-
 pub enum TitleState {
     Loading,
     Loaded(String),
     Failed,
 }
 
+type LinePrefixKey = (u64, (Grapheme, Grapheme));
+type LinePrefixValue = (Graphemes, bool);
+
+/// height inputs: `[width_seq, embeds_seq, link_seq, reveal_seq]`. Text-
+/// change invalidation is handled wholesale by [`LayoutCache::ensure_text_consistent`]
+/// before any read, so text_seq isn't part of the per-entry stamp.
+pub type HeightDeps = [u64; 4];
+
 #[derive(Default)]
 pub struct LayoutCache {
-    pub height: RefCell<Vec<CacheEntry<f32>>>,
-    pub line_prefix_len: RefCell<Vec<LinePrefixCacheEntry>>,
-    pub node_range: RefCell<HashMap<u64, (DocCharOffset, DocCharOffset)>>,
-    pub hidden_by_fold: RefCell<Vec<CacheEntry<bool>>>,
-    pub glyphon_buffers: RefCell<HashMap<GlyphonBufferKey, Arc<RwLock<glyphon::Buffer>>>>,
+    pub height: RefCell<HashMap<u64, (f32, HeightDeps)>>,
+    pub height_approx: RefCell<HashMap<u64, (f32, HeightDeps)>>,
+    pub line_prefix_len: RefCell<HashMap<LinePrefixKey, LinePrefixValue>>,
+    pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
+
+    // deps: `reveal_seq` last populated, or `None` if never.
+    pub hidden_by_fold: RefCell<HashMap<u64, bool>>,
+    pub hidden_by_fold_deps: std::cell::Cell<Option<u64>>,
+
+    // deps: title load state
     pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
-}
+    pub link_seq: Arc<AtomicU64>,
 
-#[derive(Hash, PartialEq, Eq)]
-pub struct GlyphonBufferKey {
-    pub text: String,
-    pub font_size_bits: u32,
-    pub line_height_bits: u32,
-    pub width_bits: u32,
-    pub family: FontFamily,
-    pub bold: bool,
-    pub italic: bool,
-    pub color: [u8; 4],
-}
-
-impl GlyphonBufferKey {
-    pub fn new(text: &str, font_size: f32, line_height: f32, width: f32, format: &Format) -> Self {
-        Self {
-            text: text.to_string(),
-            font_size_bits: font_size.to_bits(),
-            line_height_bits: line_height.to_bits(),
-            width_bits: width.to_bits(),
-            family: format.family.clone(),
-            bold: format.bold,
-            italic: format.italic,
-            color: format.color.to_array(),
-        }
-    }
+    /// `buffer.seq` this cache was last consistent with. Drives wholesale
+    /// invalidation in [`Self::ensure_text_consistent`] — text changes
+    /// can affect any entry (fold tag insertions move distant sibling
+    /// heights, AST re-parse shifts sourcepos keys), so per-entry
+    /// stamping wouldn't help.
+    pub text_seq: std::cell::Cell<u64>,
 }
 
 impl LayoutCache {
     /// Full clear for width/resize changes where everything must be recomputed.
     pub fn clear(&self) {
         self.height.borrow_mut().clear();
+        self.height_approx.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
-        self.glyphon_buffers.borrow_mut().clear();
+        self.hidden_by_fold_deps.set(None);
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
     }
 
-    /// Invalidation for text changes. Height and hidden_by_fold depend on
-    /// fold state (fold tags in text) and on each other (height returns 0
-    /// for hidden nodes), so both must be fully cleared — a fold tag
-    /// insertion at one point changes heights of distant sibling nodes.
-    /// Sourcepos-keyed caches are cleared because the AST is re-parsed.
-    /// Glyphon buffers are content-addressed and survive.
-    pub fn invalidate_text_change(&self) {
-        self.height.borrow_mut().clear();
-        self.hidden_by_fold.borrow_mut().clear();
-        self.line_prefix_len.borrow_mut().clear();
-        self.node_range.borrow_mut().clear();
-
-        // glyphon_buffers: content-addressed, preserved across text changes
-    }
-
-    /// Invalidates height entries affected by a reveal range change (cursor
-    /// movement or find match change). A node's height depends on its reveal
-    /// state, so we evict nodes intersecting either range plus their ancestors.
-    pub fn invalidate_reveal_change(
-        &self, old_range: (DocCharOffset, DocCharOffset), new_range: (DocCharOffset, DocCharOffset),
-    ) {
-        let mut cache = self.height.borrow_mut();
-
-        // first pass: find ranges directly affected
-        let mut invalidated: Vec<(DocCharOffset, DocCharOffset)> = Vec::new();
-        for entry in cache.iter() {
-            if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
-            {
-                invalidated.push(entry.range);
-            }
+    /// Wipe and re-stamp if `current` differs from the cache's recorded
+    /// text_seq. Called once per [`MdRender::reparse`] so reads in the
+    /// rest of the frame can rely on the cache reflecting current text.
+    pub fn ensure_text_consistent(&self, current: u64) {
+        if self.text_seq.get() != current {
+            self.clear();
+            self.text_seq.set(current);
         }
-
-        if invalidated.is_empty() {
-            return;
-        }
-
-        // second pass: evict directly affected nodes and their ancestors
-        cache.retain(|entry| {
-            if entry.range.intersects(&old_range, true) || entry.range.intersects(&new_range, true)
-            {
-                return false;
-            }
-            for inv in &invalidated {
-                if entry.range.contains_range(inv, true, true) {
-                    return false;
-                }
-            }
-            true
-        });
-
-        // hidden_by_fold depends on selection through fold reveal;
-        // a node's visibility can change due to a distant heading/item
-        // becoming revealed, so clear the whole cache
-        self.hidden_by_fold.borrow_mut().clear();
     }
 }
 
-impl Editor {
+impl MdRender {
+    /// Look up or shape a glyphon buffer for the given text and formatting.
+    /// Delegates to the shared GlyphonCache so the same shaped buffer is reused
+    /// across frames (and across widgets). The editor-specific concern here is
+    /// emoji: graphemes containing emoji codepoints get the Twemoji font family
+    /// while everything else uses the format's font family.
+    /// Default wrap mode: word boundaries preferred, glyph boundaries as a
+    /// fallback for over-wide single tokens. This is what `split_rows` reaches
+    /// for first when discovering row breaks.
     pub fn upsert_glyphon_buffer(
         &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        self.upsert_glyphon_buffer_inner(
+            text,
+            font_size,
+            line_height,
+            width,
+            format,
+            glyphon::Wrap::WordOrGlyph,
+        )
+    }
+
+    /// Glyph-level wrap. Used as a fallback by `split_rows` when
+    /// `WordOrGlyph` produces a layout run wider than the wrap width — a
+    /// known cosmic-text quirk on some bold mixed-script content. Glyph
+    /// mode breaks at any glyph boundary, which means mid-word splits, but
+    /// that's better than overflowing a cell.
+    pub fn upsert_glyphon_buffer_glyph(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        self.upsert_glyphon_buffer_inner(
+            text,
+            font_size,
+            line_height,
+            width,
+            format,
+            glyphon::Wrap::Glyph,
+        )
+    }
+
+    /// Like [`Self::upsert_glyphon_buffer`] but with `Wrap::None`. Use for
+    /// already-split text when you want a stable single-row shape; the
+    /// wrapped variant's break-point decisions vary subtly with input
+    /// context (a known cosmic-text quirk), so a piece chosen by one call
+    /// may re-wrap differently on a second call at the same width.
+    pub fn upsert_glyphon_buffer_unwrapped(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+    ) -> Arc<RwLock<glyphon::Buffer>> {
+        self.upsert_glyphon_buffer_inner(
+            text,
+            font_size,
+            line_height,
+            width,
+            format,
+            glyphon::Wrap::None,
+        )
+    }
+
+    fn upsert_glyphon_buffer_inner(
+        &self, text: &str, font_size: f32, line_height: f32, width: f32, format: &Format,
+        wrap_mode: glyphon::Wrap,
     ) -> Arc<RwLock<glyphon::Buffer>> {
         let font_system = self
             .ctx
             .data(|d| d.get_temp::<Arc<Mutex<glyphon::FontSystem>>>(egui::Id::NULL))
+            .unwrap();
+        let glyphon_cache = self
+            .ctx
+            .data(|d| {
+                d.get_temp::<Arc<Mutex<crate::widgets::glyphon_cache::GlyphonCache>>>(
+                    egui::Id::NULL,
+                )
+            })
             .unwrap();
 
         let ppi = self.ctx.pixels_per_point();
         let font_size = font_size * ppi;
         let line_height = line_height * ppi;
         let width = width * ppi;
-        let key = GlyphonBufferKey::new(text, font_size, line_height, width, format);
-        let mut cache = self.layout_cache.glyphon_buffers.borrow_mut();
-        cache
-            .entry(key)
-            .or_insert_with(|| {
-                let attrs = glyphon::Attrs::new()
-                    .family(match format.family {
-                        FontFamily::Sans => glyphon::Family::SansSerif,
-                        FontFamily::Mono => glyphon::Family::Monospace,
-                        FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
-                    })
-                    .weight(if format.bold {
-                        glyphon::Weight::BOLD
-                    } else {
-                        glyphon::Weight::NORMAL
-                    })
-                    .style(if format.italic {
-                        glyphon::Style::Italic
-                    } else {
-                        glyphon::Style::Normal
-                    });
-                let metrics = glyphon::Metrics::new(font_size, line_height);
-                let mut b = glyphon::Buffer::new(&mut font_system.lock().unwrap(), metrics);
-                b.set_size(&mut font_system.lock().unwrap(), Some(width), None);
-                let emoji_attrs =
-                    glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
-                let spans = text.graphemes(true).map(|g| {
-                    let is_emoji = g.chars().any(|c| {
-                        matches!(
-                            c as u32,
-                            0xFE0F  // variation selector-16: emoji presentation
-                        | 0x1F000.. // supplementary multilingual plane: core emoji blocks
-                        )
-                    });
-                    (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+
+        use crate::widgets::glyphon_cache::*;
+        // Fold wrap mode into the cache key via low-bit nudges to width.
+        // Three modes need three distinct keys — a sub-ULP perturbation of
+        // an already-quantized pixel value, harmless to layout but enough
+        // to separate cache entries.
+        let width_bits = match wrap_mode {
+            glyphon::Wrap::WordOrGlyph => width.to_bits(),
+            glyphon::Wrap::None => width.to_bits() ^ 1,
+            glyphon::Wrap::Glyph => width.to_bits() ^ 2,
+            _ => width.to_bits() ^ 3,
+        };
+        let key = GlyphonCacheKey::single(
+            text,
+            match format.family {
+                FontFamily::Sans => GlyphonFontFamily::SansSerif,
+                FontFamily::Mono => GlyphonFontFamily::Monospace,
+                FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols".into()),
+            },
+            format.bold,
+            format.italic,
+            Some(format.color.to_array()),
+            font_size.to_bits(),
+            line_height.to_bits(),
+            width_bits,
+        );
+
+        let fs = Arc::clone(&font_system);
+        let mut cache = glyphon_cache.lock().unwrap();
+        cache.get_or_shape(key, move || {
+            let attrs = glyphon::Attrs::new()
+                .family(match format.family {
+                    FontFamily::Sans => glyphon::Family::SansSerif,
+                    FontFamily::Mono => glyphon::Family::Monospace,
+                    FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
+                })
+                .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
+                .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
+            let metrics = glyphon::Metrics::new(font_size, line_height);
+            let mut b = glyphon::Buffer::new(&mut fs.lock().unwrap(), metrics);
+            b.set_size(&mut fs.lock().unwrap(), Some(width), None);
+            // Default cosmic-text tab stop is 8 char-widths; 4 reads
+            // closer to a code-editor tab.
+            b.set_tab_width(&mut fs.lock().unwrap(), 4);
+            let emoji_attrs =
+                glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla"));
+            let text = text.to_string();
+            let spans = text.graphemes(true).map(|g| {
+                let is_emoji = g.chars().any(|c| {
+                    matches!(
+                        c as u32,
+                        0xFE0F  // variation selector-16: emoji presentation
+                    | 0x1F000.. // supplementary multilingual plane: core emoji blocks
+                    )
                 });
-                b.set_rich_text(
-                    &mut font_system.lock().unwrap(),
-                    spans,
-                    &attrs,
-                    glyphon::Shaping::Advanced,
-                    None,
-                );
-                b.shape_until_scroll(&mut font_system.lock().unwrap(), false);
-                Arc::new(RwLock::new(b))
-            })
-            .clone()
+                (g, if is_emoji { emoji_attrs.clone() } else { attrs.clone() })
+            });
+            b.set_rich_text(
+                &mut fs.lock().unwrap(),
+                spans,
+                &attrs,
+                glyphon::Shaping::Advanced,
+                None,
+            );
+            b.set_wrap(&mut fs.lock().unwrap(), wrap_mode);
+            b
+        })
     }
 }
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
+    fn height_deps(&self) -> HeightDeps {
+        [
+            self.width_seq,
+            self.embeds.seq(),
+            self.layout_cache
+                .link_seq
+                .load(std::sync::atomic::Ordering::Relaxed),
+            self.reveal_seq,
+        ]
+    }
+
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
-        let range = self.node_range(node);
-        self.layout_cache
-            .height
-            .borrow()
-            .binary_search_by(|entry| entry.range.cmp(&range))
-            .ok()
-            .map(|i| self.layout_cache.height.borrow()[i].value)
+        let key = Self::pack_node_key(node);
+        let deps = self.height_deps();
+        let cache = self.layout_cache.height.borrow();
+        let (v, stamps) = cache.get(&key)?;
+        (*stamps == deps).then_some(*v)
     }
 
     pub fn set_cached_node_height(&self, node: &'ast AstNode<'ast>, height: f32) {
-        let range = self.node_range(node);
-        let mut cache = self.layout_cache.height.borrow_mut();
-        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
-            Ok(i) => cache[i].value = height,
-            Err(i) => cache.insert(i, CacheEntry { range, value: height }),
-        }
+        let key = Self::pack_node_key(node);
+        let deps = self.height_deps();
+        self.layout_cache
+            .height
+            .borrow_mut()
+            .insert(key, (height, deps));
+    }
+
+    pub fn get_cached_node_height_approx(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
+        let key = Self::pack_node_key(node);
+        let deps = self.height_deps();
+        let cache = self.layout_cache.height_approx.borrow();
+        let (v, stamps) = cache.get(&key)?;
+        (*stamps == deps).then_some(*v)
+    }
+
+    pub fn set_cached_node_height_approx(&self, node: &'ast AstNode<'ast>, height: f32) {
+        let key = Self::pack_node_key(node);
+        let deps = self.height_deps();
+        self.layout_cache
+            .height_approx
+            .borrow_mut()
+            .insert(key, (height, deps));
     }
 
     pub fn get_cached_line_prefix_len(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> Option<(RelCharOffset, bool)> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<(Graphemes, bool)> {
         let node_key_hash = Self::pack_node_key(node);
         self.layout_cache
             .line_prefix_len
             .borrow()
-            .binary_search_by(|entry| {
-                entry
-                    .node_key_hash
-                    .cmp(&node_key_hash)
-                    .then(entry.line.cmp(&line))
-            })
-            .ok()
-            .map(|i| self.layout_cache.line_prefix_len.borrow()[i].value)
+            .get(&(node_key_hash, line))
+            .copied()
     }
 
     pub fn set_cached_line_prefix_len(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        value: (RelCharOffset, bool),
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), value: (Graphemes, bool),
     ) {
         let node_key_hash = Self::pack_node_key(node);
-        let mut cache = self.layout_cache.line_prefix_len.borrow_mut();
-        match cache.binary_search_by(|entry| {
-            entry
-                .node_key_hash
-                .cmp(&node_key_hash)
-                .then(entry.line.cmp(&line))
-        }) {
-            Ok(i) => cache[i].value = value,
-            Err(i) => cache.insert(i, LinePrefixCacheEntry { node_key_hash, line, value }),
-        }
+        self.layout_cache
+            .line_prefix_len
+            .borrow_mut()
+            .insert((node_key_hash, line), value);
     }
 
     #[inline]
-    pub fn get_cached_node_range(
-        &self, node: &'ast AstNode<'ast>,
-    ) -> Option<(DocCharOffset, DocCharOffset)> {
+    pub fn get_cached_node_range(&self, node: &'ast AstNode<'ast>) -> Option<(Grapheme, Grapheme)> {
         let key_hash = Self::pack_node_key(node);
         self.layout_cache
             .node_range
@@ -819,9 +1035,7 @@ impl<'ast> Editor {
     }
 
     #[inline]
-    pub fn set_cached_node_range(
-        &self, node: &'ast AstNode<'ast>, range: (DocCharOffset, DocCharOffset),
-    ) {
+    pub fn set_cached_node_range(&self, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme)) {
         let key_hash = Self::pack_node_key(node);
         self.layout_cache
             .node_range
@@ -830,22 +1044,16 @@ impl<'ast> Editor {
     }
 
     pub fn get_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> Option<bool> {
-        let range = self.node_range(node);
-        self.layout_cache
-            .hidden_by_fold
-            .borrow()
-            .binary_search_by(|entry| entry.range.cmp(&range))
-            .ok()
-            .map(|i| self.layout_cache.hidden_by_fold.borrow()[i].value)
+        let key = Self::pack_node_key(node);
+        self.layout_cache.hidden_by_fold.borrow().get(&key).copied()
     }
 
     pub fn set_cached_hidden_by_fold(&self, node: &'ast AstNode<'ast>, hidden: bool) {
-        let range = self.node_range(node);
-        let mut cache = self.layout_cache.hidden_by_fold.borrow_mut();
-        match cache.binary_search_by(|entry| entry.range.cmp(&range)) {
-            Ok(i) => cache[i].value = hidden,
-            Err(i) => cache.insert(i, CacheEntry { range, value: hidden }),
-        }
+        let key = Self::pack_node_key(node);
+        self.layout_cache
+            .hidden_by_fold
+            .borrow_mut()
+            .insert(key, hidden);
     }
 
     /// Pack node info into u64 using bit manipulation - ultra fast cache key
@@ -859,14 +1067,10 @@ impl<'ast> Editor {
             sp.end.column as u64,
             node_value_to_discriminant_id(&borrowed.value) as u64,
         );
-
-        // Pack into 64 bits: 15 bits each for start_line, start_column, end_line, end_column
-        // and 4 bits for discriminant (total: 15+15+15+15+4 = 64 bits exactly)
-        // Use bitwise AND for fastest truncation
-        ((start_line & 0x7FFF) << 49)
-            | ((start_column & 0x7FFF) << 34)
-            | ((end_line & 0x7FFF) << 19)
-            | ((end_column & 0x7FFF) << 4)
-            | (discriminant & 0xF)
+        ((start_line & 0x3FFF) << 50)
+            | ((start_column & 0x3FFF) << 36)
+            | ((end_line & 0x3FFF) << 22)
+            | ((end_column & 0x3FFF) << 8)
+            | (discriminant & 0xFF)
     }
 }

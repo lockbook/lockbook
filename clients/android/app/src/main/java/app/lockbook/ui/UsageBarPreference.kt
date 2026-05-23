@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.ui
 
 import android.content.Context
@@ -14,10 +16,13 @@ import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
 import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
-import app.lockbook.workspace.SpaceUsed
 import com.google.android.material.progressindicator.LinearProgressIndicator
+import net.lockbook.Usage
 
-class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Preference(context, attributeSet) {
+class UsageBarPreference(
+    context: Context,
+    attributeSet: AttributeSet?,
+) : Preference(context, attributeSet) {
     lateinit var usageBar: LinearProgressIndicator
     lateinit var premiumUsageBar: LinearProgressIndicator
     lateinit var premiumInfoForFree: LinearLayout
@@ -49,7 +54,7 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         }
     }
 
-    private fun setUpUsagePreference(usage: SpaceUsed) {
+    private fun setUpUsagePreference(usage: Usage) {
         val dataCapExact = usage.dataCap?.exact ?: 1
         val serverUsageExact = usage.serverUsage?.exact ?: 1
         val serverUsage = usage.serverUsage?.readable ?: ""
@@ -62,28 +67,30 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
         usageBar.progress = roundedProgress.toInt() * 100
 
         val usageRatio = roundedProgress.toFloat() / roundedDataCap
-        val barColorId = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-            when {
-                usageRatio < 0.8 -> android.R.color.system_accent1_200
-                usageRatio < 0.9 -> android.R.color.system_error_200
-                else -> android.R.color.system_error_500
+        val barColorId =
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
+                when {
+                    usageRatio < 0.8 -> android.R.color.system_accent1_200
+                    usageRatio < 0.9 -> android.R.color.system_error_200
+                    else -> android.R.color.system_error_500
+                }
+            } else {
+                when {
+                    usageRatio < 0.8 -> R.color.md_theme_secondary
+                    else -> R.color.md_theme_error
+                }
             }
-        } else {
-            when {
-                usageRatio < 0.8 -> R.color.md_theme_secondary
-                else -> R.color.md_theme_error
-            }
-        }
 
         val usageBarColor = ContextCompat.getColor(context, barColorId)
         usageBar.setIndicatorColor(usageBarColor)
 
         // necessary to reset it for rendering successful billings
-        premiumInfoForFree.visibility = if (dataCapExact != PAID_TIER_USAGE_BYTES) {
-            View.VISIBLE
-        } else {
-            View.GONE
-        }
+        premiumInfoForFree.visibility =
+            if (dataCapExact != PAID_TIER_USAGE_BYTES) {
+                View.VISIBLE
+            } else {
+                View.GONE
+            }
 
         if (usage.dataCap?.exact != PAID_TIER_USAGE_BYTES) {
             upgradeAccount.setOnClickListener {
@@ -96,12 +103,15 @@ class UsageBarPreference(context: Context, attributeSet: AttributeSet?) : Prefer
             premiumUsageInfo.text = context.resources.getString(R.string.out_of_premium_gb, serverUsage)
         }
 
-        usageInfo.text = spannable {
-            context.resources.getString(R.string.settings_usage_current)
-                .bold() + " " + serverUsage + "\n" + context.resources.getString(
-                R.string.settings_usage_data_cap
-            )
-                .bold() + " " + dataCap + "\n"
-        }
+        usageInfo.text =
+            spannable {
+                context.resources
+                    .getString(R.string.settings_usage_current)
+                    .bold() + " " + serverUsage + "\n" +
+                    context.resources
+                        .getString(
+                            R.string.settings_usage_data_cap,
+                        ).bold() + " " + dataCap + "\n"
+            }
     }
 }

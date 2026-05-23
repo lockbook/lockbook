@@ -170,6 +170,100 @@ async fn write_document_in_write_shared_folder() {
 }
 
 #[tokio::test]
+async fn write_document_in_nested_write_shared_folder() {
+    let cores = [test_core_with_account().await, test_core_with_account().await];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    // cores[1] shares an unrelated file with cores[0]
+    let unrelated = cores[1].create_at_path("/unrelated.md").await.unwrap();
+    cores[1]
+        .share_file(unrelated.id, &accounts[0].username, ShareMode::Write)
+        .await
+        .unwrap();
+    cores[1].sync().await.unwrap();
+
+    // cores[0] creates nested folder and shares it with cores[1]
+    cores[0].create_at_path("/a/b/c/").await.unwrap();
+    let shared_folder = cores[0].create_at_path("/a/b/c/shared/").await.unwrap();
+    let document = cores[0]
+        .create_at_path("/a/b/c/shared/document")
+        .await
+        .unwrap();
+    cores[0]
+        .share_file(shared_folder.id, &accounts[1].username, ShareMode::Write)
+        .await
+        .unwrap();
+    cores[0].sync().await.unwrap();
+
+    // cores[1] syncs and updates the document
+    cores[1].sync().await.unwrap();
+    cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .await
+        .unwrap();
+    cores[1].sync().await.unwrap();
+
+    // Verify
+    cores[0].sync().await.unwrap();
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
+}
+
+#[tokio::test]
+async fn write_document_in_nested_write_shared_folder_with_third_party_share() {
+    let cores = [
+        test_core_with_account().await,
+        test_core_with_account().await,
+        test_core_with_account().await,
+    ];
+    let accounts = cores
+        .iter()
+        .map(|core| core.get_account().unwrap())
+        .collect::<Vec<_>>();
+
+    // cores[2] shares an unrelated file with cores[1]
+    let unrelated = cores[2].create_at_path("/unrelated.md").await.unwrap();
+    cores[2]
+        .share_file(unrelated.id, &accounts[0].username, ShareMode::Write)
+        .await
+        .unwrap();
+    cores[2].sync().await.unwrap();
+
+    // cores[0] creates nested folder and shares it with cores[1]
+    cores[0].create_at_path("/a/b/c/").await.unwrap();
+    let shared_folder = cores[0].create_at_path("/a/b/c/shared/").await.unwrap();
+    let document = cores[0]
+        .create_at_path("/a/b/c/shared/document")
+        .await
+        .unwrap();
+    cores[0]
+        .share_file(shared_folder.id, &accounts[1].username, ShareMode::Write)
+        .await
+        .unwrap();
+    cores[0].sync().await.unwrap();
+
+    // cores[1] syncs and updates the document
+    cores[1].sync().await.unwrap();
+    cores[1]
+        .write_document(document.id, b"document content by sharee")
+        .await
+        .unwrap();
+    cores[1].sync().await.unwrap();
+
+    // Verify
+    cores[0].sync().await.unwrap();
+    assert_eq!(
+        cores[0].read_document(document.id, false).await.unwrap(),
+        b"document content by sharee"
+    );
+}
+
+#[tokio::test]
 async fn write_document_in_write_shared_folder_in_read_shared_folder() {
     let cores = [test_core_with_account().await, test_core_with_account().await];
     let accounts = cores

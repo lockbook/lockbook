@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.screen
 
 import android.os.Bundle
@@ -29,7 +31,7 @@ class SearchDocumentsFragment : Fragment() {
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
-        savedInstanceState: Bundle?
+        savedInstanceState: Bundle?,
     ): View {
         binding = FragmentSearchDocumentsBinding.inflate(layoutInflater)
 
@@ -44,7 +46,9 @@ class SearchDocumentsFragment : Fragment() {
         binding.searchDocumentsResults.setup {
             withDataSource(model.fileResults)
 
-            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, SearchedDocumentNameViewHolder>(R.layout.searched_document_name_item) {
+            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, SearchedDocumentNameViewHolder>(
+                R.layout.searched_document_name_item,
+            ) {
                 onBind(::SearchedDocumentNameViewHolder) { _, item ->
                     name.text = item.name
                     path.text = item.path
@@ -52,11 +56,13 @@ class SearchDocumentsFragment : Fragment() {
 
                 onClick {
                     binding.searchDocumentsSearch.clearFocus()
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.id))
                 }
             }
 
-            withItem<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo, SearchedDocumentContentViewHolder>(R.layout.searched_document_content_item) {
+            withItem<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo, SearchedDocumentContentViewHolder>(
+                R.layout.searched_document_content_item,
+            ) {
                 onBind(::SearchedDocumentContentViewHolder) { _, item ->
                     name.text = item.name
                     path.text = item.path
@@ -65,7 +71,7 @@ class SearchDocumentsFragment : Fragment() {
 
                 onClick {
                     binding.searchDocumentsSearch.clearFocus()
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.id))
                 }
             }
         }
@@ -76,20 +82,22 @@ class SearchDocumentsFragment : Fragment() {
             }
         }
 
-        binding.searchDocumentsSearch.setOnQueryTextListener(object : SearchView.OnQueryTextListener {
-            override fun onQueryTextSubmit(query: String?): Boolean {
-                model.newSearch(query ?: "")
-                binding.searchDocumentsSearch.clearFocus()
+        binding.searchDocumentsSearch.setOnQueryTextListener(
+            object : SearchView.OnQueryTextListener {
+                override fun onQueryTextSubmit(query: String?): Boolean {
+                    model.newSearch(query ?: "")
+                    binding.searchDocumentsSearch.clearFocus()
 
-                return true
-            }
+                    return true
+                }
 
-            override fun onQueryTextChange(newText: String?): Boolean {
-                model.newSearch(newText ?: "")
+                override fun onQueryTextChange(newText: String?): Boolean {
+                    model.newSearch(newText ?: "")
 
-                return true
-            }
-        })
+                    return true
+                }
+            },
+        )
 
         binding.searchDocumentsSearch.requestFocus()
         return binding.root
@@ -97,9 +105,20 @@ class SearchDocumentsFragment : Fragment() {
 
     private fun updateSearchUI(uiUpdate: UpdateSearchUI) {
         when (uiUpdate) {
-            UpdateSearchUI.ToggleProgressSpinner -> binding.searchDocumentsLoader.visibility = if (model.isProgressSpinnerShown) View.VISIBLE else View.GONE
-            UpdateSearchUI.ToggleNoSearchResults -> binding.searchDocumentsNone.visibility = if (model.isNoSearchResultsShown) View.VISIBLE else View.GONE
-            is UpdateSearchUI.Error -> alertModel.notifyError(uiUpdate.error)
+            UpdateSearchUI.ToggleProgressSpinner -> {
+                binding.searchDocumentsLoader.visibility =
+                    if (model.isProgressSpinnerShown) View.VISIBLE else View.GONE
+            }
+
+            UpdateSearchUI.ToggleNoSearchResults -> {
+                binding.searchDocumentsNone.visibility =
+                    if (model.isNoSearchResultsShown) View.VISIBLE else View.GONE
+            }
+
+            is UpdateSearchUI.Error -> {
+                alertModel.notifyError(uiUpdate.error)
+            }
+
             else -> {}
         }
     }

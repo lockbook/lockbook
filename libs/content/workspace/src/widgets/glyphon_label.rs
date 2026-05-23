@@ -3,7 +3,17 @@ use std::sync::{Arc, Mutex, RwLock};
 use egui::{Response, Sense, Ui};
 use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Weight};
 
+use crate::widgets::glyphon_cache::{
+    GlyphonCache, GlyphonCacheKey, GlyphonCacheSpan, GlyphonFontFamily,
+};
 use crate::{GlyphonRendererCallback, TextBufferArea};
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+pub enum TextOverflow {
+    #[default]
+    Clip,
+    EndEllipsis,
+}
 
 /// Per-span styling: bold flag and optional color override.
 #[derive(Clone, Copy)]
@@ -36,6 +46,7 @@ pub struct GlyphonLabel<'a> {
     /// Wrapping / truncation limit in logical pixels. `f32::MAX` means a
     /// single unbounded line.
     max_width: f32,
+    text_overflow: TextOverflow,
     sense: Sense,
 }
 
@@ -109,6 +120,7 @@ impl<'a> GlyphonLabel<'a> {
             font_size: 14.0,
             line_height: None,
             max_width: f32::MAX,
+            text_overflow: TextOverflow::Clip,
             sense: Sense::hover(),
         }
     }
@@ -126,6 +138,7 @@ impl<'a> GlyphonLabel<'a> {
             font_size: 14.0,
             line_height: None,
             max_width: f32::MAX,
+            text_overflow: TextOverflow::Clip,
             sense: Sense::hover(),
         }
     }
@@ -143,6 +156,7 @@ impl<'a> GlyphonLabel<'a> {
             font_size: 14.0,
             line_height: None,
             max_width: f32::MAX,
+            text_overflow: TextOverflow::Clip,
             sense: Sense::hover(),
         }
     }
@@ -169,6 +183,10 @@ impl<'a> GlyphonLabel<'a> {
         Self { max_width, ..self }
     }
 
+    pub fn text_overflow(self, text_overflow: TextOverflow) -> Self {
+        Self { text_overflow, ..self }
+    }
+
     pub fn sense(self, sense: Sense) -> Self {
         Self { sense, ..self }
     }
@@ -180,16 +198,18 @@ impl<'a> GlyphonLabel<'a> {
 
     /// Shapes the text and returns the buffers + measured size for manual placement.
     pub fn build(&self, ctx: &egui::Context) -> ShapedLabel {
-        let font_system = ctx
-            .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
-            .expect("cosmic-text font system used before registered");
         let ppi = ctx.pixels_per_point();
         let line_height = self.line_height.unwrap_or(self.font_size * 1.4);
+        let spans = self.overflow_spans(ctx, ppi, line_height);
+        let span_refs: Vec<_> = spans
+            .iter()
+            .map(|span| (span.text.as_str(), span.style))
+            .collect();
 
         let main = Self::shape_buffer(
-            &font_system,
+            ctx,
             ppi,
-            &self.spans,
+            &span_refs,
             self.color,
             self.font_size,
             line_height,
@@ -199,7 +219,7 @@ impl<'a> GlyphonLabel<'a> {
         let hint = self.hint.map(|(text, color)| {
             let hint_font_size = self.font_size - 2.0;
             Self::shape_buffer(
-                &font_system,
+                ctx,
                 ppi,
                 &[(text, SpanStyle { bold: false, color: None })],
                 color,
@@ -221,44 +241,187 @@ impl<'a> GlyphonLabel<'a> {
         ShapedLabel { main, hint, size: egui::vec2(width, height) }
     }
 
-    fn shape_buffer(
-        font_system: &Arc<Mutex<FontSystem>>, ppi: f32, spans: &[(&str, SpanStyle)],
-        color: egui::Color32, font_size: f32, line_height: f32, max_width: f32,
-    ) -> ShapedBuffer {
-        let mut fs = font_system.lock().unwrap();
-        let mut buf = Buffer::new(&mut fs, Metrics::new(font_size * ppi, line_height * ppi));
-        buf.set_size(&mut fs, Some(max_width * ppi), None);
+    fn overflow_spans(&self, ctx: &egui::Context, ppi: f32, line_height: f32) -> Vec<OwnedSpan> {
+        if self.text_overflow == TextOverflow::Clip
+            || self.max_width == f32::MAX
+            || self.max_width <= 0.0
+        {
+            return self.owned_spans();
+        }
 
-        let base = Attrs::new().family(Family::SansSerif);
-        buf.set_rich_text(
-            &mut fs,
-            spans.iter().map(|&(text, style)| {
-                let mut attrs =
-                    if style.bold { base.clone().weight(Weight::BOLD) } else { base.clone() };
-                if let Some(c) = style.color {
-                    attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
+        match self.text_overflow {
+            TextOverflow::Clip => self.owned_spans(),
+            TextOverflow::EndEllipsis => {
+                let [(text, style)] = self.spans.as_slice() else {
+                    return self.owned_spans();
+                };
+
+                if Self::measure_text_width(ctx, ppi, text, *style, self.font_size, line_height)
+                    <= self.max_width
+                {
+                    return self.owned_spans();
                 }
-                (text, attrs)
-            }),
-            &base,
-            Shaping::Advanced,
-            None,
-        );
-        buf.shape_until_scroll(&mut fs, false);
 
+                vec![OwnedSpan {
+                    text: Self::end_ellipsis(
+                        ctx,
+                        ppi,
+                        text,
+                        *style,
+                        self.font_size,
+                        line_height,
+                        self.max_width,
+                    ),
+                    style: *style,
+                }]
+            }
+        }
+    }
+
+    fn owned_spans(&self) -> Vec<OwnedSpan> {
+        self.spans
+            .iter()
+            .map(|&(text, style)| OwnedSpan { text: text.to_owned(), style })
+            .collect()
+    }
+
+    fn end_ellipsis(
+        ctx: &egui::Context, ppi: f32, text: &str, style: SpanStyle, font_size: f32,
+        line_height: f32, max_width: f32,
+    ) -> String {
+        const ELLIPSIS: &str = "...";
+
+        let ellipsis_width =
+            Self::measure_text_width(ctx, ppi, ELLIPSIS, style, font_size, line_height);
+        if ellipsis_width > max_width {
+            return String::new();
+        }
+
+        let chars: Vec<char> = text.chars().collect();
+
+        let mut low = 0;
+        let mut high = chars.len();
+        while low < high {
+            let keep = (low + high).div_ceil(2);
+            let candidate = end_ellipsis_candidate(&chars, keep);
+            if Self::measure_text_width(ctx, ppi, &candidate, style, font_size, line_height)
+                <= max_width
+            {
+                low = keep;
+            } else {
+                high = keep - 1;
+            }
+        }
+
+        let candidate = end_ellipsis_candidate(&chars, low);
+        if Self::measure_text_width(ctx, ppi, &candidate, style, font_size, line_height)
+            <= max_width
+        {
+            return candidate;
+        }
+
+        ELLIPSIS.to_owned()
+    }
+
+    fn measure_text_width(
+        ctx: &egui::Context, ppi: f32, text: &str, style: SpanStyle, font_size: f32,
+        line_height: f32,
+    ) -> f32 {
+        Self::shape_buffer(
+            ctx,
+            ppi,
+            &[(text, style)],
+            egui::Color32::default(),
+            font_size,
+            line_height,
+            f32::MAX,
+        )
+        .size
+        .x
+    }
+
+    fn shape_buffer(
+        ctx: &egui::Context, ppi: f32, spans: &[(&str, SpanStyle)], color: egui::Color32,
+        font_size: f32, line_height: f32, max_width: f32,
+    ) -> ShapedBuffer {
+        let cache_key = GlyphonCacheKey {
+            spans: spans
+                .iter()
+                .map(|&(text, style)| GlyphonCacheSpan {
+                    text: text.to_string(),
+                    family: GlyphonFontFamily::SansSerif,
+                    bold: style.bold,
+                    italic: false,
+                    color: style.color.map(|c| c.to_array()),
+                })
+                .collect(),
+            font_size_bits: (font_size * ppi).to_bits(),
+            line_height_bits: (line_height * ppi).to_bits(),
+            width_bits: (max_width * ppi).to_bits(),
+        };
+
+        let font_system = ctx
+            .data(|d| d.get_temp::<Arc<Mutex<FontSystem>>>(egui::Id::NULL))
+            .expect("cosmic-text font system used before registered");
+
+        let buffer = ctx
+            .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
+            .expect("glyphon cache used before registered")
+            .lock()
+            .unwrap()
+            .get_or_shape(cache_key, || {
+                let mut fs = font_system.lock().unwrap();
+                let mut buf =
+                    Buffer::new(&mut fs, Metrics::new(font_size * ppi, line_height * ppi));
+                buf.set_size(&mut fs, Some(max_width * ppi), None);
+
+                let base = Attrs::new().family(Family::SansSerif);
+                buf.set_rich_text(
+                    &mut fs,
+                    spans.iter().map(|&(text, style)| {
+                        let mut attrs = if style.bold {
+                            base.clone().weight(Weight::BOLD)
+                        } else {
+                            base.clone()
+                        };
+                        if let Some(c) = style.color {
+                            attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
+                        }
+                        (text, attrs)
+                    }),
+                    &base,
+                    Shaping::Advanced,
+                    None,
+                );
+                buf.shape_until_scroll(&mut fs, false);
+                buf
+            });
+
+        let buf = buffer.read().unwrap();
         let line_height_px = buf.metrics().line_height;
         let (width, lines) = buf
             .layout_runs()
             .fold((0.0f32, 0u32), |(w, n), r| (w.max(r.line_w), n + 1));
         let size = egui::vec2(width / ppi, lines as f32 * line_height_px / ppi);
+        drop(buf);
 
         let c = color;
-        ShapedBuffer {
-            buffer: Arc::new(RwLock::new(buf)),
-            size,
-            color: glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()),
-        }
+        ShapedBuffer { buffer, size, color: glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()) }
     }
+}
+
+struct OwnedSpan {
+    text: String,
+    style: SpanStyle,
+}
+
+fn end_ellipsis_candidate(chars: &[char], keep: usize) -> String {
+    const ELLIPSIS: &str = "...";
+
+    let mut candidate = String::new();
+    candidate.extend(chars.iter().take(keep));
+    candidate.push_str(ELLIPSIS);
+    candidate
 }
 
 impl egui::Widget for GlyphonLabel<'_> {
@@ -270,9 +433,11 @@ impl egui::Widget for GlyphonLabel<'_> {
 
         if ui.is_rect_visible(rect) {
             let areas = shaped.text_areas(rect, ui.ctx(), rect);
+            // egui_wgpu clamps the callback rect to the screen and drops a zero-area result.
+            let callback_rect = rect.intersect(ui.clip_rect());
             ui.painter()
                 .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
-                    rect,
+                    callback_rect,
                     GlyphonRendererCallback::new(areas),
                 ));
         }

@@ -1,31 +1,32 @@
 use comrak::nodes::AstNode;
 use egui::{Pos2, Rect, Stroke, Ui, Vec2};
-use lb_rs::model::text::offset_types::{RangeExt, RangeIterExt as _};
+use lb_rs::model::text::offset_types::RangeIterExt as _;
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
 use crate::theme::palette_v2::ThemeExt as _;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn height_table(&self, node: &'ast AstNode<'ast>) -> f32 {
+        let width = self.width(node);
+        let row_height = self.layout.row_height;
         if self.reveal_table(node) {
             let mut height = 0.;
-
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let node_line = self.node_line(node, line);
-
-                height += self.height_section(
-                    &mut self.new_wrap(self.width(node)),
+                let l = self.compute_section_layout_new(
                     node_line,
+                    width,
+                    row_height,
                     self.text_format_syntax(),
                 );
+                height += l.height;
                 height += self.layout.block_spacing;
             }
             if height > 0. {
                 height -= self.layout.block_spacing;
             }
-
             height
         } else {
             self.block_children_height(node)
@@ -34,18 +35,22 @@ impl<'ast> Editor {
 
     pub fn show_table(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
         let width = self.width(node);
+        let row_height = self.layout.row_height;
 
         if self.reveal_table(node) {
             for line_idx in self.node_lines(node).iter() {
                 let line = self.bounds.source_lines[line_idx];
                 let node_line = self.node_line(node, line);
-
-                let mut wrap = self.new_wrap(self.width(node));
-                self.show_section(ui, top_left, &mut wrap, node_line, self.text_format_syntax());
-
-                top_left.y += wrap.height();
+                let result = self.compute_section_layout_new(
+                    node_line,
+                    width,
+                    row_height,
+                    self.text_format_syntax(),
+                );
+                let h = result.height;
+                self.show_wrap_layout(ui, top_left, &result);
+                top_left.y += h;
                 top_left.y += self.layout.block_spacing;
-                self.bounds.wrap_lines.extend(wrap.row_ranges);
             }
         } else {
             self.show_block_children(ui, node, top_left);
@@ -62,21 +67,16 @@ impl<'ast> Editor {
         }
     }
 
+    /// Reveal the whole table as source only when the cursor is on the
+    /// delimiter row — it has no AST node, so per-row reveal can't
+    /// surface it. Cursor inside a cell (boundaries included) and
+    /// cursor in pipe gutters are handled by `reveal_table_row`.
     fn reveal_table(&self, node: &'ast AstNode<'ast>) -> bool {
-        let selection = self.buffer.current.selection;
         let delimiter_row_line_idx = self.node_first_line_idx(node) + 1;
-        for line_idx in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line_idx];
-            let node_line = self.node_line(node, line);
-
-            if line_idx == delimiter_row_line_idx && selection.intersects(&node_line, true) {
-                return true;
-            }
-            if selection.contains(node_line.start(), true, true) {
-                return true;
-            }
-        }
-
-        false
+        let Some(&delimiter_line) = self.bounds.source_lines.get(delimiter_row_line_idx) else {
+            return false;
+        };
+        let node_line = self.node_line(node, delimiter_line);
+        self.range_revealed(node_line, true)
     }
 }

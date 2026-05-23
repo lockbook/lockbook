@@ -19,3 +19,12 @@ async fn debug_info_test() {
         lb.debug_info("none".to_string(), true).await.to_string();
     }
 }
+
+#[tokio::test]
+#[ignore]
+async fn list_metadatas_perf() {
+    let lb = Lb::init(Config::cli_config("cli")).await.unwrap();
+    for _ in 0..100 {
+        lb.list_metadatas().await.unwrap();
+    }
+}

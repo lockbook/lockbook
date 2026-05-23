@@ -39,11 +39,11 @@ public class Lb {
 
     public static native String getTimestampHumanString(long timestamp) throws LbError;
 
-    public static native String getUsage() throws LbError;
+    public static native Usage getUsage() throws LbError;
     public static native void sync() throws LbError;
     public static native LbEvent subscribe(long rx) throws LbError;
 
-    public static native String getStatus() throws LbError;
+    public static native LbStatus getStatus() throws LbError;
 
     public static native File[] getPendingShares() throws LbError;
     public static native File[] getPendingShareFiles() throws LbError;

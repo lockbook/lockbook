@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook.ui
 
 import android.annotation.SuppressLint
@@ -35,30 +37,30 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
     }
 
     @SuppressLint("SetTextI18n")
-    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog = MaterialAlertDialogBuilder(requireContext())
-        .apply {
-            binding = DialogCreateFileBinding.inflate(layoutInflater)
+    override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
+        MaterialAlertDialogBuilder(requireContext())
+            .apply {
+                binding = DialogCreateFileBinding.inflate(layoutInflater)
 
-            setUpFolderTextInput()
+                setUpFolderTextInput()
 
-            binding.createDocumentHolder.visibility = View.GONE
-            binding.createDocumentExtensionHolder.visibility = View.GONE
-            binding.createFolderHolder.visibility = View.VISIBLE
+                binding.createDocumentHolder.visibility = View.GONE
+                binding.createDocumentExtensionHolder.visibility = View.GONE
+                binding.createFolderHolder.visibility = View.VISIBLE
 
-            val title = getString(R.string.create_file_title_folder)
+                val title = getString(R.string.create_file_title_folder)
 
-            setTitle(title)
-            setView(binding.root)
-        }
-        .setPositiveButton(R.string.create, null)
-        .setNegativeButton(R.string.cancel, null)
-        .create()
-        .apply {
-            window.requestKeyboardFocus(binding.createFolder)
-            setOnShowListener {
-                getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
+                setTitle(title)
+                setView(binding.root)
+            }.setPositiveButton(R.string.create, null)
+            .setNegativeButton(R.string.cancel, null)
+            .create()
+            .apply {
+                window.requestKeyboardFocus(binding.createFolder)
+                setOnShowListener {
+                    getButton(AlertDialog.BUTTON_POSITIVE).setOnClickListener { onButtonPositive() }
+                }
             }
-        }
 
     private fun setUpFolderTextInput() {
         binding.createFolder.setOnEditorActionListener { _, actionId, _ ->

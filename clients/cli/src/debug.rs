@@ -47,7 +47,7 @@ pub async fn whereami() -> Result<(), CliError> {
     ensure_account(lb)?;
 
     let account = lb.get_account()?;
-    let config = &lb.config;
+    let config = lb.config();
     println!("Server: {}", account.api_url);
     println!("Core: {}", config.writeable_path);
     Ok(())

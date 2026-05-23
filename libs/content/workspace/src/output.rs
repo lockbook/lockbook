@@ -28,4 +28,6 @@ pub struct Response {
     pub failure_messages: Vec<String>, // shown as toasts in egui client
 
     pub open_camera: bool,
+
+    pub file_cache_updated: bool,
 }

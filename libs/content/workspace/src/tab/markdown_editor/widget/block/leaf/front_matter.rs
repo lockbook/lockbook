@@ -1,9 +1,9 @@
 use comrak::nodes::{AstNode, NodeCodeBlock};
 use egui::{Pos2, Ui};
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     fn frontmatter_as_code_block() -> NodeCodeBlock {
         NodeCodeBlock {
             fenced: true,

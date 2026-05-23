@@ -1,7 +1,8 @@
-use crate::Lb;
+use crate::LocalLb;
 use crate::model::access_info::UserAccessMode;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
+use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
 use crate::model::filename::MAX_FILENAME_LENGTH;
 use crate::model::symkey;
@@ -10,7 +11,7 @@ use crate::service::events::Actor;
 use std::iter;
 use uuid::Uuid;
 
-impl Lb {
+impl LocalLb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn create_file(
         &self, name: &str, parent: &Uuid, file_type: FileType,
@@ -178,6 +179,26 @@ impl Lb {
         let file = tree.decrypt(&self.keychain, &id, &db.pub_key_lookup)?;
 
         Ok(file)
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn get_file_link_url(&self, id: Uuid) -> LbResult<String> {
+        let tx = self.ro_tx().await;
+        let db = tx.db();
+
+        let tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+
+        // Ensure file exists
+        let id = tree.find(&id)?.id();
+
+        let account = self.get_account()?;
+        let link_url = match account.api_url.as_str() {
+            // Use a more user-friendly link for prod API - both route to the same place
+            "https://api.prod.lockbook.net" => "https://app.lockbook.net",
+            other => other,
+        };
+
+        Ok(format!("{}/open/{}", link_url, id))
     }
 
     pub async fn local_changes(&self) -> Vec<Uuid> {

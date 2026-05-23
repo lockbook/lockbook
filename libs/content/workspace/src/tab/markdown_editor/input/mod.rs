@@ -7,7 +7,7 @@ pub mod mutation;
 use comrak::nodes::NodeValue;
 use egui::Pos2;
 
-use lb_rs::model::text::offset_types::DocCharOffset;
+use lb_rs::model::text::offset_types::Grapheme;
 
 /*
  * This module processes input events, with the following major concerns:
@@ -20,7 +20,7 @@ use lb_rs::model::text::offset_types::DocCharOffset;
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
 pub enum Location {
     CurrentCursor,
-    DocCharOffset(DocCharOffset),
+    Grapheme(Grapheme),
     Pos(Pos2),
 }
 
@@ -99,8 +99,6 @@ pub enum Event {
     Newline { shift: bool }, // distinct from replace because it triggers auto-bullet, etc
     Delete { region: Region }, // distinct from replace because it triggers numbered list renumber, etc
     Indent { deindent: bool }, // distinct from replace because it's a no-op for first list item, etc
-    FindSearch { term: String },
-    FindNavigate { backwards: bool },
     Undo,
     Redo,
     Cut,
@@ -112,11 +110,8 @@ pub enum Event {
     ToggleFold,
 }
 
-impl From<(DocCharOffset, DocCharOffset)> for Region {
-    fn from((start, end): (DocCharOffset, DocCharOffset)) -> Self {
-        Region::BetweenLocations {
-            start: Location::DocCharOffset(start),
-            end: Location::DocCharOffset(end),
-        }
+impl From<(Grapheme, Grapheme)> for Region {
+    fn from((start, end): (Grapheme, Grapheme)) -> Self {
+        Region::BetweenLocations { start: Location::Grapheme(start), end: Location::Grapheme(end) }
     }
 }

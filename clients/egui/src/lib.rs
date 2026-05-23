@@ -38,6 +38,8 @@ pub struct Response {
     pub close: bool,
 }
 
+pub const DEV_USERS: &[&str] = &["parth", "adam", "travis", "at"];
+
 impl Lockbook {
     pub fn new(ctx: &egui::Context) -> Self {
         let (settings, maybe_settings_err) = match Settings::read_from_file() {
@@ -71,6 +73,15 @@ impl Lockbook {
         }
     }
 
+    /// True only once the user is logged in and their username matches a dev
+    /// in `DEV_USERS`. Pre-login screens always return false.
+    pub fn is_dev(&self) -> bool {
+        match self {
+            Lockbook::Account(screen) => screen.is_dev,
+            _ => false,
+        }
+    }
+
     pub fn update(&mut self, ctx: &egui::Context) -> Response {
         let mut output = Response::default();
         match self {
@@ -98,9 +109,8 @@ impl Lockbook {
             // Account screen.
             Self::Onboard(screen) => {
                 if let Some(handoff) = screen.update(ctx) {
-                    let OnboardHandOff { settings, core, acct_data } = handoff;
+                    let OnboardHandOff { settings, core, acct_data, is_new_user } = handoff;
 
-                    let is_new_user = true;
                     let acct_scr = AccountScreen::new(settings, &core, acct_data, ctx, is_new_user);
                     *self = Self::Account(acct_scr);
 
@@ -110,9 +120,18 @@ impl Lockbook {
             // On the account screen, we're just waiting for it to gracefully shutdown or for the user to log out.
             Self::Account(screen) => {
                 screen.update(ctx);
-                if screen.is_shutdown() {
-                    output.close = true;
+
+                // React to the user requesting close (e.g. clicking the window's X button).
+                // Priority: close an open modal first; otherwise begin graceful shutdown.
+                // begin_shutdown is idempotent so it's safe to call repeatedly while the
+                // platform integration keeps signaling close_requested.
+                if ctx.input(|i| i.viewport().close_requested())
+                    && !screen.is_shutdown()
+                    && !screen.close_something()
+                {
+                    screen.begin_shutdown(ctx);
                 }
+
                 if screen.is_shutdown() {
                     output.close = true;
                 }
@@ -155,6 +174,7 @@ mod lb_wgpu {
         pub fn frame(&mut self) -> Output {
             self.renderer.begin_frame();
             let app_response = self.app.update(&self.renderer.context);
+            self.renderer.set_is_dev(self.app.is_dev());
             let (platform, viewport) = self.renderer.end_frame();
 
             // Queue up the events for the next frame

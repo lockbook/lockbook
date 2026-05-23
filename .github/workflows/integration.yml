@@ -33,9 +33,9 @@ jobs:
     - name: Check Lock File
       run: nix-shell -p gtk3 pkg-config glib gobject-introspection gdk-pixbuf --command "cargo run -p lbdev -- ci assert-git-clean"
     - name: Install Nightly
-      run: rustup toolchain install nightly
+      run: rustup toolchain install nightly-2026-04-27
     - name: Install udeps
-      run: nix-shell -p openssl pkg-config --command "cargo install cargo-udeps --locked"
+      run: nix-shell -p openssl pkg-config --command "cargo install cargo-udeps --locked --version 0.1.55"
     - name: Check Unused Dependencies
       run: nix-shell -p openssl pkg-config glib gobject-introspection gdk-pixbuf gtk3 --command "cargo run -p lbdev -- ci assert-no-udeps"
     - name: Cleanup

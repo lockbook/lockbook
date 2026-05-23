@@ -1,3 +1,5 @@
+@file:Suppress("ktlint:standard:no-wildcard-imports")
+
 package app.lockbook
 
 import android.app.Application
@@ -42,7 +44,9 @@ class App : Application() {
         Lb.init(filesDir.absolutePath)
 
         // background sync every 30 minutes when the app is not foregrounded
-        ProcessLifecycleOwner.get().lifecycle
+        ProcessLifecycleOwner
+            .get()
+            .lifecycle
             .addObserver(ForegroundBackgroundObserver(this))
 
         AppCompatDelegate.setDefaultNightMode(AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM)
@@ -50,26 +54,28 @@ class App : Application() {
         val isDebugBuild = 0 != applicationInfo.flags and ApplicationInfo.FLAG_DEBUGGABLE
         if (isDebugBuild) {
             StrictMode.setThreadPolicy(
-                ThreadPolicy.Builder()
+                ThreadPolicy
+                    .Builder()
                     .detectDiskReads()
                     .detectDiskWrites()
                     .detectAll()
                     .penaltyLog()
-                    .build()
+                    .build(),
             )
 
             StrictMode.setVmPolicy(
-                VmPolicy.Builder()
+                VmPolicy
+                    .Builder()
                     .detectLeakedSqlLiteObjects()
                     .detectLeakedClosableObjects()
                     .penaltyLog()
-                    .build()
+                    .build(),
             )
         }
 
         val defaultHandler = Thread.getDefaultUncaughtExceptionHandler()
         Thread.setDefaultUncaughtExceptionHandler(
-            GlobalExceptionHandler(this, defaultHandler)
+            GlobalExceptionHandler(this, defaultHandler),
         )
     }
 
@@ -77,37 +83,40 @@ class App : Application() {
         const val PERIODIC_SYNC_TAG = "periodic_sync"
         var instance: App? = null
 
-        fun applicationContext(): Context {
-            return instance!!.applicationContext
-        }
+        fun applicationContext(): Context = instance!!.applicationContext
     }
 }
 
-class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObserver {
+class ForegroundBackgroundObserver(
+    val context: Context,
+) : DefaultLifecycleObserver {
     override fun onStart(owner: LifecycleOwner) {
         doIfLoggedIn {
-            WorkManager.getInstance(context)
+            WorkManager
+                .getInstance(context)
                 .cancelAllWorkByTag(PERIODIC_SYNC_TAG)
         }
     }
 
     override fun onStop(owner: LifecycleOwner) {
         doIfLoggedIn {
-            val work = PeriodicWorkRequestBuilder<SyncWork>(
-                PreferenceManager.getDefaultSharedPreferences(context)
-                    .getInt(getString(context.resources, R.string.background_sync_period_key), 30)
-                    .toLong(),
-                TimeUnit.MINUTES
-            )
-                .setConstraints(Constraints.NONE)
-                .addTag(PERIODIC_SYNC_TAG)
-                .build()
+            val work =
+                PeriodicWorkRequestBuilder<SyncWork>(
+                    PreferenceManager
+                        .getDefaultSharedPreferences(context)
+                        .getInt(getString(context.resources, R.string.background_sync_period_key), 30)
+                        .toLong(),
+                    TimeUnit.MINUTES,
+                ).setConstraints(Constraints.NONE)
+                    .addTag(PERIODIC_SYNC_TAG)
+                    .build()
 
-            WorkManager.getInstance(context)
+            WorkManager
+                .getInstance(context)
                 .enqueueUniquePeriodicWork(
                     PERIODIC_SYNC_TAG,
                     ExistingPeriodicWorkPolicy.REPLACE,
-                    work
+                    work,
                 )
         }
     }
@@ -124,25 +133,30 @@ class ForegroundBackgroundObserver(val context: Context) : DefaultLifecycleObser
     }
 }
 
-class SyncWork(appContext: Context, workerParams: WorkerParameters) :
-    Worker(appContext, workerParams) {
-    override fun doWork(): Result = try {
-        Lb.sync()
+class SyncWork(
+    appContext: Context,
+    workerParams: WorkerParameters,
+) : Worker(appContext, workerParams) {
+    override fun doWork(): Result =
+        try {
+            Lb.sync()
 
-        Result.success()
-    } catch (err: LbError) {
-        Timber.e(err.msg)
+            Result.success()
+        } catch (err: LbError) {
+            Timber.e(err.msg)
 
-        Result.failure()
-    }
+            Result.failure()
+        }
 }
 
 class GlobalExceptionHandler(
     private val context: Context,
-    private val defaultHandler: Thread.UncaughtExceptionHandler?
+    private val defaultHandler: Thread.UncaughtExceptionHandler?,
 ) : Thread.UncaughtExceptionHandler {
-
-    override fun uncaughtException(thread: Thread, exception: Throwable) {
+    override fun uncaughtException(
+        thread: Thread,
+        exception: Throwable,
+    ) {
         try {
             Timber.d("custom uncaught handler")
             val stackTrace = getStackTraceString(exception)

@@ -1,48 +1,49 @@
-use comrak::nodes::{AstNode, NodeLink, NodeValue};
-use egui::{OpenUrl, Pos2, Sense, Ui};
-use lb_rs::model::text::offset_types::{DocCharOffset, IntoRangeExt, RangeExt as _};
+use comrak::nodes::{AstNode, NodeValue};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::spawn;
 use scraper::{Html, Selector};
 use std::collections::hash_map::Entry;
+use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::block::TitleState;
-use crate::tab::markdown_editor::widget::inline::Response;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Wrap};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    FontFamily, Format, Layout, StyleInfo,
+};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
-    Loading,
     Ready(String),
     Absent,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum LinkState {
-    Normal,
-    Warning, // access gap — some collaborators can't follow this link
-    Broken,  // target not found
-}
+pub use crate::resolvers::LinkState;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn text_format_link(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
         let parent_text_format = self.text_format(parent);
         let theme = self.ctx.get_lb_theme();
         let color = match state {
             LinkState::Normal => theme.fg().blue,
-            LinkState::Warning => theme.fg().yellow,
-            LinkState::Broken => theme.fg().red,
+            LinkState::Warning { .. } => theme.fg().yellow,
+            LinkState::Broken { .. } => theme.fg().red,
         };
         Format { color, underline: true, ..parent_text_format }
     }
 
+    /// Link-coloured `Icon` glyph (no underline) used for the touch-mode
+    /// "open link" affordance appended after each link.
     pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> Format {
-        Format { family: FontFamily::Icons, ..self.text_format_link(parent, LinkState::Normal) }
+        Format {
+            family: FontFamily::Icons,
+            underline: false,
+            ..self.text_format_link(parent, LinkState::Normal)
+        }
     }
 
     fn link_is_auto(&self, node: &'ast AstNode<'ast>, url: &str) -> bool {
@@ -50,206 +51,83 @@ impl<'ast> Editor {
             .is_some_and(|r| &self.buffer[r] == url)
     }
 
-    fn link_is_revealed(&self, node: &'ast AstNode<'ast>, is_auto: bool) -> bool {
-        let node_range = self.node_range(node);
-        let selection = &self.buffer.current.selection;
-        // auto links also reveal when cursor sits at a boundary, so backspacing
-        // from the right side doesn't repeatedly replace the display text
-        node_range.intersects(selection, is_auto)
+    /// Shared by producer + consumer so `ui.id().with(salt)` resolves
+    /// to the same id on both sides.
+    pub fn link_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
+        egui::Id::new(("md_link", node_range))
     }
 
-    pub fn span_link(
-        &self, node: &'ast AstNode<'ast>, wrap: &Wrap, range: (DocCharOffset, DocCharOffset),
-    ) -> f32 {
-        let mut tmp_wrap = wrap.clone();
+    /// Emit a link as a circumfix. For empty/auto links with a fetched
+    /// title, swap the URL bytes for the title via `push_override`.
+    /// With cmd held, opens a `Sense::click` interaction scope so egui
+    /// z-order routes cmd-click here; without cmd no scope is opened
+    /// and clicks fall through to the editor.
+    pub fn layout_link(
+        &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
+    ) {
         let node_range = self.node_range(node);
         let url = node_link_url(node);
         let is_auto = self.link_is_auto(node, &url);
+        let parent = node.parent().unwrap();
+        let link_fmt = self.text_format_link(parent, self.link_state_for_url(&url));
+        let revealed = self.range_revealed(node_range, is_auto);
 
-        let used_override = (node.children().next().is_none() || is_auto)
-            && !self.link_is_revealed(node, is_auto)
-            && !node_range.trim(&range).is_empty()
-            && match self.get_link_title(&url) {
-                DestinationTitle::Ready(t) => {
-                    tmp_wrap.offset += self.span_override_section(
-                        &tmp_wrap,
-                        &t,
-                        self.text_format_link(node.parent().unwrap(), LinkState::Normal),
-                    );
-                    true
-                }
-                DestinationTitle::Loading => {
-                    tmp_wrap.offset += self.span_override_section(
-                        &tmp_wrap,
-                        "Loading...",
-                        self.text_format_syntax(),
-                    );
-                    true
-                }
-                DestinationTitle::Absent => false,
-            };
-
-        if !used_override {
-            tmp_wrap.offset += self.circumfix_span(node, &tmp_wrap, range);
+        let cmd = self.ctx.input(|i| i.modifiers.command);
+        let salt = Self::link_interaction_id_salt(node_range);
+        if cmd {
+            layout.interaction_open(salt, egui::Sense::click());
         }
 
-        if range.contains_inclusive(node_range.end()) && self.touch_mode {
-            tmp_wrap.offset += self.span_override_section(
-                &tmp_wrap,
-                " ",
-                self.text_format(node.parent().unwrap()),
-            );
-            tmp_wrap.offset += self.span_override_section(
-                &tmp_wrap,
-                Icon::OPEN_IN_NEW.icon,
-                self.text_format_link_button(node.parent().unwrap()),
-            );
-        }
-
-        tmp_wrap.offset - wrap.offset
-    }
-
-    pub fn show_link(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, wrap: &mut Wrap,
-        node_link: &NodeLink, range: (DocCharOffset, DocCharOffset),
-    ) -> Response {
-        let node_range = self.node_range(node);
-        let is_auto = self.link_is_auto(node, &node_link.url);
-        let mut response = if (node.children().next().is_none() || is_auto)
-            && !self.link_is_revealed(node, is_auto)
-        {
-            // empty or auto link: show the fetched title in place of the URL
-            let trimmed = node_range.trim(&range);
-            if !trimmed.is_empty() {
-                match self.get_link_title(&node_link.url) {
-                    DestinationTitle::Ready(t) => self.show_override_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        trimmed,
-                        self.text_format_link(node.parent().unwrap(), LinkState::Normal),
-                        Some(&t),
-                        Sense::hover(),
-                    ),
-                    DestinationTitle::Loading => self.show_override_section(
-                        ui,
-                        top_left,
-                        wrap,
-                        trimmed,
-                        self.text_format_syntax(),
-                        Some("Loading..."),
-                        Sense::hover(),
-                    ),
-                    DestinationTitle::Absent => {
-                        // destination has no title
-                        self.show_circumfix(ui, node, top_left, wrap, range)
-                    }
+        let trimmed = node_range.trim(&range);
+        let title =
+            if (node.children().next().is_none() || is_auto) && !revealed && !trimmed.is_empty() {
+                match self.get_link_title(&url) {
+                    DestinationTitle::Ready(t) => Some(t),
+                    DestinationTitle::Absent => None,
                 }
             } else {
-                // has title
-                self.show_circumfix(ui, node, top_left, wrap, range)
+                None
+            };
+        match title {
+            Some(t) => {
+                layout.style_open(StyleInfo { format: link_fmt.clone(), source_range: node_range });
+                layout.push_override(trimmed, &t, link_fmt.clone());
+                layout.style_close();
             }
-        } else {
-            // has children or is revealed
-            self.show_circumfix(ui, node, top_left, wrap, range)
-        };
+            None => self.layout_circumfix(layout, node, range, link_fmt.clone()),
+        }
 
-        response.hovered &= self.inline_clickable(ui, node);
+        if cmd {
+            layout.interaction_close();
+        }
 
-        if range.contains_inclusive(self.node_range(node).end()) && self.touch_mode {
-            response |= self.show_override_section(
-                ui,
-                top_left,
-                wrap,
-                self.node_range(node).end().into_range(),
-                self.text_format(node.parent().unwrap()),
-                Some(" "),
-                Sense::focusable_noninteractive(),
+        // Touch-mode open-link affordance: tap the trailing icon to open
+        // the link (no cmd modifier on mobile). Only emit on the row that
+        // contains the link's end.
+        if self.touch_mode && range.contains_inclusive(node_range.end()) {
+            let anchor = (node_range.end(), node_range.end());
+            let parent_fmt = self.text_format(parent);
+            layout.push_override(anchor, " ", parent_fmt);
+            layout.interaction_open(salt, egui::Sense::click());
+            layout.push_override(
+                anchor,
+                Icon::OPEN_IN_NEW.icon,
+                self.text_format_link_button(parent),
             );
-            response |= self.show_override_section(
-                ui,
-                top_left,
-                wrap,
-                self.node_range(node).end().into_range(),
-                self.text_format_link_button(node.parent().unwrap()),
-                Some(Icon::OPEN_IN_NEW.icon),
-                Sense::click(),
-            );
+            layout.interaction_close();
         }
-
-        if response.hovered {
-            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            if self.link_state_for_url(&node_link.url) == LinkState::Warning {
-                if let Some(pos) = ui.ctx().pointer_hover_pos() {
-                    egui::Area::new(ui.id().with("link_warning"))
-                        .order(egui::Order::Tooltip)
-                        .fixed_pos(pos + egui::vec2(8.0, 16.0))
-                        .show(ui.ctx(), |ui| {
-                            egui::Frame::popup(ui.style()).show(ui, |ui| {
-                                ui.label("Some collaborators cannot access this link target");
-                            });
-                        });
-                }
-            }
-        }
-        if response.clicked {
-            let cmd = ui.input(|i| i.modifiers.command);
-            match self.resolve_link(&node_link.url) {
-                Some(ResolvedLink::File(id)) => {
-                    ui.ctx().open_file(id, cmd);
-                }
-                Some(ResolvedLink::External(url)) => {
-                    ui.ctx().open_url(OpenUrl { url, new_tab: cmd });
-                }
-                None => {
-                    ui.ctx()
-                        .open_url(OpenUrl { url: node_link.url.clone(), new_tab: cmd });
-                }
-            }
-        }
-
-        response
     }
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {
-        let guard = self.files.read().unwrap();
-        let from_id = guard.get_by_id(self.file_id)?.parent;
-        guard.resolve_link(url, from_id)
+        self.link_resolver.resolve_link(url)
     }
 
     pub fn link_state_for_url(&self, url: &str) -> LinkState {
-        let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken;
-        };
-        match guard.resolve_link(url, from_id) {
-            None => LinkState::Broken,
-            Some(ResolvedLink::External(_)) => LinkState::Normal,
-            Some(ResolvedLink::File(target_id)) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning
-                } else {
-                    LinkState::Normal
-                }
-            }
-        }
+        self.link_resolver.link_state(url)
     }
 
     pub fn link_state_for_wikilink(&self, url: &str) -> LinkState {
-        let guard = self.files.read().unwrap();
-        let Some(from_id) = guard.get_by_id(self.file_id).map(|f| f.parent) else {
-            return LinkState::Broken;
-        };
-        match guard.resolve_wikilink(url, from_id) {
-            None => LinkState::Broken,
-            Some(target_id) => {
-                if guard.link_has_access_gap(self.file_id, target_id) {
-                    LinkState::Warning
-                } else {
-                    LinkState::Normal
-                }
-            }
-        }
+        self.link_resolver.wikilink_state(url)
     }
 
     pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {
@@ -306,9 +184,71 @@ impl<'ast> Editor {
         }
     }
 
+    /// Hover → `PointingHand` + Warning/Broken tooltip; click → open
+    /// in a new tab. The producer only opens an interaction scope when
+    /// cmd is held (desktop) or for the trailing open-link affordance
+    /// (touch); the response's presence is the gate.
+    pub fn handle_link_interactions(&self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
+        let parent_base = ui.id();
+        for node in root.descendants() {
+            let (url, is_wikilink) = match &node.data.borrow().value {
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
+                NodeValue::Link(nl) | NodeValue::Image(nl) => (nl.url.clone(), false),
+                _ => continue,
+            };
+            let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
+            let Some(response) = self.interaction_responses.get(&id) else {
+                continue;
+            };
+
+            if response.hovered() {
+                ui.ctx()
+                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+
+                let state = if is_wikilink {
+                    self.link_state_for_wikilink(&url)
+                } else {
+                    self.link_state_for_url(&url)
+                };
+                if let LinkState::Warning { message } | LinkState::Broken { message } = &state {
+                    if let Some(pos) = ui.ctx().pointer_hover_pos() {
+                        egui::Area::new(id.with("link_warning"))
+                            .order(egui::Order::Tooltip)
+                            .fixed_pos(pos + egui::vec2(8.0, 16.0))
+                            .show(ui.ctx(), |ui| {
+                                egui::Frame::popup(ui.style()).show(ui, |ui| {
+                                    ui.label(message);
+                                });
+                            });
+                    }
+                }
+            }
+
+            if response.clicked() {
+                if is_wikilink {
+                    if let Some(file_id) = self.resolve_wikilink(&url) {
+                        ui.ctx().open_file(file_id, true);
+                    }
+                } else {
+                    match self.resolve_link(&url) {
+                        Some(ResolvedLink::File(file_id)) => ui.ctx().open_file(file_id, true),
+                        Some(ResolvedLink::External(target)) => ui
+                            .ctx()
+                            .open_url(egui::OpenUrl { url: target, new_tab: true }),
+                        None => ui
+                            .ctx()
+                            .open_url(egui::OpenUrl { url: url.clone(), new_tab: true }),
+                    }
+                }
+                return;
+            }
+        }
+    }
+
     // Resolves the display title for a link with empty text.
     // Internal links (lb:// or relative paths) resolve synchronously from the file cache.
-    // External http/https links are fetched asynchronously; returns Loading on first call.
+    // External http/https links are fetched asynchronously; returns Absent until
+    // the fetch completes (caller renders the original URL text in that case).
     fn get_link_title(&self, url: &str) -> DestinationTitle {
         let Some(resolved) = self.resolve_link(url) else {
             return DestinationTitle::Absent;
@@ -344,6 +284,8 @@ impl<'ast> Editor {
                 let client = self.client.clone();
                 let ctx = self.ctx.clone();
                 let title_state = arc.clone();
+                let link_seq = self.layout_cache.link_seq.clone();
+                let ws_seq = self.ws_seq.clone();
                 spawn!({
                     const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
                     const GOOGLEBOT: &str =
@@ -371,6 +313,7 @@ impl<'ast> Editor {
                         .and_then(|h| extract_html_title(&h))
                         .map(TitleState::Loaded)
                         .unwrap_or(TitleState::Failed);
+                    link_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
                     ctx.request_repaint();
                 });
                 arc
@@ -379,9 +322,8 @@ impl<'ast> Editor {
 
         let state = arc.lock().unwrap();
         match &*state {
-            TitleState::Loading => DestinationTitle::Loading,
             TitleState::Loaded(t) => DestinationTitle::Ready(t.clone()),
-            TitleState::Failed => DestinationTitle::Absent,
+            TitleState::Loading | TitleState::Failed => DestinationTitle::Absent,
         }
     }
 }
@@ -389,7 +331,7 @@ impl<'ast> Editor {
 fn node_link_url(node: &AstNode<'_>) -> String {
     use comrak::nodes::NodeValue;
     match &node.data.borrow().value {
-        NodeValue::Link(link) => link.url.clone(),
+        NodeValue::Link(link) | NodeValue::Image(link) => link.url.clone(),
         _ => String::new(),
     }
 }

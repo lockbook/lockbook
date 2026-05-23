@@ -1,9 +1,9 @@
-use super::offset_types::{DocByteOffset, DocCharOffset, RangeExt, RelCharOffset};
+use super::offset_types::{Byte, Grapheme, Graphemes, RangeExt};
 use super::operation_types::{InverseOperation, Operation, Replace};
 use super::unicode_segs::UnicodeSegs;
 use super::{diff, unicode_segs};
 use std::ops::Index;
-use unicode_segmentation::UnicodeSegmentation;
+use unicode_segmentation::UnicodeSegmentation as _;
 use web_time::{Duration, Instant};
 
 /// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
@@ -71,47 +71,69 @@ pub struct Buffer {
 pub struct Snapshot {
     pub text: String,
     pub segs: UnicodeSegs,
-    pub selection: (DocCharOffset, DocCharOffset),
+    pub selection: (Grapheme, Grapheme),
     pub seq: usize,
 }
 
 impl Snapshot {
-    fn apply_select(&mut self, range: (DocCharOffset, DocCharOffset)) -> Response {
+    fn apply_select(&mut self, range: (Grapheme, Grapheme)) -> Response {
         self.selection = range;
-        Response::default()
+        Response { selection_user_moved: true, ..Response::default() }
     }
 
-    fn apply_replace(&mut self, replace: &Replace) -> Response {
+    fn apply_replace(&mut self, replace: &Replace) -> (Response, Graphemes) {
         let Replace { range, text } = replace;
         let byte_range = self.segs.range_to_byte(*range);
+
+        // Capture pre-apply segs so `Graphemes::measure_replace` can compute
+        // the buffer delta. It's the only construction path for an
+        // OT-correct grapheme count — bypassing it (e.g.
+        // `text.graphemes(true).count()`) would produce a `usize`, not a
+        // `Graphemes`, so any caller of this function wouldn't compile.
+        let old_segs = self.segs.clone();
 
         self.text
             .replace_range(byte_range.start().0..byte_range.end().0, text);
         self.segs = unicode_segs::calc(&self.text);
-        adjust_subsequent_range(
-            *range,
-            text.graphemes(true).count().into(),
-            false,
-            &mut self.selection,
-        );
 
-        Response { text_updated: true, ..Default::default() }
+        let actual_len = Graphemes::measure_replace(&old_segs, &self.segs, *range);
+
+        adjust_subsequent_range(*range, actual_len, false, &mut self.selection);
+
+        (Response { text_updated: true, ..Default::default() }, actual_len)
     }
 
-    fn invert(&self, op: &Operation) -> InverseOperation {
-        let mut inverse = InverseOperation { replace: None, select: self.selection };
-        if let Operation::Replace(replace) = op {
-            inverse.replace = Some(self.invert_replace(replace));
+    /// Captures the inverse-relevant state from the buffer *before* an op is
+    /// applied. Combined with the actual replacement length (only knowable
+    /// post-apply) by `PartialInverse::finalize` to produce the full inverse.
+    fn invert_pre(&self, op: &Operation) -> PartialInverse {
+        let mut partial = PartialInverse { select: self.selection, replace: None };
+        if let Operation::Replace(Replace { range, text: _ }) = op {
+            let byte_range = self.segs.range_to_byte(*range);
+            let replaced_text = self[byte_range].into();
+            partial.replace = Some((range.start(), replaced_text));
         }
-        inverse
+        partial
     }
+}
 
-    fn invert_replace(&self, replace: &Replace) -> Replace {
-        let Replace { range, text } = replace;
-        let byte_range = self.segs.range_to_byte(*range);
-        let replaced_text = self[byte_range].into();
-        let replacement_range = (range.start(), range.start() + text.graphemes(true).count());
-        Replace { range: replacement_range, text: replaced_text }
+struct PartialInverse {
+    select: (Grapheme, Grapheme),
+    /// (start, replaced_text) — the inverse range's end is `start +
+    /// actual_len`, which `finalize` fills in once apply has measured the
+    /// buffer delta.
+    replace: Option<(Grapheme, String)>,
+}
+
+impl PartialInverse {
+    fn finalize(self, actual_len: Graphemes) -> InverseOperation {
+        InverseOperation {
+            select: self.select,
+            replace: self.replace.map(|(start, replaced_text)| Replace {
+                range: (start, start + actual_len),
+                text: replaced_text,
+            }),
+        }
     }
 }
 
@@ -133,6 +155,15 @@ struct Ops {
     /// undoing operations. The data model differs because an operation that replaces text containing the cursor needs
     /// two operations to revert the text and cursor. Derived from other data and invalidated by some undo/redo flows.
     transformed_inverted: Vec<InverseOperation>,
+
+    /// Actual graphemes contributed by each `transformed` op once spliced
+    /// into the buffer. The `Graphemes` newtype enforces this distinction
+    /// at the type level — populating this field requires a value from
+    /// `Graphemes::measure_replace`, not `text.graphemes(true).count()`,
+    /// which would account for in-isolation counts only and miss seam fusion
+    /// (Devanagari spacing marks, ZWJ sequences). Always 0 for
+    /// `Operation::Select`.
+    transformed_actual_len: Vec<Graphemes>,
 }
 
 impl Ops {
@@ -140,34 +171,97 @@ impl Ops {
         self.all.len()
     }
 
+    /// Returns the half-open `[start, end)` index range of the frame
+    /// containing `idx` (a frame is a contiguous run of ops sharing
+    /// the same `base`, set by a single `queue` call).
+    fn frame_at(&self, idx: usize) -> (usize, usize) {
+        let base = self.meta[idx].base;
+        let mut start = idx;
+        while start > 0 && self.meta[start - 1].base == base {
+            start -= 1;
+        }
+        let mut end = idx + 1;
+        while end < self.len() && self.meta[end].base == base {
+            end += 1;
+        }
+        (start, end)
+    }
+
+    /// A frame is "typing-shaped" if it represents a single keystroke-
+    /// scale text edit: exactly one `Replace` whose text is at most one
+    /// grapheme (so single-char insertion, backspace from cursor, plain
+    /// `\n`), plus at most one trailing `Select`. Adjacent typing-
+    /// shaped frames within 500ms group into one undo unit.
+    fn frame_is_typing(&self, start: usize, end: usize) -> bool {
+        let mut replaces = 0usize;
+        let mut text_graphemes = 0usize;
+        let mut selects = 0usize;
+        for op in &self.all[start..end] {
+            match op {
+                Operation::Replace(Replace { text, .. }) => {
+                    replaces += 1;
+                    text_graphemes += text.graphemes(true).count();
+                }
+                Operation::Select(_) => selects += 1,
+            }
+        }
+        replaces == 1 && text_graphemes <= 1 && selects <= 1
+    }
+
+    fn frame_has_replace(&self, start: usize, end: usize) -> bool {
+        self.all[start..end]
+            .iter()
+            .any(|op| matches!(op, Operation::Replace(_)))
+    }
+
     fn is_undo_checkpoint(&self, idx: usize) -> bool {
-        // start and end of undo history are checkpoints
-        if idx == 0 {
-            return true;
-        }
-        if idx == self.len() {
+        // boundaries
+        if idx == 0 || idx == self.len() {
             return true;
         }
 
-        // events separated by enough time are checkpoints
-        let meta = &self.meta[idx];
-        let prev_meta = &self.meta[idx - 1];
-        if meta.timestamp - prev_meta.timestamp > Duration::from_millis(500) {
-            return true;
+        // within a single frame, never a checkpoint
+        if self.meta[idx].base == self.meta[idx - 1].base {
+            return false;
         }
 
-        // immediately after a standalone selection is a checkpoint
-        let mut prev_op_standalone = meta.base != prev_meta.base;
-        if idx > 1 {
-            let prev_prev_meta = &self.meta[idx - 2];
-            prev_op_standalone &= prev_meta.base != prev_prev_meta.base;
-        }
-        let prev_op_selection = matches!(&self.all[idx - 1], Operation::Select(..));
-        if prev_op_standalone && prev_op_selection {
-            return true;
+        // current-frame analysis
+        let (curr_start, curr_end) = self.frame_at(idx);
+        if !self.frame_has_replace(curr_start, curr_end) {
+            // select-only frame absorbs into the prev unit
+            return false;
         }
 
-        false
+        // walk back through any select-only frames to find the prev
+        // real frame. Selects absorb backward, so an undo of *this*
+        // unit doesn't revert the cursor placement (click) that came
+        // before it.
+        let mut walk = curr_start;
+        let prev_real = loop {
+            if walk == 0 {
+                break None;
+            }
+            let (s, e) = self.frame_at(walk - 1);
+            if self.frame_has_replace(s, e) {
+                break Some((s, e));
+            }
+            walk = s;
+        };
+
+        // typing-grouping: rapid single-keystroke edits stay in one
+        // unit so a burst of typing undoes together
+        if let Some((prev_start, prev_end)) = prev_real {
+            let curr_typing = self.frame_is_typing(curr_start, curr_end);
+            let prev_typing = self.frame_is_typing(prev_start, prev_end);
+            if curr_typing && prev_typing {
+                let gap = self.meta[curr_start].timestamp - self.meta[prev_end - 1].timestamp;
+                if gap <= Duration::from_millis(500) {
+                    return false;
+                }
+            }
+        }
+
+        true
     }
 }
 
@@ -186,6 +280,13 @@ struct External {
 #[derive(Default)]
 pub struct Response {
     pub text_updated: bool,
+    /// True iff the selection was set by an explicit `Select` op or by
+    /// `undo`/`redo` restoring a historical selection. False when the
+    /// selection moved only because a `Replace` op OT-shifted its
+    /// offsets — that's a side effect of editing, not a user navigation.
+    /// Callers use this to gate scroll-to-cursor: programmatic edits
+    /// (e.g. fold-button taps) shouldn't pull the viewport.
+    pub selection_user_moved: bool,
     pub open_camera: bool,
     /// Sequence range of operations applied this frame. Use
     /// `buffer.replacements_since(seq_before)` to get the edits.
@@ -196,6 +297,7 @@ pub struct Response {
 impl std::ops::BitOrAssign for Response {
     fn bitor_assign(&mut self, other: Response) {
         self.text_updated |= other.text_updated;
+        self.selection_user_moved |= other.selection_user_moved;
         self.open_camera |= other.open_camera;
         // keep the earliest seq_before and latest seq_after
         if self.seq_before == self.seq_after {
@@ -321,6 +423,7 @@ impl Buffer {
             self.ops.meta.drain(drain_range.clone());
             self.ops.transformed.drain(drain_range.clone());
             self.ops.transformed_inverted.drain(drain_range.clone());
+            self.ops.transformed_actual_len.drain(drain_range.clone());
             self.ops.processed_seq = self.current.seq;
         } else {
             return Response::default();
@@ -332,11 +435,20 @@ impl Buffer {
             let mut op = self.ops.all[idx].clone();
             let meta = &self.ops.meta[idx];
             self.transform(&mut op, meta);
-            self.ops.transformed_inverted.push(self.current.invert(&op));
+            // Capture inverse-relevant state before apply (it needs the
+            // pre-apply text); finalize once redo's apply has measured the
+            // actual contribution and stored it in `transformed_actual_len`.
+            let partial_inverse = self.current.invert_pre(&op);
             self.ops.transformed.push(op.clone());
+            self.ops.transformed_actual_len.push(Graphemes::default());
             self.ops.processed_seq += 1;
 
             result |= self.redo();
+
+            let actual_len = *self.ops.transformed_actual_len.last().unwrap();
+            self.ops
+                .transformed_inverted
+                .push(partial_inverse.finalize(actual_len));
         }
 
         result.seq_after = self.current.seq;
@@ -347,9 +459,10 @@ impl Buffer {
         let base_idx = meta.base - self.base.seq;
         for transforming_idx in base_idx..self.ops.processed_seq {
             let preceding_op = &self.ops.transformed[transforming_idx];
+            let preceding_actual_len = self.ops.transformed_actual_len[transforming_idx];
             if let Operation::Replace(Replace {
                 range: preceding_replaced_range,
-                text: preceding_replacement_text,
+                text: _preceding_replacement_text,
             }) = preceding_op
             {
                 if let Operation::Replace(Replace { range: transformed_range, text }) = op {
@@ -371,7 +484,7 @@ impl Buffer {
                     | Operation::Select(transformed_range) => {
                         adjust_subsequent_range(
                             *preceding_replaced_range,
-                            preceding_replacement_text.graphemes(true).count().into(),
+                            preceding_actual_len,
                             true,
                             transformed_range,
                         );
@@ -392,14 +505,25 @@ impl Buffer {
     pub fn redo(&mut self) -> Response {
         let mut response = Response::default();
         while self.can_redo() {
-            let op = &self.ops.transformed[self.current_idx()];
+            let idx = self.current_idx();
+            // Clone so we can mutate `self` (storing actual_len) without
+            // holding a borrow of `self.ops.transformed`.
+            let op = self.ops.transformed[idx].clone();
 
             self.current.seq += 1;
 
-            response |= match op {
-                Operation::Replace(replace) => self.current.apply_replace(replace),
-                Operation::Select(range) => self.current.apply_select(*range),
+            let actual_len = match &op {
+                Operation::Replace(replace) => {
+                    let (resp, len) = self.current.apply_replace(replace);
+                    response |= resp;
+                    len
+                }
+                Operation::Select(range) => {
+                    response |= self.current.apply_select(*range);
+                    Graphemes::default()
+                }
             };
+            self.ops.transformed_actual_len[idx] = actual_len;
 
             if self.ops.is_undo_checkpoint(self.current_idx()) {
                 break;
@@ -412,10 +536,12 @@ impl Buffer {
         let mut response = Response::default();
         while self.can_undo() {
             self.current.seq -= 1;
-            let op = &self.ops.transformed_inverted[self.current_idx()];
+            // Clone so we can mutate `self.current` while reading the inverse.
+            let op = self.ops.transformed_inverted[self.current_idx()].clone();
 
             if let Some(replace) = &op.replace {
-                response |= self.current.apply_replace(replace);
+                let (resp, _) = self.current.apply_replace(replace);
+                response |= resp;
             }
             response |= self.current.apply_select(op.select);
 
@@ -434,19 +560,17 @@ impl Buffer {
     /// `since_seq` and the current sequence. Returns `None` if the range
     /// intersected a replacement (i.e. the content it referred to was
     /// modified).
-    pub fn transform_range(
-        &self, since_seq: usize, range: &mut (DocCharOffset, DocCharOffset),
-    ) -> bool {
+    pub fn transform_range(&self, since_seq: usize, range: &mut (Grapheme, Grapheme)) -> bool {
         let start = since_seq.saturating_sub(self.base.seq);
         let end = self.current_idx();
-        for op in &self.ops.transformed[start..end] {
+        for (i, op) in self.ops.transformed[start..end].iter().enumerate() {
             if let Operation::Replace(replace) = op {
                 if range.intersects(&replace.range, true)
                     && !(range.is_empty() && replace.range.is_empty())
                 {
                     return false;
                 }
-                let replacement_len = replace.text.graphemes(true).count().into();
+                let replacement_len = self.ops.transformed_actual_len[start + i];
                 adjust_subsequent_range(replace.range, replacement_len, false, range);
             }
         }
@@ -477,8 +601,8 @@ impl From<&str> for Buffer {
 /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
 /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
 pub fn adjust_subsequent_range(
-    replaced_range: (DocCharOffset, DocCharOffset), replacement_len: RelCharOffset,
-    prefer_advance: bool, range: &mut (DocCharOffset, DocCharOffset),
+    replaced_range: (Grapheme, Grapheme), replacement_len: Graphemes, prefer_advance: bool,
+    range: &mut (Grapheme, Grapheme),
 ) {
     for position in [&mut range.0, &mut range.1] {
         adjust_subsequent_position(replaced_range, replacement_len, prefer_advance, position);
@@ -489,8 +613,8 @@ pub fn adjust_subsequent_range(
 /// positions after the replacement generally are, and positions within the replacement are adjusted to the end of
 /// the replacement if `prefer_advance` is true or are adjusted to the start of the replacement otherwise.
 fn adjust_subsequent_position(
-    replaced_range: (DocCharOffset, DocCharOffset), replacement_len: RelCharOffset,
-    prefer_advance: bool, position: &mut DocCharOffset,
+    replaced_range: (Grapheme, Grapheme), replacement_len: Graphemes, prefer_advance: bool,
+    position: &mut Grapheme,
 ) {
     let replaced_len = replaced_range.len();
     let replacement_start = replaced_range.start();
@@ -507,7 +631,7 @@ fn adjust_subsequent_position(
         bounds.sort();
         bounds
     };
-    let bind = |start: &DocCharOffset, end: &DocCharOffset, pos: &DocCharOffset| {
+    let bind = |start: &Grapheme, end: &Grapheme, pos: &Grapheme| {
         start == &replaced_range.start() && end == &replaced_range.end() && pos == &*position
     };
 
@@ -595,35 +719,35 @@ fn adjust_subsequent_position(
     }
 }
 
-impl Index<(DocByteOffset, DocByteOffset)> for Snapshot {
+impl Index<(Byte, Byte)> for Snapshot {
     type Output = str;
 
-    fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
+    fn index(&self, index: (Byte, Byte)) -> &Self::Output {
         &self.text[index.start().0..index.end().0]
     }
 }
 
-impl Index<(DocCharOffset, DocCharOffset)> for Snapshot {
+impl Index<(Grapheme, Grapheme)> for Snapshot {
     type Output = str;
 
-    fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
+    fn index(&self, index: (Grapheme, Grapheme)) -> &Self::Output {
         let index = self.segs.range_to_byte(index);
         &self.text[index.start().0..index.end().0]
     }
 }
 
-impl Index<(DocByteOffset, DocByteOffset)> for Buffer {
+impl Index<(Byte, Byte)> for Buffer {
     type Output = str;
 
-    fn index(&self, index: (DocByteOffset, DocByteOffset)) -> &Self::Output {
+    fn index(&self, index: (Byte, Byte)) -> &Self::Output {
         &self.current[index]
     }
 }
 
-impl Index<(DocCharOffset, DocCharOffset)> for Buffer {
+impl Index<(Grapheme, Grapheme)> for Buffer {
     type Output = str;
 
-    fn index(&self, index: (DocCharOffset, DocCharOffset)) -> &Self::Output {
+    fn index(&self, index: (Grapheme, Grapheme)) -> &Self::Output {
         &self.current[index]
     }
 }
@@ -631,7 +755,36 @@ impl Index<(DocCharOffset, DocCharOffset)> for Buffer {
 #[cfg(test)]
 mod test {
     use super::Buffer;
+    use crate::model::text::offset_types::{Grapheme, RangeExt as _};
+    use crate::model::text::operation_types::{Operation, Replace};
     use unicode_segmentation::UnicodeSegmentation;
+
+    fn type_into_selection(buffer: &mut Buffer, text: &str) {
+        let range = buffer.current.selection;
+        buffer.queue(vec![
+            Operation::Replace(Replace { range, text: text.into() }),
+            Operation::Select((range.start(), range.start())),
+        ]);
+        buffer.update();
+    }
+
+    #[test]
+    fn type_into_forward_selection() {
+        let mut buffer = Buffer::from("hello");
+        buffer.current.selection = (Grapheme(0), Grapheme(5));
+        type_into_selection(&mut buffer, "X");
+        assert_eq!(buffer.current.text, "X");
+        assert_eq!(buffer.current.selection, (Grapheme(1), Grapheme(1)));
+    }
+
+    #[test]
+    fn type_into_backward_selection() {
+        let mut buffer = Buffer::from("hello");
+        buffer.current.selection = (Grapheme(5), Grapheme(0));
+        type_into_selection(&mut buffer, "X");
+        assert_eq!(buffer.current.text, "X");
+        assert_eq!(buffer.current.selection, (Grapheme(1), Grapheme(1)));
+    }
 
     #[test]
     fn buffer_merge_nonintersecting_replace() {
@@ -935,5 +1088,289 @@ mod test {
             full_sync(&mut nodes, &mut links);
             assert_converged(&nodes);
         }
+    }
+}
+
+#[cfg(test)]
+mod undo_unit_tests {
+    //! Unit-grouping behavior of `undo`. Each `frame` call simulates
+    //! one `queue() + update()` (one editor frame). After a sequence
+    //! of frames we count how many `undo()` calls it takes to reach a
+    //! given state — that count *is* the number of undo units.
+
+    use super::Buffer;
+    use crate::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
+    use crate::model::text::operation_types::{Operation, Replace};
+    use std::thread::sleep;
+    use std::time::Duration;
+
+    fn frame(buf: &mut Buffer, ops: Vec<Operation>) {
+        buf.queue(ops);
+        buf.update();
+    }
+
+    fn type_str(buf: &mut Buffer, s: &str) {
+        let cursor = buf.current.selection.start();
+        // Select is at the pre-insert cursor; OT advances it to the
+        // end of the inserted text via `prefer_advance`.
+        frame(
+            buf,
+            vec![
+                Operation::Replace(Replace { range: cursor.into_range(), text: s.into() }),
+                Operation::Select(cursor.into_range()),
+            ],
+        );
+    }
+
+    /// Plain Enter at cursor — single `\n` Replace, like the editor
+    /// produces when no auto-prefix kicks in.
+    fn enter(buf: &mut Buffer) {
+        type_str(buf, "\n");
+    }
+
+    fn backspace(buf: &mut Buffer) {
+        let cursor = buf.current.selection.start();
+        if cursor.0 == 0 {
+            return;
+        }
+        let prev = Grapheme(cursor.0 - 1);
+        frame(
+            buf,
+            vec![
+                Operation::Replace(Replace { range: (prev, cursor), text: "".into() }),
+                Operation::Select(prev.into_range()),
+            ],
+        );
+    }
+
+    fn click(buf: &mut Buffer, pos: usize) {
+        frame(buf, vec![Operation::Select(Grapheme(pos).into_range())]);
+    }
+
+    /// Multi-Replace frame, the shape produced by tab/shift-tab
+    /// cascades — explicitly not typing-shaped.
+    fn cmd_indent_lines(buf: &mut Buffer, line_starts: &[usize]) {
+        let mut ops: Vec<Operation> = line_starts
+            .iter()
+            .map(|&s| {
+                Operation::Replace(Replace { range: Grapheme(s).into_range(), text: "  ".into() })
+            })
+            .collect();
+        ops.push(Operation::Select(Grapheme(line_starts[0] + 2).into_range()));
+        frame(buf, ops);
+    }
+
+    fn cmd_deindent_lines(buf: &mut Buffer, line_starts: &[usize]) {
+        let mut ops: Vec<Operation> = line_starts
+            .iter()
+            .map(|&s| {
+                Operation::Replace(Replace {
+                    range: (Grapheme(s), Grapheme(s + 2)),
+                    text: "".into(),
+                })
+            })
+            .collect();
+        ops.push(Operation::Select(Grapheme(line_starts[0]).into_range()));
+        frame(buf, ops);
+    }
+
+    // ─── A: single command undoes in one step ──────────────────────
+    #[test]
+    fn single_command_one_unit() {
+        let mut buf = Buffer::from("ab\ncd\nef\n");
+        cmd_indent_lines(&mut buf, &[0, 3, 6]);
+        assert_eq!(buf.current.text, "  ab\n  cd\n  ef\n");
+        buf.undo();
+        assert_eq!(buf.current.text, "ab\ncd\nef\n");
+    }
+
+    // ─── B: two commands undo independently ────────────────────────
+    #[test]
+    fn two_commands_two_units() {
+        let mut buf = Buffer::from("ab\ncd\nef\n");
+        cmd_indent_lines(&mut buf, &[0, 3, 6]);
+        cmd_indent_lines(&mut buf, &[2, 7, 12]);
+        let after_two = buf.current.text.clone();
+        buf.undo();
+        assert_ne!(buf.current.text, after_two);
+        let after_one_undo = buf.current.text.clone();
+        assert_eq!(after_one_undo, "  ab\n  cd\n  ef\n");
+        buf.undo();
+        assert_eq!(buf.current.text, "ab\ncd\nef\n");
+    }
+
+    // ─── C: click only doesn't form an undoable unit ───────────────
+    #[test]
+    fn click_only_doesnt_create_unit() {
+        let mut buf = Buffer::from("hello");
+        click(&mut buf, 3);
+        // No real edits ever — undo() can technically undo the
+        // selection move, but that's the only thing in history.
+        // Important: it doesn't create a checkpoint that would block
+        // a subsequent edit's undo from reaching past it.
+        type_str(&mut buf, "X");
+        assert_eq!(buf.current.text, "helXlo");
+        buf.undo();
+        assert_eq!(buf.current.text, "hello");
+    }
+
+    // ─── D: click between two commands, click absorbs ──────────────
+    #[test]
+    fn click_between_commands_absorbs() {
+        let mut buf = Buffer::from("ab\ncd\nef\n");
+        cmd_indent_lines(&mut buf, &[0, 3, 6]);
+        click(&mut buf, 0);
+        cmd_indent_lines(&mut buf, &[2, 7, 12]);
+        buf.undo();
+        assert_eq!(buf.current.text, "  ab\n  cd\n  ef\n");
+        buf.undo();
+        assert_eq!(buf.current.text, "ab\ncd\nef\n");
+    }
+
+    // ─── E: rapid typing groups into one unit ──────────────────────
+    #[test]
+    fn rapid_typing_one_unit() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        type_str(&mut buf, "c");
+        assert_eq!(buf.current.text, "abc");
+        buf.undo();
+        assert_eq!(buf.current.text, "");
+    }
+
+    // ─── F: typing with a long pause splits at the gap ─────────────
+    #[test]
+    fn typing_long_pause_splits() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        sleep(Duration::from_millis(600));
+        type_str(&mut buf, "c");
+        type_str(&mut buf, "d");
+        assert_eq!(buf.current.text, "abcd");
+        buf.undo();
+        assert_eq!(buf.current.text, "ab");
+        buf.undo();
+        assert_eq!(buf.current.text, "");
+    }
+
+    // ─── G: type / cmd / type → 3 units ────────────────────────────
+    #[test]
+    fn type_cmd_type_three_units() {
+        let mut buf = Buffer::from("xx\nyy\n");
+        // pre-position cursor at end so type_str appends after the doc
+        buf.current.selection = (Grapheme(6), Grapheme(6));
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        cmd_indent_lines(&mut buf, &[0, 3]);
+        type_str(&mut buf, "c");
+        type_str(&mut buf, "d");
+        let final_text = buf.current.text.clone();
+        buf.undo();
+        assert_ne!(buf.current.text, final_text); // typing 'cd' undone
+        assert_eq!(buf.current.text, "  xx\n  yy\nab");
+        buf.undo();
+        assert_eq!(buf.current.text, "xx\nyy\nab"); // cmd undone
+        buf.undo();
+        assert_eq!(buf.current.text, "xx\nyy\n"); // typing 'ab' undone
+    }
+
+    // ─── H: type / Enter / type → 1 unit (plain Enter is "\n") ─────
+    #[test]
+    fn type_enter_type_one_unit() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        enter(&mut buf);
+        type_str(&mut buf, "c");
+        type_str(&mut buf, "d");
+        assert_eq!(buf.current.text, "ab\ncd");
+        buf.undo();
+        assert_eq!(buf.current.text, "");
+    }
+
+    // ─── I: backspace counts as typing ─────────────────────────────
+    #[test]
+    fn backspace_groups_with_typing() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        backspace(&mut buf);
+        type_str(&mut buf, "c");
+        assert_eq!(buf.current.text, "ac");
+        buf.undo();
+        assert_eq!(buf.current.text, "");
+    }
+
+    // ─── J: paste (>1 grapheme insert) is its own unit ─────────────
+    #[test]
+    fn paste_own_unit() {
+        let mut buf = Buffer::from("");
+        type_str(&mut buf, "a");
+        type_str(&mut buf, "b");
+        // paste = single Replace with multi-grapheme text
+        type_str(&mut buf, "PASTED");
+        type_str(&mut buf, "c");
+        type_str(&mut buf, "d");
+        assert_eq!(buf.current.text, "abPASTEDcd");
+        buf.undo();
+        assert_eq!(buf.current.text, "abPASTED"); // 'cd' undone
+        buf.undo();
+        assert_eq!(buf.current.text, "ab"); // PASTE undone
+        buf.undo();
+        assert_eq!(buf.current.text, ""); // 'ab' undone
+    }
+
+    // ─── K: select-then-overwrite-with-1-char groups with typing ───
+    #[test]
+    fn select_overwrite_groups() {
+        let mut buf = Buffer::from("hello");
+        // simulate user selecting "ell" and typing "X" → one frame
+        // with one Replace of 3-char range with 1-char text
+        buf.current.selection = (Grapheme(1), Grapheme(4));
+        frame(
+            &mut buf,
+            vec![
+                Operation::Replace(Replace { range: (Grapheme(1), Grapheme(4)), text: "X".into() }),
+                Operation::Select(Grapheme(2).into_range()),
+            ],
+        );
+        type_str(&mut buf, "Y");
+        assert_eq!(buf.current.text, "hXYo");
+        buf.undo();
+        assert_eq!(buf.current.text, "hello");
+    }
+
+    // ─── selects absorb backward, not forward — undoing the next
+    //     unit doesn't drag the cursor back across the click and
+    //     scroll the viewport
+    #[test]
+    fn click_then_edit_undoes_to_post_click_cursor() {
+        let mut buf = Buffer::from("hello world");
+        click(&mut buf, 6); // cursor between "hello " and "world"
+        type_str(&mut buf, "X");
+        assert_eq!(buf.current.text, "hello Xworld");
+        buf.undo();
+        assert_eq!(buf.current.text, "hello world");
+        // Cursor stays at the click position, not at wherever the
+        // buffer's initial cursor was before the click.
+        assert_eq!(buf.current.selection, (Grapheme(6), Grapheme(6)));
+    }
+
+    // ─── round-trip repro: shift-tab then tab undoes as 2 units ────
+    #[test]
+    fn round_trip_two_units() {
+        let mut buf = Buffer::from("  foo\n  bar\n");
+        click(&mut buf, 2);
+        cmd_deindent_lines(&mut buf, &[0, 6]);
+        let mid = buf.current.text.clone();
+        assert_eq!(mid, "foo\nbar\n");
+        cmd_indent_lines(&mut buf, &[0, 4]);
+        assert_eq!(buf.current.text, "  foo\n  bar\n");
+        buf.undo();
+        assert_eq!(buf.current.text, mid); // tab reverted
+        buf.undo();
+        assert_eq!(buf.current.text, "  foo\n  bar\n"); // shift-tab reverted
     }
 }

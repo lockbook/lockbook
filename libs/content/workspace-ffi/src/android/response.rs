@@ -1,29 +1,29 @@
 use lb_c::Uuid;
-use lb_c::model::text::offset_types::{DocCharOffset, RelCharOffset};
+use lb_c::model::text::offset_types::{Grapheme, Graphemes};
 use serde::Serialize;
 use workspace_rs::tab::markdown_editor::input::{Location, Region};
 
 #[derive(Serialize)]
 pub struct AndroidResponse {
     // platform response
-    redraw_in: u64,
-    copied_text: String,
-    has_url_opened: bool,
-    url_opened: String,
+    pub redraw_in: u64,
+    pub copied_text: String,
+    pub has_url_opened: bool,
+    pub url_opened: String,
+    pub virtual_keyboard_shown: Option<bool>,
 
     // widget response
-    selected_file: Uuid,
-    doc_created: Uuid,
+    pub selected_file: Uuid,
+    pub doc_created: Uuid,
 
-    tab_title_clicked: bool,
-    tabs_changed: bool,
+    pub tabs_changed: bool,
 
-    has_edit_menu: bool,
-    edit_menu_x: f32,
-    edit_menu_y: f32,
+    pub has_edit_menu: bool,
+    pub edit_menu_x: f32,
+    pub edit_menu_y: f32,
 
-    selection_updated: bool,
-    text_updated: bool,
+    pub selection_updated: bool,
+    pub text_updated: bool,
 }
 
 impl From<crate::Response> for AndroidResponse {
@@ -36,7 +36,7 @@ impl From<crate::Response> for AndroidResponse {
                     file_moved: _,
                     file_deleted: _,
                     new_folder_clicked: _,
-                    tab_title_clicked,
+                    tab_title_clicked: _,
                     file_created,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
@@ -46,12 +46,13 @@ impl From<crate::Response> for AndroidResponse {
                     failure_messages: _,
                     selected_folder_changed: _,
                     open_camera: _,
+                    file_cache_updated: _,
                 },
             redraw_in,
             copied_text,
             urls_opened,
             cursor: _,
-            virtual_keyboard_shown: _,
+            virtual_keyboard_shown,
             window_title: _,
             request_paste: _,
             context_menu,
@@ -64,7 +65,6 @@ impl From<crate::Response> for AndroidResponse {
         Self {
             selected_file: selected_file.unwrap_or_default(),
             doc_created,
-            tab_title_clicked,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text,
@@ -75,6 +75,7 @@ impl From<crate::Response> for AndroidResponse {
             has_edit_menu: context_menu.is_some(),
             edit_menu_x: context_menu.unwrap_or_default().x,
             edit_menu_y: context_menu.unwrap_or_default().y,
+            virtual_keyboard_shown,
         }
     }
 }
@@ -100,13 +101,13 @@ pub struct JRect {
     pub max_y: f32,
 }
 
-impl From<JTextRange> for (DocCharOffset, DocCharOffset) {
+impl From<JTextRange> for (Grapheme, Grapheme) {
     fn from(value: JTextRange) -> Self {
         (value.start.into(), value.end.into())
     }
 }
 
-impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
+impl From<JTextRange> for (Graphemes, Graphemes) {
     fn from(value: JTextRange) -> Self {
         (value.start.into(), value.end.into())
     }
@@ -115,8 +116,8 @@ impl From<JTextRange> for (RelCharOffset, RelCharOffset) {
 impl From<JTextRange> for Region {
     fn from(value: JTextRange) -> Self {
         Region::BetweenLocations {
-            start: Location::DocCharOffset(value.start.into()),
-            end: Location::DocCharOffset(value.start.into()),
+            start: Location::Grapheme(value.start.into()),
+            end: Location::Grapheme(value.start.into()),
         }
     }
 }

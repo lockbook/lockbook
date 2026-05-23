@@ -1,9 +1,9 @@
 pub mod assert;
 
-use lb_rs::Lb;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::Config;
 use lb_rs::model::crypto::EncryptedDocument;
+use lb_rs::{Lb, LocalLb};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -11,6 +11,11 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 use time::OffsetDateTime;
 use uuid::Uuid;
+
+pub fn local(lb: &Lb) -> LocalLb {
+    lb.try_local()
+        .expect("test_utils::local() called on a Remote (guest) wrapper")
+}
 
 pub fn test_config() -> Config {
     Config {
@@ -97,9 +102,10 @@ fn err_to_string<E: Debug>(e: E) -> String {
 
 pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
     if server {
-        lb.server_dirty_ids().await.unwrap()
+        local(lb).server_dirty_ids().await.unwrap()
     } else {
-        lb.db
+        local(lb)
+            .db
             .read()
             .await
             .local_metadata
@@ -111,8 +117,10 @@ pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
 }
 
 pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {
-    let mut left_tx = left.begin_tx().await;
-    let mut right_tx = right.begin_tx().await;
+    let left_lb = local(left);
+    let right_lb = local(right);
+    let mut left_tx = left_lb.begin_tx().await;
+    let mut right_tx = right_lb.begin_tx().await;
 
     right_tx.db().account.get() == left_tx.db().account.get()
         && right_tx.db().root.get() == left_tx.db().root.get()
@@ -121,8 +129,10 @@ pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {
 }
 
 pub async fn assert_dbs_equal(left: &Lb, right: &Lb) {
-    let mut left_tx = left.begin_tx().await;
-    let mut right_tx = right.begin_tx().await;
+    let left_lb = local(left);
+    let right_lb = local(right);
+    let mut left_tx = left_lb.begin_tx().await;
+    let mut right_tx = right_lb.begin_tx().await;
 
     assert_eq!(left_tx.db().account.get(), right_tx.db().account.get());
     assert_eq!(left_tx.db().root.get(), right_tx.db().root.get());

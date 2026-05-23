@@ -20,7 +20,6 @@ struct DetailView: View {
             } else {
                 WorkspaceView()
                     .ignoresSafeArea(.keyboard)
-                    .modifier(OnLbLinkViewModifier())
             }
         }
         .toolbar {

@@ -7,19 +7,19 @@ import androidx.preference.PreferenceManager
 import app.lockbook.R
 
 object ThemeMode {
-    fun getThemeModes(context: Context): Array<String> {
-        return arrayOf(context.getString(R.string.theme_light), context.getString(R.string.theme_dark), context.getString(R.string.theme_system))
-    }
+    fun getThemeModes(context: Context): Array<String> =
+        arrayOf(context.getString(R.string.theme_light), context.getString(R.string.theme_dark), context.getString(R.string.theme_system))
 
     fun getSavedThemeIndex(context: Context): Int {
         val pref = PreferenceManager.getDefaultSharedPreferences(context)
 
-        val default = when (AppCompatDelegate.getDefaultNightMode()) {
-            AppCompatDelegate.MODE_NIGHT_NO -> 0
-            AppCompatDelegate.MODE_NIGHT_YES -> 1
-            AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM -> 2
-            else -> 2
-        }
+        val default =
+            when (AppCompatDelegate.getDefaultNightMode()) {
+                AppCompatDelegate.MODE_NIGHT_NO -> 0
+                AppCompatDelegate.MODE_NIGHT_YES -> 1
+                AppCompatDelegate.MODE_NIGHT_FOLLOW_SYSTEM -> 2
+                else -> 2
+            }
 
         return pref.getInt(context.getString(R.string.theme_mode_key), default)
     }
@@ -32,7 +32,10 @@ object ThemeMode {
         }
     }
 
-    fun saveAndSetThemeIndex(context: Context, selected: Int) {
+    fun saveAndSetThemeIndex(
+        context: Context,
+        selected: Int,
+    ) {
         setThemeModeFromIndex(selected)
 
         PreferenceManager.getDefaultSharedPreferences(context).edit {

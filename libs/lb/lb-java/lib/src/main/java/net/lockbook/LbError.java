@@ -26,7 +26,6 @@ public class LbError extends Exception {
         CurrentUsageIsMoreThanNewTier,
         DiskPathInvalid,
         DiskPathTaken,
-        DrawingInvalid,
         ExistingRequestPending,
         FileNameContainsSlash,
         FileNameTooLong,

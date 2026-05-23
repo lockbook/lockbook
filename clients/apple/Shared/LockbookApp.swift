@@ -15,6 +15,7 @@ import SwiftWorkspace
         var macOS: some Scene {
             WindowGroup {
                 ContentView()
+                    .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
             }
             .commands {
                 SidebarCommands()
@@ -76,7 +77,10 @@ struct HomeContextWrapper: View {
     @StateObject var workspaceOutput = WorkspaceOutputState()
 
     var body: some View {
-        HomeView(workspaceOutput: workspaceOutput, filesModel: filesModel)
+        Group {
+            HomeView(workspaceOutput: workspaceOutput, filesModel: filesModel)
+                .modifier(OnLbLinkViewModifier())
+        }
             .environmentObject(AppState.billingState)
             .environmentObject(filesModel)
             .environmentObject(workspaceInput)

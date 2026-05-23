@@ -1,17 +1,17 @@
 use comrak::nodes::{AstNode, ListType, NodeList, NodeValue};
 use egui::{Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt as _, RangeExt as _, RelCharOffset,
-};
+use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _};
 
 use crate::TextBufferArea;
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::bounds::RangesExt as _;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, FontFamily};
 
 use crate::theme::palette_v2::ThemeExt as _;
 
 // https://github.github.com/gfm/#list-items
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn height_item(&self, node: &'ast AstNode<'ast>) -> f32 {
         let any_children = node.children().next().is_some();
         if any_children {
@@ -19,19 +19,18 @@ impl<'ast> Editor {
         } else {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
-
-            self.height_section(
-                &mut self.new_wrap(self.width(node) - self.layout.indent),
+            let width = self.width(node) - self.layout.indent;
+            self.compute_section_layout_new(
                 line_content,
+                width,
+                self.layout.row_height,
                 self.text_format_syntax(),
             )
+            .height
         }
     }
 
-    pub fn show_item(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
-        siblings: &[&'ast AstNode<'ast>],
-    ) {
+    pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
 
@@ -54,7 +53,12 @@ impl<'ast> Editor {
                 );
             }
             ListType::Ordered => {
-                let sibling_index = self.sibling_index(node, siblings);
+                let mut sibling_index = 0usize;
+                let mut prev = node.previous_sibling();
+                while let Some(p) = prev {
+                    sibling_index += 1;
+                    prev = p.previous_sibling();
+                }
                 let number = start + sibling_index;
 
                 let text = format!("{number}.");
@@ -108,18 +112,17 @@ impl<'ast> Editor {
         } else {
             let line = self.node_first_line(node);
             let line_content = self.line_content(node, line);
-
-            let mut wrap = self.new_wrap(self.width(node) - self.layout.indent);
-            let resp = self.show_section(
-                ui,
-                top_left + self.layout.indent * Vec2::X,
-                &mut wrap,
+            let width = self.width(node) - self.layout.indent;
+            let result = self.compute_section_layout_new(
                 line_content,
+                width,
+                self.layout.row_height,
                 self.text_format_syntax(),
             );
-            self.bounds.wrap_lines.extend(wrap.row_ranges);
-
-            resp.hovered
+            self.show_wrap_layout(ui, top_left + self.layout.indent * Vec2::X, &result);
+            let item_rect =
+                Rect::from_min_size(top_left, Vec2::new(self.width(node), result.height));
+            item_rect.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
         };
 
         // fold button
@@ -128,12 +131,13 @@ impl<'ast> Editor {
 
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
-        let show_fold_button = self.touch_mode
-            || hovered
-            || fold_button_space.contains(pointer)
-            || annotation_space.contains(pointer)
-            || self.fold(node).is_some()
-            || self.selected_fold_item(node);
+        let show_fold_button = self.interactive
+            && (self.touch_mode
+                || hovered
+                || fold_button_space.contains(pointer)
+                || annotation_space.contains(pointer)
+                || self.fold(node).is_some()
+                || self.selected_fold_item(node));
         if !show_fold_button {
             return;
         }
@@ -142,17 +146,16 @@ impl<'ast> Editor {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.item_contents(node, siblings),
-            self.item_fold_reveal(node, siblings),
+            self.item_contents(node),
+            self.item_fold_reveal(node),
         );
     }
 
     pub fn own_prefix_len_item(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-        node_list: &NodeList,
-    ) -> Option<RelCharOffset> {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), node_list: &NodeList,
+    ) -> Option<Graphemes> {
         let node_line = self.node_line(node, line);
-        let mut result: RelCharOffset = 0.into();
+        let mut result: Graphemes = 0.into();
 
         // "If a sequence of lines Ls constitutes a list item according to rule
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
@@ -198,12 +201,35 @@ impl<'ast> Editor {
             // same contents and attributes."
             //
             // "If a line is empty, then it need not be indented."
-            let text = &self.buffer[node_line];
-            for i in 0..(indentation + marker_width_including_spaces) {
-                if text.starts_with(&" ".repeat(indentation + marker_width_including_spaces - i)) {
-                    result += indentation + marker_width_including_spaces - i;
-                    break;
+            //
+            // Two regimes: an indented-code-block child line defers
+            // stripping to `code_block.rs` (combined item.padding+4
+            // column-aware strip — needed so a tab straddling the
+            // item/code boundary doesn't render differently from
+            // 4 spaces). All other continuation lines strip leading
+            // ws here. Child detection uses sourcepos (cheap) instead
+            // of `node_range` (recursive).
+            let line_1_based = self
+                .bounds
+                .source_lines
+                .find_containing(line.start(), true, false)
+                .start()
+                + 1;
+            let line_has_code_block_child = node.children().any(|c| match &c.data.borrow().value {
+                NodeValue::CodeBlock(b) if !b.fenced => {
+                    let sp = c.data.borrow().sourcepos;
+                    sp.start.line <= line_1_based && line_1_based <= sp.end.line
                 }
+                _ => false,
+            });
+            let text = &self.buffer[node_line];
+            if line_has_code_block_child {
+                // Indented code block line — leave stripping to
+                // `code_block.rs`.
+            } else {
+                // Paragraph (or other non-code) continuation — strip
+                // all leading whitespace.
+                result += consume_indent_columns(text, usize::MAX);
             }
         }
 
@@ -224,9 +250,7 @@ impl<'ast> Editor {
         }
     }
 
-    pub fn item_contents(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> (DocCharOffset, DocCharOffset) {
+    pub fn item_contents(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         // contents start at the end of the first child, which acts as a sort of section title
         // if no children, start at end of node first line
         let mut contents = if let Some(first_child) = node.children().next() {
@@ -235,9 +259,7 @@ impl<'ast> Editor {
             self.node_first_line(node).end().into_range()
         };
 
-        let sibling_index = self.sibling_index(node, siblings);
-
-        if let Some(sibling) = siblings[sibling_index + 1..].first() {
+        if let Some(sibling) = node.next_sibling() {
             let sibling_first_line = self.node_first_line_idx(sibling);
             let last_line = sibling_first_line - 1;
             contents.1 = self.bounds.source_lines[last_line].end();
@@ -251,10 +273,8 @@ impl<'ast> Editor {
     }
 
     /// Returns true if the item contents should be revealed whether the heading is folded or not
-    pub fn item_fold_reveal(
-        &self, node: &'ast AstNode<'ast>, siblings: &[&'ast AstNode<'ast>],
-    ) -> bool {
-        self.range_contains_revealed(self.item_contents(node, siblings), false, true)
+    pub fn item_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
+        self.range_contains_revealed(self.item_contents(node), false, true)
     }
 
     /// Returns true if the item is selected for folding; specialized adaptation of self.selected_block()

@@ -1,4 +1,12 @@
-use std::{collections::HashMap, sync::Arc};
+use std::{
+    collections::{HashMap, HashSet},
+    sync::{
+        Arc,
+        atomic::{AtomicBool, AtomicU64, Ordering},
+        mpsc::{self, Receiver, Sender},
+    },
+    thread,
+};
 
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
@@ -14,8 +22,9 @@ pub struct PdfViewer {
 
     ctx: Context,
 
-    /// metadata representation of the PDF
-    pdf: Pdf,
+    page_dimensions: Vec<(f32, f32)>,
+
+    parse_failed: bool,
 
     /// the bounds of all the pages, as influenced by scale. Includes a safe-area as
     /// a last page to address some shortcommings with egui::ScrollArea not being able
@@ -23,11 +32,20 @@ pub struct PdfViewer {
     /// to get it to be aware of additional space in the frame that the re-scale happens.
     page_bounds: Vec<Rect>,
 
-    /// The textures to be drawn, reset on zoom,
-    /// could perhaps be better as a Vec<Option<TextureHandle>> for memory layout
-    /// could perhaps be better to have some large texture buckets and then scale between them
-    /// for a smoother experience. Probably less computationally expensive as well.
-    page_cache: HashMap<usize, TextureHandle>,
+    page_cache: HashMap<usize, CachedPage>,
+
+    thumbnail_cache: HashMap<usize, TextureHandle>,
+
+    placeholder: TextureHandle,
+
+    generation: Arc<AtomicU64>,
+
+    requested: HashSet<(usize, RenderKind, Generation)>,
+
+    request_tx: Sender<WorkerRequest>,
+    response_rx: Receiver<WorkerResponse>,
+
+    worker_busy: Arc<AtomicBool>,
 
     /// The current scale 1 == 100% zoom
     scale: f32,
@@ -62,12 +80,9 @@ pub struct PdfViewer {
     /// immediately and keep animations on, and also not require a safe area at the bottom
     viewport_adjustment: Option<Vec2>,
 
-    /// state related to the sidebar, not present on mobile by default. All thumbnails are rendered
-    /// this is the last O(n) operation. As such the thumbnails are scaled down pretty far so that
-    /// large pdfs are possible. I opened an f150 manual without a problem so it's fine for now,
-    /// but ideally the next round of implementation would allow resizing, and efficient rendering
-    /// and high res thumbnails
     sidebar: Option<SideBar>,
+
+    is_mobile_viewport: bool,
 }
 
 struct SideBar {
@@ -76,24 +91,75 @@ struct SideBar {
     scroll_target: usize,
 }
 
-#[derive(Clone)]
+#[derive(Clone, Copy)]
 struct Content {
-    texture: egui::TextureHandle,
+    size: Vec2,
+}
+
+type Generation = u64;
+
+#[derive(Clone)]
+struct CachedPage {
+    texture: TextureHandle,
+    generation: Generation,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+enum RenderKind {
+    Page,
+    Thumbnail,
+}
+
+enum WorkerRequest {
+    Render { page_idx: usize, kind: RenderKind, scale: f32, generation: Generation },
+}
+
+enum WorkerResponse {
+    Parsed { page_dimensions: Vec<(f32, f32)> },
+    ParseFailed,
+    Rendered { page_idx: usize, kind: RenderKind, generation: Generation, image: ColorImage },
 }
 
 const ZOOM_STOP: f32 = 0.1;
 const SIDEBAR_WIDTH: f32 = 230.0;
 const SPACE_BETWEEN_PAGES: f32 = 10.0;
+const THUMBNAIL_SCALE: f32 = 0.15;
 
 impl PdfViewer {
     pub fn new(id: Uuid, bytes: Vec<u8>, ctx: &egui::Context, is_mobile_viewport: bool) -> Self {
-        let pdf = Pdf::new(Arc::new(bytes)).unwrap();
+        let bytes: Arc<Vec<u8>> = Arc::new(bytes);
+        let (request_tx, request_rx) = mpsc::channel::<WorkerRequest>();
+        let (response_tx, response_rx) = mpsc::channel::<WorkerResponse>();
+        let worker_busy = Arc::new(AtomicBool::new(false));
+        let generation = Arc::new(AtomicU64::new(0));
+        spawn_worker(
+            bytes,
+            request_rx,
+            response_tx,
+            ctx.clone(),
+            worker_busy.clone(),
+            generation.clone(),
+        );
 
-        let mut s = Self {
+        let placeholder = ctx.load_texture(
+            "pdf_placeholder",
+            ColorImage::from_rgba_premultiplied([1, 1], &[255, 255, 255, 255]),
+            egui::TextureOptions::LINEAR,
+        );
+
+        Self {
             id,
             sidebar: Default::default(),
-            pdf,
+            page_dimensions: Default::default(),
+            parse_failed: false,
             page_cache: Default::default(),
+            thumbnail_cache: Default::default(),
+            placeholder,
+            generation,
+            requested: Default::default(),
+            request_tx,
+            response_rx,
+            worker_busy,
             page_bounds: Default::default(),
             ctx: ctx.clone(),
             scale: 1.,
@@ -104,38 +170,19 @@ impl PdfViewer {
             current_viewport: Rect::ZERO,
             viewport_adjustment: Default::default(),
             render_area: Rect::ZERO,
-        };
-
-        if !is_mobile_viewport {
-            s.setup_sidebar();
-        };
-
-        s.compute_bounds();
-
-        s
+            is_mobile_viewport,
+        }
     }
 
     fn setup_sidebar(&mut self) {
-        let tn_render_settings =
-            RenderSettings { x_scale: 0.15, y_scale: 0.15, ..Default::default() };
+        let inner_width = SIDEBAR_WIDTH - 50.0;
 
         let thumbnails = self
-            .pdf
-            .pages()
+            .page_dimensions
             .iter()
-            .map(|page| {
-                let image =
-                    hayro::render(page, &InterpreterSettings::default(), &tn_render_settings);
-                let size = [image.width() as _, image.height() as _];
-                let image =
-                    egui::ColorImage::from_rgba_premultiplied(size, image.data_as_u8_slice());
-                Content {
-                    texture: self.ctx.load_texture(
-                        "pdf_thumbnail",
-                        image,
-                        egui::TextureOptions::LINEAR,
-                    ),
-                }
+            .map(|&(w, h)| {
+                let aspect = if w > 0. { h / w } else { 1. };
+                Content { size: egui::vec2(inner_width, inner_width * aspect) }
             })
             .collect();
 
@@ -143,6 +190,8 @@ impl PdfViewer {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {
+        self.drain_responses();
+
         ui.painter().rect_filled(
             ui.available_rect_before_wrap(),
             0.,
@@ -155,6 +204,77 @@ impl PdfViewer {
 
         self.show_sidebar(ui);
         self.show_pages(ui);
+    }
+
+    fn drain_responses(&mut self) {
+        while let Ok(resp) = self.response_rx.try_recv() {
+            match resp {
+                WorkerResponse::Parsed { page_dimensions } => {
+                    self.page_dimensions = page_dimensions;
+                    self.compute_bounds();
+                    if !self.is_mobile_viewport {
+                        self.setup_sidebar();
+                    }
+                }
+                WorkerResponse::ParseFailed => {
+                    self.parse_failed = true;
+                }
+                WorkerResponse::Rendered { page_idx, kind, generation, image } => {
+                    self.requested.remove(&(page_idx, kind, generation));
+
+                    if kind == RenderKind::Page
+                        && generation != self.generation.load(Ordering::Relaxed)
+                    {
+                        continue;
+                    }
+
+                    let name = match kind {
+                        RenderKind::Page => "pdf_page",
+                        RenderKind::Thumbnail => "pdf_thumbnail",
+                    };
+                    let texture = self
+                        .ctx
+                        .load_texture(name, image, egui::TextureOptions::LINEAR);
+                    match kind {
+                        RenderKind::Page => {
+                            self.page_cache
+                                .insert(page_idx, CachedPage { texture, generation });
+                        }
+                        RenderKind::Thumbnail => {
+                            self.thumbnail_cache.insert(page_idx, texture);
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn enqueue_page(&mut self, idx: usize) {
+        let gen = self.generation.load(Ordering::Relaxed);
+        let key = (idx, RenderKind::Page, gen);
+        if !self.requested.insert(key) {
+            return;
+        }
+        let scale = self.scale * self.ctx.pixels_per_point();
+        let _ = self.request_tx.send(WorkerRequest::Render {
+            page_idx: idx,
+            kind: RenderKind::Page,
+            scale,
+            generation: gen,
+        });
+    }
+
+    fn enqueue_thumbnail(&mut self, idx: usize) {
+        let key = (idx, RenderKind::Thumbnail, 0);
+        if !self.requested.insert(key) {
+            return;
+        }
+        let _ = self.request_tx.send(WorkerRequest::Render {
+            page_idx: idx,
+            kind: RenderKind::Thumbnail,
+            scale: THUMBNAIL_SCALE,
+            generation: 0,
+        });
     }
 
     fn handle_keys(&mut self, ui: &mut egui::Ui) {
@@ -245,6 +365,21 @@ impl PdfViewer {
             ),
         };
 
+        if self.worker_busy.load(Ordering::Relaxed) {
+            let spinner_size = 14.0;
+            let spinner_rect = egui::Rect::from_min_size(
+                egui::pos2(
+                    ui.available_rect_before_wrap().left() + 16.0,
+                    ui.available_rect_before_wrap().top()
+                        + (zoom_controls_height - spinner_size) / 2.0,
+                ),
+                Vec2::splat(spinner_size),
+            );
+            egui::Spinner::new()
+                .size(spinner_size)
+                .paint_at(ui, spinner_rect);
+        }
+
         if let Some(sidebar) = &mut self.sidebar {
             ui.scope_builder(UiBuilder::new().max_rect(end_of_line_rect), |ui| {
                 let icon = Icon::TOGGLE_SIDEBAR;
@@ -270,9 +405,12 @@ impl PdfViewer {
                     ui.add_space(7.0);
                     ui.vertical(|ui| {
                         ui.add_space(7.0);
-                        ui.colored_label(
-                            ui.visuals().text_color().linear_multiply(0.7),
-                            format!("{zoom_percentage}%"),
+                        ui.add(
+                            egui::Label::new(
+                                egui::RichText::new(format!("{zoom_percentage}%"))
+                                    .color(ui.visuals().text_color().linear_multiply(0.7)),
+                            )
+                            .extend(),
                         );
                     });
                 });
@@ -325,8 +463,8 @@ impl PdfViewer {
     }
 
     fn show_sidebar(&mut self, ui: &mut egui::Ui) {
-        let sidebar = match &mut self.sidebar {
-            Some(s) => s,
+        let (is_visible, thumbnails) = match &self.sidebar {
+            Some(s) => (s.is_visible, s.thumbnails.clone()),
             None => return,
         };
 
@@ -335,33 +473,29 @@ impl PdfViewer {
         SidePanel::right("pdf_sidebar")
             .resizable(false)
             .show_separator_line(false)
-            .show_animated_inside(ui, sidebar.is_visible, |ui| {
+            .show_animated_inside(ui, is_visible, |ui| {
                 ScrollArea::vertical().show(ui, |ui| {
                     egui::Frame::default()
                         .inner_margin(sidebar_margin)
                         .show(ui, |ui| {
-                            for (i, p) in sidebar.thumbnails.clone().iter_mut().enumerate() {
+                            for (i, p) in thumbnails.iter().enumerate() {
                                 let tint_color = if i == self.current_page {
                                     egui::Color32::WHITE
                                 } else {
                                     egui::Color32::GRAY.linear_multiply(0.5)
                                 };
 
-                                let res = ui.add(
+                                let (rect, res) =
+                                    ui.allocate_exact_size(p.size, egui::Sense::click());
+
+                                if ui.is_rect_visible(rect) {
+                                    let texture = self.get_thumbnail(i);
                                     egui::Image::new(egui::ImageSource::Texture(
-                                        SizedTexture::new(
-                                            &p.texture,
-                                            egui::vec2(
-                                                SIDEBAR_WIDTH - sidebar_margin,
-                                                p.texture.size()[1] as f32
-                                                    * (SIDEBAR_WIDTH - sidebar_margin)
-                                                    / p.texture.size()[0] as f32,
-                                            ),
-                                        ),
+                                        SizedTexture::new(&texture, p.size),
                                     ))
                                     .tint(tint_color)
-                                    .sense(egui::Sense::click()),
-                                );
+                                    .paint_at(ui, rect);
+                                }
 
                                 if res.hovered() {
                                     ui.output_mut(|w| {
@@ -372,9 +506,11 @@ impl PdfViewer {
                                     self.scroll_to = Some(i);
                                 }
 
-                                if i == self.current_page && sidebar.scroll_target != i {
-                                    ui.scroll_to_rect(res.rect, None);
-                                    sidebar.scroll_target = i;
+                                if let Some(sb) = &mut self.sidebar {
+                                    if i == self.current_page && sb.scroll_target != i {
+                                        ui.scroll_to_rect(rect, None);
+                                        sb.scroll_target = i;
+                                    }
                                 }
 
                                 ui.add_space(sidebar_margin);
@@ -389,6 +525,19 @@ impl PdfViewer {
         let available_height = ui.available_height() * 0.95;
         self.render_area = ui.available_rect_before_wrap();
 
+        if self.page_bounds.is_empty() {
+            CentralPanel::default().show_inside(ui, |ui| {
+                ui.centered_and_justified(|ui| {
+                    if self.parse_failed {
+                        ui.label("Failed to load PDF");
+                    } else {
+                        ui.label("Loading…");
+                    }
+                });
+            });
+            return;
+        }
+
         CentralPanel::default().show_inside(ui, |ui| {
             ScrollArea::both()
                 .animated(false)
@@ -396,12 +545,12 @@ impl PdfViewer {
                     self.current_viewport = viewport;
 
                     let target_scale = if self.fit_width {
-                        match self.pdf.pages().first().map(|p| p.render_dimensions().0) {
+                        match self.page_dimensions.first().map(|d| d.0) {
                             Some(width) => available_width / width,
                             None => 1.,
                         }
                     } else if self.fit_height {
-                        match self.pdf.pages().first().map(|p| p.render_dimensions().1) {
+                        match self.page_dimensions.first().map(|d| d.1) {
                             Some(height) => available_height / height,
                             None => 1.,
                         }
@@ -484,40 +633,37 @@ impl PdfViewer {
     }
 
     fn get_page(&mut self, idx: usize) -> Image<'_> {
-        let texture = if idx != self.pdf.pages().len() {
-            self.page_cache.get(&idx).cloned().unwrap_or_else(|| {
-                let page = &self.pdf.pages()[idx];
-                let pixmap = hayro::render(
-                    page,
-                    &InterpreterSettings::default(),
-                    &RenderSettings {
-                        x_scale: self.scale * self.ctx.pixels_per_point(),
-                        y_scale: self.scale * self.ctx.pixels_per_point(),
-                        ..Default::default()
-                    },
-                );
-                let image = ColorImage::from_rgba_premultiplied(
-                    [pixmap.width() as _, pixmap.height() as _],
-                    pixmap.data_as_u8_slice(),
-                );
-
-                self.ctx
-                    .load_texture("pdf_page", image, egui::TextureOptions::LINEAR)
-            })
+        let texture = if idx < self.page_dimensions.len() {
+            match self.page_cache.get(&idx).cloned() {
+                Some(cached) => {
+                    if cached.generation != self.generation.load(Ordering::Relaxed) {
+                        self.enqueue_page(idx);
+                    }
+                    cached.texture
+                }
+                None => {
+                    self.enqueue_page(idx);
+                    self.placeholder.clone()
+                }
+            }
         } else {
-            let image = ColorImage::from_rgba_premultiplied([1, 1], &[0, 0, 0, 0]);
-            self.ctx
-                .load_texture("pdf_page", image, egui::TextureOptions::LINEAR)
+            self.placeholder.clone()
         };
 
-        self.page_cache.insert(idx, texture.clone());
-
-        let img = Image::new(ImageSource::Texture(SizedTexture {
+        Image::new(ImageSource::Texture(SizedTexture {
             id: texture.id(),
             size: texture.size_vec2(),
-        }));
+        }))
+    }
 
-        img
+    fn get_thumbnail(&mut self, idx: usize) -> TextureHandle {
+        match self.thumbnail_cache.get(&idx).cloned() {
+            Some(t) => t,
+            None => {
+                self.enqueue_thumbnail(idx);
+                self.placeholder.clone()
+            }
+        }
     }
 
     fn compute_bounds(&mut self) {
@@ -525,8 +671,8 @@ impl PdfViewer {
 
         let mut offset = Pos2::ZERO;
 
-        for page in self.pdf.pages().iter() {
-            let mut dims = Vec2::new(page.render_dimensions().0, page.render_dimensions().1);
+        for &(w, h) in self.page_dimensions.iter() {
+            let mut dims = Vec2::new(w, h);
             dims *= self.scale;
 
             pages.push(Rect { min: offset, max: offset + dims });
@@ -546,6 +692,10 @@ impl PdfViewer {
         if self.viewport_adjustment.is_some() {
             return;
         }
+        if self.page_bounds.is_empty() {
+            self.scale = new_scale;
+            return;
+        }
         // location in the old viewport
         println!("zoom from {zoom_from:?}");
         let old_viewport_location = match zoom_from {
@@ -563,7 +713,12 @@ impl PdfViewer {
 
         self.scale = new_scale;
         self.page_bounds.clear();
-        self.page_cache.clear();
+        let gen = self
+            .generation
+            .fetch_add(1, Ordering::Relaxed)
+            .wrapping_add(1);
+        self.requested
+            .retain(|(_, kind, g)| *kind == RenderKind::Thumbnail || *g == gen);
         self.compute_bounds();
 
         // calculate the new viewport
@@ -576,4 +731,74 @@ impl PdfViewer {
         println!("adjustment {:?}", self.viewport_adjustment);
         self.ctx.request_repaint();
     }
+}
+
+fn spawn_worker(
+    bytes: Arc<Vec<u8>>, request_rx: Receiver<WorkerRequest>, response_tx: Sender<WorkerResponse>,
+    ctx: Context, worker_busy: Arc<AtomicBool>, current_generation: Arc<AtomicU64>,
+) {
+    struct BusyGuard<'a>(&'a AtomicBool);
+    impl Drop for BusyGuard<'_> {
+        fn drop(&mut self) {
+            self.0.store(false, Ordering::Relaxed);
+        }
+    }
+
+    thread::spawn(move || {
+        let pdf = match Pdf::new(bytes) {
+            Ok(p) => p,
+            Err(_) => {
+                let _ = response_tx.send(WorkerResponse::ParseFailed);
+                ctx.request_repaint();
+                return;
+            }
+        };
+
+        let page_dimensions: Vec<(f32, f32)> =
+            pdf.pages().iter().map(|p| p.render_dimensions()).collect();
+        if response_tx
+            .send(WorkerResponse::Parsed { page_dimensions })
+            .is_err()
+        {
+            return;
+        }
+        ctx.request_repaint();
+
+        while let Ok(req) = request_rx.recv() {
+            worker_busy.store(true, Ordering::Relaxed);
+            let _busy = BusyGuard(&worker_busy);
+
+            match req {
+                WorkerRequest::Render { page_idx, kind, scale, generation } => {
+                    if kind == RenderKind::Page
+                        && generation != current_generation.load(Ordering::Relaxed)
+                    {
+                        continue;
+                    }
+
+                    let pages = pdf.pages();
+                    let page = match pages.get(page_idx) {
+                        Some(p) => p,
+                        None => continue,
+                    };
+                    let pixmap = hayro::render(
+                        page,
+                        &InterpreterSettings::default(),
+                        &RenderSettings { x_scale: scale, y_scale: scale, ..Default::default() },
+                    );
+                    let image = ColorImage::from_rgba_premultiplied(
+                        [pixmap.width() as _, pixmap.height() as _],
+                        pixmap.data_as_u8_slice(),
+                    );
+                    if response_tx
+                        .send(WorkerResponse::Rendered { page_idx, kind, generation, image })
+                        .is_err()
+                    {
+                        return;
+                    }
+                    ctx.request_repaint();
+                }
+            }
+        }
+    });
 }

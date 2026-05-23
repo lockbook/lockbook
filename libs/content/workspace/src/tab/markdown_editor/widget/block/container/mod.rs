@@ -1,10 +1,16 @@
+//! Container blocks (lists, items, blockquotes, alerts) and per-
+//! line prefix math. Prefixes are graphemes (`line_own_prefix`,
+//! `extension_own_prefix`); nesting depth is columns
+//! (`deindent_level_cols` + helpers in [`super::super::utils`]).
+
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{
-    DocCharOffset, IntoRangeExt, RangeExt as _, RangeIterExt as _, RelCharOffset,
+    Grapheme, Graphemes, IntoRangeExt, RangeExt as _, RangeIterExt as _,
 };
 
-use crate::tab::markdown_editor::Editor;
+use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::bounds::RangesExt as _;
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -16,7 +22,7 @@ pub(crate) mod table;
 pub(crate) mod table_row;
 pub(crate) mod task_item;
 
-impl<'ast> Editor {
+impl<'ast> MdRender {
     pub fn indent(&self, node: &'ast AstNode<'ast>) -> f32 {
         let value = &node.data.borrow().value;
         let sp = &node.data.borrow().sourcepos;
@@ -78,51 +84,87 @@ impl<'ast> Editor {
 
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let children = self.sorted_children(node);
-
         let mut height_sum = 0.0;
-        for child in &children {
-            height_sum += self.block_pre_spacing_height(child, &children);
-            height_sum += self.height(child, &children);
-            height_sum += self.block_post_spacing_height(child, &children);
+        for child in node.children() {
+            height_sum += self.block_pre_spacing_height(child);
+            height_sum += self.height(child);
+            height_sum += self.block_post_spacing_height(child);
         }
         height_sum
     }
 
-    // blocks are stacked vertically; only visible blocks and blocks whose
-    // node range intersects `galley_required_range` are shown
+    /// Returns the document offset ranges for which fragments must
+    /// exist, covering the selection ± 1 source line so arrow-key
+    /// navigation across the viewport edge has a fragment to land
+    /// on. Also includes the current find match.
+    pub fn fragment_required_ranges(
+        &self, in_progress_selection: Option<(Grapheme, Grapheme)>,
+        find_match: Option<(Grapheme, Grapheme)>,
+    ) -> Vec<(Grapheme, Grapheme)> {
+        if self.bounds.source_lines.is_empty() {
+            return Vec::new();
+        }
+        let mut ranges = Vec::new();
+        let selection = in_progress_selection.unwrap_or(self.buffer.current.selection);
+        ranges.push(self.source_line_range(selection));
+        if let Some(match_range) = find_match {
+            ranges.push(self.source_line_range(match_range));
+        }
+        ranges
+    }
+
+    fn source_line_range(&self, range: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
+        let first_line = self
+            .bounds
+            .source_lines
+            .find_containing(range.start(), true, true)
+            .0
+            .saturating_sub(1);
+        let last_line = self
+            .bounds
+            .source_lines
+            .find_containing(range.end(), true, true)
+            .1
+            .min(self.bounds.source_lines.len() - 1);
+        let start = self.bounds.source_lines[first_line].start();
+        let end = self.bounds.source_lines[last_line].end();
+        (start, end)
+    }
+
+    // blocks are stacked vertically; only visible blocks and blocks
+    // whose node range intersects `fragment_required_ranges` are shown
     pub fn show_block_children(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
     ) {
-        let children = self.sorted_children(node);
-
-        let required_ranges = self.galley_required_ranges();
+        let required_ranges =
+            self.fragment_required_ranges(self.in_progress_selection, self.find_current_match);
         let viewport = ui.clip_rect();
+        let buffer = viewport.height();
 
-        let intersects_any_required = |range: &(DocCharOffset, DocCharOffset)| -> bool {
+        let intersects_any_required = |range: &(Grapheme, Grapheme)| -> bool {
             required_ranges.iter().any(|rr| range.intersects(rr, true))
         };
         let past_all_required =
-            |offset: DocCharOffset| -> bool { required_ranges.iter().all(|rr| offset > rr.end()) };
+            |offset: Grapheme| -> bool { required_ranges.iter().all(|rr| offset > rr.end()) };
 
-        for child in &children {
+        for child in node.children() {
             let child_range = self.node_range(child);
-            let pre_lines = self.pre_spacing_lines(child, &children);
-            let post_lines = self.post_spacing_lines(child, &children);
+            let pre_lines = self.pre_spacing_lines(child);
+            let post_lines = self.post_spacing_lines(child);
 
             // add pre-spacing
-            let pre_spacing = self.block_pre_spacing_height(child, &children);
+            let pre_spacing = self.block_pre_spacing_height(child);
             let pre_spacing_below_viewport = viewport.max.y < top_left.y;
             let pre_spacing_above_viewport = viewport.min.y > top_left.y + pre_spacing;
             let pre_spacing_visible = !pre_spacing_above_viewport && !pre_spacing_below_viewport;
             let pre_spacing_needed = intersects_any_required(&self.spacing_range(&pre_lines));
             if pre_spacing_visible || pre_spacing_needed {
-                self.show_block_pre_spacing(ui, child, top_left, &children);
+                self.show_block_pre_spacing(ui, child, top_left);
             }
             top_left.y += pre_spacing;
 
             // add block
-            let child_height = self.height(child, &children);
+            let child_height = self.height(child);
 
             if self.debug {
                 self.show_debug_block_highlight(
@@ -139,24 +181,33 @@ impl<'ast> Editor {
             let block_visible = !block_above_viewport && !block_below_viewport;
             let block_needed = intersects_any_required(&child_range);
             if block_visible || block_needed {
-                self.show_block(ui, child, top_left, &children);
+                self.show_block(ui, child, top_left);
+            } else {
+                let in_buffer = top_left.y + child_height > viewport.min.y - buffer
+                    && top_left.y < viewport.max.y + buffer;
+                if in_buffer {
+                    // walks all descendants, not just those within the buffer —
+                    // a tall container may warm images beyond the zone
+                    self.warm_images(child);
+                }
             }
             top_left.y += child_height;
 
             // add post-spacing
-            let post_spacing = self.block_post_spacing_height(child, &children);
+            let post_spacing = self.block_post_spacing_height(child);
             let post_spacing_below_viewport = viewport.max.y < top_left.y;
             let post_spacing_above_viewport = viewport.min.y > top_left.y + post_spacing;
             let post_spacing_visible = !post_spacing_above_viewport && !post_spacing_below_viewport;
             let post_spacing_needed = intersects_any_required(&self.spacing_range(&post_lines));
             if post_spacing_visible || post_spacing_needed {
-                self.show_block_post_spacing(ui, child, top_left, &children);
+                self.show_block_post_spacing(ui, child, top_left);
             }
             top_left.y += post_spacing;
 
-            // safe to stop: everything remaining is below the viewport and
+            // safe to stop: everything remaining is below the buffer zone and
             // past all ranges that need galleys
-            if block_below_viewport && past_all_required(child_range.start()) {
+            let past_buffer = top_left.y > viewport.max.y + buffer;
+            if past_buffer && past_all_required(child_range.start()) {
                 break;
             }
         }
@@ -192,8 +243,8 @@ impl<'ast> Editor {
     //
     // https://github.github.com/gfm/#list-items
     pub fn line_prefix_len(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (RelCharOffset, bool) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Graphemes, bool) {
         if let Some(cached) = self.get_cached_line_prefix_len(node, line) {
             return cached;
         }
@@ -292,8 +343,8 @@ impl<'ast> Editor {
     ///   * the line own prefix is "`> `"
     ///   * the line content is "`* quoted list item`"
     pub fn line_ancestors_prefix(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let Some(parent) = node.parent() else { return line.start().into_range() }; // document has no ancestors
         let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
         (line.start(), line.start() + parent_prefix_len)
@@ -305,8 +356,8 @@ impl<'ast> Editor {
     ///
     /// See [`line_ancestors_prefix`] for an example.
     pub fn line_own_prefix(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let Some(parent) = node.parent() else { return line.start().into_range() }; // document has no prefix
         let (parent_prefix_len, _) = self.line_prefix_len(parent, line);
         let (prefix_len, _) = self.line_prefix_len(node, line);
@@ -320,8 +371,8 @@ impl<'ast> Editor {
     ///
     /// See [`line_ancestors_prefix`] for an example.
     pub fn line_content(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let (prefix_len, _) = self.line_prefix_len(node, line);
         (line.start() + prefix_len, line.end())
     }
@@ -330,8 +381,8 @@ impl<'ast> Editor {
     /// [`node_content`]. Equivalent to [`line_ancestors_prefix`] +
     /// [`line_own_prefix`]. Always has length == [`line_prefix_len`].
     pub fn line_prefix(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
-    ) -> (DocCharOffset, DocCharOffset) {
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> (Grapheme, Grapheme) {
         let (prefix_len, _) = self.line_prefix_len(node, line);
         (line.start(), line.start() + prefix_len)
     }
@@ -418,6 +469,24 @@ impl<'ast> Editor {
         })
     }
 
+    /// Columns one nesting level of `node` contributes — what
+    /// shift-tab strips. `Item` uses its own `padding` (not the
+    /// parent list's: comrak merges sibling-compatible lists across
+    /// blank lines and the merged list keeps the first item's
+    /// padding). `BlockQuote`/`Alert` return `None` — they nest via
+    /// `>` markers, deindented through `line_own_prefix` instead.
+    pub fn deindent_level_cols(&self, node: &'ast AstNode<'ast>) -> Option<usize> {
+        match &node.data.borrow().value {
+            NodeValue::Item(item) => Some(item.padding),
+            NodeValue::TaskItem(_) => match &node.parent()?.data.borrow().value {
+                NodeValue::List(list) => Some(list.padding),
+                _ => None,
+            },
+            NodeValue::FootnoteDefinition(_) => Some(2),
+            _ => None,
+        }
+    }
+
     /// Returns the prefix required to extend the given node and its ancestors
     /// to a new line i.e. the concatenation of [`extension_own_prefix`] of all
     /// container block ancestors.
@@ -438,13 +507,21 @@ impl<'ast> Editor {
     /// Returns the prefix required to insert a new node of the same type after
     /// the given prior node, extending all ancestors.
     pub fn insertion_prefix(&self, prior_node: &'ast AstNode<'ast>) -> Option<String> {
-        let mut result = if let Some(parent) = prior_node.parent() {
+        let line = self.node_first_line(prior_node);
+
+        let is_list_item =
+            matches!(prior_node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_));
+        let mut result = if is_list_item {
+            // Preserve the prior item's actual source indentation rather than
+            // reconstructing it from ancestor marker widths, which drops any
+            // indentation deeper than the minimum (e.g. tab / 4-space nesting).
+            self.buffer[self.line_ancestors_prefix(prior_node, line)].to_string()
+        } else if let Some(parent) = prior_node.parent() {
             self.extension_prefix(parent)?
         } else {
             Default::default()
         };
 
-        let line = self.node_first_line(prior_node);
         let own_prefix = self.line_own_prefix(prior_node, line);
 
         match &prior_node.data.borrow().value {
@@ -543,7 +620,7 @@ impl<'ast> Editor {
 
     /// Returns whether the given line is one of the source lines of the given node
     pub fn node_contains_line(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
     ) -> bool {
         let first_line = self.node_first_line(node);
         let last_line = self.node_last_line(node);
@@ -554,7 +631,7 @@ impl<'ast> Editor {
     /// Returns the row height of a line in the given node, even if that node is
     /// a container block.
     pub fn node_line_row_height(
-        &self, node: &'ast AstNode<'ast>, line: (DocCharOffset, DocCharOffset),
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
     ) -> f32 {
         // leaf blocks and inlines
         if node.data.borrow().value.contains_inlines() || !node.data.borrow().value.block() {
@@ -573,17 +650,15 @@ impl<'ast> Editor {
 
     // compute bounds for blocks stacked vertically
     pub fn compute_bounds_block_children(&mut self, node: &'ast AstNode<'ast>) {
-        let children = self.sorted_children(node);
-
-        for child in &children {
+        for child in node.children() {
             // add pre-spacing bounds
-            self.compute_bounds_block_pre_spacing(child, &children);
+            self.compute_bounds_block_pre_spacing(child);
 
             // add block bounds
             self.compute_bounds(child);
 
             // add post-spacing bounds
-            self.compute_bounds_block_post_spacing(child, &children);
+            self.compute_bounds_block_post_spacing(child);
         }
     }
 }
