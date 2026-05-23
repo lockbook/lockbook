@@ -7,7 +7,7 @@ edition = "2021"
 arboard = { version = "3.6", features = ["image", "wayland-data-control"] }
 dark-light = "2.0.0"
 egui = "0.32.3"
-egui-winit = "0.32.3"
+egui-winit = { version = "0.32.3", default-features = false, features = ["links", "wayland", "x11"] }
 egui_wgpu_renderer = { path = "../../libs/content/egui_wgpu_renderer" }
 env_logger = "0.10"
 image = { version = "0.25", default-features = false, features = ["png"] }

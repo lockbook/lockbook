@@ -22,6 +22,8 @@ impl ApplicationHandler<UserEvent> for App {
 
         let window_attrs = Window::default_attributes()
             .with_title("Lockbook")
+            // todo: respect or deprecate setting for
+            // starting maximized
             .with_inner_size(LogicalSize::new(1300, 800))
             .with_window_icon(load_icon());
 
@@ -183,17 +185,25 @@ impl ApplicationHandler<UserEvent> for App {
 
 impl AppState {
     fn render(&mut self, _event_loop: &ActiveEventLoop) {
-        let paste_intercepted = self.pending_paste && {
+        // Take over paste from egui-winit (default `clipboard` feature is off
+        // in Cargo.toml). On Cmd+V we own both image and text routing here;
+        // egui-winit no longer reads the clipboard or queues Event::Paste.
+        let mut pending_text_paste: Option<String> = None;
+        if self.pending_paste {
             self.pending_paste = false;
-            self.handle_image_paste()
-        };
+            if !self.handle_image_paste() {
+                if let Ok(text) = self.clipboard.get_text() {
+                    if !text.is_empty() {
+                        pending_text_paste = Some(text);
+                    }
+                }
+            }
+        }
 
         let mut raw_input = self.egui_winit.take_egui_input(&self.window);
 
-        if paste_intercepted {
-            raw_input
-                .events
-                .retain(|e| !matches!(e, egui::Event::Paste(_)));
+        if let Some(text) = pending_text_paste {
+            raw_input.events.push(egui::Event::Paste(text));
         }
 
         if self.close_requested {
@@ -202,12 +212,48 @@ impl AppState {
             }
         }
 
+        // Carry forward events queued during the previous frame — handle_paste
+        // (called for ViewportCommand::RequestPaste from the right-click menu)
+        // pushes Event::Paste(text) onto renderer.raw_input.events after
+        // lb.frame() has already taken its input for the current frame.
+        let mut carried = std::mem::take(&mut self.lb.renderer.raw_input.events);
+        carried.append(&mut raw_input.events);
+        raw_input.events = carried;
+
         self.lb.renderer.raw_input = raw_input;
 
-        let Output { platform, viewport, app: lbeguiapp::Response { close } } = self.lb.frame();
+        let Output { mut platform, viewport, app: lbeguiapp::Response { close } } = self.lb.frame();
 
         if close {
             std::process::exit(0);
+        }
+
+        // Mirror Copy/Cut to our clipboard (egui-winit can't anymore). Strip
+        // the clipboard commands afterward so handle_platform_output doesn't
+        // log "Copying images is not supported" for CopyImage.
+        for command in &platform.commands {
+            match command {
+                egui::OutputCommand::CopyText(text) => {
+                    let _ = self.clipboard.set_text(text.clone());
+                }
+                egui::OutputCommand::CopyImage(image) => {
+                    let _ = self.clipboard.set_image(arboard::ImageData {
+                        width: image.width(),
+                        height: image.height(),
+                        bytes: std::borrow::Cow::Borrowed(image.as_raw()),
+                    });
+                }
+                _ => {}
+            }
+        }
+        platform.commands.retain(|c| {
+            !matches!(c, egui::OutputCommand::CopyText(_) | egui::OutputCommand::CopyImage(_))
+        });
+        #[allow(deprecated)]
+        if !platform.copied_text.is_empty() {
+            let _ = self
+                .clipboard
+                .set_text(std::mem::take(&mut platform.copied_text));
         }
 
         self.egui_winit

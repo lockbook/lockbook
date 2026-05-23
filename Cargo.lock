@@ -4576,7 +4576,6 @@ dependencies = [
  "eframe",
  "egui",
  "egui-notify",
- "egui-winit",
  "egui_extras",
  "egui_wgpu_renderer",
  "env_logger",
