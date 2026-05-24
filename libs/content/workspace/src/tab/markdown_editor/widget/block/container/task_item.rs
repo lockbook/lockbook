@@ -1,4 +1,5 @@
 use comrak::nodes::{AstNode, NodeTaskItem, NodeValue};
+use egui::emath::{self, ease_in_ease_out};
 use egui::{CursorIcon, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
@@ -59,10 +60,10 @@ impl<'ast> MdRender {
         }
         self.touch_consuming_rects.push(clickable_space);
 
-        let how_on = ui.ctx().animate_value_with_time(
+        let how_on = ui.ctx().animate_bool_with_easing(
             checkbox_id.with("animation"),
-            if checked { 1.0 } else { 0.0 },
-            0.2,
+            checked,
+            emath::easing::back_in_out,
         );
 
         // draw rect background for checkbox
