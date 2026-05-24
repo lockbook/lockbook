@@ -133,7 +133,15 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendKeyEvent(
         command: false,
     };
 
+    let prev_global = obj.renderer.raw_input.modifiers;
     obj.renderer.raw_input.modifiers = modifiers;
+    tracing::info!(
+        target: "lb::md::sel",
+        key_code, pressed = pressed == 1, alt = alt == 1, ctrl = ctrl == 1, shift = shift == 1,
+        prev_global_shift = prev_global.shift,
+        new_global_shift = obj.renderer.raw_input.modifiers.shift,
+        "sendKeyEvent",
+    );
 
     let Some(key) = AndroidKeys::from(key_code) else { return };
 
@@ -164,10 +172,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     if let Ok(text) = env.get_string(&content) {
-        obj.renderer
-            .raw_input
-            .events
-            .push(egui::Event::Text(text.into()));
+        let s: String = text.into();
+        tracing::info!(
+            target: "lb::md::sel",
+            text = %s,
+            global_shift = obj.renderer.raw_input.modifiers.shift,
+            "insertTextAtCursor",
+        );
+        obj.renderer.raw_input.events.push(egui::Event::Text(s));
     }
 }
 
@@ -178,6 +190,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesBegin(
     let obj = unsafe { &mut *(ogbj as *mut WgpuWorkspace) };
 
     let pos = obj.renderer.pos_from_pixels(x, y);
+    tracing::info!(
+        target: "lb::md::sel",
+        id, x = pos.x, y = pos.y,
+        global_shift = obj.renderer.raw_input.modifiers.shift,
+        "touchesBegin",
+    );
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
@@ -252,6 +270,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesEnded(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let pos = obj.renderer.pos_from_pixels(x, y);
+    tracing::info!(
+        target: "lb::md::sel",
+        id, x = pos.x, y = pos.y,
+        global_shift = obj.renderer.raw_input.modifiers.shift,
+        "touchesEnded",
+    );
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),
@@ -580,6 +604,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setSelection(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
+    tracing::info!(
+        target: "lb::md::sel",
+        start, end,
+        global_shift = obj.renderer.raw_input.modifiers.shift,
+        "setSelection (FFI)",
+    );
     obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {
             start: Location::Grapheme(Grapheme(start as usize)),
