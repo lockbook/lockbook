@@ -1,6 +1,7 @@
 use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
@@ -811,13 +812,25 @@ fn shape_chunk(
             b.set_wrap(&mut guard, glyphon::Wrap::None);
             b.set_tab_width(&mut guard, 4);
             let attrs = format_to_attrs(&format, metric);
-            b.set_rich_text(
-                &mut guard,
-                std::iter::once((text, attrs.as_attrs())),
-                &attrs.as_attrs(),
-                glyphon::Shaping::Advanced,
-                None,
+            // Per-grapheme: route emoji to Twemoji Mozilla so VS-16
+            // (or SMP) codepoints render in color. Without this, e.g.
+            // `:warning:` → `⚠️` shapes against SansSerif (SF Pro Text
+            // on Mac) which has a monochrome `⚠` outline.
+            let emoji_attrs = glyphon::AttrsOwned::new(
+                &glyphon::Attrs::new().family(glyphon::Family::Name("Twemoji Mozilla")),
             );
+            let text = text.to_string();
+            let spans = text.graphemes(true).map(|g| {
+                let is_emoji = g.chars().any(|c| {
+                    matches!(
+                        c as u32,
+                        0xFE0F  // variation selector-16: emoji presentation
+                    | 0x1F000.. // supplementary multilingual plane: core emoji blocks
+                    )
+                });
+                if is_emoji { (g, emoji_attrs.as_attrs()) } else { (g, attrs.as_attrs()) }
+            });
+            b.set_rich_text(&mut guard, spans, &attrs.as_attrs(), glyphon::Shaping::Advanced, None);
             b
         })
     };
