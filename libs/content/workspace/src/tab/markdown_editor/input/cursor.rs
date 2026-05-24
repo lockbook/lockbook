@@ -163,7 +163,7 @@ impl MdEdit {
 
         if response.clicked() || response.drag_started() || response.dragged() || response.drag_stopped() {
             tracing::info!(
-                target: "lb::md::sel",
+                target: "workspace::md::sel",
                 is_start,
                 clicked = response.clicked(),
                 drag_started = response.drag_started(),
@@ -178,7 +178,7 @@ impl MdEdit {
 
         if response.drag_stopped() {
             if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
-                tracing::info!(target: "lb::md::sel", taken = ?in_progress_selection, is_start, "handle drag_stopped -> consume");
+                tracing::info!(target: "workspace::md::sel", taken = ?in_progress_selection, is_start, "handle drag_stopped -> consume");
                 let region = Region::from(in_progress_selection);
                 ui.ctx().push_markdown_event(Event::Select { region });
             }
@@ -204,7 +204,7 @@ impl MdEdit {
                 }
             };
             self.in_progress_selection = Some(self.region_to_range(region));
-            tracing::info!(target: "lb::md::sel", is_start, "handle dragged -> set in_progress_selection {:?}", self.in_progress_selection);
+            tracing::info!(target: "workspace::md::sel", is_start, "handle dragged -> set in_progress_selection {:?}", self.in_progress_selection);
             self.pending_scroll = Some(crate::tab::markdown_editor::ScrollTarget::Cursor);
         }
     }

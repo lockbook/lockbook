@@ -1125,13 +1125,13 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             let any_down = ui.input(|i| i.pointer.any_down());
             if dragged_id == Some(bar_id) && !any_down {
                 tracing::warn!(
-                    target: "lb::md::scroll",
+                    target: "workspace::md::scroll",
                     bar_id = ?bar_id,
                     "phantom scrollbar drag — dragged_id == bar_id but no pointer down",
                 );
             } else if dragged_id.is_some() {
                 tracing::info!(
-                    target: "lb::md::scroll",
+                    target: "workspace::md::scroll",
                     dragged_id = ?dragged_id,
                     bar_id = ?bar_id,
                     any_down,
@@ -1151,7 +1151,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             let any_pressed = ui.input(|i| i.pointer.any_pressed());
             let any_released = ui.input(|i| i.pointer.any_released());
             tracing::info!(
-                target: "lb::md::scroll",
+                target: "workspace::md::scroll",
                 clicked = bar_response.clicked(),
                 drag_started = bar_response.drag_started(),
                 dragged = bar_response.dragged(),
@@ -1169,7 +1169,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         {
             let any_down = ui.input(|i| i.pointer.any_down());
             tracing::info!(
-                target: "lb::md::scroll",
+                target: "workspace::md::scroll",
                 clicked = response.clicked(),
                 drag_started = response.drag_started(),
                 dragged = response.dragged(),
@@ -1246,7 +1246,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
                 let drag_y = ui.input(|i| i.pointer.delta().y);
                 let approx_delta = bar_geom.pixel_to_approx(drag_y);
                 tracing::info!(
-                    target: "lb::md::scroll",
+                    target: "workspace::md::scroll",
                     drag_y, approx_delta,
                     any_down = ui.input(|i| i.pointer.any_down()),
                     "ScrollByThumb (drag)",

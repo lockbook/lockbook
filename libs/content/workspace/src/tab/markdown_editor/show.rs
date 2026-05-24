@@ -261,7 +261,7 @@ impl MdEdit {
             || response.triple_clicked()
         {
             tracing::info!(
-                target: "lb::md::sel",
+                target: "workspace::md::sel",
                 clicked = response.clicked(),
                 drag_started = response.drag_started(),
                 dragged = response.dragged(),
@@ -301,16 +301,16 @@ impl MdEdit {
                         Some(Region::BoundAt { bound: Bound::Paragraph, location, backwards: true })
                     }
                 } else if response.clicked() && modifiers.shift {
-                    tracing::info!(target: "lb::md::sel", "branch: clicked+shift -> ToLocation");
+                    tracing::info!(target: "workspace::md::sel", "branch: clicked+shift -> ToLocation");
                     Some(Region::ToLocation(location))
                 } else if response.clicked() {
                     if cfg!(target_os = "android") && self.selection_tap(pos) {
                         let selection = self.renderer.buffer.current.selection;
                         ctx.set_context_menu(self.context_menu_pos(selection).unwrap_or(pos));
-                        tracing::info!(target: "lb::md::sel", "branch: clicked on selection -> context menu");
+                        tracing::info!(target: "workspace::md::sel", "branch: clicked on selection -> context menu");
                         None
                     } else {
-                        tracing::info!(target: "lb::md::sel", "branch: clicked -> Location");
+                        tracing::info!(target: "workspace::md::sel", "branch: clicked -> Location");
                         Some(Region::Location(location))
                     }
                 } else if response.secondary_clicked() {
@@ -318,12 +318,12 @@ impl MdEdit {
                     None
                 } else if response.drag_stopped() {
                     let taken = std::mem::take(&mut self.in_progress_selection);
-                    tracing::info!(target: "lb::md::sel", taken = ?taken, "branch: drag_stopped -> consume in_progress_selection");
+                    tracing::info!(target: "workspace::md::sel", taken = ?taken, "branch: drag_stopped -> consume in_progress_selection");
                     taken.map(Region::from)
                 } else if response.dragged() && modifiers.shift {
                     self.in_progress_selection =
                         Some(self.region_to_range(Region::ToLocation(location)));
-                    tracing::info!(target: "lb::md::sel", "branch: dragged+shift -> set in_progress_selection {:?}", self.in_progress_selection);
+                    tracing::info!(target: "workspace::md::sel", "branch: dragged+shift -> set in_progress_selection {:?}", self.in_progress_selection);
                     self.pending_scroll = Some(ScrollTarget::Cursor);
                     None
                 } else if response.dragged() {
@@ -334,13 +334,13 @@ impl MdEdit {
                         self.in_progress_selection = Some(
                             self.region_to_range(Region::Location(Location::Pos(drag_origin))),
                         );
-                        tracing::info!(target: "lb::md::sel", "branch: drag_started -> seed in_progress_selection {:?}", self.in_progress_selection);
+                        tracing::info!(target: "workspace::md::sel", "branch: drag_started -> seed in_progress_selection {:?}", self.in_progress_selection);
                     }
                     let offset = self.location_to_char_offset(location);
                     if let Some(sel) = &mut self.in_progress_selection {
                         sel.1 = offset;
                     }
-                    tracing::info!(target: "lb::md::sel", "branch: dragged -> extend in_progress_selection {:?}", self.in_progress_selection);
+                    tracing::info!(target: "workspace::md::sel", "branch: dragged -> extend in_progress_selection {:?}", self.in_progress_selection);
                     self.pending_scroll = Some(ScrollTarget::Cursor);
                     None
                 } else {
