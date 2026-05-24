@@ -304,6 +304,11 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let pos = obj.renderer.pos_from_pixels(x, y);
+    tracing::info!(
+        target: "lb::md::sel",
+        id, x = pos.x, y = pos.y,
+        "touchesCancelled",
+    );
     obj.renderer.raw_input.events.push(egui::Event::Touch {
         device_id: TouchDeviceId(0),
         id: TouchId(id as u64),

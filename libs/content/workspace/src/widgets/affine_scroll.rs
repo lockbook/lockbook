@@ -1115,7 +1115,70 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let bar_track =
             Rect::from_min_size(Pos2::new(bar_x, rect.min.y), Vec2::new(BAR_WIDTH, rect.height()));
         let bar_id = self.id_salt.with("scrollbar");
+
+        // Phantom-drag detector: egui still believes bar_id is being
+        // dragged but no pointer is down. Likely cause on Android: the
+        // right-edge swipe was consumed by the system back-gesture and
+        // we never received the touch-up.
+        {
+            let dragged_id = ui.ctx().dragged_id();
+            let any_down = ui.input(|i| i.pointer.any_down());
+            if dragged_id == Some(bar_id) && !any_down {
+                tracing::warn!(
+                    target: "lb::md::scroll",
+                    bar_id = ?bar_id,
+                    "phantom scrollbar drag — dragged_id == bar_id but no pointer down",
+                );
+            } else if dragged_id.is_some() {
+                tracing::info!(
+                    target: "lb::md::scroll",
+                    dragged_id = ?dragged_id,
+                    bar_id = ?bar_id,
+                    any_down,
+                    "frame: dragged_id is set",
+                );
+            }
+        }
+
         let bar_response = ui.interact(bar_track, bar_id, Sense::click_and_drag());
+
+        if bar_response.clicked()
+            || bar_response.drag_started()
+            || bar_response.dragged()
+            || bar_response.drag_stopped()
+        {
+            let any_down = ui.input(|i| i.pointer.any_down());
+            let any_pressed = ui.input(|i| i.pointer.any_pressed());
+            let any_released = ui.input(|i| i.pointer.any_released());
+            tracing::info!(
+                target: "lb::md::scroll",
+                clicked = bar_response.clicked(),
+                drag_started = bar_response.drag_started(),
+                dragged = bar_response.dragged(),
+                drag_stopped = bar_response.drag_stopped(),
+                any_down, any_pressed, any_released,
+                interact_pos = ?bar_response.interact_pointer_pos(),
+                "bar interact",
+            );
+        }
+
+        if response.clicked()
+            || response.drag_started()
+            || response.dragged()
+            || response.drag_stopped()
+        {
+            let any_down = ui.input(|i| i.pointer.any_down());
+            tracing::info!(
+                target: "lb::md::scroll",
+                clicked = response.clicked(),
+                drag_started = response.drag_started(),
+                dragged = response.dragged(),
+                drag_stopped = response.drag_stopped(),
+                any_down,
+                interact_pos = ?response.interact_pointer_pos(),
+                "body interact (scroll area)",
+            );
+        }
 
         self.state.handle(rows, Action::Resize(rect.height()));
 
@@ -1182,6 +1245,12 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             if bar_response.dragged() {
                 let drag_y = ui.input(|i| i.pointer.delta().y);
                 let approx_delta = bar_geom.pixel_to_approx(drag_y);
+                tracing::info!(
+                    target: "lb::md::scroll",
+                    drag_y, approx_delta,
+                    any_down = ui.input(|i| i.pointer.any_down()),
+                    "ScrollByThumb (drag)",
+                );
                 self.state.handle(rows, Action::ScrollByThumb(approx_delta));
             } else if let Some(pos) = bar_response.interact_pointer_pos() {
                 let movable = bar_geom.track.height() - bar_geom.thumb.height();
