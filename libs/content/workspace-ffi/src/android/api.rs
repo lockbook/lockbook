@@ -288,6 +288,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_touchesCancelled(
         force: get_force(pressure),
     });
 
+    // release any active drags
+    obj.renderer
+        .raw_input
+        .events
+        .push(egui::Event::PointerButton {
+            pos,
+            button: PointerButton::Primary,
+            pressed: false,
+            modifiers: Default::default(),
+        });
+
     obj.renderer.raw_input.events.push(egui::Event::PointerGone);
 }
 
