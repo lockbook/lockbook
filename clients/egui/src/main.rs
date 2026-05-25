@@ -3,7 +3,6 @@
 use std::{io::Cursor, ops::DerefMut};
 
 use egui::ViewportCommand;
-use egui_winit::egui;
 use image::ImageDecoder as _;
 use lockbook_egui::Lockbook;
 
