@@ -101,6 +101,8 @@ impl ApplicationHandler<UserEvent> for App {
         }
 
         if !matches!(event, WindowEvent::ThemeChanged(_)) {
+            // todo: check this -- if there's no clipboard it falls back to a "manual" string which
+            // may be populated by egui itself and result in double paste.
             let response = state.egui_winit.on_window_event(&state.window, &event);
 
             if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {
@@ -185,25 +187,18 @@ impl ApplicationHandler<UserEvent> for App {
 
 impl AppState {
     fn render(&mut self, _event_loop: &ActiveEventLoop) {
-        // Take over paste from egui-winit (default `clipboard` feature is off
-        // in Cargo.toml). On Cmd+V we own both image and text routing here;
-        // egui-winit no longer reads the clipboard or queues Event::Paste.
-        let mut pending_text_paste: Option<String> = None;
+        let mut raw_input = self.egui_winit.take_egui_input(&self.window);
+
+        // we do clipboard things ourselves because we do image things
         if self.pending_paste {
             self.pending_paste = false;
             if !self.handle_image_paste() {
                 if let Ok(text) = self.clipboard.get_text() {
                     if !text.is_empty() {
-                        pending_text_paste = Some(text);
+                        raw_input.events.push(egui::Event::Paste(text));
                     }
                 }
             }
-        }
-
-        let mut raw_input = self.egui_winit.take_egui_input(&self.window);
-
-        if let Some(text) = pending_text_paste {
-            raw_input.events.push(egui::Event::Paste(text));
         }
 
         if self.close_requested {
@@ -228,9 +223,6 @@ impl AppState {
             std::process::exit(0);
         }
 
-        // Mirror Copy/Cut to our clipboard (egui-winit can't anymore). Strip
-        // the clipboard commands afterward so handle_platform_output doesn't
-        // log "Copying images is not supported" for CopyImage.
         for command in &platform.commands {
             match command {
                 egui::OutputCommand::CopyText(text) => {
@@ -249,12 +241,6 @@ impl AppState {
         platform.commands.retain(|c| {
             !matches!(c, egui::OutputCommand::CopyText(_) | egui::OutputCommand::CopyImage(_))
         });
-        #[allow(deprecated)]
-        if !platform.copied_text.is_empty() {
-            let _ = self
-                .clipboard
-                .set_text(std::mem::take(&mut platform.copied_text));
-        }
 
         self.egui_winit
             .handle_platform_output(&self.window, platform);
