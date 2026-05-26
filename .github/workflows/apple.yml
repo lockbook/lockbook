@@ -45,9 +45,9 @@ jobs:
     - name: build CLI
       if: ${{ !inputs.release }}
       run: cargo r -p lbdev releaser apple cli-build
-    - name: build egui
+    - name: build desktop
       if: ${{ !inputs.release }}
-      run: cargo build -p lockbook-egui --release
+      run: cargo build -p lockbook-desktop --release
     - name: Upload macOS app
       if: ${{ !inputs.release }}
       uses: actions/upload-artifact@v4
@@ -60,9 +60,9 @@ jobs:
       with:
         name: lockbook-cli-macos
         path: target/universal-cli/lockbook-cli-macos.tar.gz
-    - name: Upload macOS egui
+    - name: Upload macOS desktop
       if: ${{ !inputs.release }}
       uses: actions/upload-artifact@v4
       with:
-        name: lockbook-egui-macos
-        path: target/release/lockbook-egui
+        name: lockbook-winit-macos
+        path: target/release/lockbook-desktop

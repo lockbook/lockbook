@@ -29,12 +29,6 @@ jobs:
       package: lockbook
       artifact-name: lockbook-cli-linux
 
-  build-linux-egui:
-    uses: ./.github/workflows/linux-build.yml
-    with:
-      package: lockbook-egui
-      artifact-name: lockbook-egui-linux
-
   build-linux:
     uses: ./.github/workflows/linux-build.yml
     with:
@@ -53,13 +47,6 @@ jobs:
     with:
       package: lockbook
       artifact-name: lockbook-cli-linux-arm
-      runner: ubuntu-24.04-arm
-
-  build-linux-egui-arm:
-    uses: ./.github/workflows/linux-build.yml
-    with:
-      package: lockbook-egui
-      artifact-name: lockbook-egui-linux-arm
       runner: ubuntu-24.04-arm
 
   build-linux-arm:
