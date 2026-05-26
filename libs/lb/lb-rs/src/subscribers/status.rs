@@ -123,7 +123,6 @@ impl Status {
 }
 
 impl LocalLb {
-    #[instrument(level = "debug", skip(self))]
     pub async fn status(&self) -> Status {
         self.status.current_status.read().await.clone()
     }
