@@ -19,3 +19,8 @@
 # If you keep the line number information, uncomment this to
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
+
+# This module exposes Kotlin classes directly to the app and to JNI. Keep the
+# package stable so release library minification cannot rename classes that the
+# app or native symbols resolve by their original names.
+-keep class app.lockbook.workspace.** { *; }
