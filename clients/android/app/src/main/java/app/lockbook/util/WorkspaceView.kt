@@ -170,7 +170,7 @@ class WorkspaceView(
     val tapListener =
         object : GestureDetector.SimpleOnGestureListener() {
             override fun onDoubleTap(e: MotionEvent): Boolean {
-                cancelTouches(e)
+                touchForwarder.cancelTouches(e)
                 return true
             }
         }
@@ -184,6 +184,11 @@ class WorkspaceView(
     }
 
     var motionEventPredictor = MotionEventPredictor.newInstance(this)
+    val touchForwarder =
+        WorkspaceTouchForwarder(
+            this,
+            motionEventPredictor,
+        )
 
     @SuppressLint("ClickableViewAccessibility")
     override fun onTouchEvent(event: MotionEvent?): Boolean {
@@ -195,7 +200,7 @@ class WorkspaceView(
             scrollDetector.onTouchEvent(event)
             tapDetector.onTouchEvent(event)
 
-            forwardedTouchEvent(event, 0f)
+            touchForwarder.forward(event, 0f)
 
             // if they tap outside the toolbar, we want to refocus the text editor to regain text input
             if (model.currentTab.value
@@ -400,112 +405,7 @@ class WorkspaceView(
         invalidate()
     }
 
-    fun cancelTouches(event: MotionEvent) {
-        for (i in 0 until event.pointerCount) {
-            val pointerId = event.getPointerId(i)
-            val pressure = event.getPressure(i)
-            Workspace.touchesCancelled(
-                wgpuObj,
-                pointerId,
-                event.getX(i),
-                event.getY(i),
-                pressure,
-            )
-        }
-    }
-
-    fun forwardedTouchEvent(
-        event: MotionEvent,
-        touchOffsetY: Float,
-    ) {
-        if (wgpuObj == Long.MAX_VALUE || surface == null) {
-            return
-        }
-        val action = event.action and MotionEvent.ACTION_MASK
-        val actionIndex = event.actionIndex
-        val pressure = getEventPressure(event, actionIndex)
-
-        when (action) {
-            MotionEvent.ACTION_DOWN, MotionEvent.ACTION_POINTER_DOWN -> {
-                if (contextMenu != null) {
-                    contextMenu!!.finish()
-                }
-
-                val pointerId = event.getPointerId(actionIndex)
-                Workspace.touchesBegin(
-                    wgpuObj,
-                    pointerId,
-                    event.getX(actionIndex),
-                    event.getY(actionIndex) + touchOffsetY,
-                    pressure,
-                )
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-                for (i in 0 until event.pointerCount) {
-                    val pointerId = event.getPointerId(i)
-                    Workspace.touchesMoved(
-                        wgpuObj,
-                        pointerId,
-                        event.getX(i),
-                        event.getY(i) + touchOffsetY,
-                        getEventPressure(event, i),
-                    )
-                }
-                motionEventPredictor.predict()?.let { predicted ->
-                    for (i in 0 until predicted.pointerCount) {
-                        Workspace.touchesPredicted(
-                            wgpuObj,
-                            predicted.getPointerId(i),
-                            predicted.getX(i),
-                            predicted.getY(i) + touchOffsetY,
-                            getEventPressure(predicted, i),
-                        )
-                    }
-                    predicted.recycle()
-                }
-            }
-
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_POINTER_UP -> {
-                val pointerId = event.getPointerId(actionIndex)
-                Workspace.touchesEnded(
-                    wgpuObj,
-                    pointerId,
-                    event.getX(actionIndex),
-                    event.getY(actionIndex) + touchOffsetY,
-                    pressure,
-                )
-            }
-
-            MotionEvent.ACTION_CANCEL -> {
-                val pointerId = event.getPointerId(actionIndex)
-                Workspace.touchesCancelled(
-                    wgpuObj,
-                    pointerId,
-                    event.getX(actionIndex),
-                    event.getY(actionIndex) + touchOffsetY,
-                    pressure,
-                )
-            }
-        }
-
-        invalidate()
-    }
-
-    private fun getEventPressure(
-        event: MotionEvent,
-        actionIndex: Int,
-    ): Float {
-        val touchType = event.getToolType(actionIndex)
-
-        val pressure =
-            if (touchType == MotionEvent.TOOL_TYPE_STYLUS) {
-                event.pressure * 10f // hack: on the z-fold the range is 0-0.1, uplift this to 0-1
-            } else {
-                Float.NaN
-            }
-        return pressure
-    }
+    fun canForwardTouches(): Boolean = wgpuObj != Long.MAX_VALUE && surface != null
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
         drawImmediately()

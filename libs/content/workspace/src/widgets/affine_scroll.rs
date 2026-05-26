@@ -1115,7 +1115,6 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let bar_track =
             Rect::from_min_size(Pos2::new(bar_x, rect.min.y), Vec2::new(BAR_WIDTH, rect.height()));
         let bar_id = self.id_salt.with("scrollbar");
-        let bar_response = ui.interact(bar_track, bar_id, Sense::click_and_drag());
 
         self.state.handle(rows, Action::Resize(rect.height()));
 
@@ -1125,6 +1124,11 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         // size scrollbar-drag math and to gate touch-body-drag.
         let bar_geom = self.state.scrollbar(rows, bar_track);
         let scrollable = bar_geom.scrollable_approx > 0.0;
+
+        // interacting with the scrollbar opens the keyboard on mobile and places the cursor
+        // mitgate this by triggering a scroll only when you interact with the thumb
+        let bar_interact_rect = if self.touch_scroll { bar_geom.thumb } else { bar_track };
+        let bar_response = ui.interact(bar_interact_rect, bar_id, Sense::click_and_drag());
 
         // Wheel: precise pixels. egui convention: positive y = scroll up
         // (content moves down). We want offset to grow when user scrolls
