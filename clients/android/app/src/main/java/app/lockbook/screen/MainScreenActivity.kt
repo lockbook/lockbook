@@ -9,6 +9,7 @@ import android.net.Uri
 import android.os.Bundle
 import android.view.View
 import android.view.WindowManager
+import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.SystemBarStyle
 import androidx.activity.enableEdgeToEdge
@@ -245,6 +246,11 @@ class MainScreenActivity : AppCompatActivity() {
                         isEnabled = false // Disable this callback to allow normal back behavior
                         onBackPressedDispatcher.onBackPressed()
                     }
+                }
+
+                override fun handleOnBackStarted(backEvent: BackEventCompat) {
+                    workspaceModel.notifyBackGestureStarted()
+                    super.handleOnBackStarted(backEvent)
                 }
             },
         )

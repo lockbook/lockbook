@@ -136,6 +136,10 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
+        model.backGestureStarted.observe(viewLifecycleOwner) {
+            workspaceWrapper.workspaceView.touchForwarder.cancelBackGestureTouches()
+        }
+
         model.workspaceForwardRequested.observe(viewLifecycleOwner) {
             workspaceWrapper.workspaceView.forward()
         }
@@ -736,7 +740,7 @@ class WorkspaceTextInputWrapper(
         }
 
         if (event != null) {
-            workspaceView.forwardedTouchEvent(event, touchYOffset)
+            workspaceView.touchForwarder.forward(event, touchYOffset)
             tabSheetScrollDetector.onTouchEvent(event)
         }
 
