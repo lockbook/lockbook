@@ -3,6 +3,8 @@ Currently our windows and linux clients are themable. The clients themselves wil
 
 You can add your own theme simply by placing it in the themes directory, the name of the json file will correspond to the theme name. Creating a theme involves selecting 18 colors that our app can draw from based on context.
 
+Themes are new to Lockbook, and they may change schema in the future.
+
 This is our default theme:
 ```json
 {
