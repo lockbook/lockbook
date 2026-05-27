@@ -11,6 +11,16 @@ struct StatusBarView: View {
         HStack {
             SyncButton()
 
+            if homeState.importsInProgress > 0 {
+                Label(title: { Text("Importing\u{2026}") }, icon: {
+                    ProgressView()
+                        .progressViewStyle(.circular)
+                        .controlSize(.small)
+                        .padding(.trailing, 1)
+                })
+                .padding(.vertical, 5)
+            }
+
             Spacer()
 
             fileActionButtons
