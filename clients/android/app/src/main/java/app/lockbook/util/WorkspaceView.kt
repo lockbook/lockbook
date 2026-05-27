@@ -407,6 +407,17 @@ class WorkspaceView(
 
     fun canForwardTouches(): Boolean = wgpuObj != Long.MAX_VALUE && surface != null
 
+    fun willConsumeTouches(
+        x: Float,
+        y: Float,
+    ): Boolean {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return false
+        }
+
+        return Workspace.willConsumeTouches(wgpuObj, x, y)
+    }
+
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
         drawImmediately()
     }

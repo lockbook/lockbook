@@ -732,7 +732,9 @@ class WorkspaceTextInputWrapper(
                 val nonSloppyTouch =
                     abs(event.x - touchStartX).toInt() < slopTouchThreshold &&
                         abs(event.y - touchStartY).toInt() < slopTouchThreshold
-                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch) {
+                if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch &&
+                    !workspaceView.willConsumeTouches(event.x, event.y + touchYOffset)
+                ) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
                 }
