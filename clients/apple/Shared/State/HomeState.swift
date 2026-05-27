@@ -26,6 +26,8 @@ class HomeState: ObservableObject {
 
     @Published var showTabsSheet: Bool = false
 
+    @Published var importsInProgress: Int = 0
+
     @Published private(set) var showOutOfSpaceAlert: Bool = false
     @AppStorage("hideOutOfSpaceSheet") private var hideOutOfSpaceSheet: Bool = false
 

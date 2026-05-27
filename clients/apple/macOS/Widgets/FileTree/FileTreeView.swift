@@ -238,7 +238,8 @@ class FileTreeDataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDat
                 return false
             }
 
-            return ImportExportHelper.importFiles(homeState: homeState, filesModel: filesModel, sources: urls.map { url in url.path(percentEncoded: false) }, destination: parent.id)
+            ImportExportHelper.importFiles(homeState: homeState, filesModel: filesModel, sources: urls.map { url in url.path(percentEncoded: false) }, destination: parent.id)
+            return true
         }
     }
 
