@@ -9,6 +9,7 @@ use crate::{ServerError, ServerState, handle_version_header, router_service, ver
 use lazy_static::lazy_static;
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper, *};
 use lb_rs::model::errors::{LbErrKind, SignError};
+use lb_rs::model::wire::WireFormat;
 use prometheus::{
     CounterVec, HistogramVec, TextEncoder, register_counter_vec, register_histogram_vec,
 };
@@ -41,6 +42,7 @@ macro_rules! core_req {
     ($Req: ty, $handler: path, $state: ident) => {{
         use lb_rs::model::api::{ErrorWrapper, Request};
         use lb_rs::model::file_metadata::Owner;
+        use lb_rs::model::wire::{WIRE_FORMAT_HEADER, WireFormat};
         use std::net::SocketAddr;
         use tracing::*;
         use $crate::router_service::{self, deserialize_and_check, method};
@@ -54,16 +56,19 @@ macro_rules! core_req {
             .and(warp::any().map(|| lb_rs::model::clock::get_time())) // Capture time before body
             .and(warp::body::bytes())
             .and(warp::header::optional::<String>("Accept-Version"))
+            .and(warp::header::optional::<String>(WIRE_FORMAT_HEADER))
             .and(warp::filters::addr::remote())
             .then(
                 |state: Arc<ServerState<S, A, G, D>>,
                  request_time: lb_rs::model::clock::Timestamp,
                  request: Bytes,
                  version: Option<String>,
+                 wire_format_header: Option<String>,
                  ip: Option<SocketAddr>| {
                     if ip.is_none() {
                         tracing::error!("ip not present in request");
                     }
+                    let wire_format = WireFormat::from_header(wire_format_header.as_deref());
                     let span1 = span!(
                         Level::INFO,
                         "matched_request",
@@ -75,6 +80,7 @@ macro_rules! core_req {
                         core_version = version
                             .clone()
                             .unwrap_or_else(|| String::from("not-present")),
+                        wire_format = wire_format.as_str(),
                     );
 
                     async move {
@@ -87,13 +93,17 @@ macro_rules! core_req {
                             &state.config,
                             request,
                             version,
+                            wire_format,
                             request_time,
                         ) {
                             Ok(req) => req,
                             Err(err) => {
                                 warn!("request failed to parse: {:?}", err);
+                                let body = wire_format
+                                    .serialize::<Result<RequestWrapper<$Req>, _>>(&Err(err))
+                                    .unwrap_or_default();
                                 return warp::reply::with_status(
-                                    warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(err)),
+                                    body,
                                     warp::http::StatusCode::BAD_REQUEST,
                                 );
                             }
@@ -149,8 +159,16 @@ macro_rules! core_req {
                                     Err(ErrorWrapper::InternalError)
                                 }
                             };
-                            let response =
-                                warp::reply::with_status(warp::reply::json(&to_serialize), status);
+                            let body = wire_format
+                                .serialize(&to_serialize)
+                                .unwrap_or_else(|e| {
+                                    tracing::error!(
+                                        "response serialize failed in {:?}: {e}",
+                                        wire_format
+                                    );
+                                    Vec::new()
+                                });
+                            let response = warp::reply::with_status(body, status);
                             let log = format!("{status} {} {username}", &<$Req>::ROUTE);
                             let latency = timer.stop_and_record();
                             match level {
@@ -477,7 +495,7 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
 }
 
 pub fn deserialize_and_check<Req>(
-    config: &Config, request: Bytes, version: Option<String>,
+    config: &Config, request: Bytes, version: Option<String>, wire_format: WireFormat,
     request_time: lb_rs::model::clock::Timestamp,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
@@ -485,8 +503,8 @@ where
 {
     handle_version_header::<Req>(config, &version)?;
 
-    let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
-        warn!("Request parsing failure: {}", err);
+    let request = wire_format.deserialize(request.as_ref()).map_err(|err| {
+        warn!("Request parsing failure ({:?}): {}", wire_format, err);
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 
