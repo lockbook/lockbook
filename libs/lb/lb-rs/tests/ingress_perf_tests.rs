@@ -2,15 +2,10 @@ use std::io::Write;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
-use lb_rs::Lb;
-use lb_rs::model::core_config::Config;
 use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::service::import_export::ImportStatus;
 use rand::RngCore;
-use test_utils::{
-    generate_premium_account_tier, random_name, test_core_with_account, test_credit_cards, url,
-};
-use uuid::Uuid;
+use test_utils::{generate_premium_account_tier, test_core_with_account, test_credit_cards};
 
 const ONE_MIB: usize = 1024 * 1024;
 const ONE_GIB: usize = 1024 * ONE_MIB;
@@ -48,18 +43,6 @@ fn ensure_random_file(path: &Path, bytes: usize) {
 fn mib_per_sec(bytes: usize, elapsed: Duration) -> f64 {
     let secs = elapsed.as_secs_f64();
     if secs == 0.0 { 0.0 } else { (bytes as f64 / ONE_MIB as f64) / secs }
-}
-
-/// Like `test_utils::test_config` but with stdout logs on so the underlying
-/// reqwest error is visible when sync blows up.
-fn verbose_config() -> Config {
-    Config {
-        writeable_path: format!("/tmp/{}", Uuid::new_v4()),
-        background_work: false,
-        logs: true,
-        stdout_logs: true,
-        colored_logs: false,
-    }
 }
 
 #[tokio::test]
