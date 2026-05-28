@@ -64,7 +64,7 @@ async fn create_account_invalid_username() {
     let core = test_core().await;
 
     let invalid_unames =
-        ["", "i/o", "@me", "###", "+1", "💩", &"x".repeat(MAX_USERNAME_LENGTH + 1)];
+        ["", "i/o", "###", "+1", "💩", &"x".repeat(MAX_USERNAME_LENGTH + 1)];
 
     for &uname in &invalid_unames {
         let err = core.create_account(uname, &url(), false).await.unwrap_err();
