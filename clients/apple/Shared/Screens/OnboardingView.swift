@@ -108,7 +108,7 @@ private struct OnboardingTwoView: View {
                 .font(.title)
                 .fontWeight(.bold)
 
-            Text("Use letters **(A-Z)** and numbers **(0-9)**. Special characters aren’t allowed.")
+            Text("Use letters **(A-Z)**, numbers **(0-9)**, and the symbols **- _ . @**.")
                 .padding(.top)
 
             Text("You cannot change your username later.")
