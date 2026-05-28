@@ -728,11 +728,11 @@ impl LocalLb {
                                     }
                                 }
                             } else {
-                                // overwrite (todo: avoid reading/decrypting/encrypting document)
-                                let document = self.read_document_helper(id, &mut local).await?;
-                                merge.update_document_unvalidated(
+                                let local_file = local.find(&id)?;
+                                merge.overwrite_document_hmac_unvalidated(
                                     &id,
-                                    &document,
+                                    local_file.document_hmac().copied(),
+                                    local_file.doc_size(),
                                     &self.keychain,
                                 )?;
                             }
