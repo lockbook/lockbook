@@ -1,23 +1,3 @@
-//! Performance tests for ingressing large files into lockbook.
-//!
-//! These are `#[ignore]`d by default because they generate a 1 GiB file on
-//! disk and hit a real lockbook server. Run with:
-//!
-//!     cargo test -p lb-rs --test ingress_perf_tests -- --ignored --nocapture
-//!
-//! A lockbook server must be reachable at `$API_URL` (default
-//! `http://localhost:8000`) with Stripe test mode configured (the test
-//! upgrades the throwaway account to premium so the free-tier cap doesn't
-//! reject the 1 GiB upload).
-//!
-//! The 1 GiB fixture is written to `/tmp/lockbook-ingress-perf-1gib.bin` and
-//! reused across runs. Delete it to force regeneration.
-//!
-//! The test enables stdout tracing at DEBUG by default (override with
-//! `LOG_LEVEL=info|warn|...`). When a sync fails, this is what surfaces the
-//! underlying reqwest error — `LbErrKind::ServerUnreachable` discards it
-//! otherwise.
-
 use std::io::Write;
 use std::path::Path;
 use std::time::{Duration, Instant};
@@ -27,7 +7,7 @@ use lb_rs::model::core_config::Config;
 use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::service::import_export::ImportStatus;
 use rand::RngCore;
-use test_utils::{generate_premium_account_tier, random_name, test_credit_cards, url};
+use test_utils::{generate_premium_account_tier, random_name, test_core_with_account, test_credit_cards, url};
 use uuid::Uuid;
 
 const ONE_MIB: usize = 1024 * 1024;
@@ -86,13 +66,7 @@ async fn ingress_one_gib_single_file() {
     let doc_path = Path::new(FIXTURE_PATH);
     ensure_random_file(doc_path, ONE_GIB);
 
-    // Build Lb manually (instead of `test_core_with_account`) so we control
-    // the config — specifically, so logs are on.
-    println!("api url: {}", url());
-    let core = Lb::init(verbose_config()).await.unwrap();
-    core.create_account(&random_name(), &url(), false)
-        .await
-        .unwrap();
+    let core = test_core_with_account().await;
 
     // Upgrade to premium so the upload doesn't trip the free-tier usage cap.
     // Requires the server to have Stripe test mode configured.
