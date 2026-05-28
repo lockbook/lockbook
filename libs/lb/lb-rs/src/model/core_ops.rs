@@ -461,4 +461,13 @@ where
         self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(document)
     }
+
+    pub fn overwrite_document_hmac(
+        &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
+        keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.overwrite_document_hmac_op(id, new_hmac, new_size, keychain)?;
+        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
+        Ok(())
+    }
 }

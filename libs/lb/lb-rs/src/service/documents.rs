@@ -2,12 +2,14 @@ use std::collections::HashSet;
 
 use crate::LocalLb;
 use crate::model::clock::get_time;
-use crate::model::crypto::DecryptedDocument;
+use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{DocumentHmac, FileType};
+use crate::model::secret_filename::HmacSha256;
 use crate::model::tree_like::TreeLike;
-use crate::model::validate;
+use crate::model::{compression_service, symkey, validate};
+use hmac::{Mac, NewMac};
 use uuid::Uuid;
 
 use super::activity;
@@ -24,21 +26,35 @@ impl LocalLb {
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub async fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {
-        let mut tx = self.begin_tx().await;
-        let db = tx.db();
-
-        let mut tree = (&db.base_metadata)
-            .to_staged(&mut db.local_metadata)
-            .to_lazy();
-
-        let id = match tree.find(&id)?.file_type() {
-            FileType::Document | FileType::Folder => id,
-            FileType::Link { target } => target,
+        // get info so we can do operations while not holding lock
+        let (id, key) = {
+            let tx = self.ro_tx().await;
+            let db = tx.db();
+            let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+            let id = match tree.find(&id)?.file_type() {
+                FileType::Document | FileType::Folder => id,
+                FileType::Link { target } => target,
+            };
+            validate::is_document(tree.find(&id)?)?;
+            (id, tree.decrypt_key(&id, &self.keychain)?)
         };
-        let encrypted_document = tree.update_document(&id, content, &self.keychain)?;
-        let hmac = tree.find(&id)?.document_hmac().copied();
-        self.docs.insert(id, hmac, &encrypted_document).await?;
-        tx.end();
+
+        // do the operations
+        let (hmac, encrypted) = compress_encrypt_document(&key, content)?;
+        let encrypted_size = encrypted.value.len();
+        self.docs.insert_pending(id, hmac, &encrypted).await?;
+
+        // commit the result
+        {
+            let mut tx = self.begin_tx().await;
+            let db = tx.db();
+            let mut tree = (&db.base_metadata)
+                .to_staged(&mut db.local_metadata)
+                .to_lazy();
+            self.docs.promote_pending(id, hmac).await?;
+            tree.overwrite_document_hmac(&id, Some(hmac), Some(encrypted_size), &self.keychain)?;
+            tx.end();
+        }
 
         self.events.doc_written(id, Actor::User);
         self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
@@ -103,37 +119,55 @@ impl LocalLb {
     pub async fn safe_write(
         &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
     ) -> LbResult<DocumentHmac> {
-        let mut tx = self.begin_tx().await;
-        let db = tx.db();
-
-        let mut tree = (&db.base_metadata)
-            .to_staged(&mut db.local_metadata)
-            .to_lazy();
-
-        let file = tree.find(&id)?;
-        if file.document_hmac() != old_hmac.as_ref() {
-            return Err(LbErrKind::ReReadRequired.into());
-        }
-        let id = match file.file_type() {
-            FileType::Document | FileType::Folder => id,
-            FileType::Link { target } => target,
+        // get info so we can do operations while not holding lock
+        let (target_id, key) = {
+            let tx = self.ro_tx().await;
+            let db = tx.db();
+            let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+            let file = tree.find(&id)?;
+            if file.document_hmac() != old_hmac.as_ref() {
+                return Err(LbErrKind::ReReadRequired.into());
+            }
+            let target_id = match file.file_type() {
+                FileType::Document | FileType::Folder => id,
+                FileType::Link { target } => target,
+            };
+            validate::is_document(tree.find(&target_id)?)?;
+            (target_id, tree.decrypt_key(&target_id, &self.keychain)?)
         };
-        // todo can we not borrow here?
-        let encrypted_document = tree.update_document(&id, &content, &self.keychain)?;
-        let hmac = tree.find(&id)?.document_hmac();
-        let hmac = *hmac.ok_or_else(|| {
-            LbErrKind::Unexpected(format!("hmac missing for a document we just wrote {id}"))
-        })?;
+
+        // do the operations
+        let (hmac, encrypted) = compress_encrypt_document(&key, &content)?;
+        let encrypted_size = encrypted.value.len();
         self.docs
-            .insert(id, Some(hmac), &encrypted_document)
+            .insert_pending(target_id, hmac, &encrypted)
             .await?;
-        tx.end();
+
+        // commit the result
+        {
+            let mut tx = self.begin_tx().await;
+            let db = tx.db();
+            let mut tree = (&db.base_metadata)
+                .to_staged(&mut db.local_metadata)
+                .to_lazy();
+            self.docs.promote_pending(target_id, hmac).await?;
+            if tree.find(&id)?.document_hmac() != old_hmac.as_ref() {
+                return Err(LbErrKind::ReReadRequired.into());
+            }
+            tree.overwrite_document_hmac(
+                &target_id,
+                Some(hmac),
+                Some(encrypted_size),
+                &self.keychain,
+            )?;
+            tx.end();
+        }
 
         // todo: when workspace isn't the only writer, this arg needs to be exposed
         // this will happen when lb-fs is integrated into an app and shares an lb-rs with ws
         // or it will happen when there are multiple co-operative core processes.
-        self.events.doc_written(id, Actor::User);
-        self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
+        self.events.doc_written(target_id, Actor::User);
+        self.add_doc_event(activity::DocEvent::Write(target_id, get_time().0))
             .await?;
 
         Ok(hmac)
@@ -159,4 +193,19 @@ impl LocalLb {
 
         Ok(())
     }
+}
+
+fn compress_encrypt_document(
+    key: &AESKey, content: &[u8],
+) -> LbResult<(DocumentHmac, EncryptedDocument)> {
+    let hmac: DocumentHmac = {
+        let mut mac = HmacSha256::new_from_slice(key)
+            .map_err(|err| LbErrKind::Unexpected(format!("hmac creation error: {err:?}")))?;
+        mac.update(content);
+        mac.finalize().into_bytes()
+    }
+    .into();
+    let compressed = compression_service::compress(content)?;
+    let encrypted = symkey::encrypt(key, &compressed)?;
+    Ok((hmac, encrypted))
 }
