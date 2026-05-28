@@ -39,11 +39,7 @@ const FIXTURE_PATH: &str = "/tmp/lockbook-ingress-perf-1gib.bin";
 fn ensure_random_file(path: &Path, bytes: usize) {
     if let Ok(meta) = std::fs::metadata(path) {
         if meta.is_file() && meta.len() == bytes as u64 {
-            println!(
-                "reusing existing fixture at {} ({} bytes)",
-                path.display(),
-                meta.len()
-            );
+            println!("reusing existing fixture at {} ({} bytes)", path.display(), meta.len());
             return;
         }
         // Wrong size (likely a partial write from a previous run) — replace it.
@@ -64,11 +60,7 @@ fn ensure_random_file(path: &Path, bytes: usize) {
     }
     file.flush().unwrap();
     let elapsed = gen_start.elapsed();
-    println!(
-        "  file generation: {:?} ({:.1} MiB/s)",
-        elapsed,
-        mib_per_sec(bytes, elapsed)
-    );
+    println!("  file generation: {:?} ({:.1} MiB/s)", elapsed, mib_per_sec(bytes, elapsed));
 }
 
 fn mib_per_sec(bytes: usize, elapsed: Duration) -> f64 {
@@ -152,13 +144,11 @@ async fn ingress_one_gib_single_file() {
 
     println!("importing into lockbook...");
     let import_start = Instant::now();
-    core.import_files(&[doc_path.to_path_buf()], root.id, &|status: ImportStatus| {
-        match status {
-            ImportStatus::CalculatedTotal(n) => println!("  import: total items = {n}"),
-            ImportStatus::StartingItem(p) => println!("  import: starting {p}"),
-            ImportStatus::FinishedItem(f) => {
-                println!("  import: finished id={} name={}", f.id, f.name)
-            }
+    core.import_files(&[doc_path.to_path_buf()], root.id, &|status: ImportStatus| match status {
+        ImportStatus::CalculatedTotal(n) => println!("  import: total items = {n}"),
+        ImportStatus::StartingItem(p) => println!("  import: starting {p}"),
+        ImportStatus::FinishedItem(f) => {
+            println!("  import: finished id={} name={}", f.id, f.name)
         }
     })
     .await

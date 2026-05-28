@@ -66,10 +66,7 @@ impl Network {
 
         let wire_format = WireFormat::CLIENT_DEFAULT;
         let serialized_request = wire_format
-            .serialize(&RequestWrapper {
-                signed_request,
-                client_version: client_version.clone(),
-            })
+            .serialize(&RequestWrapper { signed_request, client_version: client_version.clone() })
             .map_err(|err| ApiError::Serialize(err.to_string()))?;
 
         if serialized_request.len() > 10 * 1024 * 1024 {

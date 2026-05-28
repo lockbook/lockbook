@@ -159,15 +159,13 @@ macro_rules! core_req {
                                     Err(ErrorWrapper::InternalError)
                                 }
                             };
-                            let body = wire_format
-                                .serialize(&to_serialize)
-                                .unwrap_or_else(|e| {
-                                    tracing::error!(
-                                        "response serialize failed in {:?}: {e}",
-                                        wire_format
-                                    );
-                                    Vec::new()
-                                });
+                            let body = wire_format.serialize(&to_serialize).unwrap_or_else(|e| {
+                                tracing::error!(
+                                    "response serialize failed in {:?}: {e}",
+                                    wire_format
+                                );
+                                Vec::new()
+                            });
                             let response = warp::reply::with_status(body, status);
                             let log = format!("{status} {} {username}", &<$Req>::ROUTE);
                             let latency = timer.stop_and_record();
