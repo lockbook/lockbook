@@ -479,6 +479,10 @@ impl Workspace {
             }
         }
         self.mark_current_tab_changed();
+
+        self.ctx.send_viewport_cmd(ViewportCommand::Title(
+            self.current_tab_title().unwrap_or("Lockbook".to_owned()),
+        ));
     }
 
     pub fn process_bg_tasks(&mut self) {
