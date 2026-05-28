@@ -65,7 +65,9 @@ mod tests {
 
     #[test]
     fn roundtrips_binary_with_nul_bytes() {
-        let original: Vec<u8> = (0u32..4096).map(|i| (i.wrapping_mul(31) ^ 0x55) as u8).collect();
+        let original: Vec<u8> = (0u32..4096)
+            .map(|i| (i.wrapping_mul(31) ^ 0x55) as u8)
+            .collect();
         assert!(original.contains(&0u8), "expected sniff to see a NUL");
         let round_tripped = decompress(&compress(&original).unwrap()).unwrap();
         assert_eq!(round_tripped, original);

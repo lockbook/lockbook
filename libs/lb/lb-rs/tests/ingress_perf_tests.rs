@@ -7,7 +7,9 @@ use lb_rs::model::core_config::Config;
 use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::service::import_export::ImportStatus;
 use rand::RngCore;
-use test_utils::{generate_premium_account_tier, random_name, test_core_with_account, test_credit_cards, url};
+use test_utils::{
+    generate_premium_account_tier, random_name, test_core_with_account, test_credit_cards, url,
+};
 use uuid::Uuid;
 
 const ONE_MIB: usize = 1024 * 1024;
