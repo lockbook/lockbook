@@ -9,7 +9,12 @@ pub fn username_is_valid(username: &str) -> bool {
     !username.is_empty()
         && username.len() <= MAX_USERNAME_LENGTH
         && username.to_lowercase().chars().all(|c| {
-            c.is_ascii_lowercase() || c.is_ascii_digit() || c == '-' || c == '_' || c == '.'
+            c.is_ascii_lowercase()
+                || c.is_ascii_digit()
+                || c == '-'
+                || c == '_'
+                || c == '.'
+                || c == '@'
         })
 }
 
