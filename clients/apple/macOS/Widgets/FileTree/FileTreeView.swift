@@ -2,6 +2,7 @@ import AppKit
 import Combine
 import SwiftUI
 import SwiftWorkspace
+import UniformTypeIdentifiers
 
 struct FileTreeView: NSViewRepresentable {
     @EnvironmentObject var homeState: HomeState
@@ -148,7 +149,7 @@ struct FileTreeView: NSViewRepresentable {
         .withCommonPreviewEnvironment()
 }
 
-class FileTreeDataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDataProvider {
+class FileTreeDataSource: NSObject, NSOutlineViewDataSource {
     @ObservedObject var homeState: HomeState
     @ObservedObject var filesModel: FilesViewModel
 
@@ -193,13 +194,23 @@ class FileTreeDataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDat
     }
 
     func outlineView(_: NSOutlineView, pasteboardWriterForItem item: Any) -> NSPasteboardWriting? {
-        let pb = NSPasteboardItem()
         let file = item as! File
 
-        pb.setData(try! JSONEncoder().encode(file), forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))
-        pb.setDataProvider(self, forTypes: [NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE), .fileURL])
+        // Pick a UTI from the file extension so destinations (e.g. Finder)
+        // know what kind of file to expect. Folders and unknown extensions
+        // fall back to public.data.
+        let ext = (file.name as NSString).pathExtension
+        let utType: UTType = {
+            if file.type == .folder { return .folder }
+            return UTType(filenameExtension: ext) ?? .data
+        }()
 
-        return pb
+        let provider = LbFilePromiseProvider(fileType: utType.identifier, delegate: self)
+        provider.userInfo = file
+        // Keep the internal-reorder type available on the same pasteboard
+        // item so drops within the outline view still recognize the drag.
+        provider.reorderData = try! JSONEncoder().encode(file)
+        return provider
     }
 
     func outlineView(_: NSOutlineView, draggingSession session: NSDraggingSession, willBeginAt _: NSPoint, forItems draggedItems: [Any]) {
@@ -252,25 +263,6 @@ class FileTreeDataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDat
         }
     }
 
-    func pasteboard(_ pasteboard: NSPasteboard?, item: NSPasteboardItem, provideDataForType type: NSPasteboard.PasteboardType) {
-        if type == .fileURL {
-            let files = try! JSONDecoder().decode([File].self, from: item.data(forType: NSPasteboard.PasteboardType(Self.REORDER_PASTEBOARD_TYPE))!)
-
-            pasteboard?.clearContents()
-            var pasteboardItems: [NSPasteboardItem] = []
-
-            for file in files {
-                if let dest = ImportExportHelper.exportFilesToTempDir(homeState: homeState, file: file) {
-                    let newItem = NSPasteboardItem()
-                    newItem.setData(dest.dataRepresentation, forType: .fileURL)
-                    pasteboardItems.append(newItem)
-                }
-            }
-
-            pasteboard?.writeObjects(pasteboardItems)
-        }
-    }
-
     func outlineView(_: NSOutlineView, draggingSession _: NSDraggingSession, endedAt _: NSPoint, operation: NSDragOperation) {
         if operation == .move {
             dragged = nil
@@ -278,6 +270,83 @@ class FileTreeDataSource: NSObject, NSOutlineViewDataSource, NSPasteboardItemDat
     }
 
     static let REORDER_PASTEBOARD_TYPE = "net.lockbook.metadata"
+}
+
+extension FileTreeDataSource: NSFilePromiseProviderDelegate {
+    /// Off-main queue for `writePromiseTo` so a large decrypt + write
+    /// doesn't block the AppKit run loop during the drag-out.
+    static let exportQueue: OperationQueue = {
+        let q = OperationQueue()
+        q.qualityOfService = .userInitiated
+        return q
+    }()
+
+    func filePromiseProvider(_ provider: NSFilePromiseProvider, fileNameForType _: String) -> String {
+        return (provider.userInfo as? File)?.name ?? "untitled"
+    }
+
+    func filePromiseProvider(
+        _ provider: NSFilePromiseProvider,
+        writePromiseTo url: URL,
+        completionHandler: @escaping (Error?) -> Void
+    ) {
+        guard let file = provider.userInfo as? File else {
+            completionHandler(NSError(
+                domain: "net.lockbook",
+                code: -1,
+                userInfo: [NSLocalizedDescriptionKey: "Drag-out lost file context"]
+            ))
+            return
+        }
+
+        let homeState = self.homeState
+        DispatchQueue.main.async { homeState.exportsInProgress += 1 }
+
+        // `lb.exportFile` writes `file.name` into the destination directory,
+        // so pass the parent of the URL the system handed us.
+        let destDir = url.deletingLastPathComponent().path(percentEncoded: false)
+        let result = AppState.lb.exportFile(sourceId: file.id, dest: destDir, edit: true)
+
+        DispatchQueue.main.async {
+            homeState.exportsInProgress -= 1
+            if case let .failure(err) = result {
+                AppState.shared.error = .lb(error: err)
+            }
+        }
+
+        switch result {
+        case .success:
+            completionHandler(nil)
+        case let .failure(err):
+            completionHandler(err)
+        }
+    }
+
+    func operationQueue(for _: NSFilePromiseProvider) -> OperationQueue {
+        return Self.exportQueue
+    }
+}
+
+/// NSFilePromiseProvider that also exposes the internal reorder pasteboard
+/// type, so drag-and-drop within the outline view keeps working alongside
+/// the lazy file-promise mechanism used for drags out to Finder.
+class LbFilePromiseProvider: NSFilePromiseProvider {
+    var reorderData: Data?
+
+    override func writableTypes(for pasteboard: NSPasteboard) -> [NSPasteboard.PasteboardType] {
+        var types = super.writableTypes(for: pasteboard)
+        if reorderData != nil {
+            types.append(NSPasteboard.PasteboardType(FileTreeDataSource.REORDER_PASTEBOARD_TYPE))
+        }
+        return types
+    }
+
+    override func pasteboardPropertyList(forType type: NSPasteboard.PasteboardType) -> Any? {
+        if type == NSPasteboard.PasteboardType(FileTreeDataSource.REORDER_PASTEBOARD_TYPE) {
+            return reorderData
+        }
+        return super.pasteboardPropertyList(forType: type)
+    }
 }
 
 protocol MenuOutlineViewDelegate: NSOutlineViewDelegate {
