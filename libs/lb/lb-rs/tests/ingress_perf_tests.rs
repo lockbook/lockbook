@@ -9,7 +9,7 @@ use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::service::import_export::ImportStatus;
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use test_utils::{generate_premium_account_tier, random_name, test_credit_cards, url};
+use test_utils::{generate_premium_account_tier, random_name, test_core_from, test_credit_cards, url};
 use uuid::Uuid;
 
 const ONE_MIB: usize = 1024 * 1024;
@@ -65,6 +65,8 @@ fn verbose_config() -> Config {
 
 #[tokio::test]
 #[ignore = "generates a 1 GiB file and contacts the server"]
+// this test cannot suceed on macOS until we do streaming sends from the server like we did for
+// network.rs
 async fn ingress_one_gib_single_file() {
     let doc_path = Path::new(FIXTURE_PATH);
     ensure_random_file(doc_path, TWO_GB);
@@ -183,12 +185,7 @@ async fn ingress_one_gib_single_file() {
         .expect("import never reported a FinishedItem");
 
     println!("starting fresh client to verify round-trip...");
-    let account_string = core.export_account_private_key().unwrap();
-    let core2 = Lb::init(verbose_config()).await.unwrap();
-    core2
-        .import_account(&account_string, Some(&url()))
-        .await
-        .unwrap();
+    let core2 = test_core_from(&core).await;
 
     let pull_start = Instant::now();
     core2.sync().await.unwrap();

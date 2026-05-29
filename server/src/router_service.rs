@@ -99,13 +99,32 @@ macro_rules! core_req {
                             Ok(req) => req,
                             Err(err) => {
                                 warn!("request failed to parse: {:?}", err);
-                                let body = wire_format
+                                // If serializing the parse-error response itself fails,
+                                // fall back to `InternalError` + 500 so the client sees
+                                // a real `ApiError::InternalError` rather than
+                                // `Deserialize("io error: unexpected end of file")`
+                                // from an empty body.
+                                let (body, status) = match wire_format
                                     .serialize::<Result<RequestWrapper<$Req>, _>>(&Err(err))
-                                    .unwrap_or_default();
-                                return warp::reply::with_status(
-                                    body,
-                                    warp::http::StatusCode::BAD_REQUEST,
-                                );
+                                {
+                                    Ok(body) => (body, warp::http::StatusCode::BAD_REQUEST),
+                                    Err(e) => {
+                                        tracing::error!(
+                                            "parse-error response serialize failed in {:?}: {e}",
+                                            wire_format
+                                        );
+                                        let fallback = wire_format
+                                            .serialize::<Result<(), ErrorWrapper<()>>>(&Err(
+                                                ErrorWrapper::InternalError,
+                                            ))
+                                            .unwrap_or_default();
+                                        (
+                                            fallback,
+                                            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                                        )
+                                    }
+                                };
+                                return warp::reply::with_status(body, status);
                             }
                         };
 
@@ -140,7 +159,7 @@ macro_rules! core_req {
                         };
 
                         async move {
-                            let status;
+                            let mut status;
                             let mut level = tracing::Level::INFO;
                             let to_serialize = match $handler(state, rc).await {
                                 Ok(response) => {
@@ -159,13 +178,34 @@ macro_rules! core_req {
                                     Err(ErrorWrapper::InternalError)
                                 }
                             };
-                            let body = wire_format.serialize(&to_serialize).unwrap_or_else(|e| {
-                                tracing::error!(
-                                    "response serialize failed in {:?}: {e}",
+                            let body = match wire_format.serialize(&to_serialize) {
+                                Ok(body) => body,
+                                Err(e) => {
+                                    tracing::error!(
+                                        "response serialize failed in {:?}: {e}",
+                                        wire_format
+                                    );
+                                    // Fall back to a real `InternalError` body + 500
+                                    // status so the client sees `ApiError::InternalError`
+                                    // instead of `Deserialize("io error: unexpected end
+                                    // of file")` from an empty body. The bytes for
+                                    // `Result::<(), ErrorWrapper<()>>::Err(InternalError)`
+                                    // are identical to the bytes the client expects to
+                                    // deserialize into
+                                    // `Result::<T::Response, ErrorWrapper<T::Error>>`
+                                    // because `InternalError` is a unit variant whose
+                                    // wire form is independent of the surrounding
+                                    // generics (true in both bincode and JSON).
+                                    status =
+                                        warp::http::StatusCode::INTERNAL_SERVER_ERROR;
+                                    level = tracing::Level::ERROR;
                                     wire_format
-                                );
-                                Vec::new()
-                            });
+                                        .serialize::<Result<(), ErrorWrapper<()>>>(&Err(
+                                            ErrorWrapper::InternalError,
+                                        ))
+                                        .unwrap_or_default()
+                                }
+                            };
                             let response = warp::reply::with_status(body, status);
                             let log = format!("{status} {} {username}", &<$Req>::ROUTE);
                             let latency = timer.stop_and_record();
