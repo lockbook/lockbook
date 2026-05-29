@@ -1,7 +1,7 @@
 use crate::LocalLb;
 use crate::io::network::ApiError;
 use crate::model::api::{
-    CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequest,
+    CancelSubscriptionError, CancelSubscriptionRequest, GetSubscriptionInfoRequestV2,
     StripeAccountTier, SubscriptionInfo, UpgradeAccountAppStoreError,
     UpgradeAccountAppStoreRequest, UpgradeAccountGooglePlayError, UpgradeAccountGooglePlayRequest,
     UpgradeAccountStripeError, UpgradeAccountStripeRequest,
@@ -150,15 +150,15 @@ impl LocalLb {
     pub async fn get_subscription_info(&self) -> LbResult<Option<SubscriptionInfo>> {
         let account = self.get_account()?;
 
-        Ok(self
+        let response = self
             .client
-            .request(account, GetSubscriptionInfoRequest {})
+            .request(account, GetSubscriptionInfoRequestV2 {})
             .await
             .map_err(|err| match err {
                 ApiError::SendFailed(_) => LbErrKind::ServerUnreachable,
                 ApiError::ClientUpdateRequired => LbErrKind::ClientUpdateRequired,
                 _ => core_err_unexpected(err),
-            })?
-            .subscription_info)
+            })?;
+        Ok(response.subscription_info.map(Into::into))
     }
 }

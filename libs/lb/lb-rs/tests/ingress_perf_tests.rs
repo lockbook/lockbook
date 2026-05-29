@@ -2,13 +2,16 @@ use std::io::Write;
 use std::path::Path;
 use std::time::{Duration, Instant};
 
+use lb_rs::Lb;
+use lb_rs::model::core_config::Config;
 use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::service::import_export::ImportStatus;
 use rand::RngCore;
-use test_utils::{generate_premium_account_tier, test_core_with_account, test_credit_cards};
+use test_utils::{generate_premium_account_tier, random_name, test_credit_cards, url};
+use uuid::Uuid;
 
 const ONE_MIB: usize = 1024 * 1024;
-const ONE_GIB: usize = 1024 * ONE_MIB;
+const TWO_GB: usize = 1024 * ONE_MIB * 2;
 
 /// Fixed path so reruns reuse the same file. Delete it to force regeneration.
 const FIXTURE_PATH: &str = "/tmp/lockbook-ingress-perf-1gib.bin";
@@ -45,13 +48,29 @@ fn mib_per_sec(bytes: usize, elapsed: Duration) -> f64 {
     if secs == 0.0 { 0.0 } else { (bytes as f64 / ONE_MIB as f64) / secs }
 }
 
+/// Like `test_utils::test_config` but with stdout logging on so the
+/// underlying reqwest error (e.g. the body that EINVAL'd) is visible when
+/// sync surfaces only `LbErrKind::ServerUnreachable`.
+fn verbose_config() -> Config {
+    Config {
+        writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+        background_work: false,
+        logs: true,
+        stdout_logs: true,
+        colored_logs: false,
+    }
+}
+
 #[tokio::test]
 #[ignore = "generates a 1 GiB file and contacts the server"]
 async fn ingress_one_gib_single_file() {
     let doc_path = Path::new(FIXTURE_PATH);
-    ensure_random_file(doc_path, ONE_GIB);
+    ensure_random_file(doc_path, TWO_GB);
 
-    let core = test_core_with_account().await;
+    let core = Lb::init(verbose_config()).await.unwrap();
+    core.create_account(&random_name(), &url(), false)
+        .await
+        .unwrap();
 
     // Upgrade to premium so the upload doesn't trip the free-tier usage cap.
     // Requires the server to have Stripe test mode configured.
@@ -116,7 +135,7 @@ async fn ingress_one_gib_single_file() {
     println!(
         "import_files:    {:?} ({:.1} MiB/s)",
         import_elapsed,
-        mib_per_sec(ONE_GIB, import_elapsed)
+        mib_per_sec(TWO_GB, import_elapsed)
     );
 
     // Pre-sync diagnostics so we know what sync is about to attempt.
@@ -134,7 +153,7 @@ async fn ingress_one_gib_single_file() {
     println!(
         "sync:            {:?} ({:.1} MiB/s)",
         sync_elapsed,
-        mib_per_sec(ONE_GIB, sync_elapsed)
+        mib_per_sec(TWO_GB, sync_elapsed)
     );
 
     // Stop the watcher cleanly before asserting.

@@ -16,8 +16,9 @@ use lb_rs::model::api::{
     AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
     AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
     CancelSubscriptionResponse, FREE_TIER_USAGE_SIZE, GetSubscriptionInfoError,
-    GetSubscriptionInfoRequest, GetSubscriptionInfoResponse, GooglePlayAccountState,
-    PaymentPlatform, StripeAccountState, SubscriptionInfo, UpgradeAccountAppStoreError,
+    GetSubscriptionInfoRequest, GetSubscriptionInfoRequestV2, GetSubscriptionInfoResponse,
+    GetSubscriptionInfoResponseV2, GooglePlayAccountState, PaymentPlatform, PaymentPlatformV2,
+    StripeAccountState, SubscriptionInfo, SubscriptionInfoV2, UpgradeAccountAppStoreError,
     UpgradeAccountAppStoreRequest, UpgradeAccountAppStoreResponse, UpgradeAccountGooglePlayError,
     UpgradeAccountGooglePlayRequest, UpgradeAccountGooglePlayResponse, UpgradeAccountStripeError,
     UpgradeAccountStripeRequest, UpgradeAccountStripeResponse,
@@ -234,18 +235,7 @@ where
     pub async fn get_subscription_info(
         &self, context: RequestContext<GetSubscriptionInfoRequest>,
     ) -> Result<GetSubscriptionInfoResponse, ServerError<GetSubscriptionInfoError>> {
-        let platform = self
-            .index_db
-            .lock()
-            .await
-            .accounts
-            .get()
-            .get(&Owner(context.public_key))
-            .ok_or(ClientError(GetSubscriptionInfoError::UserNotFound))?
-            .billing_info
-            .billing_platform
-            .clone();
-
+        let platform = self.read_billing_platform(&context.public_key).await?;
         let subscription_info = platform.map(|info| match info {
             BillingPlatform::Stripe(info) => SubscriptionInfo {
                 payment_platform: PaymentPlatform::Stripe { card_last_4_digits: info.last_4 },
@@ -260,8 +250,46 @@ where
                 period_end: info.expiration_time,
             },
         });
-
         Ok(GetSubscriptionInfoResponse { subscription_info })
+    }
+
+    pub async fn get_subscription_info_v2(
+        &self, context: RequestContext<GetSubscriptionInfoRequestV2>,
+    ) -> Result<GetSubscriptionInfoResponseV2, ServerError<GetSubscriptionInfoError>> {
+        let platform = self.read_billing_platform(&context.public_key).await?;
+        let subscription_info = platform.map(|info| match info {
+            BillingPlatform::Stripe(info) => SubscriptionInfoV2 {
+                payment_platform: PaymentPlatformV2::Stripe { card_last_4_digits: info.last_4 },
+                period_end: info.expiration_time,
+            },
+            BillingPlatform::GooglePlay(info) => SubscriptionInfoV2 {
+                payment_platform: PaymentPlatformV2::GooglePlay {
+                    account_state: info.account_state,
+                },
+                period_end: info.expiration_time,
+            },
+            BillingPlatform::AppStore(info) => SubscriptionInfoV2 {
+                payment_platform: PaymentPlatformV2::AppStore { account_state: info.account_state },
+                period_end: info.expiration_time,
+            },
+        });
+        Ok(GetSubscriptionInfoResponseV2 { subscription_info })
+    }
+
+    async fn read_billing_platform(
+        &self, public_key: &PublicKey,
+    ) -> Result<Option<BillingPlatform>, ServerError<GetSubscriptionInfoError>> {
+        Ok(self
+            .index_db
+            .lock()
+            .await
+            .accounts
+            .get()
+            .get(&Owner(*public_key))
+            .ok_or(ClientError(GetSubscriptionInfoError::UserNotFound))?
+            .billing_info
+            .billing_platform
+            .clone())
     }
 
     pub async fn cancel_subscription(

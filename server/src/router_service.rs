@@ -248,6 +248,11 @@ where
         ))
         .or(core_req!(CancelSubscriptionRequest, ServerState::cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, ServerState::get_subscription_info, server_state))
+        .or(core_req!(
+            GetSubscriptionInfoRequestV2,
+            ServerState::get_subscription_info_v2,
+            server_state
+        ))
         .or(core_req!(DeleteAccountRequest, ServerState::delete_account, server_state))
         .or(core_req!(UpsertDebugInfoRequest, ServerState::upsert_debug_info, server_state))
         .or(core_req!(

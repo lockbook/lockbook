@@ -1332,12 +1332,12 @@ impl LocalLb {
         #[cfg(not(target_family = "wasm"))]
         tokio::spawn(async move {
             loop {
-                self.sync().await.map_unexpected().log_and_ignore();
                 if self.user_active().await {
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 } else {
                     tokio::time::sleep(Duration::from_secs(5 * 60)).await;
                 }
+                self.sync().await.map_unexpected().log_and_ignore();
             }
         });
     }

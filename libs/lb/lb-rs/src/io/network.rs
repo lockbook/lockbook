@@ -87,7 +87,10 @@ impl Network {
             .header(WIRE_FORMAT_HEADER, wire_format.as_str())
             .send()
             .await
-            .map_err(|e| ApiError::SendFailed(e.to_string()))?;
+            .map_err(|e| {
+                warn!("send failed: {e:?}");
+                ApiError::SendFailed(e.to_string())
+            })?;
         if start.elapsed() > Duration::from_millis(1000) {
             warn!("network request took {:?}", start.elapsed());
         }
