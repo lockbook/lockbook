@@ -123,15 +123,6 @@ impl Network {
     }
 }
 
-/// Pick a request body. Small payloads stay on the simple `Vec<u8>` path so
-/// the request goes out with `Content-Length` and identity encoding (which
-/// the server is happy with for GETs too). Only payloads above
-/// [`STREAM_BODY_THRESHOLD`] switch to a chunked stream of bounded `Bytes`
-/// pieces — that's what avoids the macOS `write(2)` `INT_MAX` cap, at the
-/// cost of `Transfer-Encoding: chunked`.
-///
-/// The `Bytes` chunks are `split_to` slices of one ref-counted backing
-/// allocation, so chunking doesn't copy the payload.
 fn body_for(serialized_request: Vec<u8>) -> Body {
     if serialized_request.len() < STREAM_BODY_THRESHOLD {
         return Body::from(serialized_request);

@@ -49,6 +49,8 @@ struct SyncButton: View {
                 syncButtonStatus = .outOfSpace
             } else if status.syncing {
                 syncButtonStatus = .syncing
+            } else if status.unexpectedSyncProblem != nil {
+                syncButtonStatus = .syncError
             } else {
                 syncButtonStatus = .canSync
             }
