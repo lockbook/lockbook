@@ -12,18 +12,8 @@ use crate::model::errors::LbErr;
 use crate::model::pubkey;
 use crate::model::wire::{WIRE_FORMAT_HEADER, WireFormat};
 
-/// Cap on how many bytes hyper hands to a single `write()` syscall. macOS
-/// rejects writes larger than `INT_MAX` (~2 GiB) with EINVAL, so for
-/// large request bodies we feed reqwest a stream of bounded `Bytes` chunks
-/// instead of one giant slab.
 const STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 
-/// Above this size we switch to a streaming body. Streaming forces
-/// `Transfer-Encoding: chunked`, which doesn't play nicely with GET requests
-/// (hyper-side handling for GET-with-chunked is iffy and the server returns
-/// BadRequest), so for ordinary small payloads we stay on the simple
-/// `Vec<u8>` path with `Content-Length`. 1 GiB is well below the macOS
-/// `INT_MAX` write cap and well above any normal metadata-shaped request.
 const STREAM_BODY_THRESHOLD: usize = 1024 * 1024 * 1024;
 
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
