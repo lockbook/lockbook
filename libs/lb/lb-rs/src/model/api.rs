@@ -541,10 +541,7 @@ impl From<PaymentPlatformV2> for PaymentPlatform {
 
 impl From<SubscriptionInfoV2> for SubscriptionInfo {
     fn from(v: SubscriptionInfoV2) -> Self {
-        SubscriptionInfo {
-            payment_platform: v.payment_platform.into(),
-            period_end: v.period_end,
-        }
+        SubscriptionInfo { payment_platform: v.payment_platform.into(), period_end: v.period_end }
     }
 }
 
