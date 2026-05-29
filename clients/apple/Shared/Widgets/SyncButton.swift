@@ -37,6 +37,7 @@ struct SyncButton: View {
         .modifier(SyncButtonHelpMessage(statusMessage: $statusMessage))
         .buttonStyle(.borderless)
         .tint(getButtonTintColor())
+        .disabled(syncButtonStatus == .syncing)
         .onReceive(AppState.lb.events.$status, perform: { status in
             guard !isPreview else { return }
 

@@ -1,6 +1,8 @@
 use web_time::{Duration, Instant};
 
-use reqwest::Client;
+use bytes::Bytes;
+use futures::stream;
+use reqwest::{Body, Client};
 
 use crate::get_code_version;
 use crate::model::account::Account;
@@ -9,6 +11,20 @@ use crate::model::clock::{Timestamp, get_time};
 use crate::model::errors::LbErr;
 use crate::model::pubkey;
 use crate::model::wire::{WIRE_FORMAT_HEADER, WireFormat};
+
+/// Cap on how many bytes hyper hands to a single `write()` syscall. macOS
+/// rejects writes larger than `INT_MAX` (~2 GiB) with EINVAL, so for
+/// large request bodies we feed reqwest a stream of bounded `Bytes` chunks
+/// instead of one giant slab.
+const STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+
+/// Above this size we switch to a streaming body. Streaming forces
+/// `Transfer-Encoding: chunked`, which doesn't play nicely with GET requests
+/// (hyper-side handling for GET-with-chunked is iffy and the server returns
+/// BadRequest), so for ordinary small payloads we stay on the simple
+/// `Vec<u8>` path with `Content-Length`. 1 GiB is well below the macOS
+/// `INT_MAX` write cap and well above any normal metadata-shaped request.
+const STREAM_BODY_THRESHOLD: usize = 1024 * 1024 * 1024;
 
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
@@ -79,10 +95,11 @@ impl Network {
 
         let url = &account.api_url;
         let start = Instant::now();
+        let body = body_for(serialized_request);
         let sent = self
             .client
             .request(T::METHOD, format!("{}{}", url, T::ROUTE).as_str())
-            .body(serialized_request)
+            .body(body)
             .header("Accept-Version", client_version)
             .header(WIRE_FORMAT_HEADER, wire_format.as_str())
             .send()
@@ -104,4 +121,27 @@ impl Network {
             .map_err(|err| ApiError::Deserialize(err.to_string()))?;
         response.map_err(ApiError::from)
     }
+}
+
+/// Pick a request body. Small payloads stay on the simple `Vec<u8>` path so
+/// the request goes out with `Content-Length` and identity encoding (which
+/// the server is happy with for GETs too). Only payloads above
+/// [`STREAM_BODY_THRESHOLD`] switch to a chunked stream of bounded `Bytes`
+/// pieces — that's what avoids the macOS `write(2)` `INT_MAX` cap, at the
+/// cost of `Transfer-Encoding: chunked`.
+///
+/// The `Bytes` chunks are `split_to` slices of one ref-counted backing
+/// allocation, so chunking doesn't copy the payload.
+fn body_for(serialized_request: Vec<u8>) -> Body {
+    if serialized_request.len() < STREAM_BODY_THRESHOLD {
+        return Body::from(serialized_request);
+    }
+    let mut buf = Bytes::from(serialized_request);
+    let mut chunks: Vec<Result<Bytes, std::io::Error>> =
+        Vec::with_capacity(buf.len().div_ceil(STREAM_CHUNK_BYTES));
+    while !buf.is_empty() {
+        let n = buf.len().min(STREAM_CHUNK_BYTES);
+        chunks.push(Ok(buf.split_to(n)));
+    }
+    Body::wrap_stream(stream::iter(chunks))
 }

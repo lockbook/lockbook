@@ -67,43 +67,46 @@ impl LocalLb {
     pub async fn read_document_with_hmac(
         &self, id: Uuid, user_activity: bool,
     ) -> LbResult<(Option<DocumentHmac>, DecryptedDocument)> {
-        let tx = self.ro_tx().await;
-        let db = tx.db();
+        // get info + on-disk bytes so we can decrypt without holding the lock
+        let info: Option<(DocumentHmac, AESKey, Option<EncryptedDocument>)> = {
+            let tx = self.ro_tx().await;
+            let db = tx.db();
+            let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
-        let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
+            let file = tree.find(&id)?;
+            validate::is_document(file)?;
+            let hmac = file.document_hmac().copied();
 
-        let file = tree.find(&id)?;
-        validate::is_document(file)?;
-        let hmac = file.document_hmac().copied();
-
-        if tree.calculate_deleted(&id)? {
-            return Err(LbErrKind::FileNonexistent.into());
-        }
-
-        let doc = match hmac {
-            Some(hmac) => {
-                if self.docs.exists(id, Some(hmac)) {
-                    let doc = self.docs.get(id, Some(hmac)).await?;
-                    let doc = tree.decrypt_document(&id, &doc, &self.keychain)?;
-                    drop(tx);
-                    doc
-                } else {
-                    drop(tx);
-                    // todo: if document not found -- need to trigger a pull
-                    let doc = self.fetch_doc(id, hmac).await?;
-
-                    let tx = self.ro_tx().await;
-                    let db = tx.db();
-                    let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
-                    let doc = tree.decrypt_document(&id, &doc, &self.keychain)?;
-                    drop(tx);
-
-                    doc
-                }
+            if tree.calculate_deleted(&id)? {
+                return Err(LbErrKind::FileNonexistent.into());
             }
-            None => {
-                drop(tx);
-                vec![]
+
+            match hmac {
+                Some(hmac) => {
+                    let key = tree.decrypt_key(&id, &self.keychain)?;
+                    let local_blob = if self.docs.exists(id, Some(hmac)) {
+                        Some(self.docs.get(id, Some(hmac)).await?)
+                    } else {
+                        None
+                    };
+                    Some((hmac, key, local_blob))
+                }
+                None => None,
+            }
+        };
+
+        // do decrypt + decompress without holding the lock; fetch from the
+        // server first if the blob wasn't already local.
+        let (hmac, doc) = match info {
+            None => (None, vec![]),
+            Some((hmac, key, local_blob)) => {
+                let encrypted = match local_blob {
+                    Some(blob) => blob,
+                    // todo: if document not found -- need to trigger a pull
+                    None => self.fetch_doc(id, hmac).await?,
+                };
+                let doc = decrypt_decompress_document(&key, &encrypted)?;
+                (Some(hmac), doc)
             }
         };
 
@@ -208,4 +211,12 @@ fn compress_encrypt_document(
     let compressed = compression_service::compress(content)?;
     let encrypted = symkey::encrypt(key, &compressed)?;
     Ok((hmac, encrypted))
+}
+
+fn decrypt_decompress_document(
+    key: &AESKey, encrypted: &EncryptedDocument,
+) -> LbResult<DecryptedDocument> {
+    let compressed = symkey::decrypt(key, encrypted)?;
+    let doc = compression_service::decompress(&compressed)?;
+    Ok(doc)
 }
