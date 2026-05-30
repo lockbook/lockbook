@@ -9,6 +9,7 @@ use crate::{ServerError, ServerState, handle_version_header, router_service, ver
 use lazy_static::lazy_static;
 use lb_rs::model::api::{ErrorWrapper, Request, RequestWrapper, *};
 use lb_rs::model::errors::{LbErrKind, SignError};
+use lb_rs::model::wire::WireFormat;
 use prometheus::{
     CounterVec, HistogramVec, TextEncoder, register_counter_vec, register_histogram_vec,
 };
@@ -41,9 +42,10 @@ macro_rules! core_req {
     ($Req: ty, $handler: path, $state: ident) => {{
         use lb_rs::model::api::{ErrorWrapper, Request};
         use lb_rs::model::file_metadata::Owner;
+        use lb_rs::model::wire::{WIRE_FORMAT_HEADER, WireFormat};
         use std::net::SocketAddr;
         use tracing::*;
-        use $crate::router_service::{self, deserialize_and_check, method};
+        use $crate::router_service::{self, build_response, deserialize_and_check, method};
         use $crate::{RequestContext, ServerError};
 
         let cloned_state = $state.clone();
@@ -54,16 +56,19 @@ macro_rules! core_req {
             .and(warp::any().map(|| lb_rs::model::clock::get_time())) // Capture time before body
             .and(warp::body::bytes())
             .and(warp::header::optional::<String>("Accept-Version"))
+            .and(warp::header::optional::<String>(WIRE_FORMAT_HEADER))
             .and(warp::filters::addr::remote())
             .then(
                 |state: Arc<ServerState<S, A, G, D>>,
                  request_time: lb_rs::model::clock::Timestamp,
                  request: Bytes,
                  version: Option<String>,
+                 wire_format_header: Option<String>,
                  ip: Option<SocketAddr>| {
                     if ip.is_none() {
                         tracing::error!("ip not present in request");
                     }
+                    let wire_format = WireFormat::from_header(wire_format_header.as_deref());
                     let span1 = span!(
                         Level::INFO,
                         "matched_request",
@@ -75,6 +80,7 @@ macro_rules! core_req {
                         core_version = version
                             .clone()
                             .unwrap_or_else(|| String::from("not-present")),
+                        wire_format = wire_format.as_str(),
                     );
 
                     async move {
@@ -87,15 +93,33 @@ macro_rules! core_req {
                             &state.config,
                             request,
                             version,
+                            wire_format,
                             request_time,
                         ) {
                             Ok(req) => req,
                             Err(err) => {
                                 warn!("request failed to parse: {:?}", err);
-                                return warp::reply::with_status(
-                                    warp::reply::json::<Result<RequestWrapper<$Req>, _>>(&Err(err)),
-                                    warp::http::StatusCode::BAD_REQUEST,
-                                );
+                                let (body, status) = match wire_format.serialize::<Result<
+                                    RequestWrapper<$Req>,
+                                    _,
+                                >>(
+                                    &Err(err)
+                                ) {
+                                    Ok(body) => (body, warp::http::StatusCode::BAD_REQUEST),
+                                    Err(e) => {
+                                        error!(
+                                            "parse-error response serialize failed in {:?}: {e}",
+                                            wire_format
+                                        );
+                                        let fallback = wire_format
+                                            .serialize::<Result<(), ErrorWrapper<()>>>(&Err(
+                                                ErrorWrapper::InternalError,
+                                            ))
+                                            .unwrap_or_default();
+                                        (fallback, warp::http::StatusCode::INTERNAL_SERVER_ERROR)
+                                    }
+                                };
+                                return build_response(body, status);
                             }
                         };
 
@@ -130,7 +154,7 @@ macro_rules! core_req {
                         };
 
                         async move {
-                            let status;
+                            let mut status;
                             let mut level = tracing::Level::INFO;
                             let to_serialize = match $handler(state, rc).await {
                                 Ok(response) => {
@@ -149,8 +173,20 @@ macro_rules! core_req {
                                     Err(ErrorWrapper::InternalError)
                                 }
                             };
-                            let response =
-                                warp::reply::with_status(warp::reply::json(&to_serialize), status);
+                            let body = match wire_format.serialize(&to_serialize) {
+                                Ok(body) => body,
+                                Err(e) => {
+                                    error!("response serialize failed in {:?}: {e}", wire_format);
+                                    status = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
+                                    level = tracing::Level::ERROR;
+                                    wire_format
+                                        .serialize::<Result<(), ErrorWrapper<()>>>(&Err(
+                                            ErrorWrapper::InternalError,
+                                        ))
+                                        .unwrap_or_default()
+                                }
+                            };
+                            let response = build_response(body, status);
                             let log = format!("{status} {} {username}", &<$Req>::ROUTE);
                             let latency = timer.stop_and_record();
                             match level {
@@ -195,6 +231,30 @@ macro_rules! core_req {
     }};
 }
 
+const RESPONSE_STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+
+const RESPONSE_STREAM_THRESHOLD: usize = 1024 * 1024 * 1024;
+
+pub fn build_response(
+    body: Vec<u8>, status: StatusCode,
+) -> warp::http::Response<warp::hyper::Body> {
+    let response_body = if body.len() < RESPONSE_STREAM_THRESHOLD {
+        warp::hyper::Body::from(body)
+    } else {
+        let mut buf = Bytes::from(body);
+        let mut chunks: Vec<Result<Bytes, std::io::Error>> =
+            Vec::with_capacity(buf.len().div_ceil(RESPONSE_STREAM_CHUNK_BYTES));
+        while !buf.is_empty() {
+            let n = buf.len().min(RESPONSE_STREAM_CHUNK_BYTES);
+            chunks.push(Ok(buf.split_to(n)));
+        }
+        warp::hyper::Body::wrap_stream(futures::stream::iter(chunks))
+    };
+    let mut response = warp::http::Response::new(response_body);
+    *response.status_mut() = status;
+    response
+}
+
 pub fn core_routes<S, A, G, D>(
     server_state: &Arc<ServerState<S, A, G, D>>,
 ) -> impl Filter<Extract = (impl warp::Reply + use<S, A, G, D>,), Error = Rejection>
@@ -232,6 +292,11 @@ where
         ))
         .or(core_req!(CancelSubscriptionRequest, ServerState::cancel_subscription, server_state))
         .or(core_req!(GetSubscriptionInfoRequest, ServerState::get_subscription_info, server_state))
+        .or(core_req!(
+            GetSubscriptionInfoRequestV2,
+            ServerState::get_subscription_info_v2,
+            server_state
+        ))
         .or(core_req!(DeleteAccountRequest, ServerState::delete_account, server_state))
         .or(core_req!(UpsertDebugInfoRequest, ServerState::upsert_debug_info, server_state))
         .or(core_req!(
@@ -477,7 +542,7 @@ pub fn method(name: Method) -> impl Filter<Extract = (), Error = Rejection> + Cl
 }
 
 pub fn deserialize_and_check<Req>(
-    config: &Config, request: Bytes, version: Option<String>,
+    config: &Config, request: Bytes, version: Option<String>, wire_format: WireFormat,
     request_time: lb_rs::model::clock::Timestamp,
 ) -> Result<RequestWrapper<Req>, ErrorWrapper<Req::Error>>
 where
@@ -485,8 +550,8 @@ where
 {
     handle_version_header::<Req>(config, &version)?;
 
-    let request = serde_json::from_slice(request.as_ref()).map_err(|err| {
-        warn!("Request parsing failure: {}", err);
+    let request = wire_format.deserialize(request.as_ref()).map_err(|err| {
+        warn!("Request parsing failure ({:?}): {}", wire_format, err);
         ErrorWrapper::<Req::Error>::BadRequest
     })?;
 

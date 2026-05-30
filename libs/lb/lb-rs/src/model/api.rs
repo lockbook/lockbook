@@ -496,6 +496,56 @@ impl Request for GetSubscriptionInfoRequest {
 }
 
 #[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetSubscriptionInfoRequestV2 {}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct SubscriptionInfoV2 {
+    pub payment_platform: PaymentPlatformV2,
+    pub period_end: UnixTimeMillis,
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub enum PaymentPlatformV2 {
+    Stripe { card_last_4_digits: String },
+    GooglePlay { account_state: GooglePlayAccountState },
+    AppStore { account_state: AppStoreAccountState },
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
+pub struct GetSubscriptionInfoResponseV2 {
+    pub subscription_info: Option<SubscriptionInfoV2>,
+}
+
+impl Request for GetSubscriptionInfoRequestV2 {
+    type Response = GetSubscriptionInfoResponseV2;
+    type Error = GetSubscriptionInfoError;
+    const METHOD: Method = Method::GET;
+    const ROUTE: &'static str = "/get-subscription-info-v2";
+}
+
+impl From<PaymentPlatformV2> for PaymentPlatform {
+    fn from(v: PaymentPlatformV2) -> Self {
+        match v {
+            PaymentPlatformV2::Stripe { card_last_4_digits } => {
+                PaymentPlatform::Stripe { card_last_4_digits }
+            }
+            PaymentPlatformV2::GooglePlay { account_state } => {
+                PaymentPlatform::GooglePlay { account_state }
+            }
+            PaymentPlatformV2::AppStore { account_state } => {
+                PaymentPlatform::AppStore { account_state }
+            }
+        }
+    }
+}
+
+impl From<SubscriptionInfoV2> for SubscriptionInfo {
+    fn from(v: SubscriptionInfoV2) -> Self {
+        SubscriptionInfo { payment_platform: v.payment_platform.into(), period_end: v.period_end }
+    }
+}
+
+#[derive(Serialize, Deserialize, Debug, PartialEq, Eq, Clone)]
 pub struct UpsertDebugInfoRequest {
     pub debug_info: DebugInfo,
 }

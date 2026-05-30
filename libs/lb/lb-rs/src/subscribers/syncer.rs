@@ -728,11 +728,11 @@ impl LocalLb {
                                     }
                                 }
                             } else {
-                                // overwrite (todo: avoid reading/decrypting/encrypting document)
-                                let document = self.read_document_helper(id, &mut local).await?;
-                                merge.update_document_unvalidated(
+                                let local_file = local.find(&id)?;
+                                merge.overwrite_document_hmac_unvalidated(
                                     &id,
-                                    &document,
+                                    local_file.document_hmac().copied(),
+                                    local_file.doc_size(),
                                     &self.keychain,
                                 )?;
                             }
@@ -1332,12 +1332,12 @@ impl LocalLb {
         #[cfg(not(target_family = "wasm"))]
         tokio::spawn(async move {
             loop {
-                self.sync().await.map_unexpected().log_and_ignore();
                 if self.user_active().await {
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 } else {
                     tokio::time::sleep(Duration::from_secs(5 * 60)).await;
                 }
+                self.sync().await.map_unexpected().log_and_ignore();
             }
         });
     }

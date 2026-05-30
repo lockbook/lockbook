@@ -37,6 +37,7 @@ struct SyncButton: View {
         .modifier(SyncButtonHelpMessage(statusMessage: $statusMessage))
         .buttonStyle(.borderless)
         .tint(getButtonTintColor())
+        .disabled(syncButtonStatus == .syncing)
         .onReceive(AppState.lb.events.$status, perform: { status in
             guard !isPreview else { return }
 
@@ -48,6 +49,8 @@ struct SyncButton: View {
                 syncButtonStatus = .outOfSpace
             } else if status.syncing {
                 syncButtonStatus = .syncing
+            } else if status.unexpectedSyncProblem != nil {
+                syncButtonStatus = .syncError
             } else {
                 syncButtonStatus = .canSync
             }
