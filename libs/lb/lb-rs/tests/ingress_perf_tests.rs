@@ -6,17 +6,17 @@ use std::time::{Duration, Instant};
 use lb_rs::Lb;
 use lb_rs::model::core_config::Config;
 use lb_rs::service::events::{Event, SyncIncrement};
-use lb_rs::service::import_export::ImportStatus;
+use lb_rs::service::import_export::{ExportFileInfo, ImportStatus};
 use rand::RngCore;
 use sha2::{Digest, Sha256};
-use test_utils::{generate_premium_account_tier, random_name, test_core_from, test_credit_cards, url};
+use test_utils::{
+    generate_premium_account_tier, random_name, test_core_from, test_credit_cards, url,
+};
 use uuid::Uuid;
 
 const ONE_MIB: usize = 1024 * 1024;
-const TWO_GB: usize = 1024 * ONE_MIB * 2;
 
-/// Fixed path so reruns reuse the same file. Delete it to force regeneration.
-const FIXTURE_PATH: &str = "/tmp/lockbook-ingress-perf-1gib.bin";
+const FIXTURE_PATH: &str = "/Users/parth/Downloads/egui.mov";
 
 fn ensure_random_file(path: &Path, bytes: usize) {
     if let Ok(meta) = std::fs::metadata(path) {
@@ -50,6 +50,29 @@ fn mib_per_sec(bytes: usize, elapsed: Duration) -> f64 {
     if secs == 0.0 { 0.0 } else { (bytes as f64 / ONE_MIB as f64) / secs }
 }
 
+/// Peak resident-set size the kernel has observed for this process,
+/// in bytes. `getrusage`'s `ru_maxrss` is monotonically non-decreasing
+/// across calls, so polling it at phase boundaries gives a clean
+/// high-water mark without a separate sampling thread.
+///
+/// macOS reports `ru_maxrss` in bytes; Linux reports kilobytes.
+fn max_rss_bytes() -> u64 {
+    let mut usage = std::mem::MaybeUninit::<libc::rusage>::uninit();
+    let ret = unsafe { libc::getrusage(libc::RUSAGE_SELF, usage.as_mut_ptr()) };
+    if ret != 0 {
+        return 0;
+    }
+    let usage = unsafe { usage.assume_init() };
+    let rss = usage.ru_maxrss as u64;
+    if cfg!(target_os = "linux") { rss * 1024 } else { rss }
+}
+
+fn print_rss(label: &str) {
+    let bytes = max_rss_bytes();
+    let mib = bytes as f64 / ONE_MIB as f64;
+    println!("  [peak rss] {label}: {mib:.1} MiB ({bytes} bytes)");
+}
+
 /// Like `test_utils::test_config` but with stdout logging on so the
 /// underlying reqwest error (e.g. the body that EINVAL'd) is visible when
 /// sync surfaces only `LbErrKind::ServerUnreachable`.
@@ -69,7 +92,11 @@ fn verbose_config() -> Config {
 // network.rs
 async fn ingress_one_gib_single_file() {
     let doc_path = Path::new(FIXTURE_PATH);
-    ensure_random_file(doc_path, TWO_GB);
+    let file_size = std::fs::metadata(doc_path)
+        .unwrap_or_else(|e| panic!("fixture {} not accessible: {e}", doc_path.display()))
+        .len() as usize;
+    println!("using fixture at {} ({} bytes)", doc_path.display(), file_size);
+    print_rss("baseline (before Lb::init)");
 
     let core = Lb::init(verbose_config()).await.unwrap();
     core.create_account(&random_name(), &url(), false)
@@ -144,7 +171,7 @@ async fn ingress_one_gib_single_file() {
     println!(
         "import_files:    {:?} ({:.1} MiB/s)",
         import_elapsed,
-        mib_per_sec(TWO_GB, import_elapsed)
+        mib_per_sec(file_size, import_elapsed)
     );
 
     // Pre-sync diagnostics so we know what sync is about to attempt.
@@ -162,7 +189,7 @@ async fn ingress_one_gib_single_file() {
     println!(
         "sync:            {:?} ({:.1} MiB/s)",
         sync_elapsed,
-        mib_per_sec(TWO_GB, sync_elapsed)
+        mib_per_sec(file_size, sync_elapsed)
     );
 
     // Stop the watcher cleanly before asserting.
@@ -193,7 +220,7 @@ async fn ingress_one_gib_single_file() {
     println!(
         "fresh-client sync: {:?} ({:.1} MiB/s)",
         pull_elapsed,
-        mib_per_sec(TWO_GB, pull_elapsed)
+        mib_per_sec(file_size, pull_elapsed)
     );
 
     let read_start = Instant::now();
@@ -202,10 +229,10 @@ async fn ingress_one_gib_single_file() {
     println!(
         "read_document:     {:?} ({:.1} MiB/s)",
         read_elapsed,
-        mib_per_sec(TWO_GB, read_elapsed)
+        mib_per_sec(file_size, read_elapsed)
     );
 
-    assert_eq!(downloaded.len(), TWO_GB, "downloaded size differs from fixture");
+    assert_eq!(downloaded.len(), file_size, "downloaded size differs from fixture");
 
     // Compare via SHA-256 so we don't have to hold two 2 GiB buffers in
     // memory at once. Hash the downloaded buffer, drop it, then stream the
@@ -229,4 +256,52 @@ async fn ingress_one_gib_single_file() {
 
     assert_eq!(downloaded_hash, fixture_hash, "round-tripped bytes don't match fixture");
     println!("round-trip verified: sha256 = {:x}", fixture_hash);
+
+    // Also exercise the on-disk export path. `read_document` returns a
+    // `Vec<u8>` so it can't catch the Linux short-write bug in
+    // `import_export::export_file_recursively` where a single `.write(...)`
+    // on a >2 GiB slice was capped at `MAX_RW_COUNT` (~2.15 GB). Doing a
+    // real export to disk and comparing the on-disk hash to the fixture
+    // hash proves the `write_all` fix actually flushes the full buffer.
+    let export_dir = std::path::PathBuf::from(format!("/tmp/{}", Uuid::new_v4()));
+    std::fs::create_dir(&export_dir).unwrap();
+    println!("exporting to disk at {} ...", export_dir.display());
+    let export_start = Instant::now();
+    core2
+        .export_file(doc_id, export_dir.clone(), false, &None::<fn(ExportFileInfo)>)
+        .await
+        .unwrap();
+    let export_elapsed = export_start.elapsed();
+    let exported_path = export_dir.join(doc_path.file_name().unwrap());
+    let exported_size = std::fs::metadata(&exported_path).unwrap().len() as usize;
+    println!(
+        "export_file:       {:?} ({:.1} MiB/s) -> {} bytes",
+        export_elapsed,
+        mib_per_sec(file_size, export_elapsed),
+        exported_size
+    );
+    assert_eq!(
+        exported_size, file_size,
+        "exported size differs from fixture (Linux short-write bug?)"
+    );
+
+    let exported_hash = {
+        let mut h = Sha256::new();
+        let mut f = std::fs::File::open(&exported_path).unwrap();
+        let mut buf = vec![0u8; 4 * ONE_MIB];
+        loop {
+            let n = f.read(&mut buf).unwrap();
+            if n == 0 {
+                break;
+            }
+            h.update(&buf[..n]);
+        }
+        h.finalize()
+    };
+    assert_eq!(exported_hash, fixture_hash, "exported bytes don't match fixture");
+    println!("on-disk export verified: sha256 = {:x}", exported_hash);
+
+    // Clean up the export tmp dir on success. (On failure we leave it for
+    // post-mortem inspection.)
+    let _ = std::fs::remove_dir_all(&export_dir);
 }

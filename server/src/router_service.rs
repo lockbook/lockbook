@@ -99,14 +99,12 @@ macro_rules! core_req {
                             Ok(req) => req,
                             Err(err) => {
                                 warn!("request failed to parse: {:?}", err);
-                                // If serializing the parse-error response itself fails,
-                                // fall back to `InternalError` + 500 so the client sees
-                                // a real `ApiError::InternalError` rather than
-                                // `Deserialize("io error: unexpected end of file")`
-                                // from an empty body.
-                                let (body, status) = match wire_format
-                                    .serialize::<Result<RequestWrapper<$Req>, _>>(&Err(err))
-                                {
+                                let (body, status) = match wire_format.serialize::<Result<
+                                    RequestWrapper<$Req>,
+                                    _,
+                                >>(
+                                    &Err(err)
+                                ) {
                                     Ok(body) => (body, warp::http::StatusCode::BAD_REQUEST),
                                     Err(e) => {
                                         error!(
@@ -118,10 +116,7 @@ macro_rules! core_req {
                                                 ErrorWrapper::InternalError,
                                             ))
                                             .unwrap_or_default();
-                                        (
-                                            fallback,
-                                            warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-                                        )
+                                        (fallback, warp::http::StatusCode::INTERNAL_SERVER_ERROR)
                                     }
                                 };
                                 return build_response(body, status);
@@ -181,23 +176,8 @@ macro_rules! core_req {
                             let body = match wire_format.serialize(&to_serialize) {
                                 Ok(body) => body,
                                 Err(e) => {
-                                    error!(
-                                        "response serialize failed in {:?}: {e}",
-                                        wire_format
-                                    );
-                                    // Fall back to a real `InternalError` body + 500
-                                    // status so the client sees `ApiError::InternalError`
-                                    // instead of `Deserialize("io error: unexpected end
-                                    // of file")` from an empty body. The bytes for
-                                    // `Result::<(), ErrorWrapper<()>>::Err(InternalError)`
-                                    // are identical to the bytes the client expects to
-                                    // deserialize into
-                                    // `Result::<T::Response, ErrorWrapper<T::Error>>`
-                                    // because `InternalError` is a unit variant whose
-                                    // wire form is independent of the surrounding
-                                    // generics (true in both bincode and JSON).
-                                    status =
-                                        warp::http::StatusCode::INTERNAL_SERVER_ERROR;
+                                    error!("response serialize failed in {:?}: {e}", wire_format);
+                                    status = warp::http::StatusCode::INTERNAL_SERVER_ERROR;
                                     level = tracing::Level::ERROR;
                                     wire_format
                                         .serialize::<Result<(), ErrorWrapper<()>>>(&Err(
@@ -206,14 +186,6 @@ macro_rules! core_req {
                                         .unwrap_or_default()
                                 }
                             };
-                            if body.len() > 10 * 1024 * 1024 {
-                                tracing::info!(
-                                    "handing warp a {} byte body for {} ({:?})",
-                                    body.len(),
-                                    &<$Req>::ROUTE,
-                                    wire_format
-                                );
-                            }
                             let response = build_response(body, status);
                             let log = format!("{status} {} {username}", &<$Req>::ROUTE);
                             let latency = timer.stop_and_record();

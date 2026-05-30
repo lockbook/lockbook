@@ -88,6 +88,8 @@ num_cpus = "1.13.0"
 rand = "0.8.4"
 tempfile = { version = "3.1.0" }
 test_utils = { path = "../test_utils" }
+# Used by ingress_perf_tests to read peak RSS via getrusage(RUSAGE_SELF).
+libc = "0.2"
 
 [[bench]]
 name = "bench_main"
