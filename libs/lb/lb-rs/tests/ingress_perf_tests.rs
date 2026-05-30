@@ -16,7 +16,17 @@ use uuid::Uuid;
 
 const ONE_MIB: usize = 1024 * 1024;
 
-const FIXTURE_PATH: &str = "/Users/parth/Downloads/egui.mov";
+/// 2.4 GiB — 20% above 2 GiB so we land comfortably past h2's
+/// `MAX_WINDOW_SIZE` (`(1<<31) - 1`, the single-`send_data` payload
+/// cap from RFC 7540 §6.9.1). Sized to exercise both the client-side
+/// `body_for` streaming path and the server-side `build_response`
+/// chunked path; encryption framing adds only a few hundred KB.
+const FIXTURE_SIZE: usize = (1024 * ONE_MIB * 2 * 12) / 10;
+
+/// Fixed path so reruns reuse the same generated fixture. Delete the
+/// file to force regeneration, or point `FIXTURE_PATH` at a real file
+/// (e.g. `~/Downloads/some.mov`) to skip generation entirely.
+const FIXTURE_PATH: &str = "/tmp/lockbook-ingress-perf-2gib4.bin";
 
 fn ensure_random_file(path: &Path, bytes: usize) {
     if let Ok(meta) = std::fs::metadata(path) {
@@ -92,6 +102,12 @@ fn verbose_config() -> Config {
 // network.rs
 async fn ingress_one_gib_single_file() {
     let doc_path = Path::new(FIXTURE_PATH);
+    ensure_random_file(doc_path, FIXTURE_SIZE);
+    // Read size from disk rather than reusing `FIXTURE_SIZE` so the test
+    // also works when `FIXTURE_PATH` points at a real on-disk file (in
+    // which case `ensure_random_file` no-ops if the size happens to
+    // match, or regenerates if it doesn't — for real files, prefer to
+    // also tweak `FIXTURE_SIZE` to match so generation isn't triggered).
     let file_size = std::fs::metadata(doc_path)
         .unwrap_or_else(|e| panic!("fixture {} not accessible: {e}", doc_path.display()))
         .len() as usize;
