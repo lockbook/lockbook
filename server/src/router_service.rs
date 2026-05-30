@@ -45,7 +45,7 @@ macro_rules! core_req {
         use lb_rs::model::wire::{WIRE_FORMAT_HEADER, WireFormat};
         use std::net::SocketAddr;
         use tracing::*;
-        use $crate::router_service::{self, deserialize_and_check, method};
+        use $crate::router_service::{self, build_response, deserialize_and_check, method};
         use $crate::{RequestContext, ServerError};
 
         let cloned_state = $state.clone();
@@ -124,7 +124,7 @@ macro_rules! core_req {
                                         )
                                     }
                                 };
-                                return warp::reply::with_status(body, status);
+                                return build_response(body, status);
                             }
                         };
 
@@ -214,7 +214,7 @@ macro_rules! core_req {
                                     wire_format
                                 );
                             }
-                            let response = warp::reply::with_status(body, status);
+                            let response = build_response(body, status);
                             let log = format!("{status} {} {username}", &<$Req>::ROUTE);
                             let latency = timer.stop_and_record();
                             match level {
@@ -257,6 +257,30 @@ macro_rules! core_req {
                 },
             )
     }};
+}
+
+const RESPONSE_STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
+
+const RESPONSE_STREAM_THRESHOLD: usize = 1024 * 1024 * 1024;
+
+pub fn build_response(
+    body: Vec<u8>, status: StatusCode,
+) -> warp::http::Response<warp::hyper::Body> {
+    let response_body = if body.len() < RESPONSE_STREAM_THRESHOLD {
+        warp::hyper::Body::from(body)
+    } else {
+        let mut buf = Bytes::from(body);
+        let mut chunks: Vec<Result<Bytes, std::io::Error>> =
+            Vec::with_capacity(buf.len().div_ceil(RESPONSE_STREAM_CHUNK_BYTES));
+        while !buf.is_empty() {
+            let n = buf.len().min(RESPONSE_STREAM_CHUNK_BYTES);
+            chunks.push(Ok(buf.split_to(n)));
+        }
+        warp::hyper::Body::wrap_stream(futures::stream::iter(chunks))
+    };
+    let mut response = warp::http::Response::new(response_body);
+    *response.status_mut() = status;
+    response
 }
 
 pub fn core_routes<S, A, G, D>(
