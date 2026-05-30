@@ -109,7 +109,7 @@ macro_rules! core_req {
                                 {
                                     Ok(body) => (body, warp::http::StatusCode::BAD_REQUEST),
                                     Err(e) => {
-                                        tracing::error!(
+                                        error!(
                                             "parse-error response serialize failed in {:?}: {e}",
                                             wire_format
                                         );
@@ -181,7 +181,7 @@ macro_rules! core_req {
                             let body = match wire_format.serialize(&to_serialize) {
                                 Ok(body) => body,
                                 Err(e) => {
-                                    tracing::error!(
+                                    error!(
                                         "response serialize failed in {:?}: {e}",
                                         wire_format
                                     );
@@ -206,6 +206,14 @@ macro_rules! core_req {
                                         .unwrap_or_default()
                                 }
                             };
+                            if body.len() > 10 * 1024 * 1024 {
+                                tracing::info!(
+                                    "handing warp a {} byte body for {} ({:?})",
+                                    body.len(),
+                                    &<$Req>::ROUTE,
+                                    wire_format
+                                );
+                            }
                             let response = warp::reply::with_status(body, status);
                             let log = format!("{status} {} {username}", &<$Req>::ROUTE);
                             let latency = timer.stop_and_record();

@@ -67,6 +67,14 @@ fn server_logs() -> FilterFn {
         metadata.target().starts_with("lockbook")
             || metadata.target().starts_with("dbrs")
             || metadata.target().starts_with("lb_rs")
+            // Temporarily widened so hyper/warp body-framing traces reach
+            // stdout. Set LOG_LEVEL=trace to see e.g. encoder decisions
+            // (Length vs Chunked), Content-Length values, per-write byte
+            // counts, and connection-close errors. Narrow back once
+            // diagnosis is done — these targets are noisy.
+            || metadata.target().starts_with("hyper")
+            || metadata.target().starts_with("warp")
+            || metadata.target().starts_with("h2")
     })
 }
 
