@@ -173,6 +173,7 @@ async fn ingress_one_gib_single_file() {
         import_elapsed,
         mib_per_sec(file_size, import_elapsed)
     );
+    print_rss("after import_files");
 
     // Pre-sync diagnostics so we know what sync is about to attempt.
     let status = core.status().await;
@@ -191,6 +192,7 @@ async fn ingress_one_gib_single_file() {
         sync_elapsed,
         mib_per_sec(file_size, sync_elapsed)
     );
+    print_rss("after core.sync (push)");
 
     // Stop the watcher cleanly before asserting.
     watcher.abort();
@@ -222,6 +224,7 @@ async fn ingress_one_gib_single_file() {
         pull_elapsed,
         mib_per_sec(file_size, pull_elapsed)
     );
+    print_rss("after core2.sync (pull metadata)");
 
     let read_start = Instant::now();
     let downloaded = core2.read_document(doc_id, false).await.unwrap();
@@ -231,6 +234,7 @@ async fn ingress_one_gib_single_file() {
         read_elapsed,
         mib_per_sec(file_size, read_elapsed)
     );
+    print_rss("after read_document (decrypted Vec in memory)");
 
     assert_eq!(downloaded.len(), file_size, "downloaded size differs from fixture");
 
@@ -300,6 +304,7 @@ async fn ingress_one_gib_single_file() {
     };
     assert_eq!(exported_hash, fixture_hash, "exported bytes don't match fixture");
     println!("on-disk export verified: sha256 = {:x}", exported_hash);
+    print_rss("after export_file (peak across whole test)");
 
     // Clean up the export tmp dir on success. (On failure we leave it for
     // post-mortem inspection.)
