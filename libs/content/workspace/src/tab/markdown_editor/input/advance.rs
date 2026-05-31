@@ -60,22 +60,23 @@ impl MdEdit {
         else {
             return offset;
         };
-        let cur_frag = &self.renderer.fragments[cur_idx];
+        let cur_top = self.renderer.fragments[cur_idx].rect.top();
 
-        // Climb one visual row at a time until the cursor reaches a
-        // distinct offset. A soft-wrap boundary shares one offset between a
-        // row's end and the next row's start; landing back on `offset`
-        // wouldn't move the cursor, so the scan skips it and climbs on when
-        // a row offers nothing else.
-        let mut row_cutoff = if backwards { cur_frag.rect.top() } else { cur_frag.rect.bottom() };
+        // Walk one visual row at a time in the travel direction, nearest
+        // first, taking the first row with a candidate that actually
+        // *renders* past the current row. Climbing past a row with no such
+        // candidate steps over wrap seams whose only offsets render back
+        // onto the current row.
+        let mut row_cutoff =
+            if backwards { cur_top } else { self.renderer.fragments[cur_idx].rect.bottom() };
         loop {
-            let (found, row_edge) = self
-                .closest_distinct_offset_on_row(cur_idx, row_cutoff, offset, x_target, backwards);
-            if let Some(found) = found {
-                return found;
+            let (best, row_edge) =
+                self.best_offset_on_row(cur_idx, row_cutoff, cur_top, x_target, backwards);
+            if let Some(best) = best {
+                return best;
             }
             match row_edge {
-                Some(edge) => row_cutoff = edge, // row had only the self-match; keep climbing
+                Some(edge) => row_cutoff = edge, // nothing rendered past us; keep climbing
                 None => break,                   // no further row in this direction
             }
         }
@@ -97,19 +98,33 @@ impl MdEdit {
         }
     }
 
-    /// Scans the visual row adjacent to `row_cutoff` (the row just above it
-    /// when `backwards`, just below otherwise) for the offset closest to
-    /// `x_target`, ignoring matches equal to `from` (the soft-wrap self-
-    /// match). Returns the chosen offset and the scanned row's far edge —
-    /// its top when climbing up, bottom when climbing down — so the caller
-    /// can keep climbing past a row that yields nothing distinct.
-    fn closest_distinct_offset_on_row(
-        &self, cur_idx: usize, row_cutoff: f32, from: Grapheme, x_target: f32, backwards: bool,
+    /// Picks the destination on the visual row adjacent to `row_cutoff` (just
+    /// above it when `backwards`, just below otherwise): the candidate closest
+    /// to `x_target` that *renders* past `cur_top` in the travel direction.
+    /// Also returns the row's far edge (top going up, bottom going down) so the
+    /// caller can climb past a row with no such candidate.
+    ///
+    /// Candidates are each fragment's closest point to `x_target`, plus the
+    /// grapheme just inside the row's far edge (`row_end - 1` up, `row_start +
+    /// 1` down) for nonempty rows — all ordered only by distance to `x_target`.
+    /// The inner grapheme matters at a soft-wrap seam: the row's end offset is
+    /// closest to a right-leaning `x_target` but renders on the row below (so it
+    /// fails the test), leaving the inner grapheme as the nearest candidate that
+    /// renders on the row itself. Down's `row_start + 1` never wins — last-match
+    /// resolves a seam to the lower row, already correct for down — but is kept
+    /// for symmetry.
+    fn best_offset_on_row(
+        &self, cur_idx: usize, row_cutoff: f32, cur_top: f32, x_target: f32, backwards: bool,
     ) -> (Option<Grapheme>, Option<f32>) {
         let fragments = &self.renderer.fragments;
-        let mut closest_offset: Option<Grapheme> = None;
-        let mut closest_distance = f32::INFINITY;
+
+        // Gather the adjacent row's fragments: each contributes its closest
+        // point to `x_target`, while we track the row's source extent and
+        // the fragments holding its far edges for the inner-grapheme step.
         let mut row_edge: Option<f32> = None;
+        let mut candidates: Vec<(Grapheme, f32, bool)> = Vec::new(); // (offset, gen_x, empty_frag)
+        let (mut lo, mut hi) = (Grapheme(usize::MAX), Grapheme(0));
+        let (mut lo_idx, mut hi_idx) = (None, None);
 
         let mut idx = cur_idx;
         loop {
@@ -124,44 +139,70 @@ impl MdEdit {
                     break;
                 }
             }
-            let new_frag = &fragments[idx];
+            let frag = &fragments[idx];
 
             // Adjacent in the travel direction, and not yet onto the row
             // past the first one we land on.
             let adjacent = if backwards {
-                new_frag.rect.bottom() < row_cutoff
+                frag.rect.bottom() < row_cutoff
             } else {
-                new_frag.rect.top() > row_cutoff
+                frag.rect.top() > row_cutoff
             };
             let past_row = row_edge.is_some_and(|edge| {
-                if backwards { new_frag.rect.bottom() < edge } else { new_frag.rect.top() > edge }
+                if backwards { frag.rect.bottom() < edge } else { frag.rect.top() > edge }
             });
 
             if past_row {
                 break;
             } else if adjacent {
-                row_edge =
-                    Some(if backwards { new_frag.rect.top() } else { new_frag.rect.bottom() });
+                row_edge = Some(if backwards { frag.rect.top() } else { frag.rect.bottom() });
 
-                let new_offset = self.renderer.fragment_offset(new_frag, x_target);
-                if new_offset == from {
-                    continue; // wrap-boundary self-match; would not move the cursor
+                let (s, e) = (frag.source_range.start(), frag.source_range.end());
+                if s < lo {
+                    (lo, lo_idx) = (s, Some(idx));
                 }
-                let new_x = self.renderer.fragment_x(new_frag, new_offset);
-                let distance = (new_x - x_target).abs(); // closest as in closest to target
+                if e > hi {
+                    (hi, hi_idx) = (e, Some(idx));
+                }
 
-                // prefer empty fragments which are placed deliberately to affect such behavior
-                if distance < closest_distance
-                    || (distance == closest_distance
-                        && new_frag.source_range.start() == new_frag.source_range.end())
-                {
-                    closest_offset = Some(new_offset);
-                    closest_distance = distance;
-                }
+                let off = self.renderer.fragment_offset(frag, x_target);
+                candidates.push((off, self.renderer.fragment_x(frag, off), s == e));
             }
         }
 
-        (closest_offset, row_edge)
+        // The grapheme just inside the row's far edge — lets an up-press
+        // land on a soft-wrapped row rather than on its seam (see above).
+        if lo < hi {
+            if backwards {
+                if let Some(i) = hi_idx {
+                    let off = Grapheme(hi.0 - 1);
+                    candidates.push((off, self.renderer.fragment_x(&fragments[i], off), false));
+                }
+            } else if let Some(i) = lo_idx {
+                let off = Grapheme(lo.0 + 1);
+                candidates.push((off, self.renderer.fragment_x(&fragments[i], off), false));
+            }
+        }
+
+        // Closest candidate to `x_target` that renders past the current row
+        // in the travel direction. Ties prefer empty fragments, placed
+        // deliberately to steer this navigation.
+        let mut best: Option<Grapheme> = None;
+        let mut best_distance = f32::INFINITY;
+        for (off, gen_x, empty) in candidates {
+            let renders_past = self.renderer.fragment_at_offset(off).is_some_and(|f| {
+                if backwards { f.rect.top() < cur_top } else { f.rect.top() > cur_top }
+            });
+            if !renders_past {
+                continue;
+            }
+            let distance = (gen_x - x_target).abs();
+            if distance < best_distance || (distance == best_distance && empty) {
+                (best, best_distance) = (Some(off), distance);
+            }
+        }
+
+        (best, row_edge)
     }
 
     /// returns the x coordinate of the absolute position of `self` in `fragment`
