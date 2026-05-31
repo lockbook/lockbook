@@ -61,97 +61,107 @@ impl MdEdit {
             return offset;
         };
         let cur_frag = &self.renderer.fragments[cur_idx];
-        if backwards {
-            // jump to the closest fragment above that's not above another fragment that's above
-            let mut closest_offset: Option<Grapheme> = None;
-            let mut closest_distance = f32::INFINITY;
-            let mut row_above_top: Option<f32> = None;
-            for new_idx in (0..cur_idx).rev() {
-                let new_frag = &self.renderer.fragments[new_idx];
-                let new_is_above = new_frag.rect.bottom() < cur_frag.rect.top();
-                let new_too_above = if let Some(row_above_top) = row_above_top {
-                    new_frag.rect.bottom() < row_above_top
-                } else {
-                    false
-                };
 
-                if new_too_above {
-                    break;
-                } else if new_is_above {
-                    row_above_top = Some(new_frag.rect.top());
-
-                    let new_offset = self.renderer.fragment_offset(new_frag, x_target);
-                    let new_x = self.renderer.fragment_x(new_frag, new_offset);
-
-                    let distance = (new_x - x_target).abs(); // closest as in closest to target
-
-                    // prefer empty fragments which are placed deliberately to affect such behavior
-                    if distance < closest_distance
-                        || (distance == closest_distance
-                            && new_frag.source_range.start() == new_frag.source_range.end())
-                    {
-                        closest_offset = Some(new_offset);
-                        closest_distance = distance;
-                    }
-                } else {
-                    continue; // keep going until we're on the prev row (if there is one)
-                }
+        // Climb one visual row at a time until the cursor reaches a
+        // distinct offset. A soft-wrap boundary shares one offset between a
+        // row's end and the next row's start; landing back on `offset`
+        // wouldn't move the cursor, so the scan skips it and climbs on when
+        // a row offers nothing else.
+        let mut row_cutoff = if backwards { cur_frag.rect.top() } else { cur_frag.rect.bottom() };
+        loop {
+            let (found, row_edge) = self
+                .closest_distinct_offset_on_row(cur_idx, row_cutoff, offset, x_target, backwards);
+            if let Some(found) = found {
+                return found;
             }
-
-            closest_offset.unwrap_or(offset)
-        } else {
-            // jump to the closest fragment below that's not below another fragment that's below
-            let mut closest_offset: Option<Grapheme> = None;
-            let mut closest_distance = f32::INFINITY;
-            let mut row_below_bottom: Option<f32> = None;
-            for new_idx in cur_idx + 1..self.renderer.fragments.len() {
-                let new_frag = &self.renderer.fragments[new_idx];
-                let new_is_below = new_frag.rect.top() > cur_frag.rect.bottom();
-                let new_too_below = if let Some(row_below_bottom) = row_below_bottom {
-                    new_frag.rect.top() > row_below_bottom
-                } else {
-                    false
-                };
-
-                if new_too_below {
-                    break;
-                } else if new_is_below {
-                    row_below_bottom = Some(new_frag.rect.bottom());
-
-                    let new_offset = self.renderer.fragment_offset(new_frag, x_target);
-                    let new_x = self.renderer.fragment_x(new_frag, new_offset);
-
-                    let distance = (new_x - x_target).abs(); // closest as in closest to target
-
-                    // prefer empty fragments which are placed deliberately to affect such behavior
-                    if distance < closest_distance
-                        || (distance == closest_distance
-                            && new_frag.source_range.start() == new_frag.source_range.end())
-                    {
-                        closest_offset = Some(new_offset);
-                        closest_distance = distance;
-                    }
-                } else {
-                    continue; // keep going until we're on the next row (if there is one)
-                }
-            }
-
-            if let Some(closest_offset) = closest_offset {
-                closest_offset
-            } else if !self
-                .renderer
-                .bounds
-                .source_lines
-                .find_containing(offset, true, true)
-                .contains(self.renderer.bounds.source_lines.len() - 1, true, false)
-            {
-                // if we're in the last fragment but not the last source line it's
-                // because the last fragment is hidden (perhaps by a folded node)
-                self.renderer.buffer.current.segs.last_cursor_position()
-            } else {
-                offset
+            match row_edge {
+                Some(edge) => row_cutoff = edge, // row had only the self-match; keep climbing
+                None => break,                   // no further row in this direction
             }
         }
+
+        // No reachable row remains. If we're not on the document's edge
+        // source line, the adjacent line is hidden (e.g. by a fold), so
+        // snap to that document edge; otherwise stay put.
+        let source_lines = &self.renderer.bounds.source_lines;
+        let edge_line = if backwards { 0 } else { source_lines.len() - 1 };
+        if source_lines
+            .find_containing(offset, true, true)
+            .contains(edge_line, true, false)
+        {
+            offset
+        } else if backwards {
+            Grapheme(0)
+        } else {
+            self.renderer.buffer.current.segs.last_cursor_position()
+        }
+    }
+
+    /// Scans the visual row adjacent to `row_cutoff` (the row just above it
+    /// when `backwards`, just below otherwise) for the offset closest to
+    /// `x_target`, ignoring matches equal to `from` (the soft-wrap self-
+    /// match). Returns the chosen offset and the scanned row's far edge —
+    /// its top when climbing up, bottom when climbing down — so the caller
+    /// can keep climbing past a row that yields nothing distinct.
+    fn closest_distinct_offset_on_row(
+        &self, cur_idx: usize, row_cutoff: f32, from: Grapheme, x_target: f32, backwards: bool,
+    ) -> (Option<Grapheme>, Option<f32>) {
+        let fragments = &self.renderer.fragments;
+        let mut closest_offset: Option<Grapheme> = None;
+        let mut closest_distance = f32::INFINITY;
+        let mut row_edge: Option<f32> = None;
+
+        let mut idx = cur_idx;
+        loop {
+            if backwards {
+                if idx == 0 {
+                    break;
+                }
+                idx -= 1;
+            } else {
+                idx += 1;
+                if idx >= fragments.len() {
+                    break;
+                }
+            }
+            let new_frag = &fragments[idx];
+
+            // Adjacent in the travel direction, and not yet onto the row
+            // past the first one we land on.
+            let adjacent = if backwards {
+                new_frag.rect.bottom() < row_cutoff
+            } else {
+                new_frag.rect.top() > row_cutoff
+            };
+            let past_row = row_edge.is_some_and(|edge| {
+                if backwards { new_frag.rect.bottom() < edge } else { new_frag.rect.top() > edge }
+            });
+
+            if past_row {
+                break;
+            } else if adjacent {
+                row_edge =
+                    Some(if backwards { new_frag.rect.top() } else { new_frag.rect.bottom() });
+
+                let new_offset = self.renderer.fragment_offset(new_frag, x_target);
+                if new_offset == from {
+                    continue; // wrap-boundary self-match; would not move the cursor
+                }
+                let new_x = self.renderer.fragment_x(new_frag, new_offset);
+                let distance = (new_x - x_target).abs(); // closest as in closest to target
+
+                // prefer empty fragments which are placed deliberately to affect such behavior
+                if distance < closest_distance
+                    || (distance == closest_distance
+                        && new_frag.source_range.start() == new_frag.source_range.end())
+                {
+                    closest_offset = Some(new_offset);
+                    closest_distance = distance;
+                }
+            }
+        }
+
+        (closest_offset, row_edge)
     }
 
     /// returns the x coordinate of the absolute position of `self` in `fragment`
