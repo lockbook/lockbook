@@ -2,13 +2,21 @@ use std::path::Path;
 use std::collections::{HashMap, HashSet};
 use cli_rs::cli_error::{CliError, CliResult};
 use colored::Colorize;
-use ort::execution_providers::CUDAExecutionProvider;
+use ort::execution_providers::{
+    CUDAExecutionProvider,
+    CoreMLExecutionProvider,
+    DirectMLExecutionProvider,
+    ROCmExecutionProvider,
+    CPUExecutionProvider,
+};
+use ort::execution_providers::coreml::ComputeUnits;
 use ort::session::Session;
 use ort::session::builder::GraphOptimizationLevel;
 use ort::value::Value;
 use serde::{Deserialize, Serialize};
 use tokenizers::Tokenizer;
 use lb_rs::Uuid;
+use usearch::{Index, IndexOptions, MetricKind, ScalarKind};
 
 use crate::core;
 use crate::ensure_account_and_root;
@@ -62,12 +70,18 @@ async fn ensure_all_models_downloaded(lb: &crate::Lb) -> CliResult<()> {
     let models = get_models();
     let writeable_path = std::path::PathBuf::from(&lb.config.writeable_path);
     let cache_dir = writeable_path.join("models");
-    
     for model in models {
         ensure_model_downloaded(&cache_dir, &model).await?;
     }
-    
     Ok(())
+}
+
+// FIX: check file size, not just existence. A truncated/partial download
+// passes an exists() check and causes the session to hang indefinitely.
+fn file_is_valid(path: &std::path::Path, min_bytes: u64) -> bool {
+    std::fs::metadata(path)
+        .map(|m| m.len() >= min_bytes)
+        .unwrap_or(false)
 }
 
 async fn ensure_model_downloaded(cache_dir: &std::path::Path, model: &ModelMetadata) -> CliResult<()> {
@@ -75,31 +89,34 @@ async fn ensure_model_downloaded(cache_dir: &std::path::Path, model: &ModelMetad
     let model_path = model_dir.join("model.onnx");
     let model_data_path = model_dir.join("model.onnx_data");
     let tokenizer_path = model_dir.join("tokenizer.json");
-    
-    // Check if model already exists
+
+    println!("Checking model paths: {}", model_dir.display());
+    println!("  model: {}", model_path.display());
+    println!("  model_data: {}", model_data_path.display());
+    println!("  tokenizer: {}", tokenizer_path.display());
+
     let model_exists = match model.kind {
-        ModelType::Reranker => model_path.exists() && tokenizer_path.exists(),
-        ModelType::Embedder => model_path.exists() && model_data_path.exists() && tokenizer_path.exists(),
-        ModelType::Generative => model_path.exists(),
+        ModelType::Reranker   => file_is_valid(&model_path,      10_000_000)   // ~90 MB expected
+                              && file_is_valid(&tokenizer_path,       100_000),
+        ModelType::Embedder   => file_is_valid(&model_path,     100_000_000)   // ~340 MB expected
+                              && file_is_valid(&model_data_path, 400_000_000)  // ~560 MB expected
+                              && file_is_valid(&tokenizer_path,       100_000),
+        ModelType::Generative => file_is_valid(&model_path,      10_000_000),
     };
-    
-    if model_exists {
-        return Ok(());
-    }
-    
+    if model_exists { return Ok(()); }
+
     println!("📥 Downloading {} from Hugging Face...", model.name);
     if matches!(model.kind, ModelType::Embedder) {
         println!("   This is a large model — only downloaded once.");
     }
-    
+
     std::fs::create_dir_all(&model_dir)
         .map_err(|e| CliError::from(format!("Cannot create model dir: {}", e)))?;
-    
+
     let client = reqwest::Client::builder()
         .build()
         .map_err(|e| CliError::from(format!("HTTP client error: {}", e)))?;
-    
-    // Try different possible URLs for the model
+
     let possible_urls = match model.name.as_str() {
         "multilingual-e5-large" => vec![
             format!("{}onnx/model.onnx", model.url),
@@ -111,8 +128,7 @@ async fn ensure_model_downloaded(cache_dir: &std::path::Path, model: &ModelMetad
         ],
         _ => vec![format!("{}model.onnx", model.url)],
     };
-    
-    // Download model.onnx
+
     if !model_path.exists() {
         let mut downloaded = false;
         for url in &possible_urls {
@@ -125,14 +141,12 @@ async fn ensure_model_downloaded(cache_dir: &std::path::Path, model: &ModelMetad
             return Err(CliError::from(format!("Failed to download {} model from any source", model.name)));
         }
     }
-    
-    // Download model.onnx_data for embedder models
+
     if matches!(model.kind, ModelType::Embedder) && !model_data_path.exists() {
         let possible_data_urls = vec![
             format!("{}onnx/model.onnx_data", model.url),
             "https://huggingface.co/Xenova/multilingual-e5-large/resolve/main/onnx/model.onnx_data".to_string(),
         ];
-        
         let mut downloaded = false;
         for url in &possible_data_urls {
             if download_file(&client, url, &model_data_path, &format!("{} model data", model.name)).await.is_ok() {
@@ -144,8 +158,7 @@ async fn ensure_model_downloaded(cache_dir: &std::path::Path, model: &ModelMetad
             return Err(CliError::from(format!("Failed to download {} model data from any source", model.name)));
         }
     }
-    
-    // Download tokenizer.json for embedder and reranker
+
     if matches!(model.kind, ModelType::Embedder | ModelType::Reranker) && !tokenizer_path.exists() {
         let possible_tokenizer_urls = match model.name.as_str() {
             "multilingual-e5-large" => vec![
@@ -158,7 +171,6 @@ async fn ensure_model_downloaded(cache_dir: &std::path::Path, model: &ModelMetad
             ],
             _ => vec![format!("{}tokenizer.json", model.url)],
         };
-        
         let mut downloaded = false;
         for url in &possible_tokenizer_urls {
             if download_file(&client, url, &tokenizer_path, &format!("{} tokenizer", model.name)).await.is_ok() {
@@ -170,7 +182,7 @@ async fn ensure_model_downloaded(cache_dir: &std::path::Path, model: &ModelMetad
             return Err(CliError::from(format!("Failed to download {} tokenizer from any source", model.name)));
         }
     }
-    
+
     println!("  ✓ {} ready", model.name);
     Ok(())
 }
@@ -179,15 +191,14 @@ async fn download_file(client: &reqwest::Client, url: &str, dest: &std::path::Pa
     println!("   Downloading {}...", label);
     let resp = client.get(url).send().await
         .map_err(|e| CliError::from(format!("Request failed for {}: {}", label, e)))?;
-    
     if !resp.status().is_success() {
         return Err(CliError::from(format!("HTTP {} downloading {}", resp.status().as_u16(), label)));
     }
-    
     let bytes = resp.bytes().await
         .map_err(|e| CliError::from(format!("Read failed for {}: {}", label, e)))?;
+    println!("   Writing {} to {}", label, dest.display());
     std::fs::write(dest, &bytes)
-        .map_err(|e| CliError::from(format!("Write failed for {}: {}", label, e)))?;
+        .map_err(|e| CliError::from(format!("Write failed for {} -> {}: {}", label, dest.display(), e)))?;
     println!("  ✓ {} saved ({:.1} MB)", label, bytes.len() as f64 / 1_048_576.0);
     Ok(())
 }
@@ -195,27 +206,119 @@ async fn download_file(client: &reqwest::Client, url: &str, dest: &std::path::Pa
 // ── Session builder ───────────────────────────────────────────────────────────
 
 fn build_session(model_path: &std::path::Path) -> CliResult<Session> {
-    let builder = Session::builder()
-        .map_err(|e| CliError::from(format!("Session builder error: {}", e)))?;
-    let cuda = CUDAExecutionProvider::default().build();
-    let builder = match builder.with_execution_providers([cuda]) {
-        Ok(b) => {
-            println!("  ✓ GPU acceleration available");
-            b
-        }
-        Err(_) => {
-            println!("  ⚠ No GPU, using CPU");
-            Session::builder()
-                .map_err(|e| CliError::from(format!("Session builder error: {}", e)))?
-        }
+    // Normalize path separators for Windows - mixed separators cause ONNX Runtime
+    // to silently fail to find model.onnx_data, hanging indefinitely on load.
+    let model_path_buf = model_path.canonicalize()
+        .map_err(|e| CliError::from(format!("Cannot resolve model path {}: {}", model_path.display(), e)))?;
+    let model_path = model_path_buf.as_path();
+
+    let cpu_threads = {
+        let n = std::thread::available_parallelism()
+            .map(|p| p.get())
+            .unwrap_or(4);
+        n.min(8)
     };
-    builder
-        .with_optimization_level(GraphOptimizationLevel::Level3)
-        .map_err(|e| CliError::from(format!("Opt level error: {}", e)))?
-        .with_intra_threads(4)
-        .map_err(|e| CliError::from(format!("Thread error: {}", e)))?
-        .commit_from_file(model_path)
-        .map_err(|e| CliError::from(format!("Model load error: {}", e)))
+    type BuildFn<'a> = Box<dyn Fn() -> CliResult<Session> + 'a>;
+    let candidates: Vec<(&str, BuildFn<'_>)> = vec![
+        ("CUDA", Box::new(|| {
+            let mut builder = Session::builder()
+                .map_err(|e| CliError::from(format!("Builder error: {}", e)))?;
+            builder = builder
+                .with_execution_providers([CUDAExecutionProvider::default().build()])
+                .map_err(|e| CliError::from(format!("CUDA provider error: {}", e)))?;
+            builder = builder
+                .with_optimization_level(GraphOptimizationLevel::Level3)
+                .map_err(|e| CliError::from(format!("Opt level error: {}", e)))?;
+            builder = builder
+                .with_intra_threads(4)
+                .map_err(|e| CliError::from(format!("Thread error: {}", e)))?;
+            println!("Trying CUDA commit_from_file: {}", model_path.display());
+            builder.commit_from_file(model_path)
+                .map_err(|e| CliError::from(format!("Model load error: {}", e)))
+        })),
+        ("ROCm", Box::new(|| {
+            let mut builder = Session::builder()
+                .map_err(|e| CliError::from(format!("Builder error: {}", e)))?;
+            builder = builder
+                .with_execution_providers([ROCmExecutionProvider::default().build()])
+                .map_err(|e| CliError::from(format!("ROCm provider error: {}", e)))?;
+            builder = builder
+                .with_optimization_level(GraphOptimizationLevel::Level3)
+                .map_err(|e| CliError::from(format!("Opt level error: {}", e)))?;
+            builder = builder
+                .with_intra_threads(4)
+                .map_err(|e| CliError::from(format!("Thread error: {}", e)))?;
+            println!("Trying ROCm commit_from_file: {}", model_path.display());
+            builder.commit_from_file(model_path)
+                .map_err(|e| CliError::from(format!("Model load error: {}", e)))
+        })),
+        ("CoreML", Box::new(|| {
+            let mut builder = Session::builder()
+                .map_err(|e| CliError::from(format!("Builder error: {}", e)))?;
+            builder = builder
+                .with_execution_providers([
+                    CoreMLExecutionProvider::default()
+                        .with_compute_units(ComputeUnits::CPUAndNeuralEngine)
+                        .build()
+                ])
+                .map_err(|e| CliError::from(format!("CoreML provider error: {}", e)))?;
+            builder = builder
+                .with_optimization_level(GraphOptimizationLevel::Level3)
+                .map_err(|e| CliError::from(format!("Opt level error: {}", e)))?;
+            builder = builder
+                .with_intra_threads(4)
+                .map_err(|e| CliError::from(format!("Thread error: {}", e)))?;
+            println!("Trying CoreML commit_from_file: {}", model_path.display());
+            builder.commit_from_file(model_path)
+                .map_err(|e| CliError::from(format!("Model load error: {}", e)))
+        })),
+        ("DirectML", Box::new(|| {
+            let mut builder = Session::builder()
+                .map_err(|e| CliError::from(format!("Builder error: {}", e)))?;
+            builder = builder
+                .with_execution_providers([DirectMLExecutionProvider::default().build()])
+                .map_err(|e| CliError::from(format!("DirectML provider error: {}", e)))?;
+            builder = builder
+                .with_optimization_level(GraphOptimizationLevel::Level3)
+                .map_err(|e| CliError::from(format!("Opt level error: {}", e)))?;
+            builder = builder
+                .with_intra_threads(4)
+                .map_err(|e| CliError::from(format!("Thread error: {}", e)))?;
+            println!("Trying DirectML commit_from_file: {}", model_path.display());
+            builder.commit_from_file(model_path)
+                .map_err(|e| CliError::from(format!("Model load error: {}", e)))
+        })),
+        ("CPU", Box::new(move || {
+            let mut builder = Session::builder()
+                .map_err(|e| CliError::from(format!("Builder error: {}", e)))?;
+            builder = builder
+                .with_execution_providers([CPUExecutionProvider::default().build()])
+                .map_err(|e| CliError::from(format!("CPU provider error: {}", e)))?;
+            builder = builder
+                .with_optimization_level(GraphOptimizationLevel::Level3)
+                .map_err(|e| CliError::from(format!("Opt level error: {}", e)))?;
+            builder = builder
+                .with_intra_threads(cpu_threads)
+                .map_err(|e| CliError::from(format!("Thread error: {}", e)))?;
+            println!("Trying CPU commit_from_file: {}", model_path.display());
+            builder.commit_from_file(model_path)
+                .map_err(|e| CliError::from(format!("Model load error: {}", e)))
+        })),
+    ];
+
+    for (name, build) in &candidates {
+        match build() {
+            Ok(session) => {
+                println!("  ✓ Using {} execution provider", name);
+                return Ok(session);
+            }
+            Err(_) => continue,
+        }
+    }
+
+    Err(CliError::from(
+        "No execution provider could be initialized. This is likely a build configuration issue."
+    ))
 }
 
 // ── Chunk record ──────────────────────────────────────────────────────────────
@@ -233,24 +336,63 @@ pub struct ChunkRecord {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct FileIndex {
-    pub hmac: Option<Vec<u8>>,  // Store as Vec<u8> for serialization
-    pub chunks: Vec<ChunkRecord>,
+    pub hmac:    Option<Vec<u8>>,
+    pub chunks:  Vec<ChunkRecord>,
     pub vectors: Vec<f32>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct SearchIndex {
-    pub files: HashMap<String, FileIndex>,
+    pub files:   HashMap<String, FileIndex>,
     pub version: u32,
 }
 
 impl SearchIndex {
     fn new() -> Self {
-        Self {
-            files: HashMap::new(),
-            version: 1,
-        }
+        Self { files: HashMap::new(), version: 1 }
     }
+}
+
+// ── usearch index builder ─────────────────────────────────────────────────────
+
+fn build_hnsw(
+    all_chunks:  &[ChunkRecord],
+    all_vectors: &[f32],
+    hidden:      usize,
+) -> CliResult<Index> {
+    // FIX 3: Guard against a corrupted index where vector count doesn't match
+    // chunk count. Without this check, the slice below panics at runtime with
+    // an unhelpful "index out of bounds" message.
+    let expected_len = all_chunks.len() * hidden;
+    if all_vectors.len() != expected_len {
+        return Err(CliError::from(format!(
+            "Vector/chunk mismatch: expected {} floats ({} chunks × {} dims), got {}. \
+             The index may be corrupted — delete it and re-run to rebuild.",
+            expected_len, all_chunks.len(), hidden, all_vectors.len()
+        )));
+    }
+
+    let options = IndexOptions {
+        dimensions: hidden,
+        metric:     MetricKind::Cos,
+        quantization: ScalarKind::F32,
+        ..Default::default()
+    };
+
+    let index = Index::new(&options)
+        .map_err(|e| CliError::from(format!("usearch index create failed: {}", e)))?;
+
+    index.reserve(all_chunks.len())
+        .map_err(|e| CliError::from(format!("usearch reserve failed: {}", e)))?;
+
+    for (i, _) in all_chunks.iter().enumerate() {
+        let base = i * hidden;
+        let vec  = &all_vectors[base..base + hidden];
+        index.add(i as u64, vec)
+            .map_err(|e| CliError::from(format!("usearch add failed at chunk {}: {}", i, e)))?;
+    }
+
+    Ok(index)
 }
 
 // ── Entry point ───────────────────────────────────────────────────────────────
@@ -276,24 +418,27 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
     const RERANKER_MAX_LEN:    usize = 512;
 
     let writeable_path = std::path::PathBuf::from(&lb.config.writeable_path);
-    let cache_dir = writeable_path.join("models");
-    let bi_dir = cache_dir.join("multilingual-e5-large");
-    let model_path = bi_dir.join("model.onnx");
+    let cache_dir      = writeable_path.join("models");
+    let bi_dir         = cache_dir.join("multilingual-e5-large");
+    let model_path     = bi_dir.join("model.onnx");
     let tokenizer_path = bi_dir.join("tokenizer.json");
 
-    let reranker_dir = cache_dir.join("ms-marco-MiniLM-L-6-v2");
-    let reranker_model_path = reranker_dir.join("model.onnx");
+    let reranker_dir            = cache_dir.join("ms-marco-MiniLM-L-6-v2");
+    let reranker_model_path     = reranker_dir.join("model.onnx");
     let reranker_tokenizer_path = reranker_dir.join("tokenizer.json");
 
-    let index_dir = writeable_path.join("search_index");
+    let index_dir  = writeable_path.join("search_index");
     let index_path = index_dir.join("index.json");
 
-    // Download all models
     ensure_all_models_downloaded(lb).await?;
 
-    // Load models once and reuse them
     println!("🧠 Loading multilingual-e5-large...");
     let load_start = std::time::Instant::now();
+    println!("  model path: {}", model_path.display());
+    match std::fs::metadata(&model_path) {
+        Ok(m) => println!("  model size: {} bytes", m.len()),
+        Err(e) => println!("  model metadata error: {}", e),
+    }
     let mut bi_session = build_session(&model_path)?;
     let bi_tokenizer = Tokenizer::from_file(&tokenizer_path)
         .map_err(|e| CliError::from(format!("Tokenizer error: {}", e)))?;
@@ -301,6 +446,11 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
 
     println!("🧠 Loading reranker...");
     let reranker_load_start = std::time::Instant::now();
+    println!("  reranker model path: {}", reranker_model_path.display());
+    match std::fs::metadata(&reranker_model_path) {
+        Ok(m) => println!("  reranker model size: {} bytes", m.len()),
+        Err(e) => println!("  reranker model metadata error: {}", e),
+    }
     let mut reranker_session = build_session(&reranker_model_path)?;
     let reranker_tokenizer = Tokenizer::from_file(&reranker_tokenizer_path)
         .map_err(|e| CliError::from(format!("Reranker tokenizer error: {}", e)))?;
@@ -309,18 +459,15 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
     println!("📁 Scanning files...");
     let files = lb.get_and_get_children_recursively(&lb.root().await?.id).await?;
 
-    // Load existing index or create new one
-    let mut search_index = if index_path.exists() {
-        let index_data = std::fs::read_to_string(&index_path)
+    let mut search_index: SearchIndex = if index_path.exists() {
+        let data = std::fs::read_to_string(&index_path)
             .map_err(|e| CliError::from(format!("Cannot read index: {}", e)))?;
-        serde_json::from_str(&index_data).unwrap_or_else(|_| SearchIndex::new())
+        serde_json::from_str(&data).unwrap_or_else(|_| SearchIndex::new())
     } else {
         SearchIndex::new()
     };
 
-    // Track which files we've processed
     let mut processed_file_ids = HashSet::new();
-    // Store only what we need: (file_id, file_path, file_name)
     let mut files_to_embed: Vec<(String, String, String)> = Vec::new();
 
     println!("🔍 Checking for changes...");
@@ -329,14 +476,12 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
         let name = file.name.to_lowercase();
         if !name.ends_with(".txt") && !name.ends_with(".md") { continue; }
 
-        // Fix: HMAC comes first, content second
         let (hmac_opt, content_bytes) = match lb.read_document_with_hmac(file.id, false).await {
             Ok((h, c)) => (h, c),
             Err(_) => continue,
         };
-        
+
         let content = String::from_utf8_lossy(&content_bytes).to_string();
-        
         if content.trim().len() < 20 { continue; }
 
         let full_path = lb.get_path_by_id(file.id).await.unwrap_or_else(|_| file.name.clone());
@@ -349,29 +494,24 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
         let file_id_str = file.id.to_string();
         processed_file_ids.insert(file_id_str.clone());
 
-        // Convert HMAC to Vec<u8> for comparison
         let hmac_vec = hmac_opt.map(|h| h.to_vec());
-        
-        // Check if file exists in index and if HMAC matches
+
         match search_index.files.get(&file_id_str) {
             Some(existing) if existing.hmac == hmac_vec => {
-                // File unchanged - keep existing embeddings
                 println!("  ✓ Unchanged: {}", file_name);
             }
             _ => {
-                // New or modified file - needs embedding
                 println!("  📝 New/Modified: {}", file_name);
                 files_to_embed.push((file_id_str, full_path, file_name));
             }
         }
     }
 
-    // Remove deleted files from index (smart eviction)
     let deleted_files: Vec<String> = search_index.files.keys()
         .filter(|id| !processed_file_ids.contains(*id))
         .cloned()
         .collect();
-    
+
     if !deleted_files.is_empty() {
         println!("🗑️  Removing {} deleted files from index", deleted_files.len());
         for file_id in deleted_files {
@@ -382,29 +522,35 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
     if !files_to_embed.is_empty() {
         println!("📊 Embedding {} new/modified files...", files_to_embed.len());
 
-        // Process each file that needs embedding
         for (file_idx, (file_id_str, full_path, file_name)) in files_to_embed.iter().enumerate() {
-            // Get content and HMAC again
             let file_id = Uuid::parse_str(file_id_str)
                 .map_err(|e| CliError::from(format!("Invalid UUID: {}", e)))?;
-            
+
             let (hmac_opt, content_bytes) = match lb.read_document_with_hmac(file_id, false).await {
                 Ok((h, c)) => (h, c),
                 Err(_) => continue,
             };
-            
+
             let content = String::from_utf8_lossy(&content_bytes).to_string();
-            
+
             {
                 use std::io::Write;
                 print!("\r\x1B[K  Processing: {}/{} - {}", file_idx + 1, files_to_embed.len(), file_name);
                 let _ = std::io::stdout().flush();
             }
 
-            // Create chunks for this file
+            // Skip files that are too large — they generate thousands of chunks
+            // and can stall the embedding loop for 30+ minutes.
+            // 200 KB (~40 pages) is more than enough for useful search results.
+            const MAX_FILE_CHARS: usize = 200_000;
+            if content.len() > MAX_FILE_CHARS {
+                eprintln!("\n  ⚠ Skipping {} ({} chars, limit {})", file_name, content.len(), MAX_FILE_CHARS);
+                continue;
+            }
+
             let mut chunks: Vec<ChunkRecord> = Vec::new();
             let sections = split_markdown_sections(&content);
-            
+
             for section in &sections {
                 let parent_chunks = chunk_text(section, PARENT_CHARS, PARENT_OVERLAP, MAX_CHUNKS_PER_FILE);
                 for parent in &parent_chunks {
@@ -412,11 +558,11 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
                     for child in child_chunks {
                         if child.trim().is_empty() { continue; }
                         chunks.push(ChunkRecord {
-                            file_id: file_id_str.clone(),
-                            file_path: full_path.clone(),
-                            file_name: file_name.clone(),
+                            file_id:      file_id_str.clone(),
+                            file_path:    full_path.clone(),
+                            file_name:    file_name.clone(),
                             parent_chunk: parent.clone(),
-                            child_text: child,
+                            child_text:   child,
                         });
                     }
                 }
@@ -424,24 +570,21 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
 
             let file_intro: String = content.chars().take(200).collect();
             chunks.push(ChunkRecord {
-                file_id: file_id_str.clone(),
-                file_path: full_path.clone(),
-                file_name: file_name.clone(),
+                file_id:      file_id_str.clone(),
+                file_path:    full_path.clone(),
+                file_name:    file_name.clone(),
                 parent_chunk: format!("{}\n{}", file_name, file_intro),
-                child_text: file_name.clone(),
+                child_text:   file_name.clone(),
             });
 
-            // Embed all chunks for this file - fail the whole file if any batch fails
             let mut all_vectors: Vec<f32> = Vec::new();
             let mut failed = false;
-            
+
             for batch in chunks.chunks(BATCH_SIZE) {
                 let texts: Vec<String> = batch.iter().map(|c| c.child_text.clone()).collect();
                 match embed_batch(&mut bi_session, &bi_tokenizer, &texts, BI_HIDDEN, BI_MAX_LEN) {
                     Ok(vecs) => {
-                        for vec in vecs {
-                            all_vectors.extend_from_slice(&vec);
-                        }
+                        for vec in vecs { all_vectors.extend_from_slice(&vec); }
                     }
                     Err(e) => {
                         eprintln!("\nError: batch embed failed for file {}: {:?}", file_name, e);
@@ -450,8 +593,7 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
                     }
                 }
             }
-            
-            // Only store if all batches succeeded
+
             if !failed {
                 let hmac_vec = hmac_opt.map(|h| h.to_vec());
                 search_index.files.insert(file_id_str.clone(), FileIndex {
@@ -465,16 +607,13 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
         }
         println!();
 
-        // Save index
         println!("💾 Saving index...");
         std::fs::create_dir_all(&index_dir)
             .map_err(|e| CliError::from(format!("Cannot create index dir: {}", e)))?;
-        
         let index_json = serde_json::to_string(&search_index)
             .map_err(|e| CliError::from(format!("Cannot serialize index: {}", e)))?;
         std::fs::write(&index_path, index_json)
             .map_err(|e| CliError::from(format!("Cannot write index: {}", e)))?;
-        
         println!("  ✓ Index saved ({} files indexed)", search_index.files.len());
     } else {
         println!("📖 Index is up to date ({} files)", search_index.files.len());
@@ -485,43 +624,45 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
         return Ok(());
     }
 
-    println!("🔎 Searching...");
-    let query_vec = embed_single(&mut bi_session, &bi_tokenizer, query, "query", BI_HIDDEN, BI_MAX_LEN)?;
-
-    // Collect all chunks and vectors from all files
+    // ── Collect all chunks + vectors ──────────────────────────────────────────
     let mut all_chunks: Vec<ChunkRecord> = Vec::new();
-    let mut all_vectors: Vec<f32> = Vec::new();
-    
+    let mut all_vectors: Vec<f32>        = Vec::new();
+
     for file_index in search_index.files.values() {
-        for chunk in &file_index.chunks {
-            all_chunks.push(chunk.clone());
-        }
+        for chunk in &file_index.chunks { all_chunks.push(chunk.clone()); }
         all_vectors.extend_from_slice(&file_index.vectors);
     }
 
-    let num_chunks = all_chunks.len();
-    if num_chunks == 0 {
+    if all_chunks.is_empty() {
         println!("No chunks indexed yet.");
         return Ok(());
     }
 
-    // Calculate similarities
-    let mut scores: Vec<(usize, f32)> = (0..num_chunks)
-        .map(|i| {
-            let base = i * BI_HIDDEN;
-            let sim: f32 = (0..BI_HIDDEN).map(|j| query_vec[j] * all_vectors[base + j]).sum();
-            (i, sim)
-        })
+    // ── Build HNSW index ──────────────────────────────────────────────────────
+    println!("🔎 Building search index ({} chunks)...", all_chunks.len());
+    let hnsw_start = std::time::Instant::now();
+    let hnsw = build_hnsw(&all_chunks, &all_vectors, BI_HIDDEN)?;
+    println!("  ✓ HNSW index built in {:.2}s", hnsw_start.elapsed().as_secs_f32());
+
+    // ── Embed the query ───────────────────────────────────────────────────────
+    println!("🔎 Searching...");
+    let query_vec = embed_single(
+        &mut bi_session, &bi_tokenizer, query, "query", BI_HIDDEN, BI_MAX_LEN,
+    )?;
+
+    let results_raw = hnsw.search(&query_vec, RERANK_K)
+        .map_err(|e| CliError::from(format!("usearch search failed: {}", e)))?;
+
+    let candidates: Vec<usize> = results_raw.keys.iter()
+        .map(|&k| k as usize)
         .collect();
 
-    scores.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal));
-    let candidates: Vec<(usize, f32)> = scores.into_iter().take(RERANK_K).collect();
-
+    // ── Rerank ────────────────────────────────────────────────────────────────
     println!("  ✓ Reranking {} candidates...", candidates.len());
     let rerank_start = std::time::Instant::now();
     let mut reranked: Vec<(String, String, f32)> = Vec::new();
 
-    for (idx, _) in &candidates {
+    for idx in &candidates {
         let chunk = &all_chunks[*idx];
         let score = rerank_pair(
             &mut reranker_session,
@@ -536,7 +677,7 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
     reranked.sort_by(|a, b| b.2.partial_cmp(&a.2).unwrap_or(std::cmp::Ordering::Equal));
     println!("  ✓ Reranking done in {:.2}s", rerank_start.elapsed().as_secs_f32());
 
-    let mut seen: HashSet<String> = HashSet::new();
+    let mut seen:    HashSet<String>            = HashSet::new();
     let mut results: Vec<(String, String, f32)> = Vec::new();
     for (path, snippet, score) in &reranked {
         if seen.insert(path.clone()) {
@@ -551,14 +692,14 @@ pub async fn search_semantic(query: &str) -> CliResult<()> {
         println!("\n{}", "Top Results:".green().bold());
         println!("{}", "============".green());
         for (i, (path, snippet, score)) in results.iter().enumerate() {
-            let sig = 1.0f32 / (1.0 + (-score).exp());
+            let sig           = 1.0f32 / (1.0 + (-score).exp());
             let score_percent = (sig * 100.0).clamp(0.0, 100.0) as usize;
-            let bar_len = score_percent / 2;
-            let bar = "█".repeat(bar_len);
-            let empty = "░".repeat(50usize.saturating_sub(bar_len));
-            let score_colored = if sig > 0.7 { format!("{:.4}", sig).green() }
+            let bar_len       = score_percent / 2;
+            let bar           = "█".repeat(bar_len);
+            let empty         = "░".repeat(50usize.saturating_sub(bar_len));
+            let score_colored = if sig > 0.7      { format!("{:.4}", sig).green() }
                                 else if sig > 0.4 { format!("{:.4}", sig).yellow() }
-                                else { format!("{:.4}", sig).red() };
+                                else              { format!("{:.4}", sig).red() };
             let preview: String = snippet.chars().take(150).collect();
             let preview = preview.trim().replace('\n', " ");
             println!("\n{}. {}", i + 1, path.cyan().bold());
@@ -603,7 +744,19 @@ fn rerank_pair(
         "token_type_ids" => Value::from_array(([1usize, max_len], padded_types))
             .map_err(|e| CliError::from(format!("Tensor error: {}", e)))?,
     ]).map_err(|e| CliError::from(format!("Reranker inference failed: {}", e)))?;
-    let (_, logits) = outputs["logits"].try_extract_tensor::<f32>()
+
+    // FIX 2: The Xenova ONNX export of ms-marco-MiniLM-L-6-v2 names its output
+    // "logits" in most builds, but some quantized or older exports use "output_0".
+    // Using index-based access ["logits"] panics at runtime if the key is wrong.
+    // We now try both names and surface a clear error if neither is found.
+    let raw_output = outputs.get("logits")
+        .or_else(|| outputs.get("output_0"))
+        .ok_or_else(|| CliError::from(
+            "Reranker output key not found. Expected 'logits' or 'output_0'. \
+             Inspect the model with Netron to find the correct output name."
+        ))?;
+
+    let (_, logits) = raw_output.try_extract_tensor::<f32>()
         .map_err(|e| CliError::from(format!("Reranker extract failed: {}", e)))?;
     Ok(logits[0])
 }
@@ -620,9 +773,9 @@ fn embed_batch(
     let batch_size = texts.len();
     if batch_size == 0 { return Ok(vec![]); }
 
-    let mut all_ids  = vec![0i64; batch_size * max_len];
-    let mut all_mask = vec![0i64; batch_size * max_len];
-    let mut lengths  = vec![0usize; batch_size];
+    let mut all_ids   = vec![0i64; batch_size * max_len];
+    let mut all_mask  = vec![0i64; batch_size * max_len];
+    let mut lengths   = vec![0usize; batch_size];
 
     for (b, text) in texts.iter().enumerate() {
         let prefixed = format!("passage: {}", text);
@@ -639,6 +792,8 @@ fn embed_batch(
         }
     }
 
+    // NOTE: Xenova/multilingual-e5-large ONNX only accepts input_ids and
+    // attention_mask — it does NOT have a token_type_ids input node.
     let outputs = session.run(ort::inputs![
         "input_ids"      => Value::from_array(([batch_size, max_len], all_ids))
             .map_err(|e| CliError::from(format!("Tensor error: {}", e)))?,
@@ -685,6 +840,8 @@ fn embed_single(
         padded_ids[i]  = ids[i]  as i64;
         padded_mask[i] = mask[i] as i64;
     }
+    // NOTE: Xenova/multilingual-e5-large ONNX only accepts input_ids and
+    // attention_mask — no token_type_ids input node exists in this export.
     let outputs = session.run(ort::inputs![
         "input_ids"      => Value::from_array(([1usize, max_len], padded_ids))
             .map_err(|e| CliError::from(format!("Tensor error: {}", e)))?,
