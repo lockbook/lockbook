@@ -434,7 +434,7 @@ impl OnboardScreen {
     fn get_subheader_text(&mut self) -> &str {
         match self.router.route {
             Route::Create => {
-                r#"Use letters (A-Z) and numbers (0-9). Special characters aren't allowed.
+                r#"Use letters (A-Z), numbers (0-9), and the symbols - _ . @
 You can't change your username later."#
             }
             Route::Import => {

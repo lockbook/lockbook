@@ -1,6 +1,6 @@
 [package]
 name = "admin"
-version = "26.5.22"
+version = "26.5.27"
 edition = "2021"
 
 [dependencies]

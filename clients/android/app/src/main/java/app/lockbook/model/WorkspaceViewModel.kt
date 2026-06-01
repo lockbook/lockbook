@@ -66,6 +66,10 @@ class WorkspaceViewModel : ViewModel() {
     val workspaceBackRequested: LiveData<Unit>
         get() = _workspaceBackRequested
 
+    private val _backGestureStarted = SingleMutableLiveData<Unit>()
+    val backGestureStarted: LiveData<Unit>
+        get() = _backGestureStarted
+
     /** request workspace view to navigate forward within tab history **/
     private val _workspaceForwardRequested = SingleMutableLiveData<Unit>()
     val workspaceForwardRequested: LiveData<Unit>
@@ -77,6 +81,10 @@ class WorkspaceViewModel : ViewModel() {
 
     fun requestWorkspaceForward() {
         _workspaceForwardRequested.postValue(Unit)
+    }
+
+    fun notifyBackGestureStarted() {
+        _backGestureStarted.postValue(Unit)
     }
 }
 

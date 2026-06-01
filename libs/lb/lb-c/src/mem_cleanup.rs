@@ -372,5 +372,9 @@ pub extern "C" fn lb_free_status(status: LbStatus) {
         if !status.msg.is_null() {
             drop(CString::from_raw(status.msg));
         }
+
+        if !status.unexpected_sync_problem.is_null() {
+            drop(CString::from_raw(status.unexpected_sync_problem));
+        }
     }
 }

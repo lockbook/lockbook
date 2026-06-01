@@ -14,6 +14,7 @@
 # Extending Lockbook
 
 - [Extending Lockbook](extending.md)
+- [Themeing Lockbook](themes.md)
 
 # Contributing To Lockbook
 

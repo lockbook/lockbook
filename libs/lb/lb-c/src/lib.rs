@@ -1162,6 +1162,7 @@ pub struct LbStatus {
     pub pulling_files: LbIds,
     pub space_used: *mut LbUsageMetrics,
     pub msg: *mut c_char,
+    pub unexpected_sync_problem: *mut c_char,
 }
 
 #[unsafe(no_mangle)]
@@ -1171,6 +1172,11 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
 
     let msg = match status.msg() {
         Some(msg) => cstring(msg),
+        None => null_mut(),
+    };
+
+    let unexpected_sync_problem = match status.unexpected_sync_problem {
+        Some(err) => cstring(err),
         None => null_mut(),
     };
 
@@ -1204,6 +1210,7 @@ pub extern "C" fn lb_get_status(lb: *mut Lb) -> LbStatus {
         pulling_files,
         space_used,
         msg,
+        unexpected_sync_problem,
     }
 }
 

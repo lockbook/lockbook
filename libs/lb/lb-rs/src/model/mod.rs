@@ -40,5 +40,6 @@ pub mod text;
 pub mod tree_like;
 pub mod usage;
 pub mod validate;
+pub mod wire;
 
 pub use lazy::ValidationFailure;

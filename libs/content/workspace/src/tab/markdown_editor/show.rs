@@ -277,7 +277,7 @@ impl MdEdit {
                     } else {
                         Some(Region::BoundAt { bound: Bound::Paragraph, location, backwards: true })
                     }
-                } else if response.clicked() && modifiers.shift {
+                } else if response.clicked() && modifiers.shift && !cfg!(target_os = "android") {
                     Some(Region::ToLocation(location))
                 } else if response.clicked() {
                     if cfg!(target_os = "android") && self.selection_tap(pos) {

@@ -4,19 +4,23 @@ import SwiftWorkspace
 class ImportExportHelper {
     static let TMP_DIR = "lb-tmp"
 
-    static func importFiles(homeState: HomeState, filesModel: FilesViewModel, sources: [String], destination: UUID) -> Bool {
-        let operation = AppState.lb.importFiles(sources: sources, dest: destination)
+    static func importFiles(homeState: HomeState, filesModel: FilesViewModel, sources: [String], destination: UUID) {
+        homeState.importsInProgress += 1
 
-        switch operation {
-        case .success:
-            homeState.fileActionCompleted = .importFiles
-            filesModel.loadFiles()
+        DispatchQueue.global(qos: .userInitiated).async {
+            let operation = AppState.lb.importFiles(sources: sources, dest: destination)
 
-            return true
-        case let .failure(err):
-            AppState.shared.error = .lb(error: err)
+            DispatchQueue.main.async {
+                homeState.importsInProgress -= 1
 
-            return false
+                switch operation {
+                case .success:
+                    homeState.fileActionCompleted = .importFiles
+                    filesModel.loadFiles()
+                case let .failure(err):
+                    AppState.shared.error = .lb(error: err)
+                }
+            }
         }
     }
 

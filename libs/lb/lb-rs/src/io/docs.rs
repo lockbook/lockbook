@@ -33,6 +33,16 @@ impl AsyncDocs {
         Ok(())
     }
 
+    pub async fn insert_pending(
+        &self, _id: Uuid, _hmac: DocumentHmac, _document: &EncryptedDocument,
+    ) -> LbResult<()> {
+        Ok(())
+    }
+
+    pub async fn promote_pending(&self, _id: Uuid, _hmac: DocumentHmac) -> LbResult<()> {
+        Ok(())
+    }
+
     pub async fn get(&self, _id: Uuid, _hmac: Option<DocumentHmac>) -> LbResult<EncryptedDocument> {
         Err(LbErrKind::FileNonexistent.into())
     }
@@ -62,22 +72,34 @@ impl AsyncDocs {
         &self, id: Uuid, hmac: Option<DocumentHmac>, document: &EncryptedDocument,
     ) -> LbResult<()> {
         if let Some(hmac) = hmac {
-            let value = &bincode::serialize(document).map_unexpected()?;
-            let path_str = key_path(&self.location, id, hmac) + ".pending";
-            let path = Path::new(&path_str);
-            trace!("write\t{} {:?} bytes", &path_str, value.len());
-            fs::create_dir_all(path.parent().unwrap()).await?;
-            let mut f = OpenOptions::new()
-                .write(true)
-                .create(true)
-                .truncate(true)
-                .open(path)
-                .await?;
-            f.write_all(value).await?;
-            Ok(fs::rename(path, key_path(&self.location, id, hmac)).await?)
-        } else {
-            Ok(())
+            self.insert_pending(id, hmac, document).await?;
+            self.promote_pending(id, hmac).await?;
         }
+        Ok(())
+    }
+
+    pub async fn insert_pending(
+        &self, id: Uuid, hmac: DocumentHmac, document: &EncryptedDocument,
+    ) -> LbResult<()> {
+        let value = &bincode::serialize(document).map_unexpected()?;
+        let path_str = pending_path(&self.location, id, hmac);
+        let path = Path::new(&path_str);
+        trace!("write pending\t{} {:?} bytes", &path_str, value.len());
+        fs::create_dir_all(path.parent().unwrap()).await?;
+        let mut f = OpenOptions::new()
+            .write(true)
+            .create(true)
+            .truncate(true)
+            .open(path)
+            .await?;
+        f.write_all(value).await?;
+        Ok(())
+    }
+
+    pub async fn promote_pending(&self, id: Uuid, hmac: DocumentHmac) -> LbResult<()> {
+        let pending = pending_path(&self.location, id, hmac);
+        let final_path = key_path(&self.location, id, hmac);
+        Ok(fs::rename(&pending, &final_path).await?)
     }
 
     pub fn exists(&self, id: Uuid, hmac: Option<DocumentHmac>) -> bool {
@@ -198,6 +220,10 @@ pub fn namespace_path(writeable_path: &Path) -> String {
 pub fn key_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String {
     let hmac = base64::encode_config(hmac, base64::URL_SAFE);
     format!("{}/{}-{}", namespace_path(writeable_path), key, hmac)
+}
+
+fn pending_path(writeable_path: &Path, key: Uuid, hmac: DocumentHmac) -> String {
+    key_path(writeable_path, key, hmac) + ".pending"
 }
 
 impl From<&Config> for AsyncDocs {

@@ -18,6 +18,7 @@ public struct Status {
     public var pullingFiles: [UUID]
     public var spaceUsed: UsageMetrics?
     public var message: String
+    public var unexpectedSyncProblem: String?
 
     init(_ status: LbStatus) {
         offline = status.offline
@@ -30,7 +31,7 @@ public struct Status {
         pullingFiles = Array(UnsafeBufferPointer(start: status.pulling_files.ids, count: Int(status.pulling_files.len))).toUUIDs()
         spaceUsed = status.space_used != nil ? UsageMetrics(status.space_used.move()) : nil
         message = status.msg != nil ? String(cString: status.msg) : ""
-
+        unexpectedSyncProblem = status.unexpected_sync_problem != nil ? String(cString: status.unexpected_sync_problem) : nil
     }
 
     init() {
@@ -44,5 +45,6 @@ public struct Status {
         pullingFiles = []
         spaceUsed = nil
         message = ""
+        unexpectedSyncProblem = nil
     }
 }

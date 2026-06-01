@@ -20,6 +20,10 @@
 # hide the original source file name.
 #-renamesourcefileattribute SourceFile
 
+# lb-rs calls into and constructs these Java classes through JNI. Keep this
+# boundary stable while allowing the rest of the app release build to be minified.
+-keep class net.lockbook.** { *; }
+
 # Keep `Companion` object fields of serializable classes.
 # This avoids serializer lookup through `getDeclaredClasses` as done for named companion objects.
 -if @kotlinx.serialization.Serializable class **

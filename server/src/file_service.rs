@@ -270,8 +270,14 @@ where
                 }
             }
 
+            let old_usage = tree.calculate_usage(tree_owner)?;
             let mut tree = tree.stage(vec![new_meta]);
+            let new_usage = tree.calculate_usage(tree_owner)?;
             tree.validate(requester)?;
+            if new_usage > usage_cap && new_usage >= old_usage {
+                warn!("user over cap");
+                return Err(ClientError(UsageIsOverDataCap));
+            }
             tree.promote()?;
 
             if let Some(old_hmac) = diff.old.and_then(|old| old.document_hmac().copied()) {

@@ -3,7 +3,7 @@ use crate::model::api::METADATA_FEE;
 use crate::model::crypto::{AESKey, DecryptedDocument, EncryptedDocument};
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::{File, Share, ShareMode};
-use crate::model::file_metadata::{FileType, Owner};
+use crate::model::file_metadata::{DocumentHmac, FileType, Owner};
 use crate::model::lazy::LazyTree;
 use crate::model::meta::Meta;
 use crate::model::secret_filename::{HmacSha256, SecretFileName};
@@ -318,6 +318,20 @@ where
 
         Ok((file, document))
     }
+
+    pub fn overwrite_document_hmac_op(
+        &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
+        keychain: &Keychain,
+    ) -> LbResult<SignedMeta> {
+        let id = match self.find(id)?.file_type() {
+            FileType::Document | FileType::Folder => *id,
+            FileType::Link { target } => target,
+        };
+        let mut file = self.find(&id)?.timestamped_value.value.clone();
+        validate::is_document(&file)?;
+        file.set_hmac_and_size(new_hmac, new_size);
+        file.sign(keychain)
+    }
 }
 
 impl<Base, Local, Staged> LazyTree<Staged>
@@ -431,11 +445,29 @@ where
         Ok(document)
     }
 
+    pub fn overwrite_document_hmac_unvalidated(
+        &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
+        keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.overwrite_document_hmac_op(id, new_hmac, new_size, keychain)?;
+        self.stage_and_promote(Some(op))?;
+        Ok(())
+    }
+
     pub fn update_document(
         &mut self, id: &Uuid, document: &[u8], keychain: &Keychain,
     ) -> LbResult<EncryptedDocument> {
         let (op, document) = self.update_document_op(id, document, keychain)?;
         self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
         Ok(document)
+    }
+
+    pub fn overwrite_document_hmac(
+        &mut self, id: &Uuid, new_hmac: Option<DocumentHmac>, new_size: Option<usize>,
+        keychain: &Keychain,
+    ) -> LbResult<()> {
+        let op = self.overwrite_document_hmac_op(id, new_hmac, new_size, keychain)?;
+        self.stage_validate_and_promote(Some(op), Owner(keychain.get_pk()?))?;
+        Ok(())
     }
 }

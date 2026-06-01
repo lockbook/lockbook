@@ -135,7 +135,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "admin"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -4127,7 +4127,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lb-c"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "lb-rs",
 ]
@@ -4139,7 +4139,7 @@ source = "git+https://github.com/lockbook/lb-fonts#d777ff8ab8bf198ebaf6b3406daba
 
 [[package]]
 name = "lb-fs"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "cli-rs 0.2.0",
  "lb-rs",
@@ -4151,7 +4151,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "jni",
  "lb-rs",
@@ -4182,7 +4182,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "aes-gcm",
  "base64 0.13.1",
@@ -4190,6 +4190,7 @@ dependencies = [
  "bezier-rs",
  "bincode",
  "bip39-dict",
+ "bytes",
  "chrono",
  "criterion",
  "crossbeam",
@@ -4205,6 +4206,7 @@ dependencies = [
  "indicatif",
  "itertools 0.10.5",
  "lb-tantivy",
+ "libc",
  "libsecp256k1",
  "nucleo",
  "num_cpus",
@@ -4316,7 +4318,7 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "cli-rs 0.1.13",
  "dotenvy",
@@ -4536,7 +4538,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "arboard",
  "chrono",
@@ -4571,7 +4573,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4592,14 +4594,14 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "lockbook-desktop",
 ]
 
 [[package]]
 name = "lockbook-server"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4638,7 +4640,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "lockbook-desktop",
 ]
@@ -6696,10 +6698,12 @@ dependencies = [
  "system-configuration",
  "tokio",
  "tokio-rustls",
+ "tokio-util",
  "tower-service",
  "url 2.5.2",
  "wasm-bindgen",
  "wasm-bindgen-futures",
+ "wasm-streams",
  "web-sys",
  "webpki-roots",
  "winreg 0.50.0",
@@ -7932,7 +7936,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "bincode",
  "itertools 0.10.5",
@@ -8883,6 +8887,19 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-streams"
+version = "0.4.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4e072d4e72f700fb3443d8fe94a39315df013eef1104903cdb0a2abd322bbecd"
+dependencies = [
+ "futures-util",
+ "js-sys",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "wayland-backend"
 version = "0.3.12"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -9769,7 +9786,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -9803,7 +9820,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -9859,7 +9876,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "26.5.22"
+version = "26.5.27"
 dependencies = [
  "egui",
  "egui_extras",
