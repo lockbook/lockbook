@@ -60,98 +60,149 @@ impl MdEdit {
         else {
             return offset;
         };
-        let cur_frag = &self.renderer.fragments[cur_idx];
-        if backwards {
-            // jump to the closest fragment above that's not above another fragment that's above
-            let mut closest_offset: Option<Grapheme> = None;
-            let mut closest_distance = f32::INFINITY;
-            let mut row_above_top: Option<f32> = None;
-            for new_idx in (0..cur_idx).rev() {
-                let new_frag = &self.renderer.fragments[new_idx];
-                let new_is_above = new_frag.rect.bottom() < cur_frag.rect.top();
-                let new_too_above = if let Some(row_above_top) = row_above_top {
-                    new_frag.rect.bottom() < row_above_top
-                } else {
-                    false
-                };
+        let cur_top = self.renderer.fragments[cur_idx].rect.top();
 
-                if new_too_above {
-                    break;
-                } else if new_is_above {
-                    row_above_top = Some(new_frag.rect.top());
-
-                    let new_offset = self.renderer.fragment_offset(new_frag, x_target);
-                    let new_x = self.renderer.fragment_x(new_frag, new_offset);
-
-                    let distance = (new_x - x_target).abs(); // closest as in closest to target
-
-                    // prefer empty fragments which are placed deliberately to affect such behavior
-                    if distance < closest_distance
-                        || (distance == closest_distance
-                            && new_frag.source_range.start() == new_frag.source_range.end())
-                    {
-                        closest_offset = Some(new_offset);
-                        closest_distance = distance;
-                    }
-                } else {
-                    continue; // keep going until we're on the prev row (if there is one)
-                }
+        // Walk one visual row at a time in the travel direction, nearest
+        // first, taking the first row with a candidate that actually
+        // *renders* past the current row. Climbing past a row with no such
+        // candidate steps over wrap seams whose only offsets render back
+        // onto the current row.
+        let mut row_cutoff =
+            if backwards { cur_top } else { self.renderer.fragments[cur_idx].rect.bottom() };
+        loop {
+            let (best, row_edge) =
+                self.best_offset_on_row(cur_idx, row_cutoff, cur_top, x_target, backwards);
+            if let Some(best) = best {
+                return best;
             }
-
-            closest_offset.unwrap_or(offset)
-        } else {
-            // jump to the closest fragment below that's not below another fragment that's below
-            let mut closest_offset: Option<Grapheme> = None;
-            let mut closest_distance = f32::INFINITY;
-            let mut row_below_bottom: Option<f32> = None;
-            for new_idx in cur_idx + 1..self.renderer.fragments.len() {
-                let new_frag = &self.renderer.fragments[new_idx];
-                let new_is_below = new_frag.rect.top() > cur_frag.rect.bottom();
-                let new_too_below = if let Some(row_below_bottom) = row_below_bottom {
-                    new_frag.rect.top() > row_below_bottom
-                } else {
-                    false
-                };
-
-                if new_too_below {
-                    break;
-                } else if new_is_below {
-                    row_below_bottom = Some(new_frag.rect.bottom());
-
-                    let new_offset = self.renderer.fragment_offset(new_frag, x_target);
-                    let new_x = self.renderer.fragment_x(new_frag, new_offset);
-
-                    let distance = (new_x - x_target).abs(); // closest as in closest to target
-
-                    // prefer empty fragments which are placed deliberately to affect such behavior
-                    if distance < closest_distance
-                        || (distance == closest_distance
-                            && new_frag.source_range.start() == new_frag.source_range.end())
-                    {
-                        closest_offset = Some(new_offset);
-                        closest_distance = distance;
-                    }
-                } else {
-                    continue; // keep going until we're on the next row (if there is one)
-                }
-            }
-
-            if let Some(closest_offset) = closest_offset {
-                closest_offset
-            } else if !self
-                .renderer
-                .bounds
-                .source_lines
-                .find_containing(offset, true, true)
-                .contains(self.renderer.bounds.source_lines.len() - 1, true, false)
-            {
-                // if we're in the last fragment but not the last source line it's
-                // because the last fragment is hidden (perhaps by a folded node)
-                self.renderer.buffer.current.segs.last_cursor_position()
-            } else {
-                offset
+            match row_edge {
+                Some(edge) => row_cutoff = edge, // nothing rendered past us; keep climbing
+                None => break,                   // no further row in this direction
             }
         }
+
+        // No reachable row remains. If we're not on the document's edge
+        // source line, the adjacent line is hidden (e.g. by a fold), so
+        // snap to that document edge; otherwise stay put.
+        let source_lines = &self.renderer.bounds.source_lines;
+        let edge_line = if backwards { 0 } else { source_lines.len() - 1 };
+        if source_lines
+            .find_containing(offset, true, true)
+            .contains(edge_line, true, false)
+        {
+            offset
+        } else if backwards {
+            Grapheme(0)
+        } else {
+            self.renderer.buffer.current.segs.last_cursor_position()
+        }
+    }
+
+    /// Picks the destination on the visual row adjacent to `row_cutoff` (just
+    /// above it when `backwards`, just below otherwise): the candidate closest
+    /// to `x_target` that *renders* past `cur_top` in the travel direction.
+    /// Also returns the row's far edge (top going up, bottom going down) so the
+    /// caller can climb past a row with no such candidate.
+    ///
+    /// Candidates are each fragment's closest point to `x_target`, plus the
+    /// grapheme just inside the row's far edge (`row_end - 1` up, `row_start +
+    /// 1` down) for nonempty rows — all ordered only by distance to `x_target`.
+    /// The inner grapheme matters at a soft-wrap seam: the row's end offset is
+    /// closest to a right-leaning `x_target` but renders on the row below (so it
+    /// fails the test), leaving the inner grapheme as the nearest candidate that
+    /// renders on the row itself. Down's `row_start + 1` never wins — last-match
+    /// resolves a seam to the lower row, already correct for down — but is kept
+    /// for symmetry.
+    fn best_offset_on_row(
+        &self, cur_idx: usize, row_cutoff: f32, cur_top: f32, x_target: f32, backwards: bool,
+    ) -> (Option<Grapheme>, Option<f32>) {
+        let fragments = &self.renderer.fragments;
+
+        // Gather the adjacent row's fragments: each contributes its closest
+        // point to `x_target`, while we track the row's source extent and
+        // the fragments holding its far edges for the inner-grapheme step.
+        let mut row_edge: Option<f32> = None;
+        let mut candidates: Vec<(Grapheme, f32, bool)> = Vec::new(); // (offset, gen_x, empty_frag)
+        let (mut lo, mut hi) = (Grapheme(usize::MAX), Grapheme(0));
+        let (mut lo_idx, mut hi_idx) = (None, None);
+
+        let mut idx = cur_idx;
+        loop {
+            if backwards {
+                if idx == 0 {
+                    break;
+                }
+                idx -= 1;
+            } else {
+                idx += 1;
+                if idx >= fragments.len() {
+                    break;
+                }
+            }
+            let frag = &fragments[idx];
+
+            // Adjacent in the travel direction, and not yet onto the row
+            // past the first one we land on.
+            let adjacent = if backwards {
+                frag.rect.bottom() < row_cutoff
+            } else {
+                frag.rect.top() > row_cutoff
+            };
+            let past_row = row_edge.is_some_and(|edge| {
+                if backwards { frag.rect.bottom() < edge } else { frag.rect.top() > edge }
+            });
+
+            if past_row {
+                break;
+            } else if adjacent {
+                row_edge = Some(if backwards { frag.rect.top() } else { frag.rect.bottom() });
+
+                let (s, e) = (frag.source_range.start(), frag.source_range.end());
+                if s < lo {
+                    (lo, lo_idx) = (s, Some(idx));
+                }
+                if e > hi {
+                    (hi, hi_idx) = (e, Some(idx));
+                }
+
+                let off = self.renderer.fragment_offset(frag, x_target);
+                candidates.push((off, self.renderer.fragment_x(frag, off), s == e));
+            }
+        }
+
+        // The grapheme just inside the row's far edge — lets an up-press
+        // land on a soft-wrapped row rather than on its seam (see above).
+        if lo < hi {
+            if backwards {
+                if let Some(i) = hi_idx {
+                    let off = Grapheme(hi.0 - 1);
+                    candidates.push((off, self.renderer.fragment_x(&fragments[i], off), false));
+                }
+            } else if let Some(i) = lo_idx {
+                let off = Grapheme(lo.0 + 1);
+                candidates.push((off, self.renderer.fragment_x(&fragments[i], off), false));
+            }
+        }
+
+        // Closest candidate to `x_target` that renders past the current row
+        // in the travel direction. Ties prefer empty fragments, placed
+        // deliberately to steer this navigation.
+        let mut best: Option<Grapheme> = None;
+        let mut best_distance = f32::INFINITY;
+        for (off, gen_x, empty) in candidates {
+            let renders_past = self.renderer.fragment_at_offset(off).is_some_and(|f| {
+                if backwards { f.rect.top() < cur_top } else { f.rect.top() > cur_top }
+            });
+            if !renders_past {
+                continue;
+            }
+            let distance = (gen_x - x_target).abs();
+            if distance < best_distance || (distance == best_distance && empty) {
+                (best, best_distance) = (Some(off), distance);
+            }
+        }
+
+        (best, row_edge)
     }
 
     /// returns the x coordinate of the absolute position of `self` in `fragment`
