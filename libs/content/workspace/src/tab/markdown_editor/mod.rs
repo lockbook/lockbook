@@ -1005,14 +1005,15 @@ impl Editor {
             ui.ctx().request_repaint();
         }
         // Pull the cursor out from behind the virtual keyboard: scroll on
-        // its rising edge, and keep re-asserting while `height_updated`
-        // fires across the keyboard animation so the final settled
-        // viewport also scrolls.
+        // its rising edge, and keep re-asserting across the show animation
+        // while the keyboard is shown. The `virtual_keyboard_shown` guard
+        // keeps the dismiss animation — which grows the viewport, also
+        // firing `height_updated` — from scrolling.
         let keyboard_just_shown = self.virtual_keyboard_shown && !self.prev_virtual_keyboard_shown;
         self.prev_virtual_keyboard_shown = self.virtual_keyboard_shown;
         if self.initialized
             && self.edit.renderer.touch_mode
-            && (height_updated || keyboard_just_shown)
+            && (keyboard_just_shown || (height_updated && self.virtual_keyboard_shown))
         {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
             ui.ctx().request_repaint();
