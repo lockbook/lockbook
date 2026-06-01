@@ -1,6 +1,8 @@
 use web_time::{Duration, Instant};
 
+#[cfg(not(target_family = "wasm"))]
 use bytes::Bytes;
+#[cfg(not(target_family = "wasm"))]
 use futures::stream;
 use reqwest::{Body, Client};
 
@@ -113,6 +115,7 @@ impl Network {
     }
 }
 
+#[cfg(not(target_family = "wasm"))]
 fn body_for(serialized_request: Vec<u8>) -> Body {
     if serialized_request.len() < STREAM_BODY_THRESHOLD {
         return Body::from(serialized_request);
@@ -125,4 +128,9 @@ fn body_for(serialized_request: Vec<u8>) -> Body {
         chunks.push(Ok(buf.split_to(n)));
     }
     Body::wrap_stream(stream::iter(chunks))
+}
+
+#[cfg(target_family = "wasm")]
+fn body_for(serialized_request: Vec<u8>) -> Body {
+    Body::from(serialized_request)
 }
