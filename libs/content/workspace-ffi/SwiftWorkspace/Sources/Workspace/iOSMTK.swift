@@ -162,7 +162,8 @@
             case .began:
                 interactiveRefinementInProgress = true
             case .changed:
-                break
+                let location = recognizer.location(in: recognizer.view)
+                scrollTo(location.y)
             case .ended, .cancelled, .failed:
                 interactiveRefinementInProgress = false
 
@@ -337,7 +338,8 @@
             if scrollUp || scrollDown, autoScroll == nil {
                 autoScroll = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) {
                     [self] timer in
-                    if floatingCursor.isHidden, !rangeAdjustmentInProgress {
+                    if floatingCursor.isHidden, !rangeAdjustmentInProgress,
+                       !interactiveRefinementInProgress {
                         timer.invalidate()
                     }
 
