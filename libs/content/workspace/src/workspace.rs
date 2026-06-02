@@ -62,6 +62,7 @@ pub struct Workspace {
     pub account: Account,
 
     pub search: Search,
+    pub preview: Option<Tab>,
 
     // Files and task status
     pub tasks: TaskManager,
@@ -151,6 +152,7 @@ impl Workspace {
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
             search,
+            preview: None,
             ws_rx,
         };
 
@@ -222,7 +224,7 @@ impl Workspace {
         );
         if needs_load {
             self.tasks
-                .queue_load(LoadRequest { id, tab_created: true, make_current: false });
+                .queue_load(LoadRequest { id, tab_created: true, make_current: false, is_preview: false });
         }
     }
 
@@ -234,6 +236,40 @@ impl Workspace {
         if make_current {
             self.current_tab = Some(dest);
             self.mark_current_tab_changed();
+        }
+    }
+
+    pub fn set_preview(&mut self, id: Option<lb_rs::Uuid>) {
+        let id = id.filter(|id| {
+            self.files
+                .read()
+                .unwrap()
+                .get_by_id(*id)
+                .is_some_and(|f| f.is_document())
+        });
+
+        if self.preview.as_ref().and_then(|t| t.id()) == id {
+            return;
+        }
+
+        match id {
+            Some(id) => {
+                let now = Instant::now();
+                self.preview = Some(Tab {
+                    destination: Destination::File(id),
+                    content: ContentState::Loading(id),
+                    last_changed: now,
+                    last_saved: now,
+                    read_only: true,
+                });
+                self.tasks.queue_load(LoadRequest {
+                    id,
+                    tab_created: true,
+                    make_current: false,
+                    is_preview: true,
+                });
+            }
+            None => self.preview = None,
         }
     }
 
@@ -544,6 +580,7 @@ impl Workspace {
                                     id,
                                     tab_created: false,
                                     make_current: false,
+                                    is_preview: false,
                                 });
                             }
                         }
@@ -644,7 +681,7 @@ impl Workspace {
             // scope indentation preserves git history
             {
                 let CompletedLoad {
-                    request: LoadRequest { id, tab_created, make_current },
+                    request: LoadRequest { id, tab_created, make_current, is_preview },
                     content_result,
                     timing: _,
                 } = load;
@@ -654,7 +691,12 @@ impl Workspace {
                 let show_tabs = self.show_tabs;
 
                 let key = Destination::File(id);
-                if let Some(tab) = self.tabs.get_mut(&key) {
+                let tab_opt = if is_preview {
+                    self.preview.as_mut().filter(|t| t.id() == Some(id))
+                } else {
+                    self.tabs.get_mut(&key)
+                };
+                if let Some(tab) = tab_opt {
                     let files_clone = self.files.clone();
                     let files_guard = files_clone.read().unwrap();
 
@@ -692,7 +734,7 @@ impl Workspace {
                         }
                     };
 
-                    tab.read_only = read_only;
+                    tab.read_only = read_only || is_preview;
 
                     match doc_type {
                         DocType::Image => {
@@ -802,8 +844,15 @@ impl Workspace {
                         }
                     };
 
-                    self.out.tabs_changed = true;
-                } else {
+                    if is_preview {
+                        if let Some(md) = tab.markdown_mut() {
+                            md.initialized = true;
+                            md.id_salt = egui::Id::new("search_preview");
+                        }
+                    } else {
+                        self.out.tabs_changed = true;
+                    }
+                } else if !is_preview {
                     error!("failed to load file: tab not found");
                 };
 
@@ -854,6 +903,7 @@ impl Workspace {
                                         id,
                                         tab_created: false,
                                         make_current: false,
+                                        is_preview: false,
                                     });
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(

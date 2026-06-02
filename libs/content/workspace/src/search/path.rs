@@ -93,9 +93,6 @@ impl SearchExecutor for PathSearch {
         super::PickerResponse { activated: clicked_id, selected: self.selected_id }
     }
 
-    fn show_preview(&mut self, ui: &mut egui::Ui, _tab: Option<&mut crate::tab::Tab>) {
-        ui.spinner();
-    }
 }
 
 impl PathSearch {

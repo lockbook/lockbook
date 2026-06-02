@@ -6,7 +6,8 @@ pub struct Search {
     search_type: SearchType,
     query: String,
     pub initialized: bool,
-    executor: Box<dyn SearchExecutor>,
+    executor: Arc<RwLock<Box<dyn SearchExecutor>>>,
+    dispatched_query: String,
 }
 
 #[derive(Default, Eq, PartialEq, Clone, Copy)]
@@ -31,14 +32,13 @@ pub struct PickerResponse {
     pub selected: Option<lb_rs::Uuid>,
 }
 
-pub trait SearchExecutor {
+pub trait SearchExecutor: Send + Sync {
     fn search_type(&self) -> SearchType;
     fn handle_query(&mut self, query: &str);
     /// Render the result list. `activated` is set when the user opens a result
     /// (e.g. Enter or row shortcut); `selected` tracks the highlighted row for
     /// the preview pane.
     fn show_result_picker(&mut self, ui: &mut Ui) -> PickerResponse;
-    fn show_preview(&mut self, ui: &mut Ui, tab: Option<&mut Tab>);
 }
 
 impl Workspace {
@@ -74,6 +74,10 @@ impl Workspace {
                 self.open_file(id, true, true);
                 self.search.search_shown = false;
             }
+        }
+
+        if !self.search.search_shown {
+            self.preview = None;
         }
     }
 
@@ -184,17 +188,28 @@ impl Workspace {
 
     fn results_and_preview(&mut self, ui: &mut Ui) -> Option<lb_rs::Uuid> {
         let size = ui.available_size();
+        let executor = self.search.executor.clone();
         ui.horizontal(|ui| {
             ui.set_min_size(size);
             ui.add_space(10.0);
             let half = (ui.available_width() - 31.0) / 2.;
-            let picker = ui
+            let (picker, picked) = ui
                 .allocate_ui_with_layout(
                     Vec2::new(half, ui.available_height()),
                     egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| self.search.executor.show_result_picker(ui),
+                    |ui| match executor.try_write() {
+                        Ok(mut executor) => (executor.show_result_picker(ui), true),
+                        Err(_) => {
+                            ui.centered_and_justified(|ui| ui.spinner());
+                            (PickerResponse::default(), false)
+                        }
+                    },
                 )
                 .inner;
+
+            if picked {
+                self.set_preview(picker.selected);
+            }
 
             Self::hairline(ui, false);
 
@@ -206,8 +221,13 @@ impl Workspace {
                     ui.set_clip_rect(ui.max_rect());
                     // without push_id, interactive widgets (e.g. checkboxes) in the preview
                     // collide with identical widgets in a background tab (if same file)
-                    ui.push_id("search_preview", |ui| {
-                        self.search.executor.show_preview(ui, None);
+                    ui.push_id("search_preview", |ui| match &mut self.preview {
+                        Some(tab) => {
+                            tab.show(ui);
+                        }
+                        None => {
+                            ui.centered_and_justified(|ui| ui.spinner());
+                        }
                     });
                 },
             );
@@ -218,15 +238,32 @@ impl Workspace {
     }
 
     fn manage_executors(&mut self) {
-        let executor_search_type = self.search.executor.search_type();
-        if executor_search_type != self.search.search_type {
-            self.search.executor = self
+        let Ok(guard) = self.search.executor.try_read() else {
+            return;
+        };
+        let stale_type = guard.search_type() != self.search.search_type;
+        drop(guard);
+
+        if stale_type {
+            let executor = self
                 .search
                 .search_type
                 .create_executor(&self.core, &self.ctx);
+            self.search.executor = Arc::new(RwLock::new(executor));
+            self.search.dispatched_query.clear();
         }
 
-        self.search.executor.handle_query(&self.search.query);
+        if self.search.query != self.search.dispatched_query {
+            self.search.dispatched_query = self.search.query.clone();
+
+            let executor = self.search.executor.clone();
+            let ctx = self.ctx.clone();
+            let query = self.search.query.clone();
+            thread::spawn(move || {
+                executor.write().unwrap().handle_query(&query);
+                ctx.request_repaint();
+            });
+        }
     }
 }
 
@@ -237,7 +274,8 @@ impl Search {
             search_type: SearchType::Path,
             query: String::new(),
             initialized: false,
-            executor: SearchType::Path.create_executor(lb, ctx),
+            executor: Arc::new(RwLock::new(SearchType::Path.create_executor(lb, ctx))),
+            dispatched_query: String::new(),
         }
     }
 
@@ -301,6 +339,9 @@ impl SearchType {
     }
 }
 
+use std::sync::{Arc, RwLock};
+use std::thread;
+
 use egui::{
     Button, Context, CornerRadius, Frame, Key, Margin, Modifiers, RichText, TextEdit, Ui, Vec2,
     Widget,
@@ -310,7 +351,6 @@ use lb_rs::blocking::Lb;
 use crate::{
     search::{content::ContentSearch, path::PathSearch},
     show::InputStateExt,
-    tab::Tab,
     theme::{icons::Icon, palette_v2::ThemeExt},
     workspace::Workspace,
 };
