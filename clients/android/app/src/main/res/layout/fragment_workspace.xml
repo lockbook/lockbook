@@ -19,13 +19,11 @@
             app:menu="@menu/menu_text_editor"
             android:animateLayoutChanges="true"
             />
-        <!-- 2. Add scroll flags to the Toolbar -->
 
     </com.google.android.material.appbar.AppBarLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:id="@+id/standard_bottom_sheet"
-        style="@style/Widget.Material3.BottomSheet"
         android:background="?attr/colorSurface"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
