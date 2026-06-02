@@ -32,11 +32,11 @@ pub extern "C" fn get_selected_folder(obj: *mut c_void) -> CUuid {
 }
 
 #[no_mangle]
-pub extern "C" fn open_file(obj: *mut c_void, id: CUuid) {
+pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_tab: bool) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let id = id.into();
 
-    obj.workspace.open_file(id, true, true)
+    obj.workspace.open_file(id, true, new_tab)
 }
 
 #[no_mangle]

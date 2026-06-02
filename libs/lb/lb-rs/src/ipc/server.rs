@@ -228,11 +228,5 @@ pub(crate) async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::GetLastSynced => enc(lb.get_last_synced().await),
         Request::GetLastSyncedHuman => enc(lb.get_last_synced_human().await),
         Request::Subscribe => unreachable!("handle_conn special-cases Subscribe"),
-        #[cfg(not(target_family = "wasm"))]
-        Request::BuildIndex => enc(lb.build_index().await),
-        #[cfg(not(target_family = "wasm"))]
-        Request::ReloadSearchIndex => enc(lb.reload_search_index()),
-        #[cfg(not(target_family = "wasm"))]
-        Request::Search { input, cfg } => enc(lb.search(&input, cfg).await),
     }
 }

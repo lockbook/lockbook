@@ -23,7 +23,7 @@ use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
-use lb_rs::model::text::offset_types::Grapheme;
+use lb_rs::model::text::offset_types::{Byte, Grapheme};
 use serde::{Deserialize, Serialize};
 use syntect::highlighting::{Theme, ThemeSet};
 use syntect::parsing::SyntaxSet;
@@ -118,6 +118,9 @@ pub struct MdRender {
     // render input
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
     pub find_current_match: Option<(Grapheme, Grapheme)>,
+    /// Read-only search-preview highlight: the snippet range to reveal,
+    /// scroll to, and box-highlight. Independent of the find feature.
+    pub preview_match: Option<(Grapheme, Grapheme)>,
     pub interactive: bool,    // enables fold buttons
     pub readonly: bool,       // disables task checkboxes and saving
     pub plaintext: bool,      // render as source text, not parsed markdown
@@ -155,6 +158,8 @@ pub struct MdRender {
 pub enum ScrollTarget {
     Cursor,
     FindMatch,
+    /// Read-only search-preview snippet (see [`MdRender::preview_match`]).
+    Preview,
 }
 
 /// Editing primitive — an [`MdRender`] plus the interactive state needed to
@@ -378,6 +383,7 @@ impl MdRender {
             revealed_spoilers: Default::default(),
             in_progress_selection: None,
             find_current_match: None,
+            preview_match: None,
             interactive: false,
             readonly: true,
             plaintext: false,
@@ -445,6 +451,7 @@ impl MdRender {
             disable_images: false,
             in_progress_selection: None,
             find_current_match: None,
+            preview_match: None,
             interactive: false,
             readonly: true,
             plaintext: false,
@@ -587,6 +594,7 @@ impl Editor {
 
             in_progress_selection: None,
             find_current_match: None,
+            preview_match: None,
             interactive: true,
             readonly,
             plaintext,
@@ -1272,6 +1280,14 @@ impl Editor {
                                 self.edit.show_range(ui, match_range, color);
                             }
                         }
+
+                        // read-only search-preview snippet highlight
+                        if let Some(range) = self.edit.renderer.preview_match {
+                            let theme = self.edit.renderer.ctx.get_lb_theme();
+                            let color =
+                                theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
+                            self.edit.show_range(ui, range, color);
+                        }
                         pre
                     })
                     .inner;
@@ -1293,6 +1309,13 @@ impl Editor {
             self.edit.pending_scroll = None;
             if let Some(canvas_rect) = captured_canvas_rect {
                 self.scroll_to_find_match(canvas_rect);
+            }
+        }
+
+        if matches!(self.edit.pending_scroll, Some(ScrollTarget::Preview)) {
+            self.edit.pending_scroll = None;
+            if let Some(canvas_rect) = captured_canvas_rect {
+                self.scroll_to_preview(canvas_rect);
             }
         }
     }
@@ -1341,6 +1364,52 @@ impl Editor {
     fn scroll_to_find_match(&mut self, canvas_rect: Rect) {
         let Some(idx) = self.find.current_match else { return };
         let Some(&match_range) = self.find.matches.get(idx) else { return };
+
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let content = scroll_content::DocScrollContent::for_frame(
+            &self.edit.renderer,
+            root,
+            canvas_rect.height(),
+        );
+
+        let Some(target_rect) = build_target_reveal(
+            &self.edit.renderer,
+            &content,
+            &self.edit.scroll_area.state,
+            match_range,
+            canvas_rect,
+            self.edit.renderer.layout.row_spacing / 2.0,
+        ) else {
+            return;
+        };
+        self.edit
+            .scroll_area
+            .reveal(&content, target_rect, Align::Center);
+    }
+
+    pub fn preview_navigate(&mut self, byte_range: Option<std::ops::Range<usize>>) {
+        let segs = &self.edit.renderer.buffer.current.segs;
+        let new_match = byte_range.map(|r| {
+            (segs.byte_to_char_floor(Byte(r.start)), segs.byte_to_char_ceil(Byte(r.end)))
+        });
+
+        if self.edit.renderer.preview_match != new_match {
+            self.edit.renderer.preview_match = new_match;
+            // reveal state feeds cached block heights; invalidate like find does
+            self.edit.renderer.reveal_seq = self
+                .edit
+                .renderer
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            if new_match.is_some() {
+                self.edit.pending_scroll = Some(ScrollTarget::Preview);
+            }
+        }
+    }
+
+    fn scroll_to_preview(&mut self, canvas_rect: Rect) {
+        let Some(match_range) = self.edit.renderer.preview_match else { return };
 
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);

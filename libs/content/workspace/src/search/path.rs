@@ -43,7 +43,11 @@ impl SearchExecutor for PathSearch {
         if self.activate {
             self.activate = false;
             let activated = results.get(self.selected).map(|r| r.id);
-            return super::PickerResponse { activated, selected: self.selected_id };
+            return super::PickerResponse {
+                activated,
+                selected: self.selected_id,
+                selected_range: None,
+            };
         }
 
         let mut hovered: Option<usize> = None;
@@ -90,7 +94,11 @@ impl SearchExecutor for PathSearch {
             self.selected_id = new_id;
         }
 
-        super::PickerResponse { activated: clicked_id, selected: self.selected_id }
+        super::PickerResponse {
+            activated: clicked_id,
+            selected: self.selected_id,
+            selected_range: None,
+        }
     }
 
 }

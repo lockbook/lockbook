@@ -35,14 +35,14 @@ public class WorkspaceInputState: ObservableObject {
 
     public init() {}
 
-    public func openFile(id: UUID) {
+    public func openFile(id: UUID, newTab: Bool = true) {
         guard let wsHandle else {
             return
         }
 
         let uuid = CUuid(_0: id.uuid)
         no_folder_selected(wsHandle)
-        open_file(wsHandle, uuid)
+        open_file(wsHandle, uuid, newTab)
         redraw.send(())
         //        Will crash iOS, something with caret rects. Looks rust related
         //        focus.send(())

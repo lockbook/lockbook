@@ -54,7 +54,6 @@ public protocol LbAPI {
     func importFiles(sources: [String], dest: UUID) -> Result<Void, LbError>
     func exportFile(sourceId: UUID, dest: String, edit: Bool) -> Result<Void, LbError>
     func getFileLinkUrl(id: UUID) -> Result<String, LbError>
-    func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError>
     func pathSearcher() -> PathSearching
     func contentSearcher() -> ContentSearching
     func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError>
@@ -615,17 +614,6 @@ public class Lb: LbAPI {
         return .success(String(cString: res.link_url))
     }
 
-    public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError> {
-        let res = lb_search(lb, input, searchPaths, searchDocs)
-        defer { lb_free_search_results(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(Array(UnsafeBufferPointer(start: res.results, count: Int(res.results_len))).toSearchResults())
-    }
-
     public func pathSearcher() -> PathSearching {
         LbPathSearcher(lb: lb)
     }
@@ -811,7 +799,6 @@ public class MockLb: LbAPI {
     public func getFileLinkUrl(id: UUID) -> Result<String, LbError> {
         .success("https://app.lockbook.net/open/a6743b18-c7ef-4960-9825-8022e2fa5672")
     }
-    public func search(input: String, searchPaths: Bool, searchDocs: Bool) -> Result<[SearchResult], LbError> { .success([]) }
     public func pathSearcher() -> PathSearching { MockPathSearcher() }
     public func contentSearcher() -> ContentSearching { MockContentSearcher() }
     public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> { .success(()) }

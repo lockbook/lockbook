@@ -47,8 +47,6 @@ pub struct LocalLb {
     pub events: EventSubs,
     pub status: StatusUpdater,
     pub syncer: Syncer,
-    #[cfg(not(target_family = "wasm"))]
-    pub search: SearchIndex,
 }
 
 impl LocalLb {
@@ -63,8 +61,6 @@ impl LocalLb {
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
         let client = Network::default();
-        #[cfg(not(target_family = "wasm"))]
-        let search = SearchIndex::default();
 
         let status = StatusUpdater::default();
         let syncer = Default::default();
@@ -81,14 +77,11 @@ impl LocalLb {
             events,
             status,
             user_last_seen,
-            #[cfg(not(target_family = "wasm"))]
-            search,
         };
 
         #[cfg(not(target_family = "wasm"))]
         {
             result.setup_syncer();
-            result.setup_search();
             result.setup_status().await?;
         }
 
@@ -669,30 +662,6 @@ impl Lb {
         }
     }
 
-    #[cfg(not(target_family = "wasm"))]
-    pub async fn search(&self, input: &str, cfg: SearchConfig) -> LbResult<Vec<SearchResult>> {
-        if let Some(local) = self.local.get() {
-            return local.search(input, cfg).await;
-        }
-        self.call(Request::Search { input: input.to_string(), cfg })
-            .await
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    pub async fn build_index(&self) -> LbResult<()> {
-        if let Some(local) = self.local.get() {
-            return local.build_index().await;
-        }
-        self.call(Request::BuildIndex).await
-    }
-
-    #[cfg(not(target_family = "wasm"))]
-    pub async fn reload_search_index(&self) -> LbResult<()> {
-        if let Some(local) = self.local.get() {
-            return local.reload_search_index();
-        }
-        self.call(Request::ReloadSearchIndex).await
-    }
 }
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")
@@ -705,8 +674,6 @@ use crate::io::CoreDb;
 use crate::ipc::client::RemoteLb;
 use crate::subscribers::syncer::Syncer;
 use db_rs::Db;
-#[cfg(not(target_family = "wasm"))]
-use subscribers::search::SearchIndex;
 
 use crate::service::logging;
 use io::LbDb;
@@ -737,6 +704,4 @@ use crate::service::activity::RankingWeights;
 #[cfg(not(target_family = "wasm"))]
 use crate::service::debug::DebugInfo;
 use crate::service::usage::UsageMetrics;
-#[cfg(not(target_family = "wasm"))]
-use crate::subscribers::search::{SearchConfig, SearchResult};
 use crate::subscribers::status::Status;

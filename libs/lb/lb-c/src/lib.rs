@@ -21,7 +21,6 @@ use model::api::{
 };
 use service::import_export::ImportStatus;
 use search::{ContentSearcher, PathSearcher};
-use subscribers::search::{SearchConfig, SearchResult};
 
 use std::sync::Arc;
 use std::sync::atomic::AtomicPtr;
@@ -731,118 +730,6 @@ pub extern "C" fn lb_get_file_link_url(lb: *mut Lb, id: LbUuid) -> LbGetFileLink
     match lb.get_file_link_url(id.into()) {
         Ok(link_url) => LbGetFileLinkUrlRes { err: null_mut(), link_url: cstring(link_url) },
         Err(err) => LbGetFileLinkUrlRes { err: lb_err(err), link_url: null_mut() },
-    }
-}
-
-#[repr(C)]
-pub struct LbSearchRes {
-    err: *mut LbFfiErr,
-    results: *mut LbSearchResult,
-    results_len: usize,
-}
-
-#[repr(C)]
-pub struct LbSearchResult {
-    path_result: *mut LbPathSearchResult,
-    doc_result: *mut LbDocumentSearchResult,
-}
-
-#[repr(C)]
-pub struct LbPathSearchResult {
-    id: LbUuid,
-    path: *mut c_char,
-    score: i64,
-    matched_indicies: *mut usize,
-    matched_indicies_len: usize,
-}
-
-#[repr(C)]
-pub struct LbDocumentSearchResult {
-    id: LbUuid,
-    path: *mut c_char,
-    content_matches: *mut LbContentMatch,
-    content_matches_len: usize,
-}
-
-#[repr(C)]
-pub struct LbContentMatch {
-    paragraph: *mut c_char,
-    score: i64,
-    matched_indicies: *mut usize,
-    matched_indicies_len: usize,
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_search(
-    lb: *mut Lb, input: *const c_char, search_paths: bool, search_docs: bool,
-) -> LbSearchRes {
-    let lb = rlb(lb);
-
-    let input = rstr(input);
-    let config = if search_paths && search_docs {
-        SearchConfig::PathsAndDocuments
-    } else if search_docs {
-        SearchConfig::Documents
-    } else {
-        SearchConfig::Paths
-    };
-
-    match lb.search(input, config) {
-        Ok(search_results) => {
-            let mut results = Vec::new();
-
-            for result in search_results {
-                match result {
-                    SearchResult::PathMatch { id, path, matched_indices, score } => {
-                        let (matched_indicies, matched_indicies_len) = carray(matched_indices);
-
-                        results.push(LbSearchResult {
-                            path_result: Box::into_raw(Box::new(LbPathSearchResult {
-                                id: id.into(),
-                                path: cstring(path),
-                                score,
-                                matched_indicies,
-                                matched_indicies_len,
-                            })),
-                            doc_result: null_mut(),
-                        })
-                    }
-                    SearchResult::DocumentMatch { id, path, content_matches } => {
-                        let mut c_content_matches = Vec::new();
-
-                        for content_match in content_matches {
-                            let (matched_indicies, matched_indicies_len) =
-                                carray(content_match.matched_indices);
-
-                            c_content_matches.push(LbContentMatch {
-                                paragraph: cstring(content_match.paragraph),
-                                score: content_match.score,
-                                matched_indicies,
-                                matched_indicies_len,
-                            });
-                        }
-
-                        let (content_matches, content_matches_len) = carray(c_content_matches);
-
-                        results.push(LbSearchResult {
-                            path_result: null_mut(),
-                            doc_result: Box::into_raw(Box::new(LbDocumentSearchResult {
-                                id: id.into(),
-                                path: cstring(path),
-                                content_matches,
-                                content_matches_len,
-                            })),
-                        })
-                    }
-                }
-            }
-
-            let (results, results_len) =
-                if results.is_empty() { (null_mut(), 0) } else { carray(results) };
-
-            LbSearchRes { err: null_mut(), results, results_len }
-        }
-        Err(err) => LbSearchRes { err: lb_err(err), results: null_mut(), results_len: 0 },
     }
 }
 

@@ -9,7 +9,7 @@ use crate::lb_file::LbFile;
 use crate::{
     LbAccountRes, LbContentSearcherResults, LbContentSearcherSnippet, LbDocRes, LbExportAccountQRRes, LbExportAccountRes,
     LbFileListRes, LbFileRes, LbGetFileLinkUrlRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathSearcherResults, LbPathsRes,
-    LbSearchRes, LbStatus, LbSubscriptionInfoRes,
+    LbStatus, LbSubscriptionInfoRes,
     LbUsageMetricsRes,
 };
 
@@ -213,39 +213,6 @@ pub extern "C" fn lb_free_usage_metrics(usage: LbUsageMetricsRes) {
 
     if !usage.usages.server_used_human.is_null() {
         unsafe { drop(CString::from_raw(usage.usages.server_used_human)) }
-    }
-}
-
-#[unsafe(no_mangle)]
-pub extern "C" fn lb_free_search_results(search_results: LbSearchRes) {
-    if !search_results.err.is_null() {
-        lb_free_err(search_results.err);
-    }
-
-    if !search_results.results.is_null() {
-        let results = rvec(search_results.results, search_results.results_len);
-
-        for result in results {
-            if !result.doc_result.is_null() {
-                let result = unsafe { *Box::from_raw(result.doc_result) };
-
-                let content_matches = rvec(result.content_matches, result.content_matches_len);
-
-                for content_match in content_matches {
-                    let _ =
-                        rvec(content_match.matched_indicies, content_match.matched_indicies_len);
-
-                    unsafe { drop(CString::from_raw(content_match.paragraph)) }
-                }
-
-                unsafe { drop(CString::from_raw(result.path)) }
-            } else {
-                let result = unsafe { *Box::from_raw(result.path_result) };
-
-                let _ = rvec(result.matched_indicies, result.matched_indicies_len);
-                unsafe { drop(CString::from_raw(result.path)) };
-            }
-        }
     }
 }
 

@@ -110,6 +110,9 @@ impl<'ast> MdRender {
         if let Some(match_range) = find_match {
             ranges.push(self.source_line_range(match_range));
         }
+        if let Some(preview_range) = self.preview_match {
+            ranges.push(self.source_line_range(preview_range));
+        }
         ranges
     }
 

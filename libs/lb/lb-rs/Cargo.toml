@@ -77,7 +77,6 @@ tracing-wasm = "0.2.1"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { version = "1", features = ["full"] }
-tantivy = { version = "0.24", package = "lb-tantivy" }
 
 
 [dev-dependencies]

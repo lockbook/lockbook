@@ -30,6 +30,9 @@ impl SearchType {
 pub struct PickerResponse {
     pub activated: Option<lb_rs::Uuid>,
     pub selected: Option<lb_rs::Uuid>,
+    /// Byte range of the highlighted snippet within the selected file's
+    /// content (content search only). Drives preview scroll/highlight.
+    pub selected_range: Option<std::ops::Range<usize>>,
 }
 
 pub trait SearchExecutor: Send + Sync {
@@ -209,6 +212,14 @@ impl Workspace {
 
             if picked {
                 self.set_preview(picker.selected);
+
+                // For content search, steer the read-only preview to the
+                // highlighted snippet via the find machinery.
+                if self.search.search_type == SearchType::Content {
+                    if let Some(md) = self.preview.as_mut().and_then(|t| t.markdown_mut()) {
+                        md.preview_navigate(picker.selected_range.clone());
+                    }
+                }
             }
 
             Self::hairline(ui, false);

@@ -111,6 +111,7 @@ impl<'ast> MdRender {
         self.reveal_selection
             .into_iter()
             .chain(self.find_current_match)
+            .chain(self.preview_match)
     }
 
     /// Returns true if `range` intersects any reveal range.

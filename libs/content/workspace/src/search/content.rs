@@ -149,14 +149,22 @@ impl SearchExecutor for ContentSearch {
                     self.focused_file = Some(r.id);
                     self.selected = 0;
                     self.kb_mode = true;
-                    return super::PickerResponse { activated: None, selected: self.selected_id };
+                    return super::PickerResponse {
+                        activated: None,
+                        selected: self.selected_id,
+                        selected_range: None,
+                    };
                 }
             }
             let activated = flat
                 .get(self.selected)
                 .and_then(|e| results.get(e.match_idx()))
                 .map(|r| r.id);
-            return super::PickerResponse { activated, selected: self.selected_id };
+            return super::PickerResponse {
+                activated,
+                selected: self.selected_id,
+                selected_range: None,
+            };
         }
 
         // Scrollbar styling matching path search.
@@ -194,7 +202,11 @@ impl SearchExecutor for ContentSearch {
         // Empty states: no query typed, or query with no matches.
         if flat.is_empty() {
             self.show_empty_state(ui, results.is_empty());
-            return super::PickerResponse { activated: None, selected: self.selected_id };
+            return super::PickerResponse {
+                activated: None,
+                selected: self.selected_id,
+                selected_range: None,
+            };
         }
 
         egui::ScrollArea::vertical()
@@ -314,14 +326,25 @@ impl SearchExecutor for ContentSearch {
             }
         }
 
-        // Derive selected_id from the current flat selection.
-        let new_id = flat
-            .get(self.selected)
+        // Derive selected_id and the highlighted snippet's byte range from the
+        // current flat selection.
+        let sel_entry = flat.get(self.selected);
+        let new_id = sel_entry
             .and_then(|e| results.get(e.match_idx()))
             .map(|r| r.id);
         self.selected_id = new_id;
 
-        super::PickerResponse { activated: None, selected: self.selected_id }
+        let selected_range = sel_entry.and_then(|e| {
+            let r = results.get(e.match_idx())?;
+            let hi = e.highlight_idx().unwrap_or(0);
+            r.content_matches.get(hi).map(|m| m.range.clone())
+        });
+
+        super::PickerResponse {
+            activated: None,
+            selected: self.selected_id,
+            selected_range,
+        }
     }
 
 }
