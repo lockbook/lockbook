@@ -2,15 +2,18 @@ use std::sync::{Arc, RwLock, mpsc};
 use std::thread;
 
 use egui::text::LayoutJob;
-use egui::{Image, ScrollArea, UiBuilder};
+use egui::{Image, ScrollArea};
 use lb::DEFAULT_API_LOCATION;
 use lb::blocking::Lb;
 use lb::model::errors::LbErr;
 use workspace_rs::file_cache::FileCache;
+use workspace_rs::theme::palette_v2::ThemeExt;
 use workspace_rs::widgets::Button;
 
 use crate::model::AccountPhraseData;
 use crate::settings::Settings;
+
+const ONBOARD_CONTROL_ROUNDING: u8 = 3;
 
 pub struct OnboardHandOff {
     pub settings: Arc<RwLock<Settings>>,
@@ -58,8 +61,6 @@ pub struct OnboardScreen {
 
     import_err: Option<LbErr>,
     import_status: Option<String>,
-
-    text_rect: Option<egui::Rect>,
 }
 
 impl OnboardScreen {
@@ -81,7 +82,6 @@ impl OnboardScreen {
             confirm_phrase_err: None,
             import_err: None,
             import_status: None,
-            text_rect: None,
         }
     }
 
@@ -134,96 +134,106 @@ impl OnboardScreen {
                 },
             }
         }
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ScrollArea::vertical().show(ui, |ui| {
-                ui.vertical_centered(|ui| {
-                    let how_on = ui.ctx().animate_bool_with_time_and_easing(
-                        "welcome_route_fade_in".into(),
-                        true, // todo: false if first frame
-                        1.0,
-                        egui::emath::ease_in_ease_out,
-                    );
-                    ui.set_opacity(how_on);
-                    ui.horizontal(|ui| {
-                        let left_margin = if let Some(rect) = self.text_rect {
-                            if rect.width() > ui.available_width() {
-                                0.0
-                            } else {
-                                ui.available_width() / 5.0
-                            }
-                        } else {
-                            100.0
-                        };
 
-                        ui.add_space(left_margin);
-                        let rect = ui
-                            .with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                                ui.add_space(100.0);
-                                ui.add(self.logo.clone().fit_to_original_size(0.5));
-                                ui.add_space(5.0);
-                                let header_text = match self.router.route {
-                                    Route::Create => "Create your account",
-                                    Route::Import => "Enter your account key",
-                                    Route::Welcome => "Lockbook",
-                                    Route::AccountPhraseConfirmation => "This is your account key",
-                                };
-                                ui.label(egui::RichText::new(header_text).font(egui::FontId::new(
-                                    35.0,
-                                    egui::FontFamily::Name(Arc::from("Bold")),
-                                )));
+        let left_margin = (500.0_f32).min(ctx.available_rect().width() / 4.5) as i8;
+        let top_margin = (100.0_f32).min(ctx.available_rect().height() / 9.0);
 
-                                ui.label(self.get_subheader_text());
+        egui::CentralPanel::default()
+            .frame(egui::Frame::default().outer_margin(egui::Margin {
+                left: left_margin,
+                right: 0,
+                top: 0,
+                bottom: 0,
+            }))
+            .show(ctx, |ui| {
+                ScrollArea::vertical()
+                    .auto_shrink([false, false])
+                    .show(ui, |ui| {
+                        ui.vertical_centered_justified(|ui| {
+                            ui.add_space(top_margin); // apply it here instead of frame, so that scrollbar doesn't get margin but the content does
 
-                                ui.add_space(70.0);
-                                match self.router.route {
-                                    Route::Welcome => {
-                                        ui.horizontal(|ui| {
-                                            ui.scope(|ui| {
-                                                set_button_style(ui);
-                                                if Button::default()
-                                                    .text("Create an account")
-                                                    .rounding(3.0)
-                                                    .frame(true)
-                                                    .show(ui)
-                                                    .clicked()
-                                                {
-                                                    self.router.route = Route::Create;
-                                                    self.router.needs_focus = true;
-                                                };
+                            let how_on = ui.ctx().animate_bool_with_time_and_easing(
+                                "welcome_route_fade_in".into(),
+                                true, // todo: false if first frame
+                                1.0,
+                                egui::emath::ease_in_ease_out,
+                            );
+                            ui.set_opacity(how_on);
+                            ui.horizontal(|ui| {
+                                ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
+                                    set_onboard_control_style(ui);
+
+                                    ui.add(self.logo.clone().fit_to_original_size(0.5));
+                                    ui.add_space(5.0);
+                                    let header_text = match self.router.route {
+                                        Route::Create => "Create your account",
+                                        Route::Import => "Enter your account key",
+                                        Route::Welcome => "Lockbook",
+                                        Route::AccountPhraseConfirmation => {
+                                            "This is your account key"
+                                        }
+                                    };
+                                    ui.label(egui::RichText::new(header_text).font(
+                                        egui::FontId::new(
+                                            35.0,
+                                            egui::FontFamily::Name(Arc::from("Bold")),
+                                        ),
+                                    ));
+
+                                    ui.label(self.get_subheader_text());
+
+                                    ui.add_space(70.0);
+                                    match self.router.route {
+                                        Route::Welcome => {
+                                            ui.horizontal(|ui| {
+                                                ui.scope(|ui| {
+                                                    set_button_style(ui);
+                                                    if Button::default()
+                                                        .text("Create an account")
+                                                        .frame(true)
+                                                        .show(ui)
+                                                        .clicked()
+                                                    {
+                                                        self.router.route = Route::Create;
+                                                        self.router.needs_focus = true;
+                                                    };
+                                                });
+                                                ui.add_space(5.0);
+                                                ui.scope(|ui| {
+                                                    let theme = ui.ctx().get_lb_theme();
+                                                    let bg =
+                                                        theme.bg().get_color(theme.prefs().primary);
+
+                                                    let text_stroke = egui::Stroke {
+                                                        color: bg,
+                                                        ..Default::default()
+                                                    };
+                                                    ui.visuals_mut().widgets.inactive.fg_stroke =
+                                                        text_stroke;
+                                                    ui.visuals_mut().widgets.active.fg_stroke =
+                                                        text_stroke;
+                                                    ui.visuals_mut().widgets.hovered.fg_stroke =
+                                                        text_stroke;
+                                                    if Button::default()
+                                                        .text("I have an account")
+                                                        .show(ui)
+                                                        .clicked()
+                                                    {
+                                                        self.router.route = Route::Import;
+                                                    };
+                                                });
                                             });
-                                            ui.add_space(5.0);
-                                            ui.scope(|ui| {
-                                                let text_stroke = egui::Stroke {
-                                                    color: ui.visuals().widgets.active.bg_fill,
-                                                    ..Default::default()
-                                                };
-                                                ui.visuals_mut().widgets.inactive.fg_stroke =
-                                                    text_stroke;
-                                                ui.visuals_mut().widgets.active.fg_stroke =
-                                                    text_stroke;
-                                                ui.visuals_mut().widgets.hovered.fg_stroke =
-                                                    text_stroke;
-                                                if Button::default()
-                                                    .text("I have an account")
-                                                    .rounding(3.0)
-                                                    .show(ui)
-                                                    .clicked()
-                                                {
-                                                    self.router.route = Route::Import;
-                                                };
-                                            });
-                                        });
-                                    }
-                                    Route::Create => {
-                                        let input_resp = ui
-                                            .horizontal(|ui| {
-                                                let resp =
+                                        }
+                                        Route::Create => {
+                                            ui.horizontal(|ui| {
+                                                let resp = show_onboard_text_input(
+                                                    ui,
                                                     egui::TextEdit::singleline(&mut self.uname)
                                                         .desired_width(250.0)
                                                         .margin(egui::vec2(8.0, 8.0))
-                                                        .hint_text("Pick a username...")
-                                                        .show(ui)
-                                                        .response;
+                                                        .hint_text("Pick a username..."),
+                                                )
+                                                .response;
                                                 if resp.lost_focus()
                                                     && ui.input(|i| i.key_pressed(egui::Key::Enter))
                                                 {
@@ -240,7 +250,6 @@ impl OnboardScreen {
                                                     set_button_style(ui);
                                                     if Button::default()
                                                         .text("Create account")
-                                                        .rounding(3.0)
                                                         .frame(true)
                                                         .show(ui)
                                                         .clicked()
@@ -248,25 +257,20 @@ impl OnboardScreen {
                                                         self.create_account(ctx);
                                                     };
                                                 });
-                                            })
-                                            .response;
-                                        self.show_input_err(ui, input_resp, &self.create_err);
-                                    }
-                                    Route::Import => {
-                                        let input_resp = ui
-                                            .horizontal(|ui| {
-                                                let resp =
+                                            });
+                                            self.show_input_err(ui, &self.create_err);
+                                        }
+                                        Route::Import => {
+                                            ui.horizontal(|ui| {
+                                                let resp = show_onboard_text_input(
+                                                    ui,
                                                     egui::TextEdit::singleline(&mut self.acct_str)
                                                         .desired_width(250.0)
                                                         .margin(egui::vec2(8.0, 8.0))
-                                                        .margin(egui::vec2(8.0, 8.0))
-                                                        .hint_text("Account secret...")
-                                                        .margin(egui::vec2(8.0, 8.0))
-                                                        .hint_text("Account secret...")
                                                         .password(true)
-                                                        .hint_text("Phrase or compact key")
-                                                        .show(ui)
-                                                        .response;
+                                                        .hint_text("Phrase or compact key"),
+                                                )
+                                                .response;
                                                 if resp.lost_focus()
                                                     && ui.input(|i| i.key_pressed(egui::Key::Enter))
                                                 {
@@ -283,7 +287,6 @@ impl OnboardScreen {
                                                     set_button_style(ui);
                                                     if Button::default()
                                                         .text("Import account")
-                                                        .rounding(3.0)
                                                         .frame(true)
                                                         .show(ui)
                                                         .clicked()
@@ -291,143 +294,145 @@ impl OnboardScreen {
                                                         self.import_account(ctx);
                                                     };
                                                 });
-                                            })
-                                            .response;
-                                        self.show_input_err(ui, input_resp, &self.import_err);
-                                    }
-                                    Route::AccountPhraseConfirmation => {
-                                        if let Some(account_phrase) = &self.acct_phrase {
-                                            let mut col1 = LayoutJob::default();
-                                            let mut col2 = LayoutJob::default();
-                                            account_phrase.split(' ').enumerate().for_each(
-                                                |(i, word)| {
-                                                    let job =
-                                                        if i < 12 { &mut col1 } else { &mut col2 };
-                                                    job.append(
-                                                        &format!("{}. ", i + 1),
-                                                        0.0,
-                                                        egui::TextFormat {
-                                                            font_id: egui::FontId::new(
-                                                                14.0,
-                                                                egui::FontFamily::Monospace,
-                                                            ),
-                                                            color: ui
-                                                                .visuals()
-                                                                .widgets
-                                                                .active
-                                                                .bg_fill,
-                                                            ..Default::default()
-                                                        },
-                                                    );
-                                                    job.append(
-                                                        &format!("{word}\n"),
-                                                        0.0,
-                                                        egui::TextFormat {
-                                                            font_id: egui::FontId::new(
-                                                                14.0,
-                                                                egui::FontFamily::Monospace,
-                                                            ),
-                                                            color: ui.visuals().text_color(),
-                                                            ..Default::default()
-                                                        },
-                                                    );
-                                                },
-                                            );
+                                            });
+                                            self.show_input_err(ui, &self.import_err);
+                                        }
+                                        Route::AccountPhraseConfirmation => {
+                                            if let Some(account_phrase) = &self.acct_phrase {
+                                                let mut col1 = LayoutJob::default();
+                                                let mut col2 = LayoutJob::default();
+                                                account_phrase.split(' ').enumerate().for_each(
+                                                    |(i, word)| {
+                                                        let job = if i < 12 {
+                                                            &mut col1
+                                                        } else {
+                                                            &mut col2
+                                                        };
+                                                        job.append(
+                                                            &format!("{}. ", i + 1),
+                                                            0.0,
+                                                            egui::TextFormat {
+                                                                font_id: egui::FontId::new(
+                                                                    14.0,
+                                                                    egui::FontFamily::Monospace,
+                                                                ),
+                                                                color: ui
+                                                                    .visuals()
+                                                                    .widgets
+                                                                    .active
+                                                                    .bg_fill,
+                                                                ..Default::default()
+                                                            },
+                                                        );
+                                                        job.append(
+                                                            &format!("{word}\n"),
+                                                            0.0,
+                                                            egui::TextFormat {
+                                                                font_id: egui::FontId::new(
+                                                                    14.0,
+                                                                    egui::FontFamily::Monospace,
+                                                                ),
+                                                                color: ui.visuals().text_color(),
+                                                                ..Default::default()
+                                                            },
+                                                        );
+                                                    },
+                                                );
 
-                                            egui::Frame::default()
-                                                .fill(ui.visuals().code_bg_color)
-                                                .inner_margin(egui::Margin::symmetric(50, 40))
-                                                .corner_radius(3.0)
-                                                .show(ui, |ui| {
-                                                    ui.horizontal(|ui| {
-                                                        ui.label(col1);
-                                                        ui.add_space(30.0);
-                                                        ui.label(col2);
+                                                egui::Frame::default()
+                                                    .fill(ui.visuals().code_bg_color)
+                                                    .inner_margin(egui::Margin::symmetric(50, 40))
+                                                    .corner_radius(3.0)
+                                                    .show(ui, |ui| {
+                                                        ui.horizontal(|ui| {
+                                                            ui.label(col1);
+                                                            ui.add_space(30.0);
+                                                            ui.label(col2);
+                                                        });
                                                     });
+                                                ui.checkbox(
+                                                    &mut self.acct_phrase_stored,
+                                                    "I've stored my account key in a safe place.",
+                                                );
+                                                ui.add_space(20.0);
+                                                set_button_style(ui);
+                                                ui.add_enabled_ui(self.acct_phrase_stored, |ui| {
+                                                    if Button::default()
+                                                        .text("Create account")
+                                                        .frame(true)
+                                                        .show(ui)
+                                                        .clicked()
+                                                    {
+                                                        let core = self.core.clone();
+                                                        let update_tx = self.update_tx.clone();
+                                                        let ctx = ctx.clone();
+                                                        thread::spawn(move || {
+                                                            update_tx
+                                                                .send(AccountUpdate::Created(
+                                                                    FileCache::new(&core),
+                                                                ))
+                                                                .unwrap();
+                                                            ctx.request_repaint();
+                                                        });
+                                                    }
                                                 });
-                                            ui.checkbox(
-                                                &mut self.acct_phrase_stored,
-                                                "I've stored my account key in a safe place.",
-                                            );
-                                            ui.add_space(20.0);
-                                            set_button_style(ui);
-                                            ui.add_enabled_ui(self.acct_phrase_stored, |ui| {
+                                            }
+                                        }
+                                    }
+
+                                    ui.add_space(10.0);
+                                    ui.scope(|ui| {
+                                        let theme = ui.ctx().get_lb_theme();
+                                        let bg = theme.bg().get_color(theme.prefs().primary);
+
+                                        let text_stroke =
+                                            egui::Stroke { color: bg, ..Default::default() };
+                                        ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
+                                        ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
+                                        ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+                                        ui.style_mut().text_styles.insert(
+                                            egui::TextStyle::Body,
+                                            egui::FontId::proportional(13.0),
+                                        );
+                                        ui.style_mut().spacing.button_padding = egui::Vec2::ZERO;
+
+                                        let alternate_route = match self.router.route {
+                                            Route::Create => Some((
+                                                "Already have an account?",
+                                                "Import your account",
+                                                Route::Import,
+                                            )),
+                                            Route::Import => Some((
+                                                "Don't have an account?",
+                                                "Create an account",
+                                                Route::Create,
+                                            )),
+                                            Route::Welcome => None,
+                                            Route::AccountPhraseConfirmation => None,
+                                        };
+                                        if let Some((label_text, btn_text, other_route)) =
+                                            alternate_route
+                                        {
+                                            ui.horizontal(|ui| {
+                                                ui.set_opacity(0.7);
+                                                ui.label(label_text);
                                                 if Button::default()
-                                                    .text("Create account")
-                                                    .frame(true)
-                                                    .rounding(3.0)
+                                                    .text(btn_text)
                                                     .show(ui)
                                                     .clicked()
                                                 {
-                                                    let core = self.core.clone();
-                                                    let update_tx = self.update_tx.clone();
-                                                    let ctx = ctx.clone();
-                                                    thread::spawn(move || {
-                                                        update_tx
-                                                            .send(AccountUpdate::Created(
-                                                                FileCache::new(&core),
-                                                            ))
-                                                            .unwrap();
-                                                        ctx.request_repaint();
-                                                    });
+                                                    self.router.route = other_route;
+                                                    self.router.needs_focus = true;
                                                 }
                                             });
                                         }
-                                    }
-                                }
-
-                                ui.add_space(200.0);
-                                ui.scope(|ui| {
-                                    let text_stroke = egui::Stroke {
-                                        color: ui.visuals().widgets.active.bg_fill,
-                                        ..Default::default()
-                                    };
-                                    ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-                                    ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-                                    ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-                                    ui.style_mut().text_styles.insert(
-                                        egui::TextStyle::Body,
-                                        egui::FontId::proportional(13.0),
-                                    );
-                                    ui.style_mut().spacing.button_padding = egui::Vec2::ZERO;
-
-                                    let alternate_route = match self.router.route {
-                                        Route::Create => Some((
-                                            "Already have an account?",
-                                            "Import your account",
-                                            Route::Import,
-                                        )),
-                                        Route::Import => Some((
-                                            "Don't have an account?",
-                                            "Create an account",
-                                            Route::Create,
-                                        )),
-                                        Route::Welcome => None,
-                                        Route::AccountPhraseConfirmation => None,
-                                    };
-                                    if let Some((label_text, btn_text, other_route)) =
-                                        alternate_route
-                                    {
-                                        ui.horizontal(|ui| {
-                                            ui.set_opacity(0.7);
-                                            ui.label(label_text);
-                                            if Button::default().text(btn_text).show(ui).clicked() {
-                                                self.router.route = other_route;
-                                                self.router.needs_focus = true;
-                                            }
-                                        });
-                                    }
+                                    });
                                 });
-                            })
-                            .response
-                            .rect;
-
-                        self.text_rect = Some(rect);
+                            });
+                            ui.add_space(30.0);
+                        });
                     });
-                    ui.add_space(30.0);
-                });
             });
-        });
         resp
     }
 
@@ -452,35 +457,21 @@ You can view your key again in the settings."#
         }
     }
 
-    fn show_input_err(&self, ui: &mut egui::Ui, resp: egui::Response, maybe_err: &Option<LbErr>) {
-        ui.painter()
-            .rect_filled(ui.available_rect_before_wrap(), 0.0, egui::Color32::DEBUG_COLOR);
-        let resp_bottom_left = resp.rect.min + egui::vec2(0.0, resp.rect.height() + 20.0);
-        let error_rect =
-            egui::Rect::from_min_size(resp_bottom_left, ui.available_size_before_wrap());
-
-        let mut ui = ui.new_child(
-            UiBuilder::new()
-                .max_rect(ui.available_rect_before_wrap())
-                .layout(egui::Layout::top_down(egui::Align::LEFT)),
-        );
-        ui.scope_builder(UiBuilder::new().max_rect(error_rect), |ui| {
-            if let Some(err) = &maybe_err {
-                egui::ScrollArea::vertical()
-                    .max_height(100.0)
-                    .show(ui, |ui| {
-                        ui.label(
-                            egui::RichText::new(err.kind.to_string())
-                                .color(ui.visuals().error_fg_color)
-                                .size(15.0),
-                        );
-                    });
-            }
+    fn show_input_err(&self, ui: &mut egui::Ui, maybe_err: &Option<LbErr>) {
+        ui.add_space(10.0);
+        ui.horizontal(|ui| {
             if self.router.is_busy {
                 ui.spinner();
                 if let Some(s) = &self.import_status {
                     ui.label(s);
                 }
+            }
+            if let Some(err) = &maybe_err {
+                ui.label(
+                    egui::RichText::new(err.kind.to_string())
+                        .color(ui.visuals().error_fg_color)
+                        .size(15.0),
+                );
             }
         });
     }
@@ -554,15 +545,43 @@ You can view your key again in the settings."#
 }
 
 fn set_button_style(ui: &mut egui::Ui) {
-    ui.visuals_mut().widgets.inactive.bg_fill = ui.visuals().widgets.active.bg_fill;
-    ui.visuals_mut().widgets.hovered.bg_fill =
-        ui.visuals().widgets.active.bg_fill.gamma_multiply(0.9);
+    let theme = ui.ctx().get_lb_theme();
+    let bg = theme.bg().get_color(theme.prefs().primary);
+
+    ui.visuals_mut().widgets.inactive.bg_fill = bg;
+    ui.visuals_mut().widgets.hovered.bg_fill = bg.gamma_multiply(0.9);
     ui.style_mut().spacing.button_padding += egui::vec2(10.0, 2.0);
 
-    let text_stroke = egui::Stroke { color: ui.visuals().extreme_bg_color, ..Default::default() };
+    let text_stroke = egui::Stroke { color: theme.neutral_fg(), ..Default::default() };
     ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
     ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
     ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
+}
+
+fn set_onboard_control_style(ui: &mut egui::Ui) {
+    let corner_radius = egui::CornerRadius::same(ONBOARD_CONTROL_ROUNDING);
+
+    ui.visuals_mut().widgets.noninteractive.corner_radius = corner_radius;
+    ui.visuals_mut().widgets.inactive.corner_radius = corner_radius;
+    ui.visuals_mut().widgets.hovered.corner_radius = corner_radius;
+    ui.visuals_mut().widgets.active.corner_radius = corner_radius;
+    ui.visuals_mut().widgets.open.corner_radius = corner_radius;
+}
+
+fn show_onboard_text_input(
+    ui: &mut egui::Ui, text_edit: egui::TextEdit<'_>,
+) -> egui::text_edit::TextEditOutput {
+    let theme = ui.ctx().get_lb_theme();
+    let bg = theme.neutral_bg_secondary();
+    let stroke = egui::Stroke { width: 1.0, color: theme.neutral() };
+
+    ui.scope(|ui| {
+        ui.visuals_mut().widgets.inactive.bg_stroke = stroke;
+        ui.visuals_mut().widgets.hovered.bg_stroke = stroke;
+        ui.visuals_mut().widgets.active.bg_stroke = stroke;
+        text_edit.frame(true).background_color(bg).show(ui)
+    })
+    .inner
 }
 
 #[derive(Clone, Copy, PartialEq)]

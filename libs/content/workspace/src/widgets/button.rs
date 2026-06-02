@@ -13,7 +13,7 @@ pub struct Button<'a> {
     icon_alignment: Option<egui::Align>,
     padding: Option<egui::Vec2>,
     is_loading: bool,
-    rounding: egui::CornerRadius,
+    rounding: Option<egui::CornerRadius>,
     stroke: egui::Stroke,
     frame: bool,
     hexpand: bool,
@@ -54,7 +54,7 @@ impl<'a> Button<'a> {
     }
 
     pub fn rounding(self, rounding: impl Into<egui::CornerRadius>) -> Self {
-        Self { rounding: rounding.into(), ..self }
+        Self { rounding: Some(rounding.into()), ..self }
     }
 
     pub fn is_loading(self, is_loading: bool) -> Self {
@@ -187,10 +187,11 @@ impl<'a> Button<'a> {
                     } else {
                         self.default_fill.unwrap_or(text_visuals.bg_fill)
                     };
+                    let corner_radius = self.rounding.unwrap_or(text_visuals.corner_radius);
 
                     ui.painter().add(epaint::RectShape {
                         rect,
-                        corner_radius: self.rounding,
+                        corner_radius,
                         fill: if self.frame { bg_fill } else { egui::Color32::TRANSPARENT },
                         stroke: self.stroke,
                         stroke_kind: epaint::StrokeKind::Inside,
