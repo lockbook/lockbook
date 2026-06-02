@@ -37,8 +37,9 @@ struct SearchContainerSubView<Content: View>: View {
             if isSearching {
                 VStack(spacing: 0) {
                     modePicker
-
-                    if model.mode == .content, let focused = model.focusedResult {
+                    if model.isQuerying {
+                        querySpinner
+                    } else if model.mode == .content, let focused = model.focusedResult {
                         FocusedSearchResultView(
                             result: focused,
                             fetchSnippet: { match in
@@ -73,6 +74,11 @@ struct SearchContainerSubView<Content: View>: View {
         .onChange(of: model.mode) { _ in
             model.search()
         }
+    }
+
+    var querySpinner: some View {
+        ProgressView()
+            .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
     var modePicker: some View {
@@ -346,11 +352,19 @@ class SearchContainerViewModel: ObservableObject {
     @Published var pathResults: [PathSearcherResult] = []
     @Published var rendered: Set<UUID> = []
     @Published var focusedResult: ContentSearcherResult? = nil
+    @Published var isQuerying: Bool = false
 
     let filesModel: FilesViewModel
 
     private var contentSearcher: ContentSearching?
     private var pathSearcher: PathSearching?
+
+    /// The searchers are not thread-safe, so all handle access (query + snippet)
+    /// is serialized onto this queue.
+    private let searchQueue = DispatchQueue(label: "lockbook.search")
+    /// Bumped on every `search()` (main thread only) so stale background results
+    /// can be discarded when a newer query has been dispatched.
+    private var querySeq: UInt64 = 0
 
     init(filesModel: FilesViewModel) {
         self.filesModel = filesModel
@@ -373,6 +387,7 @@ class SearchContainerViewModel: ObservableObject {
     }
 
     func stopSearching() {
+        querySeq &+= 1
         contentSearcher = nil
         pathSearcher = nil
         buildDuration = nil
@@ -381,27 +396,48 @@ class SearchContainerViewModel: ObservableObject {
         pathResults = []
         rendered = []
         focusedResult = nil
+        isQuerying = false
     }
 
     func search() {
-        let start = Date()
-        switch mode {
-        case .content:
-            if let contentSearcher {
-                contentResults = contentSearcher.query(input)
-            }
-        case .path:
-            if let pathSearcher {
-                pathResults = pathSearcher.query(input)
-            }
-        }
-        lastQueryDuration = Date().timeIntervalSince(start)
+        querySeq &+= 1
+        let seq = querySeq
+        let mode = mode
+        let input = input
+        let contentSearcher = contentSearcher
+        let pathSearcher = pathSearcher
+
+        guard contentSearcher != nil || pathSearcher != nil else { return }
+
         focusedResult = nil
         rendered = []
+        isQuerying = true
+
+        let start = Date()
+        searchQueue.async { [weak self] in
+            var content: [ContentSearcherResult] = []
+            var path: [PathSearcherResult] = []
+            switch mode {
+            case .content: content = contentSearcher?.query(input) ?? []
+            case .path: path = pathSearcher?.query(input) ?? []
+            }
+            let duration = Date().timeIntervalSince(start)
+
+            DispatchQueue.main.async {
+                guard let self, self.querySeq == seq else { return }
+                switch mode {
+                case .content: self.contentResults = content
+                case .path: self.pathResults = path
+                }
+                self.lastQueryDuration = duration
+                self.isQuerying = false
+            }
+        }
     }
 
     func snippet(id: UUID, match: ContentSearcherMatch) -> SearcherSnippet? {
-        contentSearcher?.snippet(id: id, match: match, contextChars: 40)
+        guard let contentSearcher else { return nil }
+        return searchQueue.sync { contentSearcher.snippet(id: id, match: match, contextChars: 40) }
     }
 
     func open(id: UUID, workspaceInput: WorkspaceInputState) {
