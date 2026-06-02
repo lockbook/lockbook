@@ -549,7 +549,7 @@ class WorkspaceView(
             view: View?,
             outRect: Rect?,
         ) {
-            if (outRect != null){
+            if (outRect != null) {
                 outRect!!.set(
                     Rect(
                         (editMenuX * context.resources.displayMetrics.scaledDensity).toInt(),
@@ -557,8 +557,8 @@ class WorkspaceView(
                             editMenuY *
                                 context.resources.displayMetrics.scaledDensity
                         ).toInt(),
-                            (editMenuX * context.resources.displayMetrics.scaledDensity).toInt(),
-                        (editMenuY * context.resources.displayMetrics.scaledDensity).toInt()
+                        (editMenuX * context.resources.displayMetrics.scaledDensity).toInt(),
+                        (editMenuY * context.resources.displayMetrics.scaledDensity).toInt(),
                     ),
                 )
             }
