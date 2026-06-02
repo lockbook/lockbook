@@ -24,10 +24,12 @@ impl SearchExecutor for PathSearch {
 
     fn handle_query(&mut self, query: &str) {
         self.searcher.query(query);
-        // Reset selection when query changes
-        if self.selected >= self.searcher.results().len() {
-            self.selected = 0;
-        }
+        self.selected = 0;
+        self.kb_mode = true;
+    }
+
+    fn set_kb_mode(&mut self, kb_mode: bool) {
+        self.kb_mode = kb_mode;
     }
 
     fn show_result_picker(&mut self, ui: &mut egui::Ui) -> super::PickerResponse {

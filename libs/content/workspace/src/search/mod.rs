@@ -38,6 +38,7 @@ pub struct PickerResponse {
 pub trait SearchExecutor: Send + Sync {
     fn search_type(&self) -> SearchType;
     fn handle_query(&mut self, query: &str);
+    fn set_kb_mode(&mut self, kb_mode: bool);
     /// Render the result list. `activated` is set when the user opens a result
     /// (e.g. Enter or row shortcut); `selected` tracks the highlighted row for
     /// the preview pane.
@@ -46,6 +47,7 @@ pub trait SearchExecutor: Send + Sync {
 
 impl Workspace {
     pub fn show_search_modal(&mut self) {
+        let was_shown = self.search.search_shown;
         self.search.process_keys(&self.ctx);
         self.manage_executors();
         let size = self.ctx.screen_rect();
@@ -81,6 +83,11 @@ impl Workspace {
 
         if !self.search.search_shown {
             self.preview = None;
+            if was_shown {
+                if let Ok(mut executor) = self.search.executor.try_write() {
+                    executor.set_kb_mode(true);
+                }
+            }
         }
     }
 

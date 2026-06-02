@@ -123,6 +123,10 @@ impl SearchExecutor for ContentSearch {
         self.focused_file = None;
     }
 
+    fn set_kb_mode(&mut self, kb_mode: bool) {
+        self.kb_mode = kb_mode;
+    }
+
     fn show_result_picker(&mut self, ui: &mut egui::Ui) -> super::PickerResponse {
         self.process_keys(ui.ctx());
 
