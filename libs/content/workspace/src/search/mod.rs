@@ -8,6 +8,9 @@ pub struct Search {
     pub initialized: bool,
     executor: Arc<RwLock<Box<dyn SearchExecutor>>>,
     dispatched_query: String,
+    /// Experimental: when the search experience is hosted in a tab (Cmd+T)
+    /// rather than the modal, suppress the modal's preview teardown.
+    pub embedded: bool,
 }
 
 #[derive(Default, Eq, PartialEq, Clone, Copy)]
@@ -82,7 +85,10 @@ impl Workspace {
         }
 
         if !self.search.search_shown {
-            self.preview = None;
+            // The embedded (tab) search owns its own preview lifecycle.
+            if !self.search.embedded {
+                self.preview = None;
+            }
             if was_shown {
                 if let Ok(mut executor) = self.search.executor.try_write() {
                     executor.set_kb_mode(true);
@@ -255,7 +261,7 @@ impl Workspace {
         .inner
     }
 
-    fn manage_executors(&mut self) {
+    pub(crate) fn manage_executors(&mut self) {
         let Ok(guard) = self.search.executor.try_read() else {
             return;
         };
@@ -294,6 +300,7 @@ impl Search {
             initialized: false,
             executor: Arc::new(RwLock::new(SearchType::Path.create_executor(lb, ctx))),
             dispatched_query: String::new(),
+            embedded: false,
         }
     }
 

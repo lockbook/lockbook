@@ -210,6 +210,7 @@ impl Workspace {
                     self.ctx.clone(),
                 )))
             }
+            Destination::Search => ContentState::Open(TabContent::Search),
         };
         let now = Instant::now();
         self.tabs.insert(
@@ -1038,6 +1039,21 @@ impl Workspace {
     #[cfg(target_family = "wasm")]
     pub fn upsert_mind_map(&mut self, core: Lb) {
         warn!("Mind map is not supported on wasm targets");
+    }
+
+    /// Experimental: open (or focus) the embedded search tab (Cmd+T).
+    pub fn upsert_search(&mut self) {
+        if let Some(i) = self
+            .tab_strip
+            .iter()
+            .position(|s| matches!(s.dest, Destination::Search))
+        {
+            self.make_current(i);
+        } else {
+            self.create_tab(Destination::Search, true);
+        }
+        // refocus the search bar each time the tab is opened/focused
+        self.search.initialized = false;
     }
 
     pub fn start_space_inspector(&mut self, _core: Lb, folder: Option<File>) {

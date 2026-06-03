@@ -512,6 +512,7 @@ fn get_current_tab(obj: &mut WgpuWorkspace<'_>) -> i32 {
                 TabContent::MindMap(_) => 7,
                 TabContent::SpaceInspector(_) => 8,
                 TabContent::Chat(_) => 9,
+                TabContent::Search => 0,
             },
             _ => 1,
         },

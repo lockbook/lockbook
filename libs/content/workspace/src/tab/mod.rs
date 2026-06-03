@@ -35,12 +35,15 @@ pub enum Destination {
     File(Uuid),
     MindMap(Uuid),
     SpaceInspector(Uuid),
+    /// Experimental: the search experience embedded as a tab (Cmd+T).
+    Search,
 }
 
 impl Destination {
     pub fn id(&self) -> Uuid {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
+            Self::Search => Uuid::nil(),
         }
     }
 }
@@ -70,7 +73,10 @@ pub struct Tab {
 
 impl Tab {
     pub fn id(&self) -> Option<Uuid> {
-        Some(self.destination.id())
+        match self.destination {
+            Destination::Search => None,
+            _ => Some(self.destination.id()),
+        }
     }
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
@@ -220,6 +226,9 @@ impl Tab {
                     TabContent::SpaceInspector(sv) => {
                         sv.show(ui);
                     }
+                    // Rendered specially in `show_current_tab_content`, which
+                    // bypasses `Tab::show` because the search UI needs `&mut Workspace`.
+                    TabContent::Search => {}
                 }
                 resp
             }
@@ -252,6 +261,8 @@ pub enum TabContent {
     #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
+    /// Experimental marker for the embedded search tab; rendered specially.
+    Search,
 }
 
 impl std::fmt::Debug for TabContent {
@@ -265,6 +276,7 @@ impl std::fmt::Debug for TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
+            TabContent::Search => write!(f, "TabContent::Search"),
         }
     }
 }
@@ -280,6 +292,7 @@ impl TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
+            TabContent::Search => None,
         }
     }
 
@@ -474,6 +487,7 @@ impl Workspace {
                 #[cfg(not(target_family = "wasm"))]
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
                 ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
+                ContentState::Open(TabContent::Search) => "Search".into(),
                 _ => "Unknown".into(),
             },
         }
