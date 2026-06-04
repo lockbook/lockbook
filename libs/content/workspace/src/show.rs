@@ -507,6 +507,9 @@ impl Workspace {
         let completions_active = self
             .current_tab_markdown()
             .is_some_and(|md| md.edit.emoji_completions.active || md.edit.link_completions.active);
+        // The search tab claims Cmd+1–9 to quick-open results, so don't let the
+        // workspace consume them for tab switching while search is showing.
+        let search_active = matches!(self.current_tab, Some(crate::tab::Destination::Search));
         let current_idx = self
             .current_tab
             .as_ref()
@@ -516,7 +519,8 @@ impl Workspace {
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
             for (i, &key) in NUM_KEYS.iter().enumerate().skip(1).take(8) {
-                let cmd_consumed = !completions_active && input.consume_key_exact(COMMAND, key);
+                let cmd_consumed =
+                    !completions_active && !search_active && input.consume_key_exact(COMMAND, key);
                 let alt_consumed = !APPLE && input.consume_key_exact(Modifiers::ALT, key);
                 if cmd_consumed || alt_consumed {
                     goto_tab = Some(i.min(self.tab_strip.len()) - 1);
@@ -534,7 +538,8 @@ impl Workspace {
             }
 
             // Cmd+9 to go to last tab
-            let cmd9_consumed = !completions_active && input.consume_key_exact(COMMAND, Key::Num9);
+            let cmd9_consumed =
+                !completions_active && !search_active && input.consume_key_exact(COMMAND, Key::Num9);
             let alt9_consumed = !APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9);
             if (cmd9_consumed || alt9_consumed) && !self.tab_strip.is_empty() {
                 goto_tab = Some(self.tab_strip.len() - 1);

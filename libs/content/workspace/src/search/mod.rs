@@ -15,6 +15,7 @@ pub struct Search {
     dispatched_query: String,
 
     core: Lb,
+    files: Arc<RwLock<FileCache>>,
 }
 
 #[derive(Default, Eq, PartialEq, Clone, Copy)]
@@ -25,9 +26,11 @@ pub enum SearchType {
 }
 
 impl SearchType {
-    fn create_executor(&self, lb: &Lb, ctx: &Context) -> Box<dyn SearchExecutor> {
+    fn create_executor(
+        &self, lb: &Lb, ctx: &Context, files: &Arc<RwLock<FileCache>>,
+    ) -> Box<dyn SearchExecutor> {
         match self {
-            SearchType::Path => Box::new(PathSearch::new(lb, ctx)),
+            SearchType::Path => Box::new(PathSearch::new(lb, ctx, files.clone())),
             SearchType::Content => Box::new(ContentSearch::new(lb, ctx)),
         }
     }
@@ -60,15 +63,16 @@ pub trait SearchExecutor: Send + Sync {
 }
 
 impl Search {
-    pub fn new(lb: &Lb, ctx: &Context) -> Search {
+    pub fn new(lb: &Lb, ctx: &Context, files: Arc<RwLock<FileCache>>) -> Search {
         Search {
             search_type: SearchType::Path,
             scope: lb.get_root().map(|f| f.id).unwrap_or_default(),
             query: String::new(),
             initialized: false,
-            executor: Arc::new(RwLock::new(SearchType::Path.create_executor(lb, ctx))),
+            executor: Arc::new(RwLock::new(SearchType::Path.create_executor(lb, ctx, &files))),
             dispatched_query: String::new(),
             core: lb.clone(),
+            files,
         }
     }
 
@@ -82,7 +86,7 @@ impl Search {
         drop(guard);
 
         if stale_type {
-            let executor = self.search_type.create_executor(&self.core, ctx);
+            let executor = self.search_type.create_executor(&self.core, ctx, &self.files);
             self.executor = Arc::new(RwLock::new(executor));
             self.dispatched_query.clear();
         }
@@ -230,7 +234,7 @@ impl Workspace {
             ui.add_space(6.0);
 
             if let Some(id) = self.results_and_preview(ui, &executor, search_type) {
-                self.open_file(id, true, true);
+                self.open_file_replacing_search(id);
             }
         });
     }
@@ -319,6 +323,7 @@ use egui::{Context, CornerRadius, Frame, Margin, RichText, TextEdit, Ui, Vec2};
 use lb_rs::blocking::Lb;
 
 use crate::{
+    file_cache::FileCache,
     search::{content::ContentSearch, path::PathSearch},
     tab::{ContentState, Destination, TabContent},
     theme::{icons::Icon, palette_v2::ThemeExt},

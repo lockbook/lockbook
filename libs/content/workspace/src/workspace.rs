@@ -207,9 +207,11 @@ impl Workspace {
                     self.ctx.clone(),
                 )))
             }
-            Destination::Search => {
-                ContentState::Open(TabContent::Search(Search::new(&self.core, &self.ctx)))
-            }
+            Destination::Search => ContentState::Open(TabContent::Search(Search::new(
+                &self.core,
+                &self.ctx,
+                self.files.clone(),
+            ))),
         };
         let now = Instant::now();
         self.tabs.insert(
@@ -434,6 +436,39 @@ impl Workspace {
         self.open_dest(&dest);
 
         self.current_tab = Some(dest);
+        self.mark_current_tab_changed();
+    }
+
+    /// Open `id`, consuming the search tab: the selected file takes the search
+    /// tab's place in the strip rather than opening alongside it.
+    pub fn open_file_replacing_search(&mut self, id: Uuid) {
+        let dest = Destination::File(id);
+        let search_idx = self
+            .tab_strip
+            .iter()
+            .position(|s| matches!(s.dest, Destination::Search));
+
+        // Already open elsewhere: focus that tab and drop the search tab.
+        if self.tab_strip.iter().any(|s| s.dest == dest) {
+            if let Some(i) = search_idx {
+                self.close_tab(i);
+            }
+            if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
+                self.make_current(pos);
+            }
+            return;
+        }
+
+        // Otherwise replace the search slot in place.
+        let Some(i) = search_idx else {
+            self.create_tab(dest, true);
+            return;
+        };
+        self.tabs.remove(&Destination::Search);
+        self.tab_strip[i] = TabSlot::new(dest.clone());
+        self.open_dest(&dest);
+        self.current_tab = Some(dest);
+        self.out.tabs_changed = true;
         self.mark_current_tab_changed();
     }
 
