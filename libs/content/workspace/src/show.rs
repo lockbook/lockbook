@@ -209,6 +209,13 @@ impl Workspace {
     }
 
     fn show_current_tab_content(&mut self, ui: &mut egui::Ui) {
+        // Search renders here (not via `Tab::show`) so its preview pane can use
+        // the workspace's async file loader.
+        if matches!(self.current_tab, Some(crate::tab::Destination::Search)) {
+            self.show_search_tab(ui);
+            return;
+        }
+
         if let Some(tab) = self.current_tab_mut() {
             let resp = tab.show(ui);
 

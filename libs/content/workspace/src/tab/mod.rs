@@ -227,9 +227,10 @@ impl Tab {
                     TabContent::SpaceInspector(sv) => {
                         sv.show(ui);
                     }
-                    TabContent::Search(search) => {
-                        resp.open_file = search.show(ui);
-                    }
+                    // Rendered by `Workspace::show_search_tab` instead of here:
+                    // the results/preview split needs workspace-owned async file
+                    // loading that a `Tab` can't reach.
+                    TabContent::Search(_) => {}
                 }
                 resp
             }

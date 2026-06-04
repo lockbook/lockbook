@@ -1,9 +1,10 @@
 pub mod content;
 pub mod path;
 
-/// The search experience, owned by its tab ([`crate::tab::TabContent::Search`])
-/// so it renders through `Tab::show` like any other tab. Holds its own handles
-/// to the core and file cache for query dispatch and the scope selector.
+/// The search experience, owned by its tab ([`crate::tab::TabContent::Search`]).
+/// The query box lives here; the results/preview split is rendered by
+/// [`Workspace::show_search_tab`] because the preview pane reuses the
+/// workspace's async file-loading (`self.preview` / `set_preview`).
 pub struct Search {
     pub search_type: SearchType,
     /// The directory the search is scoped to. Defaults to the account root.
@@ -39,10 +40,23 @@ impl SearchType {
     }
 }
 
+#[derive(Default)]
+pub struct PickerResponse {
+    pub activated: Option<lb_rs::Uuid>,
+    pub selected: Option<lb_rs::Uuid>,
+    /// Byte range of the highlighted snippet within the selected file's
+    /// content (content search only). Drives preview scroll/highlight.
+    pub selected_range: Option<std::ops::Range<usize>>,
+}
+
 pub trait SearchExecutor: Send + Sync {
     fn search_type(&self) -> SearchType;
     fn handle_query(&mut self, query: &str);
-    fn results(&self) -> &[SearchResult];
+    fn set_kb_mode(&mut self, kb_mode: bool);
+    /// Render the result list. `activated` is set when the user opens a result
+    /// (e.g. Enter or row shortcut); `selected` tracks the highlighted row for
+    /// the preview pane.
+    fn show_result_picker(&mut self, ui: &mut Ui) -> PickerResponse;
 }
 
 impl Search {
@@ -56,17 +70,6 @@ impl Search {
             dispatched_query: String::new(),
             core: lb.clone(),
         }
-    }
-
-    /// Render the search tab. Returns the file to open when a result is
-    /// activated (none yet — the results list is still being built).
-    pub fn show(&mut self, ui: &mut Ui) -> Option<lb_rs::Uuid> {
-        self.manage_executors(ui.ctx());
-        ui.vertical(|ui| {
-            ui.add_space(72.0);
-            self.show_query_box(ui);
-        });
-        None
     }
 
     /// Swap the executor when the search type changes and dispatch the current
@@ -98,8 +101,8 @@ impl Search {
     }
 
     /// The big "Open Quickly"-style query field: a centered, rounded, subtly
-    /// filled box with a leading magnifying glass, large text, and an accent
-    /// focus ring.
+    /// filled box with a leading magnifying glass, large text, executor radio
+    /// buttons, and an accent focus ring.
     fn show_query_box(&mut self, ui: &mut Ui) {
         let max_w = 720.0_f32.min(ui.available_width() - 48.0);
         let side = ((ui.available_width() - max_w) / 2.0).max(0.0);
@@ -129,48 +132,54 @@ impl Search {
             .inner_margin(Margin::symmetric(20, 16));
 
         let out = frame.show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 12.0;
+            ui.vertical(|ui| {
+                let focused = ui
+                    .horizontal(|ui| {
+                        ui.spacing_mut().item_spacing.x = 12.0;
 
-                // Leading icon doubles as the executor (search-type) dropdown.
-                let icon_resp = Icon::SEARCH
-                    .size(22.0)
-                    .color(theme.neutral_fg_secondary())
-                    .show(ui)
-                    .on_hover_text("Choose what to search");
-                egui::Popup::menu(&icon_resp).show(|ui| {
-                    ui.set_min_width(160.0);
-                    for ty in [SearchType::Path, SearchType::Content] {
-                        if ui
-                            .selectable_label(self.search_type == ty, ty.name())
-                            .clicked()
-                        {
-                            self.search_type = ty;
+                        Icon::SEARCH
+                            .size(22.0)
+                            .color(theme.neutral_fg_secondary())
+                            .show(ui);
+
+                        let resp = TextEdit::singleline(&mut self.query)
+                            .frame(false)
+                            .hint_text(
+                                RichText::new(hint)
+                                    .size(22.0)
+                                    .color(theme.neutral_fg_secondary()),
+                            )
+                            .text_color(theme.neutral_fg())
+                            .font(egui::FontId::proportional(22.0))
+                            .vertical_align(egui::Align::Center)
+                            .desired_width(ui.available_width())
+                            .margin(Margin::ZERO)
+                            .show(ui)
+                            .response;
+
+                        if !self.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
+                            self.initialized = true;
+                            resp.request_focus();
                         }
-                    }
+
+                        resp.has_focus()
+                    })
+                    .inner;
+
+                // Executor selector along the bottom of the box.
+                ui.add_space(12.0);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 16.0;
+                    let label = |text: &str| {
+                        RichText::new(text)
+                            .size(14.0)
+                            .color(theme.neutral_fg_secondary())
+                    };
+                    ui.radio_value(&mut self.search_type, SearchType::Path, label("Filenames"));
+                    ui.radio_value(&mut self.search_type, SearchType::Content, label("Contents"));
                 });
 
-                let resp = TextEdit::singleline(&mut self.query)
-                    .frame(false)
-                    .hint_text(
-                        RichText::new(hint)
-                            .size(22.0)
-                            .color(theme.neutral_fg_secondary()),
-                    )
-                    .text_color(theme.neutral_fg())
-                    .font(egui::FontId::proportional(22.0))
-                    .vertical_align(egui::Align::Center)
-                    .desired_width(ui.available_width())
-                    .margin(Margin::ZERO)
-                    .show(ui)
-                    .response;
-
-                if !self.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
-                    self.initialized = true;
-                    resp.request_focus();
-                }
-
-                resp.has_focus()
+                focused
             })
             .inner
         });
@@ -190,14 +199,128 @@ impl Search {
     }
 }
 
+impl Workspace {
+    /// Render the whole search tab: the query box, then a results list (left)
+    /// and read-only preview (right) filling the rest of the area.
+    ///
+    /// This is driven from `show_current_tab_content` rather than `Tab::show`
+    /// because the preview pane reuses `self.preview` and the workspace's async
+    /// file loader, which a `Tab` can't reach on its own.
+    pub(crate) fn show_search_tab(&mut self, ui: &mut Ui) {
+        ui.vertical(|ui| {
+            // Query box + executor management need the tab's `Search`; the
+            // executor handle is cloned out so the results pass can borrow the
+            // workspace (for the preview) without holding the tab borrow.
+            let extracted = {
+                let Some(tab) = self.tabs.get_mut(&Destination::Search) else {
+                    return;
+                };
+                let ContentState::Open(TabContent::Search(search)) = &mut tab.content else {
+                    return;
+                };
+                search.manage_executors(ui.ctx());
+                ui.add_space(16.0);
+                search.show_query_box(ui);
+                (search.executor.clone(), search.search_type)
+            };
+            let (executor, search_type) = extracted;
+
+            ui.add_space(10.0);
+            Self::hairline(ui, true);
+            ui.add_space(6.0);
+
+            if let Some(id) = self.results_and_preview(ui, &executor, search_type) {
+                self.open_file(id, true, true);
+            }
+        });
+    }
+
+    fn results_and_preview(
+        &mut self, ui: &mut Ui, executor: &Arc<RwLock<Box<dyn SearchExecutor>>>,
+        search_type: SearchType,
+    ) -> Option<lb_rs::Uuid> {
+        let size = ui.available_size();
+        ui.horizontal(|ui| {
+            ui.set_min_size(size);
+            ui.add_space(10.0);
+            let half = (ui.available_width() - 31.0) / 2.;
+            let (picker, picked) = ui
+                .allocate_ui_with_layout(
+                    Vec2::new(half, ui.available_height()),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| match executor.try_write() {
+                        Ok(mut executor) => (executor.show_result_picker(ui), true),
+                        Err(_) => {
+                            ui.centered_and_justified(|ui| ui.spinner());
+                            (PickerResponse::default(), false)
+                        }
+                    },
+                )
+                .inner;
+
+            if picked {
+                self.set_preview(picker.selected);
+
+                // For content search, steer the read-only preview to the
+                // highlighted snippet.
+                if search_type == SearchType::Content {
+                    if let Some(md) = self.preview.as_mut().and_then(|t| t.markdown_mut()) {
+                        md.preview_navigate(picker.selected_range.clone());
+                    }
+                }
+            }
+
+            Self::hairline(ui, false);
+
+            ui.allocate_ui_with_layout(
+                Vec2::new(ui.available_width() - 10.0, ui.available_height()),
+                egui::Layout::top_down(egui::Align::LEFT),
+                |ui| {
+                    // without clip_rect, toolbar glyphs bleed outside the preview pane
+                    ui.set_clip_rect(ui.max_rect());
+                    // without push_id, interactive widgets (e.g. checkboxes) in the preview
+                    // collide with identical widgets in a background tab (if same file)
+                    ui.push_id("search_preview", |ui| match &mut self.preview {
+                        Some(tab) => {
+                            tab.show(ui);
+                        }
+                        None => {
+                            ui.centered_and_justified(|ui| ui.spinner());
+                        }
+                    });
+                },
+            );
+
+            picker.activated
+        })
+        .inner
+    }
+
+    /// A 1px separator that matches the search panel's subtle divider treatment.
+    fn hairline(ui: &mut Ui, horizontal: bool) {
+        let color = ui.visuals().widgets.noninteractive.bg_stroke.color;
+        let stroke = egui::Stroke { width: 1.0, color };
+        if horizontal {
+            let (rect, _) =
+                ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), egui::Sense::hover());
+            ui.painter().hline(rect.x_range(), rect.center().y, stroke);
+        } else {
+            let (rect, _) =
+                ui.allocate_exact_size(Vec2::new(1.0, ui.available_height()), egui::Sense::hover());
+            ui.painter().vline(rect.center().x, rect.y_range(), stroke);
+        }
+    }
+}
+
 use std::sync::{Arc, RwLock};
 use std::thread;
 
 use egui::{Context, CornerRadius, Frame, Margin, RichText, TextEdit, Ui, Vec2};
 use lb_rs::blocking::Lb;
-use lb_rs::search::SearchResult;
 
 use crate::{
     search::{content::ContentSearch, path::PathSearch},
+    tab::{ContentState, Destination, TabContent},
     theme::{icons::Icon, palette_v2::ThemeExt},
+    workspace::Workspace,
 };
