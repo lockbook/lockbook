@@ -1,6 +1,6 @@
 [package]
 name = "winstaller"
-version = "26.5.27"
+version = "26.6.3"
 edition = "2021"
 
 [target.'cfg(windows)'.dependencies]

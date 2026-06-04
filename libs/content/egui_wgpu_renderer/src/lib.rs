@@ -160,6 +160,8 @@ impl<'w> RendererState<'w> {
     pub fn prepare_frame(&mut self) -> PreparedFrame {
         let full_output = self.context.end_pass();
 
+        self.shame_slow_frame();
+
         // Update the screen ppp based on an up-to-date screen ppp from egui.
         // This is how the app responds to zoom factor changes, such as cmd+-,
         // cmd+=, or cmd+0. If the zoom factor changed this frame, the new zoom
@@ -194,7 +196,6 @@ impl<'w> RendererState<'w> {
             size_in_pixels,
             pixels_per_point,
         );
-        self.shame_slow_frame();
     }
 
     pub fn backend(&self) -> &RenderBackend<'w> {

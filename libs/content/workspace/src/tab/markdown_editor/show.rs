@@ -26,6 +26,7 @@ use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::IconButton;
 
 use super::MdEdit;
+use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
@@ -270,7 +271,10 @@ impl MdEdit {
                         let range = offset
                             .range_bound(Bound::Word, true, true, &self.renderer.bounds)
                             .unwrap_or((offset, offset));
-                        ctx.set_context_menu(self.context_menu_pos(range).unwrap_or(pos));
+                        ctx.set_context_menu(
+                            self.context_menu_pos(range, rect.intersect(ui.clip_rect()))
+                                .unwrap_or(pos),
+                        );
                         Some(Region::BoundAt { bound: Bound::Word, location, backwards: true })
                     } else if self.renderer.buffer.current.selection.is_empty() {
                         Some(Region::BoundAt { bound: Bound::Word, location, backwards: true })
@@ -282,7 +286,10 @@ impl MdEdit {
                 } else if response.clicked() {
                     if cfg!(target_os = "android") && self.selection_tap(pos) {
                         let selection = self.renderer.buffer.current.selection;
-                        ctx.set_context_menu(self.context_menu_pos(selection).unwrap_or(pos));
+                        ctx.set_context_menu(
+                            self.context_menu_pos(selection, rect.intersect(ui.clip_rect()))
+                                .unwrap_or(pos),
+                        );
                         None
                     } else {
                         Some(Region::Location(location))
@@ -456,23 +463,44 @@ impl MdEdit {
 
     /// Center-top of the first wrap line of the given range — where a
     /// context menu should anchor. Android uses this on tap-in-selection.
-    pub fn context_menu_pos(&self, range: (Grapheme, Grapheme)) -> Option<Pos2> {
+    pub fn context_menu_pos(
+        &self, range: (Grapheme, Grapheme), visble_rect: egui::Rect,
+    ) -> Option<Pos2> {
         let lines = self
             .renderer
             .bounds
             .wrap_lines
             .find_intersecting(range, false);
         let first_line = lines.iter().next()?;
-        let mut line = self.renderer.bounds.wrap_lines[first_line];
-        if line.0 < range.start() {
-            line.0 = range.start();
+        let last_line = lines.iter().next_back()?;
+
+        let mut first_line = self.renderer.bounds.wrap_lines[first_line];
+        if first_line.0 < range.start() {
+            first_line.0 = range.start();
         }
-        if line.1 > range.end() {
-            line.1 = range.end();
+        if first_line.1 > range.end() {
+            first_line.1 = range.end();
         }
 
-        let start_line = self.cursor_line(line.0)?;
-        let end_line = self.cursor_line(line.1)?;
-        Some(Pos2 { x: (start_line[1].x + end_line[1].x) / 2., y: start_line[0].y })
+        let mut last_line = self.renderer.bounds.wrap_lines[last_line];
+        if last_line.0 < range.start() {
+            last_line.0 = range.start();
+        }
+        if last_line.1 > range.end() {
+            last_line.1 = range.end();
+        }
+
+        let start_line = self.cursor_line(first_line.0)?;
+        let end_line = self.cursor_line(last_line.1)?;
+
+        let context_menu_approx_height = 65.0; // might be a bit falky if the user has a custom system font size in android, but good enough for now
+
+        let anchor_y = if visble_rect.contains(start_line[1]) {
+            start_line[1].y - SELECTION_HANDLE_HEIGHT
+        } else {
+            end_line[1].y + context_menu_approx_height + SELECTION_HANDLE_HEIGHT
+        };
+
+        Some(Pos2 { x: (start_line[1].x + end_line[1].x) / 2., y: anchor_y })
     }
 }

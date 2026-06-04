@@ -9,6 +9,10 @@ use crate::theme::palette_v2::ThemeExt as _;
 
 use super::{Event, Location, Region};
 
+const SELECTION_HANDLE_RADIUS: f32 = 12.0;
+pub(in crate::tab::markdown_editor) const SELECTION_HANDLE_HEIGHT: f32 =
+    SELECTION_HANDLE_RADIUS * 2.0;
+
 #[derive(Debug, Default)]
 pub struct CursorState {
     /// When navigating using up/down keys, x_target stores the original *absolute* x coordinate of
@@ -27,16 +31,26 @@ impl MdEdit {
 
     pub fn selection_tap(&self, pos: Pos2) -> bool {
         let selection = self.renderer.buffer.current.selection;
-        let pad_rect = |rect: Rect| {
-            let pad_x = ((48.0 - rect.width()) / 2.0).max(0.0);
-            let pad_y = ((48.0 - rect.height()) / 2.0).max(0.0);
-            rect.expand2(Vec2::new(pad_x, pad_y))
-        };
         if selection.is_empty() {
+            // A collapsed cursor has no handle, so size the menu-on-tap zone
+            // to the caret: tap the caret to menu, tap a neighboring glyph to
+            // reposition.
+            const PAD_X: f32 = 6.0;
+            const PAD_Y: f32 = 12.0;
             self.cursor_line(selection.0)
-                .map(|[top, bot]| pad_rect(Rect::from_min_max(top, bot)).contains(pos))
+                .map(|[top, bot]| {
+                    Rect::from_min_max(top, bot)
+                        .expand2(Vec2::new(PAD_X, PAD_Y))
+                        .contains(pos)
+                })
                 .unwrap_or(false)
         } else {
+            // Tapping the selection (padded to the 48dp handle target) menus.
+            let pad_rect = |rect: Rect| {
+                let pad_x = ((48.0 - rect.width()) / 2.0).max(0.0);
+                let pad_y = ((48.0 - rect.height()) / 2.0).max(0.0);
+                rect.expand2(Vec2::new(pad_x, pad_y))
+            };
             self.range_rects(selection)
                 .iter()
                 .any(|&r| pad_rect(r).contains(pos))
@@ -105,8 +119,11 @@ impl MdEdit {
         let selection_start_line = self.cursor_line(selection.0);
         let selection_end_line = self.cursor_line(selection.1);
 
-        let radius = 12.0;
+        let radius = SELECTION_HANDLE_RADIUS;
 
+        // Handles are interactive only where they're drawn — a non-empty
+        // selection. A collapsed cursor has no handle, so it gets no drag
+        // target (else an invisible zone around the caret eats nearby taps).
         if !self.renderer.buffer.current.selection.is_empty() {
             if let Some(line) = selection_start_line {
                 self.paint_handle(ui, line, radius, color, true);
@@ -114,13 +131,13 @@ impl MdEdit {
             if let Some(line) = selection_end_line {
                 self.paint_handle(ui, line, radius, color, false);
             }
-        }
 
-        if let Some(line) = selection_start_line {
-            self.interact_handle(ui, line, radius, true);
-        }
-        if let Some(line) = selection_end_line {
-            self.interact_handle(ui, line, radius, false);
+            if let Some(line) = selection_start_line {
+                self.interact_handle(ui, line, radius, true);
+            }
+            if let Some(line) = selection_end_line {
+                self.interact_handle(ui, line, radius, false);
+            }
         }
     }
 
