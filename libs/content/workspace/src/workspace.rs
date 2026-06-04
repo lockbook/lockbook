@@ -61,7 +61,6 @@ pub struct Workspace {
     pub landing_page: LandingPage,
     pub account: Account,
 
-    pub search: Search,
     pub preview: Option<Tab>,
 
     // Files and task status
@@ -119,7 +118,6 @@ impl Workspace {
             cfg.clone(),
         );
         ctx.set_zoom_factor(cfg.get_zoom_factor());
-        let search = Search::new(core, ctx);
 
         let (ws_tx, ws_rx) = mpsc::channel();
 
@@ -151,7 +149,6 @@ impl Workspace {
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
-            search,
             preview: None,
             ws_rx,
         };
@@ -210,7 +207,9 @@ impl Workspace {
                     self.ctx.clone(),
                 )))
             }
-            Destination::Search => ContentState::Open(TabContent::Search),
+            Destination::Search => {
+                ContentState::Open(TabContent::Search(Search::new(&self.core, &self.ctx)))
+            }
         };
         let now = Instant::now();
         self.tabs.insert(
@@ -1041,7 +1040,7 @@ impl Workspace {
         warn!("Mind map is not supported on wasm targets");
     }
 
-    /// Experimental: open (or focus) the embedded search tab (Cmd+T).
+    /// Open (or focus) the search tab.
     pub fn upsert_search(&mut self) {
         if let Some(i) = self
             .tab_strip
@@ -1052,8 +1051,12 @@ impl Workspace {
         } else {
             self.create_tab(Destination::Search, true);
         }
-        // refocus the search bar each time the tab is opened/focused
-        self.search.initialized = false;
+        // refocus the query field each time the tab is opened/focused
+        if let Some(tab) = self.tabs.get_mut(&Destination::Search) {
+            if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                search.initialized = false;
+            }
+        }
     }
 
     pub fn start_space_inspector(&mut self, _core: Lb, folder: Option<File>) {

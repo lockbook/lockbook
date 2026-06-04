@@ -4,6 +4,7 @@ use crate::mind_map::show::MindMap;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
+use crate::search::Search;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 
@@ -226,9 +227,9 @@ impl Tab {
                     TabContent::SpaceInspector(sv) => {
                         sv.show(ui);
                     }
-                    // Rendered specially in `show_current_tab_content`, which
-                    // bypasses `Tab::show` because the search UI needs `&mut Workspace`.
-                    TabContent::Search => {}
+                    TabContent::Search(search) => {
+                        resp.open_file = search.show(ui);
+                    }
                 }
                 resp
             }
@@ -261,8 +262,7 @@ pub enum TabContent {
     #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
-    /// Experimental marker for the embedded search tab; rendered specially.
-    Search,
+    Search(Search),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -276,7 +276,7 @@ impl std::fmt::Debug for TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
-            TabContent::Search => write!(f, "TabContent::Search"),
+            TabContent::Search(_) => write!(f, "TabContent::Search"),
         }
     }
 }
@@ -292,7 +292,7 @@ impl TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
-            TabContent::Search => None,
+            TabContent::Search(_) => None,
         }
     }
 
@@ -487,7 +487,7 @@ impl Workspace {
                 #[cfg(not(target_family = "wasm"))]
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
                 ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
-                ContentState::Open(TabContent::Search) => "Search".into(),
+                ContentState::Open(TabContent::Search(_)) => "Search".into(),
                 _ => "Unknown".into(),
             },
         }

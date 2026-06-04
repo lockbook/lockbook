@@ -917,7 +917,7 @@ pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
                 TabContent::MindMap(_) => 7,
                 TabContent::SpaceInspector(_) => 8,
                 TabContent::Chat(_) => 9,
-                TabContent::Search => 0,
+                TabContent::Search(_) => 0,
             },
             _ => 1,
         },

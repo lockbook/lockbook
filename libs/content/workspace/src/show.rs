@@ -60,10 +60,6 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
             self.landing_page_first_frame = true;
         }
-        // search modal renders after tabs so it draws on top: its cursor icon and
-        // interaction responses take priority over the background editor's
-        self.show_search_modal();
-
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tab_strip, &self.current_tab);
             self.current_tab_changed = false;
@@ -213,28 +209,6 @@ impl Workspace {
     }
 
     fn show_current_tab_content(&mut self, ui: &mut egui::Ui) {
-        // Experimental: the embedded search tab needs `&mut Workspace`, which
-        // `Tab::show` can't provide, so render it here instead of via the tab.
-        let is_search = matches!(self.current_tab, Some(crate::tab::Destination::Search));
-        self.search.embedded = is_search;
-        if is_search {
-            self.manage_executors();
-            // Unlike the modal, the embedded search fills the whole tab and reads
-            // as cramped edge-to-edge. Cap it to a centered column (à la Xcode's
-            // "Open Quickly") by computing symmetric side margins.
-            const MAX_WIDTH: f32 = 1100.0;
-            let avail = ui.available_width();
-            let side = ((avail - MAX_WIDTH) / 2.0).max(24.0).round() as i8;
-            let activated = egui::Frame::default()
-                .inner_margin(egui::Margin { left: side, right: side, top: 16, bottom: 16 })
-                .show(ui, |ui| self.show_search(ui))
-                .inner;
-            if let Some(id) = activated {
-                self.open_file(id, true, true);
-            }
-            return;
-        }
-
         if let Some(tab) = self.current_tab_mut() {
             let resp = tab.show(ui);
 

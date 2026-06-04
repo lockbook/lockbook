@@ -492,8 +492,7 @@ impl AccountScreen {
 
             let search_btn = Button::default().icon(&Icon::SEARCH).show(ui);
             if search_btn.clicked() {
-                self.workspace.search.search_shown = true;
-                self.workspace.search.initialized = false;
+                self.workspace.upsert_search();
                 ui.ctx().request_repaint();
             }
             search_btn.on_hover_text("Search");
