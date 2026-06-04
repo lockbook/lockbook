@@ -41,6 +41,14 @@ struct HomeView: View {
                 }
             }
         )
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { workspaceInput.showSearch() }) {
+                    Image(systemName: "magnifyingglass")
+                }
+                .help("Search")
+            }
+        }
         .confirmationDialog(
             "Are you sure? This action cannot be undone.",
             isPresented: Binding(

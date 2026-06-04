@@ -59,6 +59,14 @@ public class WorkspaceInputState: ObservableObject {
         redraw.send(())
     }
 
+    public func showSearch() {
+        guard let wsHandle else { return }
+
+        show_search(wsHandle)
+        redraw.send(())
+        focus.send(())
+    }
+
     public func createDocAt(parent: UUID, drawing: Bool) {
         guard let wsHandle else { return }
 
