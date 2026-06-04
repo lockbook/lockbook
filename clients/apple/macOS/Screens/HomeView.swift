@@ -19,28 +19,28 @@ struct HomeView: View {
     }
 
     var body: some View {
-        PathSearchContainerView(filesModel: filesModel, workspaceInput: workspaceInput) {
-            NavigationSplitView(
-                columnVisibility: homeState.splitViewVisibility,
-                sidebar: {
-                    CustomTabView(selectedTab: $selectedTab, tabContent: { tabType in
-                        switch tabType {
-                        case .home:
-                            filesHome
-                        case .sharedWithMe:
-                            sharedWithMe
-                        }
-                    })
-                    .navigationSplitViewColumnWidth(min: 250, ideal: 300)
-                },
-                detail: {
-                    NavigationStack {
-                        DetailView()
-                            .modifier(OutOfSpaceAlert())
+        // Search is handled by the workspace (egui) on macOS, so the Swift
+        // search containers that used to wrap this view have been removed.
+        NavigationSplitView(
+            columnVisibility: homeState.splitViewVisibility,
+            sidebar: {
+                CustomTabView(selectedTab: $selectedTab, tabContent: { tabType in
+                    switch tabType {
+                    case .home:
+                        filesHome
+                    case .sharedWithMe:
+                        sharedWithMe
                     }
+                })
+                .navigationSplitViewColumnWidth(min: 250, ideal: 300)
+            },
+            detail: {
+                NavigationStack {
+                    DetailView()
+                        .modifier(OutOfSpaceAlert())
                 }
-            )
-        }
+            }
+        )
         .confirmationDialog(
             "Are you sure? This action cannot be undone.",
             isPresented: Binding(
@@ -61,9 +61,7 @@ struct HomeView: View {
     }
 
     var filesHome: some View {
-        SearchContainerView(filesModel: filesModel) {
-            FilesHomeView()
-        }
+        FilesHomeView()
     }
 
     var sharedWithMe: some View {

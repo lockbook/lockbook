@@ -1,6 +1,10 @@
 import SwiftUI
 import SwiftWorkspace
 
+// The ⌘O path-search overlay is iOS-only now; macOS searches via the workspace
+// (egui) "Open Quickly" tab instead.
+#if os(iOS)
+
 struct PathSearchContainerView<Content: View>: View {
     @StateObject var model: PathSearchViewModel
     @ViewBuilder var content: Content
@@ -191,3 +195,5 @@ struct PathSearchContainerView<Content: View>: View {
         Color.clear
     }
 }
+
+#endif
