@@ -63,6 +63,8 @@ pub struct Workspace {
 
     pub preview: Option<Tab>,
 
+    pending_open_range: Option<(Uuid, std::ops::Range<usize>)>,
+
     // Files and task status
     pub tasks: TaskManager,
     pub files: Arc<RwLock<FileCache>>,
@@ -150,6 +152,7 @@ impl Workspace {
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
             preview: None,
+            pending_open_range: None,
             ws_rx,
         };
 
@@ -470,6 +473,25 @@ impl Workspace {
         self.current_tab = Some(dest);
         self.out.tabs_changed = true;
         self.mark_current_tab_changed();
+    }
+
+    pub fn open_file_at_range(
+        &mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool,
+    ) {
+        self.open_file(id, true, in_new_tab);
+        self.pending_open_range = Some((id, byte_range));
+    }
+
+    pub(crate) fn apply_pending_open_range(&mut self) {
+        let Some((id, range)) = self.pending_open_range.clone() else { return };
+        if let Some(md) = self.get_mut_tab_by_id(id).and_then(|t| t.markdown_mut()) {
+            if md.initialized {
+                md.open_navigate(range);
+                self.pending_open_range = None;
+            }
+        } else if self.tab_strip.iter().all(|s| s.dest.id() != id) {
+            self.pending_open_range = None;
+        }
     }
 
     pub fn back(&mut self) {

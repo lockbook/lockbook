@@ -25,8 +25,8 @@ struct SearchContainerSubView<Content: View>: View {
 
     let content: Content
 
-    private func openAndCloseFloatingSidebar(id: UUID) {
-        model.open(id: id, workspaceInput: workspaceInput)
+    private func openAndCloseFloatingSidebar(id: UUID, match: ContentSearcherMatch? = nil) {
+        model.open(id: id, workspaceInput: workspaceInput, match: match)
         if homeState.isSidebarFloating {
             homeState.sidebarState = .closed
         }
@@ -46,8 +46,8 @@ struct SearchContainerSubView<Content: View>: View {
                                 model.snippet(id: focused.id, match: match)
                             },
                             onBack: { model.focusedResult = nil },
-                            onTapSnippet: { _ in
-                                openAndCloseFloatingSidebar(id: focused.id)
+                            onTapSnippet: { match in
+                                openAndCloseFloatingSidebar(id: focused.id, match: match)
                             }
                         )
                     } else {
@@ -99,7 +99,7 @@ struct SearchContainerSubView<Content: View>: View {
                     SearchResultRow(
                         result: result,
                         fetchSnippet: { match in model.snippet(id: result.id, match: match) },
-                        onTap: { openAndCloseFloatingSidebar(id: result.id) },
+                        onTap: { openAndCloseFloatingSidebar(id: result.id, match: result.matches.first) },
                         onShowMore: { model.focusedResult = result }
                     )
                     .onAppear { model.rendered.insert(result.id) }
@@ -440,10 +440,12 @@ class SearchContainerViewModel: ObservableObject {
         return searchQueue.sync { contentSearcher.snippet(id: id, match: match, contextChars: 40) }
     }
 
-    func open(id: UUID, workspaceInput: WorkspaceInputState) {
+    func open(id: UUID, workspaceInput: WorkspaceInputState, match: ContentSearcherMatch? = nil) {
         guard let file = filesModel.idsToFiles[id] else { return }
         if file.type == .folder {
             workspaceInput.selectFolder(id: id)
+        } else if let match {
+            workspaceInput.openFile(id: id, rangeStart: match.rangeStart, rangeEnd: match.rangeEnd)
         } else {
             workspaceInput.openFile(id: id)
         }

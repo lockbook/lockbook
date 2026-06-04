@@ -48,6 +48,7 @@ impl Workspace {
         self.process_task_updates();
         self.process_keys();
         self.process_clip_events();
+        self.apply_pending_open_range();
 
         if self.is_empty() {
             if self.show_tabs {

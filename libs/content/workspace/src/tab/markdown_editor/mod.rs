@@ -1388,6 +1388,25 @@ impl Editor {
             .reveal(&content, target_rect, Align::Center);
     }
 
+    pub fn open_navigate(&mut self, byte_range: std::ops::Range<usize>) {
+        let segs = &self.edit.renderer.buffer.current.segs;
+        let last = segs.last_cursor_position();
+        let start = segs.byte_to_char_floor(Byte(byte_range.start)).clamp(0.into(), last);
+        let end = segs.byte_to_char_ceil(Byte(byte_range.end)).clamp(0.into(), last);
+
+        self.edit
+            .renderer
+            .buffer
+            .queue(vec![lb_rs::model::text::operation_types::Operation::Select((start, end))]);
+        self.edit.renderer.buffer.update();
+        self.edit.renderer.reveal_seq = self
+            .edit
+            .renderer
+            .ws_seq
+            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+    }
+
     pub fn preview_navigate(&mut self, byte_range: Option<std::ops::Range<usize>>) {
         let segs = &self.edit.renderer.buffer.current.segs;
         let new_match = byte_range.map(|r| {

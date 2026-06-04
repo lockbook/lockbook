@@ -40,6 +40,17 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_tab: bool) {
 }
 
 #[no_mangle]
+pub extern "C" fn open_file_at(
+    obj: *mut c_void, id: CUuid, range_start: usize, range_end: usize, new_tab: bool,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let id = id.into();
+
+    obj.workspace
+        .open_file_at_range(id, range_start..range_end, new_tab);
+}
+
+#[no_mangle]
 pub extern "C" fn show_search(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.workspace.upsert_search();

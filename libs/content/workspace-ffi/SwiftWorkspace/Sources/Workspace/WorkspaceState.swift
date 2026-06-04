@@ -48,6 +48,15 @@ public class WorkspaceInputState: ObservableObject {
         //        focus.send(())
     }
 
+    public func openFile(id: UUID, rangeStart: Int, rangeEnd: Int, newTab: Bool = true) {
+        guard let wsHandle else { return }
+
+        let uuid = CUuid(_0: id.uuid)
+        no_folder_selected(wsHandle)
+        open_file_at(wsHandle, uuid, UInt(rangeStart), UInt(rangeEnd), newTab)
+        redraw.send(())
+    }
+
     public func selectFolder(id: UUID?) {
         guard let wsHandle else { return }
 
