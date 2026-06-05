@@ -315,15 +315,20 @@ impl SearchExecutor for ContentSearch {
             self.kb_mode = true;
         }
 
+        let mut activated = None;
+
         // Handle expand click (enter focus mode).
         if let Some(fid) = expand_clicked {
             self.focused_file = Some(fid);
             self.selected = 0;
             self.kb_mode = true;
         } else if let Some(i) = clicked_flat {
-            // Apply mouse-driven selection.
             self.selected = i;
             self.kb_mode = false;
+            activated = flat
+                .get(i)
+                .and_then(|e| results.get(e.match_idx()))
+                .map(|r| r.id);
         } else if !self.kb_mode {
             if let Some(i) = hovered_flat {
                 self.selected = i;
@@ -345,7 +350,7 @@ impl SearchExecutor for ContentSearch {
         });
 
         super::PickerResponse {
-            activated: None,
+            activated,
             selected: self.selected_id,
             selected_range,
         }

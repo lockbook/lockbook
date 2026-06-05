@@ -596,17 +596,18 @@ impl Workspace {
                         }
                     }
                     let files = self.files.read().unwrap();
-                    let mut tabs_to_delete = vec![];
+                    let mut dests_to_delete = vec![];
                     for slot in &self.tab_strip {
-                        let id = slot.dest.id();
-                        if files.get_by_id(id).is_none() {
-                            tabs_to_delete.push(id);
+                        if let Destination::File(id) = slot.dest {
+                            if files.get_by_id(id).is_none() {
+                                dests_to_delete.push(slot.dest.clone());
+                            }
                         }
                     }
                     drop(files);
 
-                    for id in tabs_to_delete {
-                        if let Some(idx) = self.tab_strip.iter().position(|s| s.dest.id() == id) {
+                    for dest in dests_to_delete {
+                        if let Some(idx) = self.tab_strip.iter().position(|s| s.dest == dest) {
                             self.close_tab(idx);
                         }
                     }
