@@ -125,45 +125,48 @@ impl Search {
             SearchType::Content => "Search Contents",
         };
 
+        let text_id = ui.id().with("search_query_input");
+        let focused = ui.memory(|m| m.has_focus(text_id));
+
+        let fill =
+            if focused { ui.visuals().extreme_bg_color } else { theme.neutral_bg_secondary() };
+
         let frame = Frame::new()
-            .fill(theme.neutral_bg_secondary())
+            .fill(fill)
             .corner_radius(CornerRadius::same(12))
             .inner_margin(Margin::symmetric(20, 16));
 
         let out = frame.show(ui, |ui| {
             ui.vertical(|ui| {
-                let focused = ui
-                    .horizontal(|ui| {
-                        ui.spacing_mut().item_spacing.x = 12.0;
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 12.0;
 
-                        Icon::SEARCH
-                            .size(22.0)
-                            .color(theme.neutral_fg_secondary())
-                            .show(ui);
+                    Icon::SEARCH
+                        .size(22.0)
+                        .color(theme.neutral_fg_secondary())
+                        .show(ui);
 
-                        let resp = TextEdit::singleline(&mut self.query)
-                            .frame(false)
-                            .hint_text(
-                                RichText::new(hint)
-                                    .size(22.0)
-                                    .color(theme.neutral_fg_secondary()),
-                            )
-                            .text_color(theme.neutral_fg())
-                            .font(egui::FontId::proportional(22.0))
-                            .vertical_align(egui::Align::Center)
-                            .desired_width(ui.available_width())
-                            .margin(Margin::ZERO)
-                            .show(ui)
-                            .response;
+                    let resp = TextEdit::singleline(&mut self.query)
+                        .id(text_id)
+                        .frame(false)
+                        .hint_text(
+                            RichText::new(hint)
+                                .size(22.0)
+                                .color(theme.neutral_fg_secondary()),
+                        )
+                        .text_color(theme.neutral_fg())
+                        .font(egui::FontId::proportional(22.0))
+                        .vertical_align(egui::Align::Center)
+                        .desired_width(ui.available_width())
+                        .margin(Margin::ZERO)
+                        .show(ui)
+                        .response;
 
-                        if !self.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
-                            self.initialized = true;
-                            resp.request_focus();
-                        }
-
-                        resp.has_focus()
-                    })
-                    .inner;
+                    if !self.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
+                        self.initialized = true;
+                        resp.request_focus();
+                    }
+                });
 
                 // Executor selector along the bottom of the box.
                 ui.add_space(12.0);
@@ -177,24 +180,17 @@ impl Search {
                     ui.radio_value(&mut self.search_type, SearchType::Path, label("Filenames"));
                     ui.radio_value(&mut self.search_type, SearchType::Content, label("Contents"));
                 });
-
-                focused
-            })
-            .inner
+            });
         });
 
-        let focused = out.inner;
-        let stroke = if focused {
-            egui::Stroke::new(2.0, accent)
-        } else {
-            egui::Stroke::new(1.0, theme.neutral_fg_secondary().linear_multiply(0.25))
-        };
-        ui.painter().rect_stroke(
-            out.response.rect,
-            CornerRadius::same(12),
-            stroke,
-            egui::epaint::StrokeKind::Inside,
-        );
+        if focused {
+            ui.painter().rect_stroke(
+                out.response.rect,
+                CornerRadius::same(12),
+                egui::Stroke::new(2.0, accent),
+                egui::epaint::StrokeKind::Inside,
+            );
+        }
     }
 }
 

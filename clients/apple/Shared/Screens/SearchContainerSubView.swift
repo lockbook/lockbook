@@ -38,6 +38,7 @@ struct SearchContainerSubView<Content: View>: View {
                     } else if model.mode == .content, let focused = model.focusedResult {
                         FocusedSearchResultView(
                             result: focused,
+                            systemImage: model.icon(for: focused.id, name: focused.filename),
                             fetchSnippet: { match in
                                 model.snippet(id: focused.id, match: match)
                             },
@@ -93,6 +94,7 @@ struct SearchContainerSubView<Content: View>: View {
                 ForEach(model.contentResults) { result in
                     SearchResultRow(
                         result: result,
+                        systemImage: model.icon(for: result.id, name: result.filename),
                         fetchSnippet: { match in model.snippet(id: result.id, match: match) },
                         onTap: { openAndCloseFloatingSidebar(id: result.id, match: result.matches.first) },
                         onShowMore: { model.focusedResult = result }
@@ -110,6 +112,7 @@ struct SearchContainerSubView<Content: View>: View {
                 ForEach(model.pathResults) { result in
                     PathSearcherRow(
                         result: result,
+                        systemImage: model.icon(for: result.id, name: result.filename),
                         onTap: { openAndCloseFloatingSidebar(id: result.id) }
                     )
                     Divider()
@@ -122,39 +125,57 @@ struct SearchContainerSubView<Content: View>: View {
 
 struct SearchResultRow: View {
     let result: ContentSearcherResult
+    let systemImage: String
     let fetchSnippet: (ContentSearcherMatch) -> SearcherSnippet?
     let onTap: () -> Void
     let onShowMore: () -> Void
-    
+
     private static let collapsedCount = 2
-    
+
     var visibleMatches: ArraySlice<ContentSearcherMatch> {
         result.matches.prefix(Self.collapsedCount)
     }
-    
+
     var hiddenCount: Int {
         max(0, result.matches.count - Self.collapsedCount)
     }
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            Text(result.filename)
-                .font(.body)
-            Text(result.parentPath)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            
-            ForEach(Array(visibleMatches.enumerated()), id: \.offset) { _, match in
-                snippetLine(for: match)
-            }
-            
-            if hiddenCount > 0 {
-                Button(action: onShowMore) {
-                    Text("Show \(hiddenCount) more")
-                        .font(.caption)
-                        .foregroundColor(.accentColor)
+        HStack(alignment: .top, spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundColor(.accentColor)
+                .frame(width: 22)
+                .padding(.top, 1)
+
+            VStack(alignment: .leading, spacing: 4) {
+                Text(result.filename)
+                    .font(.body)
+                    .fontWeight(.medium)
+                Text(result.parentPath)
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+
+                VStack(alignment: .leading, spacing: 4) {
+                    ForEach(Array(visibleMatches.enumerated()), id: \.offset) { _, match in
+                        snippetLine(for: match)
+                    }
+                    if hiddenCount > 0 {
+                        Button(action: onShowMore) {
+                            Text("Show \(hiddenCount) more")
+                                .font(.caption)
+                                .foregroundColor(.accentColor)
+                        }
+                        .buttonStyle(.plain)
+                    }
                 }
-                .buttonStyle(.plain)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 7)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.15))
+                )
                 .padding(.top, 2)
             }
         }
@@ -164,13 +185,13 @@ struct SearchResultRow: View {
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
     }
-    
+
     @ViewBuilder
     func snippetLine(for match: ContentSearcherMatch) -> some View {
         if let snippet = fetchSnippet(match) {
-            (Text(snippet.prefix).foregroundColor(.gray)
-             + Text(snippet.matched).bold()
-             + Text(snippet.suffix).foregroundColor(.gray))
+            (Text(snippet.prefix).foregroundColor(.secondary)
+             + Text(snippet.matched).bold().foregroundColor(.primary)
+             + Text(snippet.suffix).foregroundColor(.secondary))
             .font(.caption)
             .lineLimit(1)
             .truncationMode(.tail)
@@ -181,16 +202,24 @@ struct SearchResultRow: View {
 
 struct PathSearcherRow: View {
     let result: PathSearcherResult
+    let systemImage: String
     let onTap: () -> Void
-    
+
     var body: some View {
-        VStack(alignment: .leading, spacing: 4) {
-            highlighted(result.filename, offset: filenameOffset)
-                .font(.body)
-            if !result.parentPath.isEmpty, result.parentPath != "/" {
-                highlighted(result.parentPath, offset: parentOffset)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
+        HStack(spacing: 12) {
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundColor(.accentColor)
+                .frame(width: 22)
+
+            VStack(alignment: .leading, spacing: 4) {
+                highlighted(result.filename, offset: filenameOffset)
+                    .font(.body)
+                if !result.parentPath.isEmpty, result.parentPath != "/" {
+                    highlighted(result.parentPath, offset: parentOffset)
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -231,10 +260,11 @@ struct PathSearcherRow: View {
 
 struct FocusedSearchResultView: View {
     let result: ContentSearcherResult
+    let systemImage: String
     let fetchSnippet: (ContentSearcherMatch) -> SearcherSnippet?
     let onBack: () -> Void
     let onTapSnippet: (ContentSearcherMatch) -> Void
-    
+
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -242,7 +272,7 @@ struct FocusedSearchResultView: View {
             snippetList
         }
     }
-    
+
     var header: some View {
         HStack(spacing: 8) {
             Button(action: onBack) {
@@ -250,7 +280,11 @@ struct FocusedSearchResultView: View {
                     .foregroundColor(.accentColor)
             }
             .buttonStyle(.plain)
-            
+
+            Image(systemName: systemImage)
+                .font(.title3)
+                .foregroundColor(.accentColor)
+
             VStack(alignment: .leading, spacing: 2) {
                 Text(result.filename)
                     .font(.headline)
@@ -258,43 +292,48 @@ struct FocusedSearchResultView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-            
+
             Spacer()
-            
+
             Text("\(result.matches.count) match\(result.matches.count == 1 ? "" : "es")")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
         .padding()
     }
-    
+
     var snippetList: some View {
         ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
+            LazyVStack(alignment: .leading, spacing: 8) {
                 ForEach(Array(result.matches.enumerated()), id: \.offset) { _, match in
                     Button(action: { onTapSnippet(match) }) {
                         snippetRow(for: match)
                     }
                     .buttonStyle(.plain)
-                    Divider()
                 }
             }
+            .padding(.horizontal, 12)
+            .padding(.vertical, 10)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
+
     @ViewBuilder
     func snippetRow(for match: ContentSearcherMatch) -> some View {
         if let snippet = fetchSnippet(match) {
-            (Text(snippet.prefix).foregroundColor(.gray)
-             + Text(snippet.matched).bold()
-             + Text(snippet.suffix).foregroundColor(.gray))
+            (Text(snippet.prefix).foregroundColor(.secondary)
+             + Text(snippet.matched).bold().foregroundColor(.primary)
+             + Text(snippet.suffix).foregroundColor(.secondary))
             .font(.caption)
             .lineLimit(1)
             .truncationMode(.tail)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 12)
+            .padding(.horizontal, 10)
             .padding(.vertical, 8)
+            .background(
+                RoundedRectangle(cornerRadius: 8)
+                    .fill(Color.gray.opacity(0.15))
+            )
             .contentShape(Rectangle())
         }
     }
@@ -373,6 +412,13 @@ class SearchContainerViewModel: ObservableObject {
     func snippet(id: UUID, match: ContentSearcherMatch) -> SearcherSnippet? {
         guard let contentSearcher else { return nil }
         return searchQueue.sync { contentSearcher.snippet(id: id, match: match, contextChars: 40) }
+    }
+
+    func icon(for id: UUID, name: String) -> String {
+        if let file = filesModel.idsToFiles[id] {
+            return FileIconHelper.fileToSystemImageName(file: file)
+        }
+        return FileIconHelper.docNameToSystemImageName(name: name)
     }
     
     func open(id: UUID, workspaceInput: WorkspaceInputState, match: ContentSearcherMatch? = nil) {
