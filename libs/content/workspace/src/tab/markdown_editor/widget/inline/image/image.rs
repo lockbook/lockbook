@@ -49,12 +49,16 @@ impl<'ast> MdRender {
             - Vec2::splat(self.layout.margin))
         .max(Vec2::ZERO);
 
+        // Texture dims are device pixels; the layout works in logical points.
+        // Convert so a Retina screenshot (ppp 2) isn't shown at 2x real size.
+        let natural = texture_size / self.ctx.pixels_per_point();
+
         // only shrink images, never stretch beyond their natural size
-        let width = width.min(texture_size.x).min(image_max_size.x);
-        let height = (texture_size.y * width / texture_size.x).min(image_max_size.y);
+        let width = width.min(natural.x).min(image_max_size.x);
+        let height = (natural.y * width / natural.x).min(image_max_size.y);
 
         // if height was the binding constraint, recompute width to preserve aspect ratio
-        let width = texture_size.x * height / texture_size.y;
+        let width = natural.x * height / natural.y;
 
         Vec2::new(width, height)
     }
