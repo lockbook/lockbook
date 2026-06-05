@@ -163,8 +163,7 @@ pub struct StyleInfo {
     pub source_range: (Grapheme, Grapheme),
 }
 
-/// A strike/underline rule. Deferred to a post-text paint pass so it
-/// lands on top of opaque emoji bitmaps instead of behind them (#4617).
+/// A strike/underline rule, painted on top of text (see `deco_lines`).
 #[derive(Clone, Debug)]
 pub struct DecoLine {
     pub x: std::ops::RangeInclusive<f32>,
@@ -1698,9 +1697,7 @@ impl MdRender {
                     ));
                 }
 
-                // Decorations (strike / underline): deferred to a paint
-                // pass after the glyphon text callback so they land on top
-                // of opaque emoji bitmaps instead of behind them (#4617).
+                // Collected here, painted after the text callback (#4617).
                 if let Some(style) = frag.style_stack.last() {
                     let fmt = &style.format;
                     let baseline_top = screen_rect.min.y + frag.content_inset.top;
