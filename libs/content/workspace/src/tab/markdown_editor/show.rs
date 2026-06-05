@@ -149,6 +149,7 @@ impl MdEdit {
         self.renderer.fragments.clear();
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
+        self.renderer.deco_lines.clear();
         let height = self.renderer.height(root);
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
@@ -412,6 +413,12 @@ impl MdEdit {
                     ui.clip_rect(),
                     crate::GlyphonRendererCallback::new(text_areas),
                 ));
+        }
+
+        // strikethroughs and underlines painted on top of text
+        for deco in std::mem::take(&mut self.renderer.deco_lines) {
+            ui.painter()
+                .hline(deco.x, deco.y, Stroke::new(1.0, deco.color));
         }
 
         let has_selection_handles = !self.renderer.buffer.current.selection.is_empty()

@@ -45,6 +45,9 @@ pub struct Find {
     select_all_on_focus: bool,
     pub open_requested: bool,
     was_focused: bool,
+    /// Whether a field held focus last frame. `begin_pass` clears live focus on
+    /// Esc before `show` runs, so the Esc-to-close check reads this (#4646).
+    prev_focused: bool,
     /// All match ranges in the document for the current search term.
     pub matches: Vec<(Grapheme, Grapheme)>,
     /// deps: `(text_seq, term, case_sensitive, whole_word, regex)`
@@ -66,6 +69,7 @@ impl Default for Find {
             select_all_on_focus: false,
             open_requested: false,
             was_focused: false,
+            prev_focused: false,
             matches: Vec::new(),
             matches_deps: (0, None, false, false, false),
             current_match: None,
@@ -107,6 +111,19 @@ impl Find {
     ) -> FindOutput {
         let mut output = FindOutput::default();
 
+        // Consume Esc before the text fields do (they only surrender their own
+        // focus), or the widget never closes (#4646).
+        let field_focused = self.prev_focused
+            || ui.memory(|m| m.has_focus(self.id) || m.has_focus(self.replace_id));
+        if self.term.is_some()
+            && field_focused
+            && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, Key::Escape))
+        {
+            self.close_to_match(&mut output);
+            ui.ctx().request_repaint();
+            return output;
+        }
+
         let open = std::mem::take(&mut self.open_requested)
             || ui.input(|i| i.key_pressed(Key::F) && i.modifiers.command && !i.modifiers.shift);
         if open {
@@ -121,14 +138,8 @@ impl Find {
                 return output;
             }
 
-            let find_focused = ui.memory(|m| m.has_focus(self.id));
-            let replace_focused = ui.memory(|m| m.has_focus(self.replace_id));
-            if find_focused || replace_focused {
-                self.close_state();
-                output.closed = true;
-                return output;
-            }
-
+            // Cmd+F on an open widget re-focuses and reselects the search
+            // field, adopting any fresh editor selection as the term.
             let selected = String::from(&buffer[buffer.current.selection]);
             if !selected.is_empty() {
                 *self.term.as_mut().unwrap() = selected;
@@ -154,6 +165,7 @@ impl Find {
         let find_focused = ui.memory(|m| m.has_focus(self.id));
         let replace_focused = ui.memory(|m| m.has_focus(self.replace_id));
         let focused = find_focused || replace_focused;
+        self.prev_focused = focused;
         if focused && !self.was_focused {
             ui.ctx().set_virtual_keyboard_shown(true);
         }
@@ -223,102 +235,89 @@ impl Find {
 
             // search row: RTL — draw buttons first, input fills remainder
             let mut input_width = 0f32;
-            let find_has_focus = ui
-                .with_layout(rtl, |ui| {
-                    ui.spacing_mut().item_spacing.x = 4.;
+            ui.with_layout(rtl, |ui| {
+                ui.spacing_mut().item_spacing.x = 4.;
 
-                    if action(Icon::CLOSE).tooltip("Close").show(ui).clicked() {
-                        closed = true;
+                if action(Icon::CLOSE).tooltip("Close").show(ui).clicked() {
+                    closed = true;
+                }
+                for (ic, tip, flag) in [
+                    (Icon::REGEX, "Regex", &mut self.regex),
+                    (Icon::WHOLE_WORD, "Whole Word", &mut self.whole_word),
+                    (Icon::CASE_SENSITIVE, "Match Case", &mut self.case_sensitive),
+                ] {
+                    if toggle(ic).tooltip(tip).colored(*flag).show(ui).clicked() {
+                        *flag = !*flag;
+                        term_changed = true;
                     }
-                    for (ic, tip, flag) in [
-                        (Icon::REGEX, "Regex", &mut self.regex),
-                        (Icon::WHOLE_WORD, "Whole Word", &mut self.whole_word),
-                        (Icon::CASE_SENSITIVE, "Match Case", &mut self.case_sensitive),
-                    ] {
-                        if toggle(ic).tooltip(tip).colored(*flag).show(ui).clicked() {
-                            *flag = !*flag;
-                            term_changed = true;
+                }
+
+                input_width = ui.available_width();
+                let input_resp = input_frame().show(ui, |ui| {
+                    ui.with_layout(rtl, |ui| {
+                        let label = match self.current_match {
+                            Some(idx) => format!("{} / {}", idx + 1, self.matches.len()),
+                            None if !term.is_empty() => "No results".into(),
+                            _ => String::new(),
+                        };
+                        if !label.is_empty() {
+                            Label::new(egui::RichText::new(label).small())
+                                .selectable(false)
+                                .ui(ui);
                         }
-                    }
 
-                    input_width = ui.available_width();
-                    let input_resp = input_frame().show(ui, |ui| {
-                        ui.with_layout(rtl, |ui| {
-                            let label = match self.current_match {
-                                Some(idx) => format!("{} / {}", idx + 1, self.matches.len()),
-                                None if !term.is_empty() => "No results".into(),
-                                _ => String::new(),
-                            };
-                            if !label.is_empty() {
-                                Label::new(egui::RichText::new(label).small())
-                                    .selectable(false)
-                                    .ui(ui);
-                            }
-
-                            let mut edit =
-                                GlyphonTextEdit::new(term).id(self.id).hint_text("Search");
-                            if self.select_all_on_focus {
-                                edit = edit.select_all();
-                                self.select_all_on_focus = false;
-                            }
-                            edit.show(ui);
-                        });
+                        let mut edit = GlyphonTextEdit::new(term).id(self.id).hint_text("Search");
+                        if self.select_all_on_focus {
+                            edit = edit.select_all();
+                            self.select_all_on_focus = false;
+                        }
+                        edit.show(ui);
                     });
-                    if input_resp.response.clicked() {
-                        ui.memory_mut(|m| m.request_focus(self.id));
-                    }
-
-                    ui.memory(|m| m.has_focus(self.id))
-                })
-                .inner;
+                });
+                if input_resp.response.clicked() {
+                    ui.memory_mut(|m| m.request_focus(self.id));
+                }
+            });
 
             ui.add_space(4.);
 
             // replace row: LTR — input at same width as search, then buttons
-            let replace_has_focus = ui
-                .horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 4.;
+            ui.horizontal(|ui| {
+                ui.spacing_mut().item_spacing.x = 4.;
 
-                    input_frame().show(ui, |ui| {
-                        ui.set_width(input_width - input_padding.sum().x);
-                        GlyphonTextEdit::new(&mut self.replace_term)
-                            .id(self.replace_id)
-                            .hint_text("Replace")
-                            .show(ui);
-                    });
+                input_frame().show(ui, |ui| {
+                    ui.set_width(input_width - input_padding.sum().x);
+                    GlyphonTextEdit::new(&mut self.replace_term)
+                        .id(self.replace_id)
+                        .hint_text("Replace")
+                        .show(ui);
+                });
 
-                    if toggle(Icon::REPLACE).tooltip("Replace").show(ui).clicked() {
-                        replace_one = true;
-                    }
-                    if toggle(Icon::REPLACE_ALL)
-                        .tooltip("Replace All")
-                        .show(ui)
-                        .clicked()
-                    {
-                        replace_all = true;
-                    }
-                    if action(Icon::CHEVRON_UP)
-                        .tooltip("Previous")
-                        .show(ui)
-                        .clicked()
-                    {
-                        navigate = Some(false);
-                    }
-                    if action(Icon::CHEVRON_DOWN)
-                        .tooltip("Next")
-                        .show(ui)
-                        .clicked()
-                    {
-                        navigate = Some(true);
-                    }
-
-                    ui.memory(|m| m.has_focus(self.replace_id))
-                })
-                .inner;
-
-            if ui.input(|i| i.key_pressed(Key::Escape)) && (find_has_focus || replace_has_focus) {
-                closed = true;
-            }
+                if toggle(Icon::REPLACE).tooltip("Replace").show(ui).clicked() {
+                    replace_one = true;
+                }
+                if toggle(Icon::REPLACE_ALL)
+                    .tooltip("Replace All")
+                    .show(ui)
+                    .clicked()
+                {
+                    replace_all = true;
+                }
+                if action(Icon::CHEVRON_UP)
+                    .tooltip("Previous")
+                    .show(ui)
+                    .clicked()
+                {
+                    navigate = Some(false);
+                }
+                if action(Icon::CHEVRON_DOWN)
+                    .tooltip("Next")
+                    .show(ui)
+                    .clicked()
+                {
+                    navigate = Some(true);
+                }
+            });
 
             // apply state transitions
             if term_changed {
@@ -355,11 +354,22 @@ impl Find {
                 }
             }
             if closed {
-                self.close_state();
-                output.closed = true;
+                self.close_to_match(output);
                 ui.ctx().request_repaint();
             }
         });
+    }
+
+    /// Close the widget, seeding the editor selection from the current match so
+    /// the user resumes editing where they searched (#4646).
+    fn close_to_match(&mut self, output: &mut FindOutput) {
+        if let Some(range) = self.current_match_range() {
+            output
+                .events
+                .push(Event::Select { region: Region::from(range) });
+        }
+        self.close_state();
+        output.closed = true;
     }
 
     /// Recompute `matches` for the current term, positioning `current_match`

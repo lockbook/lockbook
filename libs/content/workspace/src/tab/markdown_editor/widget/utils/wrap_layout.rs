@@ -163,6 +163,14 @@ pub struct StyleInfo {
     pub source_range: (Grapheme, Grapheme),
 }
 
+/// A strike/underline rule, painted on top of text (see `deco_lines`).
+#[derive(Clone, Debug)]
+pub struct DecoLine {
+    pub x: std::ops::RangeInclusive<f32>,
+    pub y: f32,
+    pub color: egui::Color32,
+}
+
 /// One visual row of a wrap unit, emitted by `build_rows`.
 #[derive(Clone, Debug)]
 pub struct Row {
@@ -821,14 +829,11 @@ fn shape_chunk(
             );
             let text = text.to_string();
             let spans = text.graphemes(true).map(|g| {
-                let is_emoji = g.chars().any(|c| {
-                    matches!(
-                        c as u32,
-                        0xFE0F  // variation selector-16: emoji presentation
-                    | 0x1F000.. // supplementary multilingual plane: core emoji blocks
-                    )
-                });
-                if is_emoji { (g, emoji_attrs.as_attrs()) } else { (g, attrs.as_attrs()) }
+                if shape_as_emoji(&format.family, g) {
+                    (g, emoji_attrs.as_attrs())
+                } else {
+                    (g, attrs.as_attrs())
+                }
             });
             b.set_rich_text(&mut guard, spans, &attrs.as_attrs(), glyphon::Shaping::Advanced, None);
             b
@@ -1102,6 +1107,15 @@ fn is_one_to_one_range(layout: &Layout, visible_lo: usize, visible_hi: usize) ->
         }
     }
     true
+}
+
+/// Whether grapheme `g` should shape against the emoji font (Twemoji) rather
+/// than the format's own font. Icon-family spans are excluded: Nerd Font icon
+/// glyphs sit in the supplementary PUA, which overlaps the emoji range, and the
+/// emoji font carries no format color — so they'd render in the default fg
+/// instead of blue (#4653).
+pub(crate) fn shape_as_emoji(family: &FontFamily, g: &str) -> bool {
+    !matches!(family, FontFamily::Icons) && crate::widgets::glyphon_label::is_emoji_grapheme(g)
 }
 
 fn format_to_attrs(format: &Format, base_row_height: f32) -> glyphon::AttrsOwned {
@@ -1689,22 +1703,24 @@ impl MdRender {
                     ));
                 }
 
-                // Decorations (strike / underline) at glyph baseline.
+                // Collected here, painted after the text callback (#4617).
                 if let Some(style) = frag.style_stack.last() {
                     let fmt = &style.format;
-                    let stroke = Stroke::new(1.0, fmt.color);
                     let baseline_top = screen_rect.min.y + frag.content_inset.top;
-                    let x_range = screen_rect.left()..=screen_rect.right();
+                    let x = screen_rect.left()..=screen_rect.right();
                     if fmt.strikethrough {
-                        ui.painter().hline(
-                            x_range.clone(),
-                            baseline_top + row_height * 0.55,
-                            stroke,
-                        );
+                        self.deco_lines.push(DecoLine {
+                            x: x.clone(),
+                            y: baseline_top + row_height * 0.55,
+                            color: fmt.color,
+                        });
                     }
                     if fmt.underline {
-                        ui.painter()
-                            .hline(x_range, baseline_top + row_height * 0.95, stroke);
+                        self.deco_lines.push(DecoLine {
+                            x,
+                            y: baseline_top + row_height * 0.95,
+                            color: fmt.color,
+                        });
                     }
                 }
 

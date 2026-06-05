@@ -105,6 +105,8 @@ pub struct MdRender {
     // render output
     pub fragments: Vec<widget::utils::wrap_layout::Fragment>,
     pub text_areas: Vec<TextBufferArea>,
+    /// Strikethroughs and underlines painted on top of text
+    pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
     pub render_events: Vec<input::Event>,
     pub touch_consuming_rects: Vec<Rect>,
     /// Per-frame, keyed by `ui.id().with(salt)`; populated by
@@ -372,6 +374,7 @@ impl MdRender {
             bounds_seq: 0,
             fragments: Vec::new(),
             text_areas: Default::default(),
+            deco_lines: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
@@ -436,6 +439,7 @@ impl MdRender {
             buffer: md.into(),
             fragments: Vec::new(),
             text_areas: Default::default(),
+            deco_lines: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
@@ -580,6 +584,7 @@ impl Editor {
 
             fragments: Vec::new(),
             text_areas: Default::default(),
+            deco_lines: Default::default(),
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
@@ -1174,6 +1179,7 @@ impl Editor {
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.bounds.wrap_lines.clear();
                         self.edit.renderer.text_areas.clear();
+                        self.edit.renderer.deco_lines.clear();
 
                         // Phase 1: drive scroll math + scrollbar, and
                         // pick up to one viewport's worth of rows above
@@ -1325,6 +1331,9 @@ impl Editor {
         self.edit.event.internal_events.extend(find_output.events);
         if find_output.scroll_to_match {
             self.edit.pending_scroll = Some(ScrollTarget::FindMatch);
+        }
+        if find_output.closed {
+            self.focus(ui.ctx());
         }
 
         let new_match = self.find.current_match_range();

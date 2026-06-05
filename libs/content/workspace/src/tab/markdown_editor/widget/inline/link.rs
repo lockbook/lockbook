@@ -36,13 +36,14 @@ impl<'ast> MdRender {
         Format { color, underline: true, ..parent_text_format }
     }
 
-    /// Link-coloured `Icon` glyph (no underline) used for the touch-mode
-    /// "open link" affordance appended after each link.
-    pub fn text_format_link_button(&self, parent: &AstNode<'_>) -> Format {
+    /// `Icon` glyph (no underline) used for the touch-mode "open link"
+    /// affordance appended after each link. Coloured to match the link's
+    /// state so the button doesn't read as healthy-blue on a warning link.
+    pub fn text_format_link_button(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
         Format {
             family: FontFamily::Icons,
             underline: false,
-            ..self.text_format_link(parent, LinkState::Normal)
+            ..self.text_format_link(parent, state)
         }
     }
 
@@ -57,8 +58,10 @@ impl<'ast> MdRender {
         egui::Id::new(("md_link", node_range))
     }
 
-    /// Emit a link as a circumfix. For empty/auto links with a fetched
-    /// title, swap the URL bytes for the title via `push_override`.
+    /// Emit a link as a circumfix. For autolinks with a fetched title,
+    /// swap the URL bytes for the title via `push_override`. Empty-text
+    /// links (`[](url)`) are not autolinks and have nothing to show, so
+    /// they render their raw source like other incomplete syntax.
     /// With cmd held, opens a `Sense::click` interaction scope so egui
     /// z-order routes cmd-click here; without cmd no scope is opened
     /// and clicks fall through to the editor.
@@ -69,7 +72,8 @@ impl<'ast> MdRender {
         let url = node_link_url(node);
         let is_auto = self.link_is_auto(node, &url);
         let parent = node.parent().unwrap();
-        let link_fmt = self.text_format_link(parent, self.link_state_for_url(&url));
+        let state = self.link_state_for_url(&url);
+        let link_fmt = self.text_format_link(parent, state.clone());
         let revealed = self.range_revealed(node_range, is_auto);
 
         let cmd = self.ctx.input(|i| i.modifiers.command);
@@ -79,15 +83,14 @@ impl<'ast> MdRender {
         }
 
         let trimmed = node_range.trim(&range);
-        let title =
-            if (node.children().next().is_none() || is_auto) && !revealed && !trimmed.is_empty() {
-                match self.get_link_title(&url) {
-                    DestinationTitle::Ready(t) => Some(t),
-                    DestinationTitle::Absent => None,
-                }
-            } else {
-                None
-            };
+        let title = if is_auto && !revealed && !trimmed.is_empty() {
+            match self.get_link_title(&url) {
+                DestinationTitle::Ready(t) => Some(t),
+                DestinationTitle::Absent => None,
+            }
+        } else {
+            None
+        };
         match title {
             Some(t) => {
                 layout.style_open(StyleInfo { format: link_fmt.clone(), source_range: node_range });
@@ -103,8 +106,10 @@ impl<'ast> MdRender {
 
         // Touch-mode open-link affordance: tap the trailing icon to open
         // the link (no cmd modifier on mobile). Only emit on the row that
-        // contains the link's end.
-        if self.touch_mode && range.contains_inclusive(node_range.end()) {
+        // contains the link's end. Broken links have nothing to open, so
+        // they get no button.
+        let broken = matches!(state, LinkState::Broken { .. });
+        if self.touch_mode && !broken && range.contains_inclusive(node_range.end()) {
             let anchor = (node_range.end(), node_range.end());
             let parent_fmt = self.text_format(parent);
             layout.push_override(anchor, " ", parent_fmt);
@@ -112,7 +117,7 @@ impl<'ast> MdRender {
             layout.push_override(
                 anchor,
                 Icon::OPEN_IN_NEW.icon,
-                self.text_format_link_button(parent),
+                self.text_format_link_button(parent, state),
             );
             layout.interaction_close();
         }
@@ -245,7 +250,7 @@ impl<'ast> MdRender {
         }
     }
 
-    // Resolves the display title for a link with empty text.
+    // Resolves the display title an autolink swaps in for its URL.
     // Internal links (lb:// or relative paths) resolve synchronously from the file cache.
     // External http/https links are fetched asynchronously; returns Absent until
     // the fetch completes (caller renders the original URL text in that case).
