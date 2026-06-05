@@ -243,14 +243,22 @@ impl Workspace {
         &mut self, ui: &mut Ui, executor: &Arc<RwLock<Box<dyn SearchExecutor>>>,
         search_type: SearchType,
     ) -> Option<lb_rs::Uuid> {
+        const OUTER_PAD: f32 = 24.0;
+        const MIN_PREVIEW_WIDTH: f32 = 720.0;
+
         let size = ui.available_size();
+        let show_preview = size.x >= MIN_PREVIEW_WIDTH;
         ui.horizontal(|ui| {
             ui.set_min_size(size);
-            ui.add_space(10.0);
-            let half = (ui.available_width() - 31.0) / 2.;
+            ui.add_space(OUTER_PAD);
+            let picker_width = if show_preview {
+                (ui.available_width() - (21.0 + OUTER_PAD)) / 2.
+            } else {
+                ui.available_width() - OUTER_PAD
+            };
             let (picker, picked) = ui
                 .allocate_ui_with_layout(
-                    Vec2::new(half, ui.available_height()),
+                    Vec2::new(picker_width, ui.available_height()),
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| match executor.try_write() {
                         Ok(mut executor) => (executor.show_result_picker(ui), true),
@@ -263,37 +271,43 @@ impl Workspace {
                 .inner;
 
             if picked {
-                self.set_preview(picker.selected);
+                if show_preview {
+                    self.set_preview(picker.selected);
 
-                // For content search, steer the read-only preview to the
-                // highlighted snippet.
-                if search_type == SearchType::Content {
-                    if let Some(md) = self.preview.as_mut().and_then(|t| t.markdown_mut()) {
-                        md.preview_navigate(picker.selected_range.clone());
+                    // For content search, steer the read-only preview to the
+                    // highlighted snippet.
+                    if search_type == SearchType::Content {
+                        if let Some(md) = self.preview.as_mut().and_then(|t| t.markdown_mut()) {
+                            md.preview_navigate(picker.selected_range.clone());
+                        }
                     }
+                } else {
+                    self.preview = None;
                 }
             }
 
-            Self::hairline(ui, false);
+            if show_preview {
+                Self::hairline(ui, false);
 
-            ui.allocate_ui_with_layout(
-                Vec2::new(ui.available_width() - 10.0, ui.available_height()),
-                egui::Layout::top_down(egui::Align::LEFT),
-                |ui| {
-                    // without clip_rect, toolbar glyphs bleed outside the preview pane
-                    ui.set_clip_rect(ui.max_rect());
-                    // without push_id, interactive widgets (e.g. checkboxes) in the preview
-                    // collide with identical widgets in a background tab (if same file)
-                    ui.push_id("search_preview", |ui| match &mut self.preview {
-                        Some(tab) => {
-                            tab.show(ui);
-                        }
-                        None => {
-                            ui.centered_and_justified(|ui| ui.spinner());
-                        }
-                    });
-                },
-            );
+                ui.allocate_ui_with_layout(
+                    Vec2::new(ui.available_width() - OUTER_PAD, ui.available_height()),
+                    egui::Layout::top_down(egui::Align::LEFT),
+                    |ui| {
+                        // without clip_rect, toolbar glyphs bleed outside the preview pane
+                        ui.set_clip_rect(ui.max_rect());
+                        // without push_id, interactive widgets (e.g. checkboxes) in the preview
+                        // collide with identical widgets in a background tab (if same file)
+                        ui.push_id("search_preview", |ui| match &mut self.preview {
+                            Some(tab) => {
+                                tab.show(ui);
+                            }
+                            None => {
+                                ui.centered_and_justified(|ui| ui.spinner());
+                            }
+                        });
+                    },
+                );
+            }
 
             picker.activated
         })

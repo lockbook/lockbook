@@ -25,7 +25,7 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
-use crate::search::Search;
+use crate::search::{Search, SearchType};
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::show::DocType;
@@ -1097,8 +1097,7 @@ impl Workspace {
         warn!("Mind map is not supported on wasm targets");
     }
 
-    /// Open (or focus) the search tab.
-    pub fn upsert_search(&mut self) {
+    pub fn upsert_search(&mut self, search_type: Option<SearchType>) {
         if let Some(i) = self
             .tab_strip
             .iter()
@@ -1111,6 +1110,9 @@ impl Workspace {
         // refocus the query field each time the tab is opened/focused
         if let Some(tab) = self.tabs.get_mut(&Destination::Search) {
             if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                if let Some(search_type) = search_type {
+                    search.search_type = search_type;
+                }
                 search.initialized = false;
             }
         }

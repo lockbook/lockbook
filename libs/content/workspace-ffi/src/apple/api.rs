@@ -53,7 +53,7 @@ pub extern "C" fn open_file_at(
 #[no_mangle]
 pub extern "C" fn show_search(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.upsert_search();
+    obj.workspace.upsert_search(None);
 }
 
 #[no_mangle]

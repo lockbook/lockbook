@@ -14,6 +14,7 @@ use web_time::{Duration, Instant};
 
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::output::Response;
+use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
@@ -419,13 +420,17 @@ impl Workspace {
             self.upsert_mind_map(self.core.clone());
         }
 
-        // Experimental: Cmd-T to open the search experience as a tab (macOS only).
-        if APPLE
-            && self
-                .ctx
-                .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::T))
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::F))
         {
-            self.upsert_search();
+            self.upsert_search(Some(SearchType::Content));
+        }
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::O))
+        {
+            self.upsert_search(Some(SearchType::Path));
         }
 
         // Ctrl-W to close current tab, or return to root when on landing page.
