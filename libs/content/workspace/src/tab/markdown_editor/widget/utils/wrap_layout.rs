@@ -163,6 +163,15 @@ pub struct StyleInfo {
     pub source_range: (Grapheme, Grapheme),
 }
 
+/// A strike/underline rule. Deferred to a post-text paint pass so it
+/// lands on top of opaque emoji bitmaps instead of behind them (#4617).
+#[derive(Clone, Debug)]
+pub struct DecoLine {
+    pub x: std::ops::RangeInclusive<f32>,
+    pub y: f32,
+    pub color: egui::Color32,
+}
+
 /// One visual row of a wrap unit, emitted by `build_rows`.
 #[derive(Clone, Debug)]
 pub struct Row {
@@ -1689,22 +1698,26 @@ impl MdRender {
                     ));
                 }
 
-                // Decorations (strike / underline) at glyph baseline.
+                // Decorations (strike / underline): deferred to a paint
+                // pass after the glyphon text callback so they land on top
+                // of opaque emoji bitmaps instead of behind them (#4617).
                 if let Some(style) = frag.style_stack.last() {
                     let fmt = &style.format;
-                    let stroke = Stroke::new(1.0, fmt.color);
                     let baseline_top = screen_rect.min.y + frag.content_inset.top;
-                    let x_range = screen_rect.left()..=screen_rect.right();
+                    let x = screen_rect.left()..=screen_rect.right();
                     if fmt.strikethrough {
-                        ui.painter().hline(
-                            x_range.clone(),
-                            baseline_top + row_height * 0.55,
-                            stroke,
-                        );
+                        self.deco_lines.push(DecoLine {
+                            x: x.clone(),
+                            y: baseline_top + row_height * 0.55,
+                            color: fmt.color,
+                        });
                     }
                     if fmt.underline {
-                        ui.painter()
-                            .hline(x_range, baseline_top + row_height * 0.95, stroke);
+                        self.deco_lines.push(DecoLine {
+                            x,
+                            y: baseline_top + row_height * 0.95,
+                            color: fmt.color,
+                        });
                     }
                 }
 
