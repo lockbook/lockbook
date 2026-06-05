@@ -1111,18 +1111,11 @@ fn is_one_to_one_range(layout: &Layout, visible_lo: usize, visible_hi: usize) ->
 
 /// Whether grapheme `g` should shape against the emoji font (Twemoji) rather
 /// than the format's own font. Icon-family spans are excluded: Nerd Font icon
-/// glyphs sit in the supplementary PUA, which overlaps the emoji range below,
-/// and the emoji font carries no format color — so they'd render in the
-/// default fg instead of blue (#4653).
+/// glyphs sit in the supplementary PUA, which overlaps the emoji range, and the
+/// emoji font carries no format color — so they'd render in the default fg
+/// instead of blue (#4653).
 pub(crate) fn shape_as_emoji(family: &FontFamily, g: &str) -> bool {
-    !matches!(family, FontFamily::Icons)
-        && g.chars().any(|c| {
-            matches!(
-                c as u32,
-                0xFE0F  // variation selector-16: emoji presentation
-            | 0x1F000.. // supplementary multilingual plane: core emoji blocks
-            )
-        })
+    !matches!(family, FontFamily::Icons) && crate::widgets::glyphon_label::is_emoji_grapheme(g)
 }
 
 fn format_to_attrs(format: &Format, base_row_height: f32) -> glyphon::AttrsOwned {

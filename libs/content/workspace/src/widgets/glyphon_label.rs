@@ -2,6 +2,7 @@ use std::sync::{Arc, Mutex, RwLock};
 
 use egui::{Response, Sense, Ui};
 use glyphon::{Attrs, Buffer, Family, FontSystem, Metrics, Shaping, Weight};
+use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::widgets::glyphon_cache::{
     GlyphonCache, GlyphonCacheKey, GlyphonCacheSpan, GlyphonFontFamily,
@@ -376,9 +377,12 @@ impl<'a> GlyphonLabel<'a> {
                 buf.set_size(&mut fs, Some(max_width * ppi), None);
 
                 let base = Attrs::new().family(Family::SansSerif);
+                let emoji = Attrs::new().family(Family::Name("Twemoji Mozilla"));
+                // Route emoji graphemes to the color font; the rest keep the
+                // span's own attrs. Mirrors the editor's `shape_chunk`.
                 buf.set_rich_text(
                     &mut fs,
-                    spans.iter().map(|&(text, style)| {
+                    spans.iter().flat_map(|&(text, style)| {
                         let mut attrs = if style.bold {
                             base.clone().weight(Weight::BOLD)
                         } else {
@@ -387,7 +391,14 @@ impl<'a> GlyphonLabel<'a> {
                         if let Some(c) = style.color {
                             attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
                         }
-                        (text, attrs)
+                        let emoji = emoji.clone();
+                        text.graphemes(true).map(move |g| {
+                            if is_emoji_grapheme(g) {
+                                (g, emoji.clone())
+                            } else {
+                                (g, attrs.clone())
+                            }
+                        })
                     }),
                     &base,
                     Shaping::Advanced,
@@ -413,6 +424,20 @@ impl<'a> GlyphonLabel<'a> {
 struct OwnedSpan {
     text: String,
     style: SpanStyle,
+}
+
+/// Whether a grapheme should shape against the color emoji font (Twemoji)
+/// rather than the surrounding text font — VS-16 presentation sequences and
+/// the supplementary-plane emoji blocks. Without this, emoji fall back to the
+/// UI font and render as monochrome outlines.
+pub(crate) fn is_emoji_grapheme(g: &str) -> bool {
+    g.chars().any(|c| {
+        matches!(
+            c as u32,
+            0xFE0F  // variation selector-16: emoji presentation
+        | 0x1F000.. // supplementary multilingual plane: core emoji blocks
+        )
+    })
 }
 
 fn end_ellipsis_candidate(chars: &[char], keep: usize) -> String {
