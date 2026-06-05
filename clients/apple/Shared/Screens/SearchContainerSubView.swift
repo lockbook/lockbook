@@ -359,11 +359,7 @@ class SearchContainerViewModel: ObservableObject {
     private var contentSearcher: ContentSearching?
     private var pathSearcher: PathSearching?
 
-    /// The searchers are not thread-safe, so all handle access (query + snippet)
-    /// is serialized onto this queue.
     private let searchQueue = DispatchQueue(label: "lockbook.search")
-    /// Bumped on every `search()` (main thread only) so stale background results
-    /// can be discarded when a newer query has been dispatched.
     private var querySeq: UInt64 = 0
 
     init(filesModel: FilesViewModel) {

@@ -19,8 +19,8 @@ use model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
     StripeAccountTier, UnixTimeMillis,
 };
-use service::import_export::ImportStatus;
 use search::{ContentSearcher, PathSearcher};
+use service::import_export::ImportStatus;
 
 use std::sync::Arc;
 use std::sync::atomic::AtomicPtr;
@@ -889,11 +889,9 @@ pub extern "C" fn lb_content_searcher_snippet(
             matched: cstring(matched),
             suffix: cstring(suffix),
         },
-        None => LbContentSearcherSnippet {
-            prefix: null_mut(),
-            matched: null_mut(),
-            suffix: null_mut(),
-        },
+        None => {
+            LbContentSearcherSnippet { prefix: null_mut(), matched: null_mut(), suffix: null_mut() }
+        }
     }
 }
 

@@ -544,8 +544,9 @@ impl Workspace {
             }
 
             // Cmd+9 to go to last tab
-            let cmd9_consumed =
-                !completions_active && !search_active && input.consume_key_exact(COMMAND, Key::Num9);
+            let cmd9_consumed = !completions_active
+                && !search_active
+                && input.consume_key_exact(COMMAND, Key::Num9);
             let alt9_consumed = !APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9);
             if (cmd9_consumed || alt9_consumed) && !self.tab_strip.is_empty() {
                 goto_tab = Some(self.tab_strip.len() - 1);

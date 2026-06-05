@@ -1284,8 +1284,7 @@ impl Editor {
                         // read-only search-preview snippet highlight
                         if let Some(range) = self.edit.renderer.preview_match {
                             let theme = self.edit.renderer.ctx.get_lb_theme();
-                            let color =
-                                theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
+                            let color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
                             self.edit.show_range(ui, range, color);
                         }
                         pre
@@ -1391,8 +1390,12 @@ impl Editor {
     pub fn open_navigate(&mut self, byte_range: std::ops::Range<usize>) {
         let segs = &self.edit.renderer.buffer.current.segs;
         let last = segs.last_cursor_position();
-        let start = segs.byte_to_char_floor(Byte(byte_range.start)).clamp(0.into(), last);
-        let end = segs.byte_to_char_ceil(Byte(byte_range.end)).clamp(0.into(), last);
+        let start = segs
+            .byte_to_char_floor(Byte(byte_range.start))
+            .clamp(0.into(), last);
+        let end = segs
+            .byte_to_char_ceil(Byte(byte_range.end))
+            .clamp(0.into(), last);
 
         self.edit
             .renderer
@@ -1409,9 +1412,8 @@ impl Editor {
 
     pub fn preview_navigate(&mut self, byte_range: Option<std::ops::Range<usize>>) {
         let segs = &self.edit.renderer.buffer.current.segs;
-        let new_match = byte_range.map(|r| {
-            (segs.byte_to_char_floor(Byte(r.start)), segs.byte_to_char_ceil(Byte(r.end)))
-        });
+        let new_match = byte_range
+            .map(|r| (segs.byte_to_char_floor(Byte(r.start)), segs.byte_to_char_ceil(Byte(r.end))));
 
         if self.edit.renderer.preview_match != new_match {
             self.edit.renderer.preview_match = new_match;

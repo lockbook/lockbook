@@ -67,17 +67,8 @@ impl LocalLb {
         let events = EventSubs::default();
         let user_last_seen = Arc::new(RwLock::new(Instant::now()));
 
-        let result = Self {
-            config,
-            keychain,
-            db,
-            docs,
-            client,
-            syncer,
-            events,
-            status,
-            user_last_seen,
-        };
+        let result =
+            Self { config, keychain, db, docs, client, syncer, events, status, user_last_seen };
 
         #[cfg(not(target_family = "wasm"))]
         {
@@ -661,7 +652,6 @@ impl Lb {
             "never".to_string()
         }
     }
-
 }
 pub fn get_code_version() -> &'static str {
     env!("CARGO_PKG_VERSION")

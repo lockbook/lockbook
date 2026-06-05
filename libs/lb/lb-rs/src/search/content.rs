@@ -44,32 +44,34 @@ impl ContentSearcher {
                 let paths = paths.clone();
                 let documents = documents.clone();
                 let lb = lb.clone();
-                thread::spawn(move || loop {
-                    let Some(meta) = work.lock().unwrap().pop() else {
-                        return;
-                    };
+                thread::spawn(move || {
+                    loop {
+                        let Some(meta) = work.lock().unwrap().pop() else {
+                            return;
+                        };
 
-                    let id = meta.id;
-                    let doc = lb
-                        .read_document(meta.id, false)
-                        .ok()
-                        .and_then(|bytes| String::from_utf8(bytes).ok());
+                        let id = meta.id;
+                        let doc = lb
+                            .read_document(meta.id, false)
+                            .ok()
+                            .and_then(|bytes| String::from_utf8(bytes).ok());
 
-                    if let Some(content) = doc {
-                        let path = paths
-                            .iter()
-                            .find(|(i, _)| *i == id)
-                            .map(|(_, p)| p.clone())
-                            .unwrap_or_default();
+                        if let Some(content) = doc {
+                            let path = paths
+                                .iter()
+                                .find(|(i, _)| *i == id)
+                                .map(|(_, p)| p.clone())
+                                .unwrap_or_default();
 
-                        let (parent, name) = split_path(&path);
+                            let (parent, name) = split_path(&path);
 
-                        documents.lock().unwrap().push(Document {
-                            file: meta,
-                            filename: name.to_string(),
-                            parent_path: parent.to_string(),
-                            content: content.to_lowercase(),
-                        });
+                            documents.lock().unwrap().push(Document {
+                                file: meta,
+                                filename: name.to_string(),
+                                parent_path: parent.to_string(),
+                                content: content.to_lowercase(),
+                            });
+                        }
                     }
                 })
             })

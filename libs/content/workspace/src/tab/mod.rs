@@ -1,10 +1,10 @@
 use crate::file_cache::FilesExt;
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
+use crate::search::Search;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
-use crate::search::Search;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 

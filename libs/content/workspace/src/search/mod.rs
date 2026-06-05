@@ -79,7 +79,9 @@ impl Search {
         drop(guard);
 
         if stale_type {
-            let executor = self.search_type.create_executor(&self.core, ctx, &self.files);
+            let executor = self
+                .search_type
+                .create_executor(&self.core, ctx, &self.files);
             self.executor = Arc::new(RwLock::new(executor));
             self.dispatched_query.clear();
         }

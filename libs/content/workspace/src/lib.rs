@@ -4,8 +4,8 @@ pub mod landing;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
 pub mod output;
-pub mod search;
 pub mod resolvers;
+pub mod search;
 pub mod seq;
 pub mod show;
 pub mod space_inspector;

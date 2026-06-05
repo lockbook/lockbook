@@ -25,9 +25,9 @@ use web_time::{Duration, Instant};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
-use crate::search::{Search, SearchType};
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
+use crate::search::{Search, SearchType};
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::chat::Chat;
@@ -228,8 +228,12 @@ impl Workspace {
             },
         );
         if needs_load {
-            self.tasks
-                .queue_load(LoadRequest { id, tab_created: true, make_current: false, is_preview: false });
+            self.tasks.queue_load(LoadRequest {
+                id,
+                tab_created: true,
+                make_current: false,
+                is_preview: false,
+            });
         }
     }
 

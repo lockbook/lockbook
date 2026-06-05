@@ -349,13 +349,8 @@ impl SearchExecutor for ContentSearch {
             r.content_matches.get(hi).map(|m| m.range.clone())
         });
 
-        super::PickerResponse {
-            activated,
-            selected: self.selected_id,
-            selected_range,
-        }
+        super::PickerResponse { activated, selected: self.selected_id, selected_range }
     }
-
 }
 
 impl ContentSearch {
@@ -427,11 +422,8 @@ impl ContentSearch {
                                 .fill(bg)
                                 .show(ui, |ui| {
                                     ui.add(
-                                        GlyphonLabel::new(
-                                            &format!("{}", substring_matches),
-                                            fg,
-                                        )
-                                        .font_size(11.0),
+                                        GlyphonLabel::new(&format!("{}", substring_matches), fg)
+                                            .font_size(11.0),
                                     );
                                 });
                         });
@@ -447,11 +439,8 @@ impl ContentSearch {
                                 .fill(bg)
                                 .show(ui, |ui| {
                                     ui.add(
-                                        GlyphonLabel::new(
-                                            &format!("{}", exact_matches),
-                                            fg,
-                                        )
-                                        .font_size(11.0),
+                                        GlyphonLabel::new(&format!("{}", exact_matches), fg)
+                                            .font_size(11.0),
                                     );
                                 });
                         });
@@ -528,10 +517,7 @@ impl ContentSearch {
                 let max_w = ui.available_width();
                 ui.add(
                     GlyphonLabel::new_rich(
-                        snippet
-                            .iter()
-                            .map(|(t, b)| (t.as_str(), *b))
-                            .collect(),
+                        snippet.iter().map(|(t, b)| (t.as_str(), *b)).collect(),
                         parent_color,
                     )
                     .font_size(12.0)
@@ -652,11 +638,8 @@ impl ContentSearch {
                     if build_ms > 0 {
                         ui.add(GlyphonLabel::new("·", muted).font_size(11.0));
                         ui.add(
-                            GlyphonLabel::new(
-                                &format!("indexed in {} ms", build_ms),
-                                muted,
-                            )
-                            .font_size(11.0),
+                            GlyphonLabel::new(&format!("indexed in {} ms", build_ms), muted)
+                                .font_size(11.0),
                         );
                     }
                 });
@@ -669,18 +652,14 @@ impl ContentSearch {
         let variant = theme.fg();
 
         let (title, subtitle, icon_color): (&str, &str, _) = if no_results {
-            (
-                "Search your notes",
-                "Start typing to find matches",
-                variant.get_color(Palette::Blue),
-            )
+            ("Search your notes", "Start typing to find matches", variant.get_color(Palette::Blue))
         } else {
             ("No matches", "Try a different query or shorter words", muted)
         };
 
         // Fill the available region so the pane doesn't collapse to 0 width.
         let rect = ui.available_rect_before_wrap();
-        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(rect), |ui| {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
             ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(24.0);

@@ -73,7 +73,8 @@ impl SearchExecutor for PathSearch {
             self.activate = false;
             // Enter with no active selection (un-engaged suggestions) opens nothing.
             let has_selection = !showing_suggested || self.interacted;
-            let activated = if has_selection { rows.get(self.selected).map(|r| r.id) } else { None };
+            let activated =
+                if has_selection { rows.get(self.selected).map(|r| r.id) } else { None };
             return super::PickerResponse {
                 activated,
                 selected: self.selected_id,
@@ -103,7 +104,8 @@ impl SearchExecutor for PathSearch {
         ui.spacing_mut().scroll.dormant_handle_opacity = 0.5;
 
         // Only highlight a row if there's an active selection.
-        let highlight = if !showing_suggested || self.interacted { Some(self.selected) } else { None };
+        let highlight =
+            if !showing_suggested || self.interacted { Some(self.selected) } else { None };
 
         egui::ScrollArea::vertical()
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
@@ -202,8 +204,15 @@ impl PathSearch {
 
     fn process_keys(&mut self, ctx: &Context) {
         const NUM_KEYS: [Key; 9] = [
-            Key::Num1, Key::Num2, Key::Num3, Key::Num4, Key::Num5,
-            Key::Num6, Key::Num7, Key::Num8, Key::Num9,
+            Key::Num1,
+            Key::Num2,
+            Key::Num3,
+            Key::Num4,
+            Key::Num5,
+            Key::Num6,
+            Key::Num7,
+            Key::Num8,
+            Key::Num9,
         ];
 
         // In suggested mode there's no selection until the user engages, so the
@@ -257,7 +266,7 @@ impl PathSearch {
 
         // Fill the available region so the pane doesn't collapse to 0 width.
         let rect = ui.available_rect_before_wrap();
-        ui.allocate_new_ui(egui::UiBuilder::new().max_rect(rect), |ui| {
+        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
             ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
                 ui.vertical_centered(|ui| {
                     ui.add_space(24.0);
@@ -279,8 +288,8 @@ impl PathSearch {
         let parent_color = theme.neutral_fg_secondary();
 
         // Path indices are relative to full path; compute offset for filename
-        let parent_char_len = row.parent_path.chars().count() as u32
-            + if row.parent_path.is_empty() { 0 } else { 1 }; // +1 for the '/'
+        let parent_char_len =
+            row.parent_path.chars().count() as u32 + if row.parent_path.is_empty() { 0 } else { 1 }; // +1 for the '/'
 
         let mut frame = Frame::new()
             .inner_margin(Margin { left: 8, right: 8, top: 3, bottom: 3 })
@@ -345,11 +354,7 @@ impl PathSearch {
             });
         });
 
-        ui.interact(
-            inner.response.rect,
-            ui.id().with(("search_row", row.id)),
-            egui::Sense::click(),
-        )
+        ui.interact(inner.response.rect, ui.id().with(("search_row", row.id)), egui::Sense::click())
     }
 
     fn highlighted_line(

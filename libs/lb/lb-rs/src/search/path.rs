@@ -1,7 +1,10 @@
+use super::SearchResult;
 use crate::Lb;
 use crate::model::file::File;
-use super::SearchResult;
-use nucleo::{Matcher, Nucleo, pattern::{CaseMatching, Normalization}};
+use nucleo::{
+    Matcher, Nucleo,
+    pattern::{CaseMatching, Normalization},
+};
 use std::sync::Arc;
 
 /// Split a path into (parent_path, filename).
@@ -56,11 +59,7 @@ impl PathSearcher {
             }
         }
 
-        Self {
-            nucleo,
-            results: Vec::new(),
-            submitted_query: String::new(),
-        }
+        Self { nucleo, results: Vec::new(), submitted_query: String::new() }
     }
 
     /// Update the search query. Results available via `results()`.
