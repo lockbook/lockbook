@@ -304,10 +304,24 @@ impl<'ast> MdEdit {
                                     insert_text = " ".repeat(want - cur_col);
                                 }
                             }
-                            operations.push(Operation::Replace(Replace {
-                                range: insertion_offset.into_range(),
-                                text: insert_text,
-                            }));
+                            // Only `1.` can interrupt the parent item's
+                            // paragraph; a higher source number (common in
+                            // imported lists) collapses the new sublist into
+                            // plain text. Later items render off the list
+                            // start, so forcing `1.` is harmless.
+                            let renumber = (!is_continuation)
+                                .then(|| ordered_marker_digits(&self.renderer, container, line))
+                                .flatten();
+                            match renumber {
+                                Some(digits) => operations.push(Operation::Replace(Replace {
+                                    range: digits,
+                                    text: format!("{insert_text}1"),
+                                })),
+                                None => operations.push(Operation::Replace(Replace {
+                                    range: insertion_offset.into_range(),
+                                    text: insert_text,
+                                })),
+                            }
                         }
 
                         true
@@ -1131,6 +1145,26 @@ fn find_deindent<'ast>(
 /// items (the items one level nested under it), or `None` if it has
 /// none. Used so indent can align the item to its child, leaving the
 /// child's level unchanged.
+/// Grapheme range of an ordered-list item's leading marker digits on `line`
+/// (the `12` in `12. `), or `None` if `container` isn't an ordered list item.
+fn ordered_marker_digits<'ast>(
+    renderer: &MdRender, container: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+) -> Option<(Grapheme, Grapheme)> {
+    let parent = container.parent()?;
+    if !matches!(
+        parent.data.borrow().value,
+        NodeValue::List(NodeList { list_type: ListType::Ordered, .. })
+    ) {
+        return None;
+    }
+    let own_prefix = renderer.line_own_prefix(container, line);
+    let digits = renderer.buffer[own_prefix]
+        .chars()
+        .take_while(|c| c.is_ascii_digit())
+        .count();
+    (digits > 0).then(|| (own_prefix.start(), own_prefix.start() + Graphemes(digits)))
+}
+
 fn max_child_marker_col<'ast>(renderer: &MdRender, item: &'ast AstNode<'ast>) -> Option<usize> {
     item.children()
         .filter(|c| matches!(&c.data.borrow().value, NodeValue::List(_)))
