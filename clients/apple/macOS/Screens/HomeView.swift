@@ -19,8 +19,6 @@ struct HomeView: View {
     }
 
     var body: some View {
-        // Search is handled by the workspace (egui) on macOS, so the Swift
-        // search containers that used to wrap this view have been removed.
         NavigationSplitView(
             columnVisibility: homeState.splitViewVisibility,
             sidebar: {

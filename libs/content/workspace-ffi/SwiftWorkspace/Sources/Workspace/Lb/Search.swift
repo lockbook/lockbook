@@ -117,9 +117,6 @@ public struct SearcherSnippet: Hashable {
     public let suffix: String
 }
 
-/// Thin wrapper over the Rust `ContentSearcher`. Not thread-safe on its own — callers must
-/// serialize access (e.g. via a dedicated dispatch queue). Calling `query` and `snippet`
-/// concurrently from different threads is undefined behavior.
 public final class LbContentSearcher: ContentSearching {
     private let handle: OpaquePointer
 
@@ -156,8 +153,6 @@ public final class LbContentSearcher: ContentSearching {
         )
     }
 
-    /// Flatten newlines so the snippet fits on a single line. Matches the cleanup the egui
-    /// search UI does in `workspace::search::content::extract_snippet`.
     private static func clean(_ s: String) -> String {
         String(s.map { ($0 == "\n" || $0 == "\r") ? " " : $0 })
     }

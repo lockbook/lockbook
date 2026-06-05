@@ -1,14 +1,8 @@
 pub mod content;
 pub mod path;
 
-/// The search experience, owned by its tab ([`crate::tab::TabContent::Search`]).
-/// The query box lives here; the results/preview split is rendered by
-/// [`Workspace::show_search_tab`] because the preview pane reuses the
-/// workspace's async file-loading (`self.preview` / `set_preview`).
 pub struct Search {
     pub search_type: SearchType,
-    /// The directory the search is scoped to. Defaults to the account root.
-    pub scope: lb_rs::Uuid,
     pub query: String,
     pub initialized: bool,
     pub executor: Arc<RwLock<Box<dyn SearchExecutor>>>,
@@ -66,7 +60,6 @@ impl Search {
     pub fn new(lb: &Lb, ctx: &Context, files: Arc<RwLock<FileCache>>) -> Search {
         Search {
             search_type: SearchType::Path,
-            scope: lb.get_root().map(|f| f.id).unwrap_or_default(),
             query: String::new(),
             initialized: false,
             executor: Arc::new(RwLock::new(SearchType::Path.create_executor(lb, ctx, &files))),

@@ -36,7 +36,6 @@ pub enum Destination {
     File(Uuid),
     MindMap(Uuid),
     SpaceInspector(Uuid),
-    /// Experimental: the search experience embedded as a tab (Cmd+T).
     Search,
 }
 
@@ -227,9 +226,6 @@ impl Tab {
                     TabContent::SpaceInspector(sv) => {
                         sv.show(ui);
                     }
-                    // Rendered by `Workspace::show_search_tab` instead of here:
-                    // the results/preview split needs workspace-owned async file
-                    // loading that a `Tab` can't reach.
                     TabContent::Search(_) => {}
                 }
                 resp
