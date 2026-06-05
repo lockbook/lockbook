@@ -46,9 +46,25 @@ class SearchDocumentsFragment : Fragment() {
         binding.searchDocumentsResults.setup {
             withDataSource(model.fileResults)
 
-            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, SearchedDocumentNameViewHolder>(
-                R.layout.searched_document_name_item,
-            ) {
+            withItem<SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo, SearchSectionHeaderViewHolder>(R.layout.search_section_header_item) {
+                onBind(::SearchSectionHeaderViewHolder) { _, item ->
+                    title.text = item.title
+                    action.text = item.action
+                    action.visibility = if (item.action == null) View.GONE else View.VISIBLE
+
+                    action.setOnClickListener {
+                        model.focusSearch(item.focus)
+                    }
+                }
+            }
+
+            withItem<SearchedDocumentViewHolderInfo.EmptyViewHolderInfo, SearchEmptyViewHolder>(R.layout.search_empty_item) {
+                onBind(::SearchEmptyViewHolder) { _, item ->
+                    message.text = item.message
+                }
+            }
+
+            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, SearchedDocumentNameViewHolder>(R.layout.searched_document_name_item) {
                 onBind(::SearchedDocumentNameViewHolder) { _, item ->
                     name.text = item.name
                     path.text = item.path

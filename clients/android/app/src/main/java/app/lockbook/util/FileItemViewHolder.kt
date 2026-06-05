@@ -121,26 +121,25 @@ fun List<File>.intoSuggestedViewHolderInfo(idsAndFiles: Map<String, File>): List
 
 fun List<FileViewHolderInfo>.intoFileMetadata(): List<File> = this.map { viewHolderInfo -> viewHolderInfo.fileMetadata }
 
-sealed class SearchedDocumentViewHolderInfo(
-    open val id: String,
-    open val path: SpannableString,
-    open val name: SpannableString,
-    open val score: Int,
-) {
-    data class DocumentNameViewHolderInfo(
-        override val id: String,
-        override val path: SpannableString,
-        override val name: SpannableString,
-        override val score: Int,
-    ) : SearchedDocumentViewHolderInfo(id, path, name, score)
+sealed class SearchedDocumentViewHolderInfo {
+    data class SectionHeaderViewHolderInfo(val title: String, val action: String? = null, val focus: SearchFocus? = null) : SearchedDocumentViewHolderInfo()
+    data class EmptyViewHolderInfo(val message: String) : SearchedDocumentViewHolderInfo()
+    data class DocumentNameViewHolderInfo(val id: String, val path: SpannableString, val name: SpannableString) : SearchedDocumentViewHolderInfo()
+    data class DocumentContentViewHolderInfo(val id: String, val path: SpannableString, val name: SpannableString, val content: SpannableString) : SearchedDocumentViewHolderInfo()
+}
 
-    data class DocumentContentViewHolderInfo(
-        override val id: String,
-        override val path: SpannableString,
-        override val name: SpannableString,
-        override val score: Int,
-        val content: SpannableString,
-    ) : SearchedDocumentViewHolderInfo(id, path, name, score)
+enum class SearchFocus {
+    Filename,
+    Content
+}
+
+class SearchSectionHeaderViewHolder(itemView: View) : ViewHolder(itemView) {
+    val title: TextView = itemView.findViewById(R.id.search_section_title)
+    val action: MaterialButton = itemView.findViewById(R.id.search_section_action)
+}
+
+class SearchEmptyViewHolder(itemView: View) : ViewHolder(itemView) {
+    val message: TextView = itemView.findViewById(R.id.search_empty_message)
 }
 
 class SearchedDocumentNameViewHolder(
