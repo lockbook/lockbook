@@ -57,8 +57,10 @@ impl<'ast> MdRender {
         egui::Id::new(("md_link", node_range))
     }
 
-    /// Emit a link as a circumfix. For empty/auto links with a fetched
-    /// title, swap the URL bytes for the title via `push_override`.
+    /// Emit a link as a circumfix. For autolinks with a fetched title,
+    /// swap the URL bytes for the title via `push_override`. Empty-text
+    /// links (`[](url)`) are not autolinks and have nothing to show, so
+    /// they render their raw source like other incomplete syntax.
     /// With cmd held, opens a `Sense::click` interaction scope so egui
     /// z-order routes cmd-click here; without cmd no scope is opened
     /// and clicks fall through to the editor.
@@ -79,15 +81,14 @@ impl<'ast> MdRender {
         }
 
         let trimmed = node_range.trim(&range);
-        let title =
-            if (node.children().next().is_none() || is_auto) && !revealed && !trimmed.is_empty() {
-                match self.get_link_title(&url) {
-                    DestinationTitle::Ready(t) => Some(t),
-                    DestinationTitle::Absent => None,
-                }
-            } else {
-                None
-            };
+        let title = if is_auto && !revealed && !trimmed.is_empty() {
+            match self.get_link_title(&url) {
+                DestinationTitle::Ready(t) => Some(t),
+                DestinationTitle::Absent => None,
+            }
+        } else {
+            None
+        };
         match title {
             Some(t) => {
                 layout.style_open(StyleInfo { format: link_fmt.clone(), source_range: node_range });
@@ -245,7 +246,7 @@ impl<'ast> MdRender {
         }
     }
 
-    // Resolves the display title for a link with empty text.
+    // Resolves the display title an autolink swaps in for its URL.
     // Internal links (lb:// or relative paths) resolve synchronously from the file cache.
     // External http/https links are fetched asynchronously; returns Absent until
     // the fetch completes (caller renders the original URL text in that case).
