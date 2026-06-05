@@ -7626,7 +7626,6 @@ name = "test_utils"
 version = "26.6.3"
 dependencies = [
  "bincode",
- "itertools 0.10.5",
  "lb-rs",
  "time",
  "uuid 1.8.0",

@@ -97,7 +97,7 @@ impl ContentSearcher {
 
     /// Update the search query. Results available via `results()`.
     pub fn query(&mut self, input: &str) {
-        let query = input.to_ascii_lowercase();
+        let query = input.to_lowercase();
 
         if self.submitted_query == query {
             return;
