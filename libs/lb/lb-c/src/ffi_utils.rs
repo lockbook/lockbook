@@ -4,6 +4,7 @@ use std::path::PathBuf;
 
 use lb_rs::blocking::Lb;
 use lb_rs::model::errors::LbErr;
+use lb_rs::search::{ContentSearcher, PathSearcher};
 
 use crate::lb_c_err::LbFfiErr;
 
@@ -53,6 +54,14 @@ pub(crate) fn r_opt_str<'a>(s: *const c_char) -> Option<&'a str> {
 
 pub(crate) fn rlb<'a>(clb: *mut Lb) -> &'a Lb {
     unsafe { clb.as_ref().unwrap() }
+}
+
+pub(crate) fn rpath_searcher<'a>(searcher: *mut PathSearcher) -> &'a mut PathSearcher {
+    unsafe { searcher.as_mut().unwrap() }
+}
+
+pub(crate) fn rcontent_searcher<'a>(searcher: *mut ContentSearcher) -> &'a mut ContentSearcher {
+    unsafe { searcher.as_mut().unwrap() }
 }
 
 pub(crate) fn lb_err(err: LbErr) -> *mut LbFfiErr {

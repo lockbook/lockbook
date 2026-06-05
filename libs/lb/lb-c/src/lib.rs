@@ -4,7 +4,8 @@ use std::ptr::null_mut;
 use std::{fs, process};
 
 use ffi_utils::{
-    carray, cstring, cstring_array, lb_err, r_opt_str, r_paths, rlb, rstr, rstring, rvec,
+    carray, cstring, cstring_array, lb_err, r_opt_str, r_paths, rcontent_searcher, rlb,
+    rpath_searcher, rstr, rstring, rvec,
 };
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
@@ -762,7 +763,7 @@ pub extern "C" fn lb_path_searcher_new(lb: *mut Lb) -> *mut PathSearcher {
 pub extern "C" fn lb_path_searcher_query(
     searcher: *mut PathSearcher, input: *const c_char,
 ) -> LbPathSearcherResults {
-    let searcher = unsafe { searcher.as_mut().unwrap() };
+    let searcher = rpath_searcher(searcher);
     let input = rstr(input);
 
     searcher.query(input);
@@ -835,7 +836,7 @@ pub extern "C" fn lb_content_searcher_new(lb: *mut Lb) -> *mut ContentSearcher {
 pub extern "C" fn lb_content_searcher_query(
     searcher: *mut ContentSearcher, input: *const c_char,
 ) -> LbContentSearcherResults {
-    let searcher = unsafe { searcher.as_mut().unwrap() };
+    let searcher = rcontent_searcher(searcher);
     let input = rstr(input);
 
     searcher.query(input);
@@ -881,7 +882,7 @@ pub extern "C" fn lb_content_searcher_snippet(
     searcher: *mut ContentSearcher, id: LbUuid, range_start: usize, range_end: usize,
     context_chars: usize,
 ) -> LbContentSearcherSnippet {
-    let searcher = unsafe { searcher.as_ref().unwrap() };
+    let searcher = rcontent_searcher(searcher);
     let id: Uuid = id.into();
     match searcher.snippet(id, &(range_start..range_end), context_chars) {
         Some((prefix, matched, suffix)) => LbContentSearcherSnippet {

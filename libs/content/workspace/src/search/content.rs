@@ -238,11 +238,10 @@ impl SearchExecutor for ContentSearch {
                         slot_cursor += if matches!(e, FlatEntry::Header { .. }) { 2 } else { 1 };
                     }
 
-                    for fi in first_fi..flat.len() {
+                    for (fi, entry) in flat.iter().enumerate().skip(first_fi) {
                         if slot_cursor >= range.end {
                             break;
                         }
-                        let entry = &flat[fi];
                         slot_cursor +=
                             if matches!(entry, FlatEntry::Header { .. }) { 2 } else { 1 };
                         let Some(r) = results.get(entry.match_idx()) else {

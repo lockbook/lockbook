@@ -78,7 +78,7 @@ impl PathSearcher {
         // Build results
         self.results.clear();
         let snapshot = self.nucleo.snapshot();
-        let count = snapshot.matched_item_count().min(100) as u32;
+        let count = snapshot.matched_item_count().min(100);
         let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
 
         for i in 0..count {

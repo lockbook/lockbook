@@ -5,33 +5,29 @@ public enum SearchMode: String, CaseIterable, Identifiable, Hashable {
     case path = "Filename"
     case content = "Content"
     public var id: String { rawValue }
-
+    
     static var platformDefault: SearchMode {
-        #if os(iOS)
-            .path
-        #else
-            .content
-        #endif
+        .path
     }
 }
 
 struct SearchContainerSubView<Content: View>: View {
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var homeState: HomeState
-
+    
     @Binding var isSearching: Bool
     @ObservedObject var model: SearchContainerViewModel
     let dismissSearch: () -> Void
-
+    
     let content: Content
-
+    
     private func openAndCloseFloatingSidebar(id: UUID, match: ContentSearcherMatch? = nil) {
         model.open(id: id, workspaceInput: workspaceInput, match: match)
         if homeState.isSidebarFloating {
             homeState.sidebarState = .closed
         }
     }
-
+    
     var body: some View {
         Group {
             if isSearching {
@@ -75,12 +71,12 @@ struct SearchContainerSubView<Content: View>: View {
             model.search()
         }
     }
-
+    
     var querySpinner: some View {
         ProgressView()
             .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
+    
     var modePicker: some View {
         Picker("", selection: $model.mode) {
             ForEach(SearchMode.allCases) { m in
@@ -91,7 +87,7 @@ struct SearchContainerSubView<Content: View>: View {
         .padding(.horizontal, 10)
         .padding(.vertical, 6)
     }
-
+    
     var contentResultsList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -110,7 +106,7 @@ struct SearchContainerSubView<Content: View>: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
+    
     var pathResultsList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -134,17 +130,17 @@ struct SearchResultRow: View {
     let fetchSnippet: (ContentSearcherMatch) -> SearcherSnippet?
     let onTap: () -> Void
     let onShowMore: () -> Void
-
+    
     private static let collapsedCount = 2
-
+    
     var visibleMatches: ArraySlice<ContentSearcherMatch> {
         result.matches.prefix(Self.collapsedCount)
     }
-
+    
     var hiddenCount: Int {
         max(0, result.matches.count - Self.collapsedCount)
     }
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             Text(result.filename)
@@ -152,11 +148,11 @@ struct SearchResultRow: View {
             Text(result.parentPath)
                 .font(.caption)
                 .foregroundColor(.secondary)
-
+            
             ForEach(Array(visibleMatches.enumerated()), id: \.offset) { _, match in
                 snippetLine(for: match)
             }
-
+            
             if hiddenCount > 0 {
                 Button(action: onShowMore) {
                     Text("Show \(hiddenCount) more")
@@ -173,17 +169,17 @@ struct SearchResultRow: View {
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
     }
-
+    
     @ViewBuilder
     func snippetLine(for match: ContentSearcherMatch) -> some View {
         if let snippet = fetchSnippet(match) {
             (Text(snippet.prefix).foregroundColor(.gray)
-                + Text(snippet.matched).bold()
-                + Text(snippet.suffix).foregroundColor(.gray))
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
+             + Text(snippet.matched).bold()
+             + Text(snippet.suffix).foregroundColor(.gray))
+            .font(.caption)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -191,7 +187,7 @@ struct SearchResultRow: View {
 struct PathSearcherRow: View {
     let result: PathSearcherResult
     let onTap: () -> Void
-
+    
     var body: some View {
         VStack(alignment: .leading, spacing: 4) {
             highlighted(result.filename, offset: filenameOffset)
@@ -208,12 +204,12 @@ struct PathSearcherRow: View {
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
     }
-
+    
     private var parentOffset: Int {
         // leading "/" consumes index 0, so parent text starts at 1 for nested paths
         result.parentPath == "/" ? 0 : 1
     }
-
+    
     private var filenameOffset: Int {
         // root: "/" + filename → filename starts at 1
         // nested: "/" + parent + "/" + filename → starts at parent.count + 2
@@ -222,7 +218,7 @@ struct PathSearcherRow: View {
         }
         return result.parentPath.unicodeScalars.count + 2
     }
-
+    
     private func highlighted(_ s: String, offset: Int) -> Text {
         let indices = Set(result.matchedIndices.map { Int($0) })
         var out = Text("")
@@ -243,7 +239,7 @@ struct FocusedSearchResultView: View {
     let fetchSnippet: (ContentSearcherMatch) -> SearcherSnippet?
     let onBack: () -> Void
     let onTapSnippet: (ContentSearcherMatch) -> Void
-
+    
     var body: some View {
         VStack(spacing: 0) {
             header
@@ -251,7 +247,7 @@ struct FocusedSearchResultView: View {
             snippetList
         }
     }
-
+    
     var header: some View {
         HStack(spacing: 8) {
             Button(action: onBack) {
@@ -259,7 +255,7 @@ struct FocusedSearchResultView: View {
                     .foregroundColor(.accentColor)
             }
             .buttonStyle(.plain)
-
+            
             VStack(alignment: .leading, spacing: 2) {
                 Text(result.filename)
                     .font(.headline)
@@ -267,16 +263,16 @@ struct FocusedSearchResultView: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             }
-
+            
             Spacer()
-
+            
             Text("\(result.matches.count) match\(result.matches.count == 1 ? "" : "es")")
                 .font(.caption)
                 .foregroundColor(.secondary)
         }
         .padding()
     }
-
+    
     var snippetList: some View {
         ScrollView {
             LazyVStack(alignment: .leading, spacing: 0) {
@@ -291,27 +287,27 @@ struct FocusedSearchResultView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-
+    
     @ViewBuilder
     func snippetRow(for match: ContentSearcherMatch) -> some View {
         if let snippet = fetchSnippet(match) {
             (Text(snippet.prefix).foregroundColor(.gray)
-                + Text(snippet.matched).bold()
-                + Text(snippet.suffix).foregroundColor(.gray))
-                .font(.caption)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .padding(.horizontal, 12)
-                .padding(.vertical, 8)
-                .contentShape(Rectangle())
+             + Text(snippet.matched).bold()
+             + Text(snippet.suffix).foregroundColor(.gray))
+            .font(.caption)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(.horizontal, 12)
+            .padding(.vertical, 8)
+            .contentShape(Rectangle())
         }
     }
 }
 
 struct SearchMetricsBar: View {
     @ObservedObject var model: SearchContainerViewModel
-
+    
     var body: some View {
         HStack(spacing: 12) {
             if let dur = model.buildDuration {
@@ -329,14 +325,14 @@ struct SearchMetricsBar: View {
         .padding(.vertical, 4)
         .background(Color.gray.opacity(0.08))
     }
-
+    
     func metric(label: String, value: String) -> some View {
         HStack(spacing: 4) {
             Text(label).foregroundColor(.gray.opacity(0.7))
             Text(value).foregroundColor(.gray)
         }
     }
-
+    
     func format(ms: Double) -> String {
         ms < 10 ? String(format: "%.2f ms", ms) : String(format: "%.0f ms", ms)
     }
@@ -353,26 +349,26 @@ class SearchContainerViewModel: ObservableObject {
     @Published var rendered: Set<UUID> = []
     @Published var focusedResult: ContentSearcherResult? = nil
     @Published var isQuerying: Bool = false
-
+    
     let filesModel: FilesViewModel
-
+    
     private var contentSearcher: ContentSearching?
     private var pathSearcher: PathSearching?
-
+    
     private let searchQueue = DispatchQueue(label: "lockbook.search")
     private var querySeq: UInt64 = 0
-
+    
     init(filesModel: FilesViewModel) {
         self.filesModel = filesModel
     }
-
+    
     var resultCount: Int {
         switch mode {
         case .content: contentResults.count
         case .path: pathResults.count
         }
     }
-
+    
     func startSearching() {
         guard contentSearcher == nil else { return }
         let start = Date()
@@ -381,7 +377,7 @@ class SearchContainerViewModel: ObservableObject {
         buildDuration = Date().timeIntervalSince(start)
         search()
     }
-
+    
     func stopSearching() {
         querySeq &+= 1
         contentSearcher = nil
@@ -394,7 +390,7 @@ class SearchContainerViewModel: ObservableObject {
         focusedResult = nil
         isQuerying = false
     }
-
+    
     func search() {
         querySeq &+= 1
         let seq = querySeq
@@ -402,13 +398,13 @@ class SearchContainerViewModel: ObservableObject {
         let input = input
         let contentSearcher = contentSearcher
         let pathSearcher = pathSearcher
-
+        
         guard contentSearcher != nil || pathSearcher != nil else { return }
-
+        
         focusedResult = nil
         rendered = []
         isQuerying = true
-
+        
         let start = Date()
         searchQueue.async { [weak self] in
             var content: [ContentSearcherResult] = []
@@ -418,7 +414,7 @@ class SearchContainerViewModel: ObservableObject {
             case .path: path = pathSearcher?.query(input) ?? []
             }
             let duration = Date().timeIntervalSince(start)
-
+            
             DispatchQueue.main.async {
                 guard let self, self.querySeq == seq else { return }
                 switch mode {
@@ -430,12 +426,12 @@ class SearchContainerViewModel: ObservableObject {
             }
         }
     }
-
+    
     func snippet(id: UUID, match: ContentSearcherMatch) -> SearcherSnippet? {
         guard let contentSearcher else { return nil }
         return searchQueue.sync { contentSearcher.snippet(id: id, match: match, contextChars: 40) }
     }
-
+    
     func open(id: UUID, workspaceInput: WorkspaceInputState, match: ContentSearcherMatch? = nil) {
         guard let file = filesModel.idsToFiles[id] else { return }
         if file.type == .folder {

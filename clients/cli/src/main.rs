@@ -11,7 +11,6 @@ mod stream;
 
 use std::env;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use account::ApiUrl;
 use cli_rs::arg::Arg;
@@ -19,14 +18,11 @@ use cli_rs::cli_error::{CliError, CliResult, Exit};
 use cli_rs::command::Command;
 use cli_rs::flag::Flag;
 use cli_rs::parser::Cmd;
-
-use colored::Colorize;
 use input::FileInput;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::path_ops::Filter;
 use lb_rs::service::events::{Event, SyncIncrement};
-use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use lb_rs::{Lb, Uuid};
 
 fn run() -> CliResult<()> {
@@ -211,11 +207,6 @@ fn run() -> CliResult<()> {
                 )
         )
         .subcommand(
-            Command::name("search").description("search document contents")
-                .input(Arg::str("query"))
-                .handler(|query| search(&query.get()))
-        )
-        .subcommand(
             Command::name("migrate-from").description("transfer files from an existing platform")
                 .subcommand(
                     Command::name("bear").description("migrate your files from https://bear.app/ Export as md and using the 'export attachments' option.")
@@ -239,61 +230,6 @@ pub async fn core() -> CliResult<Lb> {
     Lb::init(Config::cli_config("cli"))
         .await
         .map_err(|err| CliError::from(err.to_string()))
-}
-
-#[tokio::main]
-async fn search(query: &str) -> CliResult<()> {
-    let lb = &core().await?;
-    ensure_account_and_root(lb).await?;
-
-    let time = Instant::now();
-    lb.build_index().await?;
-    let build_time = time.elapsed();
-
-    lb.reload_search_index().await?;
-
-    let time = Instant::now();
-    let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;
-    let search_time = time.elapsed();
-
-    for result in results {
-        match result {
-            SearchResult::DocumentMatch { id: _, path, content_matches } => {
-                println!("{}", format!("DOC: {path}").bold().blue());
-                for content in content_matches {
-                    let mut result = String::default();
-                    for (i, c) in content.paragraph.char_indices() {
-                        if content.matched_indices.contains(&i) {
-                            result = format!("{result}{}", c.to_string().underline());
-                        } else {
-                            result = format!("{result}{c}");
-                        }
-                    }
-                    println!("{result}");
-                }
-                println!();
-            }
-            SearchResult::PathMatch { id: _, path, matched_indices, score: _ } => {
-                let mut result = String::default();
-                for (i, c) in path.char_indices() {
-                    if matched_indices.contains(&i) {
-                        result = format!("{result}{}", c.to_string().underline());
-                    } else {
-                        result = format!("{result}{c}");
-                    }
-                }
-                println!("{}", format!("PATH: {result}").bold().green());
-                println!();
-            }
-        }
-    }
-
-    let build_time = format!("{build_time:?}").bold();
-    let search_time = format!("{search_time:?}").bold();
-    println!("Index built in {build_time}");
-    println!("Search took {search_time}");
-
-    Ok(())
 }
 
 #[tokio::main]
