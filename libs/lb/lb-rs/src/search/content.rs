@@ -196,7 +196,12 @@ impl ContentSearcher {
         // Snap to whitespace
         let mut start = start_ci;
         if start > 0 {
-            for (i, &(_, c)) in char_indices.iter().enumerate().take(match_start_ci).skip(start) {
+            for (i, &(_, c)) in char_indices
+                .iter()
+                .enumerate()
+                .take(match_start_ci)
+                .skip(start)
+            {
                 if c.is_whitespace() {
                     start = i + 1;
                     break;

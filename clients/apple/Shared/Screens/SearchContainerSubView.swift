@@ -54,7 +54,6 @@ struct SearchContainerSubView<Content: View>: View {
                             pathResultsList
                         }
                     }
-                    SearchMetricsBar(model: model)
                 }
             } else {
                 content
@@ -98,8 +97,6 @@ struct SearchContainerSubView<Content: View>: View {
                         onTap: { openAndCloseFloatingSidebar(id: result.id, match: result.matches.first) },
                         onShowMore: { model.focusedResult = result }
                     )
-                    .onAppear { model.rendered.insert(result.id) }
-                    .onDisappear { model.rendered.remove(result.id) }
                     Divider()
                 }
             }
@@ -115,8 +112,6 @@ struct SearchContainerSubView<Content: View>: View {
                         result: result,
                         onTap: { openAndCloseFloatingSidebar(id: result.id) }
                     )
-                    .onAppear { model.rendered.insert(result.id) }
-                    .onDisappear { model.rendered.remove(result.id) }
                     Divider()
                 }
             }
@@ -305,48 +300,12 @@ struct FocusedSearchResultView: View {
     }
 }
 
-struct SearchMetricsBar: View {
-    @ObservedObject var model: SearchContainerViewModel
-    
-    var body: some View {
-        HStack(spacing: 12) {
-            if let dur = model.buildDuration {
-                metric(label: "build", value: format(ms: dur * 1000))
-            }
-            if let dur = model.lastQueryDuration {
-                metric(label: "query", value: format(ms: dur * 1000))
-            }
-            metric(label: "results", value: "\(model.resultCount)")
-            metric(label: "rendered", value: "\(model.rendered.count)")
-            Spacer()
-        }
-        .font(.system(.caption2, design: .monospaced))
-        .padding(.horizontal, 10)
-        .padding(.vertical, 4)
-        .background(Color.gray.opacity(0.08))
-    }
-    
-    func metric(label: String, value: String) -> some View {
-        HStack(spacing: 4) {
-            Text(label).foregroundColor(.gray.opacity(0.7))
-            Text(value).foregroundColor(.gray)
-        }
-    }
-    
-    func format(ms: Double) -> String {
-        ms < 10 ? String(format: "%.2f ms", ms) : String(format: "%.0f ms", ms)
-    }
-}
-
 class SearchContainerViewModel: ObservableObject {
     @Published var input: String = ""
     @Published var isShown: Bool = false
     @Published var mode: SearchMode = .platformDefault
-    @Published var buildDuration: TimeInterval? = nil
-    @Published var lastQueryDuration: TimeInterval? = nil
     @Published var contentResults: [ContentSearcherResult] = []
     @Published var pathResults: [PathSearcherResult] = []
-    @Published var rendered: Set<UUID> = []
     @Published var focusedResult: ContentSearcherResult? = nil
     @Published var isQuerying: Bool = false
     
@@ -361,32 +320,20 @@ class SearchContainerViewModel: ObservableObject {
     init(filesModel: FilesViewModel) {
         self.filesModel = filesModel
     }
-    
-    var resultCount: Int {
-        switch mode {
-        case .content: contentResults.count
-        case .path: pathResults.count
-        }
-    }
-    
+
     func startSearching() {
         guard contentSearcher == nil else { return }
-        let start = Date()
         contentSearcher = AppState.lb.contentSearcher()
         pathSearcher = AppState.lb.pathSearcher()
-        buildDuration = Date().timeIntervalSince(start)
         search()
     }
-    
+
     func stopSearching() {
         querySeq &+= 1
         contentSearcher = nil
         pathSearcher = nil
-        buildDuration = nil
-        lastQueryDuration = nil
         contentResults = []
         pathResults = []
-        rendered = []
         focusedResult = nil
         isQuerying = false
     }
@@ -402,10 +349,8 @@ class SearchContainerViewModel: ObservableObject {
         guard contentSearcher != nil || pathSearcher != nil else { return }
         
         focusedResult = nil
-        rendered = []
         isQuerying = true
-        
-        let start = Date()
+
         searchQueue.async { [weak self] in
             var content: [ContentSearcherResult] = []
             var path: [PathSearcherResult] = []
@@ -413,15 +358,13 @@ class SearchContainerViewModel: ObservableObject {
             case .content: content = contentSearcher?.query(input) ?? []
             case .path: path = pathSearcher?.query(input) ?? []
             }
-            let duration = Date().timeIntervalSince(start)
-            
+
             DispatchQueue.main.async {
                 guard let self, self.querySeq == seq else { return }
                 switch mode {
                 case .content: self.contentResults = content
                 case .path: self.pathResults = path
                 }
-                self.lastQueryDuration = duration
                 self.isQuerying = false
             }
         }
