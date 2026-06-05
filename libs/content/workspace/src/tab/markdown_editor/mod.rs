@@ -1332,6 +1332,9 @@ impl Editor {
         if find_output.scroll_to_match {
             self.edit.pending_scroll = Some(ScrollTarget::FindMatch);
         }
+        if find_output.closed {
+            self.focus(ui.ctx());
+        }
 
         let new_match = self.find.current_match_range();
         self.edit.renderer.find_current_match = new_match;
