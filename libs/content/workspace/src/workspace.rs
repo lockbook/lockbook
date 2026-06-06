@@ -1,5 +1,5 @@
 use chrono::Local;
-use egui::{Context, ViewportCommand};
+use egui::Context;
 
 use lb_rs::blocking::Lb;
 use lb_rs::model::access_info::UserAccessMode;
@@ -293,9 +293,6 @@ impl Workspace {
         };
         self.current_tab = Some(dest.clone());
         self.mark_current_tab_changed();
-        let tab = self.tabs.get(&dest).unwrap();
-        self.ctx
-            .send_viewport_cmd(ViewportCommand::Title(self.tab_title(tab)));
 
         if let Some(md) = self.current_tab_markdown() {
             md.focus(&self.ctx);
@@ -1027,11 +1024,6 @@ impl Workspace {
             different_file_type = !NameComponents::from(&new_name)
                 .extension
                 .eq(&NameComponents::from(&self.tab_title(tab)).extension);
-        }
-
-        if Some(id) == self.current_tab_id() {
-            self.ctx
-                .send_viewport_cmd(ViewportCommand::Title(new_name.clone()));
         }
 
         if different_file_type {

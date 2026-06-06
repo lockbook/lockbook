@@ -354,6 +354,10 @@ impl Workspace {
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
 
+        ui.ctx().send_viewport_cmd(ViewportCommand::Title(
+            self.current_tab_title()
+                .unwrap_or_else(|| "Lockbook".to_string()),
+        ));
         if back {
             self.back();
         }
@@ -424,9 +428,6 @@ impl Workspace {
                 {
                     self.close_tab(idx);
                 }
-                self.ctx.send_viewport_cmd(ViewportCommand::Title(
-                    self.current_tab_title().unwrap_or("Lockbook".to_owned()),
-                ));
                 self.out.selected_file = self.current_tab_id();
             } else {
                 let root_id = self.files.read().unwrap().root().id;
@@ -446,8 +447,6 @@ impl Workspace {
             }
 
             self.out.selected_file = None;
-            self.ctx
-                .send_viewport_cmd(ViewportCommand::Title("Lockbook".into()));
         }
 
         // reorder tabs
