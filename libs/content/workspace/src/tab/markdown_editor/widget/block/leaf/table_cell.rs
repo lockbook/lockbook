@@ -18,7 +18,7 @@ impl<'ast> MdRender {
         for descendant in node.descendants() {
             if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
                 let NodeLink { url, .. } = &**node_link;
-                images_height += self.height_image(node, url);
+                images_height += self.height_image(node, url, self.image_dims(descendant));
                 images_height += self.layout.block_spacing;
             }
         }
@@ -39,8 +39,9 @@ impl<'ast> MdRender {
         for descendant in node.descendants() {
             if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
                 let NodeLink { url, .. } = &**node_link;
-                self.show_image_block(ui, node, top_left, url);
-                top_left.y += self.height_image(node, url);
+                let dims = self.image_dims(descendant);
+                self.show_image_block(ui, node, top_left, url, dims);
+                top_left.y += self.height_image(node, url, dims);
                 top_left.y += self.layout.block_spacing;
             }
         }
