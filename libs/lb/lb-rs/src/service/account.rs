@@ -1,3 +1,4 @@
+use crate::experiments::{WelcomeDoc, cohort};
 use crate::model::account::{Account, MAX_USERNAME_LENGTH};
 use crate::model::api::{
     DeleteAccountRequest, GetPublicKeyRequest, GetUsernameRequest, NewAccountRequestV2,
@@ -60,12 +61,20 @@ impl LocalLb {
         tx.end();
 
         if welcome_doc {
-            let welcome_doc = self
-                .create_file("welcome.md", &root_id, FileType::Document)
-                .await?;
-            self.write_document(welcome_doc.id, Self::WELCOME_MESSAGE.as_bytes())
-                .await?;
-            self.sync().await?;
+            let cohort: WelcomeDoc = cohort(&account.username);
+            match cohort {
+                WelcomeDoc::NoWelcomeDoc => {}
+                WelcomeDoc::OldWelcomeDoc => {
+                    let welcome_doc = self
+                        .create_file("welcome.md", &root_id, FileType::Document)
+                        .await?;
+                    self.write_document(welcome_doc.id, Self::WELCOME_MESSAGE.as_bytes())
+                        .await?;
+                    self.sync().await?;
+                }
+                WelcomeDoc::HypeWelcomeDoc => todo!(),
+                WelcomeDoc::FramgentedArchetypes => todo!(),
+            };
         }
 
         self.events.meta_changed(Actor::User);
