@@ -2,20 +2,6 @@ import Combine
 import SwiftUI
 import SwiftWorkspace
 
-enum SyncDot: Equatable {
-    case pushing
-    case dirty
-    case pulling
-
-    var rank: Int {
-        switch self {
-        case .pushing: return 0
-        case .dirty: return 1
-        case .pulling: return 2
-        }
-    }
-}
-
 class FilesViewModel: ObservableObject {
     @Published var root: File? = nil
     @Published var files: [File] = []
@@ -350,6 +336,20 @@ class FilesViewModel: ObservableObject {
     func rejectShare(id: UUID) {
         if case let .failure(err) = AppState.lb.deletePendingShare(id: id) {
             AppState.shared.error = .lb(error: err)
+        }
+    }
+}
+
+enum SyncDot: Equatable {
+    case pushing
+    case dirty
+    case pulling
+
+    var rank: Int {
+        switch self {
+        case .pushing: return 0
+        case .dirty: return 1
+        case .pulling: return 2
         }
     }
 }
