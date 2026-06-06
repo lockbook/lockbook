@@ -9,6 +9,8 @@ class FilesViewModel: ObservableObject {
     var childrens: [UUID: [File]] = [:]
     var pendingSharesAndChildren: [UUID] = []
 
+    @Published var statusDots: [UUID: SyncDot] = [:]
+
     @Published var pendingSharesByUsername: [String: [File]]? = nil
 
     @Published var selectedFilesState: SelectedFilesState = .unselected
@@ -23,6 +25,50 @@ class FilesViewModel: ObservableObject {
             self?.loadFiles()
         }
         .store(in: &cancellables)
+
+        AppState.lb.events.$status.sink { [weak self] status in
+            self?.recomputeStatusDots(status: status)
+        }
+        .store(in: &cancellables)
+    }
+
+    func recomputeStatusDots(status: Status) {
+        let newDots = computeStatusDots(status: status)
+        if newDots != statusDots {
+            statusDots = newDots
+        }
+    }
+
+    private func computeStatusDots(status: Status) -> [UUID: SyncDot] {
+        var dots: [UUID: SyncDot] = [:]
+
+        func bump(_ id: UUID, _ dot: SyncDot) {
+            if let existing = dots[id], existing.rank <= dot.rank {
+                return
+            }
+            dots[id] = dot
+        }
+
+        func seed(_ ids: [UUID], _ dot: SyncDot) {
+            for id in ids {
+                bump(id, dot)
+
+                var current = id
+                while let file = idsToFiles[current], !file.isRoot {
+                    guard let parent = idsToFiles[file.parent], !parent.isRoot else {
+                        break
+                    }
+                    bump(parent.id, dot)
+                    current = parent.id
+                }
+            }
+        }
+
+        seed(status.pushingFiles, .pushing)
+        seed(status.dirtyLocally, .dirty)
+        seed(status.pullingFiles, .pulling)
+
+        return dots
     }
 
     func isFileInDeletion(id: UUID) -> Bool {
@@ -244,6 +290,10 @@ class FilesViewModel: ObservableObject {
                     self.error = err.msg
                 }
             }
+
+            DispatchQueue.main.async {
+                self.recomputeStatusDots(status: AppState.lb.events.status)
+            }
         }
     }
 
@@ -286,6 +336,20 @@ class FilesViewModel: ObservableObject {
     func rejectShare(id: UUID) {
         if case let .failure(err) = AppState.lb.deletePendingShare(id: id) {
             AppState.shared.error = .lb(error: err)
+        }
+    }
+}
+
+enum SyncDot: Equatable {
+    case pushing
+    case dirty
+    case pulling
+
+    var rank: Int {
+        switch self {
+        case .pushing: return 0
+        case .dirty: return 1
+        case .pulling: return 2
         }
     }
 }

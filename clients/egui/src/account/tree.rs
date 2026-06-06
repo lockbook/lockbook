@@ -12,12 +12,48 @@ use egui_notify::Toasts;
 use lb::Uuid;
 use lb::model::file::File;
 use lb::model::file_metadata::FileType;
+use lb::subscribers::status::Status;
 use rfd::FileDialog;
 use workspace_rs::file_cache::{FileCache, FilesExt};
 use workspace_rs::show::DocType;
 use workspace_rs::theme::icons::Icon;
-use workspace_rs::theme::palette_v2::ThemeExt as _;
+use workspace_rs::theme::palette_v2::{Palette, Theme, ThemeExt as _};
 use workspace_rs::widgets::{Button, GlyphonTextEdit, TextOverflow};
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum SyncDot {
+    Pushing,
+    Dirty,
+    Pulling,
+}
+
+impl SyncDot {
+    fn rank(self) -> u8 {
+        match self {
+            SyncDot::Pushing => 0,
+            SyncDot::Dirty => 1,
+            SyncDot::Pulling => 2,
+        }
+    }
+
+    fn color(self, theme: &Theme) -> Color32 {
+        let variant = theme.fg();
+        match self {
+            SyncDot::Pushing => variant.get_color(Palette::Green),
+            SyncDot::Dirty => variant.get_color(Palette::Yellow),
+            SyncDot::Pulling => variant.get_color(Palette::Blue),
+        }
+    }
+}
+
+#[derive(Debug, Default)]
+struct SyncDots {
+    dots: HashMap<Uuid, SyncDot>,
+    pushing: Vec<Uuid>,
+    dirty: Vec<Uuid>,
+    pulling: Vec<Uuid>,
+    files_stale: bool,
+}
 
 #[derive(Debug)]
 pub struct FileTree {
@@ -64,6 +100,8 @@ pub struct FileTree {
     pub pending_shares: HashMap<String, ShareCell>,
     pub pending_shares_id: Uuid,
     pub pending_shares_height: f32,
+
+    sync_dots: SyncDots,
 }
 
 #[derive(Debug, Default, Clone)]
@@ -97,6 +135,7 @@ impl FileTree {
             drop: Default::default(),
             scroll_to_cursor: Default::default(),
             pending_shares: Default::default(),
+            sync_dots: Default::default(),
         };
 
         s.update_files();
@@ -104,7 +143,11 @@ impl FileTree {
         s
     }
 
-    pub fn show(&mut self, ui: &mut Ui, max_rect: Rect, toasts: &mut Toasts) -> Response {
+    pub fn show(
+        &mut self, ui: &mut Ui, max_rect: Rect, toasts: &mut Toasts, status: &Status,
+    ) -> Response {
+        self.refresh_sync_dots(status);
+
         let mut resp = Response::default();
         let mut scroll_to_cursor = mem::take(&mut self.scroll_to_cursor);
 
@@ -1063,6 +1106,61 @@ impl FileTree {
         resp
     }
 
+    fn refresh_sync_dots(&mut self, status: &Status) {
+        let unchanged = !self.sync_dots.files_stale
+            && self.sync_dots.pushing == status.pushing_files
+            && self.sync_dots.dirty == status.dirty_locally
+            && self.sync_dots.pulling == status.pulling_files;
+        if unchanged {
+            return;
+        }
+        let dots = self.compute_sync_dots(status);
+        self.sync_dots = SyncDots {
+            dots,
+            pushing: status.pushing_files.clone(),
+            dirty: status.dirty_locally.clone(),
+            pulling: status.pulling_files.clone(),
+            files_stale: false,
+        };
+    }
+
+    fn compute_sync_dots(&self, status: &Status) -> HashMap<Uuid, SyncDot> {
+        let mut dots = HashMap::new();
+        for (ids, dot) in [
+            (&status.pushing_files, SyncDot::Pushing),
+            (&status.dirty_locally, SyncDot::Dirty),
+            (&status.pulling_files, SyncDot::Pulling),
+        ] {
+            for &id in ids {
+                Self::bump(&mut dots, id, dot);
+
+                let mut current = id;
+                while let Some(file) = self.files.get_by_id(current) {
+                    if file.is_root() {
+                        break;
+                    }
+                    match self.files.get_by_id(file.parent) {
+                        Some(parent) if !parent.is_root() => {
+                            Self::bump(&mut dots, file.parent, dot)
+                        }
+                        _ => break,
+                    }
+                    current = file.parent;
+                }
+            }
+        }
+        dots
+    }
+
+    fn bump(dots: &mut HashMap<Uuid, SyncDot>, id: Uuid, dot: SyncDot) {
+        let replace = dots
+            .get(&id)
+            .is_none_or(|existing| dot.rank() < existing.rank());
+        if replace {
+            dots.insert(id, dot);
+        }
+    }
+
     fn show_file_cell(
         &mut self, ui: &mut Ui, file: &File, indent: f32, focused: bool,
     ) -> egui::Response {
@@ -1125,7 +1223,13 @@ impl FileTree {
             .padding(vec2(15., 7.))
             .text_overflow(TextOverflow::EndEllipsis)
             .icon(&icon)
-            .icon_color(icon_color);
+            .icon_color(icon_color)
+            .trailing_dot(
+                self.sync_dots
+                    .dots
+                    .get(&file.id)
+                    .map(|dot| dot.color(&theme)),
+            );
 
         let button = if !is_renaming {
             let display_name = doc_type.display_name(&file.name);
@@ -1478,6 +1582,8 @@ impl FileTree {
 
         *self.suggested_docs.lock().unwrap() =
             file_cache.suggested.iter().take(5).copied().collect();
+
+        self.sync_dots.files_stale = true;
     }
 
     /// Expands `ids`. Does not select or deselect anything.

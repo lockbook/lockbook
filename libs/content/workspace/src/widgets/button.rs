@@ -21,8 +21,11 @@ pub struct Button<'a> {
     indent: f32,
     default_fill: Option<egui::Color32>,
     text_overflow: TextOverflow,
+    trailing_dot: Option<egui::Color32>,
 }
 const SPINNER_RADIUS: u32 = 5;
+const DOT_RADIUS: f32 = 4.0;
+const DOT_GAP: f32 = 8.0;
 
 impl<'a> Button<'a> {
     pub fn icon(self, icon: &'a Icon) -> Self {
@@ -89,6 +92,10 @@ impl<'a> Button<'a> {
         Self { text_overflow, ..self }
     }
 
+    pub fn trailing_dot(self, trailing_dot: Option<egui::Color32>) -> Self {
+        Self { trailing_dot, ..self }
+    }
+
     pub fn show(self, ui: &mut egui::Ui) -> egui::Response {
         egui::Frame::new()
             .outer_margin(self.margin)
@@ -141,9 +148,15 @@ impl<'a> Button<'a> {
                 let icon_width = maybe_icon_galley.as_ref().map_or(0.0, |icon| icon.size().x);
                 let icon_text_gap =
                     if self.icon.is_some() && has_text { padding.x / 2.0 } else { 0.0 };
-                let max_text_width =
-                    (wrap_width - padding.x * 2.0 - self.indent - icon_width - icon_text_gap)
-                        .max(0.0);
+                let dot_space =
+                    if self.trailing_dot.is_some() { DOT_GAP + 2.0 * DOT_RADIUS } else { 0.0 };
+                let max_text_width = (wrap_width
+                    - padding.x * 2.0
+                    - self.indent
+                    - icon_width
+                    - icon_text_gap
+                    - dot_space)
+                    .max(0.0);
 
                 // Measure once; reused below for text_rect to avoid a second shape pass.
                 let text_width = maybe_text_str.as_deref().map(|text_str| {
@@ -158,6 +171,8 @@ impl<'a> Button<'a> {
                     width += w;
                     w
                 });
+
+                width += dot_space;
 
                 if self.hexpand {
                     width = ui.available_size_before_wrap().x;
@@ -261,6 +276,13 @@ impl<'a> Button<'a> {
                                     GlyphonRendererCallback::new(vec![text_area]),
                                 ),
                             );
+                        }
+
+                        if let Some(dot_color) = self.trailing_dot {
+                            let dot_center =
+                                egui::pos2(text_pos.x + w + DOT_GAP + DOT_RADIUS, rect.center().y);
+                            ui.painter()
+                                .circle_filled(dot_center, DOT_RADIUS, dot_color);
                         }
                     }
                 }

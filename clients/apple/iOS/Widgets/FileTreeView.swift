@@ -122,6 +122,12 @@ struct FileRowView: View {
                 .allowsTightening(true)
                 .foregroundColor(.primary)
 
+            if let dot = filesModel.statusDots[file.id] {
+                Circle()
+                    .fill(dot.color)
+                    .frame(width: 8, height: 8)
+            }
+
             Spacer()
 
             if !isLeaf {
@@ -179,6 +185,16 @@ struct FileRowView: View {
             if homeState.isSidebarFloating {
                 homeState.sidebarState = .closed
             }
+        }
+    }
+}
+
+extension SyncDot {
+    var color: Color {
+        switch self {
+        case .pushing: return .green
+        case .dirty: return .yellow
+        case .pulling: return .blue
         }
     }
 }

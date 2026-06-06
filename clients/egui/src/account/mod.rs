@@ -461,7 +461,8 @@ impl AccountScreen {
                         .stroke(Stroke::NONE)
                         .show(ui, |ui| {
                             ui.allocate_space(Vec2 { x: ui.available_width(), y: 0. });
-                            self.tree.show(ui, max_rect, &mut self.toasts)
+                            self.tree
+                                .show(ui, max_rect, &mut self.toasts, &self.lb_status)
                         })
                 })
             })
