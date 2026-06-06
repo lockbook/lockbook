@@ -114,6 +114,22 @@ struct FileTreeView: NSViewRepresentable {
                 treeView.selectRowIndexes([row], byExtendingSelection: false)
             }
             .store(in: &cancellables)
+
+            filesModel.$statusDots.sink { [weak treeView] newDots in
+                guard let treeView else { return }
+
+                let visible = treeView.rows(in: treeView.visibleRect)
+                guard visible.length > 0 else { return }
+
+                for row in visible.location ..< (visible.location + visible.length) {
+                    guard let file = treeView.item(atRow: row) as? File,
+                          let cell = treeView.view(atColumn: 0, row: row, makeIfNecessary: false) as? FileItemView
+                    else { continue }
+
+                    cell.setDot(color: newDots[file.id]?.nsColor)
+                }
+            }
+            .store(in: &cancellables)
         }
 
         func selectAndReveal(selected: UUID?, treeView: FileTreeOutlineView?) {
@@ -478,7 +494,7 @@ class FileTreeDelegate: NSObject, MenuOutlineViewDelegate {
         item: Any
     ) -> NSView? {
         let file = item as! File
-        return FileItemView(file: file)
+        return FileItemView(file: file, dotColor: filesModel.statusDots[file.id]?.nsColor)
     }
 
     func outlineViewSelectionIsChanging(_: Notification) {
@@ -506,9 +522,10 @@ class FileTreeDelegate: NSObject, MenuOutlineViewDelegate {
 }
 
 class FileItemView: NSTableCellView {
-    init(file: File) {
-        super.init(frame: .zero)
+    private let stackView: NSStackView
+    private var dotView: SyncDotView?
 
+    init(file: File, dotColor: NSColor?) {
         let image = NSImage(systemSymbolName: FileIconHelper.fileToSystemImageName(file: file), accessibilityDescription: nil)!
         image.isTemplate = true
 
@@ -533,6 +550,9 @@ class FileItemView: NSTableCellView {
         stackView.orientation = .horizontal
         stackView.spacing = 6
         stackView.translatesAutoresizingMaskIntoConstraints = false
+        self.stackView = stackView
+
+        super.init(frame: .zero)
 
         addSubview(stackView)
 
@@ -542,6 +562,69 @@ class FileItemView: NSTableCellView {
             stackView.topAnchor.constraint(equalTo: topAnchor),
             stackView.bottomAnchor.constraint(equalTo: bottomAnchor),
         ])
+
+        setDot(color: dotColor)
+    }
+
+    func setDot(color: NSColor?) {
+        if let color {
+            if let dotView {
+                dotView.color = color
+            } else {
+                let dot = SyncDotView(color: color)
+                stackView.addArrangedSubview(dot)
+                dotView = dot
+            }
+        } else if let dotView {
+            stackView.removeArrangedSubview(dotView)
+            dotView.removeFromSuperview()
+            self.dotView = nil
+        }
+    }
+
+    @available(*, unavailable)
+    required init?(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+}
+
+extension SyncDot {
+    var nsColor: NSColor {
+        switch self {
+        case .pushing: return .systemGreen
+        case .dirty: return .systemYellow
+        case .pulling: return .systemBlue
+        }
+    }
+}
+
+class SyncDotView: NSView {
+    var color: NSColor {
+        didSet { needsDisplay = true }
+    }
+
+    init(color: NSColor) {
+        self.color = color
+        super.init(frame: .zero)
+        translatesAutoresizingMaskIntoConstraints = false
+        setContentHuggingPriority(.required, for: .horizontal)
+        setContentCompressionResistancePriority(.required, for: .horizontal)
+    }
+
+    override var intrinsicContentSize: NSSize {
+        NSSize(width: 8, height: 8)
+    }
+
+    override func draw(_: NSRect) {
+        let diameter: CGFloat = 8
+        let rect = NSRect(
+            x: (bounds.width - diameter) / 2,
+            y: (bounds.height - diameter) / 2,
+            width: diameter,
+            height: diameter
+        )
+        color.setFill()
+        NSBezierPath(ovalIn: rect).fill()
     }
 
     @available(*, unavailable)
