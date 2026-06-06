@@ -354,6 +354,10 @@ impl Workspace {
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
 
+        ui.ctx().send_viewport_cmd(ViewportCommand::Title(
+            self.current_tab_title()
+                .unwrap_or_else(|| "Lockbook".to_string()),
+        ));
         if back {
             self.back();
         }
