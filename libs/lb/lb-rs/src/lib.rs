@@ -19,13 +19,13 @@
 extern crate tracing;
 
 pub mod blocking;
+pub mod experiments;
 pub mod io;
 pub mod ipc;
 pub mod macros;
 pub mod model;
 pub mod service;
 pub mod subscribers;
-pub mod experiments;
 #[cfg(target_family = "wasm")]
 pub mod wasm;
 
