@@ -374,10 +374,8 @@ fn set_macos_app_icon(rgba: &[u8], width: u32, height: u32) {
             return;
         };
 
-        let app_icon = NSImage::initWithSize(
-            NSImage::alloc(),
-            NSSize::new(width as f64, height as f64),
-        );
+        let app_icon =
+            NSImage::initWithSize(NSImage::alloc(), NSSize::new(width as f64, height as f64));
         app_icon.addRepresentation(&image_rep);
         app.setApplicationIconImage(Some(&app_icon));
     }
