@@ -8,26 +8,27 @@ mod list;
 mod migrate;
 mod share;
 mod stream;
+mod search;
 
-use std::env;
 use std::path::PathBuf;
-use std::time::Instant;
-
 use account::ApiUrl;
 use cli_rs::arg::Arg;
-use cli_rs::cli_error::{CliError, CliResult, Exit};
+use cli_rs::cli_error::{CliError, CliResult};
 use cli_rs::command::Command;
 use cli_rs::flag::Flag;
 use cli_rs::parser::Cmd;
-
 use colored::Colorize;
 use input::FileInput;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::path_ops::Filter;
-use lb_rs::service::events::{Event, SyncIncrement};
-use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use lb_rs::{Lb, Uuid};
+
+pub async fn core() -> CliResult<Lb> {
+    Lb::init(Config::cli_config("cli"))
+        .await
+        .map_err(|err| CliError::from(err.to_string()))
+}
 
 fn run() -> CliResult<()> {
     Command::name("lockbook")
@@ -40,19 +41,14 @@ fn run() -> CliResult<()> {
                     Command::name("new")
                         .input(Arg::str("username").description("your desired username."))
                         .input(Flag::<ApiUrl>::new("api_url")
-                            .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://app.lockbook.net"))
+                            .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://api.prod.lockbook.net"))
                         .handler(|username, api_url| {
                             account::new(username.get(), api_url.get())
                         })
                 )
                 .subcommand(
                     Command::name("import").description("import an existing account by piping in the account string")
-                        .input(Flag::<ApiUrl>::new("api_url")
-                        .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://app.lockbook.net"))
-
-                        .handler(|api_url| {
-                            account::import(api_url.get())
-                        })
+                        .handler(account::import)
                 )
                 .subcommand(
                     Command::name("export").description("reveal your account's private key")
@@ -110,7 +106,11 @@ fn run() -> CliResult<()> {
                 .input(Flag::bool("force"))
                 .input(Arg::<FileInput>::name("target").description("path of id of file to delete")
                             .completor(|prompt| input::file_completor(prompt, None)))
-                .handler(|force, target| delete(force.get(), target.get()))
+                .handler(|force, target| {
+                    tokio::runtime::Runtime::new().unwrap().block_on(async {
+                        delete(force.get(), target.get()).await
+                    })
+                })
         )
         .subcommand(
             Command::name("edit").description("edit a document")
@@ -147,13 +147,21 @@ fn run() -> CliResult<()> {
                             .completor(|prompt| input::file_completor(prompt, None)))
                 .input(Arg::<FileInput>::name("dest").description("lockbook file path or ID of the new parent folder")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
-                .handler(|src, dst| move_file(src.get(), dst.get()))
+                .handler(|src, dst| {
+                    tokio::runtime::Runtime::new().unwrap().block_on(async {
+                        move_file(src.get(), dst.get()).await
+                    })
+                })
         )
         .subcommand(
             Command::name("new").description("create a new file at the given path or do nothing if it exists")
                 .input(Arg::<FileInput>::name("path").description("create a new file at the given path or do nothing if it exists")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
-                .handler(|target| create_file(target.get()))
+                .handler(|target| {
+                    tokio::runtime::Runtime::new().unwrap().block_on(async {
+                        create_file(target.get()).await
+                    })
+                })
         )
         .subcommand(
             Command::name("stream").description("interact with stdout and stdin")
@@ -178,7 +186,11 @@ fn run() -> CliResult<()> {
                 .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of file to rename")
                             .completor(|prompt| input::file_completor(prompt, None)))
                 .input(Arg::str("new_name"))
-                .handler(|target, new_name| rename(target.get(), new_name.get()))
+                .handler(|target, new_name| {
+                    tokio::runtime::Runtime::new().unwrap().block_on(async {
+                        rename(target.get(), new_name.get()).await
+                    })
+                })
         )
         .subcommand(
             Command::name("share").description("sharing related commands")
@@ -213,7 +225,12 @@ fn run() -> CliResult<()> {
         .subcommand(
             Command::name("search").description("search document contents")
                 .input(Arg::str("query"))
-                .handler(|query| search(&query.get()))
+                .input(Flag::bool("semantic").description("use semantic search (model-based) instead of lexical search"))
+                .handler(|query, semantic| {
+                    tokio::runtime::Runtime::new().unwrap().block_on(async {
+                        search(&query.get(), semantic.get()).await
+                    })
+                })
         )
         .subcommand(
             Command::name("migrate-from").description("transfer files from an existing platform")
@@ -224,183 +241,151 @@ fn run() -> CliResult<()> {
                 )
         )
         .subcommand(
-            Command::name("sync").description("sync your local changes back to lockbook servers") // todo also back
-                .handler(sync)
+            Command::name("sync").description("sync your local changes back to lockbook servers")
+                .handler(|| {
+                    tokio::runtime::Runtime::new().unwrap().block_on(async {
+                        sync().await
+                    })
+                })
         )
         .with_completions()
         .parse()
 }
 
-fn main() {
-    run().exit();
+// ── Search ────────────────────────────────────────────────────────────────────
+
+async fn search(query: &str, semantic: bool) -> CliResult<()> {
+    if semantic {
+        search::search_semantic(query).await
+    } else {
+        search_lexical(query).await
+    }
 }
 
-pub async fn core() -> CliResult<Lb> {
-    Lb::init(Config::cli_config("cli"))
-        .await
-        .map_err(|err| CliError::from(err.to_string()))
-}
+async fn search_lexical(query: &str) -> CliResult<()> {
+    let start_time = std::time::Instant::now();
+    println!("{}", "🔎 Lexical Search".cyan().bold());
+    println!("Query: {}\n", query);
 
-#[tokio::main]
-async fn search(query: &str) -> CliResult<()> {
+    let query = query.trim();
+    if query.is_empty() {
+        return Err(CliError::from("query cannot be empty"));
+    }
+
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let time = Instant::now();
-    lb.build_index().await?;
-    let build_time = time.elapsed();
+    let files = lb.get_and_get_children_recursively(&lb.root().await?.id).await?;
+    let query_lower = query.to_lowercase();
+    let mut results: Vec<(String, usize, String)> = Vec::new();
 
-    lb.reload_search_index().await?;
+    for file in &files {
+        if file.is_folder() {
+            continue;
+        }
 
-    let time = Instant::now();
-    let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;
-    let search_time = time.elapsed();
+        let name = file.name.to_lowercase();
+        if !name.ends_with(".txt") && !name.ends_with(".md") {
+            continue;
+        }
 
-    for result in results {
-        match result {
-            SearchResult::DocumentMatch { id: _, path, content_matches } => {
-                println!("{}", format!("DOC: {path}").bold().blue());
-                for content in content_matches {
-                    let mut result = String::default();
-                    for (i, c) in content.paragraph.char_indices() {
-                        if content.matched_indices.contains(&i) {
-                            result = format!("{result}{}", c.to_string().underline());
-                        } else {
-                            result = format!("{result}{c}");
-                        }
-                    }
-                    println!("{result}");
-                }
-                println!();
+        println!("  Reading document id={} name={}", file.id, file.name);
+        let content = match lb.read_document(file.id, false).await {
+            Ok(c) => {
+                println!("    read {} bytes", c.len());
+                String::from_utf8_lossy(&c).to_string()
             }
-            SearchResult::PathMatch { id: _, path, matched_indices, score: _ } => {
-                let mut result = String::default();
-                for (i, c) in path.char_indices() {
-                    if matched_indices.contains(&i) {
-                        result = format!("{result}{}", c.to_string().underline());
-                    } else {
-                        result = format!("{result}{c}");
-                    }
-                }
-                println!("{}", format!("PATH: {result}").bold().green());
-                println!();
+            Err(e) => {
+                eprintln!("    read_document error for {}: {:?}", file.id, e);
+                continue
             }
+        };
+
+        let content_lower = content.to_lowercase();
+        let score = content_lower.match_indices(&query_lower).count();
+        if score == 0 {
+            continue;
+        }
+
+        let snippet = content
+            .lines()
+            .find(|line| line.to_lowercase().contains(&query_lower))
+            .map(|line| line.trim().to_string())
+            .filter(|line| !line.is_empty())
+            .unwrap_or_else(|| {
+                let preview: String = content.chars().take(150).collect();
+                preview.trim().replace('\n', " ")
+            });
+
+        let full_path = lb
+            .get_path_by_id(file.id)
+            .await
+            .unwrap_or_else(|_| file.name.clone());
+
+        results.push((full_path, score, snippet));
+    }
+
+    results.sort_by(|a, b| b.1.cmp(&a.1));
+
+    if results.is_empty() {
+        println!("\n{}", "No results found.".yellow());
+    } else {
+        println!("\n{}", "Top Results:".green().bold());
+        println!("{}", "============".green());
+
+        for (i, (path, score, snippet)) in results.iter().take(10).enumerate() {
+            let preview: String = snippet.chars().take(150).collect();
+            println!("\n{}. {}", i + 1, path.cyan().bold());
+            println!("   Matches: {}", score.to_string().yellow());
+            println!("   ↳ \"{}...\"", preview.dimmed());
         }
     }
 
-    let build_time = format!("{build_time:?}").bold();
-    let search_time = format!("{search_time:?}").bold();
-    println!("Index built in {build_time}");
-    println!("Search took {search_time}");
-
+    println!("\n✅ Search completed in {:.2}s", start_time.elapsed().as_secs_f32());
     Ok(())
 }
 
-#[tokio::main]
-async fn sync() -> CliResult<()> {
-    let lb = &core().await?;
-    ensure_account(lb)?;
-    let mut receiver = lb.subscribe();
 
-    let monitor_lb = lb.clone();
-    let monitor = tokio::spawn(async move {
-        let get_name = async |id| {
-            monitor_lb
-                .get_file_by_id(id)
-                .await
-                .map(|file| file.name)
-                .unwrap_or(format!("{id} (new file)"))
-        };
 
-        loop {
-            let event = receiver.recv().await.unwrap();
-            if let Event::Sync(sync_increment) = event {
-                match sync_increment {
-                    SyncIncrement::SyncStarted => println!("Sync Started!"),
-                    SyncIncrement::PullingDocument(uuid, true) => {
-                        println!("Downloading {}", get_name(uuid).await)
-                    }
-                    SyncIncrement::PullingDocument(uuid, false) => {
-                        println!("Downloaded {}", get_name(uuid).await)
-                    }
-                    SyncIncrement::PushingDocument(uuid, true) => {
-                        println!("Uploading {}", get_name(uuid).await)
-                    }
-                    SyncIncrement::PushingDocument(uuid, false) => {
-                        println!("Uploaded {}", get_name(uuid).await)
-                    }
-                    SyncIncrement::SyncFinished(lb_err_kind) => {
-                        match lb_err_kind {
-                            Some(err) => eprintln!("Sync completed with an error: {err}"),
-                            None => println!("Sync successful"),
-                        };
-                        return;
-                    }
-                }
-            }
-        }
-    });
+// ── Other commands ────────────────────────────────────────────────────────────
 
-    lb.sync().await?;
-    monitor.await?;
-    Ok(())
-}
-
-#[tokio::main]
 async fn delete(force: bool, target: FileInput) -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
-
     let f = target.find(lb).await?;
-
     if !force {
         let mut phrase = format!("delete '{target}'");
-
         if f.is_folder() {
-            let count = lb
-                .get_and_get_children_recursively(&f.id)
-                .await
-                .unwrap_or_default()
-                .len() as u64
-                - 1;
+            let count = lb.get_and_get_children_recursively(&f.id).await
+                .unwrap_or_default().len() as u64 - 1;
             match count {
                 0 => {}
                 1 => phrase = format!("{phrase} and its 1 child"),
                 _ => phrase = format!("{phrase} and its {count} children"),
             };
         }
-
         let answer: String = input::std_in(format!("are you sure you want to {phrase}? [y/n]: "))?;
-        if answer != "y" && answer != "Y" {
-            println!("aborted.");
-            return Ok(());
-        }
+        if answer != "y" && answer != "Y" { println!("aborted."); return Ok(()); }
     }
-
     lb.delete(&f.id).await?;
     Ok(())
 }
 
-#[tokio::main]
 async fn move_file(src: FileInput, dest: FileInput) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
-
-    let src = src.find(lb).await?;
+    let src  = src.find(lb).await?;
     let dest = dest.find(lb).await?;
     lb.move_file(&src.id, &dest.id).await?;
     Ok(())
 }
 
-#[tokio::main]
 async fn create_file(path: FileInput) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
-
     let FileInput::Path(path) = path else {
         return Err(CliError::from("cannot create a file using ids"));
     };
-
     match lb.get_by_path(&path).await {
         Ok(_f) => Ok(()),
         Err(err) => match err.kind {
@@ -413,11 +398,9 @@ async fn create_file(path: FileInput) -> CliResult<()> {
     }
 }
 
-#[tokio::main]
 async fn rename(target: FileInput, new_name: String) -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
-
     let id = target.find(lb).await?.id;
     lb.rename_file(&id, &new_name).await?;
     Ok(())
@@ -429,7 +412,6 @@ fn ensure_account(lb: &Lb) -> CliResult<()> {
             return Err(CliError::from("no account found, run lockbook account import"));
         }
     }
-
     Ok(())
 }
 
@@ -440,6 +422,20 @@ async fn ensure_account_and_root(lb: &Lb) -> CliResult<()> {
             return Err(CliError::from("no root found, have you synced yet?"));
         }
     }
-
     Ok(())
+}
+
+async fn sync() -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
+    lb.sync(None).await?;
+    println!("Sync complete!");
+    Ok(())
+}
+
+fn main() {
+    if let Err(e) = run() {
+        eprintln!("Error: {:?}", e);
+        std::process::exit(1);
+    }
 }

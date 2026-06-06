@@ -18,7 +18,32 @@ is-terminal = "0.4.7"
 hotwatch = "0.5.0"
 lb-fs = { version = "26", path = "../../libs/lb-fs/" }
 fs_extra = "1.3.0"
+<<<<<<< HEAD
 tokio = { version = "1.35.1", features = ["full"] }
 colored = "3.0.0"
 arboard = "3"
 chrono = "0.4"
+=======
+text-splitter = "0.29.3"
+once_cell = "1.19"
+rayon = "1.8"
+lru = "0.12"
+lazy_static = "1.4"
+usearch = "2"
+futures-util = "0.3"
+hf-hub = { version = "0.3", features = ["tokio"] }
+ort = { version = "2.0.0-rc.12", features = [
+    "cuda",          # NVIDIA GPU — Linux / Windows
+    "rocm",          # AMD GPU — Linux / Windows
+    "coreml",        # Apple Neural Engine / Metal — macOS / iOS
+    "directml",      # DirectX 12 GPU — Windows (any vendor)
+] }
+tokenizers = "0.19"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+tokio = { version = "1", features = ["full"] }
+colored = "2"
+dirs = "5"
+reqwest = { version = "0.11", features = ["json", "stream"] }
+num_cpus = "1"  # used in build_session for adaptive CPU thread count
+>>>>>>> c6b805a01 (cli: stream downloads, add model load diagnostics and spinners)
