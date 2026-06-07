@@ -125,7 +125,14 @@ sealed class SearchedDocumentViewHolderInfo {
     data class SectionHeaderViewHolderInfo(val title: String, val action: String? = null, val focus: SearchFocus? = null) : SearchedDocumentViewHolderInfo()
     data class EmptyViewHolderInfo(val message: String) : SearchedDocumentViewHolderInfo()
     data class DocumentNameViewHolderInfo(val id: String, val path: SpannableString, val name: SpannableString) : SearchedDocumentViewHolderInfo()
-    data class DocumentContentViewHolderInfo(val id: String, val path: SpannableString, val name: SpannableString, val content: SpannableString) : SearchedDocumentViewHolderInfo()
+    data class DocumentContentViewHolderInfo(
+        val id: String,
+        val path: SpannableString,
+        val name: SpannableString,
+        val contents: List<SpannableString>,
+        val totalMatches: Int,
+        val showMore: Boolean
+    ) : SearchedDocumentViewHolderInfo()
 }
 
 enum class SearchFocus {
@@ -154,7 +161,10 @@ class SearchedDocumentContentViewHolder(
 ) : ViewHolder(itemView) {
     val name: TextView = itemView.findViewById(R.id.searched_document_content_name)
     val path: TextView = itemView.findViewById(R.id.searched_document_content_path)
-    val content: TextView = itemView.findViewById(R.id.searched_document_content)
+    val content1: TextView = itemView.findViewById(R.id.searched_document_content_1)
+    val content2: TextView = itemView.findViewById(R.id.searched_document_content_2)
+    val content3: TextView = itemView.findViewById(R.id.searched_document_content_3)
+    val showMore: MaterialButton = itemView.findViewById(R.id.searched_document_content_show_more)
 }
 
 class SharedFileViewHolder(

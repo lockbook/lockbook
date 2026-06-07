@@ -6,10 +6,15 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.widget.SearchView
+import androidx.core.content.getSystemService
+import androidx.core.view.ViewCompat
+import androidx.core.view.WindowInsetsCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
+import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.databinding.FragmentSearchDocumentsBinding
 import app.lockbook.model.*
@@ -34,6 +39,14 @@ class SearchDocumentsFragment : Fragment() {
         savedInstanceState: Bundle?,
     ): View {
         binding = FragmentSearchDocumentsBinding.inflate(layoutInflater)
+        ViewCompat.setOnApplyWindowInsetsListener(binding.root) { _, insets ->
+            val statusBarTop = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
+            binding.searchDocumentsStatusBarBackground.layoutParams =
+                binding.searchDocumentsStatusBarBackground.layoutParams.apply {
+                    height = statusBarTop
+                }
+            insets
+        }
 
         binding.searchDocumentsToolbar.setNavigationOnClickListener {
             activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
@@ -82,7 +95,18 @@ class SearchDocumentsFragment : Fragment() {
                 onBind(::SearchedDocumentContentViewHolder) { _, item ->
                     name.text = item.name
                     path.text = item.path
-                    content.text = item.content
+                    val snippetViews = listOf(content1, content2, content3)
+                    snippetViews.forEachIndexed { index, view ->
+                        val snippet = item.contents.getOrNull(index)
+                        view.text = snippet
+                        view.visibility = if (snippet == null) View.GONE else View.VISIBLE
+                    }
+
+                    showMore.text = "Show more (${item.totalMatches})"
+                    showMore.visibility = if (item.showMore) View.VISIBLE else View.GONE
+                    showMore.setOnClickListener {
+                        model.focusContentResult(item.id)
+                    }
                 }
 
                 onClick {
@@ -91,6 +115,13 @@ class SearchDocumentsFragment : Fragment() {
                 }
             }
         }
+        binding.searchDocumentsResults.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
+                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                    dismissKeyboard()
+                }
+            }
+        })
 
         binding.searchDocumentsSearch.setOnQueryTextFocusChangeListener { _, focus ->
             if (focus) {
@@ -137,6 +168,13 @@ class SearchDocumentsFragment : Fragment() {
 
             else -> {}
         }
+    }
+
+    private fun dismissKeyboard() {
+        binding.searchDocumentsSearch.clearFocus()
+        requireContext()
+            .getSystemService<InputMethodManager>()
+            ?.hideSoftInputFromWindow(binding.searchDocumentsSearch.windowToken, 0)
     }
 
     override fun onResume() {

@@ -53,6 +53,7 @@ class SearchDocumentsViewModel(
     private var searchJob: Job? = null
     private var input: String = ""
     private var focus: SearchFocus? = null
+    private var focusedContentResultId: String? = null
     private var pathResults: Array<PathSearcherResult> = emptyArray()
     private var contentResults: Array<ContentSearcherResult> = emptyArray()
     private var suggestedResults: List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo> = emptyList()
@@ -134,6 +135,17 @@ class SearchDocumentsViewModel(
 
     fun focusSearch(focus: SearchFocus?) {
         this.focus = focus
+        focusedContentResultId = null
+        renderCurrentState()
+    }
+
+    fun focusContentResult(id: String?) {
+        focusedContentResultId = id
+        focus = SearchFocus.Content
+        renderCurrentState()
+    }
+
+    private fun renderCurrentState() {
         if (input.isBlank()) {
             renderInitialState()
         } else {
@@ -143,6 +155,21 @@ class SearchDocumentsViewModel(
 
     private fun buildSearchRows(): List<SearchedDocumentViewHolderInfo> {
         val rows = mutableListOf<SearchedDocumentViewHolderInfo>()
+        val focusedContentResult = focusedContentResultId?.let { id ->
+            contentResults.firstOrNull { it.id == id }
+        }
+
+        if (focusedContentResult != null) {
+            rows.add(
+                SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo(
+                    "${focusedContentResult.filename} · ${focusedContentResult.matches.size} content matches",
+                    "Back",
+                    SearchFocus.Content
+                )
+            )
+            rows.addAll(contentResultFocusedRows(focusedContentResult))
+            return rows
+        }
 
         when (focus) {
             SearchFocus.Filename -> {
@@ -210,15 +237,39 @@ class SearchDocumentsViewModel(
     }
 
     private fun contentResultRow(result: ContentSearcherResult): SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo? {
-        val match = result.matches.firstOrNull() ?: return null
-        val snippet = contentSearcher?.snippet(result.id, match, contentSnippetContextChars) ?: return null
+        val snippets = result.matches
+            .take(3)
+            .mapNotNull { snippetForMatch(result, it) }
+            .takeIf { it.isNotEmpty() }
+            ?: return null
 
         return SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
             result.id,
             result.parentPath.makeSpannableString(),
             result.filename.makeSpannableString(),
-            snippetSpannable(snippet)
+            snippets,
+            result.matches.size,
+            result.matches.size > 3
         )
+    }
+
+    private fun contentResultFocusedRows(result: ContentSearcherResult): List<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo> =
+        result.matches.mapNotNull { match ->
+            snippetForMatch(result, match)?.let { snippet ->
+                SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
+                    result.id,
+                    result.parentPath.makeSpannableString(),
+                    result.filename.makeSpannableString(),
+                    listOf(snippet),
+                    result.matches.size,
+                    false
+                )
+            }
+        }
+
+    private fun snippetForMatch(result: ContentSearcherResult, match: net.lockbook.ContentSearcherMatch): SpannableString? {
+        val snippet = contentSearcher?.snippet(result.id, match, contentSnippetContextChars) ?: return null
+        return snippetSpannable(snippet)
     }
 
     private fun highlightMatchedPathParts(result: PathSearcherResult): Pair<SpannableString, SpannableString> {

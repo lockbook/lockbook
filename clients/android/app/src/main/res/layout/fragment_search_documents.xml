@@ -3,15 +3,26 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:fitsSystemWindows="true">
+    android:background="@color/search_results_background"
+    android:fitsSystemWindows="false">
+
+    <View
+        android:id="@+id/search_documents_status_bar_background"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:background="@color/search_result_surface"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent" />
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/search_documents_toolbar"
         android:layout_width="match_parent"
         android:layout_height="?attr/actionBarSize"
+        android:background="@color/search_result_surface"
         app:layout_constraintEnd_toEndOf="parent"
         app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/search_documents_status_bar_background"
         app:navigationIcon="@drawable/ic_baseline_arrow_back_24">
 
         <androidx.appcompat.widget.SearchView
@@ -40,6 +51,7 @@
         android:id="@+id/search_documents_results"
         android:layout_width="match_parent"
         android:layout_height="0dp"
+        android:background="@color/search_results_background"
         android:scrollbars="vertical"
         app:layout_constraintBottom_toBottomOf="parent"
         app:layout_constraintEnd_toEndOf="parent"
@@ -50,6 +62,7 @@
         android:id="@+id/search_documents_none"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
+        android:background="@color/search_results_background"
         android:visibility="gone"
         android:text="@string/no_search_results"
         android:textAppearance="?attr/textAppearanceLabelLarge"
