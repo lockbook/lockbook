@@ -135,6 +135,12 @@ impl MdEdit {
             }
         }
 
+        result.sort_by(|a, b| {
+            a.top()
+                .total_cmp(&b.top())
+                .then(a.left().total_cmp(&b.left()))
+        });
+
         result
     }
 
