@@ -994,7 +994,15 @@ impl<'ast> MdEdit {
     }
 
     pub fn location_to_char_offset(&self, location: Location) -> Grapheme {
-        self.location_to_range(location).0
+        match location {
+            // A pointer endpoint edge-snaps atomic fragments by x (see
+            // `pos_to_char_offset`), rather than collapsing to the range
+            // start — so a drag across an atomic span (e.g. a list marker
+            // or one indentation column) selects the whole span instead
+            // of an empty range.
+            Location::Pos(pos) => self.pos_to_char_offset(pos),
+            _ => self.location_to_range(location).0,
+        }
     }
 
     fn clipboard_current_line(&self) -> (Grapheme, Grapheme) {
@@ -1058,8 +1066,29 @@ impl<'ast> MdEdit {
         }
     }
 
+    /// Resolves a pointer position to a single cursor offset. Unlike
+    /// [`pos_to_range`] (which returns an atomic fragment's *whole*
+    /// range so a click selects it), this edge-snaps an atomic fragment
+    /// to the nearer edge by `pos.x` via [`fragment_offset`]. That lets
+    /// a drag's anchor and moving end land on opposite edges of a marker
+    /// / indentation column and select it, rather than both collapsing
+    /// to its start.
     pub fn pos_to_char_offset(&self, pos: Pos2) -> Grapheme {
-        self.pos_to_range(pos).0
+        let Some(frag_idx) = self.renderer.closest_fragment_at_pos(pos) else {
+            return Grapheme(0);
+        };
+        let frag = &self.renderer.fragments[frag_idx];
+
+        // Past the last fragment's bottom: jump to doc end.
+        let is_last = frag_idx + 1 == self.renderer.fragments.len();
+        if is_last && pos.y > frag.rect.max.y {
+            return self.renderer.buffer.current.segs.last_cursor_position();
+        }
+
+        // The hit-test inverse: edge-snaps atomic fragments by the rect
+        // midpoint, walks clusters otherwise, and collapses an empty
+        // range to its start.
+        self.renderer.fragment_offset(frag, pos.x)
     }
 }
 

@@ -1869,6 +1869,8 @@ impl MdRender {
     /// non-atomic, sum cluster advances from `source_range.start`.
     pub fn fragment_x(&self, fragment: &Fragment, offset: Grapheme) -> f32 {
         if fragment.atomic {
+            // Absolute midpoint offset of the range; offsets in the first
+            // half snap to the left edge, the rest to the right edge.
             let mid = fragment.source_range.start().0
                 + (fragment
                     .source_range
@@ -1876,7 +1878,7 @@ impl MdRender {
                     .0
                     .saturating_sub(fragment.source_range.start().0))
                     / 2;
-            if offset.0 < mid + fragment.source_range.start().0 {
+            if offset.0 < mid {
                 fragment.rect.min.x + fragment.content_inset.left
             } else {
                 fragment.rect.max.x - fragment.content_inset.right

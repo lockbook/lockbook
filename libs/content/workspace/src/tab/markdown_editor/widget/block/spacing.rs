@@ -147,6 +147,7 @@ impl<'ast> MdRender {
             );
             let h = result.height;
             self.show_wrap_layout(ui, top_left, &result);
+            self.show_block_line_prefixes(node, line, top_left, row_height);
             top_left.y += h;
             top_left.y += self.layout.block_spacing;
         }
@@ -201,6 +202,7 @@ impl<'ast> MdRender {
             );
             let h = result.height;
             self.show_wrap_layout(ui, top_left, &result);
+            self.show_block_line_prefixes(node, line, top_left, row_height);
             top_left.y += h;
         }
     }

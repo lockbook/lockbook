@@ -10,7 +10,13 @@ impl<'ast> MdRender {
         let theme = self.ctx.get_lb_theme();
         Format {
             color: theme.fg().get_color(theme.prefs().primary),
-            background: theme.neutral_bg_secondary(),
+            // Translucent fill that matches the opaque look over the page
+            // but lets a selection behind it show through.
+            background: crate::theme::palette_v2::translucent_over(
+                theme.neutral_bg_secondary(),
+                theme.neutral_bg(),
+                0.5,
+            ),
             border: theme.neutral_bg_tertiary(),
             bold: false, // SF Mono does not have bold variants for numbers (it does have italic)
             ..self.text_format_code_block(parent)

@@ -4,13 +4,17 @@
 //! (`deindent_level_cols` + helpers in [`super::super::utils`]).
 
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{Pos2, Ui};
+use egui::{Pos2, Rect, Ui};
 use lb_rs::model::text::offset_types::{
     Grapheme, Graphemes, IntoRangeExt, RangeExt as _, RangeIterExt as _,
 };
 
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
+use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{
+    Fragment, FragmentContent, FragmentInset,
+};
 
 pub(crate) mod alert;
 pub(crate) mod block_quote;
@@ -23,65 +27,6 @@ pub(crate) mod table_row;
 pub(crate) mod task_item;
 
 impl<'ast> MdRender {
-    pub fn indent(&self, node: &'ast AstNode<'ast>) -> f32 {
-        let value = &node.data.borrow().value;
-        let sp = &node.data.borrow().sourcepos;
-        match value {
-            NodeValue::FrontMatter(_) => 0.,
-            NodeValue::Raw(_) => unreachable!("can only be created programmatically"),
-
-            // container_block
-            NodeValue::Alert(_) => self.layout.indent,
-            NodeValue::BlockQuote => self.layout.indent,
-            NodeValue::DescriptionItem(_) => unimplemented!("extension disabled"),
-            NodeValue::DescriptionList => unimplemented!("extension disabled"),
-            NodeValue::Document => 0.,
-            NodeValue::FootnoteDefinition(_) => self.layout.indent,
-            NodeValue::Item(_) => self.layout.indent,
-            NodeValue::List(_) => 0., // indentation handled by items
-            NodeValue::MultilineBlockQuote(_) => unimplemented!("extension disabled"),
-            NodeValue::Table(_) => 0.,
-            NodeValue::TableRow(_) => 0.,
-            NodeValue::TaskItem(_) => self.layout.indent,
-
-            // inline
-            NodeValue::Image(_)
-            | NodeValue::Code(_)
-            | NodeValue::Emph
-            | NodeValue::Escaped
-            | NodeValue::EscapedTag(_)
-            | NodeValue::FootnoteReference(_)
-            | NodeValue::Highlight
-            | NodeValue::HtmlInline(_)
-            | NodeValue::LineBreak
-            | NodeValue::Link(_)
-            | NodeValue::Math(_)
-            | NodeValue::ShortCode(_)
-            | NodeValue::SoftBreak
-            | NodeValue::SpoileredText
-            | NodeValue::Strikethrough
-            | NodeValue::Strong
-            | NodeValue::Subscript
-            | NodeValue::Subtext
-            | NodeValue::Superscript
-            | NodeValue::Text(_)
-            | NodeValue::Underline
-            | NodeValue::WikiLink(_) => unreachable!("not a container block: {} {:?}", sp, value),
-
-            // leaf_block
-            NodeValue::CodeBlock(_)
-            | NodeValue::DescriptionDetails
-            | NodeValue::DescriptionTerm
-            | NodeValue::Heading(_)
-            | NodeValue::HtmlBlock(_)
-            | NodeValue::Paragraph
-            | NodeValue::TableCell
-            | NodeValue::ThematicBreak => {
-                unimplemented!("not a container block: {} {:?}", sp, value)
-            }
-        }
-    }
-
     // the height of a block that contains blocks is the sum of the heights of the blocks it contains
     pub fn block_children_height(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut height_sum = 0.0;
@@ -601,21 +546,212 @@ impl<'ast> MdRender {
         Some(result)
     }
 
-    /// returns true if the syntax for a container block should be revealed
-    pub fn reveal(&self, node: &'ast AstNode<'ast>) -> bool {
-        for line in self.node_lines(node).iter() {
-            let line = self.bounds.source_lines[line];
+    /// Whether `node` contributes an indent-width gutter column —
+    /// these are the containers a drag selects an indentation unit of.
+    /// `List`/`Table`/`TableRow`/`Document` nest without shifting, so
+    /// they own no column.
+    pub fn is_gutter_level(&self, node: &'ast AstNode<'ast>) -> bool {
+        matches!(
+            node.data.borrow().value,
+            NodeValue::Item(_)
+                | NodeValue::TaskItem(_)
+                | NodeValue::BlockQuote
+                | NodeValue::Alert(_)
+                | NodeValue::FootnoteDefinition(_)
+        )
+    }
 
-            let line_prefix = self.line_prefix(node, line);
-            if line_prefix.is_empty() {
+    /// The nearest gutter-contributing ancestor of `node` (excluding
+    /// `node` itself), i.e. the level whose column sits one to the left.
+    fn gutter_parent(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
+        node.ancestors().skip(1).find(|n| self.is_gutter_level(n))
+    }
+
+    /// The innermost gutter level on `line` (the deepest column), or
+    /// `None` if the line has no gutter. This is the level whose
+    /// `line_own_prefix` absorbs any indentation past the levels' own
+    /// columns (a straddling tab's residual, over-indentation) so the
+    /// columns tile the prefix.
+    pub fn deepest_gutter_level(
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<&'ast AstNode<'ast>> {
+        let root = node.ancestors().last()?;
+        let deepest = self.deepest_container_block_at_offset(root, line.end());
+        deepest.ancestors().find(|n| self.is_gutter_level(n))
+    }
+
+    /// Fills `map[line_idx]` with the deepest gutter container covering
+    /// each source line, via a single pre-order DFS: a deeper container is
+    /// visited after its ancestor, so it overwrites the ancestor on any
+    /// line they share (compact nesting).
+    fn assign_deepest_gutter(
+        &self, node: &'ast AstNode<'ast>, map: &mut [Option<&'ast AstNode<'ast>>],
+    ) {
+        for child in node.children() {
+            if !child.is_container_block() {
                 continue;
             }
+            if self.is_gutter_level(child) {
+                for i in self.node_lines(child).iter() {
+                    if let Some(slot) = map.get_mut(i) {
+                        *slot = Some(child);
+                    }
+                }
+            }
+            self.assign_deepest_gutter(child, map);
+        }
+    }
 
-            if self.range_contains_reveal_endpoint(line_prefix, true, false) {
-                return true;
+    /// returns true if the syntax for a container block should be revealed
+    ///
+    /// Reveal `node` when a reveal-range endpoint lands strictly inside a
+    /// gutter column `node` *owns the source for*. Columns render as
+    /// atomic fragments, so a drag snaps to their edges and never reaches
+    /// an interior — only keyboard navigation or edits do, so a
+    /// click-drag never reveals syntax.
+    ///
+    /// An endpoint can only reveal the column it sits in, so the scan is
+    /// over the (typically 0–2) reveal endpoints, one line each.
+    pub fn reveal(&self, node: &'ast AstNode<'ast>) -> bool {
+        for reveal_range in self.reveal_ranges() {
+            for endpoint in [reveal_range.start(), reveal_range.end()] {
+                let (line_idx, _) = self
+                    .bounds
+                    .source_lines
+                    .find_containing(endpoint, true, true);
+                let Some(&line) = self.bounds.source_lines.get(line_idx) else {
+                    continue;
+                };
+                if !self.node_contains_line(node, line) {
+                    continue;
+                }
+                // `node` owns exactly its own column (its per-level
+                // `line_own_prefix`); reveal when an endpoint is strictly
+                // inside it.
+                let own = self.line_own_prefix(node, line);
+                if !own.is_empty() && own.contains(endpoint, false, false) {
+                    return true;
+                }
             }
         }
         false
+    }
+
+    /// Registers an atomic, selectable [`Fragment`] for each gutter
+    /// column (marker / per-level indentation) on `line`, laid out in
+    /// the indent-width columns left of `content_top_left` (the content
+    /// origin, after every prefix shift).
+    ///
+    /// Each column's [`line_own_prefix`] becomes one `Spacer`: a drag
+    /// lands only at its edges (so a click-drag never reveals syntax —
+    /// see [`reveal`]) and a selection highlights the whole column. The
+    /// columns are non-atomic, so a single click places the cursor at the
+    /// nearer edge rather than selecting the column; drag or double-click
+    /// selects it. Marker glyphs are still painted by the per-container
+    /// `show_*`; these fragments carry none and exist only for
+    /// hit-testing and selection highlighting.
+    ///
+    /// Called from the non-revealed block-line renderers, including the
+    /// pre/post spacing renderers whose blank lines can still carry a
+    /// container's indentation. A revealed container renders its prefix
+    /// as ordinary source text instead, so this is not called for it.
+    ///
+    /// Resolves the line's columns from its [`deepest_gutter_level`], not
+    /// `node`'s ancestors: a spacing line sits in a shallower node than
+    /// the content it spaces, so walking up from `node` would miss the
+    /// deeper columns. For content lines `node` is already on the line, so
+    /// the two agree.
+    pub fn show_block_line_prefixes(
+        &mut self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), content_top_left: Pos2,
+        row_height: f32,
+    ) {
+        let Some(deepest) = self.deepest_gutter_level(node, line) else {
+            return;
+        };
+        let indent = self.layout.indent;
+        let mut levels: Vec<_> = deepest
+            .ancestors()
+            .filter(|n| self.is_gutter_level(n))
+            .collect();
+        levels.reverse();
+        let base_x = content_top_left.x - indent * levels.len() as f32;
+        for (k, level) in levels.iter().enumerate() {
+            let range = self.line_own_prefix(level, line);
+            if range.is_empty() {
+                continue;
+            }
+            let left = base_x + indent * k as f32;
+            let rect = Rect::from_min_max(
+                Pos2::new(left, content_top_left.y),
+                Pos2::new(left + indent, content_top_left.y + row_height),
+            );
+            self.fragments.push(Fragment {
+                rect,
+                content_inset: FragmentInset::default(),
+                source_range: range,
+                style_stack: Vec::new(),
+                content: FragmentContent::Spacer,
+                // Non-atomic: a click places the cursor at the nearer
+                // edge. A drag still selects the whole column (an empty-
+                // glyph `Spacer` midpoint-snaps to an edge either way, so
+                // a drag never lands interior — see [`reveal`]); a double-
+                // click selects it via `bounds.words`.
+                atomic: false,
+                interaction: None,
+            });
+        }
+    }
+
+    /// Makes each gutter column (marker / per-level indentation) a word
+    /// for word navigation and double-click. Replaces the default
+    /// unicode-segmented words inside each line's prefix region — which
+    /// would split a marker like `* ` into `*` + ` ` and drop
+    /// indentation — with the per-level [`line_own_prefix`] columns. Call after
+    /// `calc_words`, with the parsed `root`.
+    pub fn calc_syntax_words(&mut self, root: &'ast AstNode<'ast>) {
+        let n = self.bounds.source_lines.len();
+        if n == 0 {
+            return;
+        }
+        // One DFS resolves every line's deepest gutter container; a
+        // per-line `deepest_container_block_at_offset` lookup would be
+        // quadratic, and this runs every reparse.
+        let mut deepest_by_line: Vec<Option<&'ast AstNode<'ast>>> = vec![None; n];
+        self.assign_deepest_gutter(root, &mut deepest_by_line);
+
+        let mut prefix_regions: Vec<(Grapheme, Grapheme)> = Vec::new();
+        let mut columns: Vec<(Grapheme, Grapheme)> = Vec::new();
+        for (line_idx, &deepest) in deepest_by_line.iter().enumerate() {
+            let Some(deepest) = deepest else {
+                continue;
+            };
+            let line = self.bounds.source_lines[line_idx];
+            let (prefix_len, _) = self.line_prefix_len(deepest, line);
+            if prefix_len.0 == 0 {
+                continue;
+            }
+            prefix_regions.push((line.start(), line.start() + prefix_len));
+            let mut level = Some(deepest);
+            while let Some(node) = level {
+                let range = self.line_own_prefix(node, line);
+                if !range.is_empty() {
+                    columns.push(range);
+                }
+                level = self.gutter_parent(node);
+            }
+        }
+        if columns.is_empty() {
+            return;
+        }
+        // Drop unicode words that fell in a prefix region; the columns
+        // replace them. Both sets are non-overlapping and the regions are
+        // disjoint from content, so the merged list stays sorted and
+        // non-overlapping as `range_bound` requires.
+        self.bounds
+            .words
+            .retain(|w| !prefix_regions.iter().any(|p| w.intersects(p, false)));
+        self.bounds.words.extend(columns);
+        self.bounds.words.sort();
     }
 
     /// Returns whether the given line is one of the source lines of the given node

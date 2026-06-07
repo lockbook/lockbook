@@ -25,7 +25,10 @@ impl<'ast> MdRender {
     pub fn width(&self, node: &'ast AstNode<'ast>) -> f32 {
         let parent = || node.parent().unwrap();
         let parent_width = || self.width(parent());
-        let parent_indent = || self.indent(parent());
+        // A container shifts its content by one indent unit iff it paints
+        // a gutter column.
+        let parent_indent =
+            || if self.is_gutter_level(parent()) { self.layout.indent } else { 0.0 };
         // Clamp at 0: deeply nested containers at narrow doc widths
         // can drive `parent_width - parent_indent` negative; `show_block`
         // / `height` bail separately when width is genuinely too small.

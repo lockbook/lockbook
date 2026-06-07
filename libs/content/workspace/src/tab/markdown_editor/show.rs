@@ -32,6 +32,11 @@ use super::input::{Bound, Event, Location, Region};
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
 pub struct PreRenderState {
     focused: bool,
+    /// Painter slot reserved before block rendering so the selection
+    /// highlight paints *behind* the block content drawn afterwards
+    /// (bullets, quote bars, checkboxes — painted immediately, not via
+    /// the deferred glyph callback). Filled in `post_render`.
+    selection_shape: egui::layers::ShapeIdx,
 }
 
 impl MdEdit {
@@ -343,7 +348,11 @@ impl MdEdit {
 
         self.renderer.in_progress_selection = self.in_progress_selection;
 
-        PreRenderState { focused }
+        // Reserved before block content so the highlight sits behind it;
+        // see the `selection_shape` field.
+        let selection_shape = ui.painter().add(egui::Shape::Noop);
+
+        PreRenderState { focused, selection_shape }
     }
 
     /// Per-frame teardown that runs after block rendering: cursor /
@@ -364,7 +373,17 @@ impl MdEdit {
                 .unwrap_or(self.renderer.buffer.current.selection);
             let theme = self.renderer.ctx.get_lb_theme();
             let color = theme.bg().get_color(theme.prefs().primary);
-            self.show_range(ui, selection, color.lerp_to_gamma(theme.neutral_bg(), 0.7));
+
+            // Fill the reserved slot so the highlight paints behind the
+            // markers (drawn during block render); the cursor stays on top.
+            let sel_color = color.lerp_to_gamma(theme.neutral_bg(), 0.7);
+            let shapes: Vec<egui::Shape> = self
+                .range_rects(selection)
+                .into_iter()
+                .map(|r| egui::Shape::rect_filled(r, 2.0, sel_color))
+                .collect();
+            ui.painter()
+                .set(pre.selection_shape, egui::Shape::Vec(shapes));
             self.show_offset(ui, selection.1, color);
 
             if focused {

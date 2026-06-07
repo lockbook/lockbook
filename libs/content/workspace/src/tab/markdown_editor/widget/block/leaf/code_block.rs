@@ -151,6 +151,9 @@ impl<'ast> MdRender {
         );
 
         width -= 2. * self.layout.block_padding;
+        // Container gutter columns sit at the code block's outer left (the
+        // deepest container's content origin), not inside the padded box.
+        let content_left = top_left.x;
         top_left.x += self.layout.block_padding;
         top_left.y += self.layout.block_padding;
         top_left.y -= self.layout.row_spacing; // makes spacing logic simpler
@@ -178,11 +181,23 @@ impl<'ast> MdRender {
                     );
                     let h = fence_layout.height;
                     self.show_wrap_layout(ui, top_left, &fence_layout);
+                    self.show_block_line_prefixes(
+                        node,
+                        line,
+                        Pos2::new(content_left, top_left.y),
+                        row_height,
+                    );
                     top_left.y += h;
                 }
             } else {
                 top_left.y += self.layout.row_spacing;
                 self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
+                self.show_block_line_prefixes(
+                    node,
+                    line,
+                    Pos2::new(content_left, top_left.y),
+                    row_height,
+                );
                 top_left.y += self.height_code_block_line(node, node_code_block, line, false);
             }
         }
@@ -203,7 +218,14 @@ impl<'ast> MdRender {
             return true; // only opening + closing fence: always reveal
         }
 
-        self.node_lines_intersect_selection(node) // selection-based reveal
+        // Reveal when a reveal range touches any of the block's source
+        // lines, *including* a container prefix (`> `): a cursor on the
+        // prefix of an otherwise-collapsed fence line would otherwise have
+        // no fragment, since the fence line isn't rendered.
+        self.node_lines(node).iter().any(|line_idx| {
+            let line = self.bounds.source_lines[line_idx];
+            self.range_revealed(line, true)
+        })
     }
 
     pub fn height_indented_code_block(
@@ -260,6 +282,9 @@ impl<'ast> MdRender {
             egui::epaint::StrokeKind::Inside,
         );
 
+        // Container gutter columns sit at the code block's outer left (the
+        // deepest container's content origin), not inside the padded box.
+        let content_left = top_left.x;
         top_left.x += self.layout.block_padding;
         top_left.y += self.layout.block_padding;
 
@@ -279,9 +304,21 @@ impl<'ast> MdRender {
                 );
                 let h = l.height;
                 self.show_wrap_layout(ui, top_left, &l);
+                self.show_block_line_prefixes(
+                    node,
+                    line,
+                    Pos2::new(content_left, top_left.y),
+                    row_height,
+                );
                 top_left.y += h;
             } else {
                 self.show_code_block_line(ui, node, top_left, node_code_block, line, synthetic);
+                self.show_block_line_prefixes(
+                    node,
+                    line,
+                    Pos2::new(content_left, top_left.y),
+                    row_height,
+                );
                 top_left.y += self.height_code_block_line(node, node_code_block, line, synthetic);
             }
 

@@ -166,6 +166,29 @@ impl Theme {
     }
 }
 
+/// Returns the color that, painted at opacity `alpha` over `background`,
+/// composites to `target` (`target = alpha·x + (1−alpha)·background`,
+/// solved for `x`). Painting the result over a *different* background lets
+/// that background show through while keeping the `target` look over
+/// `background` — e.g. a code pill that matches its opaque appearance over
+/// the page yet lets a selection behind it bleed through. Solved in egui's
+/// gamma (sRGB-byte) blend space; channels clamp to `[0, 255]`, so an
+/// `alpha` too low to reach `target` degrades gracefully.
+pub fn translucent_over(target: Color32, background: Color32, alpha: f32) -> Color32 {
+    let a = alpha.clamp(f32::EPSILON, 1.0);
+    let solve = |t: u8, b: u8| {
+        (((t as f32) - (1.0 - a) * (b as f32)) / a)
+            .round()
+            .clamp(0.0, 255.0) as u8
+    };
+    Color32::from_rgba_unmultiplied(
+        solve(target.r(), background.r()),
+        solve(target.g(), background.g()),
+        solve(target.b(), background.b()),
+        (a * 255.0).round() as u8,
+    )
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Mode {
     #[default]
@@ -494,4 +517,38 @@ pub fn username_color(name: &str) -> Palette {
         .bytes()
         .fold(0u32, |acc, b| acc.wrapping_mul(31).wrapping_add(b as u32));
     COLORS[hash as usize % COLORS.len()]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Composite `src` over `dst` the way egui blends premultiplied colors
+    /// in gamma space: `out = src_premul + (1 − src_a)·dst`.
+    fn over(src: Color32, dst: Color32) -> [u8; 3] {
+        let sa = src.a() as f32 / 255.0;
+        let f = |s: u8, d: u8| (s as f32 + (1.0 - sa) * d as f32).round() as u8;
+        [f(src.r(), dst.r()), f(src.g(), dst.g()), f(src.b(), dst.b())]
+    }
+
+    /// `translucent_over` must reproduce `target` when composited back over
+    /// `background` — verified for the actual code-pill colors in both
+    /// themes so clamping never silently shifts the unselected look.
+    #[test]
+    fn translucent_over_round_trips_code_pill() {
+        for (label, mode) in [("light", Mode::Light), ("dark", Mode::Dark)] {
+            let theme = Theme::default(mode);
+            let target = theme.neutral_bg_secondary();
+            let bg = theme.neutral_bg();
+            let x = translucent_over(target, bg, 0.5);
+            let got = over(x, bg);
+            for (g, t) in got.iter().zip([target.r(), target.g(), target.b()]) {
+                assert!(
+                    (*g as i32 - t as i32).abs() <= 2,
+                    "{label}: composite {got:?} != target {:?}",
+                    [target.r(), target.g(), target.b()]
+                );
+            }
+        }
+    }
 }

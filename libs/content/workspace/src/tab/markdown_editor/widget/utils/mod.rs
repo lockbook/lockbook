@@ -53,6 +53,37 @@ pub fn consume_indent_columns(text: &str, target_columns: usize) -> usize {
     graphemes
 }
 
+/// Like [`consume_indent_columns`] but a tab straddling `target_columns`
+/// is claimed *whole* rather than refused. Used to split a continuation
+/// indent run per nesting level: the indentation must be fully
+/// attributed, so a tab that overshoots a level's band goes to the level
+/// whose band it starts in (the next level then finds its band already
+/// consumed and claims nothing). With spaces it's identical to
+/// [`consume_indent_columns`].
+pub fn consume_indent_columns_ceil(text: &str, target_columns: usize) -> usize {
+    let mut cols = 0;
+    let mut graphemes = 0;
+    for c in text.chars() {
+        if cols >= target_columns {
+            break;
+        }
+        match c {
+            ' ' => {
+                cols += 1;
+                graphemes += 1;
+            }
+            // Still under target, so claim the whole tab even though it
+            // overshoots — it can't be split across the boundary.
+            '\t' => {
+                cols = (cols / 4 + 1) * 4;
+                graphemes += 1;
+            }
+            _ => break,
+        }
+    }
+    graphemes
+}
+
 /// Grapheme range of the leading ` ` / `\t` run. Lexical, not
 /// structural — see [`consume_indent_columns`] for why ownership
 /// is ambiguous.
