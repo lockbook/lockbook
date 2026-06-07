@@ -3,7 +3,7 @@ use egui::{Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns_ceil;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 use crate::theme::palette_v2::ThemeExt as _;
@@ -80,6 +80,7 @@ impl<'ast> MdRender {
                 );
                 let h = result.height;
                 self.show_wrap_layout(ui, top_left, &result);
+                self.show_block_line_prefixes(node, line, top_left, row_height);
                 top_left.y += h;
             }
         }
@@ -121,12 +122,12 @@ impl<'ast> MdRender {
         // line in Ls is a block quote containing Bs."
         let text = &self.buffer[node_line];
 
-        // Up to 3 columns of leading whitespace before `>`. Tabs count via
-        // 4-column tab stops per CommonMark §2.2; a tab at column 0 expands
-        // to 4 columns and so cannot be leading-WS for a blockquote. Leading
-        // whitespace here is ' ' or '\t' only (both ASCII), so grapheme
-        // count equals byte count.
-        let lead = consume_indent_columns(text, 3);
+        // Up to 3 columns of leading whitespace before `>`. Ceil so a tab
+        // a parent level left straddling the boundary is claimed here
+        // rather than leaking into content (comrak already decided this is
+        // a blockquote; we just attribute the bytes). Leading whitespace is
+        // ' ' or '\t' only (both ASCII), so grapheme count equals byte count.
+        let lead = consume_indent_columns_ceil(text, 3);
         let after_lead = &text[lead..];
         if !after_lead.starts_with('>') {
             // "If a string of lines Ls constitute a block quote with contents Bs,

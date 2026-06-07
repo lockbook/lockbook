@@ -14,10 +14,16 @@ impl<'ast> MdRender {
 
     pub fn show_thematic_break(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         let width = self.width(node);
-        let node_line = self.node_line(node, self.node_first_line(node));
+        let line = self.node_first_line(node);
+        let node_line = self.node_line(node, line);
         let row_height = self.layout.row_height;
 
-        if self.node_revealed(node) {
+        // Reveal on the node's *line* range, not `node_range`: comrak
+        // reports a thematic break's sourcepos as a single column, so
+        // inside a container the cursor on a later `*`/`-` wouldn't
+        // intersect it and the row's interior offsets would have no
+        // fragment.
+        if self.range_revealed(node_line, true) {
             let result = self.compute_section_layout_new(
                 node_line,
                 width,
@@ -25,6 +31,7 @@ impl<'ast> MdRender {
                 self.text_format_syntax(),
             );
             self.show_wrap_layout(ui, top_left, &result);
+            self.show_block_line_prefixes(node, line, top_left, row_height);
         } else {
             // Painted as a horizontal rule, with zero-visible anchors
             // at each endpoint so cursor placement at the row's edges
@@ -45,6 +52,7 @@ impl<'ast> MdRender {
             layout.push_override(node_line.end().into_range(), "", self.text_format_syntax());
             let result = self.compute_layout_from(layout, width, row_height);
             self.show_wrap_layout(ui, top_left, &result);
+            self.show_block_line_prefixes(node, line, top_left, row_height);
         }
     }
 }

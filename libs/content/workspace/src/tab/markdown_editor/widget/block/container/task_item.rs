@@ -2,7 +2,7 @@ use comrak::nodes::{AstNode, NodeTaskItem, NodeValue};
 use egui::{CursorIcon, Pos2, Rect, Sense, Shape, Stroke, StrokeKind, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
-use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
+use crate::tab::markdown_editor::widget::utils::consume_indent_columns_ceil;
 use crate::tab::markdown_editor::{Event, MdRender};
 use crate::theme::palette_v2::ThemeExt;
 
@@ -124,6 +124,12 @@ impl<'ast> MdRender {
                 self.text_format_document(),
             );
             self.show_wrap_layout(ui, top_left + self.layout.indent * Vec2::X, &result);
+            self.show_block_line_prefixes(
+                node,
+                line,
+                top_left + self.layout.indent * Vec2::X,
+                row_height,
+            );
             false
         };
 
@@ -167,16 +173,10 @@ impl<'ast> MdRender {
             let first_line = self.node_first_line(node);
             let node_line = self.node_line(node, first_line);
 
+            // 1-3 columns of relative indent before the marker; ceil so a
+            // straddling tab is claimed rather than leaking into content.
             let text = &self.buffer[(node_line.start(), node_line.end())];
-            if text.starts_with("   ") {
-                "   ".len()
-            } else if text.starts_with("  ") {
-                "  ".len()
-            } else if text.starts_with(" ") {
-                " ".len()
-            } else {
-                0
-            }
+            consume_indent_columns_ceil(text, 3)
         };
         let marker_width_including_spaces: usize = {
             // task items don't have a NodeList so we have to do this ourselves
@@ -239,7 +239,9 @@ impl<'ast> MdRender {
                 _ => marker_width_including_spaces, // fallback, shouldn't happen
             };
             let text = &self.buffer[node_line];
-            result += consume_indent_columns(text, indentation + parent_padding);
+            // Ceil so a straddling tab is claimed here rather than leaking
+            // into a nested block's prefix (per-level tab attribution).
+            result += consume_indent_columns_ceil(text, indentation + parent_padding);
         }
 
         Some(result)

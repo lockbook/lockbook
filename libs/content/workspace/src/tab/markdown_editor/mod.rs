@@ -511,6 +511,7 @@ impl MdRender {
             self.compute_bounds(root);
             self.bounds.inline_paragraphs.sort();
             self.calc_words();
+            self.calc_syntax_words(root);
             self.bounds.text_seq = self.text_seq;
             self.bounds_seq = self
                 .ws_seq

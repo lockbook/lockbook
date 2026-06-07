@@ -348,6 +348,24 @@ impl BoundExt for Grapheme {
             }
         };
 
+        // Gutter-aware line jump: a cursor in a line's captured prefix
+        // region (before the first wrap row, whose ranges exclude the
+        // prefix) targets the *source* line start on cmd+left and the
+        // wrap-row end on cmd+right. The prefix isn't part of any wrap
+        // line so the generic logic below can't express it.
+        if matches!(bound, Bound::Line) {
+            let (sl, _) = bounds.source_lines.find_containing(self, true, true);
+            if let Some(&source_line) = bounds.source_lines.get(sl) {
+                let (w0, w1) = bounds.wrap_lines.find_contained(source_line, true, true);
+                if w0 < w1 {
+                    let row0 = bounds.wrap_lines[w0];
+                    if self < row0.start() {
+                        return Some((source_line.start(), row0.end()));
+                    }
+                }
+            }
+        }
+
         let range_before = Bounds::range_before(ranges, self);
         let range_after = Bounds::range_after(ranges, self);
 

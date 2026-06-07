@@ -95,6 +95,46 @@ impl MdEdit {
             }
             result.push(rect);
         }
+
+        // Selected newlines / blank lines have no glyph to highlight. When
+        // the selection crosses a source line's end, add a fixed-width slab
+        // at that row's end so the captured `\n` reads as selected.
+        // (Soft-wrap whitespace shares its boundary offset with the next
+        // row's start, so it isn't covered here.)
+        if !range.is_empty() {
+            let slab_w = self.renderer.layout.row_height * 0.4;
+            let line_count = self.renderer.bounds.source_lines.len();
+            for i in 0..line_count.saturating_sub(1) {
+                // The `\n` grapheme sits at the line's end offset (source
+                // lines exclude their trailing newline).
+                let newline = self.renderer.bounds.source_lines[i].end();
+                if newline < range.start() || newline >= range.end() {
+                    continue;
+                }
+                // Match the row's content rects (bare fragment rect), not
+                // `cursor_line`'s caret-height-expanded range.
+                if let Some(frag) = self.renderer.fragment_at_offset(newline) {
+                    let x = self.renderer.fragment_x(frag, newline);
+                    let (top, bot) = (frag.rect.min.y, frag.rect.max.y);
+                    // Extend the row's content rect rightward into the slab so
+                    // the newline flows out of the row's highlight as one
+                    // rounded shape, rather than a separate notched rect.
+                    if let Some(r) = result.iter_mut().find(|r| {
+                        (r.top() - top).abs() < 0.001
+                            && (r.bottom() - bot).abs() < 0.001
+                            && (r.right() - x).abs() < 0.5
+                    }) {
+                        r.max.x = r.max.x.max(x + slab_w);
+                    } else {
+                        result.push(Rect::from_min_max(
+                            Pos2::new(x, top),
+                            Pos2::new(x + slab_w, bot),
+                        ));
+                    }
+                }
+            }
+        }
+
         result
     }
 

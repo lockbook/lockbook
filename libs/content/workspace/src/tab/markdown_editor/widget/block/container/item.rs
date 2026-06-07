@@ -5,8 +5,10 @@ use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, R
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
-use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, FontFamily};
+use crate::tab::markdown_editor::widget::utils::{
+    consume_indent_columns, consume_indent_columns_ceil,
+};
 
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -120,6 +122,12 @@ impl<'ast> MdRender {
                 self.text_format_syntax(),
             );
             self.show_wrap_layout(ui, top_left + self.layout.indent * Vec2::X, &result);
+            self.show_block_line_prefixes(
+                node,
+                line,
+                top_left + self.layout.indent * Vec2::X,
+                row_height,
+            );
             let item_rect =
                 Rect::from_min_size(top_left, Vec2::new(self.width(node), result.height));
             item_rect.contains(ui.input(|i| i.pointer.latest_pos().unwrap_or_default()))
@@ -165,16 +173,11 @@ impl<'ast> MdRender {
             let first_line = self.node_first_line(node);
             let first_node_line = self.node_line(node, first_line);
 
+            // 1-3 columns of relative indent before the marker. Ceil so a
+            // tab a parent level left straddling the boundary is claimed as
+            // this item's indent rather than leaking into content.
             let text = &self.buffer[first_node_line];
-            if text.starts_with("   ") {
-                "   ".len()
-            } else if text.starts_with("  ") {
-                "  ".len()
-            } else if text.starts_with(" ") {
-                " ".len()
-            } else {
-                0
-            }
+            consume_indent_columns_ceil(text, 3)
         };
         let NodeList { padding: marker_width_including_spaces, .. } = *node_list;
         if line == self.node_first_line(node) {
@@ -227,9 +230,24 @@ impl<'ast> MdRender {
                 // Indented code block line — leave stripping to
                 // `code_block.rs`.
             } else {
-                // Paragraph (or other non-code) continuation — strip
-                // all leading whitespace.
-                result += consume_indent_columns(text, usize::MAX);
+                // Per-level continuation indent. `has_deeper` tests raw
+                // sourcepos, not `node_range`/`node_line`, which recurse
+                // back into the `line_prefix_len` being computed here.
+                let has_deeper = node.descendants().skip(1).any(|d| {
+                    self.is_gutter_level(d) && {
+                        let sp = d.data.borrow().sourcepos;
+                        sp.start.line <= line_1_based && line_1_based <= sp.end.line
+                    }
+                });
+                if has_deeper {
+                    // Claim only this level's columns (ceil keeps a
+                    // straddling tab); the deeper level takes the rest.
+                    result += consume_indent_columns_ceil(text, marker_width_including_spaces);
+                } else {
+                    // Deepest gutter item — take the rest so content
+                    // isn't over-indented.
+                    result += consume_indent_columns(text, usize::MAX);
+                }
             }
         }
 
