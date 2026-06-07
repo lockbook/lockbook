@@ -156,7 +156,7 @@ impl<'ast> MdRender {
             // inline
             NodeValue::Image(node_link) => {
                 let NodeLink { url, .. } = &**node_link;
-                self.height_image(node, url) // used when rendering the image itself
+                self.height_image(node, url, self.image_dims(node)) // rendering the image itself
             }
             NodeValue::Subtext
             | NodeValue::Code(_)
@@ -253,7 +253,7 @@ impl<'ast> MdRender {
                         // next read.
                         NodeValue::Image(link) => {
                             let dims = self.embeds.size(&link.url);
-                            image_height += self.image_size(dims, width).y;
+                            image_height += self.image_size(dims, width, self.image_dims(d)).y;
                         }
                         _ => {}
                     }
@@ -374,7 +374,7 @@ impl<'ast> MdRender {
             // inline
             NodeValue::Image(node_link) => {
                 let NodeLink { url, .. } = &**node_link;
-                self.show_image_block(ui, node, top_left, url)
+                self.show_image_block(ui, node, top_left, url, self.image_dims(node))
             }
             NodeValue::Subtext
             | NodeValue::Code(_)

@@ -12,7 +12,7 @@ impl<'ast> MdRender {
             for descendant in node.descendants() {
                 if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
                     let NodeLink { url, .. } = &**node_link;
-                    result += self.height_image(node, url);
+                    result += self.height_image(node, url, self.image_dims(descendant));
                     result += self.layout.block_spacing;
                 }
             }
@@ -86,8 +86,9 @@ impl<'ast> MdRender {
                     if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
                         let NodeLink { url, .. } = &**node_link;
                         if node_line.contains_inclusive(self.node_range(descendant).start()) {
-                            self.show_image_block(ui, node, top_left, url);
-                            top_left.y += self.height_image(node, url);
+                            let dims = self.image_dims(descendant);
+                            self.show_image_block(ui, node, top_left, url, dims);
+                            top_left.y += self.height_image(node, url, dims);
                             top_left.y += self.layout.block_spacing;
                         }
                     }
