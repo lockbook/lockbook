@@ -4,7 +4,6 @@ struct App {
 }
 
 struct AppState {
-    title: String,
     window: Arc<Window>,
     lb: WgpuLockbook<'static>,
     egui_winit: egui_winit::State,
@@ -86,7 +85,6 @@ impl ApplicationHandler<UserEvent> for App {
             last_pointer_pos: Pos2::ZERO,
             close_requested: false,
             next_repaint: None,
-            title: "Lockbook".to_string(),
         });
     }
 
@@ -261,10 +259,7 @@ impl AppState {
             for cmd in &viewport.commands {
                 match cmd {
                     ViewportCommand::Title(title) => {
-                        if self.title != *title {
-                            self.title = title.clone();
-                            self.window.set_title(title);
-                        }
+                        self.window.set_title(title);
                     }
                     ViewportCommand::RequestPaste => {
                         self.handle_paste();
