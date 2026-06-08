@@ -354,10 +354,13 @@ impl Workspace {
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
 
-        ui.ctx().send_viewport_cmd(ViewportCommand::Title(
-            self.current_tab_title()
-                .unwrap_or_else(|| "Lockbook".to_string()),
-        ));
+        let title = self
+            .current_tab_title()
+            .unwrap_or_else(|| "Lockbook".to_string());
+        if self.last_set_title.as_ref() != Some(&title) {
+            self.last_set_title = Some(title.clone());
+            ui.ctx().send_viewport_cmd(ViewportCommand::Title(title));
+        }
         if back {
             self.back();
         }

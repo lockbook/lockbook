@@ -28,7 +28,7 @@ impl<'ast> MdRender {
     pub fn height_heading(&self, node: &'ast AstNode<'ast>, level: u8, setext: bool) -> f32 {
         let text_height =
             if setext { self.height_setext_heading(node) } else { self.height_atx_heading(node) };
-        text_height + if level <= 2 { self.layout.block_spacing } else { 0. }
+        text_height + if level == 1 { self.layout.block_spacing } else { 0. }
     }
 
     /// Build `Layout` for a setext heading's content line (non-underline
@@ -255,7 +255,7 @@ impl<'ast> MdRender {
         }
 
         top_left.y -= self.layout.row_spacing;
-        if level <= 2 {
+        if level == 1 {
             self.show_heading_rule(ui, top_left, width);
         }
         resp
@@ -279,7 +279,7 @@ impl<'ast> MdRender {
         self.show_block_line_prefixes(ui, node, line, top_left, row_height);
 
         top_left.y += height;
-        if level <= 2 {
+        if level == 1 {
             self.show_heading_rule(ui, top_left, width);
         }
         resp
