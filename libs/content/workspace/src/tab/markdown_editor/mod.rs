@@ -65,6 +65,9 @@ pub mod show;
 mod theme;
 mod widget;
 
+#[cfg(test)]
+mod tests;
+
 pub use input::Event;
 pub use md_label::MdLabel;
 
