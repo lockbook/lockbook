@@ -52,6 +52,11 @@ struct SyncDots {
     pushing: Vec<Uuid>,
     dirty: Vec<Uuid>,
     pulling: Vec<Uuid>,
+    expanded: HashSet<Uuid>,
+    /// Per-file: when each file first entered a status list without leaving since. A file's dot is
+    /// only shown once it has been pending for `SYNC_DOT_DEBOUNCE`; going clear drops it from the map
+    /// and resets its timer.
+    pending_since: HashMap<Uuid, Instant>,
     files_stale: bool,
 }
 
@@ -146,7 +151,7 @@ impl FileTree {
     pub fn show(
         &mut self, ui: &mut Ui, max_rect: Rect, toasts: &mut Toasts, status: &Status,
     ) -> Response {
-        self.refresh_sync_dots(status);
+        self.refresh_sync_dots(ui, status);
 
         let mut resp = Response::default();
         let mut scroll_to_cursor = mem::take(&mut self.scroll_to_cursor);
@@ -1106,22 +1111,49 @@ impl FileTree {
         resp
     }
 
-    fn refresh_sync_dots(&mut self, status: &Status) {
-        let unchanged = !self.sync_dots.files_stale
+    fn refresh_sync_dots(&mut self, ui: &Ui, status: &Status) {
+        let inputs_unchanged = !self.sync_dots.files_stale
             && self.sync_dots.pushing == status.pushing_files
             && self.sync_dots.dirty == status.dirty_locally
-            && self.sync_dots.pulling == status.pulling_files;
-        if unchanged {
-            return;
+            && self.sync_dots.pulling == status.pulling_files
+            && self.sync_dots.expanded == self.expanded;
+        if !inputs_unchanged {
+            // Update per-file debounce timers: keep existing start times, start new files now, and
+            // drop files that went clear so their timer resets next time they appear.
+            let now = Instant::now();
+            let mut pending_since = HashMap::new();
+            for ids in [&status.pushing_files, &status.dirty_locally, &status.pulling_files] {
+                for &id in ids {
+                    let since = self.sync_dots.pending_since.get(&id).copied().unwrap_or(now);
+                    pending_since.insert(id, since);
+                }
+            }
+            self.sync_dots.pending_since = pending_since;
+            self.sync_dots.pushing = status.pushing_files.clone();
+            self.sync_dots.dirty = status.dirty_locally.clone();
+            self.sync_dots.pulling = status.pulling_files.clone();
+            self.sync_dots.expanded = self.expanded.clone();
+            self.sync_dots.files_stale = false;
         }
-        let dots = self.compute_sync_dots(status);
-        self.sync_dots = SyncDots {
-            dots,
-            pushing: status.pushing_files.clone(),
-            dirty: status.dirty_locally.clone(),
-            pulling: status.pulling_files.clone(),
-            files_stale: false,
-        };
+
+        // Recompute the displayed dots every frame from the files that have cleared the debounce.
+        self.sync_dots.dots = self.compute_sync_dots(status);
+
+        // Schedule a repaint for the soonest file still within its debounce window.
+        let soonest = self
+            .sync_dots
+            .pending_since
+            .values()
+            .map(|since| Self::SYNC_DOT_DEBOUNCE.saturating_sub(since.elapsed()))
+            .filter(|remaining| !remaining.is_zero())
+            .min();
+        if let Some(remaining) = soonest {
+            ui.ctx().request_repaint_after(remaining);
+        }
+    }
+
+    fn sync_dot(&self, id: Uuid) -> Option<SyncDot> {
+        self.sync_dots.dots.get(&id).copied()
     }
 
     fn compute_sync_dots(&self, status: &Status) -> HashMap<Uuid, SyncDot> {
@@ -1132,24 +1164,35 @@ impl FileTree {
             (&status.pulling_files, SyncDot::Pulling),
         ] {
             for &id in ids {
-                Self::bump(&mut dots, id, dot);
-
-                let mut current = id;
-                while let Some(file) = self.files.get_by_id(current) {
-                    if file.is_root() {
-                        break;
-                    }
-                    match self.files.get_by_id(file.parent) {
-                        Some(parent) if !parent.is_root() => {
-                            Self::bump(&mut dots, file.parent, dot)
-                        }
-                        _ => break,
-                    }
-                    current = file.parent;
+                if !self.debounce_elapsed(id) {
+                    continue;
                 }
+                Self::bump(&mut dots, self.visible_representative(id), dot);
             }
         }
         dots
+    }
+
+    fn debounce_elapsed(&self, id: Uuid) -> bool {
+        self.sync_dots
+            .pending_since
+            .get(&id)
+            .is_some_and(|since| since.elapsed() >= Self::SYNC_DOT_DEBOUNCE)
+    }
+
+    fn visible_representative(&self, id: Uuid) -> Uuid {
+        let mut target = id;
+        let mut current = id;
+        while let Some(file) = self.files.get_by_id(current) {
+            if file.is_root() {
+                break;
+            }
+            if !self.expanded.contains(&file.parent) {
+                target = file.parent;
+            }
+            current = file.parent;
+        }
+        target
     }
 
     fn bump(dots: &mut HashMap<Uuid, SyncDot>, id: Uuid, dot: SyncDot) {
@@ -1224,12 +1267,7 @@ impl FileTree {
             .text_overflow(TextOverflow::EndEllipsis)
             .icon(&icon)
             .icon_color(icon_color)
-            .trailing_dot(
-                self.sync_dots
-                    .dots
-                    .get(&file.id)
-                    .map(|dot| dot.color(&theme)),
-            );
+            .trailing_dot(self.sync_dot(file.id).map(|dot| dot.color(&theme)));
 
         let button = if !is_renaming {
             let display_name = doc_type.display_name(&file.name);
@@ -1496,6 +1534,7 @@ impl FileTree {
 
     const BTN_ROUNDING: f32 = 5.0;
     const BTN_MARGIN: Vec2 = egui::vec2(15.0, 0.0);
+    const SYNC_DOT_DEBOUNCE: Duration = Duration::from_secs(3);
 }
 
 /// Model related things
