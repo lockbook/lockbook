@@ -11,6 +11,11 @@ class FilesViewModel: ObservableObject {
 
     @Published var statusDots: [UUID: SyncDot] = [:]
 
+    private let statusDotDelay: TimeInterval = 2
+    private var candidateStatusDots: [UUID: SyncDot] = [:]
+    private var statusDotSince: [UUID: Date] = [:]
+    private var statusDotTimer: Timer?
+
     @Published var pendingSharesByUsername: [String: [File]]? = nil
 
     @Published var selectedFilesState: SelectedFilesState = .unselected
@@ -33,9 +38,49 @@ class FilesViewModel: ObservableObject {
     }
 
     func recomputeStatusDots(status: Status) {
-        let newDots = computeStatusDots(status: status)
-        if newDots != statusDots {
-            statusDots = newDots
+        candidateStatusDots = computeStatusDots(status: status)
+
+        let now = Date()
+        for id in candidateStatusDots.keys where statusDotSince[id] == nil {
+            statusDotSince[id] = now
+        }
+        for id in statusDotSince.keys where candidateStatusDots[id] == nil {
+            statusDotSince[id] = nil
+        }
+
+        refreshStatusDots()
+    }
+
+    private func refreshStatusDots() {
+        statusDotTimer?.invalidate()
+        statusDotTimer = nil
+
+        let now = Date()
+        var visible: [UUID: SyncDot] = [:]
+        var nextDeadline: Date? = nil
+
+        for (id, dot) in candidateStatusDots {
+            guard let since = statusDotSince[id] else { continue }
+
+            if now.timeIntervalSince(since) >= statusDotDelay {
+                visible[id] = dot
+            } else {
+                let deadline = since.addingTimeInterval(statusDotDelay)
+                if nextDeadline == nil || deadline < nextDeadline! {
+                    nextDeadline = deadline
+                }
+            }
+        }
+
+        if visible != statusDots {
+            statusDots = visible
+        }
+
+        if let nextDeadline {
+            let interval = max(0, nextDeadline.timeIntervalSince(now))
+            statusDotTimer = Timer.scheduledTimer(withTimeInterval: interval, repeats: false) { [weak self] _ in
+                self?.refreshStatusDots()
+            }
         }
     }
 
