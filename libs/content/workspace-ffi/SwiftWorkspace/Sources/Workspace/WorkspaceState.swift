@@ -35,17 +35,26 @@ public class WorkspaceInputState: ObservableObject {
 
     public init() {}
 
-    public func openFile(id: UUID) {
+    public func openFile(id: UUID, newTab: Bool = true) {
         guard let wsHandle else {
             return
         }
 
         let uuid = CUuid(_0: id.uuid)
         no_folder_selected(wsHandle)
-        open_file(wsHandle, uuid)
+        open_file(wsHandle, uuid, newTab)
         redraw.send(())
         //        Will crash iOS, something with caret rects. Looks rust related
         //        focus.send(())
+    }
+
+    public func openFile(id: UUID, rangeStart: Int, rangeEnd: Int, newTab: Bool = true) {
+        guard let wsHandle else { return }
+
+        let uuid = CUuid(_0: id.uuid)
+        no_folder_selected(wsHandle)
+        open_file_at(wsHandle, uuid, UInt(rangeStart), UInt(rangeEnd), newTab)
+        redraw.send(())
     }
 
     public func selectFolder(id: UUID?) {
@@ -57,6 +66,14 @@ public class WorkspaceInputState: ObservableObject {
             no_folder_selected(wsHandle)
         }
         redraw.send(())
+    }
+
+    public func showSearch() {
+        guard let wsHandle else { return }
+
+        show_search(wsHandle)
+        redraw.send(())
+        focus.send(())
     }
 
     public func createDocAt(parent: UUID, drawing: Bool) {

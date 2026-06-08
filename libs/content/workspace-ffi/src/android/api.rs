@@ -501,22 +501,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
 }
 
 fn get_current_tab(obj: &mut WgpuWorkspace<'_>) -> i32 {
-    match obj.workspace.current_tab() {
-        Some(tab) => match &tab.content {
-            ContentState::Open(tab) => match tab {
-                TabContent::Image(_) => 2,
-                TabContent::Markdown(_) => 3,
-                // TabContent::PlainText(_) => 4,
-                TabContent::Pdf(_) => 5,
-                TabContent::Svg(_) => 6,
-                TabContent::MindMap(_) => 7,
-                TabContent::SpaceInspector(_) => 8,
-                TabContent::Chat(_) => 9,
-            },
-            _ => 1,
-        },
-        None => 0,
-    }
+    crate::current_tab_type(&obj.workspace)
 }
 
 #[no_mangle]

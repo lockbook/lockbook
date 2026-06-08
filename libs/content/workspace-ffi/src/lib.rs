@@ -1,4 +1,5 @@
 use egui_wgpu_renderer::{PreparedFrame, RendererState};
+use workspace_rs::tab::{ContentState, TabContent};
 use workspace_rs::workspace::Workspace;
 
 /// cbindgen:ignore
@@ -7,6 +8,26 @@ pub mod apple;
 pub mod response;
 
 pub use response::Response;
+
+pub fn current_tab_type(ws: &Workspace) -> i32 {
+    match ws.current_tab() {
+        None => 0,
+        Some(tab) => match &tab.content {
+            ContentState::Open(content) => match content {
+                TabContent::Image(_) => 2,
+                TabContent::Markdown(_) => 3,
+                TabContent::Pdf(_) => 5,
+                TabContent::Svg(_) => 6,
+                #[cfg(not(target_family = "wasm"))]
+                TabContent::MindMap(_) => 7,
+                TabContent::SpaceInspector(_) => 8,
+                TabContent::Chat(_) => 9,
+                TabContent::Search(_) => 0,
+            },
+            _ => 1,
+        },
+    }
+}
 
 #[repr(C)]
 pub struct WgpuWorkspace<'window> {

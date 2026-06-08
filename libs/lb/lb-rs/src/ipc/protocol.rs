@@ -13,8 +13,6 @@ use crate::model::file_metadata::{DocumentHmac, FileType};
 use crate::model::path_ops::Filter;
 use crate::service::activity::RankingWeights;
 use crate::service::events::Event;
-#[cfg(not(target_family = "wasm"))]
-use crate::subscribers::search::SearchConfig;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub enum Frame {
@@ -234,15 +232,6 @@ pub enum Request {
     GetLastSynced,
     GetLastSyncedHuman,
     Subscribe,
-    #[cfg(not(target_family = "wasm"))]
-    BuildIndex,
-    #[cfg(not(target_family = "wasm"))]
-    ReloadSearchIndex,
-    #[cfg(not(target_family = "wasm"))]
-    Search {
-        input: String,
-        cfg: SearchConfig,
-    },
 }
 
 #[cfg(test)]

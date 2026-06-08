@@ -1,14 +1,16 @@
 use std::ffi::{CString, c_char};
 
 use lb_rs::Uuid;
+use lb_rs::search::{ContentSearcher, PathSearcher};
 
 use crate::ffi_utils::rvec;
 use crate::lb_c_err::LbFfiErr;
 use crate::lb_file::LbFile;
 use crate::{
-    LbAccountRes, LbDocRes, LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes,
-    LbGetFileLinkUrlRes, LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes,
-    LbPathsRes, LbSearchRes, LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
+    LbAccountRes, LbContentSearcherResults, LbContentSearcherSnippet, LbDocRes,
+    LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbGetFileLinkUrlRes,
+    LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathSearcherResults,
+    LbPathsRes, LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
 };
 
 #[unsafe(no_mangle)]
@@ -215,34 +217,66 @@ pub extern "C" fn lb_free_usage_metrics(usage: LbUsageMetricsRes) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn lb_free_search_results(search_results: LbSearchRes) {
-    if !search_results.err.is_null() {
-        lb_free_err(search_results.err);
+pub extern "C" fn lb_free_path_searcher(searcher: *mut PathSearcher) {
+    if searcher.is_null() {
+        return;
+    }
+    unsafe { drop(Box::from_raw(searcher)) };
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_path_search_results(results: LbPathSearcherResults) {
+    if results.results.is_null() {
+        return;
     }
 
-    if !search_results.results.is_null() {
-        let results = rvec(search_results.results, search_results.results_len);
+    let results = rvec(results.results, results.results_len);
+    for result in results {
+        unsafe {
+            drop(CString::from_raw(result.filename));
+            drop(CString::from_raw(result.parent_path));
+        }
+        drop(rvec(result.matched_indices, result.matched_indices_len));
+    }
+}
 
-        for result in results {
-            if !result.doc_result.is_null() {
-                let result = unsafe { *Box::from_raw(result.doc_result) };
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_content_searcher(searcher: *mut ContentSearcher) {
+    if searcher.is_null() {
+        return;
+    }
+    unsafe { drop(Box::from_raw(searcher)) };
+}
 
-                let content_matches = rvec(result.content_matches, result.content_matches_len);
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_content_search_results(results: LbContentSearcherResults) {
+    if results.results.is_null() {
+        return;
+    }
 
-                for content_match in content_matches {
-                    let _ =
-                        rvec(content_match.matched_indicies, content_match.matched_indicies_len);
+    let results = rvec(results.results, results.results_len);
+    for result in results {
+        unsafe {
+            drop(CString::from_raw(result.filename));
+            drop(CString::from_raw(result.parent_path));
+        }
+        if !result.matches.is_null() {
+            drop(rvec(result.matches, result.matches_len));
+        }
+    }
+}
 
-                    unsafe { drop(CString::from_raw(content_match.paragraph)) }
-                }
-
-                unsafe { drop(CString::from_raw(result.path)) }
-            } else {
-                let result = unsafe { *Box::from_raw(result.path_result) };
-
-                let _ = rvec(result.matched_indicies, result.matched_indicies_len);
-                unsafe { drop(CString::from_raw(result.path)) };
-            }
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_content_searcher_snippet(snippet: LbContentSearcherSnippet) {
+    unsafe {
+        if !snippet.prefix.is_null() {
+            drop(CString::from_raw(snippet.prefix));
+        }
+        if !snippet.matched.is_null() {
+            drop(CString::from_raw(snippet.matched));
+        }
+        if !snippet.suffix.is_null() {
+            drop(CString::from_raw(snippet.suffix));
         }
     }
 }

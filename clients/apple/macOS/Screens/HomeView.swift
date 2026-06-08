@@ -19,27 +19,33 @@ struct HomeView: View {
     }
 
     var body: some View {
-        PathSearchContainerView(filesModel: filesModel, workspaceInput: workspaceInput) {
-            NavigationSplitView(
-                columnVisibility: homeState.splitViewVisibility,
-                sidebar: {
-                    CustomTabView(selectedTab: $selectedTab, tabContent: { tabType in
-                        switch tabType {
-                        case .home:
-                            filesHome
-                        case .sharedWithMe:
-                            sharedWithMe
-                        }
-                    })
-                    .navigationSplitViewColumnWidth(min: 250, ideal: 300)
-                },
-                detail: {
-                    NavigationStack {
-                        DetailView()
-                            .modifier(OutOfSpaceAlert())
+        NavigationSplitView(
+            columnVisibility: homeState.splitViewVisibility,
+            sidebar: {
+                CustomTabView(selectedTab: $selectedTab, tabContent: { tabType in
+                    switch tabType {
+                    case .home:
+                        filesHome
+                    case .sharedWithMe:
+                        sharedWithMe
                     }
+                })
+                .navigationSplitViewColumnWidth(min: 250, ideal: 300)
+            },
+            detail: {
+                NavigationStack {
+                    DetailView()
+                        .modifier(OutOfSpaceAlert())
                 }
-            )
+            }
+        )
+        .toolbar {
+            ToolbarItem(placement: .primaryAction) {
+                Button(action: { workspaceInput.showSearch() }) {
+                    Image(systemName: "magnifyingglass")
+                }
+                .help("Search")
+            }
         }
         .confirmationDialog(
             "Are you sure? This action cannot be undone.",
@@ -61,9 +67,7 @@ struct HomeView: View {
     }
 
     var filesHome: some View {
-        SearchContainerView(filesModel: filesModel) {
-            FilesHomeView()
-        }
+        FilesHomeView()
     }
 
     var sharedWithMe: some View {

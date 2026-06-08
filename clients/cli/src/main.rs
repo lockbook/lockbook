@@ -11,7 +11,6 @@ mod stream;
 
 use std::env;
 use std::path::PathBuf;
-use std::time::Instant;
 
 use account::ApiUrl;
 use cli_rs::arg::Arg;
@@ -19,14 +18,12 @@ use cli_rs::cli_error::{CliError, CliResult, Exit};
 use cli_rs::command::Command;
 use cli_rs::flag::Flag;
 use cli_rs::parser::Cmd;
-
 use colored::Colorize;
 use input::FileInput;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::path_ops::Filter;
 use lb_rs::service::events::{Event, SyncIncrement};
-use lb_rs::subscribers::search::{SearchConfig, SearchResult};
 use lb_rs::{Lb, Uuid};
 
 fn run() -> CliResult<()> {
@@ -211,7 +208,7 @@ fn run() -> CliResult<()> {
                 )
         )
         .subcommand(
-            Command::name("search").description("search document contents")
+            Command::name("search").description("search file paths and document contents")
                 .input(Arg::str("query"))
                 .handler(|query| search(&query.get()))
         )
@@ -241,59 +238,69 @@ pub async fn core() -> CliResult<Lb> {
         .map_err(|err| CliError::from(err.to_string()))
 }
 
-#[tokio::main]
-async fn search(query: &str) -> CliResult<()> {
-    let lb = &core().await?;
-    ensure_account_and_root(lb).await?;
+fn search(query: &str) -> CliResult<()> {
+    let lb = lb_rs::blocking::Lb::init(Config::cli_config("cli"))
+        .map_err(|err| CliError::from(err.to_string()))?;
+    lb.get_account()
+        .map_err(|err| CliError::from(err.to_string()))?;
 
-    let time = Instant::now();
-    lb.build_index().await?;
-    let build_time = time.elapsed();
+    let mut path_searcher = lb.path_searcher();
+    path_searcher.query(query);
+    let path_results = path_searcher.results();
 
-    lb.reload_search_index().await?;
+    println!("{}", "Files".bold().underline());
+    if path_results.is_empty() {
+        println!("  no matches");
+    }
+    for result in path_results.iter().take(10) {
+        println!("  {}", full_path(&result.parent_path, &result.filename).green());
+    }
+    println!();
 
-    let time = Instant::now();
-    let results = lb.search(query, SearchConfig::PathsAndDocuments).await?;
-    let search_time = time.elapsed();
+    let mut content_searcher = lb.content_searcher();
+    content_searcher.query(query);
+    let content_results = content_searcher.results();
 
-    for result in results {
-        match result {
-            SearchResult::DocumentMatch { id: _, path, content_matches } => {
-                println!("{}", format!("DOC: {path}").bold().blue());
-                for content in content_matches {
-                    let mut result = String::default();
-                    for (i, c) in content.paragraph.char_indices() {
-                        if content.matched_indices.contains(&i) {
-                            result = format!("{result}{}", c.to_string().underline());
-                        } else {
-                            result = format!("{result}{c}");
-                        }
-                    }
-                    println!("{result}");
-                }
-                println!();
-            }
-            SearchResult::PathMatch { id: _, path, matched_indices, score: _ } => {
-                let mut result = String::default();
-                for (i, c) in path.char_indices() {
-                    if matched_indices.contains(&i) {
-                        result = format!("{result}{}", c.to_string().underline());
-                    } else {
-                        result = format!("{result}{c}");
-                    }
-                }
-                println!("{}", format!("PATH: {result}").bold().green());
-                println!();
+    println!("{}", "Content".bold().underline());
+    if content_results.is_empty() {
+        println!("  no matches");
+    }
+    for result in content_results.iter().take(10) {
+        println!(
+            "  {}",
+            full_path(&result.parent_path, &result.filename)
+                .bold()
+                .blue()
+        );
+        for content_match in result.content_matches.iter().take(3) {
+            if let Some((prefix, matched, suffix)) =
+                content_searcher.snippet(result.id, &content_match.range, 40)
+            {
+                println!(
+                    "    …{}{}{}…",
+                    one_line(prefix),
+                    one_line(matched).underline(),
+                    one_line(suffix)
+                );
             }
         }
     }
 
-    let build_time = format!("{build_time:?}").bold();
-    let search_time = format!("{search_time:?}").bold();
-    println!("Index built in {build_time}");
-    println!("Search took {search_time}");
-
     Ok(())
+}
+
+fn full_path(parent_path: &str, filename: &str) -> String {
+    if parent_path == "/" || parent_path.is_empty() {
+        format!("/{filename}")
+    } else {
+        format!("{parent_path}/{filename}")
+    }
+}
+
+fn one_line(s: &str) -> String {
+    s.chars()
+        .map(|c| if c == '\n' || c == '\r' { ' ' } else { c })
+        .collect()
 }
 
 #[tokio::main]

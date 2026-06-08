@@ -4,7 +4,8 @@ use std::ptr::null_mut;
 use std::{fs, process};
 
 use ffi_utils::{
-    carray, cstring, cstring_array, lb_err, r_opt_str, r_paths, rlb, rstr, rstring, rvec,
+    carray, cstring, cstring_array, lb_err, r_opt_str, r_paths, rcontent_searcher, rlb,
+    rpath_searcher, rstr, rstring, rvec,
 };
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
@@ -19,8 +20,8 @@ use model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentMethod, PaymentPlatform,
     StripeAccountTier, UnixTimeMillis,
 };
+use search::{ContentSearcher, PathSearcher};
 use service::import_export::ImportStatus;
-use subscribers::search::{SearchConfig, SearchResult};
 
 use std::sync::Arc;
 use std::sync::atomic::AtomicPtr;
@@ -734,114 +735,164 @@ pub extern "C" fn lb_get_file_link_url(lb: *mut Lb, id: LbUuid) -> LbGetFileLink
 }
 
 #[repr(C)]
-pub struct LbSearchRes {
-    err: *mut LbFfiErr,
-    results: *mut LbSearchResult,
+pub struct LbPathSearcherResult {
+    id: LbUuid,
+    filename: *mut c_char,
+    parent_path: *mut c_char,
+    matched_indices: *mut u32,
+    matched_indices_len: usize,
+}
+
+#[repr(C)]
+pub struct LbPathSearcherResults {
+    results: *mut LbPathSearcherResult,
+    results_len: usize,
+}
+
+/// Build a `PathSearcher` over the current file tree. The returned handle is owned by the
+/// caller and must be released with `lb_free_path_searcher`. Repeated calls rebuild the index.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_path_searcher_new(lb: *mut Lb) -> *mut PathSearcher {
+    let lb = rlb(lb);
+    Box::into_raw(Box::new(lb.path_searcher()))
+}
+
+/// Update the query and return the current top results. The returned buffer must be released
+/// with `lb_free_path_search_results`. The searcher handle remains owned by the caller.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_path_searcher_query(
+    searcher: *mut PathSearcher, input: *const c_char,
+) -> LbPathSearcherResults {
+    let searcher = rpath_searcher(searcher);
+    let input = rstr(input);
+
+    searcher.query(input);
+
+    let results: Vec<LbPathSearcherResult> = searcher
+        .results()
+        .iter()
+        .map(|r| {
+            let (matched_indices, matched_indices_len) = carray(r.path_indices.clone());
+            LbPathSearcherResult {
+                id: r.id.into(),
+                filename: cstring(r.filename.as_str()),
+                parent_path: cstring(r.parent_path.as_str()),
+                matched_indices,
+                matched_indices_len,
+            }
+        })
+        .collect();
+
+    if results.is_empty() {
+        LbPathSearcherResults { results: null_mut(), results_len: 0 }
+    } else {
+        let (results, results_len) = carray(results);
+        LbPathSearcherResults { results, results_len }
+    }
+}
+
+#[repr(C)]
+pub struct LbContentSearcherMatch {
+    range_start: usize,
+    range_end: usize,
+    exact: bool,
+}
+
+#[repr(C)]
+pub struct LbContentSearcherResult {
+    id: LbUuid,
+    filename: *mut c_char,
+    parent_path: *mut c_char,
+    matches: *mut LbContentSearcherMatch,
+    matches_len: usize,
+}
+
+#[repr(C)]
+pub struct LbContentSearcherResults {
+    results: *mut LbContentSearcherResult,
     results_len: usize,
 }
 
 #[repr(C)]
-pub struct LbSearchResult {
-    path_result: *mut LbPathSearchResult,
-    doc_result: *mut LbDocumentSearchResult,
+pub struct LbContentSearcherSnippet {
+    prefix: *mut c_char,
+    matched: *mut c_char,
+    suffix: *mut c_char,
 }
 
-#[repr(C)]
-pub struct LbPathSearchResult {
-    id: LbUuid,
-    path: *mut c_char,
-    score: i64,
-    matched_indicies: *mut usize,
-    matched_indicies_len: usize,
-}
-
-#[repr(C)]
-pub struct LbDocumentSearchResult {
-    id: LbUuid,
-    path: *mut c_char,
-    content_matches: *mut LbContentMatch,
-    content_matches_len: usize,
-}
-
-#[repr(C)]
-pub struct LbContentMatch {
-    paragraph: *mut c_char,
-    score: i64,
-    matched_indicies: *mut usize,
-    matched_indicies_len: usize,
-}
-
+/// Build a `ContentSearcher` over the current document set. The returned handle is owned by the
+/// caller and must be released with `lb_free_content_searcher`.
 #[unsafe(no_mangle)]
-pub extern "C" fn lb_search(
-    lb: *mut Lb, input: *const c_char, search_paths: bool, search_docs: bool,
-) -> LbSearchRes {
+pub extern "C" fn lb_content_searcher_new(lb: *mut Lb) -> *mut ContentSearcher {
     let lb = rlb(lb);
+    Box::into_raw(Box::new(lb.content_searcher()))
+}
 
+/// Update the query and return the current results. Each match is a byte range into the
+/// document's lowercased content; render it via `lb_content_searcher_snippet`. The returned
+/// buffer must be released with `lb_free_content_search_results`; the searcher handle remains
+/// owned by the caller.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_content_searcher_query(
+    searcher: *mut ContentSearcher, input: *const c_char,
+) -> LbContentSearcherResults {
+    let searcher = rcontent_searcher(searcher);
     let input = rstr(input);
-    let config = if search_paths && search_docs {
-        SearchConfig::PathsAndDocuments
-    } else if search_docs {
-        SearchConfig::Documents
-    } else {
-        SearchConfig::Paths
-    };
 
-    match lb.search(input, config) {
-        Ok(search_results) => {
-            let mut results = Vec::new();
+    searcher.query(input);
 
-            for result in search_results {
-                match result {
-                    SearchResult::PathMatch { id, path, matched_indices, score } => {
-                        let (matched_indicies, matched_indicies_len) = carray(matched_indices);
-
-                        results.push(LbSearchResult {
-                            path_result: Box::into_raw(Box::new(LbPathSearchResult {
-                                id: id.into(),
-                                path: cstring(path),
-                                score,
-                                matched_indicies,
-                                matched_indicies_len,
-                            })),
-                            doc_result: null_mut(),
-                        })
-                    }
-                    SearchResult::DocumentMatch { id, path, content_matches } => {
-                        let mut c_content_matches = Vec::new();
-
-                        for content_match in content_matches {
-                            let (matched_indicies, matched_indicies_len) =
-                                carray(content_match.matched_indices);
-
-                            c_content_matches.push(LbContentMatch {
-                                paragraph: cstring(content_match.paragraph),
-                                score: content_match.score,
-                                matched_indicies,
-                                matched_indicies_len,
-                            });
-                        }
-
-                        let (content_matches, content_matches_len) = carray(c_content_matches);
-
-                        results.push(LbSearchResult {
-                            path_result: null_mut(),
-                            doc_result: Box::into_raw(Box::new(LbDocumentSearchResult {
-                                id: id.into(),
-                                path: cstring(path),
-                                content_matches,
-                                content_matches_len,
-                            })),
-                        })
-                    }
-                }
+    let results: Vec<LbContentSearcherResult> = searcher
+        .results()
+        .iter()
+        .map(|r| {
+            let matches: Vec<LbContentSearcherMatch> = r
+                .content_matches
+                .iter()
+                .map(|m| LbContentSearcherMatch {
+                    range_start: m.range.start,
+                    range_end: m.range.end,
+                    exact: m.exact,
+                })
+                .collect();
+            let (matches, matches_len) =
+                if matches.is_empty() { (null_mut(), 0) } else { carray(matches) };
+            LbContentSearcherResult {
+                id: r.id.into(),
+                filename: cstring(r.filename.as_str()),
+                parent_path: cstring(r.parent_path.as_str()),
+                matches,
+                matches_len,
             }
+        })
+        .collect();
 
-            let (results, results_len) =
-                if results.is_empty() { (null_mut(), 0) } else { carray(results) };
+    if results.is_empty() {
+        LbContentSearcherResults { results: null_mut(), results_len: 0 }
+    } else {
+        let (results, results_len) = carray(results);
+        LbContentSearcherResults { results, results_len }
+    }
+}
 
-            LbSearchRes { err: null_mut(), results, results_len }
+/// Render a single match as a `(prefix, matched, suffix)` snippet triple with `context_chars`
+/// of context on each side. Returns all-null fields if the document or range is unknown. The
+/// returned snippet must be released with `lb_free_content_searcher_snippet`.
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_content_searcher_snippet(
+    searcher: *mut ContentSearcher, id: LbUuid, range_start: usize, range_end: usize,
+    context_chars: usize,
+) -> LbContentSearcherSnippet {
+    let searcher = rcontent_searcher(searcher);
+    let id: Uuid = id.into();
+    match searcher.snippet(id, &(range_start..range_end), context_chars) {
+        Some((prefix, matched, suffix)) => LbContentSearcherSnippet {
+            prefix: cstring(prefix),
+            matched: cstring(matched),
+            suffix: cstring(suffix),
+        },
+        None => {
+            LbContentSearcherSnippet { prefix: null_mut(), matched: null_mut(), suffix: null_mut() }
         }
-        Err(err) => LbSearchRes { err: lb_err(err), results: null_mut(), results_len: 0 },
     }
 }
 

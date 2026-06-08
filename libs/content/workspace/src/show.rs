@@ -14,6 +14,7 @@ use web_time::{Duration, Instant};
 
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::output::Response;
+use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
@@ -48,6 +49,7 @@ impl Workspace {
         self.process_task_updates();
         self.process_keys();
         self.process_clip_events();
+        self.apply_pending_open_range();
 
         if self.is_empty() {
             if self.show_tabs {
@@ -209,6 +211,13 @@ impl Workspace {
     }
 
     fn show_current_tab_content(&mut self, ui: &mut egui::Ui) {
+        // Search renders here (not via `Tab::show`) so its preview pane can use
+        // the workspace's async file loader.
+        if matches!(self.current_tab, Some(crate::tab::Destination::Search)) {
+            self.show_search_tab(ui);
+            return;
+        }
+
         if let Some(tab) = self.current_tab_mut() {
             let resp = tab.show(ui);
 
@@ -418,6 +427,19 @@ impl Workspace {
             self.upsert_mind_map(self.core.clone());
         }
 
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::F))
+        {
+            self.upsert_search(Some(SearchType::Content));
+        }
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::O))
+        {
+            self.upsert_search(Some(SearchType::Path));
+        }
+
         // Ctrl-W to close current tab, or return to root when on landing page.
         if self
             .ctx
@@ -493,6 +515,9 @@ impl Workspace {
         let completions_active = self
             .current_tab_markdown()
             .is_some_and(|md| md.edit.emoji_completions.active || md.edit.link_completions.active);
+        // The search tab claims Cmd+1–9 to quick-open results, so don't let the
+        // workspace consume them for tab switching while search is showing.
+        let search_active = matches!(self.current_tab, Some(crate::tab::Destination::Search));
         let current_idx = self
             .current_tab
             .as_ref()
@@ -502,7 +527,8 @@ impl Workspace {
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
             for (i, &key) in NUM_KEYS.iter().enumerate().skip(1).take(8) {
-                let cmd_consumed = !completions_active && input.consume_key_exact(COMMAND, key);
+                let cmd_consumed =
+                    !completions_active && !search_active && input.consume_key_exact(COMMAND, key);
                 let alt_consumed = !APPLE && input.consume_key_exact(Modifiers::ALT, key);
                 if cmd_consumed || alt_consumed {
                     goto_tab = Some(i.min(self.tab_strip.len()) - 1);
@@ -520,7 +546,9 @@ impl Workspace {
             }
 
             // Cmd+9 to go to last tab
-            let cmd9_consumed = !completions_active && input.consume_key_exact(COMMAND, Key::Num9);
+            let cmd9_consumed = !completions_active
+                && !search_active
+                && input.consume_key_exact(COMMAND, Key::Num9);
             let alt9_consumed = !APPLE && input.consume_key_exact(Modifiers::ALT, Key::Num9);
             if (cmd9_consumed || alt9_consumed) && !self.tab_strip.is_empty() {
                 goto_tab = Some(self.tab_strip.len() - 1);

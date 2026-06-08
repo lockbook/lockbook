@@ -1,6 +1,7 @@
 use crate::file_cache::FilesExt;
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
+use crate::search::Search;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
@@ -35,12 +36,14 @@ pub enum Destination {
     File(Uuid),
     MindMap(Uuid),
     SpaceInspector(Uuid),
+    Search,
 }
 
 impl Destination {
     pub fn id(&self) -> Uuid {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
+            Self::Search => Uuid::nil(),
         }
     }
 }
@@ -70,7 +73,10 @@ pub struct Tab {
 
 impl Tab {
     pub fn id(&self) -> Option<Uuid> {
-        Some(self.destination.id())
+        match self.destination {
+            Destination::Search => None,
+            _ => Some(self.destination.id()),
+        }
     }
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
@@ -220,6 +226,7 @@ impl Tab {
                     TabContent::SpaceInspector(sv) => {
                         sv.show(ui);
                     }
+                    TabContent::Search(_) => {}
                 }
                 resp
             }
@@ -252,6 +259,7 @@ pub enum TabContent {
     #[cfg(not(target_family = "wasm"))]
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
+    Search(Search),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -265,6 +273,7 @@ impl std::fmt::Debug for TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
+            TabContent::Search(_) => write!(f, "TabContent::Search"),
         }
     }
 }
@@ -280,6 +289,7 @@ impl TabContent {
             #[cfg(not(target_family = "wasm"))]
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
+            TabContent::Search(_) => None,
         }
     }
 
@@ -474,6 +484,7 @@ impl Workspace {
                 #[cfg(not(target_family = "wasm"))]
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
                 ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
+                ContentState::Open(TabContent::Search(_)) => "Search".into(),
                 _ => "Unknown".into(),
             },
         }

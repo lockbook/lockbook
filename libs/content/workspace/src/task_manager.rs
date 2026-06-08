@@ -81,6 +81,8 @@ pub struct LoadRequest {
     // what focuses the tab and the tab must be shown every frame to hold focus
     // todo: hold focus for loading tabs and all the rest in one proper place
     pub make_current: bool,
+
+    pub is_preview: bool,
 }
 
 #[derive(Clone, Debug)]

@@ -27,6 +27,7 @@ use crate::landing::LandingPage;
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
+use crate::search::{Search, SearchType};
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 use crate::tab::chat::Chat;
@@ -59,6 +60,10 @@ pub struct Workspace {
     pub current_tab: Option<Destination>,
     pub landing_page: LandingPage,
     pub account: Account,
+
+    pub preview: Option<Tab>,
+
+    pending_open_range: Option<(Uuid, std::ops::Range<usize>)>,
 
     // Files and task status
     pub tasks: TaskManager,
@@ -148,6 +153,8 @@ impl Workspace {
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
+            preview: None,
+            pending_open_range: None,
             ws_rx,
         };
 
@@ -205,6 +212,11 @@ impl Workspace {
                     self.ctx.clone(),
                 )))
             }
+            Destination::Search => ContentState::Open(TabContent::Search(Search::new(
+                &self.core,
+                &self.ctx,
+                self.files.clone(),
+            ))),
         };
         let now = Instant::now();
         self.tabs.insert(
@@ -218,8 +230,12 @@ impl Workspace {
             },
         );
         if needs_load {
-            self.tasks
-                .queue_load(LoadRequest { id, tab_created: true, make_current: false });
+            self.tasks.queue_load(LoadRequest {
+                id,
+                tab_created: true,
+                make_current: false,
+                is_preview: false,
+            });
         }
     }
 
@@ -231,6 +247,40 @@ impl Workspace {
         if make_current {
             self.current_tab = Some(dest);
             self.mark_current_tab_changed();
+        }
+    }
+
+    pub fn set_preview(&mut self, id: Option<lb_rs::Uuid>) {
+        let id = id.filter(|id| {
+            self.files
+                .read()
+                .unwrap()
+                .get_by_id(*id)
+                .is_some_and(|f| f.is_document())
+        });
+
+        if self.preview.as_ref().and_then(|t| t.id()) == id {
+            return;
+        }
+
+        match id {
+            Some(id) => {
+                let now = Instant::now();
+                self.preview = Some(Tab {
+                    destination: Destination::File(id),
+                    content: ContentState::Loading(id),
+                    last_changed: now,
+                    last_saved: now,
+                    read_only: true,
+                });
+                self.tasks.queue_load(LoadRequest {
+                    id,
+                    tab_created: true,
+                    make_current: false,
+                    is_preview: true,
+                });
+            }
+            None => self.preview = None,
         }
     }
 
@@ -395,6 +445,58 @@ impl Workspace {
         self.mark_current_tab_changed();
     }
 
+    /// Open `id`, consuming the search tab: the selected file takes the search
+    /// tab's place in the strip rather than opening alongside it.
+    pub fn open_file_replacing_search(&mut self, id: Uuid) {
+        let dest = Destination::File(id);
+        let search_idx = self
+            .tab_strip
+            .iter()
+            .position(|s| matches!(s.dest, Destination::Search));
+
+        // Already open elsewhere: focus that tab and drop the search tab.
+        if self.tab_strip.iter().any(|s| s.dest == dest) {
+            if let Some(i) = search_idx {
+                self.close_tab(i);
+            }
+            if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
+                self.make_current(pos);
+            }
+            return;
+        }
+
+        // Otherwise replace the search slot in place.
+        let Some(i) = search_idx else {
+            self.create_tab(dest, true);
+            return;
+        };
+        self.tabs.remove(&Destination::Search);
+        self.tab_strip[i] = TabSlot::new(dest.clone());
+        self.open_dest(&dest);
+        self.current_tab = Some(dest);
+        self.out.tabs_changed = true;
+        self.mark_current_tab_changed();
+    }
+
+    pub fn open_file_at_range(
+        &mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool,
+    ) {
+        self.open_file(id, true, in_new_tab);
+        self.pending_open_range = Some((id, byte_range));
+    }
+
+    pub(crate) fn apply_pending_open_range(&mut self) {
+        let Some((id, range)) = self.pending_open_range.clone() else { return };
+        if let Some(md) = self.get_mut_tab_by_id(id).and_then(|t| t.markdown_mut()) {
+            if md.initialized {
+                md.open_navigate(range);
+                self.pending_open_range = None;
+            }
+        } else if self.tab_strip.iter().all(|s| s.dest.id() != id) {
+            self.pending_open_range = None;
+        }
+    }
+
     pub fn back(&mut self) {
         let Some(current_dest) = self.current_tab.clone() else { return };
         let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
@@ -497,17 +599,18 @@ impl Workspace {
                         }
                     }
                     let files = self.files.read().unwrap();
-                    let mut tabs_to_delete = vec![];
+                    let mut dests_to_delete = vec![];
                     for slot in &self.tab_strip {
-                        let id = slot.dest.id();
-                        if files.get_by_id(id).is_none() {
-                            tabs_to_delete.push(id);
+                        if let Destination::File(id) = slot.dest {
+                            if files.get_by_id(id).is_none() {
+                                dests_to_delete.push(slot.dest.clone());
+                            }
                         }
                     }
                     drop(files);
 
-                    for id in tabs_to_delete {
-                        if let Some(idx) = self.tab_strip.iter().position(|s| s.dest.id() == id) {
+                    for dest in dests_to_delete {
+                        if let Some(idx) = self.tab_strip.iter().position(|s| s.dest == dest) {
                             self.close_tab(idx);
                         }
                     }
@@ -538,6 +641,7 @@ impl Workspace {
                                     id,
                                     tab_created: false,
                                     make_current: false,
+                                    is_preview: false,
                                 });
                             }
                         }
@@ -638,7 +742,7 @@ impl Workspace {
             // scope indentation preserves git history
             {
                 let CompletedLoad {
-                    request: LoadRequest { id, tab_created, make_current },
+                    request: LoadRequest { id, tab_created, make_current, is_preview },
                     content_result,
                     timing: _,
                 } = load;
@@ -648,7 +752,12 @@ impl Workspace {
                 let show_tabs = self.show_tabs;
 
                 let key = Destination::File(id);
-                if let Some(tab) = self.tabs.get_mut(&key) {
+                let tab_opt = if is_preview {
+                    self.preview.as_mut().filter(|t| t.id() == Some(id))
+                } else {
+                    self.tabs.get_mut(&key)
+                };
+                if let Some(tab) = tab_opt {
                     let files_clone = self.files.clone();
                     let files_guard = files_clone.read().unwrap();
 
@@ -686,7 +795,7 @@ impl Workspace {
                         }
                     };
 
-                    tab.read_only = read_only;
+                    tab.read_only = read_only || is_preview;
 
                     match doc_type {
                         DocType::Image => {
@@ -796,8 +905,15 @@ impl Workspace {
                         }
                     };
 
-                    self.out.tabs_changed = true;
-                } else {
+                    if is_preview {
+                        if let Some(md) = tab.markdown_mut() {
+                            md.initialized = true;
+                            md.id_salt = egui::Id::new("search_preview");
+                        }
+                    } else {
+                        self.out.tabs_changed = true;
+                    }
+                } else if !is_preview {
                     error!("failed to load file: tab not found");
                 };
 
@@ -848,6 +964,7 @@ impl Workspace {
                                         id,
                                         tab_created: false,
                                         make_current: false,
+                                        is_preview: false,
                                     });
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
@@ -982,6 +1099,27 @@ impl Workspace {
     #[cfg(target_family = "wasm")]
     pub fn upsert_mind_map(&mut self, core: Lb) {
         warn!("Mind map is not supported on wasm targets");
+    }
+
+    pub fn upsert_search(&mut self, search_type: Option<SearchType>) {
+        if let Some(i) = self
+            .tab_strip
+            .iter()
+            .position(|s| matches!(s.dest, Destination::Search))
+        {
+            self.make_current(i);
+        } else {
+            self.create_tab(Destination::Search, true);
+        }
+        // refocus the query field each time the tab is opened/focused
+        if let Some(tab) = self.tabs.get_mut(&Destination::Search) {
+            if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                if let Some(search_type) = search_type {
+                    search.search_type = search_type;
+                }
+                search.initialized = false;
+            }
+        }
     }
 
     pub fn start_space_inspector(&mut self, _core: Lb, folder: Option<File>) {
