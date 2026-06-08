@@ -31,7 +31,7 @@ impl<'ast> MdRender {
                 self.text_format_syntax(),
             );
             self.show_wrap_layout(ui, top_left, &result);
-            self.show_block_line_prefixes(node, line, top_left, row_height);
+            self.show_block_line_prefixes(ui, node, line, top_left, row_height);
         } else {
             // Painted as a horizontal rule, with zero-visible anchors
             // at each endpoint so cursor placement at the row's edges
@@ -52,7 +52,7 @@ impl<'ast> MdRender {
             layout.push_override(node_line.end().into_range(), "", self.text_format_syntax());
             let result = self.compute_layout_from(layout, width, row_height);
             self.show_wrap_layout(ui, top_left, &result);
-            self.show_block_line_prefixes(node, line, top_left, row_height);
+            self.show_block_line_prefixes(ui, node, line, top_left, row_height);
         }
     }
 }

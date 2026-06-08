@@ -182,6 +182,7 @@ impl<'ast> MdRender {
                     let h = fence_layout.height;
                     self.show_wrap_layout(ui, top_left, &fence_layout);
                     self.show_block_line_prefixes(
+                        ui,
                         node,
                         line,
                         Pos2::new(content_left, top_left.y),
@@ -193,6 +194,7 @@ impl<'ast> MdRender {
                 top_left.y += self.layout.row_spacing;
                 self.show_code_block_line(ui, node, top_left, node_code_block, line, false);
                 self.show_block_line_prefixes(
+                    ui,
                     node,
                     line,
                     Pos2::new(content_left, top_left.y),
@@ -305,6 +307,7 @@ impl<'ast> MdRender {
                 let h = l.height;
                 self.show_wrap_layout(ui, top_left, &l);
                 self.show_block_line_prefixes(
+                    ui,
                     node,
                     line,
                     Pos2::new(content_left, top_left.y),
@@ -314,6 +317,7 @@ impl<'ast> MdRender {
             } else {
                 self.show_code_block_line(ui, node, top_left, node_code_block, line, synthetic);
                 self.show_block_line_prefixes(
+                    ui,
                     node,
                     line,
                     Pos2::new(content_left, top_left.y),

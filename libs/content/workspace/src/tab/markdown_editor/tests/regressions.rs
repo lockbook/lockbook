@@ -871,76 +871,130 @@ fn drag_across_marker_selects_it() {
     assert!(widest > marker.width() * 0.5, "marker highlight too narrow: {widest}");
 }
 
-/// Reveal flipping must invalidate cached container heights:
-/// `height()`'s reveal=true (source-lines) and reveal=false (formatted)
-/// branches can disagree by tens of px, so a stale cache leaves the
-/// next sibling at the wrong y.
-///
-/// Sequence is crafted so the in-flight invalidation between frames 2
-/// and 3 doesn't touch the block quote (the selection delta misses
-/// its range), forcing the stale cache through into frame 3.
+/// Revealing a container's prefix swaps its gutter decoration for the raw
+/// marker in the same column; the content stays formatted. So the block's
+/// height — and the y of everything below it — must be identical revealed
+/// or not. A heading inside the quote makes any height regression large
+/// and obvious, and would also expose a stale cached height across the
+/// reveal flip.
 #[test]
 fn reveal_change_layout_consistent() {
     let doc = "> # heading inside block quote\n\nfollowing paragraph.\n";
     let mut ws = TestEditor::new(doc);
 
     let following = doc.find("following").unwrap();
-    ws.push(Event::Select {
-        region: Region::BetweenLocations {
-            start: Location::Grapheme(Grapheme(following)),
-            end: Location::Grapheme(Grapheme(following)),
-        },
-    });
+
+    // (heading content top y, trailing paragraph top y) with the cursor at
+    // `cursor`. Source offset 4 starts the heading text (after `> # `) and 32
+    // starts "following paragraph"; both render the same whether or not the
+    // `>` prefix is revealed, so both y's must be reveal-invariant.
+    let layout = |ws: &mut TestEditor, cursor: usize| -> (f32, f32) {
+        ws.push(Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(Grapheme(cursor)),
+                end: Location::Grapheme(Grapheme(cursor)),
+            },
+        });
+        ws.enter_frame();
+        let fragments = &ws.editor.edit.renderer.fragments;
+        let top_of = |offset: usize| {
+            fragments
+                .iter()
+                .find(|f| f.source_range.0.0 == offset)
+                .unwrap_or_else(|| panic!("no fragment starting at offset {offset}"))
+                .rect
+                .min
+                .y
+        };
+        (top_of(4), top_of(32))
+    };
+
+    // Cursor outside the quote reveals nothing. Offset 1 sits strictly
+    // inside the `> ` marker (between `>` and the space) — the interior
+    // position that reveals the blockquote syntax.
+    let (heading_plain, following_plain) = layout(&mut ws, following);
+    let (heading_revealed, following_revealed) = layout(&mut ws, 1);
+
+    assert!(
+        (heading_revealed - heading_plain).abs() < 0.5,
+        "revealing the prefix moved the heading: {heading_plain:.1} -> {heading_revealed:.1}"
+    );
+    assert!(
+        (following_revealed - following_plain).abs() < 0.5,
+        "revealing the prefix moved the trailing paragraph: \
+         {following_plain:.1} -> {following_revealed:.1}"
+    );
+}
+
+/// A revealed marker is right-aligned to its column's content edge by the
+/// laid-out marker width. Using the layout's available width (≫ the marker)
+/// instead pushes it far off the left edge, so the marker vanishes even
+/// though its fragments still exist. Asserts the marker renders on-screen,
+/// just left of the content.
+#[test]
+fn revealed_marker_on_screen() {
+    let mut ws = TestEditor::new("12. item\n");
     ws.enter_frame();
 
+    // Offset 2 sits strictly inside the `12. ` marker, revealing it.
     ws.push(Event::Select {
         region: Region::BetweenLocations {
-            start: Location::Grapheme(Grapheme(following + 1)),
-            end: Location::Grapheme(Grapheme(following + 1)),
-        },
-    });
-    ws.enter_frame();
-
-    // Offset 1 sits strictly inside the blockquote's `> ` marker (between
-    // `>` and the space) — the interior position that reveals the syntax.
-    // Offset 0 is the marker's left edge, which (being drag-accessible)
-    // stays captured under the current reveal rule.
-    ws.push(Event::Select {
-        region: Region::BetweenLocations {
-            start: Location::Grapheme(Grapheme(1)),
-            end: Location::Grapheme(Grapheme(1)),
+            start: Location::Grapheme(Grapheme(2)),
+            end: Location::Grapheme(Grapheme(2)),
         },
     });
     ws.enter_frame();
 
     let fragments = &ws.editor.edit.renderer.fragments;
-    let bq_frag = fragments
+    let marker = fragments
         .iter()
         .find(|f| f.source_range.0.0 == 0)
-        .expect("blockquote source-line fragment");
-    let following_frag = fragments
+        .expect("revealed marker fragment");
+    let content = fragments
         .iter()
-        .find(|f| f.source_range.0.0 == 32)
-        .expect("trailing paragraph fragment");
-    let gap = following_frag.rect.min.y - bq_frag.rect.max.y;
-    // Empirically ~28 px when cache is fresh; ~62 when stale.
-    const MAX_GAP: f32 = 45.0;
+        .find(|f| f.source_range.0.0 == 4)
+        .expect("content fragment");
+
+    assert!(marker.rect.left() >= 0.0, "marker off the left edge: left={}", marker.rect.left());
     assert!(
-        gap <= MAX_GAP,
-        "trailing paragraph too far below blockquote: gap={gap:.1} px (max {MAX_GAP})\n\
-         blockquote rect={:?} trailing rect={:?}\n\
-         all fragments:\n{}",
-        bq_frag.rect,
-        following_frag.rect,
-        fragments
-            .iter()
-            .enumerate()
-            .map(|(k, f)| format!(
-                "  [{k}] range={}..{} y=[{:.1}..{:.1}]",
-                f.source_range.0.0, f.source_range.1.0, f.rect.min.y, f.rect.max.y,
-            ))
-            .collect::<Vec<_>>()
-            .join("\n"),
+        marker.rect.right() <= content.rect.left() + 0.5,
+        "marker overlaps content: marker right={} content left={}",
+        marker.rect.right(),
+        content.rect.left(),
+    );
+}
+
+/// A cursor in a container's leading indentation must not reveal its
+/// marker — only a cursor in the marker itself reveals. Here the inner
+/// item's line begins with the outer item's continuation indentation; a
+/// cursor there must not reveal the outer marker (on the line above).
+#[test]
+fn indentation_cursor_does_not_reveal_marker() {
+    let mut ws = TestEditor::new("- a\n  - b\n");
+    ws.enter_frame();
+
+    // Offset 5 is interior to the two-space indentation on line 2 (the
+    // outer item's continuation prefix), not any marker.
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(5)),
+            end: Location::Grapheme(Grapheme(5)),
+        },
+    });
+    ws.enter_frame();
+
+    // The outer marker (offset 0) stays a decoration spacer, not raw glyphs.
+    let marker = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| f.source_range.0.0 == 0)
+        .expect("outer marker fragment");
+    assert!(
+        matches!(marker.content, FragmentContent::Spacer),
+        "cursor in indentation revealed the marker"
     );
 }
 

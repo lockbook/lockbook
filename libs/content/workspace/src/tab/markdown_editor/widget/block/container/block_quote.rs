@@ -49,11 +49,14 @@ impl<'ast> MdRender {
         let annotation_size = Vec2 { x: self.layout.indent, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        ui.painter().vline(
-            annotation_space.center().x,
-            annotation_space.y_range(),
-            Stroke::new(3., self.ctx.get_lb_theme().neutral_bg_tertiary()),
-        );
+        // when revealed, the raw `>` prefix occupies this column instead
+        if !self.reveal(node) {
+            ui.painter().vline(
+                annotation_space.center().x,
+                annotation_space.y_range(),
+                Stroke::new(3., self.ctx.get_lb_theme().neutral_bg_tertiary()),
+            );
+        }
 
         top_left.x += annotation_space.width();
         let width = self.width(node);
@@ -80,7 +83,7 @@ impl<'ast> MdRender {
                 );
                 let h = result.height;
                 self.show_wrap_layout(ui, top_left, &result);
-                self.show_block_line_prefixes(node, line, top_left, row_height);
+                self.show_block_line_prefixes(ui, node, line, top_left, row_height);
                 top_left.y += h;
             }
         }

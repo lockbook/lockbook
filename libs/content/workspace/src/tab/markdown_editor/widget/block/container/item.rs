@@ -46,59 +46,53 @@ impl<'ast> MdRender {
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
         let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();
-        match list_type {
-            ListType::Bullet => {
-                ui.painter().circle_filled(
-                    annotation_space.center(),
-                    self.layout.bullet_radius * row_height / self.layout.row_height,
-                    annotation_color,
-                );
-            }
-            ListType::Ordered => {
-                let mut sibling_index = 0usize;
-                let mut prev = node.previous_sibling();
-                while let Some(p) = prev {
-                    sibling_index += 1;
-                    prev = p.previous_sibling();
+
+        // when revealed, the raw marker occupies this column instead
+        if !self.reveal(node) {
+            match list_type {
+                ListType::Bullet => {
+                    ui.painter().circle_filled(
+                        annotation_space.center(),
+                        self.layout.bullet_radius * row_height / self.layout.row_height,
+                        annotation_color,
+                    );
                 }
-                let number = start + sibling_index;
+                ListType::Ordered => {
+                    let mut sibling_index = 0usize;
+                    let mut prev = node.previous_sibling();
+                    while let Some(p) = prev {
+                        sibling_index += 1;
+                        prev = p.previous_sibling();
+                    }
+                    let number = start + sibling_index;
 
-                let text = format!("{number}.");
-                let ppi = self.ctx.pixels_per_point();
-                let [r, g, b, a] = annotation_color.to_array();
-                let color = glyphon::Color::rgba(r, g, b, a);
-                let mut format = self.text_format_document();
-                format.family = FontFamily::Mono;
-                format.color = annotation_color;
-                let gap = 5.0;
-                let afs = self.layout.annotation_font_size;
-                let buffer = self.upsert_glyphon_buffer(&text, afs, afs, f32::MAX, &format);
-                let size = buffer.read().unwrap().shaped_size(ppi);
+                    // Trailing space included, as in source, so this matches
+                    // the marker the reveal path draws from the source bytes.
+                    let text = format!("{number}. ");
+                    let ppi = self.ctx.pixels_per_point();
+                    let [r, g, b, a] = annotation_color.to_array();
+                    let color = glyphon::Color::rgba(r, g, b, a);
+                    let mut format = self.text_format_document();
+                    format.family = FontFamily::Mono;
+                    format.color = annotation_color;
+                    let afs = self.layout.annotation_font_size;
+                    let buffer = self.upsert_glyphon_buffer(&text, afs, afs, f32::MAX, &format);
+                    let size = buffer.read().unwrap().shaped_size(ppi);
 
-                // align baseline with content row by comparing line_y from
-                // a content-sized buffer and the annotation-sized buffer
-                let content_line_y = {
-                    let tmp =
-                        self.upsert_glyphon_buffer(" ", row_height, row_height, f32::MAX, &format);
-                    let tmp = tmp.read().unwrap();
-                    tmp.layout_runs().next().map(|r| r.line_y).unwrap_or(0.0) / ppi
-                };
-                let number_line_y = {
-                    let buf = buffer.read().unwrap();
-                    buf.layout_runs().next().map(|r| r.line_y).unwrap_or(0.0) / ppi
-                };
-
-                // right-pad from content, overflow left if needed
-                let x = annotation_space.right() - size.x - gap;
-                let y = annotation_space.top() + content_line_y - number_line_y;
-                let rect = Rect::from_min_size(Pos2::new(x, y), size);
-                self.text_areas.push(TextBufferArea::new(
-                    buffer,
-                    rect,
-                    color,
-                    ui.ctx(),
-                    ui.clip_rect(),
-                ));
+                    // Right-align to the content edge, baseline-shifted into the
+                    // row, identically to the revealed marker (overflow left) so
+                    // revealing the item doesn't shift the number.
+                    let x = annotation_space.right() - size.x;
+                    let y = annotation_space.top() + (row_height - afs) * 0.8;
+                    let rect = Rect::from_min_size(Pos2::new(x, y), size);
+                    self.text_areas.push(TextBufferArea::new(
+                        buffer,
+                        rect,
+                        color,
+                        ui.ctx(),
+                        ui.clip_rect(),
+                    ));
+                }
             }
         }
 
@@ -123,6 +117,7 @@ impl<'ast> MdRender {
             );
             self.show_wrap_layout(ui, top_left + self.layout.indent * Vec2::X, &result);
             self.show_block_line_prefixes(
+                ui,
                 node,
                 line,
                 top_left + self.layout.indent * Vec2::X,
@@ -140,6 +135,7 @@ impl<'ast> MdRender {
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
+            && !self.reveal(node) // the revealed marker occupies the gutter
             && (self.touch_mode
                 || hovered
                 || fold_button_space.contains(pointer)
