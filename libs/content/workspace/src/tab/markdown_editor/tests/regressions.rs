@@ -763,13 +763,14 @@ fn cursor_renders_trailing_whitespace_line() {
     }
 }
 
-/// cmd+left/right are gutter-aware: from content they bound the wrap row
-/// (content start / row end); from inside the captured prefix, cmd+left
-/// extends to the source line start while cmd+right stays at the row end.
-/// Both regimes are idempotent.
+/// cmd+left/right treat the syntax|text boundary (text start) as an interior
+/// stop on a prefixed line. cmd+left walks content start → text start → source
+/// line start; cmd+right walks source line start → text start → row end. The
+/// outer endpoints are idempotent.
 #[test]
 fn cmd_line_jump_gutter() {
-    // `  * abc` → indent col (4,6), marker col (6,8), content (8,11).
+    // `  * abc` → source line start 4, text start 8, row end 11;
+    //            indent col (4,6), marker col (6,8), content (8,11).
     let mut ws = TestEditor::new("* a\n  * abc\n");
     ws.enter_frame();
 
@@ -792,15 +793,19 @@ fn cmd_line_jump_gutter() {
         ws.editor.edit.renderer.buffer.current.selection.1.0
     };
 
-    // gutter cursor (column boundary at 6): left → source line start, right → row end
+    // cmd+left: content → text start → source line start
+    assert_eq!(jump(&mut ws, 9, true), 8, "content cmd+left → text start");
+    assert_eq!(jump(&mut ws, 8, true), 4, "text start cmd+left → source line start");
+    assert_eq!(jump(&mut ws, 4, true), 4, "cmd+left idempotent at source line start");
+
+    // cmd+right: source line start → text start → row end
+    assert_eq!(jump(&mut ws, 4, false), 8, "source line start cmd+right → text start");
+    assert_eq!(jump(&mut ws, 8, false), 11, "text start cmd+right → wrap row end");
+    assert_eq!(jump(&mut ws, 11, false), 11, "cmd+right idempotent at wrap row end");
+
+    // a cursor mid-gutter resolves to the same two stops
     assert_eq!(jump(&mut ws, 6, true), 4, "gutter cmd+left → source line start");
-    assert_eq!(jump(&mut ws, 6, false), 11, "gutter cmd+right → wrap row end");
-    // content cursor (9): left → content start, right → row end
-    assert_eq!(jump(&mut ws, 9, true), 8, "content cmd+left → content start");
-    assert_eq!(jump(&mut ws, 9, false), 11, "content cmd+right → wrap row end");
-    // idempotent in both regimes
-    assert_eq!(jump(&mut ws, 4, true), 4, "cmd+left idempotent at line start");
-    assert_eq!(jump(&mut ws, 8, true), 8, "cmd+left idempotent at content start");
+    assert_eq!(jump(&mut ws, 6, false), 8, "gutter cmd+right → text start");
 }
 
 /// Gutter prefix units (markers, per-level indentation) are words, so word

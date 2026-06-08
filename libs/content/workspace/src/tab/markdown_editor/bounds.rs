@@ -348,19 +348,23 @@ impl BoundExt for Grapheme {
             }
         };
 
-        // Gutter-aware line jump: a cursor in a line's captured prefix
-        // region (before the first wrap row, whose ranges exclude the
-        // prefix) targets the *source* line start on cmd+left and the
-        // wrap-row end on cmd+right. The prefix isn't part of any wrap
-        // line so the generic logic below can't express it.
+        // Gutter-aware line jump: the boundary between a line's captured
+        // prefix (list marker / indentation) and its text is an interior
+        // cmd+left/right stop. The prefix is in no wrap line, so the generic
+        // logic below (which targets the wrap row) can't reach it. cmd+left
+        // from the text start escapes to the source line start; cmd+right
+        // from the gutter stops at the text start before the wrap-row end.
         if matches!(bound, Bound::Line) {
             let (sl, _) = bounds.source_lines.find_containing(self, true, true);
             if let Some(&source_line) = bounds.source_lines.get(sl) {
                 let (w0, w1) = bounds.wrap_lines.find_contained(source_line, true, true);
                 if w0 < w1 {
-                    let row0 = bounds.wrap_lines[w0];
-                    if self < row0.start() {
-                        return Some((source_line.start(), row0.end()));
+                    let text_start = bounds.wrap_lines[w0].start();
+                    let line_start = source_line.start();
+                    if line_start < text_start
+                        && (self < text_start || (self == text_start && backwards))
+                    {
+                        return Some((line_start, text_start));
                     }
                 }
             }
