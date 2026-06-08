@@ -1124,7 +1124,12 @@ impl FileTree {
             let mut pending_since = HashMap::new();
             for ids in [&status.pushing_files, &status.dirty_locally, &status.pulling_files] {
                 for &id in ids {
-                    let since = self.sync_dots.pending_since.get(&id).copied().unwrap_or(now);
+                    let since = self
+                        .sync_dots
+                        .pending_since
+                        .get(&id)
+                        .copied()
+                        .unwrap_or(now);
                     pending_since.insert(id, since);
                 }
             }
