@@ -62,11 +62,14 @@ impl<'ast> MdRender {
         let annotation_size = Vec2 { x: self.layout.indent, y: height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        ui.painter().vline(
-            annotation_space.center().x,
-            annotation_space.y_range(),
-            Stroke::new(3., self.text_format(node).color),
-        );
+        // when revealed, the raw `>` prefix occupies this column instead
+        if !self.reveal(node) {
+            ui.painter().vline(
+                annotation_space.center().x,
+                annotation_space.y_range(),
+                Stroke::new(3., self.text_format(node).color),
+            );
+        }
 
         top_left.x += self.layout.indent;
         let width = self.width(node) - self.layout.indent;
@@ -76,7 +79,7 @@ impl<'ast> MdRender {
         // it's a child block - see also: special handling in spacing.rs
         let first_line = self.node_first_line(node);
         self.show_alert_title_line(ui, node, top_left, node_alert);
-        self.show_block_line_prefixes(node, first_line, top_left, row_height);
+        self.show_block_line_prefixes(ui, node, first_line, top_left, row_height);
         top_left.y += self.height_alert_title_line(node, node_alert);
 
         let any_children = node.children().next().is_some();
@@ -98,7 +101,7 @@ impl<'ast> MdRender {
                     );
                     let h = result.height;
                     self.show_wrap_layout(ui, top_left, &result);
-                    self.show_block_line_prefixes(node, line, top_left, row_height);
+                    self.show_block_line_prefixes(ui, node, line, top_left, row_height);
                     top_left.y += h;
                 }
             }

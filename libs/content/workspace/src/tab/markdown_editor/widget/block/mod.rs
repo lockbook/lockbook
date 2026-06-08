@@ -8,9 +8,7 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
-use lb_rs::model::text::offset_types::{
-    Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _, RangeIterExt as _,
-};
+use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
@@ -101,34 +99,6 @@ impl<'ast> MdRender {
         if self.width(node) < self.layout.row_height {
             self.set_cached_node_height(node, 0.0);
             return 0.0;
-        }
-
-        // container blocks: if revealed, show source lines instead
-        if node.parent().is_some()
-            && node.data.borrow().value.is_container_block()
-            && self.reveal(node)
-        {
-            let mut height = 0.;
-
-            let width = self.width(node);
-            let row_height = self.layout.row_height;
-            for line in self.node_lines(node).iter() {
-                let line = self.bounds.source_lines[line];
-                let node_line = self.node_line(node, line);
-                let l = self.compute_section_layout_new(
-                    node_line,
-                    width,
-                    row_height,
-                    self.text_format_syntax(),
-                );
-                height += l.height;
-                height += self.layout.block_spacing;
-            }
-            if height > 0. {
-                height -= self.layout.block_spacing;
-            }
-
-            return height;
         }
 
         // hide folded nodes only if they are not revealed
@@ -308,40 +278,12 @@ impl<'ast> MdRender {
         self.approx_y_top_last_block(root) + viewport_height
     }
 
-    pub(crate) fn show_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2,
-    ) {
+    pub(crate) fn show_block(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         let ui = &mut self.node_ui(ui, node);
 
         // Block too narrow to fit anything meaningful: skip. `height`
         // returns 0 for the same condition so the layout stays aligned.
         if self.width(node) < self.layout.row_height {
-            return;
-        }
-
-        // container blocks: if revealed, show source lines instead
-        if node.parent().is_some()
-            && node.data.borrow().value.is_container_block()
-            && self.reveal(node)
-        {
-            let width = self.width(node);
-            let row_height = self.layout.row_height;
-            for line in self.node_lines(node).iter() {
-                let line = self.bounds.source_lines[line];
-                let node_line = self.node_line(node, line);
-
-                let result = self.compute_section_layout_new(
-                    node_line,
-                    width,
-                    row_height,
-                    self.text_format_syntax(),
-                );
-                let h = result.height;
-                self.show_wrap_layout(ui, top_left, &result);
-                top_left.y += h;
-                top_left.y += self.layout.block_spacing;
-            }
-
             return;
         }
 

@@ -625,11 +625,17 @@ impl<'ast> MdRender {
                 if !self.node_contains_line(node, line) {
                     continue;
                 }
-                // `node` owns exactly its own column (its per-level
-                // `line_own_prefix`); reveal when an endpoint is strictly
-                // inside it.
+                // `node` owns its per-level `line_own_prefix`, but reveal
+                // only from the marker, not the leading indentation: trim
+                // leading whitespace; an indentation-only own-prefix (a
+                // nested continuation line) has no marker and never reveals.
                 let own = self.line_own_prefix(node, line);
-                if !own.is_empty() && own.contains(endpoint, false, false) {
+                let indent = self.buffer[own]
+                    .chars()
+                    .take_while(|c| *c == ' ' || *c == '\t')
+                    .count();
+                let marker = (own.start() + indent, own.end());
+                if !marker.is_empty() && marker.contains(endpoint, false, false) {
                     return true;
                 }
             }
@@ -651,10 +657,10 @@ impl<'ast> MdRender {
     /// `show_*`; these fragments carry none and exist only for
     /// hit-testing and selection highlighting.
     ///
-    /// Called from the non-revealed block-line renderers, including the
-    /// pre/post spacing renderers whose blank lines can still carry a
-    /// container's indentation. A revealed container renders its prefix
-    /// as ordinary source text instead, so this is not called for it.
+    /// Called from the block-line renderers, including the pre/post
+    /// spacing renderers whose blank lines can still carry a container's
+    /// indentation. A revealed level renders its own column as ordinary
+    /// source syntax in place of the `Spacer` and its decoration.
     ///
     /// Resolves the line's columns from its [`deepest_gutter_level`], not
     /// `node`'s ancestors: a spacing line sits in a shallower node than
@@ -662,8 +668,8 @@ impl<'ast> MdRender {
     /// deeper columns. For content lines `node` is already on the line, so
     /// the two agree.
     pub fn show_block_line_prefixes(
-        &mut self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme), content_top_left: Pos2,
-        row_height: f32,
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+        content_top_left: Pos2, row_height: f32,
     ) {
         let Some(deepest) = self.deepest_gutter_level(node, line) else {
             return;
@@ -681,6 +687,43 @@ impl<'ast> MdRender {
                 continue;
             }
             let left = base_x + indent * k as f32;
+
+            // Revealed: the cursor is in this level's syntax, so render its
+            // prefix bytes as monospace source, sized and baseline-aligned to
+            // match the gutter annotation (e.g. an ordered marker). Right-
+            // aligned to the column's content edge so the marker sits about
+            // where its decoration was; a marker wider than the column
+            // overflows left (into the gutter) rather than over the content.
+            if self.reveal(level) {
+                let afs = self.layout.annotation_font_size;
+                let result = self.compute_section_layout_new(
+                    range,
+                    self.width(level),
+                    afs,
+                    self.text_format_syntax(),
+                );
+                let baseline_shift = (row_height - afs) * 0.8;
+                // `result.width` is the available width, not the laid-out
+                // marker width; measure the rightmost glyph edge instead.
+                let marker_width = result
+                    .rows
+                    .iter()
+                    .flat_map(|row| &row.fragments)
+                    .fold(0.0_f32, |w, frag| w.max(frag.rect.right()));
+                let marker_left = left + indent - marker_width;
+                let top = Pos2::new(marker_left, content_top_left.y + baseline_shift);
+                let first = self.fragments.len();
+                self.show_wrap_layout(ui, top, &result);
+                // Cursor reads `rect`: give the small marker the row's full
+                // height so an offset inside it shares the row's center y
+                // (vertical nav round-trips).
+                for frag in &mut self.fragments[first..] {
+                    frag.rect.min.y = content_top_left.y;
+                    frag.rect.max.y = content_top_left.y + row_height;
+                }
+                continue;
+            }
+
             let rect = Rect::from_min_max(
                 Pos2::new(left, content_top_left.y),
                 Pos2::new(left + indent, content_top_left.y + row_height),

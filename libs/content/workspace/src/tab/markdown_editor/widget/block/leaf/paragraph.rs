@@ -98,7 +98,7 @@ impl<'ast> MdRender {
             let line_height = self.height_paragraph_line(node, node_line);
 
             self.show_paragraph_line(ui, node, top_left, node_line);
-            self.show_block_line_prefixes(node, line, top_left, self.layout.row_height);
+            self.show_block_line_prefixes(ui, node, line, top_left, self.layout.row_height);
             top_left.y += line_height;
 
             top_left.y += self.layout.block_spacing;

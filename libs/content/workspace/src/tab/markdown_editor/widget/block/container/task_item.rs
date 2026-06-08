@@ -24,85 +24,88 @@ impl<'ast> MdRender {
 
         let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
-        let mut checkbox_space = Rect::from_center_size(
-            annotation_space.center(),
-            Vec2::splat(annotation_space.size().min_elem()),
-        );
-        let border_radius = 2.0;
+        // when revealed, the raw `- [ ]` marker occupies this column instead
+        if !self.reveal(node) {
+            let mut checkbox_space = Rect::from_center_size(
+                annotation_space.center(),
+                Vec2::splat(annotation_space.size().min_elem()),
+            );
+            let border_radius = 2.0;
 
-        let checkbox_id = ui.id().with(self.node_range(node));
+            let checkbox_id = ui.id().with(self.node_range(node));
 
-        // allocate a slightly larger clickable space that makes the checkbox
-        // easier to tap without overflowing the annotation space horizontally
-        // or overlapping with another row vertically.
-        let extra_width = (annotation_space.width() - checkbox_space.width()) / 2.;
-        let extra_height = self.layout.row_spacing / 2.;
-        let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
+            // allocate a slightly larger clickable space that makes the checkbox
+            // easier to tap without overflowing the annotation space horizontally
+            // or overlapping with another row vertically.
+            let extra_width = (annotation_space.width() - checkbox_space.width()) / 2.;
+            let extra_height = self.layout.row_spacing / 2.;
+            let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
-        let sense = if self.readonly { Sense::hover() } else { Sense::click() };
-        let checkbox_response =
+            let sense = if self.readonly { Sense::hover() } else { Sense::click() };
+            let checkbox_response =
             // ui.id().with() instead of Id::new() so two views of the same document
             // get distinct checkbox IDs
             ui.interact(clickable_space, checkbox_id, sense);
-        if checkbox_response.clicked() {
-            let check_offset = self.check_offset(node);
-            let new_check = if checked { ' ' } else { 'x' };
-            self.render_events.push(Event::Replace {
-                region: (check_offset, check_offset + 1).into(),
-                text: new_check.into(),
-                advance_cursor: false,
-            });
-        }
-        if checkbox_response.hovered() && !self.readonly {
-            ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
-            checkbox_space = checkbox_space.expand(0.5);
-        }
-        self.touch_consuming_rects.push(clickable_space);
+            if checkbox_response.clicked() {
+                let check_offset = self.check_offset(node);
+                let new_check = if checked { ' ' } else { 'x' };
+                self.render_events.push(Event::Replace {
+                    region: (check_offset, check_offset + 1).into(),
+                    text: new_check.into(),
+                    advance_cursor: false,
+                });
+            }
+            if checkbox_response.hovered() && !self.readonly {
+                ui.ctx().set_cursor_icon(CursorIcon::PointingHand);
+                checkbox_space = checkbox_space.expand(0.5);
+            }
+            self.touch_consuming_rects.push(clickable_space);
 
-        let how_on = ui.ctx().animate_value_with_time(
-            checkbox_id.with("animation"),
-            if checked { 1.0 } else { 0.0 },
-            0.2,
-        );
+            let how_on = ui.ctx().animate_value_with_time(
+                checkbox_id.with("animation"),
+                if checked { 1.0 } else { 0.0 },
+                0.2,
+            );
 
-        // draw rect background for checkbox
-        ui.painter().rect(
-            checkbox_space.shrink(2. * how_on), // anticipation for the main animation
-            border_radius,
-            theme
-                .bg()
-                .get_color(theme.prefs().primary)
-                .gamma_multiply(0.1),
-            Stroke::new(0.5, theme.fg().get_color(theme.prefs().primary)),
-            StrokeKind::Inside,
-        );
-
-        // animate filled in rect for checked state
-        ui.painter().rect_filled(
-            checkbox_space.expand2(checkbox_space.size() * how_on - checkbox_space.size()),
-            border_radius,
-            theme.fg().get_color(theme.prefs().primary),
-        );
-
-        // draw check
-        let check_space = checkbox_space.shrink(4.5);
-        ui.painter().add(Shape::line(
-            vec![
-                egui::pos2(check_space.left(), check_space.center().y),
-                egui::pos2(
-                    check_space.center().x - check_space.width() / 7.0,
-                    check_space.bottom(),
-                ),
-                egui::pos2(check_space.right(), check_space.top()),
-            ],
-            Stroke::new(
-                2.,
+            // draw rect background for checkbox
+            ui.painter().rect(
+                checkbox_space.shrink(2. * how_on), // anticipation for the main animation
+                border_radius,
                 theme
-                    .fg()
-                    .get_color(crate::theme::palette_v2::Palette::White)
-                    .linear_multiply(how_on),
-            ),
-        ));
+                    .bg()
+                    .get_color(theme.prefs().primary)
+                    .gamma_multiply(0.1),
+                Stroke::new(0.5, theme.fg().get_color(theme.prefs().primary)),
+                StrokeKind::Inside,
+            );
+
+            // animate filled in rect for checked state
+            ui.painter().rect_filled(
+                checkbox_space.expand2(checkbox_space.size() * how_on - checkbox_space.size()),
+                border_radius,
+                theme.fg().get_color(theme.prefs().primary),
+            );
+
+            // draw check
+            let check_space = checkbox_space.shrink(4.5);
+            ui.painter().add(Shape::line(
+                vec![
+                    egui::pos2(check_space.left(), check_space.center().y),
+                    egui::pos2(
+                        check_space.center().x - check_space.width() / 7.0,
+                        check_space.bottom(),
+                    ),
+                    egui::pos2(check_space.right(), check_space.top()),
+                ],
+                Stroke::new(
+                    2.,
+                    theme
+                        .fg()
+                        .get_color(crate::theme::palette_v2::Palette::White)
+                        .linear_multiply(how_on),
+                ),
+            ));
+        }
 
         let any_children = node.children().next().is_some();
         let hovered = if any_children {
@@ -125,6 +128,7 @@ impl<'ast> MdRender {
             );
             self.show_wrap_layout(ui, top_left + self.layout.indent * Vec2::X, &result);
             self.show_block_line_prefixes(
+                ui,
                 node,
                 line,
                 top_left + self.layout.indent * Vec2::X,
@@ -140,6 +144,7 @@ impl<'ast> MdRender {
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
+            && !self.reveal(node) // the revealed marker occupies the gutter
             && (self.touch_mode
                 || hovered
                 || fold_button_space.contains(pointer)

@@ -24,19 +24,22 @@ impl<'ast> MdRender {
         let annotation_size = Vec2 { x: self.layout.indent, y: self.layout.row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        let color = self.ctx.get_lb_theme().neutral_fg_secondary();
-        let text = format!("{}.", self.definition_number(node));
-        let layout_job = LayoutJob::single_section(
-            text,
-            TextFormat {
-                font_id: FontId::new(self.layout.row_height, FontFamily::Monospace),
-                color,
-                ..Default::default()
-            },
-        );
-        let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
-        ui.painter()
-            .galley(annotation_space.left_top(), galley, Default::default());
+        // when revealed, the raw `[^x]:` marker occupies this column instead
+        if !self.reveal(node) {
+            let color = self.ctx.get_lb_theme().neutral_fg_secondary();
+            let text = format!("{}.", self.definition_number(node));
+            let layout_job = LayoutJob::single_section(
+                text,
+                TextFormat {
+                    font_id: FontId::new(self.layout.row_height, FontFamily::Monospace),
+                    color,
+                    ..Default::default()
+                },
+            );
+            let galley = ui.fonts(|fonts| fonts.layout_job(layout_job));
+            ui.painter()
+                .galley(annotation_space.left_top(), galley, Default::default());
+        }
 
         // debug
         // ui.painter()

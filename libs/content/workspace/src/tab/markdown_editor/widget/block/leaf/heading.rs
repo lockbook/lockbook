@@ -237,7 +237,7 @@ impl<'ast> MdRender {
                 let result = self.compute_layout_from(layout, width, row_height);
                 let h = result.height;
                 self.show_wrap_layout(ui, top_left, &result);
-                self.show_block_line_prefixes(node, line, top_left, row_height);
+                self.show_block_line_prefixes(ui, node, line, top_left, row_height);
                 top_left.y += h;
                 top_left.y += self.layout.row_spacing;
             } else if reveal {
@@ -276,7 +276,7 @@ impl<'ast> MdRender {
         let result = self.compute_layout_from(layout, width, row_height);
         let height = result.height;
         self.show_wrap_layout(ui, top_left, &result);
-        self.show_block_line_prefixes(node, line, top_left, row_height);
+        self.show_block_line_prefixes(ui, node, line, top_left, row_height);
 
         top_left.y += height;
         if level == 1 {
