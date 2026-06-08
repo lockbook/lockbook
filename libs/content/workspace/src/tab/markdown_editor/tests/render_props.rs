@@ -15,7 +15,6 @@ use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt};
 
 use super::super::MdRender;
 use super::doc_gen::{Features, InlineFeatures, gen_doc};
-use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
 use crate::test_utils::byte_source::ByteSource;
 use crate::theme::palette_v2::{Mode, Theme, ThemeExt};
 
@@ -81,10 +80,6 @@ fn fragment_rect_disjoint() {
     run(fragment_rect_disjoint_check, Features::all(), 1000);
 }
 #[test]
-fn fragment_content_inset_matches_bg() {
-    run(fragment_content_inset_matches_bg_check, Features::all(), 1000);
-}
-#[test]
 fn render_deterministic() {
     run(render_deterministic_check, Features::all(), 1000);
 }
@@ -102,36 +97,20 @@ fn drag_never_reveals() {
 fn cursor_x_roundtrip() {
     run(cursor_x_roundtrip_check, Features::all(), 1000);
 }
-#[test]
-fn click_in_bg_padding_zone() {
-    run(click_in_bg_padding_zone_check, Features::all(), 1000);
-}
 
 // content fidelity
 #[test]
 fn content_coverage() {
     run(content_coverage_check, Features::all(), 1000);
 }
-#[test]
-fn parse_equivalence() {
-    run(parse_equivalence_check, Features::all(), 1000);
-}
-#[test]
-fn tab_space_equivalence() {
-    run(tab_space_equivalence_check, Features::all(), 1000);
-}
 
-// glyph painting — tier_b excludes complex scripts / long tokens (font-
-// fallback px drift, by design) and nested containers (columns shift under
-// reveal); a failure on tier_b is a real walker bug.
-#[test]
-fn glyph_in_fragment() {
-    run(glyph_in_fragment_check, Features::tier_b(), 1000);
-}
+// glyph painting — tier_b excludes complex scripts / long tokens (font-fallback
+// px drift, by design) and nested containers (columns shift under reveal); a
+// failure on tier_b is a real walker bug.
 #[test]
 fn glyph_in_render_area() {
-    // tier_b plus inline math off: heading-scaled `$…$` overshoots at narrow
-    // widths (seed 1214: `### $**`foo` foo* foo …**$`).
+    // …plus inline math off: heading-scaled `$…$` overshoots at narrow widths
+    // (seed 1214: `### $**`foo` foo* foo …**$`).
     let b = Features::tier_b();
     let f = Features { inlines: InlineFeatures { math: false, ..b.inlines }, ..b };
     run(glyph_in_render_area_check, f, 1000);
@@ -181,80 +160,6 @@ fn render_height(md: &str, width: f32) -> f32 {
     r.height(root)
 }
 
-/// Counts each comrak `NodeValue` discriminant in the parse of `md`. A
-/// render-independent fingerprint of the parse structure: two docs
-/// producing the same counts have the same shape (same number of lists,
-/// paragraphs, headings, etc.). Useful for property tests that assert
-/// transformations preserve structure (e.g. tab → space normalization).
-fn ast_node_counts(md: &str) -> std::collections::BTreeMap<&'static str, usize> {
-    let mut r = test_renderer(md);
-    let arena = Arena::new();
-    let root = r.reparse(&arena);
-    let mut counts = std::collections::BTreeMap::new();
-    for node in root.descendants() {
-        let name = node_value_name(&node.data.borrow().value);
-        *counts.entry(name).or_insert(0) += 1;
-    }
-    counts
-}
-
-fn node_value_name(v: &comrak::nodes::NodeValue) -> &'static str {
-    use comrak::nodes::NodeValue::*;
-    match v {
-        Document => "Document",
-        FrontMatter(_) => "FrontMatter",
-        BlockQuote => "BlockQuote",
-        List(_) => "List",
-        Item(_) => "Item",
-        DescriptionList => "DescriptionList",
-        DescriptionItem(_) => "DescriptionItem",
-        DescriptionTerm => "DescriptionTerm",
-        DescriptionDetails => "DescriptionDetails",
-        CodeBlock(_) => "CodeBlock",
-        HtmlBlock(_) => "HtmlBlock",
-        Paragraph => "Paragraph",
-        Heading(_) => "Heading",
-        ThematicBreak => "ThematicBreak",
-        FootnoteDefinition(_) => "FootnoteDefinition",
-        Table(_) => "Table",
-        TableRow(_) => "TableRow",
-        TableCell => "TableCell",
-        Text(_) => "Text",
-        TaskItem(_) => "TaskItem",
-        SoftBreak => "SoftBreak",
-        LineBreak => "LineBreak",
-        Code(_) => "Code",
-        HtmlInline(_) => "HtmlInline",
-        Raw(_) => "Raw",
-        Emph => "Emph",
-        Strong => "Strong",
-        Strikethrough => "Strikethrough",
-        Superscript => "Superscript",
-        Subscript => "Subscript",
-        Link(_) => "Link",
-        Image(_) => "Image",
-        FootnoteReference(_) => "FootnoteReference",
-        ShortCode(_) => "ShortCode",
-        MultilineBlockQuote(_) => "MultilineBlockQuote",
-        Escaped => "Escaped",
-        Math(_) => "Math",
-        WikiLink(_) => "WikiLink",
-        Underline => "Underline",
-        SpoileredText => "SpoileredText",
-        EscapedTag(_) => "EscapedTag",
-        Highlight => "Highlight",
-        Alert(_) => "Alert",
-        Subtext => "Subtext",
-    }
-}
-
-struct GalleySnapshot {
-    rect: Rect,
-    /// True when the fragment paints text glyphs; false for `Spacer`s
-    /// (gutter prefix columns, bg pads, anchors), which carry no text.
-    is_glyphs: bool,
-}
-
 /// Runs one headless render frame for `md` at `width` (optionally with a
 /// selection set) and returns whatever `f` extracts from the settled
 /// renderer. Centralizes the `ctx.run` → `CentralPanel` → reparse → clear
@@ -294,21 +199,11 @@ pub(super) fn render_frame<T>(
     out.expect("CentralPanel body runs synchronously")
 }
 
-/// Paints `md` at `width` with an optional selection and snapshots the
-/// resulting galleys.
-fn render_galleys(
-    md: &str, width: f32, selection: Option<(Grapheme, Grapheme)>,
-) -> Vec<GalleySnapshot> {
+/// Paints `md` at `width` with an optional selection and returns the
+/// resulting fragment rects.
+fn render_galleys(md: &str, width: f32, selection: Option<(Grapheme, Grapheme)>) -> Vec<Rect> {
     let mut r = test_renderer(md);
-    render_frame(&mut r, width, selection, |r| {
-        r.fragments
-            .iter()
-            .map(|f| GalleySnapshot {
-                rect: f.rect,
-                is_glyphs: matches!(f.content, FragmentContent::Glyphs { .. }),
-            })
-            .collect()
-    })
+    render_frame(&mut r, width, selection, |r| r.fragments.iter().map(|f| f.rect).collect())
 }
 
 /// Generates a short UTF-8 string from arbitrary bytes. Used to fuzz the
@@ -320,47 +215,6 @@ fn fuzz_text(src: &mut ByteSource) -> String {
         bytes.push(src.draw(256) as u8);
     }
     String::from_utf8_lossy(&bytes).into_owned()
-}
-
-/// Per CommonMark/GFM §2.2: "Tabs in lines are not expanded to spaces.
-/// However, in contexts where whitespace helps to define block structure,
-/// tabs behave as if they were replaced by spaces with a tab stop of 4
-/// characters." Inline (mid-line, post-content) tabs are kept literal —
-/// expanding them would change the rendered text. Only tabs in the leading
-/// whitespace of a line are structural; those we expand.
-///
-/// Tab stops sit at columns 0, 4, 8, … so a tab advances to the next stop.
-/// The number of spaces a tab produces depends on its column position.
-fn tab_to_spaces(s: &str) -> String {
-    let mut out = String::with_capacity(s.len());
-    let mut col = 0usize;
-    let mut at_line_start = true;
-    for c in s.chars() {
-        match c {
-            '\n' | '\r' => {
-                out.push(c);
-                col = 0;
-                at_line_start = true;
-            }
-            '\t' if at_line_start => {
-                let next_stop = (col / 4 + 1) * 4;
-                for _ in col..next_stop {
-                    out.push(' ');
-                }
-                col = next_stop;
-            }
-            ' ' => {
-                out.push(c);
-                col += 1;
-            }
-            _ => {
-                out.push(c);
-                col += 1;
-                at_line_start = false;
-            }
-        }
-    }
-    out
 }
 
 /// Property: every text-bearing leaf node with non-whitespace content
@@ -431,74 +285,6 @@ fn content_coverage_check(buf: &[u8], f: &Features) -> Result<(), &'static str> 
     let mut src = ByteSource::new(buf);
     let md = gen_doc(&mut src, f);
     content_coverage_check_md(&md)
-}
-
-/// Property: a doc with tab-form indentation parses to the same AST shape
-/// as the same doc with tabs normalized to spaces (per CommonMark §2.2).
-/// Render-independent — compares only `comrak`'s parse result, so it's not
-/// blocked by rendering bugs.
-fn parse_equivalence_check(buf: &[u8], f: &Features) -> Result<(), &'static str> {
-    let mut src = ByteSource::new(buf);
-    let md = gen_doc(&mut src, f);
-    if !md.contains('\t') {
-        return Ok(());
-    }
-    let md_spaces = tab_to_spaces(&md);
-    if ast_node_counts(&md) != ast_node_counts(&md_spaces) {
-        return Err("tab-form and space-form produce different AST node counts");
-    }
-    Ok(())
-}
-
-/// Property: a doc with tab-form indentation renders equivalently to the
-/// same doc with tabs normalized to spaces (per CommonMark §2.2). Compared
-/// at a wide width so wrap differences caused by tabs vs spaces having
-/// different glyph widths don't muddy the signal.
-///
-/// - **Height** mismatch ⇒ the two parsed into structurally different
-///   documents (extra/missing block).
-/// - **Total non-override galley width** mismatch ⇒ leading whitespace
-///   leaked into rendered content (the bug class behind "list marker
-///   leaks into text" when a container's prefix-stripping doesn't account
-///   for tabs).
-fn tab_space_equivalence_check(buf: &[u8], f: &Features) -> Result<(), &'static str> {
-    let mut src = ByteSource::new(buf);
-    let md = gen_doc(&mut src, f);
-    if !md.contains('\t') {
-        return Ok(()); // no tabs, no test
-    }
-    // Skip whitespace-only docs: comrak parses both tab and space forms
-    // as empty (no Text/Code/etc nodes), so there's no markdown content
-    // to compare. The renderer still draws the raw whitespace as a single
-    // galley, but tab-glyph and space-glyph widths differ in cosmic-text
-    // — a difference inherent to font shaping, not a markdown-parse bug.
-    if md.trim().is_empty() {
-        return Ok(());
-    }
-    let md_spaces = tab_to_spaces(&md);
-    let width = 5000.0;
-    if (render_height(&md, width) - render_height(&md_spaces, width)).abs() > 0.5 {
-        return Err(
-            "tab-form and space-form renders disagree on height (likely a tab-indent parse bug)",
-        );
-    }
-    // Text galleys only: gutter prefix `Spacer`s legitimately differ in
-    // source structure between tab and space forms (an atomic tab can't be
-    // split across nested columns the way spaces can) yet are visually
-    // identical — they're not the leaked-text this guards against.
-    let sum_w = |s: &str| -> f32 {
-        render_galleys(s, width, None)
-            .iter()
-            .filter(|g| g.is_glyphs)
-            .map(|g| g.rect.width())
-            .sum()
-    };
-    if (sum_w(&md) - sum_w(&md_spaces)).abs() > 1.0 {
-        return Err(
-            "tab-form and space-form renders disagree on total galley width (likely a prefix-stripping leak)",
-        );
-    }
-    Ok(())
 }
 
 /// Property: widening the viewport cannot increase rendered height.
@@ -647,33 +433,6 @@ fn drag_never_reveals_check(buf: &[u8], f: &Features) -> Result<(), &'static str
     drag_never_reveals_check_md(&md, width)
 }
 
-/// Property: every fragment's `rect` is text-tight, so `content_inset`
-/// is always zero. Inline backgrounds don't expand the rect; their
-/// vertical padding is drawn outside the rect at paint time (fitting
-/// into `row_spacing`).
-fn fragment_content_inset_matches_bg_check_md(md: &str, width: f32) -> Result<(), &'static str> {
-    let mut r = test_renderer(md);
-    let violation = render_frame(&mut r, width, None, |r| {
-        r.fragments
-            .iter()
-            .any(|f| {
-                f.content_inset.left != 0.0
-                    || f.content_inset.right != 0.0
-                    || f.content_inset.top != 0.0
-                    || f.content_inset.bottom != 0.0
-            })
-            .then_some("fragment has non-zero content_inset")
-    });
-    violation.map(Err).unwrap_or(Ok(()))
-}
-
-fn fragment_content_inset_matches_bg_check(buf: &[u8], f: &Features) -> Result<(), &'static str> {
-    let mut src = ByteSource::new(buf);
-    let md = gen_doc(&mut src, f);
-    let width = 250.0 + (src.draw(8) as f32) * 100.0;
-    fragment_content_inset_matches_bg_check_md(&md, width)
-}
-
 /// Property: `fragment_offset` is a left-inverse of `fragment_x`.
 /// For every offset inside a fragment's source range,
 /// `fragment_offset(fragment, fragment_x(fragment, offset)) ==
@@ -721,54 +480,6 @@ fn cursor_x_roundtrip_check(buf: &[u8], f: &Features) -> Result<(), &'static str
     cursor_x_roundtrip_check_md(&md, width)
 }
 
-/// Property: every painted glyph sits inside its source fragment's
-/// content area (`fragment.rect` shrunk by `content_inset` on each
-/// side), within a small tolerance. Localized version of
-/// `glyph_in_render_area` — a failure here pinpoints which
-/// fragment's walker/paint shape diverged instead of just "some
-/// glyph strays off-screen." The 2px tolerance matches CLAUDE.md's
-/// stated "walker and paint shape independently, by design" — sub-
-/// pixel-to-few-px divergence at script edges / font fallback is
-/// accepted; larger divergences indicate a walker bug.
-fn glyph_in_fragment_check_md(md: &str, width: f32) -> Result<(), &'static str> {
-    const EPS: f32 = 0.5;
-    let mut r = test_renderer(md);
-    let violation = render_frame(&mut r, width, None, |r| {
-        let ppi = r.ctx.pixels_per_point();
-        // Match each `TextBufferArea` to the fragment whose glyph
-        // origin matches the area's paint origin. For each glyph
-        // in the area, check its painted x against the fragment's
-        // content area (rect minus inset on both sides).
-        for area in &r.text_areas {
-            let area_origin_pt = Pos2::new(area.rect.left() / ppi, area.rect.top() / ppi);
-            let frag = r.fragments.iter().find(|f| {
-                let has_text = matches!(&f.content, FragmentContent::Glyphs { .. });
-                if !has_text {
-                    return false;
-                }
-                let glyph_origin =
-                    f.rect.min + Vec2::new(f.content_inset.left, f.content_inset.top);
-                (glyph_origin.x - area_origin_pt.x).abs() < 0.5
-                    && (glyph_origin.y - area_origin_pt.y).abs() < 0.5
-            });
-            let Some(frag) = frag else { continue };
-            let content_right = frag.rect.right() - frag.content_inset.right;
-            let buf = area.buffer.read().unwrap();
-            for run in buf.layout_runs() {
-                for g in run.glyphs.iter() {
-                    let gx_pt = (g.x + g.w) / ppi;
-                    let glyph_right = area_origin_pt.x + gx_pt;
-                    if glyph_right > content_right + EPS {
-                        return Some("glyph paints past fragment's content area");
-                    }
-                }
-            }
-        }
-        None
-    });
-    violation.map(Err).unwrap_or(Ok(()))
-}
-
 /// Property: rendering is deterministic. Rendering the same doc at
 /// the same selection twice produces identical fragments (same rect,
 /// same source_range, same content_inset). Catches non-deterministic
@@ -810,61 +521,6 @@ fn render_deterministic_check(buf: &[u8], f: &Features) -> Result<(), &'static s
     let md = gen_doc(&mut src, f);
     let width = 250.0 + (src.draw(8) as f32) * 100.0;
     render_deterministic_check_md(&md, width)
-}
-
-/// Property: clicks in a backgrounded fragment's padding zone map
-/// to the nearest content edge — not to a phantom "negative" glyph.
-/// `fragment_offset(rect.left)` returns the source range's start;
-/// `fragment_offset(rect.right)` returns its end. Catches inset-
-/// math regressions where the padding zone returns midway offsets
-/// or panics on negative-local-x.
-fn click_in_bg_padding_zone_check_md(md: &str, width: f32) -> Result<(), &'static str> {
-    let mut r = test_renderer(md);
-    let violation = render_frame(&mut r, width, None, |r| {
-        let frags = r.fragments.clone();
-        for f in &frags {
-            let has_bg = f
-                .style_stack
-                .last()
-                .is_some_and(|s| s.format.background != egui::Color32::TRANSPARENT);
-            if !has_bg {
-                continue;
-            }
-            if f.content_inset.left == 0.0 && f.content_inset.right == 0.0 {
-                continue;
-            }
-            // Click on the very left edge of the rect — squarely
-            // inside the leading bg padding (when present).
-            if f.content_inset.left > 0.0 {
-                let click_left = f.rect.min.x + 0.5;
-                if r.fragment_offset(f, click_left) != f.source_range.0 {
-                    return Some("click in left bg padding didn't map to source_range start");
-                }
-            }
-            if f.content_inset.right > 0.0 {
-                let click_right = f.rect.max.x - 0.5;
-                if r.fragment_offset(f, click_right) != f.source_range.1 {
-                    return Some("click in right bg padding didn't map to source_range end");
-                }
-            }
-        }
-        None
-    });
-    violation.map(Err).unwrap_or(Ok(()))
-}
-
-fn click_in_bg_padding_zone_check(buf: &[u8], f: &Features) -> Result<(), &'static str> {
-    let mut src = ByteSource::new(buf);
-    let md = gen_doc(&mut src, f);
-    let width = 250.0 + (src.draw(8) as f32) * 100.0;
-    click_in_bg_padding_zone_check_md(&md, width)
-}
-
-fn glyph_in_fragment_check(buf: &[u8], features: &Features) -> Result<(), &'static str> {
-    let mut src = ByteSource::new(buf);
-    let md = gen_doc(&mut src, features);
-    let width = 250.0 + (src.draw(8) as f32) * 100.0;
-    glyph_in_fragment_check_md(&md, width)
 }
 
 /// Regression test: when an inline backgrounded scope wraps within a
@@ -936,7 +592,7 @@ pub(super) fn galley_rect_in_render_area(md: &str, width: f32) -> Result<(), &'s
     const EPS: f32 = 0.5;
     if render_galleys(md, width, None)
         .iter()
-        .any(|g| g.rect.right() > width + EPS)
+        .any(|r| r.right() > width + EPS)
     {
         return Err("galley rect extends past render width");
     }

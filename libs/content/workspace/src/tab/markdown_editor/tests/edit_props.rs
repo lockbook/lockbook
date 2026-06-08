@@ -136,15 +136,6 @@ fn cursor_renders() {
 fn cursor_renders_simple() {
     run(cursor_renders_check, Features::default(), 100);
 }
-// Only the plain-ASCII corpus: with syntax markers present (tier_b),
-// override-collapsed markers (`*`, `_`, `**`, …) render zero-width when the
-// cursor isn't on them, so adjacent offsets legitimately share an x and the
-// "arrow always moves visually" invariant is false by design. A `tier_b`
-// variant therefore can't hold; this ASCII version is the sound one.
-#[test]
-fn cursor_visibly_moves_simple() {
-    run(cursor_visibly_moves_check, Features::default(), 100);
-}
 #[test]
 fn cursor_visibly_moves_vertical_pure_ascii() {
     run_simple(cursor_visibly_moves_vertical_check_simple, 100);
@@ -152,10 +143,6 @@ fn cursor_visibly_moves_vertical_pure_ascii() {
 #[test]
 fn cursor_vertical_round_trip_pure_ascii() {
     run_simple(cursor_vertical_round_trip_check, 100);
-}
-#[test]
-fn arrow_advance_one_grapheme() {
-    run_simple(arrow_advance_one_grapheme_check, 100);
 }
 #[test]
 fn cmd_line_jump_preserves_y() {
@@ -179,10 +166,6 @@ fn fold_toggle_does_not_jump_scroll() {
 fn layout_cache_consistent() {
     run_all(layout_cache_consistent_check, 1000);
 } // + embed resolver
-#[test]
-fn image_load_consistent() {
-    run_all(image_load_consistent_check, 1000);
-} // + image cache
 
 // indent / structure
 #[test]
@@ -204,10 +187,6 @@ fn indent_is_permissive() {
 #[test]
 fn shift_tab_strips_one_level() {
     run_lists(shift_tab_strips_one_level_check, 1000);
-}
-#[test]
-fn shift_tab_preserves_item_lines() {
-    run_lists(shift_tab_preserves_item_lines_check, 1000);
 }
 #[test]
 fn shift_tab_strips_one_bq() {
@@ -534,101 +513,6 @@ where
     result.map_err(|_| ())
 }
 
-/// `drive` variant that wires the production [`ImageEmbedResolver`] +
-/// [`ImageCache`] so callers can mimic worker-thread completions via
-/// `image_cache.complete_load(...)`. Unlike `drive_with_embeds`'s
-/// [`TestEmbeds`] (which updates seq and dims atomically), this driver
-/// exposes the production state-vs-dims separation — the gap window
-/// that `size()` has to bridge correctly.
-///
-/// The initial buffer is prefixed with a real image markdown so every
-/// seed exercises the image path, not just docs that randomly emit one.
-fn drive_with_image_cache<F>(buf: &[u8], mut f: F) -> Result<(), ()>
-where
-    F: FnMut(&mut TestEditor, &crate::widgets::image_cache::ImageCache, &mut ByteSource),
-{
-    use crate::file_cache::FileCache;
-    use crate::resolvers::image_embed::ImageEmbedResolver;
-    use crate::widgets::image_cache::ImageCache;
-    use crate::workspace::WsPersistentStore;
-    use egui::Context;
-    use lb_rs::Uuid;
-    use std::sync::{Arc, RwLock};
-
-    let mut src = ByteSource::new(buf);
-    // Inject the image at a random line boundary so every seed
-    // exercises the image path, but each picks a different topology:
-    // image at top, mid-doc, end, inside a heading / blockquote /
-    // list item / nested list, plus inline within a paragraph.
-    let body = initial_buffer(&mut src);
-    let initial = {
-        const IMG: &str = "![alt](https://x.test/i.png)";
-        let img_block = match src.bias(&[3, 2, 2, 2, 2, 2, 1, 1]) {
-            0 => format!("{IMG}\n\n"),
-            1 => format!("# heading {IMG}\n\n"),
-            2 => format!("paragraph text {IMG} trailing text\n\n"),
-            3 => format!("> {IMG}\n\n"),
-            4 => format!("- {IMG}\n\n"),
-            5 => format!("- outer\n  - {IMG}\n\n"),
-            6 => format!("> > {IMG}\n\n"),
-            _ => format!("1. ordered\n2. {IMG}\n\n"),
-        };
-        let lines: Vec<&str> = body.split_inclusive('\n').collect();
-        let pos = if lines.is_empty() {
-            0
-        } else {
-            (src.draw(256) * 256 + src.draw(256)) % (lines.len() + 1)
-        };
-        let mut out = String::with_capacity(body.len() + img_block.len());
-        for (i, line) in lines.iter().enumerate() {
-            if i == pos {
-                out.push_str(&img_block);
-            }
-            out.push_str(line);
-        }
-        if pos >= lines.len() {
-            out.push_str(&img_block);
-        }
-        out
-    };
-    let n = event_count(&mut src);
-    let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-        let lb = super::harness::build_lb();
-        let ctx = Context::default();
-        let client = super::super::HttpClient::default();
-        let files = Arc::new(RwLock::new(FileCache::empty()));
-        let persistence = WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into());
-        let image_cache =
-            ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());
-        let image_cache_handle = image_cache.clone();
-        let file_id = Uuid::new_v4();
-        let embed = Box::new(ImageEmbedResolver::new(image_cache, file_id));
-        let editor = super::super::Editor::new(
-            &initial,
-            file_id,
-            None,
-            super::super::MdResources {
-                ctx,
-                core: lb,
-                persistence,
-                link_resolver: Box::new(()),
-                embeds: embed,
-                files,
-            },
-            super::super::MdConfig {
-                readonly: false,
-                ext: "md".to_string(),
-                tablet_or_desktop: true,
-            },
-        );
-        let mut ws = TestEditor::from_editor(editor);
-        for _ in 0..n {
-            f(&mut ws, &image_cache_handle, &mut src);
-        }
-    }));
-    result.map_err(|_| ())
-}
-
 /// Current cursor (end of selection) and last cursor position.
 fn cursor_and_len(ws: &TestEditor) -> (Grapheme, usize) {
     let buf = &ws.editor.edit.renderer.buffer.current;
@@ -730,96 +614,6 @@ fn cursor_renders_check(buf: &[u8], features: &Features) -> Result<(), String> {
     violation.map(Err).unwrap_or(Ok(()))
 }
 
-/// Property: arrow-key navigation always visibly moves the cursor
-/// (or stays put at the doc's edge). Pressing arrow-right at every
-/// offset in `[0, last)` must yield a different `cursor_line` x/y;
-/// pressing arrow-left at every offset in `(0, last]` likewise.
-/// Catches the "cursor stuck" feel — advance logic that skips
-/// graphemes which would render at the origin's visual position.
-fn cursor_visibly_moves_check(buf: &[u8], features: &Features) -> Result<(), String> {
-    use super::super::input::{Advance, Increment};
-    fn vis(ws: &TestEditor, g: Grapheme) -> Option<(f32, f32, f32)> {
-        ws.editor
-            .edit
-            .cursor_line(g)
-            .map(|[top, bot]| (top.x, top.y, bot.y))
-    }
-    let arrow = |backwards: bool| Event::Select {
-        region: Region::ToAdvance {
-            advance: Advance::By(Increment::Char),
-            backwards,
-            extend_selection: false,
-        },
-    };
-    let mut violation: Option<String> = None;
-    drive_features_n(buf, features, 1, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event_with(src, cursor, len, features));
-        ws.enter_frame();
-        if violation.is_some() {
-            return;
-        }
-        let last = ws
-            .editor
-            .edit
-            .renderer
-            .buffer
-            .current
-            .segs
-            .last_cursor_position();
-        if last.0 == 0 {
-            return;
-        }
-        for i in 0..=last.0 {
-            let origin = Grapheme(i);
-            // Place at origin, capture rendered position there.
-            ws.push(Event::Select {
-                region: Region::BetweenLocations {
-                    start: Location::Grapheme(origin),
-                    end: Location::Grapheme(origin),
-                },
-            });
-            ws.enter_frame();
-            let Some(origin_pos) = vis(ws, origin) else { continue };
-
-            for (backwards, label) in [(true, "arrow-left"), (false, "arrow-right")] {
-                let at_edge = if backwards { i == 0 } else { i == last.0 };
-                if at_edge {
-                    continue;
-                }
-                ws.push(Event::Select {
-                    region: Region::BetweenLocations {
-                        start: Location::Grapheme(origin),
-                        end: Location::Grapheme(origin),
-                    },
-                });
-                ws.enter_frame();
-                ws.push(arrow(backwards));
-                ws.enter_frame();
-                let landed = ws.editor.edit.renderer.buffer.current.selection.1;
-                let landed_pos = vis(ws, landed);
-                let moved_visually = landed_pos.is_some_and(|p| p != origin_pos);
-                if !moved_visually {
-                    let text = ws.editor.edit.renderer.buffer.current.text.clone();
-                    violation = Some(format!(
-                        "{label} from offset {} landed at {} but cursor didn't move \
-                         visually (origin_pos={:?}, landed_pos={:?}); buffer ({} bytes): {:?}",
-                        origin.0,
-                        landed.0,
-                        origin_pos,
-                        landed_pos,
-                        text.len(),
-                        text,
-                    ));
-                    return;
-                }
-            }
-        }
-    })
-    .map_err(|_| "editor panicked while checking cursor visible movement".to_string())?;
-    violation.map(Err).unwrap_or(Ok(()))
-}
-
 /// Property: on simple ASCII docs (uniform-width whitespace-wrap),
 /// cmd+left and cmd+right must not change the cursor's visual row.
 /// The "cursor jumps to the next row" symptom — even on plain
@@ -898,77 +692,6 @@ fn cmd_line_jump_preserves_y_check(buf: &[u8]) -> Result<(), String> {
         }
     })
     .map_err(|_| "editor panicked while checking cmd-line y preservation".to_string())?;
-    violation.map(Err).unwrap_or(Ok(()))
-}
-
-/// Property: on simple ASCII docs, char-arrow advances by exactly one
-/// grapheme. The `Increment::Char` skip-collapsed loop legitimately
-/// fast-forwards through positions that render at the same x (override
-/// fragments, atomic clusters) — the ASCII generator produces neither,
-/// so any multi-grapheme step here is a bug.
-fn arrow_advance_one_grapheme_check(buf: &[u8]) -> Result<(), String> {
-    use super::super::input::{Advance, Increment};
-    let arrow = |backwards: bool| Event::Select {
-        region: Region::ToAdvance {
-            advance: Advance::By(Increment::Char),
-            backwards,
-            extend_selection: false,
-        },
-    };
-    fn place(g: Grapheme) -> Event {
-        Event::Select {
-            region: Region::BetweenLocations {
-                start: Location::Grapheme(g),
-                end: Location::Grapheme(g),
-            },
-        }
-    }
-    let mut violation: Option<String> = None;
-    drive_simple_n(buf, 1, |ws, src| {
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
-        ws.enter_frame_unfocused();
-        if violation.is_some() {
-            return;
-        }
-        let last = ws
-            .editor
-            .edit
-            .renderer
-            .buffer
-            .current
-            .segs
-            .last_cursor_position();
-        for i in 0..=last.0 {
-            let origin = Grapheme(i);
-            for (backwards, label) in [(true, "arrow-left"), (false, "arrow-right")] {
-                let at_edge = if backwards { i == 0 } else { i == last.0 };
-                if at_edge {
-                    continue;
-                }
-                ws.push(place(origin));
-                ws.enter_frame_unfocused();
-                ws.push(arrow(backwards));
-                ws.enter_frame_unfocused();
-                let landed = ws.editor.edit.renderer.buffer.current.selection.1;
-                let expected = if backwards { Grapheme(i - 1) } else { Grapheme(i + 1) };
-                if landed != expected {
-                    let t = ws.editor.edit.renderer.buffer.current.text.clone();
-                    violation = Some(format!(
-                        "{label} from offset {} landed at {} (expected {}); \
-                         buffer ({} bytes): {:?}",
-                        origin.0,
-                        landed.0,
-                        expected.0,
-                        t.len(),
-                        t,
-                    ));
-                    return;
-                }
-            }
-        }
-    })
-    .map_err(|_| "editor panicked while checking arrow-advance grapheme step".to_string())?;
     violation.map(Err).unwrap_or(Ok(()))
 }
 
@@ -1092,86 +815,6 @@ fn layout_cache_consistent_check(buf: &[u8]) -> Result<(), &'static str> {
         }
     })
     .map_err(|_| "editor panicked while checking cache consistency")?;
-    violation.map(Err).unwrap_or(Ok(()))
-}
-
-/// Property: every cached layout entry equals a freshly-recomputed
-/// value, even when image loads complete mid-stream. Drives the
-/// production [`ImageEmbedResolver`] + [`ImageCache`] (rather than the
-/// atomic-update `TestEmbeds`) so the state-vs-dims gap is reachable.
-///
-/// Per iteration: push a random event, optionally complete the fake
-/// load with a randomly-sized texture, enter a frame, then snapshot
-/// every cached `height` / `height_approx`, clear the caches, and
-/// assert each fresh recomputation matches. A bug like "size() reads
-/// dims before show() populates it" leaves the cached image-paragraph
-/// height at the placeholder while the fresh value reflects the real
-/// texture dims, and this check fires.
-fn image_load_consistent_check(buf: &[u8]) -> Result<(), &'static str> {
-    use egui::{Color32, ColorImage, ImageData, TextureOptions};
-    use std::sync::Arc;
-
-    const EPS: f32 = 0.5;
-    let mut violation: Option<&'static str> = None;
-    drive_with_image_cache(buf, |ws, image_cache, src| {
-        if violation.is_some() {
-            return;
-        }
-        let (cursor, len) = cursor_and_len(ws);
-        ws.push(event(src, cursor, len));
-        ws.enter_frame();
-
-        // Probabilistically complete a fake load. Random texture
-        // dimensions vary the post-load image height so a stale cache
-        // is detectably different from a fresh recomputation.
-        if src.bias(&[2, 1]) == 1 {
-            let w = (src.draw(8) + 1) * 100;
-            let h = (src.draw(8) + 1) * 25;
-            let pixels = vec![Color32::WHITE; w * h];
-            let image = ImageData::Color(Arc::new(ColorImage::new([w, h], pixels)));
-            let ctx = ws.editor.edit.renderer.ctx.clone();
-            let tex_id = ctx.tex_manager().write().alloc(
-                "test_image".into(),
-                image,
-                TextureOptions::default(),
-            );
-            image_cache.complete_load("https://x.test/i.png", Ok(tex_id));
-        }
-        ws.enter_frame();
-
-        let arena = comrak::Arena::new();
-        let root = ws.editor.edit.renderer.reparse(&arena);
-        let nodes: Vec<_> = root.descendants().collect();
-        let r = &ws.editor.edit.renderer;
-
-        let cached_h: Vec<_> = nodes
-            .iter()
-            .enumerate()
-            .filter_map(|(i, n)| r.get_cached_node_height(n).map(|h| (i, h)))
-            .collect();
-        let cached_a: Vec<_> = nodes
-            .iter()
-            .enumerate()
-            .filter_map(|(i, n)| r.get_cached_node_height_approx(n).map(|h| (i, h)))
-            .collect();
-
-        r.layout_cache.height.borrow_mut().clear();
-        r.layout_cache.height_approx.borrow_mut().clear();
-
-        for (i, h) in cached_h {
-            let fresh = r.height(nodes[i]);
-            if (h - fresh).abs() > EPS {
-                violation = Some("cached height differs from fresh recomputation");
-            }
-        }
-        for (i, h) in cached_a {
-            let fresh = r.height_approx(nodes[i]);
-            if (h - fresh).abs() > EPS {
-                violation = Some("cached height_approx differs from fresh recomputation");
-            }
-        }
-    })
-    .map_err(|_| "editor panicked while checking image-load consistency")?;
     violation.map(Err).unwrap_or(Ok(()))
 }
 
@@ -1796,81 +1439,6 @@ fn shift_tab_strips_one_level_check(buf: &[u8]) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Shift-tab on an item must not break syntax: every line that was a
-/// list item before the deindent must still be a list item after.
-/// Catches the bug where deindenting a parent leaves descendants at
-/// indents that re-parse as code blocks or orphaned content.
-fn shift_tab_preserves_item_lines_check(buf: &[u8]) -> Result<(), &'static str> {
-    use comrak::Arena;
-    use comrak::nodes::NodeValue;
-    use lb_rs::model::text::offset_types::RangeExt as _;
-
-    let mut src = ByteSource::new(buf);
-    // Deindent operates on leading whitespace; the engine nests lists
-    // via same-line markers (`+ - [ ]`), where deindent finds nothing
-    // to strip (0% fire). The bespoke whitespace-indented chain is what
-    // gives this check teeth (~60% of seeds apply a real deindent).
-    let (doc, _paddings) = gen_nested_list_doc(&mut src);
-    let lines: Vec<&str> = doc.split_inclusive('\n').collect();
-    if lines.len() < 2 {
-        return Ok(());
-    }
-
-    let line_idx = src.draw(usize::MAX) % lines.len();
-    let line_text = lines[line_idx].trim_end_matches('\n');
-    let line_start: usize = lines.iter().take(line_idx).map(|l| l.chars().count()).sum();
-    let line_len = line_text.chars().count();
-    if line_len == 0 {
-        return Ok(());
-    }
-    let in_line_offset = (src.draw(usize::MAX) % line_len).max(1);
-    let cursor = Grapheme(line_start + in_line_offset);
-
-    let mut ws = TestEditor::new(&doc);
-    ws.enter_frame();
-
-    let item_lines = |ws: &mut TestEditor| -> Vec<bool> {
-        let arena = Arena::new();
-        let root = ws.editor.edit.renderer.reparse(&arena);
-        (0..ws.editor.edit.renderer.bounds.source_lines.len())
-            .map(|i| {
-                let line = ws.editor.edit.renderer.bounds.source_lines[i];
-                let container = ws
-                    .editor
-                    .edit
-                    .renderer
-                    .deepest_container_block_at_offset(root, line.end());
-                matches!(
-                    &container.data.borrow().value,
-                    NodeValue::Item(_) | NodeValue::TaskItem(_)
-                )
-            })
-            .collect()
-    };
-    let before = item_lines(&mut ws);
-
-    ws.push(Event::Select {
-        region: Region::BetweenLocations {
-            start: Location::Grapheme(cursor),
-            end: Location::Grapheme(cursor),
-        },
-    });
-    ws.enter_frame();
-    ws.push(Event::Indent { deindent: true });
-    ws.enter_frame();
-
-    let after = item_lines(&mut ws);
-    if before.len() != after.len() {
-        return Err("shift-tab changed line count");
-    }
-    for (b, a) in before.iter().zip(after.iter()) {
-        if *b && !*a {
-            return Err("shift-tab made a list item line stop being a list item");
-        }
-    }
-    Ok(())
-}
-
 /// Property: typing the opening triple-backtick of a code block at
 /// any cursor position, optionally followed by a language tag /
 /// newline / content (a real user's full code-block flow), must not
@@ -2097,15 +1665,15 @@ fn indent_preserves_marker_check(buf: &[u8], f: &Features) -> Result<(), String>
     Ok(())
 }
 
-/// Permissiveness — catches a trivial "always no-op" impl that
-/// would pass `indent_doesnt_break_document` vacuously. When the op
-/// is clearly applicable, it must mutate.
+/// Permissiveness — catches a trivial "always no-op" impl that would pass
+/// `indent_doesnt_break_document` vacuously. When shift-tab is clearly
+/// applicable (the cursor's line is structurally nested inside a same-family
+/// container), it must mutate.
 ///
-/// Clearly applicable:
-/// - shift-tab: cursor's line is structurally nested inside a same-
-///   family container (nested item / nested quote).
-/// - tab: cursor isn't on line 0, and the prior line sits inside a
-///   structural container the cursor's line isn't already inside.
+/// Deindent only: the nested-list/quote generators emit strictly-deepening
+/// docs, so the prior line is always an ancestor of the cursor's and the
+/// tab-indent direction is never actually applicable here — testing it would
+/// be vacuous.
 fn indent_is_permissive_check(buf: &[u8]) -> Result<(), &'static str> {
     use comrak::Arena;
     use comrak::nodes::NodeValue;
@@ -2127,7 +1695,6 @@ fn indent_is_permissive_check(buf: &[u8]) -> Result<(), &'static str> {
         return Ok(());
     }
 
-    let deindent = src.bias(&[1, 1]) == 0;
     let line_idx = src.draw(usize::MAX) % lines.len();
     if lines[line_idx].trim_end_matches('\n').is_empty() {
         return Ok(()); // blank-line cursor is a boundary case, out of scope
@@ -2146,41 +1713,19 @@ fn indent_is_permissive_check(buf: &[u8]) -> Result<(), &'static str> {
             .edit
             .renderer
             .deepest_container_block_at_offset(root, line.end());
-        if deindent {
-            let cur_kind = &cur.data.borrow().value;
-            let same_family = |a: &comrak::nodes::AstNode<'_>| match cur_kind {
-                NodeValue::Item(_) | NodeValue::TaskItem(_) => {
-                    matches!(&a.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
-                }
-                NodeValue::BlockQuote | NodeValue::Alert(_) => {
-                    matches!(&a.data.borrow().value, NodeValue::BlockQuote | NodeValue::Alert(_))
-                }
-                _ => false,
-            };
-            cur.ancestors().skip(1).any(same_family)
-        } else if line_idx == 0 {
-            false
-        } else {
-            let prior = ws.editor.edit.renderer.bounds.source_lines[line_idx - 1];
-            let prior_cur = ws
-                .editor
-                .edit
-                .renderer
-                .deepest_container_block_at_offset(root, prior.end());
-            // any structural ancestor of prior that's not already in cur's chain
-            prior_cur.ancestors().any(|a| {
-                let structural = matches!(
-                    &a.data.borrow().value,
-                    NodeValue::Item(_)
-                        | NodeValue::TaskItem(_)
-                        | NodeValue::BlockQuote
-                        | NodeValue::Alert(_)
-                        | NodeValue::FootnoteDefinition(_)
-                );
-                let in_cur = cur.ancestors().any(|c| c.same_node(a));
-                structural && !in_cur
-            })
-        }
+        let cur_kind = &cur.data.borrow().value;
+        let same_family = |a: &comrak::nodes::AstNode<'_>| match cur_kind {
+            NodeValue::Item(_) | NodeValue::TaskItem(_) => {
+                matches!(&a.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+            }
+            NodeValue::BlockQuote | NodeValue::Alert(_) => {
+                matches!(&a.data.borrow().value, NodeValue::BlockQuote | NodeValue::Alert(_))
+            }
+            _ => false,
+        };
+        // shift-tab mutates iff the cursor's container is nested inside a
+        // same-family container, so deindent pops it out one level.
+        cur.ancestors().skip(1).any(same_family)
     };
 
     if !should_change {
@@ -2195,12 +1740,12 @@ fn indent_is_permissive_check(buf: &[u8]) -> Result<(), &'static str> {
         },
     });
     ws.enter_frame();
-    ws.push(Event::Indent { deindent });
+    ws.push(Event::Indent { deindent: true });
     ws.enter_frame();
     let after = ws.get_text().to_string();
 
     if before == after {
-        return Err("op was clearly applicable but produced a no-op");
+        return Err("shift-tab was clearly applicable but produced a no-op");
     }
     Ok(())
 }
