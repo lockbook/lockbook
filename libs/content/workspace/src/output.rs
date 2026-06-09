@@ -22,6 +22,8 @@ pub struct Response {
     pub markdown_editor_selection_updated: bool,
     pub markdown_editor_scroll_updated: bool,
     pub markdown_editor_find_widget_height: f32,
+    /// Screen rect (egui points) for the native iOS text-interaction overlay.
+    pub text_interaction_rect: Option<egui::Rect>,
 
     pub tabs_changed: bool,
 

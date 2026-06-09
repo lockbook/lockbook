@@ -212,7 +212,7 @@ import SwiftUI
                 let headerSize = mtkView.docHeaderSize
 
                 switch newCurrentTab {
-                case .Welcome, .Pdf, .Loading, .SpaceInspector, .Chat:
+                case .Welcome, .Pdf, .Loading, .SpaceInspector:
                     if currentWrapper == nil {
                         return
                     }
@@ -262,7 +262,7 @@ import SwiftUI
                     ])
 
                     mtkView.becomeFirstResponder()
-                case .PlainText, .Markdown:
+                case .PlainText, .Markdown, .Chat:
                     if let currentWrapper = currentWrapper
                         as? MdView,
                         currentWrapper.currentHeaderSize
@@ -280,27 +280,12 @@ import SwiftUI
                     currentWrapper = textWrapper
                     mtkView.currentWrapper = textWrapper
 
-                    textWrapper.translatesAutoresizingMaskIntoConstraints =
-                        false
+                    // Frame-positioned from Rust's reported interaction rect
+                    // each frame (see iOSMTKViewDelegate). Seed with the full
+                    // view until the first rect arrives.
+                    textWrapper.translatesAutoresizingMaskIntoConstraints = true
+                    textWrapper.frame = mtkView.frame
                     addSubview(textWrapper)
-                    let topConstraint = textWrapper.topAnchor.constraint(
-                        equalTo: topAnchor,
-                        constant: headerSize
-                    )
-                    textWrapper.topConstraint = topConstraint
-                    NSLayoutConstraint.activate([
-                        topConstraint,
-                        textWrapper.leftAnchor.constraint(
-                            equalTo: leftAnchor
-                        ),
-                        textWrapper.rightAnchor.constraint(
-                            equalTo: rightAnchor
-                        ),
-                        textWrapper.bottomAnchor.constraint(
-                            equalTo: keyboardLayoutGuide.topAnchor,
-                            constant: -MdView.TOOL_BAR_HEIGHT
-                        ),
-                    ])
 
                     if GCKeyboard.coalesced != nil {
                         textWrapper.becomeFirstResponder()

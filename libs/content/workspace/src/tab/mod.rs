@@ -195,9 +195,11 @@ impl Tab {
                 let mut resp = Response::default();
                 match content {
                     TabContent::Chat(chat) => {
-                        if chat.show(ui) {
+                        let (sent, interaction_rect) = chat.show(ui);
+                        if sent {
                             self.last_changed = Instant::now();
                         }
+                        resp.text_interaction_rect = Some(interaction_rect);
                     }
                     TabContent::Markdown(md) => {
                         let initialized = md.initialized;
@@ -210,6 +212,7 @@ impl Tab {
                         resp.selection_updated = md_resp.selection_updated;
                         resp.scroll_updated = md_resp.scroll_updated;
                         resp.find_widget_height = md_resp.find_widget_height;
+                        resp.text_interaction_rect = md_resp.text_interaction_rect;
                     }
                     TabContent::Image(img) => img.show(ui),
                     TabContent::Pdf(pdf) => pdf.show(ui),
@@ -350,6 +353,9 @@ pub struct Response {
     pub scroll_updated: bool,
     pub open_camera: bool,
     pub find_widget_height: f32,
+    /// Screen rect (egui points) for the native iOS text-interaction overlay,
+    /// reported by whichever tab owns an editable surface (markdown / chat).
+    pub text_interaction_rect: Option<egui::Rect>,
     pub open_file: Option<Uuid>,
 }
 

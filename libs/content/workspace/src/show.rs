@@ -230,6 +230,7 @@ impl Workspace {
                 self.out.markdown_editor_selection_updated = true;
             }
             self.out.markdown_editor_find_widget_height = resp.find_widget_height;
+            self.out.text_interaction_rect = resp.text_interaction_rect;
             if resp.scroll_updated {
                 self.out.markdown_editor_scroll_updated = true;
             }

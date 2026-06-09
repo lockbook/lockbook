@@ -37,12 +37,16 @@
 
         /// ?
         let currentHeaderSize: Double
-        /// constraint adjusted each frame to keep text interaction below the find widget
-        var topConstraint: NSLayoutConstraint?
-        /// current find widget height, used for coordinate transforms
-        var textInputTopOffset: Double = 0
-        /// total y offset for converting between viewport and MdView coordinates
-        var yOffset: Double { mtkView.docHeaderSize + textInputTopOffset }
+        /// Interaction region in container coords (egui points) — Rust's single
+        /// source of truth, set each frame from `output.text_interaction_rect`.
+        /// Drives both this view's frame and cursor coordinate conversion.
+        var interactionRect: CGRect = .zero
+        /// offsets for converting egui-global cursor coords into this view's
+        /// frame-local space — the interaction rect's origin. `x` is nonzero
+        /// when the editable surface is inset horizontally (the centered chat
+        /// composer); it was always 0 for the full-width markdown editor.
+        var xOffset: Double { Double(interactionRect.minX) }
+        var yOffset: Double { Double(interactionRect.minY) }
 
         // interactive refinement (floating cursor)
         var interactiveRefinementInProgress = false
@@ -620,7 +624,7 @@
             let range = (range as! LBTextRange).c
             let result = first_rect(wsHandle, range)
             return CGRect(
-                x: result.min_x, y: result.min_y - yOffset,
+                x: result.min_x - xOffset, y: result.min_y - yOffset,
                 width: result.max_x - result.min_x, height: result.max_y - result.min_y
             )
         }
@@ -629,7 +633,7 @@
             let position = (position as! LBTextPos).c
             let result = cursor_rect_at_position(wsHandle, position)
             return CGRect(
-                x: result.min_x, y: result.min_y - yOffset, width: 1,
+                x: result.min_x - xOffset, y: result.min_y - yOffset, width: 1,
                 height: result.max_y - result.min_y
             )
         }
@@ -644,8 +648,8 @@
 
             return buffer.enumerated().map { index, rect in
                 let new_rect = CRect(
-                    min_x: rect.min_x, min_y: rect.min_y - yOffset, max_x: rect.max_x,
-                    max_y: rect.max_y - yOffset
+                    min_x: rect.min_x - xOffset, min_y: rect.min_y - yOffset,
+                    max_x: rect.max_x - xOffset, max_y: rect.max_y - yOffset
                 )
 
                 return LBTextSelectionRect(cRect: new_rect, loc: index, size: buffer.count)
@@ -658,7 +662,7 @@
                     ? (point.x, point.y)
                     : (point.x - floatingCursorNewStartX, point.y - floatingCursorNewStartY)
 
-            let point = CPoint(x: x, y: y + yOffset)
+            let point = CPoint(x: x + xOffset, y: y + yOffset)
             let result = position_at_point(wsHandle, point)
 
             return LBTextPos(c: result)
@@ -1242,7 +1246,7 @@
             }
 
             if let currentWrapper = mtkView.currentWrapper as? MdView,
-               currentTab == .Markdown
+               currentTab == .Markdown || currentTab == .Chat
             {
                 if output.has_virtual_keyboard_shown {
                     if output.virtual_keyboard_shown {
@@ -1268,12 +1272,23 @@
                     mtkView.onSelectionChanged?()
                 }
 
-                // adjust text interaction region to exclude find widget
-                let findHeight = CGFloat(output.text_input_top_offset)
-                currentWrapper.textInputTopOffset = findHeight
-                let newTopOffset = currentWrapper.currentHeaderSize + findHeight
-                if let tc = currentWrapper.topConstraint, tc.constant != newTopOffset {
-                    tc.constant = newTopOffset
+                // Position the interaction overlay to the exact rect Rust
+                // reports (editor viewport / chat composer) — single source of
+                // truth, no toolbar/find/header math here.
+                if output.has_text_interaction_rect {
+                    let r = output.text_interaction_rect
+                    // Round to whole points: egui emits sub-pixel-jittery f32
+                    // rects, and re-setting the frame every draw resets the
+                    // UITextInteraction (caret stops tracking scroll).
+                    let rect = CGRect(
+                        x: r.min_x.rounded(), y: r.min_y.rounded(),
+                        width: (r.max_x - r.min_x).rounded(),
+                        height: (r.max_y - r.min_y).rounded()
+                    )
+                    currentWrapper.interactionRect = rect
+                    if currentWrapper.frame != rect {
+                        currentWrapper.frame = rect
+                    }
                 }
 
                 let keyboard_shown = currentWrapper.isFirstResponder && GCKeyboard.coalesced == nil

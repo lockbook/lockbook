@@ -29,7 +29,7 @@ const CORNER: u8 = 10;
 const TOP_MARGIN: f32 = 15.0;
 const BOTTOM_PAD: f32 = 15.0;
 const COMPOSER_MAX_HEIGHT: f32 = 160.0;
-const COMPOSER_BOTTOM_INSET: f32 = 16.0;
+const COMPOSER_BOTTOM_INSET: f32 = if cfg!(target_os = "android") { 60.0 } else { 16.0 };
 
 /// A message paired with the label that renders its markdown body. Labels
 /// are per-message so each one's `LayoutCache` can actually memoize across
@@ -141,8 +141,10 @@ impl Chat {
         self.hmac = Some(hmac);
     }
 
-    /// Returns true if the user sent a message this frame.
-    pub fn show(&mut self, ui: &mut Ui) -> bool {
+    /// Renders the transcript + composer. Returns whether the user sent a
+    /// message this frame, and the composer's text rect (egui points) for
+    /// positioning the native iOS text-interaction overlay.
+    pub fn show(&mut self, ui: &mut Ui) -> (bool, Rect) {
         let mut sent = false;
         let theme = ui.ctx().get_lb_theme();
         let available_width = ui.available_width();
@@ -168,7 +170,10 @@ impl Chat {
                 .ctx()
                 .input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Enter));
 
-        // Composer input phase — keyboard / completions / internal events.
+        // Composer input phase — drain workspace-origin events (native iOS
+        // text input arrives this way), then keyboard / completions / internal.
+        let workspace_events = self.composer.drain_workspace_events(ui.ctx());
+        self.composer.event.internal_events.extend(workspace_events);
         let _ = self.composer.handle_input(ui.ctx(), composer_id);
 
         // Measure at the exact render width so the composer bubble grows
@@ -382,7 +387,7 @@ impl Chat {
         // Popups land last so they composite over composer + transcript.
         self.composer.show_completions(ui);
 
-        sent
+        (sent, inner_rect)
     }
 }
 

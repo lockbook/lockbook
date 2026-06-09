@@ -88,6 +88,12 @@ pub struct Response {
 
     // Used to restrict iOS TextInteraction area
     pub find_widget_height: f32,
+
+    /// Screen rect (egui points) where native iOS text interaction should
+    /// live — the editor viewport minus the find widget (top) and toolbar
+    /// (bottom). The single source of truth for positioning the `MdView`
+    /// overlay; `None` off iOS / when not in touch mode.
+    pub text_interaction_rect: Option<egui::Rect>,
 }
 
 pub struct MdRender {
@@ -774,7 +780,7 @@ impl Editor {
         // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
         // MdEdit's internal event queue, then let MdEdit::handle_input drain
         // everything (workspace + keyboard + completions).
-        let workspace_events = self.drain_workspace_events(ui.ctx());
+        let workspace_events = self.edit.drain_workspace_events(ui.ctx());
         self.edit.event.internal_events.extend(workspace_events);
 
         let prior_selection = self.edit.renderer.buffer.current.selection;
@@ -828,6 +834,10 @@ impl Editor {
         self.edit.renderer.apply_theme(ui);
         ui.spacing_mut().item_spacing.x = 0.;
 
+        // Full editor region (egui-global). The interaction rect carves the
+        // find widget off the top and the toolbar off the bottom below.
+        let editor_region = ui.max_rect();
+
         let prev_offset = self.edit.scroll_area.stored_offset();
 
         let editor_shown = ui
@@ -845,6 +855,13 @@ impl Editor {
                     } else {
                         0.
                     };
+                    self.next_resp.text_interaction_rect = Some(egui::Rect::from_min_max(
+                        egui::pos2(
+                            editor_region.min.x,
+                            editor_region.min.y + self.next_resp.find_widget_height,
+                        ),
+                        egui::pos2(editor_region.max.x, editor_region.max.y - toolbar_height),
+                    ));
                     let editor_shown = ui
                         .allocate_ui(
                             egui::vec2(

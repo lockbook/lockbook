@@ -30,6 +30,12 @@ pub struct IOSResponse {
     /// Height in points of content above the editor (find widget) that the
     /// text interaction overlay should not cover.
     pub text_input_top_offset: f32,
+
+    /// Screen rect (points) the native text-interaction overlay (`MdView`)
+    /// should occupy — editor viewport or chat composer. `has_*` is false when
+    /// the current tab has no editable surface.
+    pub has_text_interaction_rect: bool,
+    pub text_interaction_rect: CRect,
 }
 
 impl From<crate::Response> for IOSResponse {
@@ -48,6 +54,7 @@ impl From<crate::Response> for IOSResponse {
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated,
                     markdown_editor_find_widget_height,
+                    text_interaction_rect,
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed,
@@ -92,6 +99,15 @@ impl From<crate::Response> for IOSResponse {
             virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
             selected_folder_changed,
             text_input_top_offset: markdown_editor_find_widget_height,
+            has_text_interaction_rect: text_interaction_rect.is_some(),
+            text_interaction_rect: text_interaction_rect
+                .map(|r| CRect {
+                    min_x: r.min.x as f64,
+                    min_y: r.min.y as f64,
+                    max_x: r.max.x as f64,
+                    max_y: r.max.y as f64,
+                })
+                .unwrap_or_default(),
         }
     }
 }
