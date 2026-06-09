@@ -69,7 +69,7 @@ impl PathSearcher {
             input,
             CaseMatching::Smart,
             Normalization::Smart,
-            self.submitted_query.starts_with(input),
+            input.starts_with(&self.submitted_query),
         );
         self.submitted_query = input.to_string();
 
