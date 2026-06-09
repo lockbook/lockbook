@@ -154,7 +154,7 @@ impl SearchExecutor for PathSearch {
 }
 
 impl PathSearch {
-    pub fn new(lb: &Lb, _ctx: &Context, files: Arc<RwLock<FileCache>>) -> Self {
+    pub fn new(lb: &Lb, files: Arc<RwLock<FileCache>>) -> Self {
         Self {
             searcher: lb.path_searcher(),
             submitted_query: String::new(),

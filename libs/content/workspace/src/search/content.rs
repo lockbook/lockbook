@@ -28,7 +28,7 @@ pub struct ContentSearch {
 }
 
 impl ContentSearch {
-    pub fn new(lb: &Lb, _ctx: &Context) -> Self {
+    pub fn new(lb: &Lb) -> Self {
         ContentSearch {
             searcher: lb.content_searcher(),
             submitted_query: String::new(),
