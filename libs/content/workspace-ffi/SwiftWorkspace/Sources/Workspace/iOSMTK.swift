@@ -761,7 +761,25 @@
 
             deleteWord.wantsPriorityOverSystemBehavior = true
 
-            return [deleteWord] + iOSMTK.workspaceBracketKeyCommands()
+            // Cmd+Return sends in the chat composer (forwarded into egui as
+            // Cmd+Enter, matching desktop). Without registration the system
+            // swallows the combo before it reaches `pressesBegan`.
+            let send = UIKeyCommand(
+                input: "\r", modifierFlags: [.command], action: #selector(sendCommand)
+            )
+            send.wantsPriorityOverSystemBehavior = true
+
+            return [deleteWord, send] + iOSMTK.workspaceBracketKeyCommands()
+        }
+
+        @objc func sendCommand() {
+            guard mtkView.workspaceOutput?.currentTab == .Chat else { return }
+            // Forward Cmd+Enter into egui (HID Return code, as `ios_key_event`
+            // maps via `UIKeys::from`) so the composer's send shortcut fires.
+            let key = UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue
+            ios_key_event(wsHandle, key, false, false, false, true, true)
+            ios_key_event(wsHandle, key, false, false, false, true, false)
+            mtkView.drawImmediately()
         }
 
         @objc func forwardBracketCommand(_ command: UIKeyCommand) {
