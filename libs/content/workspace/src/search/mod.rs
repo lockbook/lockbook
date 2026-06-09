@@ -22,7 +22,6 @@ pub enum SearchType {
 
 impl SearchType {
     fn create_executor(&self, lb: &Lb, files: &Arc<RwLock<FileCache>>) -> Box<dyn SearchExecutor> {
-        std::thread::sleep(Duration::from_millis(1000));
         match self {
             SearchType::Path => Box::new(PathSearch::new(lb, files.clone())),
             SearchType::Content => Box::new(ContentSearch::new(lb)),
@@ -358,7 +357,6 @@ impl Workspace {
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
-use std::time::Duration;
 
 use egui::{Context, CornerRadius, Frame, Margin, RichText, TextEdit, Ui, Vec2};
 use lb_rs::blocking::Lb;
