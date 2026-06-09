@@ -212,7 +212,7 @@ import SwiftUI
                 let headerSize = mtkView.docHeaderSize
 
                 switch newCurrentTab {
-                case .Welcome, .Pdf, .Loading, .SpaceInspector:
+                case .Welcome, .Pdf, .Loading, .SpaceInspector, .Chat:
                     if currentWrapper == nil {
                         return
                     }
