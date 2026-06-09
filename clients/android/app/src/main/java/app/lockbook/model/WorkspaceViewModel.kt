@@ -109,6 +109,7 @@ enum class WorkspaceTabType(
     Pdf(5),
     Svg(6),
     Graph(7),
+    Chat(9),
     ;
 
     companion object {
@@ -119,10 +120,10 @@ enum class WorkspaceTabType(
         when (this) {
             Welcome, Pdf, Loading, Image, Graph -> 1
             Svg -> 2
-            PlainText, Markdown -> 3
+            PlainText, Markdown, Chat -> 3
         }
 
-    fun isTextEdit(): Boolean = this == Markdown || this == PlainText
+    fun isTextEdit(): Boolean = this == Markdown || this == PlainText || this == Chat
 
     fun isSvg(): Boolean = this == Svg
 }

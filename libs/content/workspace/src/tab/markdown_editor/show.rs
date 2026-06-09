@@ -446,6 +446,10 @@ impl MdEdit {
         let has_selection_handles = !self.renderer.buffer.current.selection.is_empty()
             || self.in_progress_selection.is_some();
         if ui.ctx().os() == OperatingSystem::Android && has_selection_handles {
+            // Handles hang below the caret, past the editor `rect`; draw them
+            // under the entry clip so a tight surface (the chat composer)
+            // doesn't clip them off.
+            ui.set_clip_rect(entry_clip);
             self.show_selection_handles(ui);
         }
 

@@ -27,10 +27,16 @@ const V_PAD: f32 = 10.0;
 const H_MARGIN: f32 = 12.0;
 const ROW_GAP: f32 = 4.0;
 const CORNER: u8 = 10;
-const TOP_MARGIN: f32 = 15.0;
+/// Top padding before the first message. Larger on Android to clear the system
+/// status bar / safe area, mirroring the markdown editor's `leading_precise`.
+const TOP_MARGIN: f32 = if cfg!(target_os = "android") { 60.0 } else { 15.0 };
 const BOTTOM_PAD: f32 = 15.0;
 const COMPOSER_MAX_HEIGHT: f32 = 160.0;
-const COMPOSER_BOTTOM_INSET: f32 = if cfg!(target_os = "android") { 60.0 } else { 16.0 };
+/// Gap between the composer and the bottom of the editable area.
+const COMPOSER_BOTTOM_GAP: f32 = 16.0;
+/// Extra bottom padding on Android while the keyboard is down, to clear the
+/// system nav bar (the egui panel isn't inset past it in that state).
+const COMPOSER_NAV_CLEARANCE: f32 = 60.0;
 /// Horizontal inset on each side of the composer bubble within its column. The
 /// send button lives in the right inset, outside the bubble.
 const SIDE_INSET: f32 = 48.0;
@@ -197,6 +203,19 @@ impl Chat {
         ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
         let full_rect = ui.available_rect_before_wrap();
 
+        // The egui panel is already inset past the keyboard (when up); on
+        // Android it is NOT inset past the nav bar (when the keyboard is down),
+        // so add nav-bar clearance only in that state.
+        let keyboard_up = ui
+            .memory(|m| m.data.get_temp::<f32>(Id::new("ws_keyboard_height")))
+            .unwrap_or(0.0)
+            > 0.0;
+        let composer_bottom_inset = if cfg!(target_os = "android") && !keyboard_up {
+            COMPOSER_NAV_CLEARANCE
+        } else {
+            COMPOSER_BOTTOM_GAP
+        };
+
         let composer_id = Id::new("chat_composer");
         if !self.initialized {
             ui.memory_mut(|m| m.request_focus(composer_id));
@@ -230,7 +249,7 @@ impl Chat {
         let composer_height = (measured_h + V_PAD * 2.0).min(COMPOSER_MAX_HEIGHT);
         let transcript_rect = Rect::from_min_max(
             full_rect.min,
-            pos2(full_rect.max.x, full_rect.max.y - composer_height - COMPOSER_BOTTOM_INSET),
+            pos2(full_rect.max.x, full_rect.max.y - composer_height - composer_bottom_inset),
         );
         let mut text_areas = Vec::new();
 
@@ -376,14 +395,14 @@ impl Chat {
 
         // Composer bubble + body.
         let composer_rect = Rect::from_min_max(
-            pos2(full_rect.min.x, full_rect.max.y - composer_height - COMPOSER_BOTTOM_INSET),
+            pos2(full_rect.min.x, full_rect.max.y - composer_height - composer_bottom_inset),
             full_rect.max,
         );
         let col_pad = (available_width - col_width) / 2.0;
         let h_inset = col_pad + SIDE_INSET;
         let bubble_rect = Rect::from_min_max(
             pos2(composer_rect.min.x + h_inset, composer_rect.min.y),
-            pos2(composer_rect.max.x - h_inset, composer_rect.max.y - COMPOSER_BOTTOM_INSET),
+            pos2(composer_rect.max.x - h_inset, composer_rect.max.y - composer_bottom_inset),
         );
         ui.painter().rect_filled(
             bubble_rect,

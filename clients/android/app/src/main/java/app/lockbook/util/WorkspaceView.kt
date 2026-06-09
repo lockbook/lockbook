@@ -345,7 +345,9 @@ class WorkspaceView(
             model._currentTab.value = currentTab
         }
 
-        if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
+        if (model.currentTab.value?.type == WorkspaceTabType.Markdown ||
+            model.currentTab.value?.type == WorkspaceTabType.Chat
+        ) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
 
                 if (response.textUpdated && contextMenu != null) {
