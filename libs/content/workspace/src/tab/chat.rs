@@ -70,6 +70,9 @@ pub struct Chat {
     pub account: Account,
     pub seq: usize,
     pub initialized: bool,
+    /// Last server state our local edits sit on top of — the merge base. Held
+    /// so `reload` does a real 3-way merge instead of an empty-base union.
+    base: Vec<u8>,
     ctx: egui::Context,
 }
 
@@ -88,7 +91,17 @@ impl Chat {
         composer.renderer.link_resolver =
             Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
         composer.file_id = id;
-        Self { id, hmac, entries, composer, account, seq: 0, initialized: false, ctx }
+        Self {
+            id,
+            hmac,
+            entries,
+            composer,
+            account,
+            seq: 0,
+            initialized: false,
+            base: bytes.to_vec(),
+            ctx,
+        }
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -96,15 +109,16 @@ impl Chat {
     }
 
     /// Merge in a freshly-synced version. `bytes` is the remote; the local
-    /// state is `self`. An empty base is sound because deletions aren't a
-    /// thing today — symmetric union over timestamps.
+    /// state is `self`; `self.base` is the last server state our local edits
+    /// sit on top of — a real 3-way merge, matching the sync engine.
     ///
     /// Unchanged entries keep their existing label (and therefore its layout
     /// cache); new entries get a fresh label.
     pub fn reload(&mut self, bytes: &[u8], hmac: Option<DocumentHmac>) {
         let local = self.to_bytes();
-        let merged = Buffer::merge(&[], &local, bytes);
+        let merged = Buffer::merge(&self.base, &local, bytes);
         let merged_msgs = Buffer::new(&merged).messages;
+        self.base = bytes.to_vec();
 
         let mut old: Vec<Entry> = std::mem::take(&mut self.entries);
         self.entries = merged_msgs
