@@ -5,8 +5,9 @@ pub struct Search {
     pub search_type: SearchType,
     pub query: String,
     pub initialized: bool,
-    pub executor: Arc<RwLock<Box<dyn SearchExecutor>>>,
+    pub executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
     dispatched_query: String,
+    building: Arc<AtomicBool>,
 
     core: Lb,
     files: Arc<RwLock<FileCache>>,
@@ -20,12 +21,10 @@ pub enum SearchType {
 }
 
 impl SearchType {
-    fn create_executor(
-        &self, lb: &Lb, ctx: &Context, files: &Arc<RwLock<FileCache>>,
-    ) -> Box<dyn SearchExecutor> {
+    fn create_executor(&self, lb: &Lb, files: &Arc<RwLock<FileCache>>) -> Box<dyn SearchExecutor> {
         match self {
-            SearchType::Path => Box::new(PathSearch::new(lb, ctx, files.clone())),
-            SearchType::Content => Box::new(ContentSearch::new(lb, ctx)),
+            SearchType::Path => Box::new(PathSearch::new(lb, files.clone())),
+            SearchType::Content => Box::new(ContentSearch::new(lb)),
         }
     }
 
@@ -58,32 +57,58 @@ pub trait SearchExecutor: Send + Sync {
 
 impl Search {
     pub fn new(lb: &Lb, ctx: &Context, files: Arc<RwLock<FileCache>>) -> Search {
-        Search {
+        let mut search = Search {
             search_type: SearchType::Path,
             query: String::new(),
             initialized: false,
-            executor: Arc::new(RwLock::new(SearchType::Path.create_executor(lb, ctx, &files))),
+            executor: Arc::new(RwLock::new(None)),
             dispatched_query: String::new(),
+            building: Arc::new(AtomicBool::new(false)),
             core: lb.clone(),
             files,
-        }
+        };
+        search.spawn_build(ctx);
+        search
+    }
+
+    fn spawn_build(&mut self, ctx: &Context) {
+        self.building.store(true, Ordering::SeqCst);
+        self.dispatched_query.clear();
+
+        let executor = self.executor.clone();
+        let building = self.building.clone();
+        let core = self.core.clone();
+        let files = self.files.clone();
+        let ctx = ctx.clone();
+        let search_type = self.search_type;
+        thread::spawn(move || {
+            let mut guard = executor.write().unwrap();
+            *guard = Some(search_type.create_executor(&core, &files));
+            drop(guard);
+            building.store(false, Ordering::SeqCst);
+            ctx.request_repaint();
+        });
     }
 
     /// Swap the executor when the search type changes and dispatch the current
     /// query on a background thread. Safe to call every frame.
     fn manage_executors(&mut self, ctx: &Context) {
+        if self.building.load(Ordering::SeqCst) {
+            return;
+        }
+
         let Ok(guard) = self.executor.try_read() else {
             return;
         };
-        let stale_type = guard.search_type() != self.search_type;
+        let stale_type = match guard.as_ref() {
+            Some(executor) => executor.search_type() != self.search_type,
+            None => true,
+        };
         drop(guard);
 
         if stale_type {
-            let executor = self
-                .search_type
-                .create_executor(&self.core, ctx, &self.files);
-            self.executor = Arc::new(RwLock::new(executor));
-            self.dispatched_query.clear();
+            self.spawn_build(ctx);
+            return;
         }
 
         if self.query != self.dispatched_query {
@@ -93,7 +118,9 @@ impl Search {
             let ctx = ctx.clone();
             let query = self.query.clone();
             thread::spawn(move || {
-                executor.write().unwrap().handle_query(&query);
+                if let Some(executor) = executor.write().unwrap().as_mut() {
+                    executor.handle_query(&query);
+                }
                 ctx.request_repaint();
             });
         }
@@ -231,7 +258,7 @@ impl Workspace {
     }
 
     fn results_and_preview(
-        &mut self, ui: &mut Ui, executor: &Arc<RwLock<Box<dyn SearchExecutor>>>,
+        &mut self, ui: &mut Ui, executor: &Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
         search_type: SearchType,
     ) -> Option<lb_rs::Uuid> {
         const OUTER_PAD: f32 = 24.0;
@@ -251,11 +278,17 @@ impl Workspace {
                 .allocate_ui_with_layout(
                     Vec2::new(picker_width, ui.available_height()),
                     egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| match executor.try_write() {
-                        Ok(mut executor) => (executor.show_result_picker(ui), true),
-                        Err(_) => {
-                            ui.centered_and_justified(|ui| ui.spinner());
-                            (PickerResponse::default(), false)
+                    |ui| {
+                        let picker = executor
+                            .try_write()
+                            .ok()
+                            .and_then(|mut guard| guard.as_mut().map(|e| e.show_result_picker(ui)));
+                        match picker {
+                            Some(picker) => (picker, true),
+                            None => {
+                                ui.centered_and_justified(|ui| ui.spinner());
+                                (PickerResponse::default(), false)
+                            }
                         }
                     },
                 )
@@ -321,6 +354,7 @@ impl Workspace {
     }
 }
 
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 
