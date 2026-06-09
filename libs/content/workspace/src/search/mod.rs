@@ -244,16 +244,15 @@ impl Workspace {
                 search.manage_executors(ui.ctx());
                 ui.add_space(16.0);
                 search.show_query_box(ui);
-                let building = search.building.load(Ordering::SeqCst);
-                (search.executor.clone(), search.search_type, building)
+                (search.executor.clone(), search.search_type)
             };
-            let (executor, search_type, creating) = extracted;
+            let (executor, search_type) = extracted;
 
             ui.add_space(10.0);
             Self::hairline(ui, true);
             ui.add_space(6.0);
 
-            if let Some(id) = self.results_and_preview(ui, &executor, search_type, creating) {
+            if let Some(id) = self.results_and_preview(ui, &executor, search_type) {
                 self.open_file_replacing_search(id);
             }
         });
@@ -261,7 +260,7 @@ impl Workspace {
 
     fn results_and_preview(
         &mut self, ui: &mut Ui, executor: &Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
-        search_type: SearchType, creating: bool,
+        search_type: SearchType,
     ) -> Option<lb_rs::Uuid> {
         const OUTER_PAD: f32 = 24.0;
         const MIN_PREVIEW_WIDTH: f32 = 720.0;
@@ -281,13 +280,10 @@ impl Workspace {
                     Vec2::new(picker_width, ui.available_height()),
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
-                        let picker = if creating {
-                            None
-                        } else {
-                            executor.try_write().ok().and_then(|mut guard| {
-                                guard.as_mut().map(|e| e.show_result_picker(ui))
-                            })
-                        };
+                        let picker = executor
+                            .try_write()
+                            .ok()
+                            .and_then(|mut guard| guard.as_mut().map(|e| e.show_result_picker(ui)));
                         match picker {
                             Some(picker) => (picker, true),
                             None => {
