@@ -149,7 +149,9 @@ impl Chat {
         let col_width = available_width.min(MAX_WIDTH);
         let max_bubble_content_w = (col_width * 0.72 - H_PAD * 2.0).max(120.0);
         let text_color = theme.neutral_fg();
-        let secondary_color = theme.neutral_fg_secondary();
+        let secondary_color = theme
+            .neutral_fg_secondary()
+            .lerp_to_gamma(theme.neutral_fg(), 0.5); // fg secondary hard to read on colored bg
 
         ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
         let full_rect = ui.available_rect_before_wrap();
