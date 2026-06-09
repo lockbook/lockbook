@@ -393,6 +393,21 @@ impl Chat {
         let inner_rect = bubble_rect.shrink2(vec2(H_PAD, V_PAD));
         self.composer.show(ui, inner_rect, composer_id);
 
+        // Ghosted placeholder over the empty composer.
+        if self.composer.renderer.buffer.current.text.is_empty() {
+            let row_h = self.composer.row_height();
+            let hint = ui.fonts(|f| {
+                f.layout_no_wrap(
+                    "Type a message".into(),
+                    egui::FontId::proportional(row_h * 0.85),
+                    theme.neutral(),
+                )
+            });
+            let y = inner_rect.min.y + (row_h - hint.size().y) / 2.0;
+            ui.painter()
+                .galley(pos2(inner_rect.min.x, y), hint, theme.neutral());
+        }
+
         // Send button — shown when there's text. It lives in the right inset
         // OUTSIDE the bubble, so `composer.show` can't occlude it and the iOS
         // overlay (which covers exactly `inner_rect`) can't swallow its taps.
