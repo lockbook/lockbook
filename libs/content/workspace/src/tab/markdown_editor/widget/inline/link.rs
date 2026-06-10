@@ -193,7 +193,7 @@ impl<'ast> MdRender {
     /// in a new tab. The producer only opens an interaction scope when
     /// cmd is held (desktop) or for the trailing open-link affordance
     /// (touch); the response's presence is the gate.
-    pub fn handle_link_interactions(&self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
+    pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.id();
         for node in root.descendants() {
             let (url, is_wikilink) = match &node.data.borrow().value {
@@ -205,6 +205,11 @@ impl<'ast> MdRender {
             let Some(response) = self.interaction_responses.get(&id) else {
                 continue;
             };
+
+            // iOS routes touches through `touch_consuming_rects` —
+            // without this entry a tap on the open-link button would
+            // place the cursor instead of reaching the click handler below.
+            self.touch_consuming_rects.push(response.rect);
 
             if response.hovered() {
                 ui.ctx()
