@@ -1218,7 +1218,7 @@ impl Editor {
                         // entries. The immutable `DocScrollContent`
                         // borrow is released here before phase 2's
                         // mutable renderer paint.
-                        let (visible, neighbors, scrollbar_track) = {
+                        let (visible, neighbors, scrollbar_grab) = {
                             use crate::widgets::affine_scroll::{Rows as _, VisibleRow};
 
                             let content = scroll_content::DocScrollContent::for_frame(
@@ -1257,15 +1257,15 @@ impl Editor {
                                     id = next_id;
                                 }
                             }
-                            (resp.visible, neighbors, resp.scrollbar_track)
+                            (resp.visible, neighbors, resp.scrollbar_grab)
                         };
-                        // Register the scrollbar's track so iOS taps
-                        // on it don't fall through to cursor-placement
-                        // / keyboard-summon handlers.
+                        // Register the scrollbar's grab area so iOS taps on it
+                        // don't fall through to cursor-placement / keyboard-
+                        // summon handlers.
                         self.edit
                             .renderer
                             .touch_consuming_rects
-                            .push(scrollbar_track);
+                            .extend(scrollbar_grab);
 
                         // Phase 2: paint each visible row with a mutable
                         // renderer borrow. Block list re-collected
