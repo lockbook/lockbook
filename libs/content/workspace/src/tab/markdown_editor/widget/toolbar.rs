@@ -152,7 +152,6 @@ impl<'ast> Editor {
                         self.edit.renderer.ctx.get_lb_theme().fg().blue;
 
                     let is_ios = cfg!(target_os = "ios");
-                    let is_mobile = is_ios || cfg!(target_os = "android");
 
                     ui.spacing_mut().button_padding = egui::vec2(5., 5.);
 
@@ -452,7 +451,7 @@ impl<'ast> Editor {
                         any_indent = true;
                     }
 
-                    if is_mobile {
+                    if self.edit.phone_mode {
                         if any_indent {
                             add_seperator(ui);
                         }
@@ -488,8 +487,8 @@ impl<'ast> Editor {
 
                     for event in events {
                         ui.ctx().push_markdown_event(event);
-                        if is_mobile {
-                            // mobile toolbar painted after editor events processed
+                        if self.edit.phone_mode {
+                            // bottom toolbar painted after editor events processed
                             ui.ctx().request_repaint();
                         }
                     }

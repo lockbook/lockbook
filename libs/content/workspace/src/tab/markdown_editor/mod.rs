@@ -177,8 +177,8 @@ pub struct MdEdit {
     pub cursor: CursorState,
     pub event: EventState,
 
-    /// No physical keyboard (phone or iPad compact mode). Used by completion
-    /// popups to hide Cmd/Ctrl+N shortcut hints.
+    /// Phone-sized layout (phone or iPad compact mode). The toolbar docks to
+    /// the bottom above the virtual keyboard, for example.
     pub phone_mode: bool,
 
     /// Transient drag selection — `Some` while a drag is in progress; the
@@ -832,7 +832,7 @@ impl Editor {
 
         let editor_shown = ui
             .vertical(|ui| {
-                if self.edit.renderer.touch_mode {
+                if self.edit.phone_mode {
                     self.show_find_centered(ui);
 
                     // ...then show editor content (or toolbar settings)...
@@ -883,6 +883,10 @@ impl Editor {
 
                     editor_shown
                 } else {
+                    // no menu toggle in this layout; clear in case the menu was
+                    // open when an iPad left split view (it disables the buttons)
+                    self.toolbar.menu_open = false;
+
                     if !self.edit.renderer.readonly && !self.edit.renderer.plaintext {
                         self.show_toolbar(root, ui);
                     }
