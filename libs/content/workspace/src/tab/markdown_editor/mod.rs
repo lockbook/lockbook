@@ -57,6 +57,7 @@ pub fn syntax_theme() -> &'static Theme {
 }
 
 pub mod bounds;
+pub mod fold;
 pub mod input;
 pub mod md_label;
 pub mod output;
@@ -515,6 +516,7 @@ impl MdRender {
         if self.bounds.text_seq != self.text_seq {
             self.bounds.inline_paragraphs.clear();
             self.calc_source_lines();
+            self.calc_fold_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries
             // hidden_by_fold, which now expects every node already

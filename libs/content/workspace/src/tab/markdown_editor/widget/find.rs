@@ -5,7 +5,8 @@
 //! - **Decoupled from cursor**: Find highlights and navigates matches without
 //!   moving the document selection. This required a parallel reveal system
 //!   (`reveal_ranges()` in `inline/mod.rs`) so that the current match triggers
-//!   syntax reveal and fold reveal just like the cursor does.
+//!   syntax reveal just like the cursor does, plus fold reveal (a cursor in
+//!   folded contents instead unfolds for real).
 //!
 //! - **Galley culling**: The editor only renders blocks that are visible or
 //!   overlap the selection. To scroll to an off-screen match, we extended

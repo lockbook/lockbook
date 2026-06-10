@@ -34,10 +34,17 @@ impl<'ast> MdEdit {
         let mut response = buffer::Response::default();
         match event {
             Event::Select { region } => {
-                operations.push(Operation::Select(self.region_to_range(region)));
+                let range = self.region_to_range(region);
+                let range = self.renderer.snap_selection_out_of_fold_tags(range);
+                operations.push(Operation::Select(range));
             }
             Event::Replace { region, text, advance_cursor } => {
-                let range = self.region_to_range(region);
+                let mut range = self.region_to_range(region);
+                // Typing/pasting over a selection edits what the selection
+                // stands for, hidden fold contents included.
+                if matches!(region, Region::Selection) {
+                    range = self.renderer.grow_range_over_selected_folds(range);
+                }
                 operations.push(Operation::Replace(Replace { range, text }));
                 if advance_cursor {
                     operations.push(Operation::Select(range.start().to_range()));
@@ -54,6 +61,13 @@ impl<'ast> MdEdit {
                 response.open_camera = true;
             }
             Event::Newline { shift } => {
+                // Enter right of a folded node's `···` chip creates the new
+                // heading / list item *after* the hidden contents instead of
+                // splitting into them; the handler places its own cursor.
+                if !shift && self.fold_newline(root, operations) {
+                    return response;
+                }
+
                 // insert/extend/terminate container blocks
                 let mut handled = || {
                     // selection must be empty
@@ -146,6 +160,12 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Delete { region } => {
+                // Deleting against a folded region unfolds it rather than
+                // editing hidden text; the handler places its own cursor.
+                if self.fold_delete(region, operations) {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace
@@ -188,7 +208,15 @@ impl<'ast> MdEdit {
                 };
                 if !handled() {
                     // default -> delete region
-                    let range = self.region_to_range(region);
+                    let mut range = self.region_to_range(region);
+                    // Deleting a selection deletes what it stands for,
+                    // hidden fold contents included. Gated on a real
+                    // selection: a bare backspace covers the whole tag too
+                    // (atom snap) but must unfold, not destroy.
+                    if !current_selection.is_empty() {
+                        range = self.renderer.grow_range_over_selected_folds(range);
+                    }
+                    let range = self.renderer.widen_delete_over_folds(range);
                     operations.push(Operation::Replace(Replace { range, text: "".into() }));
                 }
 
@@ -385,6 +413,9 @@ impl<'ast> MdEdit {
                 } else {
                     self.clipboard_current_line()
                 };
+                // capsules carry their hidden contents to the clipboard,
+                // so a cut+paste moves the folded section intact
+                let range = self.renderer.grow_range_over_selected_folds(range);
 
                 ctx.copy_text(self.renderer.buffer[range].into());
                 operations.push(Operation::Replace(Replace { range, text: "".into() }));
@@ -395,6 +426,7 @@ impl<'ast> MdEdit {
                 } else {
                     self.clipboard_current_line()
                 };
+                let range = self.renderer.grow_range_over_selected_folds(range);
 
                 ctx.copy_text(self.renderer.buffer[range].into());
             }

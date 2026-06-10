@@ -5,8 +5,6 @@ use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
 use crate::theme::palette_v2::ThemeExt as _;
 
-pub const FOLD_TAG: &str = "<!-- {\"fold\":true} -->";
-
 impl<'ast> MdRender {
     pub fn text_format_html_inline(&self, parent: &AstNode<'_>) -> Format {
         Format {
@@ -23,10 +21,15 @@ impl<'ast> MdRender {
         if node_range.is_empty() {
             return;
         }
-        // Reveal when cursor is on the range OR when the html-inline
-        // is not a fold marker (regular `<sup>` etc. always show source).
-        let reveal = self.range_revealed(node_range, true) || self.foldee(node).is_none();
-        if reveal {
+        // A tag that's actively folding a section renders as a `···`
+        // chip, never as source.
+        if let Some(fold) = self.active_fold_at_tag(self.node_range(node)) {
+            self.layout_fold_chip(layout, node.parent().unwrap(), fold, node_range);
+            return;
+        }
+        // Regular html inline (`<sup>` etc.): reveal source when the
+        // cursor is on the range, collapse to an anchor otherwise.
+        if self.range_revealed(node_range, true) {
             layout.push_source(node_range, &self.buffer[node_range], self.text_format_syntax());
         } else {
             layout.push_override(
