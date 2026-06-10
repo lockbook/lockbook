@@ -218,7 +218,13 @@ impl Workspace {
             return;
         }
 
+        let show_tabs = self.show_tabs;
         if let Some(tab) = self.current_tab_mut() {
+            // entering/leaving iPad split view toggles this while a doc is open
+            if let Some(md) = tab.markdown_mut() {
+                md.edit.phone_mode = md.edit.renderer.touch_mode && !show_tabs;
+            }
+
             let resp = tab.show(ui);
 
             self.out.open_camera = resp.open_camera;

@@ -298,7 +298,7 @@ import SwiftUI
                         ),
                         textWrapper.bottomAnchor.constraint(
                             equalTo: keyboardLayoutGuide.topAnchor,
-                            constant: -MdView.TOOL_BAR_HEIGHT
+                            constant: mtkView.isCompact() ? -MdView.TOOL_BAR_HEIGHT : 0
                         ),
                     ])
 
