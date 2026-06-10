@@ -48,7 +48,7 @@ impl<'ast> MdRender {
         let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();
 
         // when revealed, the raw marker occupies this column instead
-        if !self.reveal(node) {
+        if !self.reveal_line(node, first_line) {
             match list_type {
                 ListType::Bullet => {
                     ui.painter().circle_filled(
@@ -135,7 +135,7 @@ impl<'ast> MdRender {
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
-            && !self.reveal(node) // the revealed marker occupies the gutter
+            && !self.reveal_line(node, first_line) // the revealed marker occupies the gutter
             && (self.touch_mode
                 || hovered
                 || fold_button_space.contains(pointer)

@@ -564,6 +564,31 @@ impl<'ast> MdRender {
         )
     }
 
+    /// A gutter level whose marker lives only on its first line; later
+    /// lines carry pure indentation. Such a level must reveal per-line
+    /// (see [`reveal_line`]) so cursoring into a continuation line's
+    /// indentation doesn't also reveal the first-line marker. Block quotes
+    /// and alerts mark every line, so they reveal node-wide.
+    pub fn marks_first_line_only(&self, node: &'ast AstNode<'ast>) -> bool {
+        matches!(
+            node.data.borrow().value,
+            NodeValue::Item(_) | NodeValue::TaskItem(_) | NodeValue::FootnoteDefinition(_)
+        )
+    }
+
+    /// Whether the gutter column `level` owns on `line` should render its
+    /// raw source. First-line-marker levels scope to the line; block
+    /// quotes/alerts reveal node-wide.
+    pub fn reveal_gutter_column(
+        &self, level: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> bool {
+        if self.marks_first_line_only(level) {
+            self.reveal_line(level, line)
+        } else {
+            self.reveal(level)
+        }
+    }
+
     /// The nearest gutter-contributing ancestor of `node` (excluding
     /// `node` itself), i.e. the level whose column sits one to the left.
     fn gutter_parent(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
@@ -628,22 +653,38 @@ impl<'ast> MdRender {
                 if !self.node_contains_line(node, line) {
                     continue;
                 }
-                // `node` owns its per-level `line_own_prefix`, but reveal
-                // only from the marker, not the leading indentation: trim
-                // leading whitespace; an indentation-only own-prefix (a
-                // nested continuation line) has no marker and never reveals.
-                let own = self.line_own_prefix(node, line);
-                let indent = self.buffer[own]
-                    .chars()
-                    .take_while(|c| *c == ' ' || *c == '\t')
-                    .count();
-                let marker = (own.start() + indent, own.end());
-                if !marker.is_empty() && marker.contains(endpoint, false, false) {
+                if self.reveal_line(node, line) {
                     return true;
                 }
             }
         }
         false
+    }
+
+    /// Like [`reveal`] but scoped to a single `line`: true when a reveal
+    /// endpoint lands strictly inside the gutter column `node` owns on
+    /// `line` — marker *or* leading indentation.
+    ///
+    /// An indentation-only own-prefix (a nested continuation line) renders
+    /// collapsed to a single indent-wide column, so its interior cursor
+    /// positions can't be distinguished until it reveals into per-grapheme
+    /// source. Strict interiority keeps level-boundary edges (and drag,
+    /// which snaps to edges) non-revealing.
+    ///
+    /// Line scoping matters for first-line-marker containers (items, task
+    /// items, footnotes): the cursor inside a continuation line's
+    /// indentation must reveal that indentation without also revealing the
+    /// node's marker, which lives on a different line.
+    pub fn reveal_line(&self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme)) -> bool {
+        let own = self.line_own_prefix(node, line);
+        if own.is_empty() {
+            return false;
+        }
+        self.reveal_ranges().any(|rr| {
+            [rr.start(), rr.end()]
+                .into_iter()
+                .any(|ep| own.contains(ep, false, false))
+        })
     }
 
     /// Registers an atomic, selectable [`Fragment`] for each gutter
@@ -697,7 +738,7 @@ impl<'ast> MdRender {
             // aligned to the column's content edge so the marker sits about
             // where its decoration was; a marker wider than the column
             // overflows left (into the gutter) rather than over the content.
-            if self.reveal(level) {
+            if self.reveal_gutter_column(level, line) {
                 let afs = self.layout.annotation_font_size;
                 let result = self.compute_section_layout_new(
                     range,
