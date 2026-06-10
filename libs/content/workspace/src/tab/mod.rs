@@ -209,7 +209,7 @@ impl Tab {
                         resp.text_updated = md_resp.text_updated;
                         resp.selection_updated = md_resp.selection_updated;
                         resp.scroll_updated = md_resp.scroll_updated;
-                        resp.find_widget_height = md_resp.find_widget_height;
+                        resp.text_interaction_rect = md_resp.text_interaction_rect;
                     }
                     TabContent::Image(img) => img.show(ui),
                     TabContent::Pdf(pdf) => pdf.show(ui),
@@ -349,7 +349,7 @@ pub struct Response {
     pub selection_updated: bool,
     pub scroll_updated: bool,
     pub open_camera: bool,
-    pub find_widget_height: f32,
+    pub text_interaction_rect: Option<egui::Rect>,
     pub open_file: Option<Uuid>,
 }
 
