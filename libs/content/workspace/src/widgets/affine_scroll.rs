@@ -1154,8 +1154,8 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         if scrollable && self.touch_scroll && response.drag_started() {
             self.state.kill_momentum();
         }
-        // A drag whose touch is cancelled — claimed by a native gesture,
-        // e.g. an iOS selection-handle or loupe drag — must not fling.
+        // A cancelled touch was claimed by a native gesture (iOS selection
+        // handle, loupe); its drag must not fling.
         let touch_cancelled = ui.input(|i| {
             i.events
                 .iter()

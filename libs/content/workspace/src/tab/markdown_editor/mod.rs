@@ -1147,13 +1147,9 @@ impl Editor {
             || self.toolbar.menu_open
     }
 
-    /// Whether `pos` is over an interactive element (checkbox, fold
-    /// button, link, spoiler, scrollbar, completion popup) — the
-    /// region-based subset of [`Self::will_consume_touch`], free of
-    /// transient state like scroll momentum. Native gesture recognizers
-    /// consult this when deciding whether to begin: their own pre-
-    /// recognition touches scroll the body and create momentum, so the
-    /// full check would veto them based on velocity they caused.
+    /// Whether `pos` is over an interactive element (checkbox, fold button,
+    /// link, spoiler, scrollbar, popup). Excludes [`Self::will_consume_touch`]'s
+    /// transient terms so a recognizer's own pre-recognition scroll can't veto it.
     pub fn touches_interactive_element(&self, pos: Pos2) -> bool {
         self.edit
             .renderer

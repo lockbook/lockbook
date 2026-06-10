@@ -435,11 +435,8 @@ pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) ->
     }
 }
 
-/// Region-only variant of [`will_consume_touch`]: true iff the position
-/// is over an interactive markdown element, ignoring transient state
-/// (scroll momentum, open toolbar menu). Gesture recognizers call this
-/// at `.began` — by then their own pre-recognition touches have scrolled
-/// the body, so the full check would veto them on self-caused velocity.
+/// Region-only variant of [`will_consume_touch`]: interactive-element
+/// rects without the transient terms (momentum, open menu).
 ///
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
