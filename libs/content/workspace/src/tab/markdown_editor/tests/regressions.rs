@@ -1208,6 +1208,42 @@ fn toggle_list_style_on_empty_item_switches() {
     }
 }
 
+/// Regression: changing the list type of a *nested* item used to read
+/// the wrong list. `unapply_block` walked the whole ancestor chain, so a
+/// nested task item under a bullet list matched the outer bullet list and
+/// the toggle removed the inner item's marker instead of converting it.
+/// It must stop at the nearest enclosing list (the inner task list) and,
+/// since that's a different type, perform a type change.
+#[test]
+fn toggle_bullet_on_nested_task_item_changes_type() {
+    use comrak::nodes::{ListType, NodeList, NodeValue};
+
+    let to_bullet = Event::ToggleStyle {
+        region: Region::Selection,
+        style: NodeValue::List(NodeList {
+            list_type: ListType::Bullet,
+            is_task_list: false,
+            ..Default::default()
+        }),
+    };
+
+    let doc = "* x\n  * [x] y";
+    let mut ws = TestEditor::new(doc);
+    ws.enter_frame();
+    // cursor inside "y"
+    let cursor = Grapheme(13);
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(cursor),
+            end: Location::Grapheme(cursor),
+        },
+    });
+    ws.enter_frame();
+    ws.push(to_bullet);
+    ws.enter_frame();
+    assert_eq!(ws.get_text(), "* x\n  * y");
+}
+
 /// Regression for the user-reported "shift-tab then tab needs many
 /// undos with cursor-only steps". With per-frame undo units, the two
 /// commands are independent: one undo restores the post-shift-tab
