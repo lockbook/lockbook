@@ -52,9 +52,10 @@ impl WgpuWorkspace<'_> {
         // Surface the soft-keyboard height (>0 when shown) so tabs can size
         // fixed bottom UI — the chat composer drops its nav-bar padding while
         // the keyboard is up.
-        self.renderer
-            .context
-            .memory_mut(|m| m.data.insert_temp(egui::Id::new("ws_keyboard_height"), keyboard_height));
+        self.renderer.context.memory_mut(|m| {
+            m.data
+                .insert_temp(egui::Id::new("ws_keyboard_height"), keyboard_height)
+        });
 
         let workspace_frame =
             egui::Frame::default().fill(self.renderer.context.style().visuals.extreme_bg_color);

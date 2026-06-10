@@ -625,14 +625,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
             start: Location::Grapheme(Grapheme(0)),
-            end: Location::Grapheme(
-                markdown
-                    .renderer
-                    .buffer
-                    .current
-                    .segs
-                    .last_cursor_position(),
-            ),
+            end: Location::Grapheme(markdown.renderer.buffer.current.segs.last_cursor_position()),
         },
         text: "".to_string(),
         advance_cursor: false,
@@ -696,14 +689,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
         Err(err) => format!("error: {err:?}"),
     };
 
-    let loc = Location::Grapheme(
-        markdown
-            .renderer
-            .buffer
-            .current
-            .segs
-            .last_cursor_position(),
-    );
+    let loc = Location::Grapheme(markdown.renderer.buffer.current.segs.last_cursor_position());
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
