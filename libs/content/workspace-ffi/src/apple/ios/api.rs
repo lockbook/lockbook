@@ -34,9 +34,27 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let content = CStr::from_ptr(content).to_str().unwrap().into();
 
     if content == "\n" {
-        obj.renderer
-            .context
-            .push_markdown_event(Event::Newline { shift: false });
+        // The return key (hardware or virtual) arrives as inserted text, never
+        // as an egui Key::Enter, so when a completion popup is open submit it
+        // with the Enter it listens for instead of inserting a newline.
+        let completions_active = obj
+            .workspace
+            .current_tab_markdown_mut()
+            .map(|md| md.edit.emoji_completions.active || md.edit.link_completions.active)
+            .unwrap_or(false);
+        if completions_active {
+            obj.renderer.raw_input.events.push(egui::Event::Key {
+                key: Key::Enter,
+                physical_key: None,
+                pressed: true,
+                repeat: false,
+                modifiers: Modifiers::NONE,
+            });
+        } else {
+            obj.renderer
+                .context
+                .push_markdown_event(Event::Newline { shift: false });
+        }
     } else if content == "\t" {
         obj.renderer
             .context
