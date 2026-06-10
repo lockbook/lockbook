@@ -86,8 +86,10 @@ pub struct Response {
     pub scroll_updated: bool,
     pub open_camera: bool,
 
-    // Used to restrict iOS TextInteraction area
-    pub find_widget_height: f32,
+    /// Screen rect (egui points) where native iOS text interaction should
+    /// live — the editor viewport minus the find widget and toolbar. The
+    /// single source of truth for positioning the `MdView` iOS overlay.
+    pub text_interaction_rect: Option<egui::Rect>,
 }
 
 pub struct MdRender {
@@ -845,6 +847,13 @@ impl Editor {
                     } else {
                         0.
                     };
+
+                    let avail = ui.available_rect_before_wrap();
+                    self.next_resp.text_interaction_rect = Some(egui::Rect::from_min_max(
+                        avail.min,
+                        egui::pos2(avail.max.x, avail.max.y - toolbar_height),
+                    ));
+
                     let editor_shown = ui
                         .allocate_ui(
                             egui::vec2(
@@ -891,6 +900,8 @@ impl Editor {
                         self.show_toolbar(root, ui);
                     }
                     self.show_find_centered(ui);
+
+                    self.next_resp.text_interaction_rect = Some(ui.available_rect_before_wrap());
 
                     // galleys / wrap_lines are cleared and repopulated inside
                     // MdEdit::show — don't clear here or input handling (which
@@ -1356,7 +1367,6 @@ impl Editor {
         let find_output = scope_resp.inner;
         let rendered_rect = scope_resp.response.rect;
         ui.advance_cursor_after_rect(rendered_rect);
-        self.next_resp.find_widget_height = rendered_rect.height();
 
         self.edit.event.internal_events.extend(find_output.events);
         if find_output.scroll_to_match {
