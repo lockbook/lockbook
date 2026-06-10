@@ -1154,6 +1154,16 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         if scrollable && self.touch_scroll && response.drag_started() {
             self.state.kill_momentum();
         }
+        // A cancelled touch was claimed by a native gesture (iOS selection
+        // handle, loupe); its drag must not fling.
+        let touch_cancelled = ui.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::Touch { phase: egui::TouchPhase::Cancel, .. }))
+        });
+        if self.touch_scroll && touch_cancelled {
+            self.state.kill_momentum();
+        }
         if scrollable && self.touch_scroll && response.dragged() {
             let drag_y = ui.input(|i| i.pointer.delta().y);
             let precise_delta = -drag_y;

@@ -435,6 +435,27 @@ pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) ->
     }
 }
 
+/// Region-only variant of [`will_consume_touch`]: interactive-element
+/// rects without the transient terms (momentum, open menu).
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn touches_interactive_element(obj: *mut c_void, x: f32, y: f32) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    let pos = obj.renderer.pos_from_points(x, y);
+    if let Some(tab) = obj.workspace.current_tab() {
+        if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
+            md.touches_interactive_element(pos)
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
