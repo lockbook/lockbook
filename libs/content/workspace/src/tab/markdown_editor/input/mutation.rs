@@ -750,8 +750,11 @@ impl<'ast> MdEdit {
                 // levels above the selected Paragraph.
                 let mut maybe = if node.is_container_block() { Some(node) } else { node.parent() };
                 while let Some(ancestor) = maybe {
-                    if &ancestor.node_type() == style {
-                        unapply = true;
+                    let ancestor_type = ancestor.node_type();
+                    if std::mem::discriminant(&ancestor_type) == std::mem::discriminant(style) {
+                        if &ancestor_type == style {
+                            unapply = true;
+                        }
                         break;
                     }
                     maybe = ancestor.parent();

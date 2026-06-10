@@ -25,7 +25,7 @@ impl<'ast> MdRender {
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
         // when revealed, the raw `[^x]:` marker occupies this column instead
-        if !self.reveal(node) {
+        if !self.reveal_line(node, self.node_first_line(node)) {
             let color = self.ctx.get_lb_theme().neutral_fg_secondary();
             let text = format!("{}.", self.definition_number(node));
             let layout_job = LayoutJob::single_section(

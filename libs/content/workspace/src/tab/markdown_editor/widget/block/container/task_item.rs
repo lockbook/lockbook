@@ -25,7 +25,7 @@ impl<'ast> MdRender {
         let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         // when revealed, the raw `- [ ]` marker occupies this column instead
-        if !self.reveal(node) {
+        if !self.reveal_line(node, first_line) {
             let mut checkbox_space = Rect::from_center_size(
                 annotation_space.center(),
                 Vec2::splat(annotation_space.size().min_elem()),
@@ -144,7 +144,7 @@ impl<'ast> MdRender {
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
-            && !self.reveal(node) // the revealed marker occupies the gutter
+            && !self.reveal_line(node, first_line) // the revealed marker occupies the gutter
             && (self.touch_mode
                 || hovered
                 || fold_button_space.contains(pointer)
