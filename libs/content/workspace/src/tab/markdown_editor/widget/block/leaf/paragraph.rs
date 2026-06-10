@@ -70,10 +70,15 @@ impl<'ast> MdRender {
     pub fn height_paragraph_line(
         &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
     ) -> f32 {
+        if let Some(height) = self.cached_line_height(node, node_line) {
+            return height;
+        }
         let width = self.width(node);
         let layout = self.layout_paragraph_line(node, node_line);
-        self.compute_layout_from(layout, width, self.layout.row_height)
-            .height
+        let layout = self.compute_layout_from(layout, width, self.layout.row_height);
+        let height = layout.height;
+        self.set_cached_line_layout(node, node_line, layout);
+        height
     }
 
     pub fn show_paragraph(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, mut top_left: Pos2) {
@@ -109,10 +114,16 @@ impl<'ast> MdRender {
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_line: (Grapheme, Grapheme),
     ) {
-        let width = self.width(node);
-        let layout = self.layout_paragraph_line(node, node_line);
-        let result = self.compute_layout_from(layout, width, self.layout.row_height);
-        self.show_wrap_layout(ui, top_left, &result);
+        let layout = match self.take_cached_line_layout(node, node_line) {
+            Some(layout) => layout,
+            None => {
+                let width = self.width(node);
+                let layout = self.layout_paragraph_line(node, node_line);
+                self.compute_layout_from(layout, width, self.layout.row_height)
+            }
+        };
+        self.show_wrap_layout(ui, top_left, &layout);
+        self.set_cached_line_layout(node, node_line, layout);
     }
 
     pub fn compute_bounds_paragraph(&mut self, node: &'ast AstNode<'ast>) {

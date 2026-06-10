@@ -3,7 +3,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, WrapUnitLayout};
 
 use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
 use egui::ahash::HashMap;
@@ -707,12 +707,18 @@ type LinePrefixValue = (Graphemes, bool);
 /// before any read, so text_seq isn't part of the per-entry stamp.
 pub type HeightDeps = [u64; 4];
 
+type LineLayoutKey = (u64, (Grapheme, Grapheme));
+
+/// line-layout inputs: `HeightDeps` + `dark_mode` (layout contains colors)
+pub type LineLayoutDeps = (HeightDeps, bool);
+
 #[derive(Default)]
 pub struct LayoutCache {
     pub height: RefCell<HashMap<u64, (f32, HeightDeps)>>,
     pub height_approx: RefCell<HashMap<u64, (f32, HeightDeps)>>,
     pub line_prefix_len: RefCell<HashMap<LinePrefixKey, LinePrefixValue>>,
     pub node_range: RefCell<HashMap<u64, (Grapheme, Grapheme)>>,
+    pub line_layout: RefCell<HashMap<LineLayoutKey, (WrapUnitLayout, LineLayoutDeps)>>,
 
     // deps: `reveal_seq` last populated, or `None` if never.
     pub hidden_by_fold: RefCell<HashMap<u64, bool>>,
@@ -737,6 +743,7 @@ impl LayoutCache {
         self.height_approx.borrow_mut().clear();
         self.line_prefix_len.borrow_mut().clear();
         self.node_range.borrow_mut().clear();
+        self.line_layout.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
         self.hidden_by_fold_deps.set(None);
         // link_titles intentionally not cleared: fetched titles persist across layout invalidations
@@ -912,6 +919,47 @@ impl<'ast> MdRender {
                 .load(std::sync::atomic::Ordering::Relaxed),
             self.reveal_seq,
         ]
+    }
+
+    fn line_layout_deps(&self) -> LineLayoutDeps {
+        (self.height_deps(), self.dark_mode)
+    }
+
+    /// Read the cached height for one line if present.
+    pub fn cached_line_height(
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
+    ) -> Option<f32> {
+        let key = (Self::pack_node_key(node), node_line);
+        let deps = self.line_layout_deps();
+        let cache = self.layout_cache.line_layout.borrow();
+        let (layout, stamp) = cache.get(&key)?;
+        (*stamp == deps).then_some(layout.height)
+    }
+
+    /// Take the cached layout for one line if present, removing it from the
+    /// cache. You should generally put it back when you're done. This works
+    /// around borrow checking issues. This cache is special because its values
+    /// aren't cheap to copy.
+    pub fn take_cached_line_layout(
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme),
+    ) -> Option<WrapUnitLayout> {
+        let key = (Self::pack_node_key(node), node_line);
+        let deps = self.line_layout_deps();
+        match self.layout_cache.line_layout.borrow_mut().remove(&key) {
+            Some((layout, stamp)) if stamp == deps => Some(layout),
+            _ => None,
+        }
+    }
+
+    pub fn set_cached_line_layout(
+        &self, node: &'ast AstNode<'ast>, node_line: (Grapheme, Grapheme), layout: WrapUnitLayout,
+    ) {
+        let key = (Self::pack_node_key(node), node_line);
+        let deps = self.line_layout_deps();
+        self.layout_cache
+            .line_layout
+            .borrow_mut()
+            .insert(key, (layout, deps));
     }
 
     pub fn get_cached_node_height(&self, node: &'ast AstNode<'ast>) -> Option<f32> {

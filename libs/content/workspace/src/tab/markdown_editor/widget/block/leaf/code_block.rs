@@ -139,7 +139,7 @@ impl<'ast> MdRender {
         node_code_block: &NodeCodeBlock,
     ) {
         let mut width = self.width(node);
-        let height = self.height_fenced_code_block(node, node_code_block);
+        let height = self.height(node);
         let row_height = self.layout.row_height;
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
@@ -274,7 +274,7 @@ impl<'ast> MdRender {
         let width = self.width(node);
         let inner_width = width - 2. * self.layout.block_padding;
         let row_height = self.layout.row_height;
-        let height = self.height_indented_code_block(node, node_code_block, synthetic);
+        let height = self.height(node);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
         ui.painter().rect_stroke(
@@ -467,20 +467,33 @@ impl<'ast> MdRender {
         &self, node: &'ast AstNode<'ast>, node_code_block: &NodeCodeBlock,
         line: (Grapheme, Grapheme), synthetic: bool,
     ) -> f32 {
+        let node_line = self.node_line(node, line);
+        if let Some(height) = self.cached_line_height(node, node_line) {
+            return height;
+        }
         let width = self.width(node) - 2. * self.layout.block_padding;
         let layout = self.layout_code_block_line(node, node_code_block, line, synthetic);
-        self.compute_layout_from(layout, width, self.layout.row_height)
-            .height
+        let layout = self.compute_layout_from(layout, width, self.layout.row_height);
+        let height = layout.height;
+        self.set_cached_line_layout(node, node_line, layout);
+        height
     }
 
     fn show_code_block_line(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2,
         node_code_block: &NodeCodeBlock, line: (Grapheme, Grapheme), synthetic: bool,
     ) {
-        let width = self.width(node) - 2. * self.layout.block_padding;
-        let layout = self.layout_code_block_line(node, node_code_block, line, synthetic);
-        let result = self.compute_layout_from(layout, width, self.layout.row_height);
-        self.show_wrap_layout(ui, top_left, &result);
+        let node_line = self.node_line(node, line);
+        let layout = match self.take_cached_line_layout(node, node_line) {
+            Some(layout) => layout,
+            None => {
+                let width = self.width(node) - 2. * self.layout.block_padding;
+                let layout = self.layout_code_block_line(node, node_code_block, line, synthetic);
+                self.compute_layout_from(layout, width, self.layout.row_height)
+            }
+        };
+        self.show_wrap_layout(ui, top_left, &layout);
+        self.set_cached_line_layout(node, node_line, layout);
     }
 
     // "The closing code fence may be indented up to three spaces, and may be
