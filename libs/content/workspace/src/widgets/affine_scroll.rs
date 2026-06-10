@@ -1183,7 +1183,13 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         // command, so reading the live thumb position would double-apply
         // any scroll that already happened this frame.
         if scrollable && (bar_response.dragged() || bar_response.clicked()) {
-            if bar_response.dragged() {
+            // A drag that starts on the track outside the thumb jumps to the
+            // pointer like a click, then continues as a relative thumb drag.
+            let drag_jump = bar_response.drag_started()
+                && bar_response
+                    .interact_pointer_pos()
+                    .is_some_and(|pos| !bar_geom.thumb.contains(pos));
+            if bar_response.dragged() && !drag_jump {
                 let drag_y = ui.input(|i| i.pointer.delta().y);
                 let approx_delta = bar_geom.pixel_to_approx(drag_y);
                 self.state.handle(rows, Action::ScrollByThumb(approx_delta));
