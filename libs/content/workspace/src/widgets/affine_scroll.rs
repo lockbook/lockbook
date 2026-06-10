@@ -68,9 +68,10 @@
 //!
 //! ## Scrollbar
 //!
+//! - Hidden — no paint, no hit area — when the document fits the
+//!   viewport and there's nothing to scroll.
 //! - Thumb size proportional to the visible fraction; floored at
-//!   [`MIN_THUMB_PX`] for grabability; fills the track when the doc
-//!   fits the viewport.
+//!   [`MIN_THUMB_PX`] for grabability.
 //! - Thumb position proportional to scroll progress in approx
 //!   coordinate.
 //! - Track + thumb expressed in window-local pixels; embedder chooses
@@ -1127,10 +1128,13 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
 
         // On touch, widen the track's hit area — the bar is far narrower than
         // a fingertip, and an interaction that misses it becomes a body drag
-        // (which scrolls the opposite direction).
+        // (which scrolls the opposite direction). When the document fits the
+        // viewport the bar is absent entirely — no hit area, no paint — and
+        // pointer input falls through to the content beneath.
         let bar_interact_rect =
             if self.touch_scroll { bar_track.expand2(Vec2::new(15.0, 0.0)) } else { bar_track };
-        let bar_response = ui.interact(bar_interact_rect, bar_id, Sense::click_and_drag());
+        let bar_response =
+            scrollable.then(|| ui.interact(bar_interact_rect, bar_id, Sense::click_and_drag()));
 
         // Wheel: precise pixels. egui convention: positive y = scroll up
         // (content moves down). We want offset to grow when user scrolls
@@ -1184,7 +1188,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         // — the user's drag is a pixel-velocity gesture, not a position
         // command, so reading the live thumb position would double-apply
         // any scroll that already happened this frame.
-        if scrollable && (bar_response.dragged() || bar_response.clicked()) {
+        if let Some(bar_response) = bar_response.as_ref().filter(|r| r.dragged() || r.clicked()) {
             // A drag that grabs the thumb moves it relatively; any other
             // click or drag on the bar jumps the thumb to the pointer
             // (and the jumped drag continues relatively from there).
@@ -1214,15 +1218,11 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let visible = self.state.visible(rows);
         warm_around_visible(rows, &visible, rect.height());
 
-        let bar_after = self.state.scrollbar(rows, bar_track);
-        draw_scrollbar(ui, bar_after);
-
-        ShowResponse {
-            response,
-            visible,
-            scrollbar_track: bar_track,
-            scrollbar_grab: bar_interact_rect,
+        if scrollable {
+            draw_scrollbar(ui, self.state.scrollbar(rows, bar_track));
         }
+
+        ShowResponse { response, visible, scrollbar_grab: scrollable.then_some(bar_interact_rect) }
     }
 }
 
@@ -1235,15 +1235,13 @@ pub struct ShowResponse<Id> {
     /// Visible rows top-down. `top` is viewport-local; add `viewport.min.y`
     /// for screen coordinates.
     pub visible: Vec<VisibleRow<Id>>,
-    /// Track rect of the rendered scrollbar (window-local pixels).
-    /// Embedders register this with their touch-consuming surface so
-    /// taps on the scrollbar don't fall through to other touch handlers
-    /// (cursor placement, virtual keyboard).
-    pub scrollbar_track: Rect,
-    /// Rect that grabs scrollbar clicks and drags — on touch, the track plus
-    /// its widened hit area, which extends past the visual. Register with the
-    /// touch-consuming surface alongside `scrollbar_track`.
-    pub scrollbar_grab: Rect,
+    /// Rect that grabs scrollbar clicks and drags (window-local pixels) —
+    /// the track plus, on touch, its widened hit area. Embedders register
+    /// it with their touch-consuming surface so taps on the scrollbar
+    /// don't fall through to other touch handlers (cursor placement,
+    /// virtual keyboard). `None` when the document fits the viewport and
+    /// the scrollbar is hidden.
+    pub scrollbar_grab: Option<Rect>,
 }
 
 /// Returned by [`AffineScrollArea::begin`]; pass to `finish` after
