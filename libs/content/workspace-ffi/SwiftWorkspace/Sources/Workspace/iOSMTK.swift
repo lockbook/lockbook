@@ -118,6 +118,15 @@
             panRecognizer.maximumNumberOfTouches = 0
             addGestureRecognizer(panRecognizer)
 
+            // indirect click (iPad trackpad/mouse support)
+            let indirectClickRecognizer = IndirectClickRecognizer()
+            addGestureRecognizer(indirectClickRecognizer)
+            for gestureRecognizer in gestureRecognizers ?? [] {
+                if gestureRecognizer.name?.hasPrefix("UITextInteraction") == true {
+                    gestureRecognizer.require(toFail: indirectClickRecognizer)
+                }
+            }
+
             // drop
             dropDelegate = MdDropDelegate(
                 mtkView: mtkView, textDelegate: inputDelegate!, textInput: self
@@ -259,6 +268,71 @@
                         }
                     }
                 }
+            }
+        }
+
+        /// Trackpad/mouse clicks arrive as `.indirectPointer` touches, which
+        /// UIKit delivers to gesture recognizers only - never to the view's
+        /// `touchesBegan` - so they can't reach interactive markdown elements
+        /// the way direct touches do. This recognizer relays them into the
+        /// editor when they land on such an element. The UITextInteraction
+        /// recognizers `require(toFail:)` this one, so a relayed click can't
+        /// also place the cursor; the decision is made at touch-down (fail
+        /// for everything but an indirect click on an interactive element),
+        /// so clicks and touches elsewhere proceed without delay.
+        private class IndirectClickRecognizer: UIGestureRecognizer {
+            /// distinct from the ids assigned to direct touches, which count up from 0
+            private static let touchId = UInt64.max
+
+            private var wrapper: MdView? { view as? MdView }
+
+            override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
+                guard let wrapper, let touch = touches.first,
+                    touch.type == .indirectPointer
+                else {
+                    state = .failed
+                    return
+                }
+                let location = touch.location(in: wrapper.mtkView)
+                if will_consume_touch(wrapper.wsHandle, Float(location.x), Float(location.y)) {
+                    state = .began
+                    touches_began(
+                        wrapper.wsHandle, Self.touchId, Float(location.x), Float(location.y), 0
+                    )
+                    wrapper.mtkView.setNeedsDisplay(wrapper.mtkView.frame)
+                } else {
+                    state = .failed
+                }
+            }
+
+            override func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent) {
+                guard let wrapper, let touch = touches.first else { return }
+                state = .changed
+                let location = touch.location(in: wrapper.mtkView)
+                touches_moved(
+                    wrapper.wsHandle, Self.touchId, Float(location.x), Float(location.y), 0
+                )
+                wrapper.mtkView.setNeedsDisplay(wrapper.mtkView.frame)
+            }
+
+            override func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent) {
+                guard let wrapper, let touch = touches.first else { return }
+                state = .ended
+                let location = touch.location(in: wrapper.mtkView)
+                touches_ended(
+                    wrapper.wsHandle, Self.touchId, Float(location.x), Float(location.y), 0
+                )
+                wrapper.mtkView.setNeedsDisplay(wrapper.mtkView.frame)
+            }
+
+            override func touchesCancelled(_ touches: Set<UITouch>, with event: UIEvent) {
+                guard let wrapper, let touch = touches.first else { return }
+                state = .cancelled
+                let location = touch.location(in: wrapper.mtkView)
+                touches_cancelled(
+                    wrapper.wsHandle, Self.touchId, Float(location.x), Float(location.y), 0
+                )
+                wrapper.mtkView.setNeedsDisplay(wrapper.mtkView.frame)
             }
         }
 
