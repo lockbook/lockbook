@@ -1125,9 +1125,11 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let bar_geom = self.state.scrollbar(rows, bar_track);
         let scrollable = bar_geom.scrollable_approx > 0.0;
 
-        // interacting with the scrollbar opens the keyboard on mobile and places the cursor
-        // mitgate this by triggering a scroll only when you interact with the thumb
-        let bar_interact_rect = if self.touch_scroll { bar_geom.thumb } else { bar_track };
+        // On touch, widen the track's hit area — the bar is far narrower than
+        // a fingertip, and an interaction that misses it becomes a body drag
+        // (which scrolls the opposite direction).
+        let bar_interact_rect =
+            if self.touch_scroll { bar_track.expand2(Vec2::new(15.0, 0.0)) } else { bar_track };
         let bar_response = ui.interact(bar_interact_rect, bar_id, Sense::click_and_drag());
 
         // Wheel: precise pixels. egui convention: positive y = scroll up
@@ -1183,8 +1185,9 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         // command, so reading the live thumb position would double-apply
         // any scroll that already happened this frame.
         if scrollable && (bar_response.dragged() || bar_response.clicked()) {
-            // A drag that starts on the track outside the thumb jumps to the
-            // pointer like a click, then continues as a relative thumb drag.
+            // A drag that grabs the thumb moves it relatively; any other
+            // click or drag on the bar jumps the thumb to the pointer
+            // (and the jumped drag continues relatively from there).
             let drag_jump = bar_response.drag_started()
                 && bar_response
                     .interact_pointer_pos()
@@ -1214,7 +1217,12 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let bar_after = self.state.scrollbar(rows, bar_track);
         draw_scrollbar(ui, bar_after);
 
-        ShowResponse { response, visible, scrollbar_track: bar_track }
+        ShowResponse {
+            response,
+            visible,
+            scrollbar_track: bar_track,
+            scrollbar_grab: bar_interact_rect,
+        }
     }
 }
 
@@ -1232,6 +1240,10 @@ pub struct ShowResponse<Id> {
     /// taps on the scrollbar don't fall through to other touch handlers
     /// (cursor placement, virtual keyboard).
     pub scrollbar_track: Rect,
+    /// Rect that grabs scrollbar clicks and drags — on touch, the track plus
+    /// its widened hit area, which extends past the visual. Register with the
+    /// touch-consuming surface alongside `scrollbar_track`.
+    pub scrollbar_grab: Rect,
 }
 
 /// Returned by [`AffineScrollArea::begin`]; pass to `finish` after
