@@ -160,6 +160,16 @@
             case .possible:
                 break
             case .began:
+                // If the gesture wins the race against checkCancelCursorPlacement()
+                // and begins over an interactive markdown element, bail before
+                // cancelling the editor touch — otherwise the in-flight tap is
+                // dropped and the element (checkbox, fold, link, spoiler) neither
+                // toggles nor places a cursor.
+                let location = recognizer.location(in: mtkView)
+                if will_consume_touch(wsHandle, Float(location.x), Float(location.y)) {
+                    recognizer.state = .failed
+                    return
+                }
                 interactiveRefinementInProgress = true
                 // drop the editor touch so it can't start a competing scroll
                 mtkView.cancelActiveTouches()
@@ -182,6 +192,11 @@
             case .possible:
                 return
             case .began:
+                let location = recognizer.location(in: mtkView)
+                if will_consume_touch(wsHandle, Float(location.x), Float(location.y)) {
+                    recognizer.state = .failed
+                    return
+                }
                 rangeAdjustmentInProgress = true
                 // drop the editor touch so it can't start a competing scroll
                 mtkView.cancelActiveTouches()
