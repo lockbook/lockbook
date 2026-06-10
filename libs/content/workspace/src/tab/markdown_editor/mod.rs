@@ -1142,13 +1142,24 @@ impl Editor {
     }
 
     pub fn will_consume_touch(&self, pos: Pos2) -> bool {
+        self.touches_interactive_element(pos)
+            || self.edit.scroll_area_velocity.abs().max_elem() > 0.
+            || self.toolbar.menu_open
+    }
+
+    /// Whether `pos` is over an interactive element (checkbox, fold
+    /// button, link, spoiler, scrollbar, completion popup) — the
+    /// region-based subset of [`Self::will_consume_touch`], free of
+    /// transient state like scroll momentum. Native gesture recognizers
+    /// consult this when deciding whether to begin: their own pre-
+    /// recognition touches scroll the body and create momentum, so the
+    /// full check would veto them based on velocity they caused.
+    pub fn touches_interactive_element(&self, pos: Pos2) -> bool {
         self.edit
             .renderer
             .touch_consuming_rects
             .iter()
             .any(|rect| rect.contains(pos))
-            || self.edit.scroll_area_velocity.abs().max_elem() > 0.
-            || self.toolbar.menu_open
     }
 
     fn show_scrollable_editor<'a>(&mut self, ui: &mut Ui, _root: &'a AstNode<'a>) {

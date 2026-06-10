@@ -176,7 +176,7 @@
                 // dropped and the element (checkbox, fold, link, spoiler) neither
                 // toggles nor places a cursor.
                 let location = recognizer.location(in: mtkView)
-                if will_consume_touch(wsHandle, Float(location.x), Float(location.y)) {
+                if touches_interactive_element(wsHandle, Float(location.x), Float(location.y)) {
                     recognizer.state = .failed
                     return
                 }
@@ -203,7 +203,7 @@
                 return
             case .began:
                 let location = recognizer.location(in: mtkView)
-                if will_consume_touch(wsHandle, Float(location.x), Float(location.y)) {
+                if touches_interactive_element(wsHandle, Float(location.x), Float(location.y)) {
                     recognizer.state = .failed
                     return
                 }
