@@ -161,6 +161,8 @@
                 break
             case .began:
                 interactiveRefinementInProgress = true
+                // drop the editor touch so it can't start a competing scroll
+                mtkView.cancelActiveTouches()
             case .changed:
                 let location = recognizer.location(in: recognizer.view)
                 scrollTo(location.y)
@@ -181,6 +183,8 @@
                 return
             case .began:
                 rangeAdjustmentInProgress = true
+                // drop the editor touch so it can't start a competing scroll
+                mtkView.cancelActiveTouches()
             case .changed:
                 let location = recognizer.location(in: recognizer.view)
                 scrollTo(location.y)
@@ -202,11 +206,20 @@
         }
 
         override public func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
+            // The loupe / selection handle owns the gesture; forwarding the
+            // drag would start a touch-scroll that moves the document and, via
+            // `checkCancelCursorPlacement`, dismisses the loupe.
+            if interactiveRefinementInProgress || rangeAdjustmentInProgress {
+                return
+            }
             mtkView.touchesMoved(touches, with: event)
             checkCancelCursorPlacement(touches)
         }
 
         override public func touchesEnded(_ touches: Set<UITouch>, with event: UIEvent?) {
+            if interactiveRefinementInProgress || rangeAdjustmentInProgress {
+                return
+            }
             mtkView.touchesEnded(touches, with: event)
             checkCancelCursorPlacement(touches)
         }
@@ -1744,6 +1757,17 @@
                 )
             }
 
+            setNeedsDisplay(frame)
+        }
+
+        /// Cancel every in-flight editor touch, so a UIKit text interaction
+        /// taking over a gesture mid-drag doesn't leave a pressed pointer
+        /// behind to start a touch-scroll.
+        func cancelActiveTouches() {
+            for value in touchMap.values {
+                touches_cancelled(wsHandle, value, 0, 0, 0)
+            }
+            touchMap.removeAll()
             setNeedsDisplay(frame)
         }
 
