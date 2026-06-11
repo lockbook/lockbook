@@ -70,7 +70,7 @@ fn run() -> CliResult<()> {
                 )
         )
         .subcommand(
-            Command::name("copy").description("import files from your file system into lockbook")
+            Command::name("import").description("import files from your file system into lockbook")
                 .input(Arg::<PathBuf>::name("disk-path").description("path of file on disk"))
                 .input(Arg::<FileInput>::name("dest")
                        .description("the path or id of a folder within lockbook to place the file.")
