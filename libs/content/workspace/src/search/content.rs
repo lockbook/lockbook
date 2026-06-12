@@ -299,10 +299,8 @@ impl SearchExecutor for ContentSearch {
                         if resp.hovered() {
                             hovered_flat = Some(fi);
                         }
-                        let openable = matches!(
-                            entry,
-                            FlatEntry::Header { .. } | FlatEntry::Child { .. }
-                        );
+                        let openable =
+                            matches!(entry, FlatEntry::Header { .. } | FlatEntry::Child { .. });
                         if resp.clicked() {
                             clicked_flat = Some(fi);
                             if openable {

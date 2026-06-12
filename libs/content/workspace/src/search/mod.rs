@@ -341,9 +341,7 @@ impl Workspace {
                 );
             }
 
-            picker
-                .activated
-                .map(|id| (id, picker.activated_in_new_tab))
+            picker.activated.map(|id| (id, picker.activated_in_new_tab))
         })
         .inner
     }
