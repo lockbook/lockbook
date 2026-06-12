@@ -9,9 +9,7 @@ use crate::input::{ID_PREFIX_LEN, find_file};
 use crate::{core, ensure_account_and_root};
 
 #[tokio::main]
-pub async fn list(
-    long: bool, recursive: bool, mut paths: bool, target: String,
-) -> CliResult<()> {
+pub async fn list(long: bool, recursive: bool, mut paths: bool, target: String) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
