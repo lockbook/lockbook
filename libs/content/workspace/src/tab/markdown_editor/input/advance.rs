@@ -8,7 +8,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 impl MdEdit {
     pub fn advance(&mut self, offset: Grapheme, advance: Advance, backwards: bool) -> Grapheme {
         let maybe_x_target_value = mem::take(&mut self.cursor.x_target);
-        match advance {
+        let result = match advance {
             Advance::To(bound) => offset.advance_to_bound(bound, backwards, &self.renderer.bounds),
             Advance::Next(bound) => {
                 offset.advance_to_next_bound(bound, backwards, &self.renderer.bounds)
@@ -41,7 +41,8 @@ impl MdEdit {
                 }
                 result
             }
-        }
+        };
+        self.renderer.snap_offset_out_of_folds(result, backwards)
     }
 
     fn advance_by_line(&self, offset: Grapheme, x_target: f32, backwards: bool) -> Grapheme {

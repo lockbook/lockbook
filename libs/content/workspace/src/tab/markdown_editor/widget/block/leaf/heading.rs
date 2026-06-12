@@ -392,6 +392,9 @@ impl<'ast> MdRender {
         height_sum
     }
 
+    /// Contents end at the last contained sibling's last line: blank
+    /// lines past that — before the next section or at doc end — render
+    /// as visible spacing rows.
     pub fn heading_contents(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         let NodeValue::Heading(heading) = &node.data.borrow().value else {
             panic!("heading_contents() invoked for non-heading")
@@ -402,16 +405,12 @@ impl<'ast> MdRender {
         while let Some(s) = sibling {
             if let NodeValue::Heading(sib_h) = &s.data.borrow().value {
                 if sib_h.level <= heading.level {
-                    let sibling_first_line = self.node_first_line_idx(s);
-                    let last_line = sibling_first_line - 1;
-                    contents.1 = self.bounds.source_lines[last_line].end();
-                    return contents;
+                    break;
                 }
             }
+            contents.1 = self.node_last_line(s).end();
             sibling = s.next_sibling();
         }
-        // No concluding heading: contain the rest of the parent.
-        contents.1 = self.node_range(node.parent().unwrap()).end();
         contents
     }
 
@@ -470,6 +469,6 @@ impl<'ast> MdRender {
 
     /// Returns true if the heading contents should be revealed whether the heading is folded or not
     pub fn heading_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
-        self.range_contains_revealed(self.heading_contents(node), false, true)
+        self.range_contains_fold_revealed(self.heading_contents(node), false, true)
     }
 }

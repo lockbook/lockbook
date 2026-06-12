@@ -93,7 +93,7 @@ impl<'ast> MdRender {
         };
         match title {
             Some(t) => {
-                layout.style_open(StyleInfo { format: link_fmt.clone(), source_range: node_range });
+                layout.style_open(StyleInfo::new(link_fmt.clone(), node_range));
                 layout.push_override(trimmed, &t, link_fmt.clone());
                 layout.style_close();
             }

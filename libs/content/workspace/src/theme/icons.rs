@@ -45,6 +45,7 @@ impl Icon {
     pub const DOC_MD: Self = ic("\u{f48a}"); // 
     pub const DOC_PDF: Self = ic("\u{e67d}"); // 
     pub const DONE: Self = ic("\u{f012c}"); // 󰄬
+    pub const DOTS_HORIZONTAL: Self = ic("\u{f01d8}"); // 󰇘
     pub const DRAW: Self = Self::BRUSH;
     pub const EMPTY_INBOX: Self = ic("\u{f06ee}"); // 󰛮
     pub const ERASER: Self = ic("\u{f01fe}"); // 󰙂

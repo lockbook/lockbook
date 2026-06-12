@@ -277,12 +277,13 @@ fn icon_glyphs_skip_emoji_font() {
 /// Regression for #4662: arrowing up off a folded heading must walk the
 /// cursor to the lines above it, not freeze.
 ///
-/// The fold tag (`<!-- {"fold":true} -->`) renders zero-width until the
-/// cursor lands on the heading line, then reveals to its ~22-char source.
-/// On a narrow viewport that expansion wraps the heading across rows, and
-/// up-arrowing then sticks inside the wrapped tag. The narrow width is
-/// load-bearing: the property suite runs at the fixed 800px `SCREEN_SIZE`,
-/// where the heading never wraps and the bug stays hidden.
+/// Originally the fold tag revealed to its ~22-char source when the cursor
+/// landed on the heading line; on a narrow viewport that expansion wrapped
+/// the heading across rows and up-arrowing stuck inside the wrapped tag.
+/// The tag renders as a compact chip now, but the narrow width keeps the
+/// heading wrapping across rows, preserving the walk this test guards.
+/// (The property suite runs at the fixed 800px `SCREEN_SIZE`, where the
+/// heading never wraps and the original bug stayed hidden.)
 #[test]
 fn up_arrow_through_fold_tag() {
     use super::super::input::Increment;

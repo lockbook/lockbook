@@ -250,7 +250,7 @@ impl<'ast> MdRender {
             }
             return;
         }
-        layout.style_open(StyleInfo { format, source_range: node_range });
+        layout.style_open(StyleInfo::new(format, node_range));
         let reveal = self.node_revealed(node);
         if let Some(prefix_range) = self.prefix_range(node) {
             let trimmed = prefix_range.trim(&range);

@@ -45,10 +45,8 @@ impl<'ast> MdRender {
         let postfix = (node_range.end() - 1, node_range.end()).trim(&range);
         let reveal = self.node_revealed(node);
 
-        layout.style_open(StyleInfo {
-            format: self.text_format_code(node.parent().unwrap()),
-            source_range: node_range,
-        });
+        layout
+            .style_open(StyleInfo::new(self.text_format_code(node.parent().unwrap()), node_range));
         if !prefix.is_empty() {
             if reveal {
                 layout.push_source(prefix, &self.buffer[prefix], self.text_format_syntax());
