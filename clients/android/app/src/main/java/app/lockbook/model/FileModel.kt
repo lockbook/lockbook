@@ -14,12 +14,13 @@ class FileModel(
         fun createAtRoot(): FileModel {
             val root = Lb.getRoot()
 
-            val fileModel = FileModel(
-                root,
-                root,
-                emptyMap(),
-                listOf(),
-            )
+            val fileModel =
+                FileModel(
+                    root,
+                    root,
+                    emptyMap(),
+                    listOf(),
+                )
             fileModel.refreshFiles()
 
             return fileModel

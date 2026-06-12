@@ -425,7 +425,6 @@ class FilesListFragment :
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = fileTreeAdapter
         recyclerView.itemAnimator = null
-
     }
 
     private fun onFileItemClicked(item: FileViewHolderInfo) {

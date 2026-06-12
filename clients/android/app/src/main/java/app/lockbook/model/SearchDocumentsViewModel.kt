@@ -96,7 +96,10 @@ class SearchDocumentsViewModel(
         }
     }
 
-    fun setHighlightColors(backgroundColor: Int, foregroundColor: Int) {
+    fun setHighlightColors(
+        backgroundColor: Int,
+        foregroundColor: Int,
+    ) {
         highlightBackgroundColor = backgroundColor
         highlightForegroundColor = foregroundColor
     }
@@ -115,37 +118,38 @@ class SearchDocumentsViewModel(
         hideNoSearchResults()
         scheduleProgressSpinner()
 
-        searchJob = viewModelScope.launch(searchDispatcher) {
-            try {
-                val (pathResults, contentResults) = querySearch(input)
+        searchJob =
+            viewModelScope.launch(searchDispatcher) {
+                try {
+                    val (pathResults, contentResults) = querySearch(input)
 
-                if (!isActive) {
-                    return@launch
-                }
+                    if (!isActive) {
+                        return@launch
+                    }
 
-                val rows = buildSearchRows(pathResults, contentResults)
-                withContext(Dispatchers.Main) {
-                    hideProgressSpinner()
-                    if (rows.isEmpty()) {
-                        showNoSearchResults()
-                        fileResults.clear()
-                    } else {
-                        hideNoSearchResults()
-                        fileResults.set(rows) { left, right -> left == right }
+                    val rows = buildSearchRows(pathResults, contentResults)
+                    withContext(Dispatchers.Main) {
+                        hideProgressSpinner()
+                        if (rows.isEmpty()) {
+                            showNoSearchResults()
+                            fileResults.clear()
+                        } else {
+                            hideNoSearchResults()
+                            fileResults.set(rows) { left, right -> left == right }
+                        }
+                    }
+                } catch (_: CancellationException) {
+                    // Expected when the user types another character or leaves search.
+                } catch (err: LbError) {
+                    if (isActive) {
+                        _updateSearchUI.postValue(UpdateSearchUI.Error(err))
+                    }
+                } catch (err: IllegalStateException) {
+                    if (isActive) {
+                        _updateSearchUI.postValue(UpdateSearchUI.Error(LbError().apply { msg = err.message ?: "Search is closed" }))
                     }
                 }
-            } catch (_: CancellationException) {
-                // Expected when the user types another character or leaves search.
-            } catch (err: LbError) {
-                if (isActive) {
-                    _updateSearchUI.postValue(UpdateSearchUI.Error(err))
-                }
-            } catch (err: IllegalStateException) {
-                if (isActive) {
-                    _updateSearchUI.postValue(UpdateSearchUI.Error(LbError().apply { msg = err.message ?: "Search is closed" }))
-                }
             }
-        }
     }
 
     fun setFilenameSearchFocused(focused: Boolean) {
@@ -203,19 +207,20 @@ class SearchDocumentsViewModel(
 
     private fun buildSearchRows(
         pathResults: Array<PathSearcherResult>,
-        contentResults: Array<ContentSearcherResult>
+        contentResults: Array<ContentSearcherResult>,
     ): List<SearchedDocumentViewHolderInfo> {
         val rows = mutableListOf<SearchedDocumentViewHolderInfo>()
-        val focusedContentSearchResult = focusedContentSearchResultId?.let { id ->
-            contentResults.firstOrNull { it.id == id }
-        }
+        val focusedContentSearchResult =
+            focusedContentSearchResultId?.let { id ->
+                contentResults.firstOrNull { it.id == id }
+            }
 
         if (focusedContentSearchResult != null) {
             rows.add(
                 SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo(
                     "${focusedContentSearchResult.filename} · ${focusedContentSearchResult.matches.size} content matches",
-                    "Back"
-                )
+                    "Back",
+                ),
             )
             rows.addAll(focusedContentSearchResultRows(focusedContentSearchResult))
             return rows
@@ -228,10 +233,12 @@ class SearchDocumentsViewModel(
                 rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No filename matches"))
             }
         } else {
-            rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo(
-                "Filename matches",
-                if (pathResults.size > OVERVIEW_PREVIEW_COUNT) "Expand" else null,
-                true)
+            rows.add(
+                SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo(
+                    "Filename matches",
+                    if (pathResults.size > OVERVIEW_PREVIEW_COUNT) "Expand" else null,
+                    true,
+                ),
             )
             rows.addAll(pathResults.take(OVERVIEW_PREVIEW_COUNT).map(::pathResultRow))
             if (pathResults.isEmpty()) {
@@ -244,7 +251,10 @@ class SearchDocumentsViewModel(
         return rows
     }
 
-    private fun addContentRows(rows: MutableList<SearchedDocumentViewHolderInfo>, contentResults: Array<ContentSearcherResult>) {
+    private fun addContentRows(
+        rows: MutableList<SearchedDocumentViewHolderInfo>,
+        contentResults: Array<ContentSearcherResult>,
+    ) {
         rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Content matches"))
         rows.addAll(contentResults.mapNotNull(::contentResultRow))
         if (contentResults.isEmpty()) {
@@ -271,10 +281,10 @@ class SearchDocumentsViewModel(
                 SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(
                     file.id,
                     parent.name.makeSpannableString(),
-                    file.name.makeSpannableString()
+                    file.name.makeSpannableString(),
                 )
             }.getOrNull()
-    }
+        }
 
     private fun pathResultRow(result: PathSearcherResult): SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo {
         val (parentPathSpan, fileNameSpan) = result.toHighlightedPathParts()
@@ -282,11 +292,12 @@ class SearchDocumentsViewModel(
     }
 
     private fun contentResultRow(result: ContentSearcherResult): SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo? {
-        val snippets = result.matches
-            .take(CONTENT_PREVIEW_SNIPPET_COUNT)
-            .mapNotNull { it.toHighlightedSnippet(result) }
-            .takeIf { it.isNotEmpty() }
-            ?: return null
+        val snippets =
+            result.matches
+                .take(CONTENT_PREVIEW_SNIPPET_COUNT)
+                .mapNotNull { it.toHighlightedSnippet(result) }
+                .takeIf { it.isNotEmpty() }
+                ?: return null
 
         return SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
             result.id,
@@ -294,11 +305,13 @@ class SearchDocumentsViewModel(
             result.filename.makeSpannableString(),
             snippets,
             result.matches.size,
-            result.matches.size > CONTENT_PREVIEW_SNIPPET_COUNT
+            result.matches.size > CONTENT_PREVIEW_SNIPPET_COUNT,
         )
     }
 
-    private fun focusedContentSearchResultRows(result: ContentSearcherResult): List<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo> =
+    private fun focusedContentSearchResultRows(
+        result: ContentSearcherResult,
+    ): List<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo> =
         result.matches.mapNotNull { match ->
             match.toHighlightedSnippet(result)?.let { snippet ->
                 SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
@@ -307,21 +320,21 @@ class SearchDocumentsViewModel(
                     result.filename.makeSpannableString(),
                     listOf(snippet),
                     result.matches.size,
-                    false
+                    false,
                 )
             }
         }
-
 
     private fun PathSearcherResult.toHighlightedPathParts(): Pair<SpannableString, SpannableString> {
         val parentPathSpan = parentPath.makeSpannableString()
         val fileNameSpan = filename.makeSpannableString()
         val parentOffset = if (parentPath == "/") 0 else 1
-        val filenameOffset = if (parentPath.isEmpty() || parentPath == "/") {
-            1
-        } else {
-            parentPath.codePointCount(0, parentPath.length) + 2
-        }
+        val filenameOffset =
+            if (parentPath.isEmpty() || parentPath == "/") {
+                1
+            } else {
+                parentPath.codePointCount(0, parentPath.length) + 2
+            }
 
         for (index in matchedIndices) {
             val parentIndex = index - parentOffset
@@ -357,10 +370,11 @@ class SearchDocumentsViewModel(
     }
 
     private fun SearcherSnippet.toHighlightedSpannable(): SpannableString {
-        val builder = SpannableStringBuilder()
-            .append(prefix)
-            .append(matched)
-            .append(suffix)
+        val builder =
+            SpannableStringBuilder()
+                .append(prefix)
+                .append(matched)
+                .append(suffix)
         val matchStart = prefix.length
         val matchEnd = matchStart + matched.length
 
@@ -371,7 +385,10 @@ class SearchDocumentsViewModel(
         return SpannableString(builder)
     }
 
-    private fun Spannable.highlight(start: Int, end: Int) {
+    private fun Spannable.highlight(
+        start: Int,
+        end: Int,
+    ) {
         val backgroundColor = highlightBackgroundColor ?: return
         val foregroundColor = highlightForegroundColor ?: return
 
@@ -379,13 +396,13 @@ class SearchDocumentsViewModel(
             BackgroundColorSpan(backgroundColor),
             start,
             end,
-            Spannable.SPAN_INCLUSIVE_EXCLUSIVE
+            Spannable.SPAN_INCLUSIVE_EXCLUSIVE,
         )
         setSpan(
             ForegroundColorSpan(foregroundColor),
             start,
             end,
-            Spannable.SPAN_INCLUSIVE_EXCLUSIVE
+            Spannable.SPAN_INCLUSIVE_EXCLUSIVE,
         )
     }
 
@@ -409,10 +426,11 @@ class SearchDocumentsViewModel(
 
     private fun scheduleProgressSpinner() {
         progressSpinnerJob?.cancel()
-        progressSpinnerJob = viewModelScope.launch(Dispatchers.Main) {
-            delay(PROGRESS_SPINNER_DELAY_MS)
-            showProgressSpinner()
-        }
+        progressSpinnerJob =
+            viewModelScope.launch(Dispatchers.Main) {
+                delay(PROGRESS_SPINNER_DELAY_MS)
+                showProgressSpinner()
+            }
     }
 
     override fun onCleared() {
@@ -432,5 +450,7 @@ class SearchDocumentsViewModel(
 }
 
 sealed class UpdateSearchUI {
-    data class Error(val error: LbError) : UpdateSearchUI()
+    data class Error(
+        val error: LbError,
+    ) : UpdateSearchUI()
 }

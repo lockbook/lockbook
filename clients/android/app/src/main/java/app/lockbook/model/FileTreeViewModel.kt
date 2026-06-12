@@ -207,5 +207,4 @@ class FileTreeViewModel(
         _usage.value = status.spaceUsed
         checkUsage()
     }
-
 }

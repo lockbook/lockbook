@@ -43,7 +43,7 @@ class SearchDocumentsFragment : Fragment() {
         binding = FragmentSearchDocumentsBinding.inflate(layoutInflater)
         model.setHighlightColors(
             MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorPrimaryContainer),
-            MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorOnPrimaryContainer)
+            MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorOnPrimaryContainer),
         )
 
         binding.searchDocumentsBack.setOnClickListener {
@@ -56,7 +56,7 @@ class SearchDocumentsFragment : Fragment() {
                 override fun handleOnBackPressed() {
                     navigateBack()
                 }
-            }
+            },
         )
 
         model.updateSearchUI.observe(viewLifecycleOwner) { uiUpdate ->
@@ -72,7 +72,9 @@ class SearchDocumentsFragment : Fragment() {
         binding.searchDocumentsResults.setup {
             withDataSource(model.fileResults)
 
-            withItem<SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo, SearchSectionHeaderViewHolder>(R.layout.search_section_header_item) {
+            withItem<SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo, SearchSectionHeaderViewHolder>(
+                R.layout.search_section_header_item,
+            ) {
                 onBind(::SearchSectionHeaderViewHolder) { _, item ->
                     title.text = item.title
                     action.text = item.action
@@ -90,7 +92,9 @@ class SearchDocumentsFragment : Fragment() {
                 }
             }
 
-            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, SearchedDocumentNameViewHolder>(R.layout.searched_document_name_item) {
+            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, SearchedDocumentNameViewHolder>(
+                R.layout.searched_document_name_item,
+            ) {
                 onBind(::SearchedDocumentNameViewHolder) { _, item ->
                     name.text = item.name
                     path.text = item.path
@@ -128,13 +132,18 @@ class SearchDocumentsFragment : Fragment() {
                 }
             }
         }
-        binding.searchDocumentsResults.addOnScrollListener(object : RecyclerView.OnScrollListener() {
-            override fun onScrollStateChanged(recyclerView: RecyclerView, newState: Int) {
-                if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
-                    dismissKeyboard()
+        binding.searchDocumentsResults.addOnScrollListener(
+            object : RecyclerView.OnScrollListener() {
+                override fun onScrollStateChanged(
+                    recyclerView: RecyclerView,
+                    newState: Int,
+                ) {
+                    if (newState == RecyclerView.SCROLL_STATE_DRAGGING) {
+                        dismissKeyboard()
+                    }
                 }
-            }
-        })
+            },
+        )
 
         binding.searchDocumentsSearch.setOnQueryTextFocusChangeListener { _, focus ->
             if (focus) {

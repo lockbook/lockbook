@@ -100,25 +100,42 @@ class VerticalTabItemHolder(
 fun List<FileViewHolderInfo>.intoFileMetadata(): List<File> = this.map { viewHolderInfo -> viewHolderInfo.fileMetadata }
 
 sealed class SearchedDocumentViewHolderInfo {
-    data class SectionHeaderViewHolderInfo(val title: String, val action: String? = null, val isFilenameSearchFocused: Boolean = false) : SearchedDocumentViewHolderInfo()
-    data class EmptyViewHolderInfo(val message: String) : SearchedDocumentViewHolderInfo()
-    data class DocumentNameViewHolderInfo(val id: String, val path: SpannableString, val name: SpannableString) : SearchedDocumentViewHolderInfo()
+    data class SectionHeaderViewHolderInfo(
+        val title: String,
+        val action: String? = null,
+        val isFilenameSearchFocused: Boolean = false,
+    ) : SearchedDocumentViewHolderInfo()
+
+    data class EmptyViewHolderInfo(
+        val message: String,
+    ) : SearchedDocumentViewHolderInfo()
+
+    data class DocumentNameViewHolderInfo(
+        val id: String,
+        val path: SpannableString,
+        val name: SpannableString,
+    ) : SearchedDocumentViewHolderInfo()
+
     data class DocumentContentViewHolderInfo(
         val id: String,
         val path: SpannableString,
         val name: SpannableString,
         val contents: List<SpannableString>,
         val totalMatches: Int,
-        val showMore: Boolean
+        val showMore: Boolean,
     ) : SearchedDocumentViewHolderInfo()
 }
 
-class SearchSectionHeaderViewHolder(itemView: View) : ViewHolder(itemView) {
+class SearchSectionHeaderViewHolder(
+    itemView: View,
+) : ViewHolder(itemView) {
     val title: TextView = itemView.findViewById(R.id.search_section_title)
     val action: MaterialButton = itemView.findViewById(R.id.search_section_action)
 }
 
-class SearchEmptyViewHolder(itemView: View) : ViewHolder(itemView) {
+class SearchEmptyViewHolder(
+    itemView: View,
+) : ViewHolder(itemView) {
     val message: TextView = itemView.findViewById(R.id.search_empty_message)
 }
 
