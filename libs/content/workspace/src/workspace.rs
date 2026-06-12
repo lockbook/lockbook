@@ -1102,6 +1102,9 @@ impl Workspace {
     }
 
     pub fn upsert_search(&mut self, search_type: Option<SearchType>) {
+        if cfg!(target_os = "ios") {
+            return;
+        }
         if let Some(i) = self
             .tab_strip
             .iter()

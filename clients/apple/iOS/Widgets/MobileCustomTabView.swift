@@ -7,11 +7,12 @@ struct MobileCustomTabView<TabContent: View>: View {
     @EnvironmentObject var filesModel: FilesViewModel
 
     var body: some View {
-        TabView {
+        TabView(selection: $selectedTab) {
             ForEach(TabType.allCases) { mode in
                 Tab(
                     mode.title,
-                    systemImage: mode.systemImage
+                    systemImage: mode.systemImage,
+                    value: mode
                 ) {
                     tabContent(mode)
                 }.badge(badgeCount(mode))
@@ -25,6 +26,8 @@ struct MobileCustomTabView<TabContent: View>: View {
             0
         case .sharedWithMe:
             filesModel.pendingSharesByUsername?.values.reduce(0) { $0 + $1.count } ?? 0
+        case .search:
+            0
         }
     }
 }
