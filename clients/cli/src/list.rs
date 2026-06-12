@@ -5,19 +5,17 @@ use cli_rs::cli_error::CliResult;
 use lb_rs::model::file::File;
 use lb_rs::{Lb, Uuid};
 
-use crate::input::FileInput;
+use crate::input::{ID_PREFIX_LEN, find_file};
 use crate::{core, ensure_account_and_root};
-
-const ID_PREFIX_LEN: usize = 8;
 
 #[tokio::main]
 pub async fn list(
-    long: bool, recursive: bool, mut paths: bool, target: FileInput,
+    long: bool, recursive: bool, mut paths: bool, target: String,
 ) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let id = target.find(lb).await?.id;
+    let id = find_file(lb, &target).await?.id;
 
     let mut files = if recursive {
         lb.get_and_get_children_recursively(&id).await?

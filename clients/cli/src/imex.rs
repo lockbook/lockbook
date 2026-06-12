@@ -6,15 +6,15 @@ use std::path::PathBuf;
 use cli_rs::cli_error::CliResult;
 use lb_rs::service::import_export::ImportStatus;
 
-use crate::input::FileInput;
+use crate::input::find_file;
 use crate::{core, ensure_account_and_root};
 
 #[tokio::main]
-pub async fn copy(disk: PathBuf, parent: FileInput) -> CliResult<()> {
+pub async fn copy(disk: PathBuf, parent: String) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let parent = parent.find(lb).await?.id;
+    let parent = find_file(lb, &parent).await?.id;
 
     let total = Cell::new(0);
     let nth_file = Cell::new(0);
@@ -34,11 +34,11 @@ pub async fn copy(disk: PathBuf, parent: FileInput) -> CliResult<()> {
 }
 
 #[tokio::main]
-pub async fn export(target: FileInput, dest: PathBuf) -> CliResult<()> {
+pub async fn export(target: String, dest: PathBuf) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let target_file = target.find(lb).await?;
+    let target_file = find_file(lb, &target).await?;
 
     println!("exporting '{}'...", target_file.name);
     if !dest.exists() {
