@@ -1,4 +1,5 @@
-use crate::tab::svg_editor::{input_controller::InputControllerEvent, toolbar::ToolContext};
+use crate::tab::input_controller::InputControllerEvent;
+use crate::tab::svg_editor::toolbar::ToolContext;
 
 pub mod eraser;
 mod path_builder;

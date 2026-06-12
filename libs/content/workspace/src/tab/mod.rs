@@ -27,6 +27,7 @@ use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
 pub mod chat;
 pub mod image_viewer;
+pub mod input_controller;
 pub mod markdown_editor;
 pub mod pdf_viewer;
 pub mod svg_editor;

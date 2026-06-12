@@ -3,8 +3,8 @@ use std::collections::HashMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::element::Element;
 
+use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::DeleteElement;
-use crate::tab::svg_editor::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::toolbar::ToolContext;
 use crate::tab::svg_editor::tools::InputControllerTool;
 use crate::tab::svg_editor::util::pointer_intersects_element;
