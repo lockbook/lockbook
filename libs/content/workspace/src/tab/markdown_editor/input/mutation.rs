@@ -40,10 +40,10 @@ impl<'ast> MdEdit {
             }
             Event::Replace { region, text, advance_cursor } => {
                 let mut range = self.region_to_range(region);
-                // Typing/pasting over a selection edits what the selection
-                // stands for, hidden fold contents included.
                 if matches!(region, Region::Selection) {
-                    range = self.renderer.grow_range_over_selected_folds(range);
+                    // selecting a fold chip is just selecting a fold tag, but
+                    // replacing it should delete folded content
+                    range = self.renderer.grow_range_over_fold_contents(range);
                 }
                 operations.push(Operation::Replace(Replace { range, text }));
                 if advance_cursor {
@@ -61,10 +61,10 @@ impl<'ast> MdEdit {
                 response.open_camera = true;
             }
             Event::Newline { shift } => {
-                // Enter right of a folded node's `···` chip creates the new
-                // heading / list item *after* the hidden contents instead of
-                // splitting into them; the handler places its own cursor.
-                if !shift && self.fold_newline(root, operations) {
+                // Enter after a `···` fold chip creates the new heading / list
+                // item after the hidden contents
+                let handled = !shift && self.newline_at_fold(root, operations);
+                if handled {
                     return response;
                 }
 
@@ -161,8 +161,10 @@ impl<'ast> MdEdit {
             }
             Event::Delete { region } => {
                 // Deleting against a folded region unfolds it rather than
-                // editing hidden text; the handler places its own cursor.
-                if self.fold_delete(region, operations) {
+                // editing hidden text; delete_at_fold pushes its own ops,
+                // cursor placement included.
+                let handled = self.delete_at_fold(region, operations);
+                if handled {
                     return response;
                 }
 
@@ -209,14 +211,14 @@ impl<'ast> MdEdit {
                 if !handled() {
                     // default -> delete region
                     let mut range = self.region_to_range(region);
-                    // Deleting a selection deletes what it stands for,
-                    // hidden fold contents included. Gated on a real
-                    // selection: a bare backspace covers the whole tag too
-                    // (atom snap) but must unfold, not destroy.
+
+                    // selecting a fold chip is just selecting a fold tag, but
+                    // deleting it should delete folded content
                     if !current_selection.is_empty() {
-                        range = self.renderer.grow_range_over_selected_folds(range);
+                        range = self.renderer.grow_range_over_fold_contents(range);
                     }
-                    let range = self.renderer.widen_delete_over_folds(range);
+
+                    let range = self.renderer.grow_delete_over_fold_tags(range);
                     operations.push(Operation::Replace(Replace { range, text: "".into() }));
                 }
 
@@ -413,9 +415,9 @@ impl<'ast> MdEdit {
                 } else {
                     self.clipboard_current_line()
                 };
-                // capsules carry their hidden contents to the clipboard,
-                // so a cut+paste moves the folded section intact
-                let range = self.renderer.grow_range_over_selected_folds(range);
+                // selecting a fold chip is just selecting a fold tag, but
+                // copying it should copy folded content
+                let range = self.renderer.grow_range_over_fold_contents(range);
 
                 ctx.copy_text(self.renderer.buffer[range].into());
                 operations.push(Operation::Replace(Replace { range, text: "".into() }));
@@ -426,7 +428,7 @@ impl<'ast> MdEdit {
                 } else {
                     self.clipboard_current_line()
                 };
-                let range = self.renderer.grow_range_over_selected_folds(range);
+                let range = self.renderer.grow_range_over_fold_contents(range);
 
                 ctx.copy_text(self.renderer.buffer[range].into());
             }

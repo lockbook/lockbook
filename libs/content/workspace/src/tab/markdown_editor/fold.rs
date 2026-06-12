@@ -243,7 +243,7 @@ impl MdRender {
     /// what it visibly includes. Find-revealed folds are exempt — their
     /// contents are on screen and visibly outside the selection.
     /// Returns an ordered range.
-    pub fn grow_range_over_selected_folds(
+    pub fn grow_range_over_fold_contents(
         &self, range: (Grapheme, Grapheme),
     ) -> (Grapheme, Grapheme) {
         let mut range = (range.start(), range.end());
@@ -257,11 +257,11 @@ impl MdRender {
 
     /// Fold tags delete atomically: a deletion range clipping one (e.g.
     /// backspace right of the chip, whose advance snapped over the tag
-    /// atom) widens to consume the whole tag, never leaving partial tag
+    /// atom) grows to consume the whole tag, never leaving partial tag
     /// text. A deletion covering all the hidden contents takes the tag
     /// too — a fold with nothing left to hide would orphan into inert
     /// text. Returns an ordered range.
-    pub fn widen_delete_over_folds(&self, range: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
+    pub fn grow_delete_over_fold_tags(&self, range: (Grapheme, Grapheme)) -> (Grapheme, Grapheme) {
         let mut range = (range.start(), range.end());
         for f in &self.bounds.folds {
             let clips_tag = range.0 < f.tag.end() && range.1 > f.tag.start();
@@ -316,7 +316,9 @@ impl<'ast> MdEdit {
     /// Enter right of a folded node's `···` chip creates the new
     /// heading / list item *after* the hidden contents instead of
     /// splitting into them. True if handled (ops + cursor pushed).
-    pub fn fold_newline(&self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>) -> bool {
+    pub fn newline_at_fold(
+        &self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>,
+    ) -> bool {
         // selection must be empty
         let Some(offset) = self.renderer.selection_offset() else {
             return false;
@@ -355,7 +357,7 @@ impl<'ast> MdEdit {
     /// (which would join visible text into it) or forward-delete right
     /// of the chip removes the fold tag and nothing else. True if
     /// handled (ops + cursor pushed).
-    pub fn fold_delete(&self, region: Region, operations: &mut Vec<Operation>) -> bool {
+    pub fn delete_at_fold(&self, region: Region, operations: &mut Vec<Operation>) -> bool {
         let Region::SelectionOrAdvance {
             advance: Advance::Next(Bound::Word) | Advance::By(Increment::Char),
             backwards,
