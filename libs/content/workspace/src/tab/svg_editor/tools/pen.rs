@@ -8,9 +8,9 @@ use serde::{Deserialize, Serialize};
 use tracing::{Level, event, trace};
 use web_time::Instant;
 
-use crate::tab::input_controller::{InputControllerEvent, ToolPayload};
 use crate::tab::svg_editor::InsertElement;
 use crate::tab::svg_editor::history::History;
+use crate::tab::svg_editor::input_controller::{InputControllerEvent, ToolPayload};
 use crate::tab::svg_editor::toolbar::ToolContext;
 use crate::tab::svg_editor::tools::InputControllerTool;
 use crate::tab::svg_editor::tools::path_builder::PathBuilder;

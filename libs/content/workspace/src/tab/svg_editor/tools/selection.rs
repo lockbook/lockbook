@@ -12,10 +12,10 @@ use resvg::usvg::Transform;
 
 use lb_rs::model::svg::buffer::serialize_inner;
 
-use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::{self, TransformElement};
+use crate::tab::svg_editor::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::toolbar::{
     ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
 };
