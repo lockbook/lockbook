@@ -11,6 +11,7 @@ mod stream;
 
 use std::env;
 use std::path::PathBuf;
+use std::str::FromStr;
 
 use account::ApiUrl;
 use cli_rs::arg::Arg;
@@ -19,7 +20,7 @@ use cli_rs::command::Command;
 use cli_rs::flag::Flag;
 use cli_rs::parser::Cmd;
 use colored::Colorize;
-use input::FileInput;
+use input::find_file;
 use lb_rs::model::core_config::Config;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::path_ops::Filter;
@@ -72,7 +73,7 @@ fn run() -> CliResult<()> {
         .subcommand(
             Command::name("copy").description("import files from your file system into lockbook")
                 .input(Arg::<PathBuf>::name("disk-path").description("path of file on disk"))
-                .input(Arg::<FileInput>::name("dest")
+                .input(Arg::str("dest")
                        .description("the path or id of a folder within lockbook to place the file.")
                        .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
                 .handler(|disk, parent| imex::copy(disk.get(), parent.get()))
@@ -85,7 +86,7 @@ fn run() -> CliResult<()> {
                 )
                 .subcommand(
                     Command::name("info").description("print metadata associated with a file")
-                        .input(Arg::<FileInput>::name("target").description("id or path of file to debug")
+                        .input(Arg::str("target").description("id or path of file to debug")
                             .completor(|prompt| input::file_completor(prompt, None)))
                         .handler(|target| debug::info(target.get()))
                 )
@@ -105,20 +106,20 @@ fn run() -> CliResult<()> {
         .subcommand(
             Command::name("delete").description("delete a file")
                 .input(Flag::bool("force"))
-                .input(Arg::<FileInput>::name("target").description("path of id of file to delete")
+                .input(Arg::str("target").description("path of id of file to delete")
                             .completor(|prompt| input::file_completor(prompt, None)))
                 .handler(|force, target| delete(force.get(), target.get()))
         )
         .subcommand(
             Command::name("edit").description("edit a document")
                 .input(edit::editor_flag())
-                .input(Arg::<FileInput>::name("target").description("path or id of file to edit")
+                .input(Arg::str("target").description("path or id of file to edit")
                             .completor(|prompt| input::file_completor(prompt, None)))
                 .handler(|editor, target| edit::edit(editor.get(), target.get()))
         )
         .subcommand(
             Command::name("export").description("export a lockbook file to your file system")
-                .input(Arg::<FileInput>::name("target")
+                .input(Arg::str("target")
                             .completor(|prompt| input::file_completor(prompt, None)))
                 .input(Arg::<PathBuf>::name("dest"))
                 .handler(|target, dest| imex::export(target.get(), dest.get()))
@@ -133,22 +134,22 @@ fn run() -> CliResult<()> {
                 .input(Flag::bool("long").description("'long listing format': displays id and sharee information in table format"))
                 .input(Flag::bool("recursive").description("include all children of the given directory, recursively. Implicitly enables --paths"))
                 .input(Flag::bool("paths").description("display the full path of any children"))
-                .input(Arg::<FileInput>::name("target").description("file path location whose files will be listed")
+                .input(Arg::str("target").description("file path location whose files will be listed")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly)))
-                            .default(FileInput::Path("/".to_string())))
+                            .default("/".to_string()))
                 .handler(|long, recur, paths, target| list::list(long.get(), recur.get(), paths.get(), target.get()))
         )
         .subcommand(
             Command::name("move").description("move a file to a new parent")
-                .input(Arg::<FileInput>::name("src-target").description("lockbook file path or ID of the file to move")
+                .input(Arg::str("src-target").description("lockbook file path or ID of the file to move")
                             .completor(|prompt| input::file_completor(prompt, None)))
-                .input(Arg::<FileInput>::name("dest").description("lockbook file path or ID of the new parent folder")
+                .input(Arg::str("dest").description("lockbook file path or ID of the new parent folder")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
                 .handler(|src, dst| move_file(src.get(), dst.get()))
         )
         .subcommand(
             Command::name("new").description("create a new file at the given path or do nothing if it exists")
-                .input(Arg::<FileInput>::name("path").description("create a new file at the given path or do nothing if it exists")
+                .input(Arg::str("path").description("create a new file at the given path or do nothing if it exists")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
                 .handler(|target| create_file(target.get()))
         )
@@ -157,14 +158,14 @@ fn run() -> CliResult<()> {
                 .subcommand(
                     Command::name("out")
                         .description("print a document to stdout")
-                        .input(Arg::<FileInput>::name("target").description("lockbook file path or ID")
+                        .input(Arg::str("target").description("lockbook file path or ID")
                             .completor(|prompt| input::file_completor(prompt, None)))
                         .handler(|target| stream::stdout(target.get()))
                 )
                 .subcommand(
                     Command::name("in")
                         .description("write stdin to a document")
-                        .input(Arg::<FileInput>::name("target").description("lockbook file path or ID")
+                        .input(Arg::str("target").description("lockbook file path or ID")
                             .completor(|prompt| input::file_completor(prompt, None)))
                         .input(Flag::bool("append").description("don't overwrite the specified lb file, append to it"))
                         .handler(|target, append| stream::stdin(target.get(), append.get()))
@@ -172,7 +173,7 @@ fn run() -> CliResult<()> {
         )
         .subcommand(
             Command::name("rename").description("rename a file")
-                .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of file to rename")
+                .input(Arg::str("target").description("lockbook file path or ID of file to rename")
                             .completor(|prompt| input::file_completor(prompt, None)))
                 .input(Arg::str("new_name"))
                 .handler(|target, new_name| rename(target.get(), new_name.get()))
@@ -181,7 +182,7 @@ fn run() -> CliResult<()> {
             Command::name("share").description("sharing related commands")
                 .subcommand(
                     Command::name("new").description("share a file with someone")
-                        .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of file to rename")
+                        .input(Arg::str("target").description("lockbook file path or ID of file to rename")
                             .completor(|prompt| input::file_completor(prompt, None)))
                         .input(Arg::str("username")
                             .completor(input::username_completor))
@@ -196,7 +197,7 @@ fn run() -> CliResult<()> {
                     Command::name("accept").description("accept a pending share by adding it to your file tree")
                         .input(Arg::<Uuid>::name("pending-share-id").description("ID of pending share")
                                     .completor(share::pending_share_completor))
-                        .input(Arg::<FileInput>::name("target").description("lockbook file path or ID of the folder you want to place this shared file")
+                        .input(Arg::str("target").description("lockbook file path or ID of the folder you want to place this shared file")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
                         .handler(|id, dest| share::accept(&id.get(), dest.get()))
                 )
@@ -354,11 +355,11 @@ async fn sync() -> CliResult<()> {
 }
 
 #[tokio::main]
-async fn delete(force: bool, target: FileInput) -> Result<(), CliError> {
+async fn delete(force: bool, target: String) -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let f = target.find(lb).await?;
+    let f = find_file(lb, &target).await?;
 
     if !force {
         let mut phrase = format!("delete '{target}'");
@@ -389,24 +390,24 @@ async fn delete(force: bool, target: FileInput) -> Result<(), CliError> {
 }
 
 #[tokio::main]
-async fn move_file(src: FileInput, dest: FileInput) -> CliResult<()> {
+async fn move_file(src: String, dest: String) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let src = src.find(lb).await?;
-    let dest = dest.find(lb).await?;
+    let src = find_file(lb, &src).await?;
+    let dest = find_file(lb, &dest).await?;
     lb.move_file(&src.id, &dest.id).await?;
     Ok(())
 }
 
 #[tokio::main]
-async fn create_file(path: FileInput) -> CliResult<()> {
+async fn create_file(path: String) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let FileInput::Path(path) = path else {
+    if Uuid::from_str(&path).is_ok() {
         return Err(CliError::from("cannot create a file using ids"));
-    };
+    }
 
     match lb.get_by_path(&path).await {
         Ok(_f) => Ok(()),
@@ -421,11 +422,11 @@ async fn create_file(path: FileInput) -> CliResult<()> {
 }
 
 #[tokio::main]
-async fn rename(target: FileInput, new_name: String) -> Result<(), CliError> {
+async fn rename(target: String, new_name: String) -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let id = target.find(lb).await?.id;
+    let id = find_file(lb, &target).await?.id;
     lb.rename_file(&id, &new_name).await?;
     Ok(())
 }

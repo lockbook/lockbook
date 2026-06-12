@@ -10,15 +10,15 @@ use hotwatch::{Event, EventKind, Hotwatch};
 use lb_rs::{Lb, Uuid};
 use tokio::runtime::Handle;
 
-use crate::input::FileInput;
+use crate::input::find_file;
 use crate::{core, ensure_account_and_root};
 
 #[tokio::main]
-pub async fn edit(editor: Editor, target: FileInput) -> CliResult<()> {
+pub async fn edit(editor: Editor, target: String) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let f = target.find(lb).await?;
+    let f = find_file(lb, &target).await?;
 
     let file_content = lb.read_document(f.id, true).await?;
 

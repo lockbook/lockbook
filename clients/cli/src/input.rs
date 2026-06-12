@@ -1,4 +1,4 @@
-use std::fmt::{self, Debug, Display, Formatter};
+use std::fmt::{Debug, Display};
 use std::io::{self, Write};
 use std::str::FromStr;
 
@@ -9,47 +9,44 @@ use lb_rs::{Lb, Uuid};
 
 use crate::core;
 
-#[derive(Clone, Debug)]
-pub enum FileInput {
-    Id(Uuid),
-    Path(String),
+pub const ID_PREFIX_LEN: usize = 8;
+
+fn looks_like_id(s: &str) -> bool {
+    s.chars().all(|c| c == '-' || c.is_ascii_hexdigit())
 }
 
-impl Display for FileInput {
-    fn fmt(&self, f: &mut Formatter) -> fmt::Result {
-        match self {
-            FileInput::Id(inner) => write!(f, "{inner}"),
-            FileInput::Path(inner) => write!(f, "{inner}"),
+pub async fn find_file(lb: &Lb, target: &str) -> CliResult<File> {
+    let target = target.trim();
+
+    if let Ok(id) = Uuid::from_str(target) {
+        return Ok(lb.get_file_by_id(id).await?);
+    }
+
+    if target.len() >= ID_PREFIX_LEN && looks_like_id(target) {
+        return find_by_id_prefix(lb, target).await;
+    }
+
+    Ok(lb.get_by_path(target).await?)
+}
+
+async fn find_by_id_prefix(lb: &Lb, prefix: &str) -> CliResult<File> {
+    let mut found = None;
+    for file in lb.list_metadatas().await? {
+        if file.id.to_string().starts_with(prefix) {
+            if found.is_some() {
+                return Err(CliError::from(format!("id prefix '{prefix}' is ambiguous")));
+            }
+            found = Some(file);
         }
     }
-}
 
-impl FileInput {
-    pub async fn find(&self, lb: &Lb) -> CliResult<File> {
-        let f = match self {
-            FileInput::Id(id) => lb.get_file_by_id(*id).await?,
-            FileInput::Path(path) => lb.get_by_path(path.trim()).await?,
-        };
-
-        Ok(f)
-    }
-}
-
-impl FromStr for FileInput {
-    type Err = core::convert::Infallible;
-
-    fn from_str(s: &str) -> Result<Self, Self::Err> {
-        match Uuid::from_str(s) {
-            Ok(id) => Ok(FileInput::Id(id)),
-            Err(_) => Ok(FileInput::Path(s.to_string())),
-        }
-    }
+    found.ok_or_else(|| CliError::from(format!("no file found with id prefix '{prefix}'")))
 }
 
 #[tokio::main]
 pub async fn file_completor(prompt: &str, filter: Option<Filter>) -> CliResult<Vec<String>> {
     let lb = &core().await?;
-    if !prompt.is_empty() && prompt.chars().all(|c| c == '-' || c.is_ascii_hexdigit()) {
+    if !prompt.is_empty() && looks_like_id(prompt) {
         return id_completor(lb, prompt, filter).await;
     }
 

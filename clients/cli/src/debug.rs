@@ -1,7 +1,7 @@
 use cli_rs::cli_error::{CliError, CliResult};
 use lb_rs::service::debug::DebugInfoDisplay;
 
-use crate::input::FileInput;
+use crate::input::find_file;
 use crate::{core, ensure_account};
 
 #[tokio::main]
@@ -23,11 +23,11 @@ pub async fn validate() -> CliResult<()> {
 }
 
 #[tokio::main]
-pub async fn info(target: FileInput) -> Result<(), CliError> {
+pub async fn info(target: String) -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account(lb)?;
 
-    let f = target.find(lb).await?;
+    let f = find_file(lb, &target).await?;
     println!("{f:#?}");
     Ok(())
 }

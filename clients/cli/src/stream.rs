@@ -1,14 +1,14 @@
-use crate::input::FileInput;
+use crate::input::find_file;
 use crate::{core, ensure_account_and_root};
 use cli_rs::cli_error::CliResult;
 use std::io;
 use std::io::{Read, Write};
 
 #[tokio::main]
-pub async fn stdin(target: FileInput, append: bool) -> CliResult<()> {
+pub async fn stdin(target: String, append: bool) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
-    let id = target.find(lb).await?.id;
+    let id = find_file(lb, &target).await?.id;
 
     let mut stdin = io::stdin().lock();
     let mut buffer = [0; 512];
@@ -26,11 +26,11 @@ pub async fn stdin(target: FileInput, append: bool) -> CliResult<()> {
 }
 
 #[tokio::main]
-pub async fn stdout(target: FileInput) -> CliResult<()> {
+pub async fn stdout(target: String) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let id = target.find(lb).await?.id;
+    let id = find_file(lb, &target).await?.id;
     let content = lb.read_document(id, true).await?;
     print!("{}", String::from_utf8_lossy(&content));
     io::stdout().flush()?;
