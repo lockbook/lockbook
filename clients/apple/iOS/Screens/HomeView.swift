@@ -13,6 +13,7 @@ struct HomeView: View {
     @StateObject var settingsModel = SettingsViewModel()
 
     @State var selectedTab: TabType = .home
+    @State private var requestedSearchMode: SearchMode?
 
     init(workspaceOutput: WorkspaceOutputState, filesModel: FilesViewModel) {
         _homeState = StateObject(
@@ -46,6 +47,14 @@ struct HomeView: View {
                                         sharedWithMe
                                             .closeSidebarToolbar()
                                     }
+                                case .search:
+                                    NavigationStack {
+                                        SearchTabView(
+                                            filesModel: filesModel,
+                                            requestedMode: $requestedSearchMode
+                                        )
+                                        .closeSidebarToolbar()
+                                    }
                                 }
                             }
                         )
@@ -67,6 +76,11 @@ struct HomeView: View {
                                         filesHome
                                     case .sharedWithMe:
                                         sharedWithMe
+                                    case .search:
+                                        SearchTabView(
+                                            filesModel: filesModel,
+                                            requestedMode: $requestedSearchMode
+                                        )
                                     }
                                 }
                             )
@@ -76,6 +90,9 @@ struct HomeView: View {
                                     splitView: splitView
                                 )
                             }
+                            .navigationSplitViewColumnWidth(
+                                min: 270, ideal: 340, max: 400
+                            )
                         },
                         detail: {
                             NavigationStack {
@@ -116,25 +133,31 @@ struct HomeView: View {
             }
         )
         .selectFolderSheets()
+        .background(
+            Button("Content search") {
+                requestedSearchMode = .content
+                selectedTab = .search
+            }
+            .keyboardShortcut("f", modifiers: [.command, .shift])
+            .hidden()
+        )
         .environmentObject(homeState)
         .environmentObject(settingsModel)
     }
 
     var filesHome: some View {
-        SearchContainerView(filesModel: filesModel) {
-            FilesHomeView()
-                .overlay(
-                    alignment: .bottom,
-                    content: {
-                        VStack {
-                            UsageBar()
+        FilesHomeView()
+            .overlay(
+                alignment: .bottom,
+                content: {
+                    VStack {
+                        UsageBar()
 
-                            StatusBarView()
-                        }
+                        StatusBarView()
                     }
-                )
-        }
-        .modifier(OutOfSpaceAlert())
+                }
+            )
+            .modifier(OutOfSpaceAlert())
     }
 
     var sharedWithMe: some View {
@@ -238,6 +261,19 @@ struct FilesHomeView: View {
         }
         .toolbar {
             ToolbarItemGroup(placement: .secondaryAction) {
+                if case .unselected = filesModel.selectedFilesState {
+                    Button {
+                        withAnimation(.linear(duration: 0.2)) {
+                            filesModel.selectedFilesState = .selected(
+                                explicitly: [],
+                                implicitly: []
+                            )
+                        }
+                    } label: {
+                        Label("Edit", systemImage: "filemenu.and.selection")
+                    }
+                }
+
                 Button {
                     homeState.sheetInfo = .importPicker
                 } label: {
@@ -254,41 +290,15 @@ struct FilesHomeView: View {
         }
     }
 
-    var selectionToolbarItem: ToolbarItem<Void, Button<AnyView>> {
-        switch filesModel.selectedFilesState {
-        case .selected(explicitly: _, implicitly: _):
+    @ToolbarContentBuilder
+    var selectionToolbarItem: some ToolbarContent {
+        if case .selected = filesModel.selectedFilesState {
             ToolbarItem(placement: .topBarLeading) {
-                Button(
-                    action: {
-                        withAnimation {
-                            filesModel.selectedFilesState = .unselected
-                        }
-                    },
-                    label: {
-                        AnyView(
-                            Text("Done")
-                        )
+                Button("Done") {
+                    withAnimation {
+                        filesModel.selectedFilesState = .unselected
                     }
-                )
-            }
-        case .unselected:
-            ToolbarItem(placement: .topBarLeading) {
-                Button(
-                    action: {
-                        withAnimation(.linear(duration: 0.2)) {
-                            filesModel.selectedFilesState = .selected(
-                                explicitly: [],
-                                implicitly: []
-                            )
-                        }
-                    },
-                    label: {
-                        AnyView(
-                            Label("Edit", systemImage: "filemenu.and.selection")
-                                .labelStyle(.titleOnly)
-                        )
-                    }
-                )
+                }
             }
         }
     }
