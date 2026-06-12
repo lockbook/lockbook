@@ -394,7 +394,7 @@ impl<'ast> MdRender {
 
     /// Contents end at the last contained sibling's last line: blank
     /// lines past that — before the next section or at doc end — render
-    /// as visible spacing rows, so they're boundary, not contents.
+    /// as visible spacing rows.
     pub fn heading_contents(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         let NodeValue::Heading(heading) = &node.data.borrow().value else {
             panic!("heading_contents() invoked for non-heading")

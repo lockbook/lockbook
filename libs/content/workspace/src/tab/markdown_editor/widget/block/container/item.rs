@@ -275,7 +275,7 @@ impl<'ast> MdRender {
 
         // Contents end at the last child's last line — the end of the
         // hidden subtree. Blank lines past that render as visible
-        // spacing rows, so they're boundary, not contents.
+        // spacing rows.
         if let Some(last_child) = node.children().last() {
             contents.1 = contents.1.max(self.node_last_line(last_child).end());
         }

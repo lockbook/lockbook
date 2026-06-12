@@ -126,20 +126,12 @@ impl MdEdit {
 
         if buf_resp.text_updated {
             self.renderer.bump_text_seq();
-            // reparse to refresh bounds (the fold check below reads them);
-            // the new root isn't needed here — `show` re-parses for
-            // rendering. `reparse` also wipes the layout cache via
-            // `ensure_text_consistent`.
             self.renderer.reparse(&arena);
         }
 
-        // All cursor positions visible: a selection endpoint that landed in
-        // fold-hidden contents unfolds the section (removes the fold tag)
-        // rather than leaving the cursor in hidden text. Plain navigation
-        // steps past folded regions before this; pointer-driven selection
-        // changes resolve through rendered fragments, which only cover
-        // visible content. This catches the rest (programmatic selects,
-        // edits that strand the selection in hidden text).
+        // selections are automatically snapped out of fold sections but
+        // sometimes you can still end up in them e.g. by indenting an item into
+        // a folded item
         if (buf_resp.text_updated || buf_resp.selection_user_moved)
             && !undo_redo
             && !self.renderer.readonly

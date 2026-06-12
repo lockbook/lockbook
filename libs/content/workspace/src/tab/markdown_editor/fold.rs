@@ -1,12 +1,14 @@
 //! Section folding. A fold tag ([`FOLD_TAG`]) at the end of a heading or
 //! list item's first line hides the section's contents and renders as a
-//! `···` chip. The chip *is* the folded text: a cursor right of it has
-//! cursored *past* the section, a selection containing it stands for the
-//! contents it hides, and edits against it resolve whole-fold — grow
-//! over the contents, engulf the tag, or unfold — never touching hidden
-//! text. Find reveals hidden contents without unfolding; everywhere
-//! else, a selection endpoint landing in hidden contents unfolds the
-//! section, keeping every cursor position visible.
+//! `···` chip.
+//!
+//! The chip represents the fold *tag* in that, when you place your cursor to
+//! the right of the chip, you are between the fold tag and the folded content.
+//! This is why newline in a folded list item inserts a new list item.
+//!
+//! The chip represents the fold *content* in that, when you replace/delete/copy
+//! it, you replace/delete/copy the content. This is accomplished in the logic
+//! that handles those operations.
 
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
@@ -105,7 +107,7 @@ impl MdRender {
 impl<'ast> MdRender {
     /// Lay out an active fold's tag: a `···` chip while the contents are
     /// hidden, a zero-width anchor while a find match force-reveals them
-    /// (the chip would misread as hidden content). Never tag source.
+    /// (the chip would misread as hidden content). Never show tag source.
     pub fn layout_fold_chip(
         &self, layout: &mut Layout, parent: &'ast AstNode<'ast>, fold: FoldBounds,
         node_range: (Grapheme, Grapheme),
