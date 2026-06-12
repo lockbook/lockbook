@@ -769,4 +769,17 @@ mod tests {
         let files = tree();
         assert!(files.by_path("/notes/nonexistent.md").is_none());
     }
+
+    /// The agent links documents by absolute path from a chat at the root —
+    /// e.g. `[meeting](/notes/meeting.md)`.
+    #[test]
+    fn resolve_absolute_link_from_root() {
+        let files = tree();
+        let root = files.iter().find(|f| f.name == "root").unwrap().id;
+        let doc = files.iter().find(|f| f.name == "meeting.md").unwrap().id;
+        match files.resolve_link("/notes/meeting.md", root) {
+            Some(ResolvedLink::File(id)) => assert_eq!(id, doc),
+            other => panic!("expected file, got {:?}", other.is_some()),
+        }
+    }
 }

@@ -65,6 +65,11 @@ impl MdLabel {
         // Scoped ui for clipping; the scope's cursor side-effects stay local.
         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
             self.renderer.show_block(ui, root, top_left);
+            // hover/click handling for links (labels skip all other input).
+            // `interact_fragments` allocates the per-fragment responses that
+            // `handle_link_interactions` consumes.
+            self.renderer.interact_fragments(ui);
+            self.renderer.handle_link_interactions(root, ui);
         });
 
         (std::mem::take(&mut self.renderer.text_areas), rect)

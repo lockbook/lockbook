@@ -1,5 +1,5 @@
-[target.x86_64-pc-windows-msvc]
-rustflags = ["-C", "target-feature=+crt-static"]
-
-[target.'cfg(target_arch = "aarch64")']
-rustflags = ["--cfg", "aes_armv8", "--cfg", "polyval_armv8"]
+[env]
+# aws-lc-sys (via rig → reqwest → rustls) emits ___chkstk_darwin, which only
+# exists on modern iOS; without this rustc links at its default floor of iOS
+# 10.0 and the symbol comes up undefined. 16.0 matches Package.swift's .iOS(.v16).
+IPHONEOS_DEPLOYMENT_TARGET = "16.0"

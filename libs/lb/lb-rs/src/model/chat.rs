@@ -1,10 +1,72 @@
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Message {
     pub from: String,
     pub content: String,
     pub ts: i64,
+    /// Unique per message. `None` on messages written before ids existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
+    /// Sent by `from`'s agent rather than typed by them. Agent messages
+    /// never trigger agent invocation.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub agent: bool,
+    /// A tool round-trip by `from`'s agent; `content` is a short human
+    /// summary ("read_file /notes/todo.md") for rendering. The record makes
+    /// the transcript the agent's complete memory: reopening a chat replays
+    /// these into model context, so a restarted agent knows everything the
+    /// live one did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool: Option<ToolRecord>,
+    /// On agent replies: token usage of the turn that produced this message.
+    /// Chat-lifetime usage is the fold of these over the transcript.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<Usage>,
+    /// A harness-level error ("rate limited", "network down") from `from`'s
+    /// agent. Rendered as a dim red row; excluded from agent context (the
+    /// model never saw it).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub error: bool,
+    /// Fields this client doesn't know about, preserved verbatim so a merge
+    /// performed by an older client can't strip them.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// Token usage of the agent turn that produced a message.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+pub struct Usage {
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct ToolRecord {
+    pub name: String,
+    pub args: Value,
+    /// The result text the model saw (possibly truncated by the writer).
+    pub result: String,
+}
+
+impl Message {
+    pub fn new(from: String, content: String, ts: i64) -> Self {
+        Self {
+            from,
+            content,
+            ts,
+            id: Some(Uuid::new_v4()),
+            agent: false,
+            tool: None,
+            usage: None,
+            error: false,
+            extra: Map::new(),
+        }
+    }
 }
 
 pub struct Buffer {
@@ -60,8 +122,7 @@ mod tests {
     use super::*;
 
     fn line(from: &str, content: &str, ts: i64) -> String {
-        serde_json::to_string(&Message { from: from.into(), content: content.into(), ts }).unwrap()
-            + "\n"
+        serde_json::to_string(&Message::new(from.into(), content.into(), ts)).unwrap() + "\n"
     }
 
     /// Concurrent appends on a shared base union to all turns, each once,
@@ -78,5 +139,20 @@ mod tests {
 
         let contents: Vec<_> = merged.iter().map(|m| m.content.as_str()).collect();
         assert_eq!(contents, ["hello", "one", "two"]);
+    }
+
+    /// A client that doesn't know a field must carry it through parse →
+    /// merge → serialize untouched, or newer clients' data gets stripped.
+    #[test]
+    fn merge_preserves_unknown_fields() {
+        let base = line("a", "hello", 1);
+        let remote = base.clone()
+            + "{\"from\":\"b\",\"content\":\"hi\",\"ts\":2,\"reply_to\":\"abc\",\"agent\":true}\n";
+
+        let merged = Buffer::merge(base.as_bytes(), base.as_bytes(), remote.as_bytes());
+        let merged = String::from_utf8(merged).unwrap();
+
+        assert!(merged.contains("\"reply_to\":\"abc\""), "unknown field stripped: {merged}");
+        assert!(merged.contains("\"agent\":true"));
     }
 }

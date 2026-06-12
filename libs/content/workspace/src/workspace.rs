@@ -873,6 +873,7 @@ impl Workspace {
                                     self.account.clone(),
                                     self.ctx.clone(),
                                     Arc::clone(&self.files),
+                                    &self.core,
                                 )));
                             } else {
                                 let chat = tab.chat_mut().unwrap();

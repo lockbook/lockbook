@@ -23,7 +23,7 @@ impl<'ast> MdRender {
         let node_range = self.node_range(node);
         let state = self.link_state_for_wikilink(&url);
         let fmt = self.text_format_link(parent, state.clone());
-        let cmd = self.ctx.input(|i| i.modifiers.command);
+        let cmd = self.readonly || self.ctx.input(|i| i.modifiers.command);
         let salt = Self::link_interaction_id_salt(node_range);
         if cmd {
             layout.interaction_open(salt, egui::Sense::click());

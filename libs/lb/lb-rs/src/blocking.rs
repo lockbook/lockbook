@@ -64,6 +64,12 @@ impl Lb {
         Ok(Self { rt, lb })
     }
 
+    /// The wrapped async [`crate::Lb`], for callers that run their own
+    /// runtime (e.g. the chat agent driver thread).
+    pub fn async_lb(&self) -> &crate::Lb {
+        &self.lb
+    }
+
     pub fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {

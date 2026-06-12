@@ -76,7 +76,9 @@ impl<'ast> MdRender {
         let link_fmt = self.text_format_link(parent, state.clone());
         let revealed = self.range_revealed(node_range, is_auto);
 
-        let cmd = self.ctx.input(|i| i.modifiers.command);
+        // Readonly renderers (chat/preview labels) have no cursor for a
+        // click to place, so links are clickable without the modifier.
+        let cmd = self.readonly || self.ctx.input(|i| i.modifiers.command);
         let salt = Self::link_interaction_id_salt(node_range);
         if cmd {
             layout.interaction_open(salt, egui::Sense::click());
