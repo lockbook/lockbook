@@ -28,26 +28,7 @@ impl FileInput {
     pub async fn find(&self, lb: &Lb) -> CliResult<File> {
         let f = match self {
             FileInput::Id(id) => lb.get_file_by_id(*id).await?,
-            FileInput::Path(path) => {
-                // First try exact path
-                match lb.get_by_path(path.trim()).await {
-                    Ok(f) => f,
-                    Err(_) => {
-                        // Try ID prefix match
-                        let candidates = lb.list_metadatas().await?;
-                        let matches: Vec<_> = candidates
-                            .into_iter()
-                            .filter(|m| m.id.to_string().starts_with(path))
-                            .collect();
-
-                        match matches.len() {
-                            1 => lb.get_file_by_id(matches[0].id).await?,
-                            0 => return Err("file not found".into()),
-                            _ => return Err("ambiguous id prefix".into()),
-                        }
-                    }
-                }
-            }
+            FileInput::Path(path) => lb.get_by_path(path.trim()).await?,
         };
 
         Ok(f)
