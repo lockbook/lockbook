@@ -53,7 +53,14 @@ public class Lb {
     public static native SubscriptionInfo getSubscriptionInfo() throws LbError;
     public static native void cancelSubscription() throws LbError;
 
-    public static native SearchResult[] search(String input) throws LbError;
+    public static PathSearcher pathSearcher() throws LbError {
+        return new PathSearcher(newPathSearcher());
+    }
+    public static ContentSearcher contentSearcher() throws LbError {
+        return new ContentSearcher(newContentSearcher());
+    }
+    private static native long newPathSearcher() throws LbError;
+    private static native long newContentSearcher() throws LbError;
     public static native String[] suggestedDocs() throws LbError;
 
 

@@ -11,7 +11,6 @@ import android.os.Build
 import android.os.Bundle
 import android.view.*
 import android.widget.LinearLayout
-import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -271,10 +270,6 @@ class FilesListFragment :
             updateOpenWorkspacePaneButtonVisibility()
         }
 
-        model.isSuggestedDocsVisible.observe(viewLifecycleOwner) {
-            binding.suggestedDocsLayout.root.visibility = if (it) View.VISIBLE else View.GONE
-        }
-
         val header = binding.navigationView.getHeaderView(0)
         val donut = header.findViewById<DonutProgressView>(R.id.filesListUsageDonut)
 
@@ -430,46 +425,6 @@ class FilesListFragment :
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = fileTreeAdapter
         recyclerView.itemAnimator = null
-
-        binding.suggestedDocsLayout.clearAllBtn.setOnClickListener {
-            Lb.clearSuggested()
-            model.clearSuggestedDocs()
-        }
-
-        binding.suggestedDocsLayout.suggestedDocsList.setup {
-            withDataSource(model.suggestedDocs)
-            this.withLayoutManager(LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false))
-
-            withItem<SuggestedDocsViewHolderInfo, SuggestedDocsItemViewHolder>(R.layout.suggested_doc_item) {
-                onBind(::SuggestedDocsItemViewHolder) { i, item ->
-                    name.text = item.fileMetadata.getPrettyName()
-                    folderName.text = getString(R.string.suggested_docs_parent_folder, item.folderName)
-                    lastEdited.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
-
-                    icon.setImageResource(item.fileMetadata.getIconResource())
-
-                    itemView.setOnLongClickListener { view ->
-                        val popup = PopupMenu(view.context, view)
-
-                        popup.menu.add(0, 1, 0, "Remove")
-
-                        popup.setOnMenuItemClickListener { menuItem ->
-                            Lb.clearSuggestedId(item.fileMetadata.id)
-                            model.suggestedDocs.removeAt(i)
-                            model.reloadFiles()
-                            true
-                        }
-
-                        popup.show()
-                        true
-                    }
-                }
-
-                onClick {
-                    enterFile(item.fileMetadata)
-                }
-            }
-        }
     }
 
     private fun onFileItemClicked(item: FileViewHolderInfo) {
@@ -544,7 +499,7 @@ class FilesListFragment :
 
         folderTransition?.cancel()
 
-        val transitionViews = listOf(recyclerView, binding.filesEmptyFolder, binding.suggestedDocsLayout.root, binding.filesBreadcrumbBar)
+        val transitionViews = listOf(recyclerView, binding.filesEmptyFolder, binding.filesBreadcrumbBar)
         if (!animate) {
             transitionViews.forEach {
                 it.alpha = 1f

@@ -16,7 +16,6 @@ import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
-import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbEvent
@@ -38,8 +37,6 @@ class FileTreeViewModel(
     val files: LiveData<List<FileViewHolderInfo>>
         get() = _files
 
-    val suggestedDocs = emptyDataSourceTyped<SuggestedDocsViewHolderInfo>()
-
     // / the current file path
     val _breadcrumbItems = MutableLiveData<MutableList<BreadCrumbItem>>()
     val breadcrumbItems: LiveData<MutableList<BreadCrumbItem>>
@@ -56,10 +53,6 @@ class FileTreeViewModel(
     val _pushingFiles = MutableLiveData<Set<UUID>>()
     val pushingFiles: LiveData<Set<UUID>>
         get() = _pushingFiles
-
-    val _isSuggestedDocsVisible = MutableLiveData(true)
-    val isSuggestedDocsVisible: LiveData<Boolean>
-        get() = _isSuggestedDocsVisible
 
     val _usage = MutableLiveData<Usage?>()
     val usage: LiveData<Usage?>
@@ -144,8 +137,7 @@ class FileTreeViewModel(
     private fun startUpInRoot() {
         fileModel = FileModel.createAtRoot()
 
-        refreshSuggestedDocs()
-        refreshVisibleFiles()
+        refreshFilesDataSource()
 
         _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
     }
@@ -155,8 +147,7 @@ class FileTreeViewModel(
         val parent = newParent ?: fileModel.idsAndFiles[fileModel.parent.parent] ?: fileModel.root
         fileModel.enterFolder(parent)
 
-        updateSuggestedDocsVisibility()
-        refreshVisibleFiles()
+        refreshFilesDataSource()
 
         _notifyUpdateFilesUI.postValue(UpdateFilesUI.UpdateBreadcrumbBar)
     }
@@ -164,14 +155,13 @@ class FileTreeViewModel(
     fun reloadFiles() {
         fileModel.refreshFiles()
 
-        refreshSuggestedDocs()
-        refreshVisibleFiles()
+        refreshFilesDataSource()
 
         _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
     }
 
-    fun maybeToggleSuggestedDocs() {
-        updateSuggestedDocsVisibility()
+    private fun refreshFilesDataSource() {
+        _files.value = fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
     }
 
     fun hydrateStatusUpdate(
@@ -212,29 +202,9 @@ class FileTreeViewModel(
             fileModel.refreshFiles()
         }
 
-        refreshSuggestedDocs()
-        refreshVisibleFiles()
+        refreshFilesDataSource()
 
         _usage.value = status.spaceUsed
         checkUsage()
-    }
-
-    fun clearSuggestedDocs() {
-        fileModel.suggestedDocs = emptyList()
-        suggestedDocs.clear()
-        updateSuggestedDocsVisibility()
-    }
-
-    private fun refreshVisibleFiles() {
-        _files.value = fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
-    }
-
-    private fun refreshSuggestedDocs() {
-        suggestedDocs.set(fileModel.suggestedDocs.intoSuggestedViewHolderInfo(fileModel.idsAndFiles))
-        updateSuggestedDocsVisibility()
-    }
-
-    private fun updateSuggestedDocsVisibility() {
-        _isSuggestedDocsVisible.value = fileModel.parent.isRoot && fileModel.suggestedDocs.isNotEmpty()
     }
 }
