@@ -170,6 +170,7 @@ impl SearchExecutor for ContentSearch {
                     self.kb_mode = true;
                     return super::PickerResponse {
                         activated: None,
+                        activated_in_new_tab: false,
                         selected: self.selected_id,
                         selected_range: None,
                     };
@@ -181,6 +182,7 @@ impl SearchExecutor for ContentSearch {
                 .map(|r| r.id);
             return super::PickerResponse {
                 activated,
+                activated_in_new_tab: false,
                 selected: self.selected_id,
                 selected_range: None,
             };
@@ -199,6 +201,8 @@ impl SearchExecutor for ContentSearch {
 
         let mut hovered_flat: Option<usize> = None;
         let mut clicked_flat: Option<usize> = None;
+        let mut clicked_new_tab = false;
+        let mut ctx_new_tab_id: Option<Uuid> = None;
         let mut expand_clicked: Option<Uuid> = None;
         let mut focused_header_clicked = false;
         let mut selected_group_rect: Option<egui::Rect> = None;
@@ -223,6 +227,7 @@ impl SearchExecutor for ContentSearch {
             self.show_empty_state(ui, results.is_empty());
             return super::PickerResponse {
                 activated: None,
+                activated_in_new_tab: false,
                 selected: self.selected_id,
                 selected_range: None,
             };
@@ -294,8 +299,23 @@ impl SearchExecutor for ContentSearch {
                         if resp.hovered() {
                             hovered_flat = Some(fi);
                         }
+                        let openable = matches!(
+                            entry,
+                            FlatEntry::Header { .. } | FlatEntry::Child { .. }
+                        );
                         if resp.clicked() {
                             clicked_flat = Some(fi);
+                            if openable {
+                                clicked_new_tab = ui.input(|i| i.modifiers.command);
+                            }
+                        }
+                        if openable {
+                            resp.context_menu(|ui| {
+                                if ui.button("Open in new tab").clicked() {
+                                    ctx_new_tab_id = Some(r.id);
+                                    ui.close();
+                                }
+                            });
                         }
                     }
 
@@ -330,12 +350,16 @@ impl SearchExecutor for ContentSearch {
         }
 
         let mut activated = None;
+        let mut activated_in_new_tab = false;
 
         // Handle expand click (enter focus mode).
         if let Some(fid) = expand_clicked {
             self.focused_file = Some(fid);
             self.selected = 0;
             self.kb_mode = true;
+        } else if let Some(id) = ctx_new_tab_id {
+            activated = Some(id);
+            activated_in_new_tab = true;
         } else if let Some(i) = clicked_flat {
             self.selected = i;
             self.kb_mode = false;
@@ -343,6 +367,7 @@ impl SearchExecutor for ContentSearch {
                 .get(i)
                 .and_then(|e| results.get(e.match_idx()))
                 .map(|r| r.id);
+            activated_in_new_tab = clicked_new_tab;
         } else if !self.kb_mode {
             if let Some(i) = hovered_flat {
                 self.selected = i;
@@ -363,7 +388,12 @@ impl SearchExecutor for ContentSearch {
             r.content_matches.get(hi).map(|m| m.range.clone())
         });
 
-        super::PickerResponse { activated, selected: self.selected_id, selected_range }
+        super::PickerResponse {
+            activated,
+            activated_in_new_tab,
+            selected: self.selected_id,
+            selected_range,
+        }
     }
 }
 
