@@ -2,6 +2,7 @@ use super::path::split_path;
 use super::{ContentMatch, SearchResult};
 use crate::blocking::Lb;
 use crate::model::file::File;
+use std::cmp::Reverse;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -20,6 +21,28 @@ pub struct ContentSearcher {
     results: Vec<SearchResult>,
     submitted_query: String,
     build_time: Duration,
+}
+
+fn collect_matches(
+    haystack: &str, query: &str, words: &[&str], matched_words: &mut [bool],
+) -> Vec<ContentMatch> {
+    let mut matches = Vec::new();
+
+    for (idx, _) in haystack.match_indices(query) {
+        matches.push(ContentMatch { range: idx..idx + query.len(), exact: true });
+    }
+
+    for (wi, word) in words.iter().enumerate() {
+        for (idx, _) in haystack.match_indices(word) {
+            matched_words[wi] = true;
+            if matches.iter().any(|m| m.range.contains(&idx)) {
+                continue;
+            }
+            matches.push(ContentMatch { range: idx..idx + word.len(), exact: false });
+        }
+    }
+
+    matches
 }
 
 impl ContentSearcher {
@@ -109,50 +132,53 @@ impl ContentSearcher {
             return;
         }
 
+        let words: Vec<&str> = query.split_whitespace().collect();
+
         for doc in &self.documents {
-            let mut content_matches = Vec::new();
-
-            // Find exact matches
-            for (idx, _) in doc.content.match_indices(&query) {
-                content_matches.push(ContentMatch { range: idx..idx + query.len(), exact: true });
+            let path = if doc.parent_path == "/" {
+                format!("/{}", doc.filename)
+            } else {
+                format!("{}/{}", doc.parent_path, doc.filename)
             }
+            .to_lowercase();
 
-            // Find word matches
-            let mut all_words_matched = true;
-            for word in query.split_whitespace() {
-                let mut word_matched = false;
-                for (idx, _) in doc.content.match_indices(word) {
-                    word_matched = true;
-                    if content_matches.iter().any(|h| h.range.contains(&idx)) {
-                        continue;
-                    }
-                    content_matches
-                        .push(ContentMatch { range: idx..idx + word.len(), exact: false });
-                }
-                if !word_matched {
-                    all_words_matched = false;
-                }
-            }
+            let mut matched_words = vec![false; words.len()];
+            let path_matches = collect_matches(&path, &query, &words, &mut matched_words);
+            let content_matches =
+                collect_matches(&doc.content, &query, &words, &mut matched_words);
 
-            if all_words_matched && !content_matches.is_empty() {
+            let all_words_matched = matched_words.iter().all(|&m| m);
+            let has_match = !path_matches.is_empty() || !content_matches.is_empty();
+
+            if all_words_matched && has_match {
                 self.results.push(SearchResult {
                     id: doc.file.id,
                     filename: doc.filename.clone(),
                     parent_path: doc.parent_path.clone(),
                     path_indices: Vec::new(),
+                    path_matches,
                     content_matches,
                 });
             }
         }
 
-        self.results.sort_unstable_by(|a, b| {
-            let a_exact = a.content_matches.iter().filter(|m| m.exact).count();
-            let b_exact = b.content_matches.iter().filter(|m| m.exact).count();
-            if a_exact > 0 || b_exact > 0 {
-                b_exact.cmp(&a_exact)
+        self.results.sort_by_key(|r| {
+            let tier = if !r.path_matches.is_empty() {
+                0
+            } else if r.content_matches.iter().any(|m| m.exact) {
+                1
             } else {
-                b.content_matches.len().cmp(&a.content_matches.len())
-            }
+                2
+            };
+            let path_exact = r.path_matches.iter().filter(|m| m.exact).count();
+            let content_exact = r.content_matches.iter().filter(|m| m.exact).count();
+            (
+                tier,
+                Reverse(path_exact),
+                Reverse(r.path_matches.len()),
+                Reverse(content_exact),
+                Reverse(r.content_matches.len()),
+            )
         });
     }
 

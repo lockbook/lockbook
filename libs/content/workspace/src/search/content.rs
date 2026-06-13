@@ -3,7 +3,7 @@ use std::ops::Range;
 use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::search::{ContentSearcher, SearchResult};
+use lb_rs::search::{ContentMatch, ContentSearcher, SearchResult};
 
 use crate::{
     search::{SearchExecutor, SearchType},
@@ -439,6 +439,30 @@ impl ContentSearch {
         }
     }
 
+    fn filename_base(result: &SearchResult) -> usize {
+        if result.parent_path == "/" { 1 } else { result.parent_path.len() + 1 }
+    }
+
+    fn highlighted_path_line(
+        ui: &mut Ui, text: &str, base: usize, matches: &[ContentMatch], color: egui::Color32,
+        size: f32,
+    ) {
+        let mut spans: Vec<(String, bool)> = Vec::new();
+        for (b, c) in text.char_indices() {
+            let bold = matches.iter().any(|m| m.range.contains(&(base + b)));
+            match spans.last_mut() {
+                Some((s, prev)) if *prev == bold => s.push(c),
+                _ => spans.push((c.to_string(), bold)),
+            }
+        }
+        let span_refs: Vec<(&str, bool)> = spans.iter().map(|(s, b)| (s.as_str(), *b)).collect();
+        ui.add(
+            GlyphonLabel::new_rich(span_refs, color)
+                .font_size(size)
+                .max_width(ui.available_width()),
+        );
+    }
+
     fn show_header_row(
         &self, ui: &mut Ui, result: &SearchResult, ordinal: usize,
     ) -> egui::Response {
@@ -520,15 +544,21 @@ impl ContentSearch {
 
                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                         ui.spacing_mut().item_spacing.y = 0.0;
-                        ui.add(
-                            GlyphonLabel::new(&result.filename, name_color)
-                                .font_size(16.0)
-                                .max_width(ui.available_width()),
+                        Self::highlighted_path_line(
+                            ui,
+                            &result.filename,
+                            Self::filename_base(result),
+                            &result.path_matches,
+                            name_color,
+                            16.0,
                         );
-                        ui.add(
-                            GlyphonLabel::new(&result.parent_path, parent_color)
-                                .font_size(13.0)
-                                .max_width(ui.available_width()),
+                        Self::highlighted_path_line(
+                            ui,
+                            &result.parent_path,
+                            0,
+                            &result.path_matches,
+                            parent_color,
+                            13.0,
                         );
                     });
                 });
