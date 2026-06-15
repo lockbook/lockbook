@@ -4,18 +4,17 @@ package app.lockbook.ui
 
 import android.content.Context
 import android.content.Intent
-import android.os.Build
 import android.util.AttributeSet
 import android.view.View
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
-import androidx.core.content.ContextCompat
 import androidx.preference.Preference
 import androidx.preference.PreferenceViewHolder
 import app.lockbook.R
 import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.*
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.progressindicator.LinearProgressIndicator
 import net.lockbook.Usage
 
@@ -67,21 +66,7 @@ class UsageBarPreference(
         usageBar.progress = roundedProgress.toInt() * 100
 
         val usageRatio = roundedProgress.toFloat() / roundedDataCap
-        val barColorId =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-                when {
-                    usageRatio < 0.8 -> android.R.color.system_accent1_200
-                    usageRatio < 0.9 -> android.R.color.system_error_200
-                    else -> android.R.color.system_error_500
-                }
-            } else {
-                when {
-                    usageRatio < 0.8 -> R.color.md_theme_secondary
-                    else -> R.color.md_theme_error
-                }
-            }
-
-        val usageBarColor = ContextCompat.getColor(context, barColorId)
+        val usageBarColor = getUsageBarColor(usageRatio)
         usageBar.setIndicatorColor(usageBarColor)
 
         // necessary to reset it for rendering successful billings
@@ -99,6 +84,9 @@ class UsageBarPreference(
 
             premiumUsageBar.max = (PAID_TIER_USAGE_BYTES / ROUND_DECIMAL_PLACES).toInt()
             premiumUsageBar.progress = (serverUsageExact / ROUND_DECIMAL_PLACES).toInt()
+            premiumUsageBar.setIndicatorColor(
+                getUsageBarColor(serverUsageExact.toFloat() / PAID_TIER_USAGE_BYTES),
+            )
 
             premiumUsageInfo.text = context.resources.getString(R.string.out_of_premium_gb, serverUsage)
         }
@@ -113,5 +101,26 @@ class UsageBarPreference(
                             R.string.settings_usage_data_cap,
                         ).bold() + " " + dataCap + "\n"
             }
+    }
+
+    private fun getUsageBarColor(usageRatio: Float): Int {
+        val colorAttr =
+            when {
+                usageRatio < 0.8 -> {
+                    com.google.android.material.R.attr.colorPrimary
+                }
+
+                else -> {
+                    com.google.android.material.R.attr.colorError
+                }
+            }
+        val fallbackColor =
+            if (usageRatio < 0.8) {
+                context.getColor(R.color.md_theme_primary)
+            } else {
+                context.getColor(R.color.md_theme_error)
+            }
+
+        return MaterialColors.getColor(context, colorAttr, fallbackColor)
     }
 }
