@@ -67,21 +67,7 @@ class UsageBarPreference(
         usageBar.progress = roundedProgress.toInt() * 100
 
         val usageRatio = roundedProgress.toFloat() / roundedDataCap
-        val barColorId =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM) {
-                when {
-                    usageRatio < 0.8 -> android.R.color.system_accent1_200
-                    usageRatio < 0.9 -> android.R.color.system_error_200
-                    else -> android.R.color.system_error_500
-                }
-            } else {
-                when {
-                    usageRatio < 0.8 -> R.color.md_theme_secondary
-                    else -> R.color.md_theme_error
-                }
-            }
-
-        val usageBarColor = ContextCompat.getColor(context, barColorId)
+        val usageBarColor = getUsageBarColor(usageRatio)
         usageBar.setIndicatorColor(usageBarColor)
 
         // necessary to reset it for rendering successful billings
@@ -99,6 +85,9 @@ class UsageBarPreference(
 
             premiumUsageBar.max = (PAID_TIER_USAGE_BYTES / ROUND_DECIMAL_PLACES).toInt()
             premiumUsageBar.progress = (serverUsageExact / ROUND_DECIMAL_PLACES).toInt()
+            premiumUsageBar.setIndicatorColor(
+                getUsageBarColor(serverUsageExact.toFloat() / PAID_TIER_USAGE_BYTES),
+            )
 
             premiumUsageInfo.text = context.resources.getString(R.string.out_of_premium_gb, serverUsage)
         }
@@ -113,5 +102,32 @@ class UsageBarPreference(
                             R.string.settings_usage_data_cap,
                         ).bold() + " " + dataCap + "\n"
             }
+    }
+
+    private fun getUsageBarColor(usageRatio: Float): Int {
+        val barColorId =
+            when {
+                usageRatio < 0.8 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S -> {
+                    android.R.color.system_accent1_200
+                }
+
+                usageRatio < 0.8 -> {
+                    R.color.md_theme_primary
+                }
+
+                usageRatio < 0.9 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM -> {
+                    android.R.color.system_error_200
+                }
+
+                usageRatio >= 0.9 && Build.VERSION.SDK_INT >= Build.VERSION_CODES.VANILLA_ICE_CREAM -> {
+                    android.R.color.system_error_500
+                }
+
+                else -> {
+                    R.color.md_theme_error
+                }
+            }
+
+        return ContextCompat.getColor(context, barColorId)
     }
 }

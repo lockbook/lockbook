@@ -18,8 +18,6 @@ import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
-import app.futured.donut.DonutProgressView
-import app.futured.donut.DonutSection
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
@@ -271,30 +269,9 @@ class FilesListFragment :
         }
 
         val header = binding.navigationView.getHeaderView(0)
-        val donut = header.findViewById<DonutProgressView>(R.id.filesListUsageDonut)
-
-        val accentColor =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                ContextCompat.getColor(requireContext(), android.R.color.system_accent1_200)
-            } else {
-                ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
-            }
 
         model.usage.observe(viewLifecycleOwner) { usageMetrics ->
             usageMetrics?.let {
-                val dataCap = it.dataCap?.exact?.toFloat() ?: 0f
-                val usage = it.serverUsage?.exact?.toFloat() ?: 0f
-
-                donut.cap = dataCap
-
-                val usageSection =
-                    DonutSection(
-                        name = "",
-                        color = accentColor,
-                        amount = usage,
-                    )
-                donut.submitData(listOf(usageSection))
-
                 header.findViewById<MaterialTextView>(R.id.filesListUsage).text =
                     getString(R.string.free_space, usageMetrics.serverUsage?.readable, usageMetrics.dataCap?.readable)
             }
@@ -305,14 +282,30 @@ class FilesListFragment :
                 getString(R.string.last_sync, it)
         }
 
+        val localDirty = header.findViewById<MaterialTextView>(R.id.filesListLocalDirty)
+        val serverDirty = header.findViewById<MaterialTextView>(R.id.filesListServerDirty)
+        var localDirtyCount = 0
+        var serverDirtyCount = 0
+
+        fun updateDirtyFileStatuses() {
+            localDirty.visibility = if (localDirtyCount == 0) View.GONE else View.VISIBLE
+            serverDirty.visibility = if (serverDirtyCount == 0) View.GONE else View.VISIBLE
+        }
+
+        updateDirtyFileStatuses()
+
         model.dirtyLocally.observe(viewLifecycleOwner) {
-            header.findViewById<MaterialTextView>(R.id.filesListLocalDirty).text =
-                resources.getQuantityString(R.plurals.files_to_push, it.size, it.size)
+            localDirtyCount = it.size
+            localDirty.text =
+                resources.getQuantityString(R.plurals.files_to_push, localDirtyCount, localDirtyCount)
+            updateDirtyFileStatuses()
         }
 
         model.pushingFiles.observe(viewLifecycleOwner) {
-            header.findViewById<MaterialTextView>(R.id.filesListServerDirty).text =
-                resources.getQuantityString(R.plurals.files_to_pull, it.size, it.size)
+            serverDirtyCount = it.size
+            serverDirty.text =
+                resources.getQuantityString(R.plurals.files_to_pull, serverDirtyCount, serverDirtyCount)
+            updateDirtyFileStatuses()
         }
 
         return binding.root
