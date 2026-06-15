@@ -13,7 +13,7 @@ struct Document {
     file: File,
     filename: String,
     parent_path: String,
-    content: String, // lowercased
+    lowercased_content: String,
 }
 
 pub struct ContentSearcher {
@@ -21,28 +21,6 @@ pub struct ContentSearcher {
     results: Vec<SearchResult>,
     submitted_query: String,
     build_time: Duration,
-}
-
-fn collect_matches(
-    haystack: &str, query: &str, words: &[&str], matched_words: &mut [bool],
-) -> Vec<ContentMatch> {
-    let mut matches = Vec::new();
-
-    for (idx, _) in haystack.match_indices(query) {
-        matches.push(ContentMatch { range: idx..idx + query.len(), exact: true });
-    }
-
-    for (wi, word) in words.iter().enumerate() {
-        for (idx, _) in haystack.match_indices(word) {
-            matched_words[wi] = true;
-            if matches.iter().any(|m| m.range.contains(&idx)) {
-                continue;
-            }
-            matches.push(ContentMatch { range: idx..idx + word.len(), exact: false });
-        }
-    }
-
-    matches
 }
 
 impl ContentSearcher {
@@ -56,20 +34,20 @@ impl ContentSearcher {
             .filter(|m| m.is_document() && m.name.ends_with(".md"))
             .collect();
 
-        let work = Arc::new(Mutex::new(md_files));
+        let queue = Arc::new(Mutex::new(md_files));
         let documents = Arc::new(Mutex::new(Vec::<Document>::new()));
 
         let handles: Vec<_> = (0..thread::available_parallelism()
             .map(|n| n.get())
             .unwrap_or(4))
             .map(|_| {
-                let work = work.clone();
+                let queue = queue.clone();
                 let paths = paths.clone();
                 let documents = documents.clone();
                 let lb = lb.clone();
                 thread::spawn(move || {
                     loop {
-                        let Some(meta) = work.lock().unwrap().pop() else {
+                        let Some(meta) = queue.lock().unwrap().pop() else {
                             return;
                         };
 
@@ -92,7 +70,7 @@ impl ContentSearcher {
                                 file: meta,
                                 filename: name.to_string(),
                                 parent_path: parent.to_string(),
-                                content: content.to_lowercase(),
+                                lowercased_content: content.to_lowercase(),
                             });
                         }
                     }
@@ -144,8 +122,7 @@ impl ContentSearcher {
 
             let mut matched_words = vec![false; words.len()];
             let path_matches = collect_matches(&path, &query, &words, &mut matched_words);
-            let content_matches =
-                collect_matches(&doc.content, &query, &words, &mut matched_words);
+            let content_matches = collect_matches(&doc.lowercased_content, &query, &words, &mut matched_words);
 
             let all_words_matched = matched_words.iter().all(|&m| m);
             let has_match = !path_matches.is_empty() || !content_matches.is_empty();
@@ -197,7 +174,7 @@ impl ContentSearcher {
         self.documents
             .iter()
             .find(|d| d.file.id == id)
-            .map(|d| d.content.as_str())
+            .map(|d| d.lowercased_content.as_str())
     }
 
     /// Extract snippet with context. Returns (prefix, matched, suffix).
@@ -263,4 +240,26 @@ impl ContentSearcher {
             &content[match_end_byte..end_byte],
         ))
     }
+}
+
+fn collect_matches(
+    haystack: &str, query: &str, words: &[&str], matched_words: &mut [bool],
+) -> Vec<ContentMatch> {
+    let mut matches = Vec::new();
+
+    for (idx, _) in haystack.match_indices(query) {
+        matches.push(ContentMatch { range: idx..idx + query.len(), exact: true });
+    }
+
+    for (wi, word) in words.iter().enumerate() {
+        for (idx, _) in haystack.match_indices(word) {
+            matched_words[wi] = true;
+            if matches.iter().any(|m| m.range.contains(&idx)) {
+                continue;
+            }
+            matches.push(ContentMatch { range: idx..idx + word.len(), exact: false });
+        }
+    }
+
+    matches
 }
