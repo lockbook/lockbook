@@ -263,6 +263,9 @@ pub extern "C" fn lb_free_content_search_results(results: LbContentSearcherResul
         if !result.matches.is_null() {
             drop(rvec(result.matches, result.matches_len));
         }
+        if !result.path_matches.is_null() {
+            drop(rvec(result.path_matches, result.path_matches_len));
+        }
     }
 }
 

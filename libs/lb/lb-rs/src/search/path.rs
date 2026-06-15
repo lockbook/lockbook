@@ -95,6 +95,7 @@ impl PathSearcher {
                     filename: item.data.filename.clone(),
                     parent_path: item.data.parent_path.clone(),
                     path_indices: indices,
+                    path_matches: Vec::new(),
                     content_matches: Vec::new(),
                 });
             }

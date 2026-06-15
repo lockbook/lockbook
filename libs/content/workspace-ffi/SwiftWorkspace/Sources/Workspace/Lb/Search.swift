@@ -86,12 +86,19 @@ public struct ContentSearcherResult: Hashable, Identifiable {
     public let filename: String
     public let parentPath: String
     public let matches: [ContentSearcherMatch]
+    /// Matches within the file's path/filename. Byte ranges into the canonical
+    /// full path (`/parent/.../filename`).
+    public let pathMatches: [ContentSearcherMatch]
 
-    public init(id: UUID, filename: String, parentPath: String, matches: [ContentSearcherMatch]) {
+    public init(
+        id: UUID, filename: String, parentPath: String, matches: [ContentSearcherMatch],
+        pathMatches: [ContentSearcherMatch] = []
+    ) {
         self.id = id
         self.filename = filename
         self.parentPath = parentPath
         self.matches = matches
+        self.pathMatches = pathMatches
     }
 
     init(_ res: LbContentSearcherResult) {
@@ -101,13 +108,15 @@ public struct ContentSearcherResult: Hashable, Identifiable {
         let rawParent = String(cString: res.parent_path)
         parentPath = rawParent == "/" ? "/" : String(rawParent.dropFirst())
 
-        let matchesPtr: UnsafeBufferPointer<LbContentSearcherMatch>
-        if let ptr = res.matches {
-            matchesPtr = UnsafeBufferPointer(start: ptr, count: Int(res.matches_len))
-        } else {
-            matchesPtr = UnsafeBufferPointer(start: nil, count: 0)
-        }
-        matches = matchesPtr.map(ContentSearcherMatch.init)
+        matches = Self.matchArray(res.matches, res.matches_len)
+        pathMatches = Self.matchArray(res.path_matches, res.path_matches_len)
+    }
+
+    private static func matchArray(
+        _ ptr: UnsafeMutablePointer<LbContentSearcherMatch>?, _ len: UInt
+    ) -> [ContentSearcherMatch] {
+        guard let ptr else { return [] }
+        return UnsafeBufferPointer(start: ptr, count: Int(len)).map(ContentSearcherMatch.init)
     }
 }
 
