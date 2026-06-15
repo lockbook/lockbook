@@ -67,7 +67,7 @@ struct HomeView: View {
     }
 
     var filesHome: some View {
-        FilesHomeView(filesModel: filesModel)
+        FilesHomeView()
     }
 
     var sharedWithMe: some View {
@@ -82,18 +82,13 @@ struct FilesHomeView: View {
     @EnvironmentObject var filesModel: FilesViewModel
 
     @StateObject var settingsModel = SettingsViewModel()
-    @StateObject var pinnedModel: PinnedDocsViewModel
 
     @Environment(\.colorScheme) var colorScheme
-
-    init(filesModel: FilesViewModel) {
-        _pinnedModel = StateObject(wrappedValue: PinnedDocsViewModel(filesModel: filesModel))
-    }
 
     var body: some View {
         if let _ = filesModel.root {
             Form {
-                if let pinnedDocs = pinnedModel.pinnedDocs, !pinnedDocs.isEmpty {
+                if !filesModel.pinnedIds.isEmpty {
                     CollapsableSection(
                         id: "Pinned_Docs",
                         label: {
@@ -105,7 +100,7 @@ struct FilesHomeView: View {
                             .font(.callout)
                         },
                         content: {
-                            PinnedDocsView(model: pinnedModel)
+                            PinnedDocsView(filesModel: filesModel)
                         }
                     )
                 }

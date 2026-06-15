@@ -7,7 +7,11 @@ struct PinnedDocsView: View {
     @EnvironmentObject var homeState: HomeState
     @EnvironmentObject var workspaceInput: WorkspaceInputState
 
-    @ObservedObject var model: PinnedDocsViewModel
+    @StateObject var model: PinnedDocsViewModel
+
+    init(filesModel: FilesViewModel) {
+        _model = StateObject(wrappedValue: PinnedDocsViewModel(filesModel: filesModel))
+    }
 
     var body: some View {
         ScrollView(.horizontal) {
@@ -87,6 +91,6 @@ struct PinnedDocBackground: ViewModifier {
 }
 
 #Preview {
-    PinnedDocsView(model: .preview)
+    PinnedDocsView(filesModel: .preview)
         .withCommonPreviewEnvironment()
 }
