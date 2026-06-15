@@ -122,7 +122,8 @@ impl ContentSearcher {
 
             let mut matched_words = vec![false; words.len()];
             let path_matches = collect_matches(&path, &query, &words, &mut matched_words);
-            let content_matches = collect_matches(&doc.lowercased_content, &query, &words, &mut matched_words);
+            let content_matches =
+                collect_matches(&doc.lowercased_content, &query, &words, &mut matched_words);
 
             let all_words_matched = matched_words.iter().all(|&m| m);
             let has_match = !path_matches.is_empty() || !content_matches.is_empty();
