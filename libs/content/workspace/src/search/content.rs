@@ -219,7 +219,7 @@ impl SearchExecutor for ContentSearch {
 
         // Subtle metrics bar above results (skip when focused to avoid clutter).
         if self.focused_file.is_none() && !results.is_empty() {
-            //self.show_metrics_bar(ui, results);
+            self.show_metrics_bar(ui, results);
         }
 
         // Empty states: no query typed, or query with no matches.
