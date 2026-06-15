@@ -93,8 +93,14 @@ impl MdEdit {
         // must be merged with the queued-op response so reparse & cache
         // invalidation fire when undo changes the text.
         let mut direct_resp = buffer::Response::default();
+        // Undo/redo restore the selection exactly, possibly into folded
+        // contents (undoing an auto-unfold restores both the tag and the
+        // triggering selection); the fold check below stands down for the
+        // frame so undo isn't immediately re-undone.
+        let mut undo_redo = false;
 
         for event in std::mem::take(&mut self.event.internal_events) {
+            undo_redo |= matches!(event, Event::Undo | Event::Redo);
             direct_resp |= self.calc_operations(ctx, root, event, &mut ops);
         }
 
@@ -108,6 +114,7 @@ impl MdEdit {
             let key_events: Vec<egui::Event> = ctx.input(|r| r.filtered_events(&filter));
             for e in key_events {
                 if let Some(edit_event) = self.translate_egui_keyboard_event(e, root) {
+                    undo_redo |= matches!(edit_event, Event::Undo | Event::Redo);
                     direct_resp |= self.calc_operations(ctx, root, edit_event, &mut ops);
                 }
             }
@@ -119,10 +126,18 @@ impl MdEdit {
 
         if buf_resp.text_updated {
             self.renderer.bump_text_seq();
-            // reparse to refresh bounds; the new root isn't needed here —
-            // `show` re-parses for rendering. `reparse` also wipes the
-            // layout cache via `ensure_text_consistent`.
             self.renderer.reparse(&arena);
+        }
+
+        // selections are automatically snapped out of fold sections but
+        // sometimes you can still end up in them e.g. by indenting an item into
+        // a folded item
+        if (buf_resp.text_updated || buf_resp.selection_user_moved)
+            && !undo_redo
+            && !self.renderer.readonly
+            && !self.renderer.plaintext
+        {
+            buf_resp |= self.unfold_at_selection(&arena);
         }
 
         let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
@@ -198,6 +213,7 @@ impl MdEdit {
         self.renderer.interact_fragments(ui);
         self.renderer.handle_link_interactions(root, ui);
         self.renderer.handle_spoiler_interactions(root, ui);
+        self.renderer.handle_fold_interactions(ui);
 
         let mut ops = Vec::new();
 

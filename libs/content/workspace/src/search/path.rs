@@ -77,6 +77,7 @@ impl SearchExecutor for PathSearch {
                 if has_selection { rows.get(self.selected).map(|r| r.id) } else { None };
             return super::PickerResponse {
                 activated,
+                activated_in_new_tab: false,
                 selected: self.selected_id,
                 selected_range: None,
             };
@@ -86,6 +87,7 @@ impl SearchExecutor for PathSearch {
             self.show_empty_state(ui);
             return super::PickerResponse {
                 activated: None,
+                activated_in_new_tab: false,
                 selected: self.selected_id,
                 selected_range: None,
             };
@@ -94,6 +96,7 @@ impl SearchExecutor for PathSearch {
         let mut hovered: Option<usize> = None;
         let mut clicked: Option<usize> = None;
         let mut clicked_id: Option<lb_rs::Uuid> = None;
+        let mut clicked_new_tab = false;
 
         const ROW_HEIGHT: f32 = 16.0 * 1.3 + 13.0 * 1.3 + 6.0;
 
@@ -122,7 +125,15 @@ impl SearchExecutor for PathSearch {
                     if resp.clicked() {
                         clicked = Some(index);
                         clicked_id = Some(row.id);
+                        clicked_new_tab = ui.input(|i| i.modifiers.command);
                     }
+                    resp.context_menu(|ui| {
+                        if ui.button("Open in new tab").clicked() {
+                            clicked_id = Some(row.id);
+                            clicked_new_tab = true;
+                            ui.close();
+                        }
+                    });
                 }
             });
 
@@ -147,6 +158,7 @@ impl SearchExecutor for PathSearch {
 
         super::PickerResponse {
             activated: clicked_id,
+            activated_in_new_tab: clicked_new_tab,
             selected: self.selected_id,
             selected_range: None,
         }

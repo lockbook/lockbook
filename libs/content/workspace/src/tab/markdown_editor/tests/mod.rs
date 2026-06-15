@@ -23,5 +23,6 @@ mod harness;
 
 mod benches;
 mod edit_props;
+mod folding;
 mod regressions;
 mod render_props;

@@ -67,6 +67,10 @@ struct TabPicker: View {
 enum TabType: Hashable, CaseIterable, Identifiable {
     case home
     case sharedWithMe
+    #if os(iOS)
+        // Search lives in the workspace toolbar on macOS, so it's only a tab on iOS.
+        case search
+    #endif
 
     var id: Self {
         self
@@ -76,6 +80,9 @@ enum TabType: Hashable, CaseIterable, Identifiable {
         switch self {
         case .home: "Home"
         case .sharedWithMe: "Shared"
+        #if os(iOS)
+            case .search: "Search"
+        #endif
         }
     }
 
@@ -83,6 +90,9 @@ enum TabType: Hashable, CaseIterable, Identifiable {
         switch self {
         case .home: "house.fill"
         case .sharedWithMe: "person.2.fill"
+        #if os(iOS)
+            case .search: "magnifyingglass"
+        #endif
         }
     }
 }

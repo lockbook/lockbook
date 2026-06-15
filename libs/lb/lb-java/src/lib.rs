@@ -6,7 +6,7 @@ use std::str::FromStr;
 use java_utils::{jbyte_array, jni_string, rbyte_array, rlb, rstring, throw_err};
 use jni::JNIEnv;
 use jni::objects::{JByteArray, JClass, JObject, JObjectArray, JString, JValue};
-use jni::sys::{jboolean, jbyteArray, jlong, jobject, jobjectArray, jstring};
+use jni::sys::{jboolean, jbyteArray, jint, jlong, jobject, jobjectArray, jstring};
 pub use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
 use lb_rs::model::api::{
@@ -15,6 +15,10 @@ use lb_rs::model::api::{
 pub use lb_rs::model::core_config::Config;
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
+use lb_rs::search::{
+    ContentMatch as NativeContentMatch, ContentSearcher, PathSearcher,
+    SearchResult as NativeSearcherResult,
+};
 use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::{Event, Receiver, SyncIncrement};
@@ -885,6 +889,216 @@ pub extern "system" fn Java_net_lockbook_Lb_listMetadatas<'local>(
         Ok(files) => jfiles(&mut env, files).into_raw(),
         Err(err) => throw_err(&mut env, err).into_raw(),
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_newPathSearcher<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jlong {
+    let lb = rlb(&mut env, &class);
+    Box::into_raw(Box::new(lb.path_searcher())) as jlong
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_newContentSearcher<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>,
+) -> jlong {
+    let lb = rlb(&mut env, &class);
+    Box::into_raw(Box::new(lb.content_searcher())) as jlong
+}
+
+fn r_path_searcher(handle: jlong) -> &'static mut PathSearcher {
+    unsafe { (handle as *mut PathSearcher).as_mut().unwrap() }
+}
+
+fn r_content_searcher(handle: jlong) -> &'static mut ContentSearcher {
+    unsafe { (handle as *mut ContentSearcher).as_mut().unwrap() }
+}
+
+fn j_path_searcher_results<'local>(
+    env: &mut JNIEnv<'local>, results: &[NativeSearcherResult],
+) -> JObjectArray<'local> {
+    let result_class = env.find_class("net/lockbook/PathSearcherResult").unwrap();
+    let arr = env
+        .new_object_array(results.len() as i32, &result_class, JObject::null())
+        .unwrap();
+
+    for (i, result) in results.iter().enumerate() {
+        let obj = env.alloc_object(&result_class).unwrap();
+
+        let id = env.new_string(result.id.to_string()).unwrap();
+        env.set_field(&obj, "id", "Ljava/lang/String;", JValue::Object(&id))
+            .unwrap();
+
+        let filename = env.new_string(result.filename.clone()).unwrap();
+        env.set_field(&obj, "filename", "Ljava/lang/String;", JValue::Object(&filename))
+            .unwrap();
+
+        let parent_path = env
+            .new_string(searcher_parent_path(&result.parent_path))
+            .unwrap();
+        env.set_field(&obj, "parentPath", "Ljava/lang/String;", JValue::Object(&parent_path))
+            .unwrap();
+
+        let matched_indices = env.new_int_array(result.path_indices.len() as i32).unwrap();
+        let indices: Vec<i32> = result.path_indices.iter().map(|&idx| idx as i32).collect();
+        env.set_int_array_region(&matched_indices, 0, &indices)
+            .unwrap();
+        env.set_field(&obj, "matchedIndices", "[I", JValue::Object(&matched_indices))
+            .unwrap();
+
+        env.set_object_array_element(&arr, i as i32, obj).unwrap();
+    }
+
+    arr
+}
+
+fn j_content_searcher_match<'local>(
+    env: &mut JNIEnv<'local>, class: &JClass<'local>, content_match: &NativeContentMatch,
+) -> JObject<'local> {
+    let obj = env.alloc_object(class).unwrap();
+
+    env.set_field(&obj, "rangeStart", "I", JValue::Int(content_match.range.start as i32))
+        .unwrap();
+    env.set_field(&obj, "rangeEnd", "I", JValue::Int(content_match.range.end as i32))
+        .unwrap();
+    env.set_field(&obj, "exact", "Z", JValue::Bool(content_match.exact as jboolean))
+        .unwrap();
+
+    obj
+}
+
+fn searcher_parent_path(path: &str) -> String {
+    if path == "/" { "/".to_string() } else { path.strip_prefix('/').unwrap_or(path).to_string() }
+}
+
+fn j_content_searcher_results<'local>(
+    env: &mut JNIEnv<'local>, results: &[NativeSearcherResult],
+) -> JObjectArray<'local> {
+    let result_class = env
+        .find_class("net/lockbook/ContentSearcherResult")
+        .unwrap();
+    let match_class = env.find_class("net/lockbook/ContentSearcherMatch").unwrap();
+    let arr = env
+        .new_object_array(results.len() as i32, &result_class, JObject::null())
+        .unwrap();
+
+    for (i, result) in results.iter().enumerate() {
+        let obj = env.alloc_object(&result_class).unwrap();
+
+        let id = env.new_string(result.id.to_string()).unwrap();
+        env.set_field(&obj, "id", "Ljava/lang/String;", JValue::Object(&id))
+            .unwrap();
+
+        let filename = env.new_string(result.filename.clone()).unwrap();
+        env.set_field(&obj, "filename", "Ljava/lang/String;", JValue::Object(&filename))
+            .unwrap();
+
+        let parent_path = env
+            .new_string(searcher_parent_path(&result.parent_path))
+            .unwrap();
+        env.set_field(&obj, "parentPath", "Ljava/lang/String;", JValue::Object(&parent_path))
+            .unwrap();
+
+        let matches = env
+            .new_object_array(result.content_matches.len() as i32, &match_class, JObject::null())
+            .unwrap();
+        for (j, content_match) in result.content_matches.iter().enumerate() {
+            let match_obj = j_content_searcher_match(env, &match_class, content_match);
+            env.set_object_array_element(&matches, j as i32, match_obj)
+                .unwrap();
+        }
+        env.set_field(
+            &obj,
+            "matches",
+            "[Lnet/lockbook/ContentSearcherMatch;",
+            JValue::Object(&matches),
+        )
+        .unwrap();
+
+        env.set_object_array_element(&arr, i as i32, obj).unwrap();
+    }
+
+    arr
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_PathSearcher_queryNative<'local>(
+    mut env: JNIEnv<'local>, _: JClass<'local>, handle: jlong, jinput: JString<'local>,
+) -> jobjectArray {
+    let input = rstring(&mut env, jinput);
+    let searcher = r_path_searcher(handle);
+
+    searcher.query(&input);
+    j_path_searcher_results(&mut env, searcher.results()).into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_PathSearcher_closeNative<'local>(
+    _: JNIEnv<'local>, _: JClass<'local>, handle: jlong,
+) {
+    unsafe { drop(Box::from_raw(handle as *mut PathSearcher)) };
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_ContentSearcher_queryNative<'local>(
+    mut env: JNIEnv<'local>, _: JClass<'local>, handle: jlong, jinput: JString<'local>,
+) -> jobjectArray {
+    let input = rstring(&mut env, jinput);
+    let searcher = r_content_searcher(handle);
+
+    searcher.query(&input);
+    j_content_searcher_results(&mut env, searcher.results()).into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_ContentSearcher_snippetNative<'local>(
+    mut env: JNIEnv<'local>, _: JClass<'local>, handle: jlong, jid: JString<'local>,
+    jmatch: JObject<'local>, context_chars: jint,
+) -> jobject {
+    let searcher = r_content_searcher(handle);
+
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+    let range_start = env
+        .get_field(&jmatch, "rangeStart", "I")
+        .unwrap()
+        .i()
+        .unwrap() as usize;
+    let range_end = env
+        .get_field(&jmatch, "rangeEnd", "I")
+        .unwrap()
+        .i()
+        .unwrap() as usize;
+
+    let Some((prefix, matched, suffix)) =
+        searcher.snippet(id, &(range_start..range_end), context_chars as usize)
+    else {
+        return JObject::null().into_raw();
+    };
+
+    let snippet_class = env.find_class("net/lockbook/SearcherSnippet").unwrap();
+    let snippet = env.alloc_object(snippet_class).unwrap();
+
+    let prefix = jni_string(&mut env, prefix.replace(['\n', '\r'], " "));
+    env.set_field(&snippet, "prefix", "Ljava/lang/String;", JValue::Object(&prefix))
+        .unwrap();
+
+    let matched = jni_string(&mut env, matched.replace(['\n', '\r'], " "));
+    env.set_field(&snippet, "matched", "Ljava/lang/String;", JValue::Object(&matched))
+        .unwrap();
+
+    let suffix = jni_string(&mut env, suffix.replace(['\n', '\r'], " "));
+    env.set_field(&snippet, "suffix", "Ljava/lang/String;", JValue::Object(&suffix))
+        .unwrap();
+
+    snippet.into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_ContentSearcher_closeNative<'local>(
+    _: JNIEnv<'local>, _: JClass<'local>, handle: jlong,
+) {
+    unsafe { drop(Box::from_raw(handle as *mut ContentSearcher)) };
 }
 
 #[unsafe(no_mangle)]

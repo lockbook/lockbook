@@ -25,6 +25,7 @@ pub struct ContentSearch {
     activate: bool,
     /// When Some, the picker drills into a single file's highlights.
     focused_file: Option<Uuid>,
+    activate_nth: Option<usize>,
 }
 
 impl ContentSearch {
@@ -37,6 +38,7 @@ impl ContentSearch {
             selected_id: None,
             activate: false,
             focused_file: None,
+            activate_nth: None,
         }
     }
 }
@@ -145,6 +147,19 @@ impl SearchExecutor for ContentSearch {
             self.selected = total - 1;
         }
 
+        if let Some(n) = self.activate_nth.take() {
+            let header = flat
+                .iter()
+                .enumerate()
+                .filter(|(_, e)| matches!(e, FlatEntry::Header { .. }))
+                .nth(n)
+                .map(|(fi, _)| fi);
+            if let Some(fi) = header {
+                self.selected = fi;
+                self.activate = true;
+            }
+        }
+
         if self.activate {
             self.activate = false;
             // If the selected row is an Expand row, enter focus mode rather than opening.
@@ -155,6 +170,7 @@ impl SearchExecutor for ContentSearch {
                     self.kb_mode = true;
                     return super::PickerResponse {
                         activated: None,
+                        activated_in_new_tab: false,
                         selected: self.selected_id,
                         selected_range: None,
                     };
@@ -166,6 +182,7 @@ impl SearchExecutor for ContentSearch {
                 .map(|r| r.id);
             return super::PickerResponse {
                 activated,
+                activated_in_new_tab: false,
                 selected: self.selected_id,
                 selected_range: None,
             };
@@ -184,6 +201,8 @@ impl SearchExecutor for ContentSearch {
 
         let mut hovered_flat: Option<usize> = None;
         let mut clicked_flat: Option<usize> = None;
+        let mut clicked_new_tab = false;
+        let mut ctx_new_tab_id: Option<Uuid> = None;
         let mut expand_clicked: Option<Uuid> = None;
         let mut focused_header_clicked = false;
         let mut selected_group_rect: Option<egui::Rect> = None;
@@ -208,6 +227,7 @@ impl SearchExecutor for ContentSearch {
             self.show_empty_state(ui, results.is_empty());
             return super::PickerResponse {
                 activated: None,
+                activated_in_new_tab: false,
                 selected: self.selected_id,
                 selected_range: None,
             };
@@ -252,7 +272,7 @@ impl SearchExecutor for ContentSearch {
 
                         let resp = match entry {
                             FlatEntry::Header { .. } => {
-                                self.show_header_row(ui, r, is_selected_result)
+                                self.show_header_row(ui, r, entry.match_idx())
                             }
                             FlatEntry::Child { highlight_idx, .. } => {
                                 let is_active =
@@ -279,8 +299,21 @@ impl SearchExecutor for ContentSearch {
                         if resp.hovered() {
                             hovered_flat = Some(fi);
                         }
+                        let openable =
+                            matches!(entry, FlatEntry::Header { .. } | FlatEntry::Child { .. });
                         if resp.clicked() {
                             clicked_flat = Some(fi);
+                            if openable {
+                                clicked_new_tab = ui.input(|i| i.modifiers.command);
+                            }
+                        }
+                        if openable {
+                            resp.context_menu(|ui| {
+                                if ui.button("Open in new tab").clicked() {
+                                    ctx_new_tab_id = Some(r.id);
+                                    ui.close();
+                                }
+                            });
                         }
                     }
 
@@ -315,12 +348,16 @@ impl SearchExecutor for ContentSearch {
         }
 
         let mut activated = None;
+        let mut activated_in_new_tab = false;
 
         // Handle expand click (enter focus mode).
         if let Some(fid) = expand_clicked {
             self.focused_file = Some(fid);
             self.selected = 0;
             self.kb_mode = true;
+        } else if let Some(id) = ctx_new_tab_id {
+            activated = Some(id);
+            activated_in_new_tab = true;
         } else if let Some(i) = clicked_flat {
             self.selected = i;
             self.kb_mode = false;
@@ -328,6 +365,7 @@ impl SearchExecutor for ContentSearch {
                 .get(i)
                 .and_then(|e| results.get(e.match_idx()))
                 .map(|r| r.id);
+            activated_in_new_tab = clicked_new_tab;
         } else if !self.kb_mode {
             if let Some(i) = hovered_flat {
                 self.selected = i;
@@ -348,12 +386,29 @@ impl SearchExecutor for ContentSearch {
             r.content_matches.get(hi).map(|m| m.range.clone())
         });
 
-        super::PickerResponse { activated, selected: self.selected_id, selected_range }
+        super::PickerResponse {
+            activated,
+            activated_in_new_tab,
+            selected: self.selected_id,
+            selected_range,
+        }
     }
 }
 
 impl ContentSearch {
     fn process_keys(&mut self, ctx: &Context) {
+        const NUM_KEYS: [Key; 9] = [
+            Key::Num1,
+            Key::Num2,
+            Key::Num3,
+            Key::Num4,
+            Key::Num5,
+            Key::Num6,
+            Key::Num7,
+            Key::Num8,
+            Key::Num9,
+        ];
+
         ctx.input_mut(|i| {
             if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) {
                 self.selected = self.selected.saturating_add(1);
@@ -371,6 +426,12 @@ impl ContentSearch {
                 self.selected = 0;
                 self.kb_mode = true;
             }
+            for (idx, &k) in NUM_KEYS.iter().enumerate() {
+                if i.consume_key_exact(Modifiers::COMMAND, k) {
+                    self.activate_nth = Some(idx);
+                    self.kb_mode = true;
+                }
+            }
         });
 
         if ctx.input(|i| i.pointer.delta().length_sq() > 0.0) {
@@ -379,7 +440,7 @@ impl ContentSearch {
     }
 
     fn show_header_row(
-        &self, ui: &mut Ui, result: &SearchResult, _selected: bool,
+        &self, ui: &mut Ui, result: &SearchResult, ordinal: usize,
     ) -> egui::Response {
         let theme = ui.ctx().get_lb_theme();
         let name_color = theme.neutral_fg();
@@ -408,6 +469,18 @@ impl ContentSearch {
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
+
+                    if self.focused_file.is_none() && ordinal < 9 {
+                        let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
+                            "⌘"
+                        } else {
+                            "Ctrl"
+                        };
+                        let number = (ordinal + 1).to_string();
+                        for glyph in [number.as_str(), modifier] {
+                            ui.add(GlyphonLabel::new(glyph, parent_color).font_size(12.0));
+                        }
+                    }
 
                     let badge_size = egui::vec2(22.0, 16.0);
 

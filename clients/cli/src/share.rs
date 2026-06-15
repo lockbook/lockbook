@@ -5,14 +5,14 @@ use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 
 use crate::ensure_account_and_root;
-use crate::input::FileInput;
+use crate::input::find_file;
 
 #[tokio::main]
-pub async fn new(target: FileInput, username: String, read_only: bool) -> CliResult<()> {
+pub async fn new(target: String, username: String, read_only: bool) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
-    let id = target.find(lb).await?.id;
+    let id = find_file(lb, &target).await?.id;
     let mode = if read_only { ShareMode::Read } else { ShareMode::Write };
     lb.share_file(id, &username, mode).await?;
     println!("done!\nfile '{id}' will be shared next time you sync.");
@@ -34,7 +34,7 @@ pub async fn pending() -> CliResult<()> {
 }
 
 #[tokio::main]
-pub async fn accept(target: &Uuid, dest: FileInput) -> CliResult<()> {
+pub async fn accept(target: &Uuid, dest: String) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
@@ -44,7 +44,7 @@ pub async fn accept(target: &Uuid, dest: FileInput) -> CliResult<()> {
         .into_iter()
         .find(|f| f.id == *target)
         .ok_or_else(|| CliError::from(format!("Could not find {target} in pending shares")))?;
-    let parent = dest.find(lb).await?;
+    let parent = find_file(lb, &dest).await?;
 
     lb.create_file(&share.name, &parent.id, FileType::Link { target: share.id })
         .await

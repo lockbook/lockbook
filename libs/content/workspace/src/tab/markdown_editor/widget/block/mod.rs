@@ -11,7 +11,7 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _};
 
 use crate::tab::markdown_editor::bounds::RangesExt as _;
-use crate::tab::markdown_editor::widget::inline::html_inline::FOLD_TAG;
+use crate::tab::markdown_editor::fold::FOLD_TAG;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::{Event, MdRender};
 
@@ -547,24 +547,6 @@ impl<'ast> MdRender {
                 }
             }
         }
-    }
-
-    /// Returns the node that this node is folding, if there is one
-    pub fn foldee(&self, node: &'ast AstNode<'ast>) -> Option<&'ast AstNode<'ast>> {
-        let mut root = node;
-        while let Some(parent) = root.parent() {
-            root = parent;
-        }
-
-        for descendant in root.descendants() {
-            if let Some(fold) = self.fold(descendant) {
-                if fold.same_node(node) {
-                    return Some(fold);
-                }
-            }
-        }
-
-        None
     }
 
     pub fn hidden_by_fold(&self, node: &'ast AstNode<'ast>) -> bool {

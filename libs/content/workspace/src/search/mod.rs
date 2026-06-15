@@ -39,6 +39,10 @@ impl SearchType {
 #[derive(Default)]
 pub struct PickerResponse {
     pub activated: Option<lb_rs::Uuid>,
+    /// When set alongside `activated`, the result should open in a new background
+    /// tab (command/ctrl-click or the row's context menu) rather than replacing
+    /// the search tab.
+    pub activated_in_new_tab: bool,
     pub selected: Option<lb_rs::Uuid>,
     /// Byte range of the highlighted snippet within the selected file's
     /// content (content search only). Drives preview scroll/highlight.
@@ -251,8 +255,12 @@ impl Workspace {
             Self::hairline(ui, true);
             ui.add_space(6.0);
 
-            if let Some(id) = self.results_and_preview(ui, &executor, search_type) {
-                self.open_file_replacing_search(id);
+            if let Some((id, in_new_tab)) = self.results_and_preview(ui, &executor, search_type) {
+                if in_new_tab {
+                    self.open_file(id, false, true);
+                } else {
+                    self.open_file_replacing_search(id);
+                }
             }
         });
     }
@@ -260,7 +268,7 @@ impl Workspace {
     fn results_and_preview(
         &mut self, ui: &mut Ui, executor: &Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
         search_type: SearchType,
-    ) -> Option<lb_rs::Uuid> {
+    ) -> Option<(lb_rs::Uuid, bool)> {
         const OUTER_PAD: f32 = 24.0;
         const MIN_PREVIEW_WIDTH: f32 = 720.0;
 
@@ -333,7 +341,7 @@ impl Workspace {
                 );
             }
 
-            picker.activated
+            picker.activated.map(|id| (id, picker.activated_in_new_tab))
         })
         .inner
     }

@@ -161,6 +161,15 @@ pub struct StyleInfo {
     /// whole `0..8` range). Identifies the AST node at click time
     /// without storing a pointer.
     pub source_range: (Grapheme, Grapheme),
+    /// Paint the background as a compact capsule hugging the text
+    /// middle (the fold `···` chip) instead of filling the row.
+    pub chip: bool,
+}
+
+impl StyleInfo {
+    pub fn new(format: Format, source_range: (Grapheme, Grapheme)) -> Self {
+        Self { format, source_range, chip: false }
+    }
 }
 
 /// A strike/underline rule, painted on top of text (see `deco_lines`).
@@ -524,6 +533,12 @@ impl MdRender {
 
 // ─── shape (Layout → Vec<InlineItem>) ────────────────────────────────
 
+/// Side padding inside a chip capsule, as a fraction of row height.
+/// Shared by the walker (which lays the pads between the glyph and
+/// the capsule edges) and by cursor math (which backs them out so the
+/// caret beside the atom renders beside the capsule).
+const CHIP_SIDE_PAD: f32 = 0.3;
+
 /// Tab pixel-stop interval. Walker resolves tab advance from running
 /// x within the wrap unit (`ceil(x/stop) * stop - x`). Matches the
 /// monospace 4-character convention pixel-for-pixel in code blocks
@@ -556,14 +571,14 @@ fn shape_to_items(
 ) -> Option<Vec<InlineItem>> {
     use std::sync::{Arc, Mutex};
 
-    // Track open bg-scopes' source ranges, so the matching close can
-    // emit the trailing `Pad` with the scope's end as its source
-    // position. `None` entries hold place for non-bg scopes (Pad not
-    // emitted, but stack depth must mirror StyleOpen/Close). AST
-    // guarantees LIFO nesting.
-    let mut bg_scope_stack: Vec<Option<(Grapheme, Grapheme)>> = Vec::new();
+    // Track open bg-scopes' source ranges + side-pad widths, so the
+    // matching close can emit the trailing `Pad` with the scope's end
+    // as its source position. `None` entries hold place for non-bg
+    // scopes (Pad not emitted, but stack depth must mirror
+    // StyleOpen/Close). AST guarantees LIFO nesting.
+    let mut bg_scope_stack: Vec<Option<((Grapheme, Grapheme), f32)>> = Vec::new();
     let emit_event = |items: &mut Vec<InlineItem>,
-                      bg_scope_stack: &mut Vec<Option<(Grapheme, Grapheme)>>,
+                      bg_scope_stack: &mut Vec<Option<((Grapheme, Grapheme), f32)>>,
                       pos: usize,
                       ev: &FlowEvent| {
         let p = pos as u32;
@@ -572,21 +587,19 @@ fn shape_to_items(
                 let bg = s.format.background != egui::Color32::TRANSPARENT;
                 items.push(InlineItem::StyleOpen(s.clone()));
                 if bg {
-                    items.push(InlineItem::Pad {
-                        advance: inline_pad,
-                        source_pos: s.source_range.start(),
-                    });
-                    bg_scope_stack.push(Some(s.source_range));
+                    // Chips pad wide enough for the glyphs to clear the
+                    // capsule's curved ends.
+                    let pad = if s.chip { row_height * CHIP_SIDE_PAD } else { inline_pad };
+                    items
+                        .push(InlineItem::Pad { advance: pad, source_pos: s.source_range.start() });
+                    bg_scope_stack.push(Some((s.source_range, pad)));
                 } else {
                     bg_scope_stack.push(None);
                 }
             }
             FlowEvent::Close => {
-                if let Some(Some(scope_range)) = bg_scope_stack.pop() {
-                    items.push(InlineItem::Pad {
-                        advance: inline_pad,
-                        source_pos: scope_range.end(),
-                    });
+                if let Some(Some((scope_range, pad))) = bg_scope_stack.pop() {
+                    items.push(InlineItem::Pad { advance: pad, source_pos: scope_range.end() });
                 }
                 items.push(InlineItem::StyleClose);
             }
@@ -1626,6 +1639,7 @@ impl MdRender {
                     .map(|s| s.format.background)
                     .filter(|c| *c != egui::Color32::TRANSPARENT)
             };
+            let chip_of = |f: &Fragment| -> bool { f.style_stack.last().is_some_and(|s| s.chip) };
 
             // Pass 1: coalesce same-bg chains into one pill (single
             // fill, single stroke — no seams at fragment boundaries).
@@ -1637,6 +1651,7 @@ impl MdRender {
                     i += 1;
                     continue;
                 };
+                let chip = chip_of(&row.fragments[i]);
                 let border = row.fragments[i]
                     .style_stack
                     .last()
@@ -1646,6 +1661,7 @@ impl MdRender {
                 let mut chain_end = i + 1;
                 while chain_end < row.fragments.len()
                     && bg_of(&row.fragments[chain_end]) == Some(bg)
+                    && chip_of(&row.fragments[chain_end]) == chip
                 {
                     chain_end += 1;
                 }
@@ -1653,12 +1669,23 @@ impl MdRender {
                 let chain_right = row.fragments[chain_end - 1].rect.right() + paint_top_left.x;
                 let row_top = row.fragments[chain_start].rect.top() + paint_top_left.y;
                 let row_bottom = row.fragments[chain_start].rect.bottom() + paint_top_left.y;
-                let bg_rect = Rect::from_min_max(
+                let mut bg_rect = Rect::from_min_max(
                     egui::Pos2::new(chain_left, row_top - inline_pad),
                     egui::Pos2::new(chain_right, row_bottom + inline_pad),
                 );
+                let mut radius = 2.0;
+                if chip {
+                    // Capsule spanning exactly the row box — no inline_pad
+                    // extension, so it stays inside the line where full-row
+                    // pills like inline code bleed past it.
+                    bg_rect = Rect::from_min_max(
+                        egui::Pos2::new(chain_left, row_top),
+                        egui::Pos2::new(chain_right, row_bottom),
+                    );
+                    radius = (row_bottom - row_top) / 2.0;
+                }
                 if ui.clip_rect().intersects(bg_rect) {
-                    let rounding = corner_rounding(true, true, 2.0);
+                    let rounding = corner_rounding(true, true, radius);
                     ui.painter().rect_filled(bg_rect, rounding, bg);
                     if border != egui::Color32::TRANSPARENT {
                         ui.painter().rect_stroke(
@@ -1868,7 +1895,17 @@ impl MdRender {
     /// the offset's position within the range (midpoint rule). For
     /// non-atomic, sum cluster advances from `source_range.start`.
     pub fn fragment_x(&self, fragment: &Fragment, offset: Grapheme) -> f32 {
+        let chip_scope = fragment
+            .style_stack
+            .last()
+            .filter(|s| s.chip)
+            .map(|s| s.source_range);
         if fragment.atomic {
+            // The caret beside a chip atom sits beside the capsule: back
+            // out the side pad between this fragment's glyph rect and the
+            // capsule edge (pads span the row, so height ≈ row height).
+            let pad =
+                if chip_scope.is_some() { fragment.rect.height() * CHIP_SIDE_PAD } else { 0.0 };
             // Absolute midpoint offset of the range; offsets in the first
             // half snap to the left edge, the rest to the right edge.
             let mid = fragment.source_range.start().0
@@ -1879,11 +1916,26 @@ impl MdRender {
                     .saturating_sub(fragment.source_range.start().0))
                     / 2;
             if offset.0 < mid {
-                fragment.rect.min.x + fragment.content_inset.left
+                fragment.rect.min.x + fragment.content_inset.left - pad
             } else {
-                fragment.rect.max.x - fragment.content_inset.right
+                fragment.rect.max.x - fragment.content_inset.right + pad
             }
         } else {
+            // A chip's scope pads are the capsule's side padding; the
+            // caret at their source position renders at the capsule's
+            // outer edge — left edge for the leading pad, right for the
+            // trailing.
+            if let Some(scope) = chip_scope {
+                if fragment.source_range.is_empty()
+                    && matches!(fragment.content, FragmentContent::Spacer)
+                {
+                    return if fragment.source_range.start() == scope.start() {
+                        fragment.rect.min.x
+                    } else {
+                        fragment.rect.max.x
+                    };
+                }
+            }
             let into = offset.0.saturating_sub(fragment.source_range.start().0);
             if let FragmentContent::Glyphs { cluster_advances, .. } = &fragment.content {
                 if !cluster_advances.is_empty() {

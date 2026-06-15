@@ -49,6 +49,38 @@ pub struct Bounds {
     /// * Inline paragraphs can be empty.
     /// * Inline paragraphs cannot touch.
     pub inline_paragraphs: Paragraphs,
+
+    /// One entry per actively folded section, sorted by tag position.
+    /// * Documents may have no folds.
+    /// * Fold contents can nest (an inner fold within an outer section).
+    pub folds: Vec<FoldBounds>,
+}
+
+/// Tag + hidden-contents ranges of one actively folded section. Both act
+/// as atoms: the cursor never rests strictly inside the tag, navigation
+/// steps past the contents (a cursor right of the `···` chip has cursored
+/// *past* the section), and edits against either resolve whole-fold
+/// (engulf the tag / unfold) rather than touching hidden text.
+#[derive(Clone, Copy, Debug)]
+pub struct FoldBounds {
+    /// The fold tag's range. Never empty.
+    pub tag: (Grapheme, Grapheme),
+    /// The hidden contents: `(start, end]` is invisible while folded.
+    pub contents: (Grapheme, Grapheme),
+}
+
+impl FoldBounds {
+    /// True if `offset` is strictly inside the tag — a cursor position
+    /// that would split the tag's source text.
+    pub fn tag_interior(&self, offset: Grapheme) -> bool {
+        self.tag.start() < offset && offset < self.tag.end()
+    }
+
+    /// True if a cursor at `offset` would sit in the hidden contents.
+    /// `contents.start()` itself is visible (right of the chip).
+    pub fn conceals(&self, offset: Grapheme) -> bool {
+        self.contents.start() < offset && offset <= self.contents.end()
+    }
 }
 
 impl Default for Bounds {
@@ -59,6 +91,7 @@ impl Default for Bounds {
             words: Words::default(),
             wrap_lines: Lines::default(),
             inline_paragraphs: Paragraphs::default(),
+            folds: Vec::default(),
         }
     }
 }

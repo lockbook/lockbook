@@ -267,28 +267,25 @@ impl<'ast> MdRender {
     pub fn item_contents(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         // contents start at the end of the first child, which acts as a sort of section title
         // if no children, start at end of node first line
-        let mut contents = if let Some(first_child) = node.children().next() {
+        let mut contents: (Grapheme, Grapheme) = if let Some(first_child) = node.children().next() {
             self.node_range(first_child).end().into_range()
         } else {
             self.node_first_line(node).end().into_range()
         };
 
-        if let Some(sibling) = node.next_sibling() {
-            let sibling_first_line = self.node_first_line_idx(sibling);
-            let last_line = sibling_first_line - 1;
-            contents.1 = self.bounds.source_lines[last_line].end();
-        } else {
-            // absent a next sibling, we contain the remaining content of the
-            // parent
-            contents.1 = self.node_range(node.parent().unwrap()).end();
+        // Contents end at the last child's last line — the end of the
+        // hidden subtree. Blank lines past that render as visible
+        // spacing rows.
+        if let Some(last_child) = node.children().last() {
+            contents.1 = contents.1.max(self.node_last_line(last_child).end());
         }
 
         contents
     }
 
-    /// Returns true if the item contents should be revealed whether the heading is folded or not
+    /// Returns true if the item contents should be revealed whether the item is folded or not
     pub fn item_fold_reveal(&self, node: &'ast AstNode<'ast>) -> bool {
-        self.range_contains_revealed(self.item_contents(node), false, true)
+        self.range_contains_fold_revealed(self.item_contents(node), false, true)
     }
 
     /// Returns true if the item is selected for folding; specialized adaptation of self.selected_block()

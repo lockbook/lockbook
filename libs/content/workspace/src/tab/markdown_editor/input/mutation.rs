@@ -34,10 +34,17 @@ impl<'ast> MdEdit {
         let mut response = buffer::Response::default();
         match event {
             Event::Select { region } => {
-                operations.push(Operation::Select(self.region_to_range(region)));
+                let range = self.region_to_range(region);
+                let range = self.renderer.snap_selection_out_of_fold_tags(range);
+                operations.push(Operation::Select(range));
             }
             Event::Replace { region, text, advance_cursor } => {
-                let range = self.region_to_range(region);
+                let mut range = self.region_to_range(region);
+                if matches!(region, Region::Selection) {
+                    // selecting a fold chip is just selecting a fold tag, but
+                    // replacing it should delete folded content
+                    range = self.renderer.grow_range_over_fold_contents(range);
+                }
                 operations.push(Operation::Replace(Replace { range, text }));
                 if advance_cursor {
                     operations.push(Operation::Select(range.start().to_range()));
@@ -54,6 +61,13 @@ impl<'ast> MdEdit {
                 response.open_camera = true;
             }
             Event::Newline { shift } => {
+                // Enter after a `···` fold chip creates the new heading / list
+                // item after the hidden contents
+                let handled = !shift && self.newline_at_fold(root, operations);
+                if handled {
+                    return response;
+                }
+
                 // insert/extend/terminate container blocks
                 let mut handled = || {
                     // selection must be empty
@@ -146,6 +160,14 @@ impl<'ast> MdEdit {
                 operations.push(Operation::Select(current_selection.start().to_range()));
             }
             Event::Delete { region } => {
+                // Deleting against a folded region unfolds it rather than
+                // editing hidden text; delete_at_fold pushes its own ops,
+                // cursor placement included.
+                let handled = self.delete_at_fold(region, operations);
+                if handled {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace
@@ -188,7 +210,15 @@ impl<'ast> MdEdit {
                 };
                 if !handled() {
                     // default -> delete region
-                    let range = self.region_to_range(region);
+                    let mut range = self.region_to_range(region);
+
+                    // selecting a fold chip is just selecting a fold tag, but
+                    // deleting it should delete folded content
+                    if !current_selection.is_empty() {
+                        range = self.renderer.grow_range_over_fold_contents(range);
+                    }
+
+                    let range = self.renderer.grow_delete_over_fold_tags(range);
                     operations.push(Operation::Replace(Replace { range, text: "".into() }));
                 }
 
@@ -385,6 +415,9 @@ impl<'ast> MdEdit {
                 } else {
                     self.clipboard_current_line()
                 };
+                // selecting a fold chip is just selecting a fold tag, but
+                // copying it should copy folded content
+                let range = self.renderer.grow_range_over_fold_contents(range);
 
                 ctx.copy_text(self.renderer.buffer[range].into());
                 operations.push(Operation::Replace(Replace { range, text: "".into() }));
@@ -395,6 +428,7 @@ impl<'ast> MdEdit {
                 } else {
                     self.clipboard_current_line()
                 };
+                let range = self.renderer.grow_range_over_fold_contents(range);
 
                 ctx.copy_text(self.renderer.buffer[range].into());
             }

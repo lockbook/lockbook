@@ -5,121 +5,209 @@ public enum SearchMode: String, CaseIterable, Identifiable, Hashable {
     case path = "Filename"
     case content = "Content"
     public var id: String { rawValue }
-    
+
     static var platformDefault: SearchMode {
         .path
     }
 }
 
-struct SearchContainerSubView<Content: View>: View {
+struct SearchTabView: View {
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var homeState: HomeState
-    
-    @Binding var isSearching: Bool
-    @ObservedObject var model: SearchContainerViewModel
-    let dismissSearch: () -> Void
-    
-    let content: Content
-    
-    private func openAndCloseFloatingSidebar(id: UUID, match: ContentSearcherMatch? = nil) {
+
+    @StateObject private var model: SearchViewModel
+    @FocusState private var fieldFocused: Bool
+
+    /// One-shot request (e.g. from a ⌘⇧F shortcut) to open in a specific mode; consumed on apply.
+    @Binding private var requestedMode: SearchMode?
+
+    init(filesModel: FilesViewModel, requestedMode: Binding<SearchMode?> = .constant(nil)) {
+        _model = StateObject(wrappedValue: SearchViewModel(filesModel: filesModel))
+        _requestedMode = requestedMode
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            searchField
+            modePicker
+            Divider()
+            results
+        }
+        .navigationTitle("Search")
+        #if os(iOS)
+            .navigationBarTitleDisplayMode(.inline)
+            .onKeyPress(.upArrow) { moveSelection(-1) }
+            .onKeyPress(.downArrow) { moveSelection(1) }
+        #endif
+        .onAppear {
+            model.refresh()
+            applyRequestedMode()
+            fieldFocused = true
+        }
+        .onChange(of: requestedMode) { _ in applyRequestedMode() }
+        .onChange(of: model.input) { _ in model.search() }
+        .onChange(of: model.mode) { _ in model.search() }
+    }
+
+    /// Apply and clear a pending mode request, focusing the field.
+    private func applyRequestedMode() {
+        guard let requestedMode else { return }
+        model.mode = requestedMode
+        fieldFocused = true
+        self.requestedMode = nil
+    }
+
+    private func open(_ id: UUID, match: ContentSearcherMatch? = nil) {
         model.open(id: id, workspaceInput: workspaceInput, match: match)
         if homeState.isSidebarFloating {
             homeState.sidebarState = .closed
         }
     }
-    
-    var body: some View {
-        Group {
-            if isSearching {
-                VStack(spacing: 0) {
-                    modePicker
-                    if model.isQuerying {
-                        querySpinner
-                    } else if model.mode == .content, let focused = model.focusedResult {
-                        FocusedSearchResultView(
-                            result: focused,
-                            systemImage: model.icon(for: focused.id, name: focused.filename),
-                            fetchSnippet: { match in
-                                model.snippet(id: focused.id, match: match)
-                            },
-                            onBack: { model.focusedResult = nil },
-                            onTapSnippet: { match in
-                                openAndCloseFloatingSidebar(id: focused.id, match: match)
-                            }
-                        )
-                    } else {
-                        switch model.mode {
-                        case .content:
-                            contentResultsList
-                        case .path:
-                            pathResultsList
-                        }
-                    }
+
+    #if os(iOS)
+        /// Arrow-key handler: only steals the key when a result list is showing.
+        private func moveSelection(_ delta: Int) -> KeyPress.Result {
+            guard model.focusedResult == nil, model.resultCount > 0 else {
+                return .ignored
+            }
+            model.moveSelection(delta)
+            return .handled
+        }
+    #endif
+
+    /// Open the keyboard-highlighted result (Return key / tap).
+    private func openSelected() {
+        switch model.mode {
+        case .content:
+            guard model.contentResults.indices.contains(model.selected) else { return }
+            let result = model.contentResults[model.selected]
+            open(result.id, match: result.matches.first)
+        case .path:
+            guard model.pathResults.indices.contains(model.selected) else { return }
+            open(model.pathResults[model.selected].id)
+        }
+    }
+
+    var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+            TextField("Search", text: $model.input)
+                .textFieldStyle(.plain)
+                .focused($fieldFocused)
+                .submitLabel(.search)
+                .onSubmit { openSelected() }
+                #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                #endif
+                .autocorrectionDisabled()
+            if !model.input.isEmpty {
+                Button(action: { model.input = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
                 }
-            } else {
-                content
+                .buttonStyle(.plain)
             }
         }
-        .onChange(of: isSearching) { newValue in
-            if newValue {
-                model.startSearching()
-            } else {
-                model.stopSearching()
-            }
-        }
-        .onChange(of: model.mode) { _ in
-            model.search()
-        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.15)))
+        .padding(.horizontal)
+        .padding(.vertical, 8)
     }
-    
-    var querySpinner: some View {
-        ProgressView()
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-    
+
     var modePicker: some View {
         Picker("", selection: $model.mode) {
-            ForEach(SearchMode.allCases) { m in
-                Text(m.rawValue).tag(m)
+            ForEach(SearchMode.allCases) { mode in
+                Text(mode.rawValue).tag(mode)
             }
         }
         .pickerStyle(.segmented)
-        .padding(.horizontal, 10)
-        .padding(.vertical, 6)
+        .padding(.horizontal)
+        .padding(.bottom, 6)
     }
-    
+
+    @ViewBuilder
+    var results: some View {
+        if model.isQuerying {
+            ProgressView()
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+        } else if model.mode == .content, let focused = model.focusedResult {
+            FocusedSearchResultView(
+                result: focused,
+                systemImage: model.icon(for: focused.id, name: focused.filename),
+                fetchSnippet: { match in model.snippet(id: focused.id, match: match) },
+                onBack: { model.focusedResult = nil },
+                onTapSnippet: { match in open(focused.id, match: match) }
+            )
+        } else {
+            switch model.mode {
+            case .content: contentResultsList
+            case .path: pathResultsList
+            }
+        }
+    }
+
     var contentResultsList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(model.contentResults) { result in
-                    SearchResultRow(
-                        result: result,
-                        systemImage: model.icon(for: result.id, name: result.filename),
-                        fetchSnippet: { match in model.snippet(id: result.id, match: match) },
-                        onTap: { openAndCloseFloatingSidebar(id: result.id, match: result.matches.first) },
-                        onShowMore: { model.focusedResult = result }
-                    )
-                    Divider()
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(model.contentResults.enumerated()), id: \.element.id) { index, result in
+                        SearchResultRow(
+                            result: result,
+                            systemImage: model.icon(for: result.id, name: result.filename),
+                            fetchSnippet: { match in model.snippet(id: result.id, match: match) },
+                            onTap: { open(result.id, match: result.matches.first) },
+                            onShowMore: { model.focusedResult = result }
+                        )
+                        .background(selectionBackground(index))
+                        .id(result.id)
+                        Divider()
+                    }
                 }
+            }
+            .onChange(of: model.selected) { sel in
+                scroll(proxy, to: model.contentResults[safe: sel]?.id)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
-    
+
     var pathResultsList: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 0) {
-                ForEach(model.pathResults) { result in
-                    PathSearcherRow(
-                        result: result,
-                        systemImage: model.icon(for: result.id, name: result.filename),
-                        onTap: { openAndCloseFloatingSidebar(id: result.id) }
-                    )
-                    Divider()
+        ScrollViewReader { proxy in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(model.pathResults.enumerated()), id: \.element.id) { index, result in
+                        PathSearcherRow(
+                            result: result,
+                            systemImage: model.icon(for: result.id, name: result.filename),
+                            onTap: { open(result.id) }
+                        )
+                        .background(selectionBackground(index))
+                        .id(result.id)
+                        Divider()
+                    }
                 }
+            }
+            .onChange(of: model.selected) { sel in
+                scroll(proxy, to: model.pathResults[safe: sel]?.id)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private func selectionBackground(_ index: Int) -> Color {
+        model.selected == index ? Color.accentColor.opacity(0.15) : Color.clear
+    }
+
+    private func scroll(_ proxy: ScrollViewProxy, to id: UUID?) {
+        guard let id else { return }
+        withAnimation { proxy.scrollTo(id, anchor: .center) }
+    }
+}
+
+private extension Array {
+    subscript(safe index: Int) -> Element? {
+        indices.contains(index) ? self[index] : nil
     }
 }
 
@@ -190,12 +278,12 @@ struct SearchResultRow: View {
     func snippetLine(for match: ContentSearcherMatch) -> some View {
         if let snippet = fetchSnippet(match) {
             (Text(snippet.prefix).foregroundColor(.secondary)
-             + Text(snippet.matched).bold().foregroundColor(.primary)
-             + Text(snippet.suffix).foregroundColor(.secondary))
-            .font(.caption)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(maxWidth: .infinity, alignment: .leading)
+                + Text(snippet.matched).bold().foregroundColor(.primary)
+                + Text(snippet.suffix).foregroundColor(.secondary))
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
         }
     }
 }
@@ -228,12 +316,12 @@ struct PathSearcherRow: View {
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
     }
-    
+
     private var parentOffset: Int {
         // leading "/" consumes index 0, so parent text starts at 1 for nested paths
         result.parentPath == "/" ? 0 : 1
     }
-    
+
     private var filenameOffset: Int {
         // root: "/" + filename → filename starts at 1
         // nested: "/" + parent + "/" + filename → starts at parent.count + 2
@@ -242,7 +330,7 @@ struct PathSearcherRow: View {
         }
         return result.parentPath.unicodeScalars.count + 2
     }
-    
+
     private func highlighted(_ s: String, offset: Int) -> Text {
         let indices = Set(result.matchedIndices.map { Int($0) })
         var out = Text("")
@@ -322,61 +410,52 @@ struct FocusedSearchResultView: View {
     func snippetRow(for match: ContentSearcherMatch) -> some View {
         if let snippet = fetchSnippet(match) {
             (Text(snippet.prefix).foregroundColor(.secondary)
-             + Text(snippet.matched).bold().foregroundColor(.primary)
-             + Text(snippet.suffix).foregroundColor(.secondary))
-            .font(.caption)
-            .lineLimit(1)
-            .truncationMode(.tail)
-            .frame(maxWidth: .infinity, alignment: .leading)
-            .padding(.horizontal, 10)
-            .padding(.vertical, 8)
-            .background(
-                RoundedRectangle(cornerRadius: 8)
-                    .fill(Color.gray.opacity(0.15))
-            )
-            .contentShape(Rectangle())
+                + Text(snippet.matched).bold().foregroundColor(.primary)
+                + Text(snippet.suffix).foregroundColor(.secondary))
+                .font(.caption)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 8)
+                .background(
+                    RoundedRectangle(cornerRadius: 8)
+                        .fill(Color.gray.opacity(0.15))
+                )
+                .contentShape(Rectangle())
         }
     }
 }
 
-class SearchContainerViewModel: ObservableObject {
+class SearchViewModel: ObservableObject {
     @Published var input: String = ""
-    @Published var isShown: Bool = false
     @Published var mode: SearchMode = .platformDefault
     @Published var contentResults: [ContentSearcherResult] = []
     @Published var pathResults: [PathSearcherResult] = []
     @Published var focusedResult: ContentSearcherResult? = nil
     @Published var isQuerying: Bool = false
-    
+    /// Index of the keyboard-highlighted row within the current mode's result list.
+    @Published var selected: Int = 0
+
     let filesModel: FilesViewModel
-    
+
     private var contentSearcher: ContentSearching?
     private var pathSearcher: PathSearching?
-    
+
     private let searchQueue = DispatchQueue(label: "lockbook.search")
     private var querySeq: UInt64 = 0
-    
+
     init(filesModel: FilesViewModel) {
         self.filesModel = filesModel
     }
 
-    func startSearching() {
-        guard contentSearcher == nil else { return }
+    /// Rebuild the indexes (picking up new/edited files) and re-run the current query.
+    func refresh() {
         contentSearcher = AppState.lb.contentSearcher()
         pathSearcher = AppState.lb.pathSearcher()
         search()
     }
 
-    func stopSearching() {
-        querySeq &+= 1
-        contentSearcher = nil
-        pathSearcher = nil
-        contentResults = []
-        pathResults = []
-        focusedResult = nil
-        isQuerying = false
-    }
-    
     func search() {
         querySeq &+= 1
         let seq = querySeq
@@ -384,9 +463,7 @@ class SearchContainerViewModel: ObservableObject {
         let input = input
         let contentSearcher = contentSearcher
         let pathSearcher = pathSearcher
-        
-        guard contentSearcher != nil || pathSearcher != nil else { return }
-        
+
         focusedResult = nil
         isQuerying = true
 
@@ -400,15 +477,28 @@ class SearchContainerViewModel: ObservableObject {
 
             DispatchQueue.main.async {
                 guard let self, self.querySeq == seq else { return }
-                switch mode {
-                case .content: self.contentResults = content
-                case .path: self.pathResults = path
-                }
+                self.contentResults = content
+                self.pathResults = path
+                self.selected = 0
                 self.isQuerying = false
             }
         }
     }
-    
+
+    /// Number of rows in the list currently shown (depends on the active mode).
+    var resultCount: Int {
+        mode == .content ? contentResults.count : pathResults.count
+    }
+
+    /// Move the keyboard highlight, clamped to the result list.
+    func moveSelection(_ delta: Int) {
+        guard resultCount > 0 else {
+            selected = 0
+            return
+        }
+        selected = min(max(0, selected + delta), resultCount - 1)
+    }
+
     func snippet(id: UUID, match: ContentSearcherMatch) -> SearcherSnippet? {
         guard let contentSearcher else { return nil }
         return searchQueue.sync { contentSearcher.snippet(id: id, match: match, contextChars: 40) }
@@ -420,7 +510,7 @@ class SearchContainerViewModel: ObservableObject {
         }
         return FileIconHelper.docNameToSystemImageName(name: name)
     }
-    
+
     func open(id: UUID, workspaceInput: WorkspaceInputState, match: ContentSearcherMatch? = nil) {
         guard let file = filesModel.idsToFiles[id] else { return }
         if file.type == .folder {
