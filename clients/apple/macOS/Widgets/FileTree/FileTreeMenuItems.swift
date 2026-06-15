@@ -94,6 +94,30 @@ class RenameFileMenuItem: NSMenuItem {
     }
 }
 
+class PinFileMenuItem: NSMenuItem {
+    @ObservedObject var filesModel: FilesViewModel
+
+    let file: File
+
+    init(filesModel: FilesViewModel, file: File) {
+        self.filesModel = filesModel
+        self.file = file
+
+        let title = filesModel.isPinned(id: file.id) ? "Unpin" : "Pin"
+        super.init(title: title, action: #selector(toggle(_:)), keyEquivalent: "")
+        target = self
+    }
+
+    @available(*, unavailable)
+    required init(coder _: NSCoder) {
+        fatalError("init(coder:) has not been implemented")
+    }
+
+    @objc func toggle(_: AnyObject) {
+        filesModel.togglePin(id: file.id)
+    }
+}
+
 class DeleteMenuItem: NSMenuItem {
     @ObservedObject var filesModel: FilesViewModel
 

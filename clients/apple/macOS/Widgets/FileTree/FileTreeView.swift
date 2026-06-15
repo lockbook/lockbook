@@ -482,6 +482,11 @@ class FileTreeDelegate: NSObject, MenuOutlineViewDelegate {
                 )
             menu.addItem(ShareMenuItem(homeState: homeState, file: parent))
             menu.addItem(ShareExternallyMenu(homeState: homeState, file: parent, fileTree: outlineView))
+
+            if parent.type == .document {
+                menu.addItem(PinFileMenuItem(filesModel: filesModel, file: parent))
+            }
+
             menu.addItem(DeleteMenuItem(filesModel: filesModel, files: [parent]))
         }
 

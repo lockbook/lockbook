@@ -205,21 +205,23 @@ struct FilesHomeView: View {
                         alignment: .leading,
                         pinnedViews: [.sectionHeaders]
                     ) {
-                        CollapsableSection(
-                            id: "Suggested_Docs",
-                            label: {
-                                Text("Suggested")
-                                    .bold()
-                                    .foregroundColor(.primary)
-                                    .textCase(.none)
-                                    .font(.headline)
-                                    .padding(.bottom, 10)
-                                    .padding(.top, 8)
-                            },
-                            content: {
-                                SuggestedDocsView(filesModel: filesModel)
-                            }
-                        )
+                        if !filesModel.pinnedIds.isEmpty {
+                            CollapsableSection(
+                                id: "Pinned_Docs",
+                                label: {
+                                    Text("Pinned")
+                                        .bold()
+                                        .foregroundColor(.primary)
+                                        .textCase(.none)
+                                        .font(.headline)
+                                        .padding(.bottom, 10)
+                                        .padding(.top, 8)
+                                },
+                                content: {
+                                    PinnedDocsView(filesModel: filesModel)
+                                }
+                            )
+                        }
 
                         Section(
                             header: Text("Files")
