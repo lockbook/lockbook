@@ -38,6 +38,7 @@ struct SearchTabView: View {
             .navigationBarTitleDisplayMode(.inline)
             .onKeyPress(.upArrow) { moveSelection(-1) }
             .onKeyPress(.downArrow) { moveSelection(1) }
+            .onKeyPress(.return) { openSelectedViaKey() }
         #endif
         .onAppear {
             model.refresh()
@@ -73,6 +74,14 @@ struct SearchTabView: View {
             model.moveSelection(delta)
             return .handled
         }
+
+        private func openSelectedViaKey() -> KeyPress.Result {
+            guard model.focusedResult == nil, model.resultCount > 0 else {
+                return .ignored
+            }
+            openSelected()
+            return .handled
+        }
     #endif
 
     /// Open the keyboard-highlighted result (Return key / tap).
@@ -96,7 +105,7 @@ struct SearchTabView: View {
                 .textFieldStyle(.plain)
                 .focused($fieldFocused)
                 .submitLabel(.search)
-                .onSubmit { openSelected() }
+                .onSubmit { fieldFocused = false }
                 #if os(iOS)
                     .textInputAutocapitalization(.never)
                 #endif
@@ -156,7 +165,10 @@ struct SearchTabView: View {
                             result: result,
                             systemImage: model.icon(for: result.id, name: result.filename),
                             fetchSnippet: { match in model.snippet(id: result.id, match: match) },
-                            onTap: { open(result.id, match: result.matches.first) },
+                            onTap: {
+                                model.selected = index
+                                open(result.id, match: result.matches.first)
+                            },
                             onShowMore: { model.focusedResult = result }
                         )
                         .background(selectionBackground(index))
@@ -180,7 +192,10 @@ struct SearchTabView: View {
                         PathSearcherRow(
                             result: result,
                             systemImage: model.icon(for: result.id, name: result.filename),
-                            onTap: { open(result.id) }
+                            onTap: {
+                                model.selected = index
+                                open(result.id)
+                            }
                         )
                         .background(selectionBackground(index))
                         .id(result.id)
@@ -237,34 +252,36 @@ struct SearchResultRow: View {
                 .padding(.top, 1)
 
             VStack(alignment: .leading, spacing: 4) {
-                Text(result.filename)
+                highlightedPath(result.filename, byteBase: filenameByteBase)
                     .font(.body)
                     .fontWeight(.medium)
-                Text(result.parentPath)
+                highlightedPath(result.parentPath, byteBase: parentByteBase)
                     .font(.caption)
                     .foregroundColor(.secondary)
 
-                VStack(alignment: .leading, spacing: 4) {
-                    ForEach(Array(visibleMatches.enumerated()), id: \.offset) { _, match in
-                        snippetLine(for: match)
-                    }
-                    if hiddenCount > 0 {
-                        Button(action: onShowMore) {
-                            Text("Show \(hiddenCount) more")
-                                .font(.caption)
-                                .foregroundColor(.accentColor)
+                if !result.matches.isEmpty {
+                    VStack(alignment: .leading, spacing: 4) {
+                        ForEach(Array(visibleMatches.enumerated()), id: \.offset) { _, match in
+                            snippetLine(for: match)
                         }
-                        .buttonStyle(.plain)
+                        if hiddenCount > 0 {
+                            Button(action: onShowMore) {
+                                Text("Show \(hiddenCount) more")
+                                    .font(.caption)
+                                    .foregroundColor(.accentColor)
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 7)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background(
+                        RoundedRectangle(cornerRadius: 8)
+                            .fill(Color.gray.opacity(0.15))
+                    )
+                    .padding(.top, 2)
                 }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 7)
-                .frame(maxWidth: .infinity, alignment: .leading)
-                .background(
-                    RoundedRectangle(cornerRadius: 8)
-                        .fill(Color.gray.opacity(0.15))
-                )
-                .padding(.top, 2)
             }
         }
         .frame(maxWidth: .infinity, alignment: .leading)
@@ -272,6 +289,30 @@ struct SearchResultRow: View {
         .padding(.vertical, 8)
         .contentShape(Rectangle())
         .onTapGesture { onTap() }
+    }
+
+    private var parentByteBase: Int {
+        result.parentPath == "/" ? 0 : 1
+    }
+
+    private var filenameByteBase: Int {
+        if result.parentPath.isEmpty || result.parentPath == "/" {
+            return 1
+        }
+        return result.parentPath.utf8.count + 2
+    }
+
+    private func highlightedPath(_ s: String, byteBase: Int) -> Text {
+        var out = Text("")
+        var byte = byteBase
+        for scalar in s.unicodeScalars {
+            let len = String(scalar).utf8.count
+            let matched = result.pathMatches.contains { $0.rangeStart < byte + len && byte < $0.rangeEnd }
+            let part = Text(String(scalar))
+            out = out + (matched ? part.underline() : part)
+            byte += len
+        }
+        return out
     }
 
     @ViewBuilder
