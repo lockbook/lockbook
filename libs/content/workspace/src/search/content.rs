@@ -3,7 +3,7 @@ use std::ops::Range;
 use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::search::{ContentSearcher, SearchResult};
+use lb_rs::search::{ContentMatch, ContentSearcher, SearchResult};
 
 use crate::{
     search::{SearchExecutor, SearchType},
@@ -44,11 +44,11 @@ impl ContentSearch {
 }
 
 const CHILD_ROW_HEIGHT: f32 = 20.0;
-/// Unit slot size for show_rows virtualization. Headers take 2 slots, children/expand take 1.
-const ROW_SLOT_HEIGHT: f32 = CHILD_ROW_HEIGHT;
+const HEADER_ROW_HEIGHT: f32 = 16.0 * 1.3 + 13.0 * 1.3 + 6.0;
 const MAX_CHILDREN: usize = 4;
 
 /// What a flat index points to.
+#[derive(Debug)]
 enum FlatEntry {
     Header {
         match_idx: usize,
@@ -233,37 +233,42 @@ impl SearchExecutor for ContentSearch {
             };
         }
 
+        let entry_height = |e: &FlatEntry| {
+            if matches!(e, FlatEntry::Header { .. }) { HEADER_ROW_HEIGHT } else { CHILD_ROW_HEIGHT }
+        };
+        let total_height: f32 = flat.iter().map(&entry_height).sum();
+
         egui::ScrollArea::vertical()
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
-            .show_rows(
-                ui,
-                ROW_SLOT_HEIGHT,
-                {
-                    // Header = 2 slots, child/expand = 1 slot.
-                    flat.iter()
-                        .map(|e| if matches!(e, FlatEntry::Header { .. }) { 2 } else { 1 })
-                        .sum()
-                },
-                |ui, range| {
+            .show_viewport(ui, |ui, viewport| {
+                ui.set_height(total_height);
+
+                let mut offset = 0.0;
+                let mut first_fi = flat.len();
+                for (fi, e) in flat.iter().enumerate() {
+                    let h = entry_height(e);
+                    if offset + h > viewport.min.y {
+                        first_fi = fi;
+                        break;
+                    }
+                    offset += h;
+                }
+                let start_offset = offset;
+
+                let block = egui::Rect::from_min_max(
+                    egui::pos2(ui.max_rect().left(), ui.max_rect().top() + start_offset),
+                    egui::pos2(ui.max_rect().right(), ui.max_rect().top() + total_height),
+                );
+
+                ui.scope_builder(egui::UiBuilder::new().max_rect(block), |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;
 
-                    // Map the slot range back to flat-entry indices.
-                    let mut slot_cursor = 0usize;
-                    let mut first_fi = flat.len();
-                    for (fi, e) in flat.iter().enumerate() {
-                        if slot_cursor >= range.start {
-                            first_fi = fi;
-                            break;
-                        }
-                        slot_cursor += if matches!(e, FlatEntry::Header { .. }) { 2 } else { 1 };
-                    }
-
+                    let mut offset = start_offset;
                     for (fi, entry) in flat.iter().enumerate().skip(first_fi) {
-                        if slot_cursor >= range.end {
+                        if offset > viewport.max.y {
                             break;
                         }
-                        slot_cursor +=
-                            if matches!(entry, FlatEntry::Header { .. }) { 2 } else { 1 };
+                        offset += entry_height(entry);
                         let Some(r) = results.get(entry.match_idx()) else {
                             continue;
                         };
@@ -317,15 +322,12 @@ impl SearchExecutor for ContentSearch {
                         }
                     }
 
-                    // Paint the group frame after all rows have been laid out so it
-                    // spans the header + children + expand row.
                     if let Some(rect) = selected_group_rect {
                         let theme = ui.ctx().get_lb_theme();
                         let stroke = egui::Stroke::new(
                             1.0,
                             theme.neutral_fg_secondary().linear_multiply(0.3),
                         );
-                        // Inset the right edge so it doesn't overlap the scrollbar.
                         let rect = egui::Rect::from_min_max(
                             rect.min,
                             egui::pos2(rect.max.x - 20.0, rect.max.y),
@@ -337,8 +339,8 @@ impl SearchExecutor for ContentSearch {
                             egui::StrokeKind::Middle,
                         );
                     }
-                },
-            );
+                });
+            });
 
         // Handle focused header click (exit focus mode).
         if focused_header_clicked {
@@ -439,6 +441,30 @@ impl ContentSearch {
         }
     }
 
+    fn filename_base(result: &SearchResult) -> usize {
+        if result.parent_path == "/" { 1 } else { result.parent_path.len() + 1 }
+    }
+
+    fn highlighted_path_line(
+        ui: &mut Ui, text: &str, base: usize, matches: &[ContentMatch], color: egui::Color32,
+        size: f32,
+    ) {
+        let mut spans: Vec<(String, bool)> = Vec::new();
+        for (b, c) in text.char_indices() {
+            let bold = matches.iter().any(|m| m.range.contains(&(base + b)));
+            match spans.last_mut() {
+                Some((s, prev)) if *prev == bold => s.push(c),
+                _ => spans.push((c.to_string(), bold)),
+            }
+        }
+        let span_refs: Vec<(&str, bool)> = spans.iter().map(|(s, b)| (s.as_str(), *b)).collect();
+        ui.add(
+            GlyphonLabel::new_rich(span_refs, color)
+                .font_size(size)
+                .max_width(ui.available_width()),
+        );
+    }
+
     fn show_header_row(
         &self, ui: &mut Ui, result: &SearchResult, ordinal: usize,
     ) -> egui::Response {
@@ -520,15 +546,21 @@ impl ContentSearch {
 
                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                         ui.spacing_mut().item_spacing.y = 0.0;
-                        ui.add(
-                            GlyphonLabel::new(&result.filename, name_color)
-                                .font_size(16.0)
-                                .max_width(ui.available_width()),
+                        Self::highlighted_path_line(
+                            ui,
+                            &result.filename,
+                            Self::filename_base(result),
+                            &result.path_matches,
+                            name_color,
+                            16.0,
                         );
-                        ui.add(
-                            GlyphonLabel::new(&result.parent_path, parent_color)
-                                .font_size(13.0)
-                                .max_width(ui.available_width()),
+                        Self::highlighted_path_line(
+                            ui,
+                            &result.parent_path,
+                            0,
+                            &result.path_matches,
+                            parent_color,
+                            13.0,
                         );
                     });
                 });

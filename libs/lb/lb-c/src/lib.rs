@@ -805,6 +805,8 @@ pub struct LbContentSearcherResult {
     parent_path: *mut c_char,
     matches: *mut LbContentSearcherMatch,
     matches_len: usize,
+    path_matches: *mut LbContentSearcherMatch,
+    path_matches_len: usize,
 }
 
 #[repr(C)]
@@ -845,23 +847,30 @@ pub extern "C" fn lb_content_searcher_query(
         .results()
         .iter()
         .map(|r| {
-            let matches: Vec<LbContentSearcherMatch> = r
-                .content_matches
-                .iter()
-                .map(|m| LbContentSearcherMatch {
-                    range_start: m.range.start,
-                    range_end: m.range.end,
-                    exact: m.exact,
-                })
-                .collect();
+            let to_ffi = |m: &lb_rs::search::ContentMatch| LbContentSearcherMatch {
+                range_start: m.range.start,
+                range_end: m.range.end,
+                exact: m.exact,
+            };
+
+            let matches: Vec<LbContentSearcherMatch> =
+                r.content_matches.iter().map(to_ffi).collect();
             let (matches, matches_len) =
                 if matches.is_empty() { (null_mut(), 0) } else { carray(matches) };
+
+            let path_matches: Vec<LbContentSearcherMatch> =
+                r.path_matches.iter().map(to_ffi).collect();
+            let (path_matches, path_matches_len) =
+                if path_matches.is_empty() { (null_mut(), 0) } else { carray(path_matches) };
+
             LbContentSearcherResult {
                 id: r.id.into(),
                 filename: cstring(r.filename.as_str()),
                 parent_path: cstring(r.parent_path.as_str()),
                 matches,
                 matches_len,
+                path_matches,
+                path_matches_len,
             }
         })
         .collect();

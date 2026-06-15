@@ -15,6 +15,7 @@ pub struct SearchResult {
     pub parent_path: String,
     /// Character indices in the full path that matched (for path search highlighting).
     pub path_indices: Vec<u32>,
+    pub path_matches: Vec<ContentMatch>,
     /// Content matches within the document.
     pub content_matches: Vec<ContentMatch>,
 }
