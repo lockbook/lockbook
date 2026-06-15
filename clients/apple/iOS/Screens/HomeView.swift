@@ -146,7 +146,7 @@ struct HomeView: View {
     }
 
     var filesHome: some View {
-        FilesHomeView()
+        FilesHomeView(filesModel: filesModel)
             .overlay(
                 alignment: .bottom,
                 content: {
@@ -197,6 +197,12 @@ struct FilesHomeView: View {
     @EnvironmentObject var workspaceInput: WorkspaceInputState
     @EnvironmentObject var workspaceOutput: WorkspaceOutputState
 
+    @StateObject var pinnedModel: PinnedDocsViewModel
+
+    init(filesModel: FilesViewModel) {
+        _pinnedModel = StateObject(wrappedValue: PinnedDocsViewModel(filesModel: filesModel))
+    }
+
     var body: some View {
         Group {
             if let root = filesModel.root {
@@ -205,21 +211,23 @@ struct FilesHomeView: View {
                         alignment: .leading,
                         pinnedViews: [.sectionHeaders]
                     ) {
-                        CollapsableSection(
-                            id: "Suggested_Docs",
-                            label: {
-                                Text("Suggested")
-                                    .bold()
-                                    .foregroundColor(.primary)
-                                    .textCase(.none)
-                                    .font(.headline)
-                                    .padding(.bottom, 10)
-                                    .padding(.top, 8)
-                            },
-                            content: {
-                                SuggestedDocsView(filesModel: filesModel)
-                            }
-                        )
+                        if let pinnedDocs = pinnedModel.pinnedDocs, !pinnedDocs.isEmpty {
+                            CollapsableSection(
+                                id: "Pinned_Docs",
+                                label: {
+                                    Text("Pinned")
+                                        .bold()
+                                        .foregroundColor(.primary)
+                                        .textCase(.none)
+                                        .font(.headline)
+                                        .padding(.bottom, 10)
+                                        .padding(.top, 8)
+                                },
+                                content: {
+                                    PinnedDocsView(model: pinnedModel)
+                                }
+                            )
+                        }
 
                         Section(
                             header: Text("Files")

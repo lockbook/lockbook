@@ -10,7 +10,7 @@ extension View {
             .environmentObject(PathSearchViewModel.preview)
             .environmentObject(SelectFolderViewModel.preview)
             .environmentObject(SettingsViewModel.preview)
-            .environmentObject(SuggestedDocsViewModel.preview)
+            .environmentObject(PinnedDocsViewModel.preview)
             .environmentObject(WorkspaceInputState.preview)
             .environmentObject(WorkspaceOutputState.preview)
             .withPlatformSpecificPreviewEnvironment()

@@ -104,6 +104,16 @@ struct FileRowContextMenu: View {
                     }) {
                         Label("Copy file link", systemImage: "link")
                     }
+
+                    Button(action: {
+                        filesModel.togglePin(id: file.id)
+                    }) {
+                        if filesModel.isPinned(id: file.id) {
+                            Label("Unpin", systemImage: "pin.slash")
+                        } else {
+                            Label("Pin", systemImage: "pin")
+                        }
+                    }
                 }
 
                 Divider()
