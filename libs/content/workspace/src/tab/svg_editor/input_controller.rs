@@ -44,18 +44,26 @@ impl InputControllerConfig {
     }
 }
 
-// Multipliers for converting `MouseWheelUnit::Line`/`::Page` deltas into points.
-// Sampled per frame from egui — without this, Windows precision trackpads (which
-// report scroll in line units, unlike macOS/iPad) pan the canvas at ~1/40th speed.
+// Per-frame snapshot of egui's scroll/zoom calibration. Used to convert raw
+// `MouseWheelUnit::Line`/`::Page` deltas to points (Windows precision trackpads
+// scroll in line units, unlike macOS/iPad) and to translate ctrl+wheel pinch on
+// Windows into the same zoom factor egui would compute internally.
 #[derive(Clone, Copy, Debug)]
 struct ScrollUnits {
     points_per_line: f32,
     points_per_page: f32,
+    zoom_modifier: egui::Modifiers,
+    scroll_zoom_speed: f32,
 }
 
 impl Default for ScrollUnits {
     fn default() -> Self {
-        Self { points_per_line: 40.0, points_per_page: 800.0 }
+        Self {
+            points_per_line: 40.0,
+            points_per_page: 800.0,
+            zoom_modifier: egui::Modifiers::COMMAND,
+            scroll_zoom_speed: 1.0 / 200.0,
+        }
     }
 }
 
@@ -212,10 +220,13 @@ impl InputController {
     pub fn process(
         &mut self, ui: &mut egui::Ui, layout: &LayoutContext,
     ) -> Vec<InputControllerEvent> {
-        let scroll_units = ScrollUnits {
-            points_per_line: ui.ctx().options(|o| o.input_options.line_scroll_speed),
-            points_per_page: ui.input(|r| r.screen_rect().height()),
-        };
+        let points_per_page = ui.input(|r| r.screen_rect().height());
+        let scroll_units = ui.ctx().options(|o| ScrollUnits {
+            points_per_line: o.input_options.line_scroll_speed,
+            points_per_page,
+            zoom_modifier: o.input_options.zoom_modifier,
+            scroll_zoom_speed: o.input_options.scroll_zoom_speed,
+        });
         let mut controller_events =
             ui.input(|r| self.process_events(r.events.iter(), layout, scroll_units));
         let extended_controller_events =
@@ -299,7 +310,7 @@ impl InputController {
         }
     }
 
-    pub fn process_events(
+    fn process_events(
         &mut self, events: Iter<egui::Event>, layout: &LayoutContext, scroll_units: ScrollUnits,
     ) -> Vec<InputControllerEvent> {
         self.is_touch_frame = false;
@@ -409,7 +420,7 @@ impl InputController {
                 None
             }
             egui::Event::PointerGone => None,
-            egui::Event::MouseWheel { unit, delta, modifiers: _ } => {
+            egui::Event::MouseWheel { unit, delta, modifiers } => {
                 if self.tool_running.is_some() {
                     return None;
                 }
@@ -423,6 +434,11 @@ impl InputController {
                     egui::MouseWheelUnit::Page => scroll_units.points_per_page * delta,
                 };
                 self.viewport_changing = Some(Instant::now());
+                // Mirror egui's own formula in `zoom_delta()`
+                if modifiers.matches_any(scroll_units.zoom_modifier) {
+                    let factor = (scroll_units.scroll_zoom_speed * (delta.x + delta.y)).exp();
+                    return Some(ViewportChange::new(self, &egui::Event::Zoom(factor), false));
+                }
                 Some(InputControllerEvent::ViewportChange(
                     Transform::identity().post_translate(delta.x, delta.y),
                 ))
