@@ -404,6 +404,15 @@ impl Workspace {
             .unwrap_or(false)
     }
 
+    pub(crate) fn is_folder(&self, id: Uuid) -> bool {
+        self.files
+            .read()
+            .unwrap()
+            .get_by_id(id)
+            .map(|f| f.is_folder())
+            .unwrap_or(false)
+    }
+
     pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
         let dest = Destination::File(id);
 

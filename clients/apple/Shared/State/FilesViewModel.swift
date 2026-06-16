@@ -18,6 +18,8 @@ class FilesViewModel: ObservableObject {
 
     @Published var pendingSharesByUsername: [String: [File]]? = nil
 
+    @Published var pinnedIds: [UUID] = []
+
     @Published var selectedFilesState: SelectedFilesState = .unselected
     @Published var deleteFileConfirmation: [File]? = nil
 
@@ -336,8 +338,40 @@ class FilesViewModel: ObservableObject {
                 }
             }
 
+            let pinnedRes = AppState.lb.listPinned()
+
             DispatchQueue.main.async {
+                if case let .success(ids) = pinnedRes {
+                    self.pinnedIds = ids
+                }
+
                 self.recomputeStatusDots(status: AppState.lb.events.status)
+            }
+        }
+    }
+
+    func isPinned(id: UUID) -> Bool {
+        pinnedIds.contains(id)
+    }
+
+    func togglePin(id: UUID) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            let res = self.isPinned(id: id)
+                ? AppState.lb.unpinFile(id: id)
+                : AppState.lb.pinFile(id: id)
+
+            switch res {
+            case .success:
+                let pinnedRes = AppState.lb.listPinned()
+                DispatchQueue.main.async {
+                    if case let .success(ids) = pinnedRes {
+                        self.pinnedIds = ids
+                    }
+                }
+            case let .failure(err):
+                DispatchQueue.main.async {
+                    AppState.shared.error = .lb(error: err)
+                }
             }
         }
     }

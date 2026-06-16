@@ -88,20 +88,22 @@ struct FilesHomeView: View {
     var body: some View {
         if let _ = filesModel.root {
             Form {
-                CollapsableSection(
-                    id: "Suggested_Docs",
-                    label: {
-                        Label(
-                            "Suggested Documents",
-                            systemImage: "books.vertical.fill"
-                        )
-                        .bold()
-                        .font(.callout)
-                    },
-                    content: {
-                        SuggestedDocsView(filesModel: filesModel)
-                    }
-                )
+                if !filesModel.pinnedIds.isEmpty {
+                    CollapsableSection(
+                        id: "Pinned_Docs",
+                        label: {
+                            Label(
+                                "Pinned Documents",
+                                systemImage: "pin.fill"
+                            )
+                            .bold()
+                            .font(.callout)
+                        },
+                        content: {
+                            PinnedDocsView(filesModel: filesModel)
+                        }
+                    )
+                }
 
                 Section(
                     header:

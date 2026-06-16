@@ -256,7 +256,9 @@ impl Workspace {
             ui.add_space(6.0);
 
             if let Some((id, in_new_tab)) = self.results_and_preview(ui, &executor, search_type) {
-                if in_new_tab {
+                if self.is_folder(id) {
+                    self.out.selected_file = Some(id);
+                } else if in_new_tab {
                     self.open_file(id, false, true);
                 } else {
                     self.open_file_replacing_search(id);
