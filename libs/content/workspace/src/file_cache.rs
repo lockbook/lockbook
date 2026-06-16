@@ -198,6 +198,38 @@ impl FileCache {
                     .unwrap_or("")
             })
     }
+
+    pub fn insert_created_file(&mut self, file: File) {
+        let parent_is_shared = self.shared.contains_key(&file.parent);
+        let file_id = file.id;
+        let file_size = file.size_bytes;
+        let file_modified = file.last_modified;
+        let file_modified_by = file.last_modified_by.clone();
+
+        if parent_is_shared {
+            self.shared.insert(file_id, file);
+        } else {
+            self.files.insert(file_id, file);
+        }
+
+        self.size_bytes_recursive.insert(file_id, file_size);
+        self.last_modified_recursive.insert(file_id, file_modified);
+        self.last_modified_by_recursive
+            .insert(file_id, file_modified_by.clone());
+        self.last_modified = self.last_modified.max(file_modified);
+
+        for ancestor in self.ancestors(file_id) {
+            let ancestor_modified = self
+                .last_modified_recursive
+                .entry(ancestor)
+                .or_insert(file_modified);
+            if file_modified >= *ancestor_modified {
+                *ancestor_modified = file_modified;
+                self.last_modified_by_recursive
+                    .insert(ancestor, file_modified_by.clone());
+            }
+        }
+    }
 }
 
 impl Debug for FileCache {
