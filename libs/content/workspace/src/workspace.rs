@@ -1028,6 +1028,13 @@ impl Workspace {
             .create_file(new_file.to_name().as_str(), &parent, FileType::Document)
             .map_err(|err| format!("{err:?}"));
 
+        if let Ok(file) = &result {
+            self.files
+                .write()
+                .unwrap()
+                .insert_created_file(file.clone());
+            self.out.file_cache_updated = true;
+        }
         self.out.file_created = Some(result);
         self.ctx.request_repaint();
     }
@@ -1043,6 +1050,13 @@ impl Workspace {
             .create_file(new_file.to_name().as_str(), &parent, FileType::Folder)
             .map_err(|err| format!("{err:?}"));
 
+        if let Ok(file) = &result {
+            self.files
+                .write()
+                .unwrap()
+                .insert_created_file(file.clone());
+            self.out.file_cache_updated = true;
+        }
         self.out.file_created = Some(result);
         self.ctx.request_repaint();
     }
