@@ -181,7 +181,6 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouches(
     (if let Some(tab) = obj.workspace.current_tab() {
         match &tab.content {
             ContentState::Open(TabContent::Svg(svg)) => svg.detect_islands_interaction(pos),
-            ContentState::Open(TabContent::Image(image)) => image.detect_islands_interaction(pos),
             ContentState::Open(TabContent::Markdown(md)) => md.will_consume_touch(pos),
             _ => false,
         }
