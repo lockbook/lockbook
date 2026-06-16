@@ -987,6 +987,7 @@
         var panRecognizer: UIPanGestureRecognizer?
         var pinchRecognizer: UIPinchGestureRecognizer?
         var pinchStartTouches = [(Float, Float)]()
+        var pinchCumulativeScale: CGFloat = 1.0
 
         // menu
         var menuDelegate: SvgMenuDelegate?
@@ -1131,25 +1132,23 @@
                 mtkView.kineticTimer?.invalidate()
                 mtkView.kineticTimer = nil
             }
-            
-            if event.state == .began{
+
+            if event.state == .began {
                 pinchStartTouches.removeAll()
-                for i in 0..<(sender?.numberOfTouches ?? 0){
+                for i in 0..<(sender?.numberOfTouches ?? 0) {
                     let point = sender?.location(ofTouch: i, in: self)
                     if let p = point {
                         pinchStartTouches.append((Float(p.x), Float(p.y)))
                     }
                 }
-                event.scale = 1.0
+                pinchCumulativeScale = event.scale
             }
 
-            let scale = event.scale
             let pinchCenter = event.location(in: mtkView)
 
             if event.state == .changed {
-                let zoomDelta = Float(scale)
-
-                let viewCenter = CGPoint(x: mtkView.bounds.midX, y: mtkView.bounds.midY)
+                let zoomDelta = Float(event.scale / pinchCumulativeScale)
+                pinchCumulativeScale = event.scale
 
                 multi_touch(
                     wsHandle,
@@ -1162,8 +1161,7 @@
                     pinchStartTouches.map{$0.1},
                     UInt(pinchStartTouches.count)
                 )
-                
-                event.scale = 1.0
+                mtkView.setNeedsDisplay()
             }
         }
 
