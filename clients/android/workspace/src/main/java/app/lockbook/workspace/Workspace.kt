@@ -30,6 +30,33 @@ data class AndroidResponse(
     val textUpdated: Boolean
 )
 
+data class WorkspaceTheme(
+    val isDark: Boolean,
+    val dim: WorkspaceThemeVariant,
+    val lightPrefs: WorkspaceThemePreferences,
+    val bright: WorkspaceThemeVariant,
+    val darkPrefs: WorkspaceThemePreferences,
+)
+
+data class WorkspaceThemeVariant(
+    val black: Int,
+    val grey: Int,
+    val red: Int,
+    val green: Int,
+    val yellow: Int,
+    val blue: Int,
+    val magenta: Int,
+    val cyan: Int,
+    val white: Int,
+)
+
+data class WorkspaceThemePreferences(
+    val primary: String,
+    val secondary: String,
+    val tertiary: String,
+    val quaternary: String,
+)
+
 object Workspace {
     init {
         System.loadLibrary("workspace")
@@ -40,11 +67,9 @@ object Workspace {
         print("do nothing")
     }
 
-    external fun initWS(surface: Surface, core: Long, darkMode: Boolean): Long
-    external fun initWSOffloaded(surface: Surface, core: Long, darkMode: Boolean): Long
-    external fun dropWS(ptr: Long)
+    external fun initWSOffloaded(surface: Surface, core: Long, theme: WorkspaceTheme): Long
+    external fun setTheme(rustObj: Long, theme: WorkspaceTheme)
 
-    external fun enterFrame(rustObj: Long): AndroidResponse
     external fun enterFrameOffloaded(rustObj: Long): AndroidResponse
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)
