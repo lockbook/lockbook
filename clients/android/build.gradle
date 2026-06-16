@@ -33,7 +33,6 @@ buildscript {
         safe_args_gradle_plugin = '2.9.6'
         fab_speed_dial = '3.3.0'
         billing_version = '7.0.0'
-        donut_chart_version = '2.2.2'
     }
 
     repositories {

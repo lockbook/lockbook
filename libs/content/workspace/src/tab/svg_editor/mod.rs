@@ -4,10 +4,9 @@ mod element;
 mod history;
 mod viewport;
 
-mod input_controller;
 mod renderer;
-mod toolbar;
-mod tools;
+pub(super) mod toolbar;
+pub(super) mod tools;
 mod util;
 
 use egui::UiBuilder;
@@ -15,8 +14,8 @@ use web_time::Instant;
 
 use self::history::History;
 use crate::tab::ExtendedInput;
-use crate::tab::svg_editor::input_controller::{
-    InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
+use crate::tab::input_controller::{
+    self, InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
 use crate::tab::svg_editor::toolbar::Toolbar;
 use crate::tab::svg_editor::viewport::transform_canvas;

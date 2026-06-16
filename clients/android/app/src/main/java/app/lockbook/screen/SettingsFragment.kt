@@ -24,6 +24,7 @@ import app.lockbook.ui.NumberPickerPreference
 import app.lockbook.ui.NumberPickerPreferenceDialogFragment
 import app.lockbook.ui.UsageBarPreference
 import app.lockbook.util.getSettingsActivity
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.zxing.BarcodeFormat
 import com.journeyapps.barcodescanner.BarcodeEncoder

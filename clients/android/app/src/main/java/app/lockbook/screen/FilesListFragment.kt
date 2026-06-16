@@ -10,7 +10,6 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.*
-import android.widget.LinearLayout
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -18,8 +17,6 @@ import androidx.interpolator.view.animation.FastOutSlowInInterpolator
 import androidx.lifecycle.lifecycleScope
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
-import app.futured.donut.DonutProgressView
-import app.futured.donut.DonutSection
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
@@ -29,6 +26,7 @@ import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.google.android.material.button.MaterialButton
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
@@ -271,48 +269,36 @@ class FilesListFragment :
         }
 
         val header = binding.navigationView.getHeaderView(0)
-        val donut = header.findViewById<DonutProgressView>(R.id.filesListUsageDonut)
-
-        val accentColor =
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                ContextCompat.getColor(requireContext(), android.R.color.system_accent1_200)
-            } else {
-                ContextCompat.getColor(requireContext(), R.color.md_theme_primary)
-            }
-
-        model.usage.observe(viewLifecycleOwner) { usageMetrics ->
-            usageMetrics?.let {
-                val dataCap = it.dataCap?.exact?.toFloat() ?: 0f
-                val usage = it.serverUsage?.exact?.toFloat() ?: 0f
-
-                donut.cap = dataCap
-
-                val usageSection =
-                    DonutSection(
-                        name = "",
-                        color = accentColor,
-                        amount = usage,
-                    )
-                donut.submitData(listOf(usageSection))
-
-                header.findViewById<MaterialTextView>(R.id.filesListUsage).text =
-                    getString(R.string.free_space, usageMetrics.serverUsage?.readable, usageMetrics.dataCap?.readable)
-            }
-        }
 
         model.syncStatus.observe(viewLifecycleOwner) {
             header.findViewById<MaterialTextView>(R.id.filesListLastSynced).text =
                 getString(R.string.last_sync, it)
         }
 
+        val localDirty = header.findViewById<MaterialTextView>(R.id.filesListLocalDirty)
+        val serverDirty = header.findViewById<MaterialTextView>(R.id.filesListServerDirty)
+        var localDirtyCount = 0
+        var serverDirtyCount = 0
+
+        fun updateDirtyFileStatuses() {
+            localDirty.visibility = if (localDirtyCount == 0) View.GONE else View.VISIBLE
+            serverDirty.visibility = if (serverDirtyCount == 0) View.GONE else View.VISIBLE
+        }
+
+        updateDirtyFileStatuses()
+
         model.dirtyLocally.observe(viewLifecycleOwner) {
-            header.findViewById<MaterialTextView>(R.id.filesListLocalDirty).text =
-                resources.getQuantityString(R.plurals.files_to_push, it.size, it.size)
+            localDirtyCount = it.size
+            localDirty.text =
+                resources.getQuantityString(R.plurals.files_to_push, localDirtyCount, localDirtyCount)
+            updateDirtyFileStatuses()
         }
 
         model.pushingFiles.observe(viewLifecycleOwner) {
-            header.findViewById<MaterialTextView>(R.id.filesListServerDirty).text =
-                resources.getQuantityString(R.plurals.files_to_pull, it.size, it.size)
+            serverDirtyCount = it.size
+            serverDirty.text =
+                resources.getQuantityString(R.plurals.files_to_pull, serverDirtyCount, serverDirtyCount)
+            updateDirtyFileStatuses()
         }
 
         return binding.root
@@ -354,7 +340,7 @@ class FilesListFragment :
 
         binding.navigationView.getHeaderView(0).let { header ->
 
-            header.findViewById<LinearLayout>(R.id.set_theme).setOnClickListener {
+            header.findViewById<MaterialButton>(R.id.set_theme).setOnClickListener {
                 var selected = ThemeMode.getSavedThemeIndex(requireContext())
 
                 MaterialAlertDialogBuilder(requireContext())
@@ -368,7 +354,7 @@ class FilesListFragment :
                     }.show()
             }
 
-            header.findViewById<LinearLayout>(R.id.launch_settings).setOnClickListener {
+            header.findViewById<MaterialButton>(R.id.launch_settings).setOnClickListener {
                 activityModel.launchActivityScreen(ActivityScreen.Settings())
                 binding.drawerLayout.close()
             }

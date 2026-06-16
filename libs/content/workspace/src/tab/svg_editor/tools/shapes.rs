@@ -6,9 +6,9 @@ use lb_rs::model::svg::{
 use resvg::usvg::Transform;
 
 use crate::{
+    tab::input_controller::InputControllerEvent,
     tab::svg_editor::{
-        Event, InsertElement, input_controller::InputControllerEvent, toolbar::ToolContext,
-        tools::InputControllerTool, util::pos_to_dvec,
+        Event, InsertElement, toolbar::ToolContext, tools::InputControllerTool, util::pos_to_dvec,
     },
     theme::icons::Icon,
 };
