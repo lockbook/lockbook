@@ -43,7 +43,7 @@ impl ImageViewer {
         Self {
             id,
             images,
-            input_controller: InputController::new(InputControllerConfig::new(false, true)),
+            input_controller: InputController::new(InputControllerConfig::new(true, true)),
             master_transform: Transform::identity(),
             viewport_popover: None,
             viewport_island: None,
