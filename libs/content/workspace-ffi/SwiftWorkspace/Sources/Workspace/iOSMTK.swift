@@ -1052,11 +1052,11 @@
             addGestureRecognizer(pan)
             panRecognizer = pan
             
-            updatePanTouchRequirements()
+            refreshPanTouchRequirementsFromCurrentTab()
 
             NotificationCenter.default.addObserver(
                 self,
-                selector: #selector(updatePanTouchRequirements),
+                selector: #selector(refreshPanTouchRequirementsFromCurrentTab),
                 name: UIApplication.didBecomeActiveNotification,
                 object: nil
             )
@@ -1082,8 +1082,15 @@
             self.menuInteraction = menuInteraction
         }
 
-        @objc private func updatePanTouchRequirements() {
-            self.panRecognizer?.minimumNumberOfTouches = UIPencilInteraction.prefersPencilOnlyDrawing ? 0 : 2
+        @objc private func refreshPanTouchRequirementsFromCurrentTab() {
+            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))
+            applyPanTouchRequirements(for: currentTab)
+        }
+
+        func applyPanTouchRequirements(for currentTab: WorkspaceTab?) {
+            let isImage = currentTab == .Image
+            self.panRecognizer?.minimumNumberOfTouches =
+                (isImage || UIPencilInteraction.prefersPencilOnlyDrawing) ? 1 : 2
             
             set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
         }
@@ -1332,6 +1339,10 @@
             let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
 
             if currentTab != mtkView.workspaceOutput!.currentTab {
+                if let currentWrapper = mtkView.currentWrapper as? SvgView {
+                    currentWrapper.applyPanTouchRequirements(for: currentTab)
+                }
+
                 DispatchQueue.main.async {
                     mtkView.workspaceOutput!.currentTab = currentTab
                 }

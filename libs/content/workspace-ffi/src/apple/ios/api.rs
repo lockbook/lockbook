@@ -425,6 +425,8 @@ pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) ->
     if let Some(tab) = obj.workspace.current_tab() {
         if let ContentState::Open(TabContent::Svg(svg)) = &tab.content {
             svg.detect_islands_interaction(pos)
+        } else if let ContentState::Open(TabContent::Image(image)) = &tab.content {
+            image.detect_islands_interaction(pos)
         } else if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
             md.will_consume_touch(pos)
         } else {

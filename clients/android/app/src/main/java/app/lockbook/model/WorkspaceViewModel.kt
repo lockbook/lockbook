@@ -117,8 +117,8 @@ enum class WorkspaceTabType(
 
     fun viewWrapperId(): Int =
         when (this) {
-            Welcome, Pdf, Loading, Image, Graph -> 1
-            Svg -> 2
+            Welcome, Pdf, Loading, Graph -> 1
+            Image, Svg -> 2
             PlainText, Markdown -> 3
         }
 

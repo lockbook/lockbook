@@ -140,11 +140,15 @@ class WorkspaceView(
     private var pendingZoom = 1f
     private var pendingFocusX = 0f
     private var pendingFocusY = 0f
+    private var lastScaleFocusX = 0f
+    private var lastScaleFocusY = 0f
 
     private val scaleListener =
         object : ScaleGestureDetector.SimpleOnScaleGestureListener() {
             override fun onScaleBegin(detector: ScaleGestureDetector): Boolean {
                 pendingZoom = 1f
+                lastScaleFocusX = detector.focusX
+                lastScaleFocusY = detector.focusY
                 val halfSpanX = detector.currentSpanX / 2f
                 val halfSpanY = detector.currentSpanY / 2f
                 gestureStartPositions =
@@ -156,9 +160,13 @@ class WorkspaceView(
             }
 
             override fun onScale(detector: ScaleGestureDetector): Boolean {
+                pendingDx += detector.focusX - lastScaleFocusX
+                pendingDy += detector.focusY - lastScaleFocusY
                 pendingZoom *= detector.scaleFactor
                 pendingFocusX = detector.focusX
                 pendingFocusY = detector.focusY
+                lastScaleFocusX = detector.focusX
+                lastScaleFocusY = detector.focusY
                 return true
             }
 
@@ -471,6 +479,10 @@ class WorkspaceView(
     }
 
     fun isPenOnlyDraw(): Boolean {
+        if (model.currentTab.value?.type == WorkspaceTabType.Image) {
+            return true
+        }
+
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return false
         }
