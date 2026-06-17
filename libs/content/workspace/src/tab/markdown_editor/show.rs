@@ -194,12 +194,26 @@ impl MdEdit {
         match self.renderer.block_drag_action.take() {
             Some(BlockDragAction::Started(drag)) => {
                 self.in_progress_block_drag = Some(drag);
-                // Selection follows the drag (best effort): grabbing an
-                // item selects it, so the selection travels to the
-                // destination when the move commits.
+                // Selection follows the drag (best effort): grabbing
+                // an item selects it, so the selection travels to the
+                // destination when the move commits. With shift held,
+                // extend the existing selection to encompass the
+                // clicked item and everything in between — lets
+                // shift-clicking markers build up a multi-item span
+                // (works through a click-that-becomes-a-tiny-drag, so
+                // even a bare click respects the modifier).
+                let shift = ui.input(|i| i.modifiers.shift);
+                let region = if shift {
+                    let sel = self.renderer.buffer.current.selection;
+                    let lo = sel.start().min(drag.section_range.start());
+                    let hi = sel.end().max(drag.section_range.end());
+                    (lo, hi)
+                } else {
+                    drag.section_range
+                };
                 self.renderer
                     .render_events
-                    .push(Event::Select { region: drag.section_range.into() });
+                    .push(Event::Select { region: region.into() });
             }
             Some(BlockDragAction::Dragged(_)) => {}
             Some(BlockDragAction::Released(pointer)) => {

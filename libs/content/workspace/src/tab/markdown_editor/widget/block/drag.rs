@@ -142,12 +142,24 @@ impl<'ast> MdRender {
             let origin = pointer.unwrap_or(resp.rect.center());
             let Some(parent) = node.parent() else { return };
             let parent_start = self.node_range(parent).start();
-            // `resp.rect` is the marker rect, which sits at the item's
-            // top-left — its top-left is also the source rect's
-            // top-left, so the grab-offset can be measured against it.
-            let grab_offset = origin - resp.rect.left_top();
+            let section_range = self.drag_span(node);
+            // Measure `grab_offset` from the *section's* top-left, not
+            // the grabbed item's. For a multi-item drag the section can
+            // span many items above the grabbed one; `draw_dragged_overlay`
+            // positions the floating card by `pointer - grab_offset`, so
+            // anchoring on the section top keeps the grabbed item under
+            // the cursor regardless of where in the run it sits.
+            // `section_rect` reads `block_boxes`, which DFS-populates top-
+            // to-bottom, so by the time the grabbed item fires
+            // `drag_started`, every other in-span item is already
+            // indexed.
+            let span_top_left = self
+                .section_rect(section_range)
+                .map(|r| r.left_top())
+                .unwrap_or(resp.rect.left_top());
+            let grab_offset = origin - span_top_left;
             self.block_drag_action = Some(BlockDragAction::Started(BlockDrag {
-                section_range: self.drag_span(node),
+                section_range,
                 grabbed: self.node_range(node),
                 parent_start,
                 grab_offset,
