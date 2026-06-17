@@ -67,6 +67,12 @@ impl EmbedResolver for ImageEmbedResolver {
     fn seq(&self) -> u64 {
         self.images.seq()
     }
+
+    fn is_loaded(&self, url: &str) -> bool {
+        // `dims` is populated only after the texture is successfully
+        // decoded and the merge into persistence has happened.
+        self.images.dims(url).is_some()
+    }
 }
 
 fn show_placeholder(ui: &mut Ui, rect: Rect, icon: Icon, caption: &str) {

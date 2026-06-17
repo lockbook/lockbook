@@ -3,6 +3,7 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::widget::inline::link::LinkPreviewSize;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
 
 impl<'ast> MdRender {
@@ -13,6 +14,15 @@ impl<'ast> MdRender {
                 if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
                     let NodeLink { url, .. } = &**node_link;
                     result += self.height_image(node, url, self.image_dims(descendant));
+                    result += self.layout.block_spacing;
+                }
+            }
+        }
+        for descendant in node.descendants() {
+            if matches!(descendant.data.borrow().value, NodeValue::Link(_)) {
+                let (size, _) = self.link_preview_size(descendant);
+                if size == LinkPreviewSize::Large {
+                    result += self.large_link_card_height(descendant);
                     result += self.layout.block_spacing;
                 }
             }
@@ -95,6 +105,27 @@ impl<'ast> MdRender {
                 }
             }
 
+            // Large link previews: a Discord/Slack-style card rendered
+            // above the line that contains the link source. Mirrors the
+            // image-block placement above; the inline pill marker still
+            // appears in the text below.
+            for descendant in node.descendants() {
+                if matches!(descendant.data.borrow().value, NodeValue::Link(_)) {
+                    let (size, _) = self.link_preview_size(descendant);
+                    if size == LinkPreviewSize::Large
+                        && node_line.contains_inclusive(self.node_range(descendant).start())
+                    {
+                        let url = match &descendant.data.borrow().value {
+                            NodeValue::Link(l) => l.url.clone(),
+                            _ => continue,
+                        };
+                        self.show_large_link_card(ui, node, top_left, &url);
+                        top_left.y += self.large_link_card_height(descendant);
+                        top_left.y += self.layout.block_spacing;
+                    }
+                }
+            }
+
             let line_height = self.height_paragraph_line(node, node_line);
 
             self.show_paragraph_line(ui, node, top_left, node_line);
@@ -103,6 +134,14 @@ impl<'ast> MdRender {
 
             top_left.y += self.layout.block_spacing;
         }
+
+        // Favicon overlay pass: each Small-preview link's pill chip has
+        // a leading em-space (added in `layout_link`) reserving a square
+        // at its left edge. After all line fragments have painted,
+        // overlay the favicon image into that square. Only paints when
+        // the texture is already loaded — otherwise the embed
+        // resolver's 48pt placeholder would overflow the tiny rect.
+        self.show_small_link_favicons(ui, node);
     }
 
     pub fn show_paragraph_line(

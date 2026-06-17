@@ -463,16 +463,12 @@ fn layout_cache_consistent_under_link_title() {
     ws.enter_frame();
 
     {
-        let mut titles = ws
-            .editor
-            .edit
-            .renderer
-            .layout_cache
-            .link_titles
-            .borrow_mut();
+        let mut titles = ws.editor.edit.renderer.layout_cache.link_meta.borrow_mut();
         titles.insert(
             url.to_string(),
-            Arc::new(Mutex::new(super::super::widget::block::TitleState::Loaded("ok".into()))),
+            Arc::new(Mutex::new(super::super::widget::block::LinkMetaState::Loaded(
+                super::super::widget::block::LinkMeta { title: "ok".into(), ..Default::default() },
+            ))),
         );
     }
     ws.editor.edit.renderer.layout_cache.link_seq.store(

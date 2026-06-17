@@ -70,6 +70,16 @@ impl MdEdit {
             &files,
             file_id,
         );
+        // Link-preview popover: snapshot the link node under the cursor (if
+        // any) from the freshly reparsed AST and hand to the widget. Runs
+        // after the other completions because they may want to claim keys
+        // first; the popover's nav uses arrows, no conflict. `text_seq`
+        // gates fresh activations — the popover only summons when the
+        // buffer just mutated (typing / pasting), not on cursor moves
+        // into existing links.
+        let link_snapshot = self.renderer.link_under_cursor(root);
+        self.link_preview_completions
+            .update_active_state(link_snapshot, self.renderer.text_seq);
         if !self.renderer.readonly && !self.renderer.plaintext {
             self.emoji_completions.handle_input(
                 ctx,
@@ -84,6 +94,23 @@ impl MdEdit {
                 file_id,
                 focused,
                 &mut self.event.internal_events,
+            );
+            let title_for = {
+                let renderer = &self.renderer;
+                move |u: &str| {
+                    use crate::tab::markdown_editor::widget::inline::link::LinkMetaLookup;
+                    match renderer.get_link_meta(u) {
+                        LinkMetaLookup::External(Some(m)) => Some(m.title),
+                        LinkMetaLookup::Internal(t) => Some(t),
+                        _ => None,
+                    }
+                }
+            };
+            self.link_preview_completions.handle_input(
+                ctx,
+                focused,
+                &mut self.event.internal_events,
+                title_for,
             );
         }
 
@@ -491,6 +518,7 @@ impl MdEdit {
         }
         self.show_emoji_completions(ui);
         self.show_link_completions(ui);
+        self.show_link_preview_completions(ui);
     }
 
     /// Reset the buffer to empty state. Chat composers call this after
