@@ -136,10 +136,8 @@ impl<'ast> MdRender {
                 // parent is this container — for items, that's a
                 // `List` and its start uniquely identifies the sibling
                 // group.
-                if matches!(
-                    child.data.borrow().value,
-                    NodeValue::Item(_) | NodeValue::TaskItem(_)
-                ) {
+                if matches!(child.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+                {
                     let block_rect = Rect::from_min_size(
                         top_left,
                         egui::Vec2::new(self.width(child), child_height),

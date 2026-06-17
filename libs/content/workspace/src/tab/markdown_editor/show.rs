@@ -194,7 +194,6 @@ impl MdEdit {
         match self.renderer.block_drag_action.take() {
             Some(BlockDragAction::Started(drag)) => {
                 self.in_progress_block_drag = Some(drag);
-                self.pending_scroll = Some(ScrollTarget::Cursor);
                 // Selection follows the drag (best effort): grabbing an
                 // item selects it, so the selection travels to the
                 // destination when the move commits.
@@ -202,9 +201,7 @@ impl MdEdit {
                     .render_events
                     .push(Event::Select { region: drag.section_range.into() });
             }
-            Some(BlockDragAction::Dragged(_)) => {
-                self.pending_scroll = Some(ScrollTarget::Cursor);
-            }
+            Some(BlockDragAction::Dragged(_)) => {}
             Some(BlockDragAction::Released(pointer)) => {
                 if let Some(drag) = self.in_progress_block_drag.take() {
                     if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
@@ -214,9 +211,56 @@ impl MdEdit {
             }
             None => {}
         }
+        // While the drag is live, edge-scroll: pad the pointer's
+        // viewport-y by `row_height` on each side and `Reveal::Nearest`
+        // it — same pattern as drag-select's `scroll_to_cursor`, but
+        // anchored at the pointer rather than the cursor.
         if self.in_progress_block_drag.is_some() {
+            self.auto_scroll_to_drag_pointer(ui);
             ui.ctx().request_repaint();
         }
+    }
+
+    /// Edge-scroll the editor while a block drag is in flight. Pads the
+    /// pointer's viewport-y by `row_height` on each side and reveals
+    /// that range with [`Align::Nearest`] — when the pointer is within
+    /// `row_height` of the top or bottom, the padded rect overhangs the
+    /// edge and the scroll area moves to bring it in view. Reuses the
+    /// `Reveal::Nearest` mechanism that drag-select already uses (see
+    /// `scroll_to_cursor`), so the per-frame rate matches.
+    fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui) {
+        use crate::tab::markdown_editor::scroll_content::DocScrollContent;
+        use crate::widgets::affine_scroll::{Align, Reveal};
+
+        let Some(pointer) = ui.input(|i| i.pointer.latest_pos()) else { return };
+        let viewport = ui.clip_rect();
+        // Clamp rather than early-return: the user might drag past the
+        // top toolbar or off the bottom of the window. Pinning
+        // `viewport_y` to the nearest edge keeps the edge-scroll going
+        // at max rate (the padded reveal range fully overhangs that
+        // edge) until they pull back in or release.
+        let viewport_y = (pointer.y - viewport.min.y).clamp(0.0, viewport.height());
+        let pad = self.renderer.layout.row_height;
+
+        let arena = comrak::Arena::new();
+        let root = self.renderer.reparse(&arena);
+        let content = DocScrollContent::for_frame(&self.renderer, root, viewport.height());
+        let Some(top) = self
+            .scroll_area
+            .state
+            .offset_at_viewport_y(&content, viewport_y - pad)
+        else {
+            return;
+        };
+        let Some(bottom) = self
+            .scroll_area
+            .state
+            .offset_at_viewport_y(&content, viewport_y + pad)
+        else {
+            return;
+        };
+        self.scroll_area
+            .reveal(&content, Reveal { top, bottom }, Align::Nearest);
     }
 
     /// While a drag is in flight: draw the drop indicator, leave an
@@ -308,8 +352,11 @@ impl MdEdit {
             );
         }
 
-        // Floating card + drop shadow at the translated position.
-        let offset = p - drag.origin;
+        // Floating card + drop shadow at the translated position. The
+        // translation places `src_rect.top_left` at `pointer -
+        // grab_offset`, so the grab-point stays under the pointer
+        // regardless of any scroll that happened mid-drag.
+        let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = card_rect.translate(offset);
         ui.painter().rect_filled(
             card.translate(egui::Vec2::new(0.0, 4.0)),
@@ -358,7 +405,10 @@ impl MdEdit {
             .collect();
         ui.push_id("md_block_drag_float", |ui| {
             for (rect, nr) in &constituents {
-                if let Some(node) = root.descendants().find(|n| self.renderer.node_range(n) == *nr) {
+                if let Some(node) = root
+                    .descendants()
+                    .find(|n| self.renderer.node_range(n) == *nr)
+                {
                     self.renderer.show_block(ui, node, rect.min + offset);
                 }
             }

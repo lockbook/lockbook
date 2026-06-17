@@ -9,7 +9,7 @@
 //! exercise it without simulating a mouse drag.
 
 use comrak::nodes::{AstNode, NodeValue};
-use egui::{CursorIcon, Pos2, Rect, Ui};
+use egui::{CursorIcon, Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
@@ -45,10 +45,13 @@ pub struct BlockDrag {
     /// The node range of the specific item whose marker was grabbed.
     pub grabbed: (Grapheme, Grapheme),
     pub parent_start: Grapheme,
-    /// Pointer position at grab time — the anchor for the floating
-    /// render and the drop translation (`pointer - origin`), so where on
-    /// the item you grabbed determines where it lands.
-    pub origin: Pos2,
+    /// Vector from the source item's top-left to the grab pointer at
+    /// grab time — scroll-invariant, unlike a stored screen-space
+    /// `origin`. Used to anchor the floating render (`pointer -
+    /// grab_offset` is the floating card's top-left, regardless of how
+    /// far the doc has scrolled since) and to position the drop
+    /// indicator.
+    pub grab_offset: Vec2,
 }
 
 /// A resolved drop target within the dragged item's sibling group.
@@ -73,7 +76,9 @@ impl<'ast> MdRender {
         let Some(parent) = node.parent() else { return false };
         parent
             .children()
-            .filter(|c| matches!(c.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)))
+            .filter(|c| {
+                matches!(c.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+            })
             .nth(1)
             .is_some()
     }
@@ -89,10 +94,8 @@ impl<'ast> MdRender {
         let Some(parent) = node.parent() else { return own };
         let mut span = own;
         for c in parent.children() {
-            let is_item = matches!(
-                c.data.borrow().value,
-                NodeValue::Item(_) | NodeValue::TaskItem(_)
-            );
+            let is_item =
+                matches!(c.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_));
             if is_item && self.selected_block(c) {
                 let r = self.node_range(c);
                 span = (span.0.min(r.0), span.1.max(r.1));
@@ -139,11 +142,15 @@ impl<'ast> MdRender {
             let origin = pointer.unwrap_or(resp.rect.center());
             let Some(parent) = node.parent() else { return };
             let parent_start = self.node_range(parent).start();
+            // `resp.rect` is the marker rect, which sits at the item's
+            // top-left — its top-left is also the source rect's
+            // top-left, so the grab-offset can be measured against it.
+            let grab_offset = origin - resp.rect.left_top();
             self.block_drag_action = Some(BlockDragAction::Started(BlockDrag {
                 section_range: self.drag_span(node),
                 grabbed: self.node_range(node),
                 parent_start,
-                origin,
+                grab_offset,
             }));
         } else if resp.drag_stopped() {
             if let Some(p) = pointer {
@@ -200,11 +207,11 @@ impl<'ast> MdRender {
 
         // Order by handle position — the thing you're holding. Each
         // unit's marker sits at its top (first row); the dragged run's
-        // marker floats at the first selected unit's top plus the drag
-        // offset. The run sorts before any other unit whose marker is
-        // below the floating one.
-        let offset_y = pointer.y - drag.origin.y;
-        let dragged_handle_y = units[lo].rect.top() + offset_y;
+        // marker floats at `pointer.y - grab_offset.y`, which is the
+        // screen-Y of the floating card's top (scroll-invariant). The
+        // run sorts before any other unit whose marker is below the
+        // floating one.
+        let dragged_handle_y = pointer.y - drag.grab_offset.y;
 
         let others: Vec<&BlockBox> = units
             .iter()
@@ -212,7 +219,10 @@ impl<'ast> MdRender {
             .filter(|(i, _)| *i < lo || *i > hi)
             .map(|(_, u)| u)
             .collect();
-        let to = others.iter().filter(|u| u.rect.top() < dragged_handle_y).count();
+        let to = others
+            .iter()
+            .filter(|u| u.rect.top() < dragged_handle_y)
+            .count();
 
         // `to == lo` is the run's own slot (removing it merges its
         // neighboring gaps) — no move, snap back.
@@ -239,7 +249,10 @@ impl<'ast> MdRender {
             Some(n) => n.node_range.start(),
             None => self.buffer.current.segs.last_cursor_position(),
         };
-        let gap_index = units.iter().filter(|u| u.node_range.start() < insert_offset).count();
+        let gap_index = units
+            .iter()
+            .filter(|u| u.node_range.start() < insert_offset)
+            .count();
         Some(DropGap { insert_offset, gap_index, y: y as i32 })
     }
 }
@@ -282,7 +295,9 @@ impl<'ast> MdRender {
 
         let mut units: Vec<(Grapheme, Grapheme)> = parent
             .children()
-            .filter(|c| matches!(c.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)))
+            .filter(|c| {
+                matches!(c.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+            })
             .map(|c| self.node_range(c))
             .collect();
         units.sort_by_key(|s| s.start());
@@ -292,7 +307,9 @@ impl<'ast> MdRender {
 
         // The selected run [lo, hi] (one item for a single drag) moves
         // together. The destination index `to` is in unit-space.
-        let lo = units.iter().position(|u| u.start() >= section_range.start())?;
+        let lo = units
+            .iter()
+            .position(|u| u.start() >= section_range.start())?;
         let hi = units.iter().rposition(|u| u.end() <= section_range.end())?;
         if hi < lo {
             return None;
@@ -307,7 +324,10 @@ impl<'ast> MdRender {
             (lines[fi].start(), lines[li].end())
         };
         let branges: Vec<(Grapheme, Grapheme)> = units.iter().map(|u| block_range(*u)).collect();
-        let blocks: Vec<String> = branges.iter().map(|b| self.buffer[*b].to_string()).collect();
+        let blocks: Vec<String> = branges
+            .iter()
+            .map(|b| self.buffer[*b].to_string())
+            .collect();
         let gaps: Vec<String> = (0..branges.len() - 1)
             .map(|i| self.buffer[(branges[i].1, branges[i + 1].0)].to_string())
             .collect();

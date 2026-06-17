@@ -37,7 +37,10 @@ impl MdEdit {
     pub fn move_block(&mut self, section_range: (Grapheme, Grapheme), insert_offset: Grapheme) {
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);
-        let Some(plan) = self.renderer.plan_block_move(root, section_range, insert_offset) else {
+        let Some(plan) = self
+            .renderer
+            .plan_block_move(root, section_range, insert_offset)
+        else {
             return;
         };
 

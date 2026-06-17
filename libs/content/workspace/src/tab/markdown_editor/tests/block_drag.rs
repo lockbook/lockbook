@@ -160,12 +160,16 @@ fn appending_to_tight_list_stays_tight() {
         section_range: one_box.node_range,
         grabbed: one_box.node_range,
         parent_start: one_box.parent_start,
-        origin: one_box.rect.center(),
+        grab_offset: one_box.rect.center() - one_box.rect.left_top(),
     };
     let past_end = egui::Pos2::new(one_box.rect.center().x, 1.0e6);
-    let gap = r.drop_gap_for(&drag, past_end).expect("a trailing gap exists");
+    let gap = r
+        .drop_gap_for(&drag, past_end)
+        .expect("a trailing gap exists");
 
-    ws.editor.edit.move_block(one_box.node_range, gap.insert_offset);
+    ws.editor
+        .edit
+        .move_block(one_box.node_range, gap.insert_offset);
     ws.enter_frame();
     assert_eq!(ws_text(&ws), "- two\n- three\n- one\n");
 }
@@ -199,7 +203,7 @@ fn drop_gap_geometry_for_list() {
         section_range: one.node_range,
         grabbed: one.node_range,
         parent_start: one.parent_start,
-        origin: one.rect.center(),
+        grab_offset: one.rect.center() - one.rect.left_top(),
     };
     let low = egui::Pos2::new(one.rect.center().x, 100_000.0);
     let gap = r.drop_gap_for(&drag, low).expect("a gap exists");
@@ -226,7 +230,8 @@ fn drag_within_own_span_is_a_cancel() {
         section_range: one.node_range,
         grabbed: one.node_range,
         parent_start: one.parent_start,
-        origin: egui::Pos2::new(one.rect.center().x, one.rect.top()),
+        // grab at the marker (top-left of the source row, x at the marker center)
+        grab_offset: egui::Vec2::new(one.rect.width() / 2.0, 0.0),
     };
     let within = one.rect.center();
     assert!(r.drop_gap_for(&drag, within).is_none(), "hovering own span cancels");
