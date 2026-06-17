@@ -317,40 +317,55 @@ impl MdEdit {
         }
 
         let Some(src_rect) = self.renderer.section_rect(drag.section_range) else { return };
-        // Pad so the cover/card also hide content that overflows the
-        // section's content rect.
-        let pad = self.renderer.layout.block_spacing / 2.0;
-        let card_rect = src_rect.expand(pad);
-        // Source cutout additionally spans the gutter (where the marker
-        // was). The floating *card* stays content-width so it doesn't
-        // cover the gutter — leaving the drop indicator visible.
-        let hole = egui::Rect::from_min_max(
-            Pos2::new(card_rect.left() - self.renderer.layout.indent, card_rect.top()),
-            card_rect.max,
-        );
+        // Vertical pad on both the cutout and the card so they also
+        // hide / cover content that overflows the section's rect (a
+        // taller cursor row, code/spoiler outlines). No horizontal pad
+        // — the item's `src_rect` already spans the marker column, so
+        // the cutout matches the source's visual width exactly.
+        let vpad = self.renderer.layout.block_spacing / 2.0;
+        let card_rect = src_rect.expand2(egui::Vec2::new(0.0, vpad));
+        let hole = src_rect.expand2(egui::Vec2::new(0.0, vpad));
 
-        // Inset gap where the item was: a recessed cutout with an
-        // inset shadow along the top/left edges.
+        // Empty-slot cutout: secondary-bg fill with a soft inset
+        // shadow on the top + left edges. egui's `Shadow::as_shape`
+        // only emits outward shadows, so the trick is to place each
+        // source rect *outside* the hole with its inner edge flush
+        // against the hole boundary, then clip the painter to the
+        // hole: the blur fades from the rim inward, giving a CSS-
+        // `box-shadow: inset` look without per-frame rect stacks.
         let radius = egui::CornerRadius::same(3);
         ui.painter()
             .rect_filled(hole, radius, theme.neutral_bg_secondary());
-        let depth = self.renderer.layout.block_spacing.min(10.0);
-        let steps = 8;
-        for i in 0..steps {
-            let t = i as f32 / steps as f32;
-            let inset = t * depth;
-            let alpha = (50.0 * (1.0 - t)) as u8;
-            ui.painter().hline(
-                (hole.left() + inset)..=(hole.right() - inset),
-                hole.top() + inset,
-                Stroke::new(1.5, egui::Color32::from_black_alpha(alpha)),
-            );
-            ui.painter().vline(
-                hole.left() + inset,
-                (hole.top() + inset)..=(hole.bottom() - inset),
-                Stroke::new(1.0, egui::Color32::from_black_alpha(alpha / 2)),
-            );
-        }
+        let alpha_top: u8 = if self.renderer.dark_mode { 70 } else { 28 };
+        let alpha_left: u8 = if self.renderer.dark_mode { 45 } else { 18 };
+        let blur: u8 = 18;
+        let inset = ui.painter().with_clip_rect(hole);
+        let top_source = egui::Rect::from_min_max(
+            Pos2::new(hole.left() - 60.0, hole.top() - 60.0),
+            Pos2::new(hole.right() + 60.0, hole.top()),
+        );
+        inset.add(
+            egui::epaint::Shadow {
+                offset: [0, 0],
+                blur,
+                spread: 0,
+                color: egui::Color32::from_black_alpha(alpha_top),
+            }
+            .as_shape(top_source, egui::CornerRadius::ZERO),
+        );
+        let left_source = egui::Rect::from_min_max(
+            Pos2::new(hole.left() - 60.0, hole.top() - 60.0),
+            Pos2::new(hole.left(), hole.bottom() + 60.0),
+        );
+        inset.add(
+            egui::epaint::Shadow {
+                offset: [0, 0],
+                blur,
+                spread: 0,
+                color: egui::Color32::from_black_alpha(alpha_left),
+            }
+            .as_shape(left_source, egui::CornerRadius::ZERO),
+        );
 
         // Floating card + drop shadow at the translated position. The
         // translation places `src_rect.top_left` at `pointer -
@@ -358,17 +373,21 @@ impl MdEdit {
         // regardless of any scroll that happened mid-drag.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = card_rect.translate(offset);
-        ui.painter().rect_filled(
-            card.translate(egui::Vec2::new(0.0, 4.0)),
-            egui::CornerRadius::same(4),
-            egui::Color32::from_black_alpha(40),
-        );
-        ui.painter()
-            .rect_filled(card, egui::CornerRadius::same(4), theme.neutral_bg());
+        // Flat canvas-island styling: a slightly-off-background fill
+        // and a thin neutral stroke, no shadow in either mode — the
+        // source cutout already signals which item is being moved.
+        // Values match `svg_editor::mod.rs`.
+        let card_corner = egui::CornerRadius::same(4);
+        let (fill, stroke_color) = if self.renderer.dark_mode {
+            (egui::Color32::from_rgb(30, 30, 30), egui::Color32::from_rgb(56, 56, 56))
+        } else {
+            (ui.visuals().extreme_bg_color, egui::Color32::from_rgb(235, 235, 235))
+        };
+        ui.painter().rect_filled(card, card_corner, fill);
         ui.painter().rect_stroke(
             card,
-            egui::CornerRadius::same(4),
-            Stroke::new(1.0, primary),
+            card_corner,
+            Stroke::new(0.5, stroke_color),
             egui::epaint::StrokeKind::Inside,
         );
 
