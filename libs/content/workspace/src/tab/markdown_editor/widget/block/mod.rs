@@ -5,7 +5,7 @@ use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
 
-use comrak::nodes::{AstNode, NodeHeading, NodeLink, NodeValue};
+use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::ahash::HashMap;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, RangeExt as _};
@@ -127,10 +127,6 @@ impl<'ast> MdRender {
             NodeValue::TaskItem(_) => self.height_task_item(node),
 
             // inline
-            NodeValue::Image(node_link) => {
-                let NodeLink { url, .. } = &**node_link;
-                self.height_image(node, url, self.image_dims(node)) // rendering the image itself
-            }
             NodeValue::Subtext
             | NodeValue::Code(_)
             | NodeValue::Emph
@@ -139,6 +135,7 @@ impl<'ast> MdRender {
             | NodeValue::FootnoteReference(_)
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Image(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)
@@ -210,6 +207,8 @@ impl<'ast> MdRender {
                 let row_height = self.row_height(node);
                 let width = self.width(node).max(row_height);
                 let mut chars = 0usize;
+                // Approx doesn't shape inline content, so track image
+                // height separately and `max` it in at the end.
                 let mut image_height = 0.0f32;
                 for d in node.descendants() {
                     match &d.data.borrow().value {
@@ -218,15 +217,10 @@ impl<'ast> MdRender {
                         NodeValue::HtmlInline(s) => chars += s.chars().count(),
                         NodeValue::Math(m) => chars += m.literal.chars().count(),
                         NodeValue::SoftBreak | NodeValue::LineBreak => chars += 1,
-                        // `embeds.size` is a HashMap lookup — returns
-                        // a placeholder before the image loads, the
-                        // actual dimensions after. The layout cache
-                        // invalidates on `embeds_updated`, so this
-                        // value picks up loaded dimensions on the
-                        // next read.
                         NodeValue::Image(link) => {
                             let dims = self.embeds.size(&link.url);
-                            image_height += self.image_size(dims, width, self.image_dims(d)).y;
+                            image_height = image_height
+                                .max(self.image_size(dims, width, self.image_dims(d)).y);
                         }
                         _ => {}
                     }
@@ -234,7 +228,9 @@ impl<'ast> MdRender {
                 let char_width = row_height * 0.5;
                 let chars_per_row = (width / char_width).floor().max(1.0) as usize;
                 let rows = ((chars as f32) / chars_per_row as f32).ceil().max(1.0);
-                rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing + image_height
+                let text_height =
+                    rows * row_height + (rows - 1.0).max(0.0) * self.layout.row_spacing;
+                text_height.max(image_height)
             }
             NodeValue::CodeBlock(_) | NodeValue::HtmlBlock(_) => {
                 let row_height = self.row_height(node);
@@ -317,10 +313,6 @@ impl<'ast> MdRender {
             }
 
             // inline
-            NodeValue::Image(node_link) => {
-                let NodeLink { url, .. } = &**node_link;
-                self.show_image_block(ui, node, top_left, url, self.image_dims(node))
-            }
             NodeValue::Subtext
             | NodeValue::Code(_)
             | NodeValue::Emph
@@ -329,6 +321,7 @@ impl<'ast> MdRender {
             | NodeValue::FootnoteReference(_)
             | NodeValue::Highlight
             | NodeValue::HtmlInline(_)
+            | NodeValue::Image(_)
             | NodeValue::LineBreak
             | NodeValue::Link(_)
             | NodeValue::Math(_)

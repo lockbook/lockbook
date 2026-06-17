@@ -35,6 +35,10 @@ impl<'ast> MdRender {
     pub fn show_item(&mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2) {
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
+        // `Some` when an image inflates the first content row — marker
+        // centers on the inflated row instead of the text row's top.
+        let inflated = self.first_content_row_height_inflated(node);
+        let annotation_row_height = inflated.unwrap_or(row_height);
 
         let parent = node.parent().unwrap();
         let NodeValue::List(node_list) = parent.data.borrow().value else {
@@ -42,7 +46,7 @@ impl<'ast> MdRender {
         };
         let NodeList { list_type, start, .. } = node_list;
 
-        let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
+        let annotation_size = Vec2 { x: self.layout.indent, y: annotation_row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
         let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();
@@ -79,11 +83,16 @@ impl<'ast> MdRender {
                     let buffer = self.upsert_glyphon_buffer(&text, afs, afs, f32::MAX, &format);
                     let size = buffer.read().unwrap().shaped_size(ppi);
 
-                    // Right-align to the content edge, baseline-shifted into the
-                    // row, identically to the revealed marker (overflow left) so
-                    // revealing the item doesn't shift the number.
+                    // Right-align to the content edge; baseline-shift y
+                    // so toggling reveal doesn't jump the number. On an
+                    // image-inflated row, baseline-alignment would park
+                    // it at the bottom corner — center vertically.
                     let x = annotation_space.right() - size.x;
-                    let y = annotation_space.top() + (row_height - afs) * 0.8;
+                    let y = if inflated.is_some() {
+                        annotation_space.top() + (annotation_row_height - afs) / 2.0
+                    } else {
+                        annotation_space.top() + (row_height - afs) * 0.8
+                    };
                     let rect = Rect::from_min_size(Pos2::new(x, y), size);
                     self.text_areas.push(TextBufferArea::new(
                         buffer,
