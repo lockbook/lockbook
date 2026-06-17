@@ -115,6 +115,14 @@ pub struct MdRender {
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
     pub render_events: Vec<input::Event>,
     pub touch_consuming_rects: Vec<Rect>,
+    /// Per-frame geometry index of every list item, populated during the
+    /// render DFS. Cleared each frame (mirrors `fragments`); read for
+    /// pointer hit-testing and drop-gap math by drag-to-reorder.
+    pub block_boxes: Vec<widget::block::drag::BlockBox>,
+    /// Drag action emitted by a list marker this frame, drained by
+    /// `MdEdit::show` to update / commit the in-progress block drag
+    /// (mirrors how `render_events` carries buffer edits out of render).
+    pub block_drag_action: Option<widget::block::drag::BlockDragAction>,
     /// Per-frame, keyed by `ui.id().with(salt)`; populated by
     /// `interact_fragments`, consumed by handlers in each node type.
     pub interaction_responses: std::collections::HashMap<egui::Id, egui::Response>,
@@ -125,6 +133,9 @@ pub struct MdRender {
 
     // render input
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
+    /// Active list-item drag, mirrored from `MdEdit` so the render pass
+    /// can dim the source and draw the drop indicator.
+    pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
     pub find_current_match: Option<(Grapheme, Grapheme)>,
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
@@ -189,6 +200,10 @@ pub struct MdEdit {
     /// when `None`.
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
 
+    /// Active list-item drag-to-reorder — `Some` from grab until release.
+    /// Mirrored onto the renderer each frame for the dim/indicator paint.
+    pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
+
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
     pub pending_scroll: Option<ScrollTarget>,
@@ -228,6 +243,7 @@ impl MdEdit {
             event: Default::default(),
             phone_mode: false,
             in_progress_selection: None,
+            in_progress_block_drag: None,
             pending_scroll: None,
             scroll_area_velocity: Default::default(),
             file_id,
@@ -384,6 +400,8 @@ impl MdRender {
             bounds: Default::default(),
             bounds_seq: 0,
             fragments: Vec::new(),
+            block_boxes: Vec::new(),
+            block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
             render_events: Vec::new(),
@@ -391,6 +409,7 @@ impl MdRender {
             interaction_responses: Default::default(),
             revealed_spoilers: Default::default(),
             in_progress_selection: None,
+            in_progress_block_drag: None,
             find_current_match: None,
             preview_match: None,
             interactive: false,
@@ -450,6 +469,8 @@ impl MdRender {
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
+            block_boxes: Vec::new(),
+            block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
             render_events: Vec::new(),
@@ -460,6 +481,7 @@ impl MdRender {
             search_range: None,
             disable_images: false,
             in_progress_selection: None,
+            in_progress_block_drag: None,
             find_current_match: None,
             preview_match: None,
             interactive: false,
@@ -598,6 +620,8 @@ impl Editor {
             buffer: md.into(),
 
             fragments: Vec::new(),
+            block_boxes: Vec::new(),
+            block_drag_action: None,
             text_areas: Default::default(),
             deco_lines: Default::default(),
             render_events: Vec::new(),
@@ -606,6 +630,7 @@ impl Editor {
             revealed_spoilers: Default::default(),
 
             in_progress_selection: None,
+            in_progress_block_drag: None,
             find_current_match: None,
             preview_match: None,
             interactive: true,
@@ -643,6 +668,7 @@ impl Editor {
                 cursor: Default::default(),
                 event: Default::default(),
                 in_progress_selection: None,
+                in_progress_block_drag: None,
                 pending_scroll: None,
                 scroll_area_velocity: Default::default(),
                 file_id,
@@ -1213,6 +1239,9 @@ impl Editor {
                         let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
                         self.edit.renderer.fragments.clear();
+                        self.edit.renderer.block_boxes.clear();
+                        self.edit.renderer.in_progress_block_drag =
+                            self.edit.in_progress_block_drag;
                         self.edit.renderer.bounds.wrap_lines.clear();
                         self.edit.renderer.text_areas.clear();
                         self.edit.renderer.deco_lines.clear();
@@ -1321,6 +1350,11 @@ impl Editor {
                             let color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
                             self.edit.show_range(ui, range, color);
                         }
+
+                        // List-item drag-to-reorder: consume the handle
+                        // action, commit on release (visuals are drawn
+                        // after post_render so they composite on top).
+                        self.edit.handle_block_drag(ui);
                         pre
                     })
                     .inner;
@@ -1332,6 +1366,7 @@ impl Editor {
                 self.edit.renderer.bounds.wrap_lines.sort_by_key(|r| r.0);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
+                self.edit.draw_dragged_overlay(ui, root);
                 ui.advance_cursor_after_rect(canvas_rect);
             });
 

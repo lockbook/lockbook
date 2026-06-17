@@ -167,6 +167,8 @@ impl MdEdit {
         let pre = self.pre_render(ui, rect, id, root);
 
         self.renderer.fragments.clear();
+        self.renderer.block_boxes.clear();
+        self.renderer.in_progress_block_drag = self.in_progress_block_drag;
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
@@ -177,7 +179,205 @@ impl MdEdit {
         });
         self.renderer.fragments.sort_by_key(|f| f.source_range);
 
+        self.handle_block_drag(ui);
         self.post_render(ui, rect, id, pre);
+        self.draw_dragged_overlay(ui, root);
+    }
+
+    /// Consume the marker's [`BlockDragAction`] for the frame: track the
+    /// in-progress drag and, on release, commit the reorder via
+    /// [`MdEdit::move_block`]. Runs before `post_render`; visuals are
+    /// drawn afterward by [`MdEdit::draw_dragged_overlay`].
+    pub(crate) fn handle_block_drag(&mut self, ui: &mut Ui) {
+        use crate::tab::markdown_editor::widget::block::drag::BlockDragAction;
+
+        match self.renderer.block_drag_action.take() {
+            Some(BlockDragAction::Started(drag)) => {
+                self.in_progress_block_drag = Some(drag);
+                self.pending_scroll = Some(ScrollTarget::Cursor);
+                // Selection follows the drag (best effort): grabbing an
+                // item selects it, so the selection travels to the
+                // destination when the move commits.
+                self.renderer
+                    .render_events
+                    .push(Event::Select { region: drag.section_range.into() });
+            }
+            Some(BlockDragAction::Dragged(_)) => {
+                self.pending_scroll = Some(ScrollTarget::Cursor);
+            }
+            Some(BlockDragAction::Released(pointer)) => {
+                if let Some(drag) = self.in_progress_block_drag.take() {
+                    if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
+                        self.move_block(drag.section_range, gap.insert_offset);
+                    }
+                }
+            }
+            None => {}
+        }
+        if self.in_progress_block_drag.is_some() {
+            ui.ctx().request_repaint();
+        }
+    }
+
+    /// While a drag is in flight: draw the drop indicator, leave an
+    /// inset gap where the item was, and render the item floating at
+    /// the pointer (a card + drop shadow with the item re-drawn on top).
+    ///
+    /// Must run *after* `post_render`: the source-hiding cover and the
+    /// floating content (painter shapes + a second glyph callback) are
+    /// submitted after the main text callback so they composite on top
+    /// — the same ordering trick `show_completions` uses.
+    pub(crate) fn draw_dragged_overlay<'a>(
+        &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
+    ) {
+        let Some(drag) = self.in_progress_block_drag else { return };
+        let Some(p) = ui.input(|i| i.pointer.latest_pos()) else { return };
+        let theme = self.renderer.ctx.get_lb_theme();
+        let primary = theme.bg().get_color(theme.prefs().primary);
+
+        // Drop-gap indicator across the dragged item's sibling column:
+        // soft-glowing rounded capsule with a hollow leading dot.
+        if let Some(gap) = self.renderer.drop_gap_for(&drag, p) {
+            let (x0, x1) = self
+                .renderer
+                .block_boxes
+                .iter()
+                .filter(|b| b.parent_start == drag.parent_start)
+                .fold((f32::MAX, f32::MIN), |(a, b), bx| {
+                    (a.min(bx.rect.left()), b.max(bx.rect.right()))
+                });
+            if x0 <= x1 {
+                // Start in the gutter so the dot/line isn't hidden
+                // under the block's left-edge content (markers).
+                let x0 = x0 - self.renderer.layout.indent;
+                let y = gap.y as f32;
+                let dot = 4.0;
+                let half = 1.25;
+                let painter = ui.painter();
+                painter.rect_filled(
+                    egui::Rect::from_min_max(Pos2::new(x0, y - 3.0), Pos2::new(x1, y + 3.0)),
+                    egui::CornerRadius::same(3),
+                    primary.gamma_multiply(0.18),
+                );
+                painter.rect_filled(
+                    egui::Rect::from_min_max(
+                        Pos2::new(x0 + dot, y - half),
+                        Pos2::new(x1, y + half),
+                    ),
+                    egui::CornerRadius::same(1),
+                    primary,
+                );
+                painter.circle_filled(Pos2::new(x0 + dot, y), dot, primary);
+                painter.circle_filled(Pos2::new(x0 + dot, y), dot - 1.5, theme.neutral_bg());
+            }
+        }
+
+        let Some(src_rect) = self.renderer.section_rect(drag.section_range) else { return };
+        // Pad so the cover/card also hide content that overflows the
+        // section's content rect.
+        let pad = self.renderer.layout.block_spacing / 2.0;
+        let card_rect = src_rect.expand(pad);
+        // Source cutout additionally spans the gutter (where the marker
+        // was). The floating *card* stays content-width so it doesn't
+        // cover the gutter — leaving the drop indicator visible.
+        let hole = egui::Rect::from_min_max(
+            Pos2::new(card_rect.left() - self.renderer.layout.indent, card_rect.top()),
+            card_rect.max,
+        );
+
+        // Inset gap where the item was: a recessed cutout with an
+        // inset shadow along the top/left edges.
+        let radius = egui::CornerRadius::same(3);
+        ui.painter()
+            .rect_filled(hole, radius, theme.neutral_bg_secondary());
+        let depth = self.renderer.layout.block_spacing.min(10.0);
+        let steps = 8;
+        for i in 0..steps {
+            let t = i as f32 / steps as f32;
+            let inset = t * depth;
+            let alpha = (50.0 * (1.0 - t)) as u8;
+            ui.painter().hline(
+                (hole.left() + inset)..=(hole.right() - inset),
+                hole.top() + inset,
+                Stroke::new(1.5, egui::Color32::from_black_alpha(alpha)),
+            );
+            ui.painter().vline(
+                hole.left() + inset,
+                (hole.top() + inset)..=(hole.bottom() - inset),
+                Stroke::new(1.0, egui::Color32::from_black_alpha(alpha / 2)),
+            );
+        }
+
+        // Floating card + drop shadow at the translated position.
+        let offset = p - drag.origin;
+        let card = card_rect.translate(offset);
+        ui.painter().rect_filled(
+            card.translate(egui::Vec2::new(0.0, 4.0)),
+            egui::CornerRadius::same(4),
+            egui::Color32::from_black_alpha(40),
+        );
+        ui.painter()
+            .rect_filled(card, egui::CornerRadius::same(4), theme.neutral_bg());
+        ui.painter().rect_stroke(
+            card,
+            egui::CornerRadius::same(4),
+            Stroke::new(1.0, primary),
+            egui::epaint::StrokeKind::Inside,
+        );
+
+        // Re-draw the dragged span's items, translated. `post_render`
+        // already drained text_areas/deco_lines, so what this appends
+        // is just the floating copy; submit it as a second callback (on
+        // top). Discard the fragments/block_boxes it produces (they'd
+        // corrupt hit-testing and drop math).
+        let frag_len = self.renderer.fragments.len();
+        let box_len = self.renderer.block_boxes.len();
+        let section = drag.section_range;
+        // Constituent items inside the dragged span. Each item's whole
+        // subtree paints when `show_block` walks it, so we only invoke
+        // the top-most items in the span — the others are descendants.
+        let in_span: Vec<crate::tab::markdown_editor::widget::block::drag::BlockBox> = self
+            .renderer
+            .block_boxes
+            .iter()
+            .filter(|b| {
+                b.node_range.start() >= section.start() && b.node_range.end() <= section.end()
+            })
+            .copied()
+            .collect();
+        let constituents: Vec<(egui::Rect, (Grapheme, Grapheme))> = in_span
+            .iter()
+            .filter(|b| {
+                !in_span.iter().any(|o| {
+                    o.node_range != b.node_range
+                        && o.node_range.start() <= b.node_range.start()
+                        && b.node_range.end() <= o.node_range.end()
+                })
+            })
+            .map(|b| (b.rect, b.node_range))
+            .collect();
+        ui.push_id("md_block_drag_float", |ui| {
+            for (rect, nr) in &constituents {
+                if let Some(node) = root.descendants().find(|n| self.renderer.node_range(n) == *nr) {
+                    self.renderer.show_block(ui, node, rect.min + offset);
+                }
+            }
+        });
+        let floating_text = std::mem::take(&mut self.renderer.text_areas);
+        let floating_deco = std::mem::take(&mut self.renderer.deco_lines);
+        self.renderer.fragments.truncate(frag_len);
+        self.renderer.block_boxes.truncate(box_len);
+
+        if !floating_text.is_empty() {
+            ui.painter()
+                .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                    ui.clip_rect(),
+                    crate::GlyphonRendererCallback::new(floating_text),
+                ));
+        }
+        for d in floating_deco {
+            ui.painter().hline(d.x, d.y, Stroke::new(1.0, d.color));
+        }
     }
 
     /// Per-frame setup that runs before block rendering: dark-mode +

@@ -16,6 +16,7 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::{Event, MdRender};
 
 pub(crate) mod container;
+pub(crate) mod drag;
 pub(crate) mod leaf;
 pub(crate) mod spacing;
 

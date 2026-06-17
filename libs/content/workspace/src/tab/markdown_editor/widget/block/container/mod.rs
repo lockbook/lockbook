@@ -130,6 +130,23 @@ impl<'ast> MdRender {
             let block_needed = intersects_any_required(&child_range);
             if block_visible || block_needed {
                 self.show_block(ui, child, top_left);
+
+                // Drag-to-reorder geometry index: only list items
+                // register, since only they grow drag handles. The
+                // parent is this container — for items, that's a
+                // `List` and its start uniquely identifies the sibling
+                // group.
+                if matches!(
+                    child.data.borrow().value,
+                    NodeValue::Item(_) | NodeValue::TaskItem(_)
+                ) {
+                    let block_rect = Rect::from_min_size(
+                        top_left,
+                        egui::Vec2::new(self.width(child), child_height),
+                    );
+                    let parent_start = self.node_range(node).start();
+                    self.push_block_box(child, block_rect, parent_start);
+                }
             } else {
                 let in_buffer = top_left.y + child_height > viewport.min.y - buffer
                     && top_left.y < viewport.max.y + buffer;

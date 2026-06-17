@@ -23,6 +23,40 @@ pub struct EventState {
     pub internal_events: Vec<Event>,
 }
 
+impl MdEdit {
+    /// Reorder a list item: move the unit at `section_range` to the gap
+    /// whose insertion point is `insert_offset` (drag-to-reorder
+    /// release). No-op moves do nothing.
+    ///
+    /// The move rewrites the dragged unit's sibling run as a single edit
+    /// ([`MdRender::plan_block_move`] — the positional pseudoblock
+    /// model), so separators stay in place and spacing is preserved.
+    /// The selection is applied as a *separate* batch afterward (base =
+    /// post-move) so it isn't transformed against the edit and lands on
+    /// the moved item.
+    pub fn move_block(&mut self, section_range: (Grapheme, Grapheme), insert_offset: Grapheme) {
+        let arena = comrak::Arena::new();
+        let root = self.renderer.reparse(&arena);
+        let Some(plan) = self.renderer.plan_block_move(root, section_range, insert_offset) else {
+            return;
+        };
+
+        self.renderer
+            .buffer
+            .queue(vec![Operation::Replace(Replace { range: plan.run_range, text: plan.new_run })]);
+        let resp = self.renderer.buffer.update();
+        if !resp.text_updated {
+            return;
+        }
+        self.renderer.bump_text_seq();
+
+        self.renderer
+            .buffer
+            .queue(vec![Operation::Select(plan.moved_range)]);
+        self.renderer.buffer.update();
+    }
+}
+
 impl<'ast> MdEdit {
     /// Translates editor events into buffer operations by interpreting them in the context of the current editor state.
     /// Dispatches events that aren't buffer operations. Returns a (text_updated, selection_updated) pair.
