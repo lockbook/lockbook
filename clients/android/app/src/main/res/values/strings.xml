@@ -217,7 +217,6 @@
     <string name="expiration_day">Expiration Date:</string>
     <string name="grace_period">End of Grace Period:</string>
 
-    <string name="folder_action">Folder action</string>
     <string name="document_action">Document action</string>
 
     <string name="search">Search</string>

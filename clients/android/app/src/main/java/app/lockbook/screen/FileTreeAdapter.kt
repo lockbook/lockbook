@@ -77,10 +77,11 @@ class FileTreeAdapter(
     ) {
         updateListItemAppearance(holder, position)
 
-        val clickTarget = when (holder) {
-            is DocumentViewHolder -> holder.fileItemHolder
-            else -> holder.itemView
-        }
+        val clickTarget =
+            when (holder) {
+                is DocumentViewHolder -> holder.fileItemHolder
+                else -> holder.itemView
+            }
 
         clickTarget.setOnClickListener { onItemClick(item) }
         clickTarget.setOnLongClickListener {

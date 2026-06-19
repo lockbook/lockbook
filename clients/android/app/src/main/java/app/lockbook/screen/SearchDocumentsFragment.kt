@@ -17,6 +17,7 @@ import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.RecyclerView
+import androidx.transition.Visibility
 import app.lockbook.R
 import app.lockbook.databinding.FragmentSearchDocumentsBinding
 import app.lockbook.model.*
@@ -109,14 +110,15 @@ class SearchDocumentsFragment : Fragment() {
                 }
             }
 
-            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, SearchedDocumentNameViewHolder>(
-                R.layout.searched_document_name_item,
+            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, DocumentViewHolder>(
+                R.layout.document_file_item,
             ) {
-                onBind(::SearchedDocumentNameViewHolder) { index, item ->
+                onBind(::DocumentViewHolder) { index, item ->
                     updateSearchResultAppearance(itemView, index)
                     icon.setImageResource(item.file.getIconResource())
                     name.text = item.name
-                    path.text = item.path
+                    description.text = item.path
+                    actionIcon.visibility = View.GONE
                 }
 
                 onClick {
