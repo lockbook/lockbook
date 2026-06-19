@@ -115,16 +115,7 @@ enum class WorkspaceTabType(
         fun fromInt(value: Int): WorkspaceTabType? = WorkspaceTabType.entries.find { it.value == value }
     }
 
-    fun viewWrapperId(): Int =
-        when (this) {
-            Welcome, Pdf, Loading, Image, Graph -> 1
-            Svg -> 2
-            PlainText, Markdown -> 3
-        }
-
     fun isTextEdit(): Boolean = this == Markdown || this == PlainText
-
-    fun isSvg(): Boolean = this == Svg
 }
 
 sealed class FinishedAction {

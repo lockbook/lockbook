@@ -18,6 +18,7 @@ import androidx.preference.Preference
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.screen.*
+import com.google.android.material.color.MaterialColors
 import net.lockbook.File
 
 fun AndroidViewModel.getString(
@@ -28,6 +29,11 @@ fun AndroidViewModel.getString(
 fun AndroidViewModel.getContext(): Context = this.getApplication<Application>()
 
 fun AndroidViewModel.getRes(): Resources = this.getApplication<Application>().resources
+
+fun Context.getMaterialColorOrFallback(
+    attr: Int,
+    fallbackColor: Int,
+): Int = MaterialColors.getColor(this, attr, getColor(fallbackColor))
 
 fun Window?.requestKeyboardFocus(view: View?) {
     this?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
@@ -118,7 +124,7 @@ fun File.getIconResource(): Int =
         }
     }
 
-fun getDocumentIconResource(fileName: String): Int {
+private fun getDocumentIconResource(fileName: String): Int {
     val extensionHelper = ExtensionHelper(fileName)
     return when {
         extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24

@@ -4,10 +4,10 @@ import android.text.SpannableString
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
-import androidx.constraintlayout.widget.ConstraintLayout
 import app.lockbook.R
 import com.afollestad.recyclical.ViewHolder
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.listitem.ListItemCardView
 import net.lockbook.File
 import net.lockbook.File.FileType
 import java.util.UUID
@@ -35,21 +35,12 @@ sealed class FileViewHolderInfo(
 
 class DocumentViewHolder(
     itemView: View,
-) : ViewHolder(itemView) {
-    val fileItemHolder: ConstraintLayout = itemView.findViewById(R.id.document_item_holder)
+) : com.google.android.material.listitem.ListItemViewHolder(itemView) {
+    val fileItemHolder: ListItemCardView = itemView.findViewById(R.id.document_item_holder)
     val name: TextView = itemView.findViewById(R.id.document_name)
     val description: TextView = itemView.findViewById(R.id.document_description)
     val icon: ImageView = itemView.findViewById(R.id.document_icon)
     val actionIcon: ImageView = itemView.findViewById(R.id.document_action_icon)
-}
-
-class FolderViewHolder(
-    itemView: View,
-) : ViewHolder(itemView) {
-    val fileItemHolder: ConstraintLayout = itemView.findViewById(R.id.folder_item_holder)
-    val name: TextView = itemView.findViewById(R.id.folder_name)
-    val icon: ImageView = itemView.findViewById(R.id.folder_icon)
-    val actionIcon: ImageView = itemView.findViewById(R.id.folder_action_icon)
 }
 
 class BasicFileItemHolder(
@@ -111,13 +102,13 @@ sealed class SearchedDocumentViewHolderInfo {
     ) : SearchedDocumentViewHolderInfo()
 
     data class DocumentNameViewHolderInfo(
-        val id: String,
+        val file: File,
         val path: SpannableString,
         val name: SpannableString,
     ) : SearchedDocumentViewHolderInfo()
 
     data class DocumentContentViewHolderInfo(
-        val id: String,
+        val file: File,
         val path: SpannableString,
         val name: SpannableString,
         val contents: List<SpannableString>,

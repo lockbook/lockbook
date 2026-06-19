@@ -14,6 +14,8 @@ import androidx.core.content.getSystemService
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
+import androidx.lifecycle.ViewModel
+import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.databinding.FragmentSearchDocumentsBinding
@@ -27,7 +29,21 @@ import java.lang.ref.WeakReference
 class SearchDocumentsFragment : Fragment() {
     private lateinit var binding: FragmentSearchDocumentsBinding
 
-    private val model: SearchDocumentsViewModel by viewModels()
+    private val model: SearchDocumentsViewModel by viewModels(
+        factoryProducer = {
+            object : ViewModelProvider.Factory {
+                override fun <T : ViewModel> create(modelClass: Class<T>): T {
+                    if (modelClass.isAssignableFrom(SearchDocumentsViewModel::class.java)) {
+                        return SearchDocumentsViewModel(
+                            requireActivity().application,
+                            ViewModelProvider(requireActivity())[FileTreeViewModel::class.java],
+                        ) as T
+                    }
+                    throw IllegalArgumentException("Unknown ViewModel class")
+                }
+            }
+        },
+    )
     private val activityModel: StateViewModel by activityViewModels()
 
     private val alertModel by lazy {
@@ -96,14 +112,14 @@ class SearchDocumentsFragment : Fragment() {
                 R.layout.searched_document_name_item,
             ) {
                 onBind(::SearchedDocumentNameViewHolder) { _, item ->
-                    icon.setImageResource(getDocumentIconResource(item.name.toString()))
+                    icon.setImageResource(item.file.getIconResource())
                     name.text = item.name
                     path.text = item.path
                 }
 
                 onClick {
                     binding.searchDocumentsSearch.clearFocus()
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.id))
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.file.id))
                 }
             }
 
@@ -111,7 +127,7 @@ class SearchDocumentsFragment : Fragment() {
                 R.layout.searched_document_content_item,
             ) {
                 onBind(::SearchedDocumentContentViewHolder) { _, item ->
-                    icon.setImageResource(getDocumentIconResource(item.name.toString()))
+                    icon.setImageResource(item.file.getIconResource())
                     name.text = item.name
                     path.text = item.path
                     val snippetViews = listOf(content1, content2, content3)
@@ -124,13 +140,13 @@ class SearchDocumentsFragment : Fragment() {
                     showMore.text = "Show more (${item.totalMatches})"
                     showMore.visibility = if (item.showMore) View.VISIBLE else View.GONE
                     showMore.setOnClickListener {
-                        model.setFocusedContentSearchResult(item.id)
+                        model.setFocusedContentSearchResult(item.file.id)
                     }
                 }
 
                 onClick {
                     binding.searchDocumentsSearch.clearFocus()
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.id))
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.file.id))
                 }
             }
         }

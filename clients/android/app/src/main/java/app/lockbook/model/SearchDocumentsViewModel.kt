@@ -38,6 +38,7 @@ import java.util.concurrent.Executors
 
 class SearchDocumentsViewModel(
     application: Application,
+    private val filesListModel: FileTreeViewModel,
 ) : AndroidViewModel(application) {
     private val _updateSearchUI = SingleMutableLiveData<UpdateSearchUI>()
 
@@ -228,8 +229,9 @@ class SearchDocumentsViewModel(
 
         if (isFilenameSearchFocused) {
             rows.add(SearchedDocumentViewHolderInfo.SectionHeaderViewHolderInfo("Filename matches", "Back"))
-            rows.addAll(pathResults.map(::pathResultRow))
-            if (pathResults.isEmpty()) {
+            val pathRows = pathResults.mapNotNull(::pathResultRow)
+            rows.addAll(pathRows)
+            if (pathRows.isEmpty()) {
                 rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No filename matches"))
             }
         } else {
@@ -240,8 +242,9 @@ class SearchDocumentsViewModel(
                     true,
                 ),
             )
-            rows.addAll(pathResults.take(OVERVIEW_PREVIEW_COUNT).map(::pathResultRow))
-            if (pathResults.isEmpty()) {
+            val pathRows = pathResults.take(OVERVIEW_PREVIEW_COUNT).mapNotNull(::pathResultRow)
+            rows.addAll(pathRows)
+            if (pathRows.isEmpty()) {
                 rows.add(SearchedDocumentViewHolderInfo.EmptyViewHolderInfo("No filename matches"))
             }
 
@@ -275,20 +278,19 @@ class SearchDocumentsViewModel(
 
     private fun loadSuggestedResults(): List<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo> =
         Lb.suggestedDocs().mapNotNull { id ->
-            runCatching {
-                val file = Lb.getFileById(id)
-                val parent = Lb.getFileById(file.parent)
-                SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(
-                    file.id,
-                    parent.name.makeSpannableString(),
-                    file.name.makeSpannableString(),
-                )
-            }.getOrNull()
+            val file = filesListModel.fileModel.idsAndFiles[id] ?: return@mapNotNull null
+            val parent = filesListModel.fileModel.idsAndFiles[file.parent] ?: return@mapNotNull null
+            SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(
+                file,
+                parent.name.makeSpannableString(),
+                file.name.makeSpannableString(),
+            )
         }
 
-    private fun pathResultRow(result: PathSearcherResult): SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo {
+    private fun pathResultRow(result: PathSearcherResult): SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo? {
         val (parentPathSpan, fileNameSpan) = result.toHighlightedPathParts()
-        return SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(result.id, parentPathSpan, fileNameSpan)
+        val file = filesListModel.fileModel.idsAndFiles[result.id] ?: return null
+        return SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo(file, parentPathSpan, fileNameSpan)
     }
 
     private fun contentResultRow(result: ContentSearcherResult): SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo? {
@@ -298,9 +300,10 @@ class SearchDocumentsViewModel(
                 .mapNotNull { it.toHighlightedSnippet(result) }
                 .takeIf { it.isNotEmpty() }
                 ?: return null
+        val file = filesListModel.fileModel.idsAndFiles[result.id] ?: return null
 
         return SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
-            result.id,
+            file,
             result.parentPath.makeSpannableString(),
             result.filename.makeSpannableString(),
             snippets,
@@ -311,11 +314,13 @@ class SearchDocumentsViewModel(
 
     private fun focusedContentSearchResultRows(
         result: ContentSearcherResult,
-    ): List<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo> =
-        result.matches.mapNotNull { match ->
+    ): List<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo> {
+        val file = filesListModel.fileModel.idsAndFiles[result.id] ?: return emptyList()
+
+        return result.matches.mapNotNull { match ->
             match.toHighlightedSnippet(result)?.let { snippet ->
                 SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo(
-                    result.id,
+                    file,
                     result.parentPath.makeSpannableString(),
                     result.filename.makeSpannableString(),
                     listOf(snippet),
@@ -324,6 +329,7 @@ class SearchDocumentsViewModel(
                 )
             }
         }
+    }
 
     private fun PathSearcherResult.toHighlightedPathParts(): Pair<SpannableString, SpannableString> {
         val parentPathSpan = parentPath.makeSpannableString()

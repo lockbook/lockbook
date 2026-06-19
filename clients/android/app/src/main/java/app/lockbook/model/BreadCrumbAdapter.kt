@@ -17,8 +17,6 @@ class BreadCrumbAdapter(
 ) : RecyclerView.Adapter<BreadCrumbAdapter.ViewHolder>() {
     private var breadCrumbItemsData: MutableList<BreadCrumbItem> = mutableListOf()
     private var arrowDrawable: Int = R.drawable.ic_baseline_keyboard_arrow_right_24
-    private var textColor: Int = 10
-    private var textSize: Int = 10
 
     override fun onCreateViewHolder(
         parent: ViewGroup,
@@ -52,16 +50,6 @@ class BreadCrumbAdapter(
         notifyDataSetChanged()
     }
 
-    fun setTextColor(textColor: Int) {
-        this.textColor = textColor
-        notifyDataSetChanged()
-    }
-
-    fun setTextSize(textSize: Int) {
-        this.textSize = textSize
-        notifyDataSetChanged()
-    }
-
     inner class ViewHolder(
         breadCrumbItem: View,
     ) : RecyclerView.ViewHolder(breadCrumbItem) {
@@ -75,7 +63,6 @@ class BreadCrumbAdapter(
             }
 
             breadCrumbSeparator.setImageResource(arrowDrawable)
-            breadCrumbTitle.textSize = textSize.toFloat()
         }
     }
 }

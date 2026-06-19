@@ -1,7 +1,7 @@
 use egui::{Color32, FontDefinitions};
 use egui_wgpu_renderer::RendererState;
 use jni::JNIEnv;
-use jni::objects::{JClass, JObject, JString};
+use jni::objects::{JClass, JObject, JString, JValue};
 use jni::sys::*;
 use lb_java::Lb;
 use ndk_sys::{
@@ -28,8 +28,8 @@ pub struct NativeWindow {
     display_handle: RawDisplayHandle,
 }
 
-const WORKSPACE_THEME_VARIANT_SIG: &str = "Lapp/lockbook/workspace/WorkspaceThemeVariant;";
-const WORKSPACE_THEME_PREFERENCES_SIG: &str = "Lapp/lockbook/workspace/WorkspaceThemePreferences;";
+const WORKSPACE_THEME_VARIANT_SIG: &str = "Lapp/lockbook/util/WorkspaceThemeVariant;";
+const WORKSPACE_THEME_PREFERENCES_SIG: &str = "Lapp/lockbook/util/WorkspaceThemePreferences;";
 
 impl NativeWindow {
     pub fn new(env: &JNIEnv, surface: jobject) -> Self {
@@ -137,6 +137,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setTheme(
         .set_lb_theme(android_material_theme_to_lb(&mut env, theme));
 }
 
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_defaultTheme(
+    mut env: JNIEnv, _: JClass, is_dark: jboolean,
+) -> jobject {
+    let mode = if is_dark != 0 { Mode::Dark } else { Mode::Light };
+    lb_theme_to_android_material_theme(&mut env, Theme::default(mode)).into_raw()
+}
+
 fn android_material_theme_to_lb(env: &mut JNIEnv<'_>, theme: JObject<'_>) -> Theme {
     android_material_theme_to_lb_inner(env, &theme).unwrap_or_else(|| Theme::default(Mode::Light))
 }
@@ -204,6 +212,107 @@ fn string_field(env: &mut JNIEnv, obj: &JObject, name: &str) -> Option<String> {
     env.get_string(&JString::from(string)).ok().map(Into::into)
 }
 
+fn lb_theme_to_android_material_theme<'local>(
+    env: &mut JNIEnv<'local>, theme: Theme,
+) -> JObject<'local> {
+    let cls = env
+        .find_class("app/lockbook/util/WorkspaceTheme")
+        .expect("find WorkspaceTheme class");
+    let dim = theme_variant_to_java(env, theme.dim);
+    let light_prefs = theme_preferences_to_java(env, theme.light_prefs);
+    let bright = theme_variant_to_java(env, theme.bright);
+    let dark_prefs = theme_preferences_to_java(env, theme.dark_prefs);
+
+    env.new_object(
+        cls,
+        concat!(
+            "(Z",
+            "Lapp/lockbook/util/WorkspaceThemeVariant;",
+            "Lapp/lockbook/util/WorkspaceThemePreferences;",
+            "Lapp/lockbook/util/WorkspaceThemeVariant;",
+            "Lapp/lockbook/util/WorkspaceThemePreferences;",
+            ")V"
+        ),
+        &[
+            JValue::Bool(if theme.current == Mode::Dark { 1 } else { 0 }),
+            JValue::Object(&dim),
+            JValue::Object(&light_prefs),
+            JValue::Object(&bright),
+            JValue::Object(&dark_prefs),
+        ],
+    )
+    .expect("create WorkspaceTheme")
+}
+
+fn theme_variant_to_java<'local>(
+    env: &mut JNIEnv<'local>, variant: ThemeVariant,
+) -> JObject<'local> {
+    let cls = env
+        .find_class("app/lockbook/util/WorkspaceThemeVariant")
+        .expect("find WorkspaceThemeVariant class");
+    env.new_object(
+        cls,
+        "(IIIIIIIII)V",
+        &[
+            JValue::Int(color32_to_argb(variant.black)),
+            JValue::Int(color32_to_argb(variant.grey)),
+            JValue::Int(color32_to_argb(variant.red)),
+            JValue::Int(color32_to_argb(variant.green)),
+            JValue::Int(color32_to_argb(variant.yellow)),
+            JValue::Int(color32_to_argb(variant.blue)),
+            JValue::Int(color32_to_argb(variant.magenta)),
+            JValue::Int(color32_to_argb(variant.cyan)),
+            JValue::Int(color32_to_argb(variant.white)),
+        ],
+    )
+    .expect("create WorkspaceThemeVariant")
+}
+
+fn theme_preferences_to_java<'local>(
+    env: &mut JNIEnv<'local>, prefs: Preferences,
+) -> JObject<'local> {
+    let cls = env
+        .find_class("app/lockbook/util/WorkspaceThemePreferences")
+        .expect("find WorkspaceThemePreferences class");
+    let primary = env
+        .new_string(palette_name(prefs.primary))
+        .expect("create primary palette string");
+    let secondary = env
+        .new_string(palette_name(prefs.secondary))
+        .expect("create secondary palette string");
+    let tertiary = env
+        .new_string(palette_name(prefs.tertiary))
+        .expect("create tertiary palette string");
+    let quaternary = env
+        .new_string(palette_name(prefs.quaternary))
+        .expect("create quaternary palette string");
+
+    env.new_object(
+        cls,
+        "(Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;Ljava/lang/String;)V",
+        &[
+            JValue::Object(&JObject::from(primary)),
+            JValue::Object(&JObject::from(secondary)),
+            JValue::Object(&JObject::from(tertiary)),
+            JValue::Object(&JObject::from(quaternary)),
+        ],
+    )
+    .expect("create WorkspaceThemePreferences")
+}
+
+fn palette_name(palette: Palette) -> &'static str {
+    match palette {
+        Palette::Black => "black",
+        Palette::Red => "red",
+        Palette::Green => "green",
+        Palette::Yellow => "yellow",
+        Palette::Blue => "blue",
+        Palette::Magenta => "magenta",
+        Palette::Cyan => "cyan",
+        Palette::White => "white",
+    }
+}
+
 /// some bit shifting and masking to convert from Android's ARGB format to egui's RGBA format
 fn color32_from_argb(argb: i32) -> Color32 {
     let argb = argb as u32;
@@ -213,6 +322,10 @@ fn color32_from_argb(argb: i32) -> Color32 {
         (argb & 0xff) as u8,
         ((argb >> 24) & 0xff) as u8,
     )
+}
+
+fn color32_to_argb(color: Color32) -> i32 {
+    u32::from_be_bytes([color.a(), color.r(), color.g(), color.b()]) as i32
 }
 
 #[no_mangle]

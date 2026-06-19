@@ -7,7 +7,6 @@ import android.content.Context
 import android.content.Intent
 import android.content.res.Configuration
 import android.graphics.Canvas
-import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
@@ -28,186 +27,19 @@ import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
 import app.lockbook.App
-import app.lockbook.R
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.AndroidResponse
 import app.lockbook.workspace.Workspace
-import app.lockbook.workspace.WorkspaceTheme
-import app.lockbook.workspace.WorkspaceThemePreferences
-import app.lockbook.workspace.WorkspaceThemeVariant
 import app.lockbook.workspace.isNullUUID
 import app.lockbook.workspace.toModelTab
-import com.google.android.material.color.MaterialColors
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import net.lockbook.Lb
-import kotlin.math.abs
-import kotlin.math.min
-
-private const val PALETTE_RED = "red"
-private const val PALETTE_GREEN = "green"
-private const val PALETTE_YELLOW = "yellow"
-private const val PALETTE_BLUE = "blue"
-private const val PALETTE_MAGENTA = "magenta"
-private const val PALETTE_CYAN = "cyan"
-
-private fun Context.workspaceMaterialTheme(darkMode: Boolean): WorkspaceTheme {
-    val materialPrimary =
-        materialColor(com.google.android.material.R.attr.colorPrimary, R.color.md_theme_primary)
-    val materialSecondary =
-        materialColor(com.google.android.material.R.attr.colorSecondary, R.color.md_theme_secondary)
-    val materialTertiary =
-        materialColor(com.google.android.material.R.attr.colorTertiary, R.color.md_theme_tertiary)
-    val materialSurface =
-        materialColor(com.google.android.material.R.attr.colorSurface, R.color.md_theme_surface)
-    val materialSurfaceVariant =
-        materialColor(
-            com.google.android.material.R.attr.colorSurfaceVariant,
-            R.color.md_theme_surfaceVariant,
-        )
-    val materialOnSurface =
-        materialColor(com.google.android.material.R.attr.colorOnSurface, R.color.md_theme_onSurface)
-    val materialOnSurfaceVariant =
-        materialColor(
-            com.google.android.material.R.attr.colorOnSurfaceVariant,
-            R.color.md_theme_onSurfaceVariant,
-        )
-
-    val dimAccents =
-        intArrayOf(
-            Color.rgb(0xDF, 0x20, 0x40),
-            Color.rgb(0x00, 0xB3, 0x71),
-            Color.rgb(0xE6, 0xAC, 0x00),
-            Color.rgb(0x20, 0x7F, 0xDF),
-            Color.rgb(0x78, 0x55, 0xAA),
-            Color.rgb(0x00, 0xBB, 0xCC),
-        ).map { MaterialColors.harmonize(it, materialPrimary) }
-
-    val brightAccents =
-        intArrayOf(
-            Color.rgb(0xFF, 0x66, 0x80),
-            Color.rgb(0x67, 0xE4, 0xB6),
-            Color.rgb(0xFF, 0xDB, 0x70),
-            Color.rgb(0x66, 0xB2, 0xFF),
-            Color.rgb(0xAC, 0x8C, 0xD9),
-            Color.rgb(0x6E, 0xEC, 0xF7),
-        ).map { MaterialColors.harmonize(it, materialPrimary) }
-
-    val dim =
-        WorkspaceThemeVariant(
-            black = if (darkMode) materialSurface else materialOnSurface,
-            grey = materialOnSurfaceVariant,
-            red = dimAccents[0],
-            green = dimAccents[1],
-            yellow = dimAccents[2],
-            blue = dimAccents[3],
-            magenta = dimAccents[4],
-            cyan = dimAccents[5],
-            white = if (darkMode) materialOnSurface else materialSurface,
-        )
-
-    val bright =
-        WorkspaceThemeVariant(
-            black = materialOnSurface,
-            grey = if (darkMode) materialOnSurfaceVariant else materialSurfaceVariant,
-            red = brightAccents[0],
-            green = brightAccents[1],
-            yellow = brightAccents[2],
-            blue = brightAccents[3],
-            magenta = brightAccents[4],
-            cyan = brightAccents[5],
-            white = materialSurface,
-        )
-
-    val renderedAccentSlots =
-        if (darkMode) {
-            brightAccents
-        } else {
-            dimAccents
-        }
-    val prefs =
-        pickWorkspacePreferences(
-            intArrayOf(materialPrimary, materialSecondary, materialTertiary),
-            renderedAccentSlots,
-        )
-
-    return WorkspaceTheme(
-        isDark = darkMode,
-        dim = dim,
-        lightPrefs = prefs,
-        bright = bright,
-        darkPrefs = prefs,
-    )
-}
-
-private fun Context.materialColor(
-    attr: Int,
-    fallbackColor: Int,
-): Int = MaterialColors.getColor(this, attr, getColor(fallbackColor))
-
-/* set the theme preferences based on material you theme preferences. */
-private fun pickWorkspacePreferences(
-    materialRoles: IntArray,
-    renderedAccentSlots: List<Int>,
-): WorkspaceThemePreferences {
-    val paletteSlots =
-        mutableListOf(
-            PALETTE_RED to renderedAccentSlots[0],
-            PALETTE_GREEN to renderedAccentSlots[1],
-            PALETTE_YELLOW to renderedAccentSlots[2],
-            PALETTE_BLUE to renderedAccentSlots[3],
-            PALETTE_MAGENTA to renderedAccentSlots[4],
-            PALETTE_CYAN to renderedAccentSlots[5],
-        )
-
-    val picked =
-        materialRoles.map { roleColor ->
-            val best =
-                paletteSlots.minByOrNull { (_, slotColor) ->
-                    colorMatchScore(roleColor, slotColor)
-                } ?: paletteSlots.first()
-            paletteSlots.remove(best)
-            best.first
-        }.toMutableList()
-
-    picked += paletteSlots.maxByOrNull { (_, slotColor) -> saturation(slotColor) }?.first ?: PALETTE_CYAN
-    return WorkspaceThemePreferences(
-        primary = picked[0],
-        secondary = picked[1],
-        tertiary = picked[2],
-        quaternary = picked[3],
-    )
-}
-
-private fun colorMatchScore(
-    materialColor: Int,
-    paletteColor: Int,
-): Float {
-    val materialHsv = FloatArray(3)
-    val paletteHsv = FloatArray(3)
-    Color.colorToHSV(materialColor, materialHsv)
-    Color.colorToHSV(paletteColor, paletteHsv)
-    return hueDistance(materialHsv[0], paletteHsv[0]) + (abs(materialHsv[1] - paletteHsv[1]) * 30f)
-}
-
-private fun hueDistance(
-    a: Float,
-    b: Float,
-): Float {
-    val diff = abs(a - b)
-    return min(diff, 360f - diff)
-}
-
-private fun saturation(color: Int): Float {
-    val hsv = FloatArray(3)
-    Color.colorToHSV(color, hsv)
-    return hsv[1]
-}
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(
@@ -403,7 +235,7 @@ class WorkspaceView(
         surface = holder.surface
         val darkMode =
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        val workspaceTheme = context.workspaceMaterialTheme(darkMode)
+        val workspaceTheme = WorkspaceThemeHelper.materialTheme(context, darkMode)
 
         wgpuObj =
             Workspace.initWSOffloaded(
@@ -429,7 +261,7 @@ class WorkspaceView(
 
         val darkMode =
             (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
-        val workspaceTheme = context.workspaceMaterialTheme(darkMode)
+        val workspaceTheme = WorkspaceThemeHelper.materialTheme(context, darkMode)
         Workspace.setTheme(wgpuObj, workspaceTheme)
         invalidate()
     }
