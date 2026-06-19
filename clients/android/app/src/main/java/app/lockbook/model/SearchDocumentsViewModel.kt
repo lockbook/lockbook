@@ -38,7 +38,7 @@ import java.util.concurrent.Executors
 
 class SearchDocumentsViewModel(
     application: Application,
-    private val filesListModel: FileTreeViewModel,
+    private val filesListModel: FileTreeViewModel, // todo: decouple this by using a repo pattern
 ) : AndroidViewModel(application) {
     private val _updateSearchUI = SingleMutableLiveData<UpdateSearchUI>()
 
