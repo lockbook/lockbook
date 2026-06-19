@@ -34,17 +34,9 @@ class BreadCrumbView : FrameLayout {
                 context.obtainStyledAttributes(attrs, R.styleable.BreadCrumbView, defStyleAttr, 0)
             val arrowDrawable =
                 typedArray.getResourceId(R.styleable.BreadCrumbView_arrow_drawable, -1)
-            val textColor = typedArray.getColor(R.styleable.BreadCrumbView_text_color, -1)
-            val textSize = typedArray.getColor(R.styleable.BreadCrumbView_text_size, -1)
             typedArray.recycle()
             if (arrowDrawable != -1) {
                 breadCrumbAdapter.setArrowDrawable(arrowDrawable)
-            }
-            if (textColor != -1) {
-                breadCrumbAdapter.setTextColor(textColor)
-            }
-            if (textSize != -1) {
-                breadCrumbAdapter.setTextSize(textSize)
             }
         }
     }

@@ -40,11 +40,10 @@ object Workspace {
         print("do nothing")
     }
 
-    external fun initWS(surface: Surface, core: Long, darkMode: Boolean): Long
-    external fun initWSOffloaded(surface: Surface, core: Long, darkMode: Boolean): Long
-    external fun dropWS(ptr: Long)
+    external fun initWSOffloaded(surface: Surface, core: Long, theme: Any): Long
+    external fun setTheme(rustObj: Long, theme: Any)
+    external fun defaultTheme(isDark: Boolean): Any
 
-    external fun enterFrame(rustObj: Long): AndroidResponse
     external fun enterFrameOffloaded(rustObj: Long): AndroidResponse
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)

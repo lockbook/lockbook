@@ -27,7 +27,6 @@ import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.button.MaterialButton
-import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.textview.MaterialTextView
 import com.leinardi.android.speeddial.SpeedDialActionItem
@@ -188,12 +187,12 @@ class FilesListFragment :
         }
 
         val fabBackgroundColor =
-            getMaterialColorOrFallback(
-                com.google.android.material.R.attr.colorPrimary,
+            requireContext().getMaterialColorOrFallback(
+                com.google.android.material.R.attr.colorPrimaryFixed,
                 R.color.md_theme_primary,
             )
         val fabIconColor =
-            getMaterialColorOrFallback(
+            requireContext().getMaterialColorOrFallback(
                 com.google.android.material.R.attr.colorOnPrimary,
                 R.color.md_theme_onPrimary,
             )
@@ -318,16 +317,6 @@ class FilesListFragment :
     private fun createDocAtParent(isDrawing: Boolean) {
         workspaceModel._createDocAt.value = isDrawing to model.fileModel.parent.id
     }
-
-    private fun getMaterialColorOrFallback(
-        attr: Int,
-        fallbackColor: Int,
-    ): Int =
-        runCatching {
-            MaterialColors.getColor(binding.fabSpeedDial, attr)
-        }.getOrElse {
-            ContextCompat.getColor(requireContext(), fallbackColor)
-        }
 
     private fun setUpToolbar() {
         binding.filesToolbar.setNavigationOnClickListener {

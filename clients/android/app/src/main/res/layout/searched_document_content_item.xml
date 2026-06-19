@@ -1,117 +1,111 @@
 <?xml version="1.0" encoding="utf-8"?>
 
-<com.google.android.material.card.MaterialCardView xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.listitem.ListItemLayout xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
-    style="@style/Widget.Material3.CardView.Filled"
-    android:layout_width="match_parent"
-    android:layout_height="wrap_content"
     android:layout_marginHorizontal="12dp"
-    android:layout_marginVertical="6dp"
-    app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
-    app:cardElevation="0dp"
-    app:strokeWidth="0dp">
+    android:layout_marginVertical="2dp"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content">
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <com.google.android.material.listitem.ListItemCardView
+        android:id="@+id/searched_document_content_holder"
+        style="?attr/listItemCardViewSegmentedStyle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:paddingStart="?android:listPreferredItemPaddingStart"
-        android:paddingEnd="?android:listPreferredItemPaddingEnd">
+        app:cardBackgroundColor="@color/file_tree_list_item_background">
 
-        <ImageView
-            android:id="@+id/searched_document_content_icon"
-            android:layout_width="25dp"
-            android:layout_height="25dp"
-            android:contentDescription="@string/document"
-            android:src="@drawable/ic_outline_insert_drive_file_24"
-            app:layout_constraintBottom_toTopOf="@+id/searched_document_content_snippets"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toTopOf="parent" />
-
-        <LinearLayout
-            android:id="@+id/linearLayout"
-            android:layout_width="0dp"
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_marginTop="15dp"
-            android:layout_marginStart="20dp"
-            android:gravity="center"
-            android:orientation="vertical"
-            app:layout_constraintBottom_toTopOf="@+id/searched_document_content_snippets"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toEndOf="@+id/searched_document_content_icon"
-            app:layout_constraintTop_toTopOf="parent">
+            android:duplicateParentState="true">
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/searched_document_content_name"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:layout_marginBottom="5dp"
-                android:ellipsize="end"
-                android:maxLines="1"
-                android:textAppearance="?attr/textAppearanceListItemSmall" />
+            <ImageView
+                android:id="@+id/searched_document_content_icon"
+                android:layout_width="30dp"
+                android:layout_height="45dp"
+                android:contentDescription="@string/document"
+                android:duplicateParentState="true"
+                android:src="@drawable/ic_outline_insert_drive_file_24"
+                app:layout_constraintBottom_toBottomOf="@+id/meta_linear_layout"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:tint="?attr/colorSecondary" />
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/searched_document_content_path"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:ellipsize="start"
-                android:gravity="start"
-                android:singleLine="true"
-                android:textAppearance="?attr/textAppearanceListItemSecondary"
-                app:layout_constraintBottom_toBottomOf="parent" />
-
-        </LinearLayout>
-
-        <LinearLayout
-            android:id="@+id/searched_document_content_snippets"
-            android:layout_width="0dp"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="10dp"
-            android:layout_marginBottom="6dp"
-            android:orientation="horizontal"
-            app:layout_constraintBottom_toTopOf="@+id/searched_document_content_show_more"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/linearLayout">
-
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/searched_document_content_1"
+            <LinearLayout
+                android:id="@+id/meta_linear_layout"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:textAppearance="?attr/textAppearanceBody2" />
+                android:layout_marginStart="20dp"
+                android:duplicateParentState="true"
+                android:gravity="center"
+                android:orientation="vertical"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/searched_document_content_icon"
+                app:layout_constraintTop_toTopOf="parent">
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/searched_document_content_2"
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/searched_document_content_name"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginBottom="5dp"
+                    android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="1"
+                    android:textAppearance="?attr/textAppearanceTitleSmall"
+                    android:textColor="@color/file_tree_item_text_color" />
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/searched_document_content_path"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:duplicateParentState="true"
+                    android:ellipsize="start"
+                    android:gravity="start"
+                    android:singleLine="true"
+                    android:textAppearance="?attr/textAppearanceLabelMedium"
+                    android:textColor="@color/file_tree_item_description_color"
+                    app:layout_constraintBottom_toBottomOf="parent" />
+
+            </LinearLayout>
+
+            <LinearLayout
+                android:id="@+id/searched_document_content_snippets"
                 android:layout_width="0dp"
                 android:layout_height="wrap_content"
-                android:layout_marginEnd="6dp"
-                android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:textAppearance="?attr/textAppearanceBody2" />
+                android:layout_marginTop="10dp"
+                android:layout_marginBottom="6dp"
+                android:duplicateParentState="true"
+                android:orientation="horizontal"
+                app:layout_constraintBottom_toTopOf="@+id/searched_document_content_show_more"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/meta_linear_layout">
 
-            <com.google.android.material.textview.MaterialTextView
-                android:id="@+id/searched_document_content_3"
-                android:layout_width="0dp"
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/searched_document_content"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_marginEnd="6dp"
+                    android:layout_weight="1"
+                    android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="2"
+                    android:textAppearance="?attr/textAppearanceBody2" />
+
+
+            </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/searched_document_content_show_more"
+                style="@style/Widget.Material3.Button.TextButton"
+                android:layout_width="wrap_content"
                 android:layout_height="wrap_content"
-                android:layout_weight="1"
-                android:ellipsize="end"
-                android:maxLines="2"
-                android:textAppearance="?attr/textAppearanceBody2" />
-        </LinearLayout>
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toBottomOf="@+id/searched_document_content_snippets" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/searched_document_content_show_more"
-            style="@style/Widget.Material3.Button.TextButton"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/searched_document_content_snippets" />
+        </androidx.constraintlayout.widget.ConstraintLayout>
 
+    </com.google.android.material.listitem.ListItemCardView>
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
-</com.google.android.material.card.MaterialCardView>
+</com.google.android.material.listitem.ListItemLayout>

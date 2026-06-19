@@ -241,12 +241,15 @@ class WorkspaceView(
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         surface = holder.surface
+        val darkMode =
+            (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val workspaceTheme = WorkspaceThemeHelper.materialTheme(context, darkMode)
 
         wgpuObj =
             Workspace.initWSOffloaded(
                 surface!!,
                 Lb.lb,
-                (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES,
+                workspaceTheme,
             )
 
         setWillNotDraw(false)
@@ -255,6 +258,20 @@ class WorkspaceView(
         isFocusableInTouchMode = true
 
         requestFocus()
+    }
+
+    override fun onConfigurationChanged(newConfig: Configuration) {
+        super.onConfigurationChanged(newConfig)
+
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        val darkMode =
+            (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
+        val workspaceTheme = WorkspaceThemeHelper.materialTheme(context, darkMode)
+        Workspace.setTheme(wgpuObj, workspaceTheme)
+        invalidate()
     }
 
     override fun surfaceChanged(
