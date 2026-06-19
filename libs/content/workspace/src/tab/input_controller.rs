@@ -421,7 +421,7 @@ impl InputController {
             }
             egui::Event::PointerGone => None,
             egui::Event::MouseWheel { unit, delta, modifiers } => {
-                if self.tool_running.is_some() {
+                if !self.can_viewport_change(self.mouse_hover_pos, ctx) {
                     return None;
                 }
                 // Convert the platform-reported delta into points. Windows precision
@@ -448,11 +448,11 @@ impl InputController {
                 self.touch_to_controller_event(device_id, id, pos, phase, force, ctx)
             }
             egui::Event::Zoom(..) => {
-                if self.tool_running.is_none() {
-                    self.viewport_changing = Some(Instant::now());
-                    return Some(ViewportChange::new(self, event, false));
+                if !self.can_viewport_change(self.mouse_hover_pos, ctx) {
+                    return None;
                 }
-                None
+                self.viewport_changing = Some(Instant::now());
+                Some(ViewportChange::new(self, event, false))
             }
             egui::Event::WindowFocused(gained_focus) => {
                 if !self.touches.is_empty() || self.is_touch_frame || gained_focus {
@@ -687,6 +687,14 @@ impl InputController {
 
     pub fn sync_canvas_settings(&mut self, settings: &CanvasSettings) {
         self.config.pencil_only_drawing = settings.pencil_only_drawing;
+    }
+
+    fn can_viewport_change(&self, pos: Option<egui::Pos2>, ctx: &LayoutContext) -> bool {
+        let pos = match pos {
+            Some(pos) => pos,
+            None => return false,
+        };
+        !self.tool_running.is_none() && ctx.draw_area.contains(pos)
     }
 }
 

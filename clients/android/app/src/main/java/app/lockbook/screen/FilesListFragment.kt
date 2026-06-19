@@ -474,7 +474,7 @@ class FilesListFragment :
 
         folderTransition?.cancel()
 
-        val transitionViews = listOf(recyclerView, binding.filesEmptyFolder, binding.filesBreadcrumbBar)
+        val transitionViews = listOf(recyclerView, binding.filesEmptyFolder)
         if (!animate) {
             transitionViews.forEach {
                 it.alpha = 1f
