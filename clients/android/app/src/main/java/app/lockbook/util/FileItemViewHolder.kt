@@ -144,9 +144,7 @@ class SearchedDocumentContentViewHolder(
     val icon: ImageView = itemView.findViewById(R.id.searched_document_content_icon)
     val name: TextView = itemView.findViewById(R.id.searched_document_content_name)
     val path: TextView = itemView.findViewById(R.id.searched_document_content_path)
-    val content1: TextView = itemView.findViewById(R.id.searched_document_content_1)
-    val content2: TextView = itemView.findViewById(R.id.searched_document_content_2)
-    val content3: TextView = itemView.findViewById(R.id.searched_document_content_3)
+    val content: TextView = itemView.findViewById(R.id.searched_document_content)
     val showMore: MaterialButton = itemView.findViewById(R.id.searched_document_content_show_more)
 }
 

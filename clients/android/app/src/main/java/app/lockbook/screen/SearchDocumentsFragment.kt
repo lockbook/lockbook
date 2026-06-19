@@ -24,6 +24,7 @@ import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.color.MaterialColors
+import com.google.android.material.listitem.ListItemLayout
 import java.lang.ref.WeakReference
 
 class SearchDocumentsFragment : Fragment() {
@@ -111,7 +112,8 @@ class SearchDocumentsFragment : Fragment() {
             withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, SearchedDocumentNameViewHolder>(
                 R.layout.searched_document_name_item,
             ) {
-                onBind(::SearchedDocumentNameViewHolder) { _, item ->
+                onBind(::SearchedDocumentNameViewHolder) { index, item ->
+                    updateSearchResultAppearance(itemView, index)
                     icon.setImageResource(item.file.getIconResource())
                     name.text = item.name
                     path.text = item.path
@@ -126,16 +128,14 @@ class SearchDocumentsFragment : Fragment() {
             withItem<SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo, SearchedDocumentContentViewHolder>(
                 R.layout.searched_document_content_item,
             ) {
-                onBind(::SearchedDocumentContentViewHolder) { _, item ->
+                onBind(::SearchedDocumentContentViewHolder) { index, item ->
+                    updateSearchResultAppearance(itemView, index)
                     icon.setImageResource(item.file.getIconResource())
                     name.text = item.name
                     path.text = item.path
-                    val snippetViews = listOf(content1, content2, content3)
-                    snippetViews.forEachIndexed { index, view ->
-                        val snippet = item.contents.getOrNull(index)
-                        view.text = snippet
-                        view.visibility = if (snippet == null) View.GONE else View.VISIBLE
-                    }
+                    val snippet = item.contents.getOrNull(0)
+                    content.text = snippet
+                    content.visibility = if (snippet == null) View.GONE else View.VISIBLE
 
                     showMore.text = "Show more (${item.totalMatches})"
                     showMore.visibility = if (item.showMore) View.VISIBLE else View.GONE
@@ -189,6 +189,29 @@ class SearchDocumentsFragment : Fragment() {
         binding.searchDocumentsSearch.requestFocus()
         return binding.root
     }
+
+    private fun updateSearchResultAppearance(
+        itemView: View,
+        index: Int,
+    ) {
+        val rows = model.fileResults.toList()
+        var sectionStart = index
+        var sectionEnd = index
+
+        while (sectionStart > 0 && rows[sectionStart - 1].isSearchResultRow()) {
+            sectionStart--
+        }
+
+        while (sectionEnd < rows.lastIndex && rows[sectionEnd + 1].isSearchResultRow()) {
+            sectionEnd++
+        }
+
+        (itemView as? ListItemLayout)?.updateAppearance(index - sectionStart, sectionEnd - sectionStart + 1)
+    }
+
+    private fun SearchedDocumentViewHolderInfo.isSearchResultRow(): Boolean =
+        this is SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo ||
+            this is SearchedDocumentViewHolderInfo.DocumentContentViewHolderInfo
 
     private fun updateSearchUI(uiUpdate: UpdateSearchUI) {
         when (uiUpdate) {
