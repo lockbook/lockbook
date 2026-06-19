@@ -9,8 +9,9 @@ Write notes, sketch ideas, and store files in one secure place. Share seamlessly
 
 [![Discord](https://img.shields.io/discord/1014184997751619664?label=Discord&style=plastic)](https://discord.gg/lockbook)
 
-[![What's Lockbook Video](https://github.com/user-attachments/assets/0a278538-d27b-4700-a689-f13a720b33d6)](https://www.youtube.com/watch?v=doPI9IajzKw)
-
+<a href="https://youtu.be/8LM5zrXiki8">
+  <img src="https://img.youtube.com/vi/8LM5zrXiki8/maxresdefault.jpg" alt="Video thumbnail" width="320">
+</a>
 
 ## Community-Driven
 Lockbook is in open beta. Join our community, share your feedback, and help achieve our vision of open-source privacy without compromises.
