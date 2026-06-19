@@ -62,6 +62,7 @@ impl Workspace {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
             self.landing_page_first_frame = true;
         }
+        self.update_window_title();
         if self.out.tabs_changed || self.current_tab_changed {
             self.cfg.set_tabs(&self.tab_strip, &self.current_tab);
             self.current_tab_changed = false;
@@ -82,6 +83,16 @@ impl Workspace {
         self.tabs.end_frame();
 
         mem::take(&mut self.out)
+    }
+
+    fn update_window_title(&mut self) {
+        let title = self
+            .current_tab_title()
+            .unwrap_or_else(|| "Lockbook".to_string());
+        if self.last_set_title.as_ref() != Some(&title) {
+            self.last_set_title = Some(title.clone());
+            self.ctx.send_viewport_cmd(ViewportCommand::Title(title));
+        }
     }
 
     fn set_tooltip_visibility(&mut self, ui: &mut egui::Ui) {
@@ -369,13 +380,6 @@ impl Workspace {
         ui.painter()
             .hline(remaining_rect.x_range(), cursor.max.y, sep_stroke);
 
-        let title = self
-            .current_tab_title()
-            .unwrap_or_else(|| "Lockbook".to_string());
-        if self.last_set_title.as_ref() != Some(&title) {
-            self.last_set_title = Some(title.clone());
-            ui.ctx().send_viewport_cmd(ViewportCommand::Title(title));
-        }
         if back {
             self.back();
         }

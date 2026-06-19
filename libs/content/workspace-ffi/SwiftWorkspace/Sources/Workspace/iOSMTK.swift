@@ -987,6 +987,7 @@
         var panRecognizer: UIPanGestureRecognizer?
         var pinchRecognizer: UIPinchGestureRecognizer?
         var pinchStartTouches = [(Float, Float)]()
+        var pinchCumulativeScale: CGFloat = 1.0
 
         // menu
         var menuDelegate: SvgMenuDelegate?
@@ -1051,11 +1052,11 @@
             addGestureRecognizer(pan)
             panRecognizer = pan
             
-            updatePanTouchRequirements()
+            refreshPanTouchRequirementsFromCurrentTab()
 
             NotificationCenter.default.addObserver(
                 self,
-                selector: #selector(updatePanTouchRequirements),
+                selector: #selector(refreshPanTouchRequirementsFromCurrentTab),
                 name: UIApplication.didBecomeActiveNotification,
                 object: nil
             )
@@ -1081,8 +1082,15 @@
             self.menuInteraction = menuInteraction
         }
 
-        @objc private func updatePanTouchRequirements() {
-            self.panRecognizer?.minimumNumberOfTouches = UIPencilInteraction.prefersPencilOnlyDrawing ? 0 : 2
+        @objc private func refreshPanTouchRequirementsFromCurrentTab() {
+            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))
+            applyPanTouchRequirements(for: currentTab)
+        }
+
+        func applyPanTouchRequirements(for currentTab: WorkspaceTab?) {
+            let isImage = currentTab == .Image
+            self.panRecognizer?.minimumNumberOfTouches =
+                (isImage || UIPencilInteraction.prefersPencilOnlyDrawing) ? 1 : 2
             
             set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
         }
@@ -1131,25 +1139,23 @@
                 mtkView.kineticTimer?.invalidate()
                 mtkView.kineticTimer = nil
             }
-            
-            if event.state == .began{
+
+            if event.state == .began {
                 pinchStartTouches.removeAll()
-                for i in 0..<(sender?.numberOfTouches ?? 0){
+                for i in 0..<(sender?.numberOfTouches ?? 0) {
                     let point = sender?.location(ofTouch: i, in: self)
                     if let p = point {
                         pinchStartTouches.append((Float(p.x), Float(p.y)))
                     }
                 }
-                event.scale = 1.0
+                pinchCumulativeScale = event.scale
             }
 
-            let scale = event.scale
             let pinchCenter = event.location(in: mtkView)
 
             if event.state == .changed {
-                let zoomDelta = Float(scale)
-
-                let viewCenter = CGPoint(x: mtkView.bounds.midX, y: mtkView.bounds.midY)
+                let zoomDelta = Float(event.scale / pinchCumulativeScale)
+                pinchCumulativeScale = event.scale
 
                 multi_touch(
                     wsHandle,
@@ -1162,8 +1168,7 @@
                     pinchStartTouches.map{$0.1},
                     UInt(pinchStartTouches.count)
                 )
-                
-                event.scale = 1.0
+                mtkView.setNeedsDisplay()
             }
         }
 
@@ -1334,6 +1339,10 @@
             let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
 
             if currentTab != mtkView.workspaceOutput!.currentTab {
+                if let currentWrapper = mtkView.currentWrapper as? SvgView {
+                    currentWrapper.applyPanTouchRequirements(for: currentTab)
+                }
+
                 DispatchQueue.main.async {
                     mtkView.workspaceOutput!.currentTab = currentTab
                 }
