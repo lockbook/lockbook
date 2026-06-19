@@ -119,11 +119,10 @@ class SearchDocumentsFragment : Fragment() {
                     name.text = item.name
                     description.text = item.path
                     actionIcon.visibility = View.GONE
-                }
 
-                onClick {
-                    binding.searchDocumentsSearch.clearFocus()
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.file.id))
+                    fileItemHolder.setOnClickListener {
+                        openSearchResult(item.file.id)
+                    }
                 }
             }
 
@@ -144,11 +143,10 @@ class SearchDocumentsFragment : Fragment() {
                     showMore.setOnClickListener {
                         model.setFocusedContentSearchResult(item.file.id)
                     }
-                }
 
-                onClick {
-                    binding.searchDocumentsSearch.clearFocus()
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(item.file.id))
+                    itemHolder.setOnClickListener {
+                        openSearchResult(item.file.id)
+                    }
                 }
             }
         }
@@ -190,6 +188,11 @@ class SearchDocumentsFragment : Fragment() {
 
         binding.searchDocumentsSearch.requestFocus()
         return binding.root
+    }
+
+    private fun openSearchResult(fileId: String) {
+        binding.searchDocumentsSearch.clearFocus()
+        activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(fileId))
     }
 
     private fun updateSearchResultAppearance(

@@ -49,7 +49,7 @@ object WorkspaceThemeHelper {
     ): WorkspaceTheme {
         val defaultTheme = Workspace.defaultTheme(darkMode) as WorkspaceTheme
         val materialPrimary =
-            context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorPrimaryFixed, R.color.md_theme_primary)
+            context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorPrimarySurface, R.color.md_theme_primary)
         val materialSecondary =
             context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorSecondary, R.color.md_theme_secondary)
         val materialTertiary =

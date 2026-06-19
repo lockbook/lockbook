@@ -8,6 +8,7 @@
     android:layout_height="wrap_content">
 
     <com.google.android.material.listitem.ListItemCardView
+        android:id="@+id/searched_document_content_holder"
         style="?attr/listItemCardViewSegmentedStyle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
