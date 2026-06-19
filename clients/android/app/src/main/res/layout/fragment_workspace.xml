@@ -9,6 +9,8 @@
     <com.google.android.material.appbar.AppBarLayout
         android:id="@+id/app_bar_layout"
         android:layout_width="match_parent"
+        android:elevation="0dp"
+        app:elevation="0dp"
         android:translationZ="4dp"
         android:layout_height="wrap_content">
 
@@ -17,6 +19,8 @@
             android:layout_width="match_parent"
             android:layout_height="50dp"
             app:menu="@menu/menu_text_editor"
+            app:elevation="0dp"
+            android:elevation="0dp"
             android:animateLayoutChanges="true"
             />
 
@@ -28,7 +32,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
-        android:elevation="8dp"
+        android:translationZ="4dp"
         >
 
         <com.google.android.material.button.MaterialButton

@@ -18,6 +18,7 @@ import androidx.preference.Preference
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.screen.*
+import com.google.android.material.color.MaterialColors
 import net.lockbook.File
 
 fun AndroidViewModel.getString(
@@ -28,6 +29,11 @@ fun AndroidViewModel.getString(
 fun AndroidViewModel.getContext(): Context = this.getApplication<Application>()
 
 fun AndroidViewModel.getRes(): Resources = this.getApplication<Application>().resources
+
+fun Context.getMaterialColorOrFallback(
+    attr: Int,
+    fallbackColor: Int,
+): Int = MaterialColors.getColor(this, attr, getColor(fallbackColor))
 
 fun Window?.requestKeyboardFocus(view: View?) {
     this?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
@@ -114,15 +120,19 @@ fun File.getIconResource(): Int =
         }
 
         File.FileType.Document -> {
-            val extensionHelper = ExtensionHelper(this.name)
-            when {
-                extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
-                extensionHelper.isImage -> R.drawable.ic_outline_image_24
-                extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
-                else -> R.drawable.ic_outline_insert_drive_file_24
-            }
+            getDocumentIconResource(this.name)
         }
     }
+
+private fun getDocumentIconResource(fileName: String): Int {
+    val extensionHelper = ExtensionHelper(fileName)
+    return when {
+        extensionHelper.isDrawing -> R.drawable.ic_outline_draw_24
+        extensionHelper.isImage -> R.drawable.ic_outline_image_24
+        extensionHelper.isPdf -> R.drawable.ic_outline_picture_as_pdf_24
+        else -> R.drawable.ic_outline_insert_drive_file_24
+    }
+}
 
 val <T> T.exhaustive: T
     get() = this

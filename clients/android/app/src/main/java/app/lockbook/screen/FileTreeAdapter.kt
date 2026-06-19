@@ -4,15 +4,15 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import android.widget.ImageView
-import androidx.constraintlayout.widget.ConstraintLayout
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.util.DocumentViewHolder
 import app.lockbook.util.FileViewHolderInfo
-import app.lockbook.util.FolderViewHolder
 import app.lockbook.util.getIconResource
+import com.google.android.material.listitem.ListItemCardView
+import com.google.android.material.listitem.ListItemLayout
 import net.lockbook.Lb
 
 class FileTreeAdapter(
@@ -38,29 +38,19 @@ class FileTreeAdapter(
         }
     }
 
-    override fun getItemViewType(position: Int): Int =
-        when (getItem(position)) {
-            is FileViewHolderInfo.FolderViewHolderInfo -> VIEW_TYPE_FOLDER
-            is FileViewHolderInfo.DocumentViewHolderInfo -> VIEW_TYPE_DOCUMENT
-        }
-
     override fun onCreateViewHolder(
         parent: ViewGroup,
         viewType: Int,
     ): RecyclerView.ViewHolder {
         val inflater = LayoutInflater.from(parent.context)
-        return when (viewType) {
-            VIEW_TYPE_FOLDER -> FolderViewHolder(inflater.inflate(R.layout.folder_file_item, parent, false))
-            VIEW_TYPE_DOCUMENT -> DocumentViewHolder(inflater.inflate(R.layout.document_file_item, parent, false))
-            else -> error("Unsupported view type $viewType")
-        }
+        return DocumentViewHolder(inflater.inflate(R.layout.document_file_item, parent, false))
     }
 
     override fun onBindViewHolder(
         holder: RecyclerView.ViewHolder,
         position: Int,
     ) {
-        bind(holder, getItem(position))
+        bind(holder, getItem(position), position)
     }
 
     override fun onBindViewHolder(
@@ -70,59 +60,51 @@ class FileTreeAdapter(
     ) {
         val item = getItem(position)
         if (payloads.contains(PAYLOAD_SELECTION)) {
-            when (holder) {
-                is FolderViewHolder -> {
-                    bindSelectionState(
-                        item as FileViewHolderInfo.FolderViewHolderInfo,
-                        holder.fileItemHolder,
-                        holder.actionIcon,
-                    )
-                }
-
-                is DocumentViewHolder -> {
-                    bindSelectionState(
-                        item as FileViewHolderInfo.DocumentViewHolderInfo,
-                        holder.fileItemHolder,
-                        holder.actionIcon,
-                    )
-                }
+            updateListItemAppearance(holder, position)
+            if (holder is DocumentViewHolder) {
+                bindSelectionState(item, holder.fileItemHolder, holder.actionIcon)
             }
             return
         }
 
-        bind(holder, item)
+        bind(holder, item, position)
     }
 
     private fun bind(
         holder: RecyclerView.ViewHolder,
         item: FileViewHolderInfo,
+        position: Int,
     ) {
-        holder.itemView.setOnClickListener { onItemClick(item) }
-        holder.itemView.setOnLongClickListener {
+        updateListItemAppearance(holder, position)
+
+        val clickTarget =
+            when (holder) {
+                is DocumentViewHolder -> holder.fileItemHolder
+                else -> holder.itemView
+            }
+
+        clickTarget.setOnClickListener { onItemClick(item) }
+        clickTarget.setOnLongClickListener {
             onItemLongClick(item)
             true
         }
 
         when (holder) {
-            is FolderViewHolder -> bindFolder(holder, item as FileViewHolderInfo.FolderViewHolderInfo)
-            is DocumentViewHolder -> bindDocument(holder, item as FileViewHolderInfo.DocumentViewHolderInfo)
+            is DocumentViewHolder -> bindFile(holder, item)
         }
     }
 
-    private fun bindFolder(
-        holder: FolderViewHolder,
-        item: FileViewHolderInfo.FolderViewHolderInfo,
-    ) {
-        holder.name.text = item.fileMetadata.name
-        bindSelectionState(item, holder.fileItemHolder, holder.actionIcon)
-    }
-
-    private fun bindDocument(
+    private fun bindFile(
         holder: DocumentViewHolder,
-        item: FileViewHolderInfo.DocumentViewHolderInfo,
+        item: FileViewHolderInfo,
     ) {
-        holder.name.text = item.fileMetadata.getPrettyName()
-        if (item.fileMetadata.lastModified != 0L) {
+        holder.name.text =
+            when (item) {
+                is FileViewHolderInfo.DocumentViewHolderInfo -> item.fileMetadata.getPrettyName()
+                is FileViewHolderInfo.FolderViewHolderInfo -> item.fileMetadata.name
+            }
+
+        if (item is FileViewHolderInfo.DocumentViewHolderInfo && item.fileMetadata.lastModified != 0L) {
             holder.description.visibility = View.VISIBLE
             holder.description.text = Lb.getTimestampHumanString(item.fileMetadata.lastModified)
         } else {
@@ -133,13 +115,21 @@ class FileTreeAdapter(
         bindSelectionState(item, holder.fileItemHolder, holder.actionIcon)
     }
 
+    private fun updateListItemAppearance(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+    ) {
+        (holder.itemView as? ListItemLayout)?.updateAppearance(position, itemCount)
+    }
+
     private fun bindSelectionState(
         item: FileViewHolderInfo,
-        fileItemHolder: ConstraintLayout,
+        fileItemHolder: ListItemCardView,
         actionIcon: ImageView,
     ) {
         val isSelected = selectedFileIds.contains(item.fileMetadata.id)
         fileItemHolder.isSelected = isSelected
+        fileItemHolder.isChecked = isSelected
 
         when {
             item.needsToBePulled -> {
@@ -181,6 +171,4 @@ private class FileTreeDiffCallback : DiffUtil.ItemCallback<FileViewHolderInfo>()
     ): Boolean = oldItem == newItem
 }
 
-private const val VIEW_TYPE_FOLDER = 1
-private const val VIEW_TYPE_DOCUMENT = 2
 private const val PAYLOAD_SELECTION = "selection"

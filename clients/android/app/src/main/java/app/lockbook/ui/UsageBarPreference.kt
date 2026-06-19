@@ -107,11 +107,11 @@ class UsageBarPreference(
         val colorAttr =
             when {
                 usageRatio < 0.8 -> {
-                    com.google.android.material.R.attr.colorPrimary
+                    com.google.android.material.R.attr.colorPrimaryFixed
                 }
 
                 else -> {
-                    com.google.android.material.R.attr.colorError
+                    com.google.android.material.R.attr.colorErrorContainer
                 }
             }
         val fallbackColor =

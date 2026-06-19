@@ -10,21 +10,21 @@
     <androidx.coordinatorlayout.widget.CoordinatorLayout
         android:id="@+id/fragment_list_files"
         android:layout_width="match_parent"
-        android:layout_height="match_parent">
+        android:layout_height="match_parent"
+        >
 
         <com.google.android.material.appbar.AppBarLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:animateLayoutChanges="true"
-            app:liftOnScroll="true"
             android:fitsSystemWindows="true"
-            app:liftOnScrollTargetViewId="@id/files_list">
+            app:liftOnScroll="false"
+            >
 
             <com.google.android.material.appbar.MaterialToolbar
                 android:id="@+id/files_toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="?android:actionBarSize"
-                app:layout_scrollFlags="scroll|snap"
                 app:menu="@menu/menu_files_list"
                 app:navigationIcon="@drawable/ic_outline_menu_24"
                 app:title="@string/lockbook_title" />
@@ -34,10 +34,8 @@
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
-                app:text_size="15"
-                android:layout_marginTop="20dp"
                 android:minHeight="20dp"
-                app:layout_scrollFlags="scroll|exitUntilCollapsed"/>
+                />
 
         </com.google.android.material.appbar.AppBarLayout>
 
@@ -74,8 +72,10 @@
                 android:id="@+id/files_list"
                 android:layout_width="match_parent"
                 android:layout_height="match_parent"
-                android:clipToPadding="true"
-                android:scrollbars="vertical" />
+                android:clipToPadding="false"
+                android:paddingBottom="24dp"
+                android:scrollbars="vertical"
+                />
         </androidx.swiperefreshlayout.widget.SwipeRefreshLayout>
         <LinearLayout
             android:layout_width="match_parent"

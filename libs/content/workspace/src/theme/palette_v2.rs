@@ -224,9 +224,34 @@ impl ThemeVariant {
     }
 }
 
+impl TryFrom<&str> for Palette {
+    type Error = ();
+
+    fn try_from(name: &str) -> Result<Self, Self::Error> {
+        match name {
+            "black" => Ok(Palette::Black),
+            "red" => Ok(Palette::Red),
+            "green" => Ok(Palette::Green),
+            "yellow" => Ok(Palette::Yellow),
+            "blue" => Ok(Palette::Blue),
+            "magenta" => Ok(Palette::Magenta),
+            "cyan" => Ok(Palette::Cyan),
+            "white" => Ok(Palette::White),
+            _ => Err(()),
+        }
+    }
+}
+
 impl Theme {
     pub fn default(current: Mode) -> Self {
         Self::default_theme(current)
+    }
+
+    pub fn from_android_material(
+        current: Mode, dim: ThemeVariant, light_prefs: Preferences, bright: ThemeVariant,
+        dark_prefs: Preferences,
+    ) -> Self {
+        Self { current, dim, light_prefs, bright, dark_prefs }
     }
 
     pub fn with_mode(mut self, mode: Mode) -> Self {
