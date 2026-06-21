@@ -694,7 +694,7 @@ impl InputController {
             Some(pos) => pos,
             None => return false,
         };
-        !self.tool_running.is_none() && ctx.draw_area.contains(pos)
+        self.tool_running.is_none() && ctx.draw_area.contains(pos)
     }
 }
 
