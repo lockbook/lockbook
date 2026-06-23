@@ -35,6 +35,41 @@ lazy_static! {
         &["request"]
     )
     .unwrap();
+    pub static ref CLIENT_OS_COUNTER: CounterVec = register_counter_vec!(
+        "lockbook_server_client_os",
+        "Client operating system request attempts",
+        &["os"]
+    )
+    .unwrap();
+    pub static ref CLIENT_TYPE_COUNTER: CounterVec = register_counter_vec!(
+        "lockbook_server_client_type",
+        "Client type request attempts",
+        &["client_type"]
+    )
+    .unwrap();
+}
+
+pub fn normalize_os(os: Option<&str>) -> &'static str {
+    match os {
+        Some("windows") => "windows",
+        Some("linux") => "linux",
+        Some("macOS") => "macOS",
+        Some("iOS") => "iOS",
+        Some("android") => "android",
+        Some("unknown") => "unknown",
+        None => "not-present",
+        Some(_) => "other",
+    }
+}
+
+pub fn normalize_client_type(client_type: Option<&str>) -> &'static str {
+    match client_type {
+        Some("cli") => "cli",
+        Some("ui") => "ui",
+        Some("unknown") => "unknown",
+        None => "not-present",
+        Some(_) => "other",
+    }
 }
 
 #[macro_export]
@@ -73,6 +108,14 @@ macro_rules! core_req {
                         tracing::error!("ip not present in request");
                     }
                     let wire_format = WireFormat::from_header(wire_format_header.as_deref());
+                    router_service::CLIENT_OS_COUNTER
+                        .with_label_values(&[router_service::normalize_os(os.as_deref())])
+                        .inc();
+                    router_service::CLIENT_TYPE_COUNTER
+                        .with_label_values(&[router_service::normalize_client_type(
+                            client_type.as_deref(),
+                        )])
+                        .inc();
                     let span1 = span!(
                         Level::INFO,
                         "matched_request",
