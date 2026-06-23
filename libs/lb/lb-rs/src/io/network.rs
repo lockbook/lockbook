@@ -10,9 +10,9 @@ use crate::get_code_version;
 use crate::model::account::Account;
 use crate::model::api::*;
 use crate::model::clock::{Timestamp, get_time};
+use crate::model::core_config::ClientType;
 use crate::model::errors::LbErr;
 use crate::model::pubkey;
-use crate::model::core_config::ClientType;
 use crate::model::wire::{CLIENT_HEADER, OS_HEADER, WIRE_FORMAT_HEADER, WireFormat};
 
 const STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
