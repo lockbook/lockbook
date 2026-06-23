@@ -24,6 +24,7 @@ import app.lockbook.util.*
 import com.afollestad.recyclical.datasource.emptyDataSource
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.google.android.material.listitem.ListItemLayout
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import kotlinx.coroutines.*
@@ -191,66 +192,35 @@ class TabFragment : Fragment() {
 
         binding.sharedFilesList.setup {
             withDataSource(files)
-            withItem<File, SharedFileViewHolder>(R.layout.pending_shares_file_item) {
-                onBind(::SharedFileViewHolder) { _, item ->
-                    name.text = item.getPrettyName()
-                    if (currentParent == null && isAllTab && item.shares.isNotEmpty()) {
-                        owner.text = "by: " + item.shares[0]?.sharedBy
-                        owner.visibility = View.VISIBLE
-                    } else {
-                        owner.visibility = View.GONE
-                    }
-
-                    if (currentParent == null) {
-                        openMenu.visibility = View.VISIBLE
-                    } else {
-                        openMenu.visibility = View.GONE
-                    }
-
-                    openMenu.setOnClickListener { view ->
-                        val popup = PopupMenu(view.context, view)
-
-                        popup.menuInflater.inflate(R.menu.menu_pending_shares_file_item, popup.menu)
-
-                        popup.setOnMenuItemClickListener { menuItem ->
-                            when (menuItem.itemId) {
-                                R.id.accept_share -> {
-                                    val bundle = Bundle()
-                                    bundle.putString(CreateLinkFragment.CREATE_LINK_FILE_ID_KEY, item.id)
-                                    val parentNavController = requireParentFragment().findNavController()
-
-                                    parentNavController.navigate(R.id.action_create_link, bundle)
-                                    true
-                                }
-
-                                R.id.refuse_share -> {
-                                    DeleteSharedDialogFragment.newInstance(arrayListOf(item)).show(
-                                        parentFragmentManager, // Use this instead of requireActivity()...
-                                        DeleteSharedDialogFragment.DELETE_SHARED_DIALOG_FRAGMENT,
-                                    )
-                                    true
-                                }
-
-                                else -> {
-                                    false
-                                }
-                            }
-                        }
-
-                        popup.show()
-                    }
-                    icon.setImageResource(item.getIconResource())
-                }
-                onClick { _ ->
-                    if (item.type == FileType.Folder) {
-                        if (item.id == PARENT_ID) {
-                            promoteCurrentParent()
-                        } else {
-                            currentParent = item
-                        }
-                        setFilesGroupedByDate()
-                    } else {
-                        activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
+            withItem<File, FileMetadataViewHolder>(R.layout.file_metadata_item) {
+                onBind(::FileMetadataViewHolder) { index, item ->
+                    updateSharedFileAppearance(itemView, index)
+                    bind(
+                        FileMetadataRowInfo(
+                            file = item,
+                            title = item.getPrettyName(),
+                            subtitle =
+                                if (currentParent == null && isAllTab && item.shares.isNotEmpty()) {
+                                    "by: " + item.shares[0]?.sharedBy
+                                } else {
+                                    null
+                                },
+                            iconRes = item.getIconResource(),
+                            trailingButton =
+                                if (currentParent == null) {
+                                    FileMetadataTrailingButton(
+                                        iconRes = R.drawable.ic_baseline_more_vert_24,
+                                        contentDescriptionRes = R.string.open_pending_share_menu,
+                                    ) { view ->
+                                        showPendingShareMenu(view, item)
+                                    }
+                                } else {
+                                    null
+                                },
+                        ),
+                    )
+                    fileItemHolder.setOnClickListener {
+                        openSharedFile(item)
                     }
                 }
             }
@@ -284,6 +254,74 @@ class TabFragment : Fragment() {
         requireActivity().onBackPressedDispatcher.addCallback(viewLifecycleOwner, backPressedCallback)
 
         return binding.root
+    }
+
+    private fun showPendingShareMenu(
+        view: View,
+        item: File,
+    ) {
+        val popup = PopupMenu(view.context, view)
+
+        popup.menuInflater.inflate(R.menu.menu_pending_shares_file_item, popup.menu)
+
+        popup.setOnMenuItemClickListener { menuItem ->
+            when (menuItem.itemId) {
+                R.id.accept_share -> {
+                    val bundle = Bundle()
+                    bundle.putString(CreateLinkFragment.CREATE_LINK_FILE_ID_KEY, item.id)
+                    val parentNavController = requireParentFragment().findNavController()
+
+                    parentNavController.navigate(R.id.action_create_link, bundle)
+                    true
+                }
+
+                R.id.refuse_share -> {
+                    DeleteSharedDialogFragment.newInstance(arrayListOf(item)).show(
+                        parentFragmentManager, // Use this instead of requireActivity()...
+                        DeleteSharedDialogFragment.DELETE_SHARED_DIALOG_FRAGMENT,
+                    )
+                    true
+                }
+
+                else -> {
+                    false
+                }
+            }
+        }
+
+        popup.show()
+    }
+
+    private fun openSharedFile(item: File) {
+        if (item.type == FileType.Folder) {
+            if (item.id == PARENT_ID) {
+                promoteCurrentParent()
+            } else {
+                currentParent = item
+            }
+            setFilesGroupedByDate()
+        } else {
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
+        }
+    }
+
+    private fun updateSharedFileAppearance(
+        itemView: View,
+        index: Int,
+    ) {
+        val rows = files.toList()
+        var sectionStart = index
+        var sectionEnd = index
+
+        while (sectionStart > 0 && rows[sectionStart - 1] is File) {
+            sectionStart--
+        }
+
+        while (sectionEnd < rows.lastIndex && rows[sectionEnd + 1] is File) {
+            sectionEnd++
+        }
+
+        (itemView as? ListItemLayout)?.updateAppearance(index - sectionStart, sectionEnd - sectionStart + 1)
     }
 
     override fun onDestroyView() {

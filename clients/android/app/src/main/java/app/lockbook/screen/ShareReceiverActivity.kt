@@ -22,9 +22,11 @@ import app.lockbook.model.MoveFileViewModel
 import app.lockbook.model.StateViewModel
 import app.lockbook.model.TransientScreen
 import app.lockbook.ui.CreateFileDialogFragment
-import app.lockbook.util.BasicFileItemHolder
+import app.lockbook.util.FileMetadataRowInfo
+import app.lockbook.util.FileMetadataViewHolder
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
+import com.google.android.material.listitem.ListItemLayout
 import kotlinx.coroutines.launch
 import net.lockbook.Lb
 import net.lockbook.LbError
@@ -190,13 +192,19 @@ class ShareReceiverActivity : AppCompatActivity() {
     private fun setUpView() {
         binding.moveFileList.setup {
             withDataSource(model.files)
-            withItem<net.lockbook.File, BasicFileItemHolder>(R.layout.move_file_item) {
-                onBind(::BasicFileItemHolder) { _, item ->
-                    name.text = item.getPrettyName()
-                    icon.setImageResource(R.drawable.ic_baseline_folder_24)
-                }
-                onClick {
-                    model.onItemClick(item)
+            withItem<net.lockbook.File, FileMetadataViewHolder>(R.layout.file_metadata_item) {
+                onBind(::FileMetadataViewHolder) { index, item ->
+                    (itemView as? ListItemLayout)?.updateAppearance(index, model.files.toList().size)
+                    bind(
+                        FileMetadataRowInfo(
+                            file = item,
+                            title = item.getPrettyName(),
+                            iconRes = R.drawable.ic_baseline_folder_24,
+                        ),
+                    )
+                    fileItemHolder.setOnClickListener {
+                        model.onItemClick(item)
+                    }
                 }
             }
         }

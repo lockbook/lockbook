@@ -1,24 +1,23 @@
 <?xml version="1.0" encoding="utf-8"?>
 
 <com.google.android.material.listitem.ListItemLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_marginVertical="2dp"
-    android:layout_marginHorizontal="12dp"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
+    android:layout_marginHorizontal="12dp"
+    android:layout_marginVertical="2dp"
     tools:ignore="UnusedAttribute">
 
     <com.google.android.material.listitem.ListItemCardView
-        android:id="@+id/document_item_holder"
+        android:id="@+id/file_metadata_item_holder"
         style="?attr/listItemCardViewSegmentedStyle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:duplicateParentState="true"
         android:checkable="true"
         android:clickable="true"
-        android:focusable="true"
-        app:cardBackgroundColor="@color/file_tree_list_item_background">
+        android:duplicateParentState="true"
+        android:focusable="true">
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"
@@ -26,42 +25,46 @@
             android:duplicateParentState="true">
 
             <ImageView
-                android:id="@+id/document_icon"
+                android:id="@+id/file_metadata_icon"
                 android:layout_width="30dp"
                 android:layout_height="45dp"
-                android:contentDescription="@string/document"
-                android:src="@drawable/ic_outline_insert_drive_file_24"
+                android:contentDescription="@string/file"
+                android:duplicateParentState="true"
                 app:layout_constraintBottom_toBottomOf="parent"
                 app:layout_constraintStart_toStartOf="parent"
                 app:layout_constraintTop_toTopOf="parent"
                 app:tint="?attr/colorSecondary" />
 
             <ImageView
-                android:id="@+id/document_action_icon"
+                android:id="@+id/file_metadata_badge"
                 android:layout_width="20dp"
                 android:layout_height="20dp"
                 android:background="@drawable/file_tree_action_icon_background"
                 android:contentDescription="@string/document_action"
                 android:duplicateParentState="true"
                 android:padding="3dp"
-                app:layout_constraintBottom_toBottomOf="@+id/document_icon"
-                app:layout_constraintEnd_toEndOf="@+id/document_icon"
+                android:visibility="gone"
+                app:layout_constraintBottom_toBottomOf="@+id/file_metadata_icon"
+                app:layout_constraintEnd_toEndOf="@+id/file_metadata_icon"
                 app:tint="@color/file_tree_action_icon_tint" />
 
             <LinearLayout
+                android:id="@+id/file_metadata_text"
                 android:layout_width="0dp"
                 android:layout_height="match_parent"
                 android:layout_marginStart="20dp"
+                android:layout_marginEnd="10dp"
                 android:duplicateParentState="true"
-                android:gravity="center"
+                android:gravity="center_vertical"
                 android:orientation="vertical"
                 app:layout_constraintBottom_toBottomOf="parent"
-                app:layout_constraintEnd_toEndOf="parent"
-                app:layout_constraintStart_toEndOf="@+id/document_icon"
-                app:layout_constraintTop_toTopOf="parent">
+                app:layout_constraintEnd_toStartOf="@+id/file_metadata_trailing_button"
+                app:layout_constraintStart_toEndOf="@+id/file_metadata_icon"
+                app:layout_constraintTop_toTopOf="parent"
+                app:layout_goneMarginEnd="0dp">
 
                 <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/document_name"
+                    android:id="@+id/file_metadata_title"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:layout_marginBottom="5dp"
@@ -72,15 +75,27 @@
                     android:textColor="@color/file_tree_item_text_color" />
 
                 <com.google.android.material.textview.MaterialTextView
-                    android:id="@+id/document_description"
+                    android:id="@+id/file_metadata_subtitle"
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
                     android:duplicateParentState="true"
+                    android:ellipsize="end"
+                    android:maxLines="1"
                     android:textAppearance="?attr/textAppearanceLabelMedium"
-                    android:textColor="@color/file_tree_item_description_color"
-                    app:layout_constraintBottom_toBottomOf="parent" />
+                    android:textColor="@color/file_tree_item_description_color" />
 
             </LinearLayout>
+
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/file_metadata_trailing_button"
+                style="@style/Widget.Material3.Button.IconButton"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:visibility="gone"
+                app:icon="@drawable/ic_baseline_more_vert_24"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintTop_toTopOf="parent" />
 
         </androidx.constraintlayout.widget.ConstraintLayout>
 

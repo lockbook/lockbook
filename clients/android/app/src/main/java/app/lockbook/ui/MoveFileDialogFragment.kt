@@ -16,11 +16,13 @@ import androidx.lifecycle.ViewModelProvider
 import app.lockbook.R
 import app.lockbook.databinding.DialogMoveFileBinding
 import app.lockbook.model.*
-import app.lockbook.util.BasicFileItemHolder
+import app.lockbook.util.FileMetadataRowInfo
+import app.lockbook.util.FileMetadataViewHolder
 import app.lockbook.util.getIconResource
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.listitem.ListItemLayout
 import net.lockbook.File
 import java.lang.ref.WeakReference
 
@@ -71,14 +73,19 @@ class MoveFileDialogFragment : DialogFragment() {
     private fun setUpView() {
         binding.moveFileList.setup {
             withDataSource(model.files)
-            withItem<File, BasicFileItemHolder>(R.layout.move_file_item) {
-                onBind(::BasicFileItemHolder) { _, item ->
-                    name.text = item.name
-
-                    icon.setImageResource(item.getIconResource())
-                }
-                onClick {
-                    model.onItemClick(item)
+            withItem<File, FileMetadataViewHolder>(R.layout.file_metadata_item) {
+                onBind(::FileMetadataViewHolder) { index, item ->
+                    (itemView as? ListItemLayout)?.updateAppearance(index, model.files.toList().size)
+                    bind(
+                        FileMetadataRowInfo(
+                            file = item,
+                            title = item.name,
+                            iconRes = item.getIconResource(),
+                        ),
+                    )
+                    fileItemHolder.setOnClickListener {
+                        model.onItemClick(item)
+                    }
                 }
             }
         }

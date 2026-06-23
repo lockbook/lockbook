@@ -110,15 +110,20 @@ class SearchDocumentsFragment : Fragment() {
                 }
             }
 
-            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, DocumentViewHolder>(
-                R.layout.document_file_item,
+            withItem<SearchedDocumentViewHolderInfo.DocumentNameViewHolderInfo, FileMetadataViewHolder>(
+                R.layout.file_metadata_item,
             ) {
-                onBind(::DocumentViewHolder) { index, item ->
+                onBind(::FileMetadataViewHolder) { index, item ->
                     updateSearchResultAppearance(itemView, index)
-                    icon.setImageResource(item.file.getIconResource())
-                    name.text = item.name
-                    description.text = item.path
-                    actionIcon.visibility = View.GONE
+                    bind(
+                        FileMetadataRowInfo(
+                            file = item.file,
+                            title = item.name,
+                            subtitle = item.path,
+                            iconRes = item.file.getIconResource(),
+                            background = FileMetadataRowBackground.SurfaceContainerHigh,
+                        ),
+                    )
 
                     fileItemHolder.setOnClickListener {
                         openSearchResult(item.file.id)
