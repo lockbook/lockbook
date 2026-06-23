@@ -906,6 +906,8 @@ mod tests {
         let mut controller = InputController::new(InputControllerConfig::default());
         let payload = ToolPayload { pos: egui::Pos2::ZERO, force: None, id: None };
 
+        controller.mouse_hover_pos = Some(egui::Pos2::ZERO);
+
         let test = InputControllerTestRunner::new(vec![
             InputControllerTestFrame::new(
                 vec![mousewheel(egui::Vec2::ZERO)],
@@ -1315,6 +1317,8 @@ mod tests {
     fn read_only_mode_blocks_tool_events() {
         let mut controller = InputController::new(InputControllerConfig::new(false, true));
         let pos = egui::Pos2::new(10.0, 10.0);
+
+        controller.mouse_hover_pos = Some(pos);
 
         let test = InputControllerTestRunner::new(vec![
             InputControllerTestFrame::new(
