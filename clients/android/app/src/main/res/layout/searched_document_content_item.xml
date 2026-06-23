@@ -12,7 +12,7 @@
         style="?attr/listItemCardViewSegmentedStyle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        app:cardBackgroundColor="@color/file_tree_list_item_background">
+        app:cardBackgroundColor="?attr/colorSurfaceContainerHigh">
 
         <androidx.constraintlayout.widget.ConstraintLayout
             android:layout_width="match_parent"

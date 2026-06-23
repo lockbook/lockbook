@@ -231,7 +231,6 @@
     <string name="upgrade_now">Upgrade now</string>
 
     <string name="set_theme">Set theme</string>
-    <string name="shared_file_icon">Shared file icon</string>
     <string name="create_link_file_for">Creating link for \"%s\".</string>
     <string name="pending_shares_empty_message">When others share files with you, they\'ll appear here.</string>
 

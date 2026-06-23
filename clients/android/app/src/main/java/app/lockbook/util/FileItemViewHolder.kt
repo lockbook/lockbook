@@ -1,16 +1,24 @@
 package app.lockbook.util
 
+import android.content.res.ColorStateList
 import android.text.SpannableString
 import android.view.View
 import android.widget.ImageView
 import android.widget.TextView
+import androidx.annotation.AttrRes
+import androidx.annotation.ColorRes
+import androidx.annotation.DrawableRes
+import androidx.annotation.StringRes
+import androidx.core.content.ContextCompat
 import app.lockbook.R
 import com.afollestad.recyclical.ViewHolder
 import com.google.android.material.button.MaterialButton
+import com.google.android.material.color.MaterialColors
 import com.google.android.material.listitem.ListItemCardView
 import net.lockbook.File
 import net.lockbook.File.FileType
 import java.util.UUID
+import com.google.android.material.R as MaterialR
 
 sealed class FileViewHolderInfo(
     open val fileMetadata: File,
@@ -33,22 +41,81 @@ sealed class FileViewHolderInfo(
     ) : FileViewHolderInfo(fileMetadata, needToBePushed, needsToBePulled, isShared)
 }
 
-class DocumentViewHolder(
+class FileMetadataViewHolder(
     itemView: View,
 ) : com.google.android.material.listitem.ListItemViewHolder(itemView) {
-    val fileItemHolder: ListItemCardView = itemView.findViewById(R.id.document_item_holder)
-    val name: TextView = itemView.findViewById(R.id.document_name)
-    val description: TextView = itemView.findViewById(R.id.document_description)
-    val icon: ImageView = itemView.findViewById(R.id.document_icon)
-    val actionIcon: ImageView = itemView.findViewById(R.id.document_action_icon)
+    val fileItemHolder: ListItemCardView = itemView.findViewById(R.id.file_metadata_item_holder)
+    val title: TextView = itemView.findViewById(R.id.file_metadata_title)
+    val subtitle: TextView = itemView.findViewById(R.id.file_metadata_subtitle)
+    val icon: ImageView = itemView.findViewById(R.id.file_metadata_icon)
+    val statusIcon: ImageView = itemView.findViewById(R.id.file_metadata_badge)
+    val trailingButton: MaterialButton = itemView.findViewById(R.id.file_metadata_trailing_button)
+
+    fun bind(row: FileMetadataRowInfo) {
+        fileItemHolder.isSelected = row.isSelected
+        fileItemHolder.isChecked = row.isChecked
+        fileItemHolder.setOnClickListener(null)
+        fileItemHolder.setOnLongClickListener(null)
+        fileItemHolder.setCardBackgroundColor(row.background.resolve(itemView))
+
+        icon.setImageResource(row.iconRes)
+        title.text = row.title
+
+        subtitle.text = row.subtitle
+        subtitle.visibility = if (row.subtitle == null) View.GONE else View.VISIBLE
+
+        statusIcon.setImageDrawable(null)
+        statusIcon.visibility = View.GONE
+        row.statusIcon?.let {
+            statusIcon.setImageResource(it.iconRes)
+            statusIcon.visibility = View.VISIBLE
+        }
+
+        trailingButton.setOnClickListener(null)
+        trailingButton.visibility = View.GONE
+        row.trailingButton?.let {
+            trailingButton.setIconResource(it.iconRes)
+            trailingButton.contentDescription = itemView.context.getString(it.contentDescriptionRes)
+            trailingButton.visibility = View.VISIBLE
+            trailingButton.setOnClickListener { view -> it.onClick(view) }
+        }
+    }
 }
 
-class BasicFileItemHolder(
-    itemView: View,
-) : ViewHolder(itemView) {
-    val name: TextView = itemView.findViewById(R.id.linear_move_file_name)
-    val icon: ImageView = itemView.findViewById(R.id.linear_move_file_icon)
+data class FileMetadataRowInfo(
+    val file: File,
+    val title: CharSequence,
+    val subtitle: CharSequence? = null,
+    @param:DrawableRes val iconRes: Int = file.getIconResource(),
+    val background: FileMetadataRowBackground = FileMetadataRowBackground.FileTree,
+    val statusIcon: FileMetadataStatusIcon? = null,
+    val trailingButton: FileMetadataTrailingButton? = null,
+    val isSelected: Boolean = false,
+    val isChecked: Boolean = false,
+)
+
+enum class FileMetadataRowBackground(
+    @param:ColorRes private val colorRes: Int? = null,
+    @param:AttrRes private val colorAttr: Int? = null,
+) {
+    FileTree(colorRes = R.color.file_tree_list_item_background),
+    SurfaceContainerHigh(colorAttr = MaterialR.attr.colorSurfaceContainerHigh),
+    ;
+
+    fun resolve(view: View): ColorStateList =
+        colorRes?.let { ContextCompat.getColorStateList(view.context, it) }
+            ?: ColorStateList.valueOf(MaterialColors.getColor(view, colorAttr!!))
 }
+
+data class FileMetadataStatusIcon(
+    @param:DrawableRes val iconRes: Int,
+)
+
+data class FileMetadataTrailingButton(
+    @param:DrawableRes val iconRes: Int,
+    @param:StringRes val contentDescriptionRes: Int,
+    val onClick: (View) -> Unit,
+)
 
 fun List<File>.intoViewHolderInfo(
     localChanges: Set<UUID>?,
@@ -141,18 +208,8 @@ class SearchedDocumentContentViewHolder(
     val showMore: MaterialButton = itemView.findViewById(R.id.searched_document_content_show_more)
 }
 
-class SharedFileViewHolder(
-    itemView: View,
-) : ViewHolder(itemView) {
-    val name: TextView = itemView.findViewById(R.id.shared_file_name)
-    val owner: TextView = itemView.findViewById(R.id.shared_file_owner)
-    val icon: ImageView = itemView.findViewById(R.id.shared_file_icon)
-
-    val openMenu: MaterialButton = itemView.findViewById(R.id.open_menu)
-}
-
 class SeparatorViewHolder(
     itemView: View,
-) : ViewHolder(itemView) {
+) : com.afollestad.recyclical.ViewHolder(itemView) {
     val date: TextView = itemView.findViewById(R.id.separator_date)
 }

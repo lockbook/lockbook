@@ -189,6 +189,50 @@ pub fn translucent_over(target: Color32, background: Color32, alpha: f32) -> Col
     )
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
+pub enum ContrastRatio {
+    /// Below the 3:1 threshold used for large text and non-text UI.
+    Low,
+    /// Meets 3:1, used for large text and non-text UI.
+    LargeText,
+    /// Meets 4.5:1, used for normal text.
+    NormalText,
+    /// Maximum 21:1 contrast, pure black against pure white.
+    Maximum,
+}
+
+impl ContrastRatio {
+    pub fn passes_normal_text(self) -> bool {
+        self >= Self::NormalText
+    }
+}
+
+/// WCAG contrast threshold between two opaque colors.
+pub fn contrast_ratio(a: Color32, b: Color32) -> ContrastRatio {
+    let a = relative_luminance(a);
+    let b = relative_luminance(b);
+    let (lighter, darker) = if a >= b { (a, b) } else { (b, a) };
+    let ratio = (lighter + 0.05) / (darker + 0.05);
+    if (ratio - 21.0).abs() < 0.01 {
+        ContrastRatio::Maximum
+    } else if ratio >= 4.5 {
+        ContrastRatio::NormalText
+    } else if ratio >= 3.0 {
+        ContrastRatio::LargeText
+    } else {
+        ContrastRatio::Low
+    }
+}
+
+fn relative_luminance(color: Color32) -> f32 {
+    fn channel(c: u8) -> f32 {
+        let c = c as f32 / 255.0;
+        if c <= 0.03928 { c / 12.92 } else { ((c + 0.055) / 1.055).powf(2.4) }
+    }
+
+    0.2126 * channel(color.r()) + 0.7152 * channel(color.g()) + 0.0722 * channel(color.b())
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub enum Mode {
     #[default]
@@ -575,5 +619,11 @@ mod tests {
                 );
             }
         }
+    }
+
+    #[test]
+    fn contrast_ratio_classifies_wcag_thresholds() {
+        assert_eq!(contrast_ratio(Color32::BLACK, Color32::WHITE), ContrastRatio::Maximum);
+        assert_eq!(contrast_ratio(Color32::WHITE, Color32::WHITE), ContrastRatio::Low);
     }
 }
