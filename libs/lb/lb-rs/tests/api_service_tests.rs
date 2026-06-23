@@ -4,6 +4,7 @@ use lb_rs::get_code_version;
 use lb_rs::io::network::{ApiError, Network};
 use lb_rs::model::api::{GetPublicKeyError, GetPublicKeyRequest, GetPublicKeyResponse};
 use lb_rs::model::clock::{Timestamp, get_time};
+use lb_rs::model::core_config::ClientType;
 use test_utils::local;
 use test_utils::{assert_matches, test_core_with_account};
 
@@ -14,7 +15,12 @@ async fn forced_upgrade() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
 
-    let client = Network { client: Default::default(), get_code_version: CODE_VERSION, get_time };
+    let client = Network {
+        client: Default::default(),
+        get_code_version: CODE_VERSION,
+        get_time,
+        client_type: ClientType::Unknown,
+    };
 
     let result: Result<PublicKey, ApiError<GetPublicKeyError>> = client
         .request(&account, GetPublicKeyRequest { username: account.username.clone() })
@@ -31,7 +37,12 @@ async fn expired_request() {
     let core = test_core_with_account().await;
     let account = core.get_account().unwrap();
 
-    let client = Network { client: Default::default(), get_code_version, get_time: EARLY_CLOCK };
+    let client = Network {
+        client: Default::default(),
+        get_code_version,
+        get_time: EARLY_CLOCK,
+        client_type: ClientType::Unknown,
+    };
 
     let result = client
         .request(&account, GetPublicKeyRequest { username: account.username.clone() })

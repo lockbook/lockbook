@@ -4,7 +4,7 @@ use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
 
 use lb_rs::Lb;
-use lb_rs::model::core_config::Config;
+use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::service::events::{Event, SyncIncrement};
 use lb_rs::service::import_export::{ExportFileInfo, ImportStatus};
 use rand::RngCore;
@@ -93,6 +93,7 @@ fn verbose_config() -> Config {
         logs: true,
         stdout_logs: true,
         colored_logs: false,
+        client_type: ClientType::Unknown,
     }
 }
 

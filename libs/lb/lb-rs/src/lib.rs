@@ -60,7 +60,7 @@ impl LocalLb {
         let db = CoreDb::init(db_cfg).map_err(|err| LbErrKind::Unexpected(format!("{err:#?}")))?;
         let keychain = Keychain::from(db.account.get());
         let db = Arc::new(RwLock::new(db));
-        let client = Network::default();
+        let client = Network { client_type: config.client_type, ..Network::default() };
 
         let status = StatusUpdater::default();
         let syncer = Default::default();

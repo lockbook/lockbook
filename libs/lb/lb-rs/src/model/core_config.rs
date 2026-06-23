@@ -2,6 +2,24 @@ use std::env;
 
 use serde::Deserialize;
 
+#[derive(Debug, Deserialize, Clone, Copy, PartialEq, Eq, Default)]
+pub enum ClientType {
+    Cli,
+    Ui,
+    #[default]
+    Unknown,
+}
+
+impl ClientType {
+    pub fn as_str(self) -> &'static str {
+        match self {
+            ClientType::Cli => "cli",
+            ClientType::Ui => "ui",
+            ClientType::Unknown => "unknown",
+        }
+    }
+}
+
 #[derive(Debug, Deserialize, Clone)]
 pub struct Config {
     /// Where should lockbook store data, including logs?
@@ -15,6 +33,9 @@ pub struct Config {
     pub stdout_logs: bool,
     /// Should logs be colored?
     pub colored_logs: bool,
+
+    #[serde(default)]
+    pub client_type: ClientType,
 }
 
 impl Config {
@@ -27,6 +48,7 @@ impl Config {
             logs: true,
             stdout_logs: false,
             colored_logs: true,
+            client_type: ClientType::Cli,
         }
     }
 
@@ -39,6 +61,7 @@ impl Config {
             logs: true,
             stdout_logs: true,
             colored_logs: true,
+            client_type: ClientType::Ui,
         }
     }
 

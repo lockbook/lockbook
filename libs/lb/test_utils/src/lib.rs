@@ -1,7 +1,7 @@
 pub mod assert;
 
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
-use lb_rs::model::core_config::Config;
+use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::crypto::EncryptedDocument;
 use lb_rs::{Lb, LocalLb};
 use std::collections::HashMap;
@@ -24,6 +24,7 @@ pub fn test_config() -> Config {
         stdout_logs: false,
         colored_logs: false,
         background_work: false,
+        client_type: ClientType::Unknown,
     }
 }
 

@@ -10,7 +10,7 @@ use ffi_utils::{
 use lb_c_err::LbFfiErr;
 use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::blocking::Lb;
-pub use lb_rs::model::core_config::Config;
+pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::ShareMode;
 use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
@@ -40,6 +40,7 @@ pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRe
         logs,
         stdout_logs: true,
         colored_logs: false,
+        client_type: ClientType::Ui,
     };
 
     match Lb::init(config) {

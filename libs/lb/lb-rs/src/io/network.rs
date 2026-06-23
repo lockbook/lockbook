@@ -10,9 +10,10 @@ use crate::get_code_version;
 use crate::model::account::Account;
 use crate::model::api::*;
 use crate::model::clock::{Timestamp, get_time};
+use crate::model::core_config::ClientType;
 use crate::model::errors::LbErr;
 use crate::model::pubkey;
-use crate::model::wire::{WIRE_FORMAT_HEADER, WireFormat};
+use crate::model::wire::{CLIENT_HEADER, OS_HEADER, WIRE_FORMAT_HEADER, WireFormat};
 
 const STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 
@@ -53,11 +54,17 @@ pub struct Network {
     pub client: Client,
     pub get_code_version: fn() -> &'static str,
     pub get_time: fn() -> Timestamp,
+    pub client_type: ClientType,
 }
 
 impl Default for Network {
     fn default() -> Self {
-        Self { client: Default::default(), get_code_version, get_time }
+        Self {
+            client: Default::default(),
+            get_code_version,
+            get_time,
+            client_type: ClientType::Unknown,
+        }
     }
 }
 
@@ -94,6 +101,8 @@ impl Network {
             .body(body)
             .header("Accept-Version", client_version)
             .header(WIRE_FORMAT_HEADER, wire_format.as_str())
+            .header(OS_HEADER, client_os())
+            .header(CLIENT_HEADER, self.client_type.as_str())
             .send()
             .await
             .map_err(|e| {
@@ -112,6 +121,22 @@ impl Network {
             .deserialize(&serialized_response)
             .map_err(|err| ApiError::Deserialize(err.to_string()))?;
         response.map_err(ApiError::from)
+    }
+}
+
+fn client_os() -> &'static str {
+    if cfg!(target_os = "windows") {
+        "windows"
+    } else if cfg!(target_os = "ios") {
+        "iOS"
+    } else if cfg!(target_os = "macos") {
+        "macOS"
+    } else if cfg!(target_os = "android") {
+        "android"
+    } else if cfg!(target_os = "linux") {
+        "linux"
+    } else {
+        "unknown"
     }
 }
 

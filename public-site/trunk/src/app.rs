@@ -1,6 +1,10 @@
 use std::sync::Arc;
 
-use lb_rs::{Uuid, blocking::Lb, model::core_config::Config};
+use lb_rs::{
+    Uuid,
+    blocking::Lb,
+    model::core_config::{ClientType, Config},
+};
 use workspace_rs::{
     resolvers::image_embed::ImageEmbedResolver,
     tab::{
@@ -37,6 +41,7 @@ impl LbWebApp {
             writeable_path: "".into(),
             background_work: false,
             stdout_logs: true,
+            client_type: ClientType::Ui,
         })
         .unwrap();
 

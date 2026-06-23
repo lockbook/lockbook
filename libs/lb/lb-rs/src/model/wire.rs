@@ -4,6 +4,11 @@ use serde::de::DeserializeOwned;
 /// Header used by both client and server to negotiate body encoding.
 pub const WIRE_FORMAT_HEADER: &str = "X-Lockbook-Wire-Format";
 
+// https://github.com/lockbook/lockbook/issues/4768
+pub const OS_HEADER: &str = "X-Lockbook-OS";
+
+pub const CLIENT_HEADER: &str = "X-Lockbook-Client";
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum WireFormat {
     Json,
