@@ -51,16 +51,16 @@ impl Workspace {
         self.process_clip_events();
         self.apply_pending_open_range();
 
-        if self.is_empty() {
-            if self.show_tabs {
-                self.show_landing_page(ui);
-            } else {
-                self.show_mobile_landing_page(ui);
-            }
-            self.landing_page_first_frame = false;
+        if self.is_empty() && !self.show_tabs {
+            // Mobile has no tab strip; keep the simple mobile landing.
+            self.show_mobile_landing_page(ui);
         } else {
+            // The explorer is always at least one tab: an empty strip opens one
+            // rather than falling back to a separate landing page.
+            if self.is_empty() {
+                self.ensure_explorer_tab();
+            }
             ui.centered_and_justified(|ui| self.show_tabs(ui));
-            self.landing_page_first_frame = true;
         }
         self.update_window_title();
         if self.out.tabs_changed || self.current_tab_changed {
@@ -228,6 +228,12 @@ impl Workspace {
             self.show_search_tab(ui);
             return;
         }
+        // The explorer likewise renders here: it needs `&mut Workspace` to
+        // open files, create, rename, etc.
+        if let Some(&crate::tab::Destination::Explorer(inst)) = self.current_tab.as_ref() {
+            self.show_explorer_tab(ui, inst);
+            return;
+        }
 
         let show_tabs = self.show_tabs;
         if let Some(tab) = self.current_tab_mut() {
@@ -263,19 +269,16 @@ impl Workspace {
         let mut back = false;
         let mut forward = false;
 
+        let can_back = self.can_back();
+        let can_forward = self.can_forward();
+
         let cursor = ui
             .horizontal(|ui| {
                 egui::Frame::default()
                     .fill(ui.ctx().style().visuals.panel_fill)
                     .show(ui, |ui| {
                         if IconButton::new(Icon::ARROW_LEFT)
-                            .disabled(
-                                self.current_tab
-                                    .as_ref()
-                                    .and_then(|d| self.tab_strip.iter().find(|s| &s.dest == d))
-                                    .map(|s| s.back.is_empty())
-                                    .unwrap_or(true),
-                            )
+                            .disabled(!can_back)
                             .size(37.)
                             .tooltip("Go Back")
                             .show(ui)
@@ -284,13 +287,7 @@ impl Workspace {
                             back = true;
                         }
                         if IconButton::new(Icon::ARROW_RIGHT)
-                            .disabled(
-                                self.current_tab
-                                    .as_ref()
-                                    .and_then(|d| self.tab_strip.iter().find(|s| &s.dest == d))
-                                    .map(|s| s.forward.is_empty())
-                                    .unwrap_or(true),
-                            )
+                            .disabled(!can_forward)
                             .size(37.)
                             .tooltip("Go Forward")
                             .show(ui)
@@ -300,6 +297,7 @@ impl Workspace {
                         }
 
                         egui::ScrollArea::horizontal()
+                            .id_salt("workspace_tab_strip")
                             .max_width(ui.available_width())
                             .show(ui, |ui| {
                                 let mut responses = HashMap::new();
@@ -435,6 +433,17 @@ impl Workspace {
             .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::M))
         {
             self.upsert_mind_map(self.core.clone());
+        }
+
+        // Ctrl-T to open a new explorer tab, scoped to the current working dir.
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::T))
+        {
+            let scope = self
+                .current_explorer_scope()
+                .unwrap_or(self.effective_focused_parent());
+            self.open_explorer(scope, true);
         }
 
         if self

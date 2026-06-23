@@ -23,6 +23,7 @@ pub fn current_tab_type(ws: &Workspace) -> i32 {
                 TabContent::SpaceInspector(_) => 8,
                 TabContent::Chat(_) => 9,
                 TabContent::Search(_) => 0,
+                TabContent::Explorer(_) => 0,
             },
             _ => 1,
         },

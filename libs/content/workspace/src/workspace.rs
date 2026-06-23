@@ -23,7 +23,7 @@ use tracing::{debug, error, info, instrument, warn};
 use web_time::{Duration, Instant};
 
 use crate::file_cache::{FileCache, FilesExt};
-use crate::landing::LandingPage;
+use crate::landing::{Explorer, LandingPage};
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
@@ -58,7 +58,6 @@ pub struct Workspace {
     pub tabs: TabCache,
     pub tab_strip: Vec<TabSlot>,
     pub current_tab: Option<Destination>,
-    pub landing_page: LandingPage,
     pub account: Account,
 
     pub preview: Option<Tab>,
@@ -86,14 +85,9 @@ pub struct Workspace {
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
     // Transient state (consider removing)
-    pub landing_page_first_frame: bool,
     pub current_tab_changed: bool, // used to scroll to current tab when it changes
     pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
     pub last_set_title: Option<String>, // used to avoid re-setting the window title every frame
-
-    // Transient rename state for the landing page file table
-    pub landing_rename_target: Option<lb_rs::Uuid>,
-    pub landing_rename_buffer: String,
 
     pub ws_rx: Receiver<WsUpdates>,
 }
@@ -128,7 +122,6 @@ impl Workspace {
             tabs: TabCache::new(),
             tab_strip: Vec::new(),
             current_tab: None,
-            landing_page: cfg.get_landing_page(),
             account: core.get_account().expect("failed to get account"),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
@@ -146,12 +139,9 @@ impl Workspace {
             show_tabs,
             focused_parent: Default::default(),
 
-            landing_page_first_frame: true,
             current_tab_changed: Default::default(),
             last_touch_event: Default::default(),
             last_set_title: Default::default(),
-            landing_rename_target: None,
-            landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
             preview: None,
             pending_open_range: None,
@@ -217,6 +207,9 @@ impl Workspace {
                 &self.ctx,
                 self.files.clone(),
             ))),
+            // Explorer tabs carry per-tab scope and are created via
+            // `open_explorer`, never fabricated here.
+            Destination::Explorer(_) => return,
         };
         let now = Instant::now();
         self.tabs.insert(
@@ -441,6 +434,18 @@ impl Workspace {
             return;
         };
 
+        // Replacing a non-file surface (explorer/search): take its slot in
+        // place, but don't push it onto the file back stack — it has no file id.
+        if !matches!(old_dest, Destination::File(_)) {
+            self.tabs.remove(&old_dest);
+            self.tab_strip[slot_idx] = TabSlot::new(dest.clone());
+            self.open_dest(&dest);
+            self.current_tab = Some(dest);
+            self.out.tabs_changed = true;
+            self.mark_current_tab_changed();
+            return;
+        }
+
         // Push old dest id to slot's back, clear forward
         self.tab_strip[slot_idx].back.push(old_dest.id());
         self.tab_strip[slot_idx].forward.clear();
@@ -487,6 +492,150 @@ impl Workspace {
         self.mark_current_tab_changed();
     }
 
+    /// Open a new explorer tab browsing `scope`.
+    pub fn open_explorer(&mut self, scope: Uuid, make_current: bool) -> Uuid {
+        let instance = Uuid::new_v4();
+        let dest = Destination::Explorer(instance);
+        let page = self.cfg.get_landing_page();
+        let now = Instant::now();
+        self.tabs.insert(
+            dest.clone(),
+            Tab {
+                destination: dest.clone(),
+                content: ContentState::Open(TabContent::Explorer(Explorer::new(
+                    instance, scope, page,
+                ))),
+                last_changed: now,
+                last_saved: now,
+                read_only: false,
+            },
+        );
+        self.tab_strip.push(TabSlot::new(dest.clone()));
+        self.out.tabs_changed = true;
+        if make_current {
+            self.current_tab = Some(dest);
+            self.mark_current_tab_changed();
+        }
+        instance
+    }
+
+    /// The working directory of the current tab if it's an explorer.
+    pub fn current_explorer_scope(&self) -> Option<Uuid> {
+        let dest = self.current_tab.as_ref()?;
+        if !matches!(dest, Destination::Explorer(_)) {
+            return None;
+        }
+        match &self.tabs.get(dest)?.content {
+            ContentState::Open(TabContent::Explorer(ex)) => Some(ex.scope),
+            _ => None,
+        }
+    }
+
+    /// Ensure at least one explorer tab exists and is current — used when the
+    /// strip would otherwise be empty.
+    pub fn ensure_explorer_tab(&mut self) {
+        if let Some(i) = self
+            .tab_strip
+            .iter()
+            .position(|s| matches!(s.dest, Destination::Explorer(_)))
+        {
+            if self.current_tab.is_none() {
+                self.make_current(i);
+            }
+            return;
+        }
+        let scope = self.effective_focused_parent();
+        self.open_explorer(scope, true);
+    }
+
+    /// Render an explorer tab, then apply the actions it produced. The
+    /// `Explorer` is swapped out so `render_explorer` can borrow the workspace,
+    /// mirroring how the search tab renders.
+    pub(crate) fn show_explorer_tab(&mut self, ui: &mut egui::Ui, instance: Uuid) {
+        let dest = Destination::Explorer(instance);
+        let mut ex = {
+            let Some(tab) = self.tabs.get_mut(&dest) else { return };
+            let ContentState::Open(TabContent::Explorer(ex)) = &mut tab.content else { return };
+            std::mem::replace(ex, Explorer::placeholder())
+        };
+
+        let response = self.render_explorer(ui, &mut ex);
+        self.apply_explorer_response(&mut ex, instance, response);
+
+        // Put the (possibly navigated) explorer back, unless it was replaced in
+        // the strip by an opened document.
+        if let Some(tab) = self.tabs.get_mut(&dest) {
+            if let ContentState::Open(TabContent::Explorer(slot)) = &mut tab.content {
+                *slot = ex;
+            }
+        }
+    }
+
+    fn apply_explorer_response(
+        &mut self, ex: &mut Explorer, instance: Uuid, response: crate::landing::Response,
+    ) {
+        if let Some(id) = response.open_file {
+            let is_document = self
+                .files
+                .read()
+                .unwrap()
+                .get_by_id(id)
+                .map(|f| f.is_document())
+                .unwrap_or(false);
+            if is_document {
+                self.open_file_replacing_explorer(instance, id);
+            } else {
+                ex.navigate(id);
+                self.out.selected_file = Some(id);
+            }
+        }
+        if response.create_note {
+            self.create_doc_at(false, ex.scope);
+        }
+        if response.create_drawing {
+            self.create_doc_at(true, ex.scope);
+        }
+        if response.create_folder {
+            self.create_folder_at(ex.scope);
+        }
+        if let Some((id, name)) = response.rename_request {
+            self.rename_file((id, name), true);
+        }
+        if let Some(id) = response.delete_request {
+            self.delete_file(id);
+        }
+    }
+
+    /// Open `id`, consuming the explorer tab: the selected document takes the
+    /// explorer's place in the strip rather than opening alongside it.
+    pub fn open_file_replacing_explorer(&mut self, instance: Uuid, id: Uuid) {
+        let dest = Destination::File(id);
+        let ex_dest = Destination::Explorer(instance);
+        let ex_idx = self.tab_strip.iter().position(|s| s.dest == ex_dest);
+
+        // Already open elsewhere: focus that tab and drop the explorer.
+        if self.tab_strip.iter().any(|s| s.dest == dest) {
+            if let Some(i) = ex_idx {
+                self.close_tab(i);
+            }
+            if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
+                self.make_current(pos);
+            }
+            return;
+        }
+
+        let Some(i) = ex_idx else {
+            self.create_tab(dest, true);
+            return;
+        };
+        self.tabs.remove(&ex_dest);
+        self.tab_strip[i] = TabSlot::new(dest.clone());
+        self.open_dest(&dest);
+        self.current_tab = Some(dest);
+        self.out.tabs_changed = true;
+        self.mark_current_tab_changed();
+    }
+
     pub fn open_file_at_range(
         &mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool,
     ) {
@@ -508,6 +657,16 @@ impl Workspace {
 
     pub fn back(&mut self) {
         let Some(current_dest) = self.current_tab.clone() else { return };
+        if let Destination::Explorer(_) = current_dest {
+            if let Some(ContentState::Open(TabContent::Explorer(ex))) =
+                self.tabs.get_mut(&current_dest).map(|t| &mut t.content)
+            {
+                if ex.go_back() {
+                    self.ctx.request_repaint();
+                }
+            }
+            return;
+        }
         let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
             return;
         };
@@ -524,6 +683,12 @@ impl Workspace {
 
     pub fn can_back(&self) -> bool {
         let Some(current_dest) = self.current_tab.as_ref() else { return false };
+        if let Destination::Explorer(_) = current_dest {
+            return matches!(
+                self.tabs.get(current_dest).map(|t| &t.content),
+                Some(ContentState::Open(TabContent::Explorer(ex))) if !ex.back.is_empty()
+            );
+        }
         self.tab_strip
             .iter()
             .find(|s| &s.dest == current_dest)
@@ -533,6 +698,16 @@ impl Workspace {
 
     pub fn forward(&mut self) {
         let Some(current_dest) = self.current_tab.clone() else { return };
+        if let Destination::Explorer(_) = current_dest {
+            if let Some(ContentState::Open(TabContent::Explorer(ex))) =
+                self.tabs.get_mut(&current_dest).map(|t| &mut t.content)
+            {
+                if ex.go_forward() {
+                    self.ctx.request_repaint();
+                }
+            }
+            return;
+        }
         let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
             return;
         };
@@ -549,6 +724,12 @@ impl Workspace {
 
     pub fn can_forward(&self) -> bool {
         let Some(current_dest) = self.current_tab.as_ref() else { return false };
+        if let Destination::Explorer(_) = current_dest {
+            return matches!(
+                self.tabs.get(current_dest).map(|t| &t.content),
+                Some(ContentState::Open(TabContent::Explorer(ex))) if !ex.forward.is_empty()
+            );
+        }
         self.tab_strip
             .iter()
             .find(|s| &s.dest == current_dest)

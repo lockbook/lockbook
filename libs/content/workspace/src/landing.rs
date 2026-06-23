@@ -18,6 +18,82 @@ use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 
+/// One explorer tab: a sticky working directory plus the filter/sort UI state
+/// and transient rename state. The surface this renders serves as landing page,
+/// new-tab page, folder view, file explorer, and (later) search — distinguished
+/// only by `scope` and `page.search_term`.
+pub struct Explorer {
+    /// Per-tab instance id, mirrored in `Destination::Explorer`.
+    pub instance: Uuid,
+    /// The working directory this tab browses. Seeded from `focused_parent`
+    /// when the tab opens, then sticky/independent thereafter.
+    pub scope: Uuid,
+    /// Filter/sort settings. Seeded from (and persisted back to) the shared
+    /// landing-page defaults so preferences carry across tabs and sessions.
+    pub page: LandingPage,
+
+    pub rename_target: Option<Uuid>,
+    pub rename_buffer: String,
+    /// Focus the search field on the tab's first rendered frame.
+    pub first_frame: bool,
+
+    /// Scope navigation history (folder ids), independent of the tab strip's
+    /// file back/forward stacks.
+    pub back: Vec<Uuid>,
+    pub forward: Vec<Uuid>,
+}
+
+impl Explorer {
+    pub fn new(instance: Uuid, scope: Uuid, page: LandingPage) -> Self {
+        Self {
+            instance,
+            scope,
+            page,
+            rename_target: None,
+            rename_buffer: String::new(),
+            first_frame: true,
+            back: Vec::new(),
+            forward: Vec::new(),
+        }
+    }
+
+    /// A cheap stand-in used while the real `Explorer` is swapped out of its
+    /// tab for rendering (which needs `&mut Workspace`).
+    pub fn placeholder() -> Self {
+        Self::new(Uuid::nil(), Uuid::nil(), LandingPage::default())
+    }
+
+    /// Navigate into `folder`, recording the current scope for `back`.
+    pub fn navigate(&mut self, folder: Uuid) {
+        if folder == self.scope {
+            return;
+        }
+        self.back.push(self.scope);
+        self.forward.clear();
+        self.scope = folder;
+    }
+
+    pub fn go_back(&mut self) -> bool {
+        if let Some(prev) = self.back.pop() {
+            self.forward.push(self.scope);
+            self.scope = prev;
+            true
+        } else {
+            false
+        }
+    }
+
+    pub fn go_forward(&mut self) -> bool {
+        if let Some(next) = self.forward.pop() {
+            self.back.push(self.scope);
+            self.scope = next;
+            true
+        } else {
+            false
+        }
+    }
+}
+
 #[derive(Clone, Serialize, Deserialize)]
 pub struct LandingPage {
     search_term: String,
@@ -276,8 +352,24 @@ fn build_row_layout(descendents: &[File], sort: &Sort, files: &FileCache) -> (Ve
 }
 
 impl Workspace {
-    pub fn show_landing_page(&mut self, ui: &mut egui::Ui) {
+    /// Render an explorer tab against its own `Explorer` state. Returns the
+    /// actions the caller should apply (open/create/rename/delete); folder
+    /// navigation is the caller's job too so it can record scope history.
+    pub fn render_explorer(&mut self, ui: &mut egui::Ui, ex: &mut Explorer) -> Response {
         const MARGIN: i8 = 45;
+
+        // `show_tabs` zeroes `item_spacing` for the tab strip; the explorer is a
+        // full page and expects the app's default spacing.
+        ui.spacing_mut().item_spacing = ui.ctx().style().spacing.item_spacing;
+
+        // Self-heal a stale scope (deleted folder) back to root.
+        {
+            let files = self.files.read().unwrap();
+            if files.get_by_id(ex.scope).map(|f| f.is_folder()) != Some(true) {
+                ex.scope = files.root().id;
+            }
+        }
+        let scope = ex.scope;
 
         let mut response = Response::default();
 
@@ -301,9 +393,9 @@ impl Workspace {
                             Vec2::new(content_w, 0.0),
                             Layout::top_down(Align::Min),
                             |ui| {
-                                response |= self.show_heading(ui);
+                                response |= self.show_heading(ui, scope);
                                 ui.add_space(40.0);
-                                response |= self.show_filters(ui);
+                                response |= self.show_filters(ui, ex, scope);
                             },
                         );
                     });
@@ -314,52 +406,27 @@ impl Workspace {
             // Files: rendered outside the frame so the scroll area spans
             // the full canvas — the scrollbar lands flush against the
             // canvas right edge. Row content centers internally.
-            response |= self.show_files(ui);
+            response |= self.show_files(ui, ex, scope);
         });
 
-        let files_arc = Arc::clone(&self.files);
-        let files_guard = files_arc.read().unwrap();
-        let files = &*files_guard;
+        // Persist filter/sort settings if they changed.
+        if ex.page.dirty {
+            ex.page.dirty = false;
+            self.cfg.set_landing_page(ex.page.clone());
+        }
+        ex.first_frame = false;
 
-        if let Some(id) = response.open_file {
-            if files.get_by_id(id).unwrap().is_document() {
-                self.open_file(id, true, false);
-            } else {
-                self.focused_parent = Some(id);
-                self.out.selected_file = Some(id)
-            }
-        }
-        if response.create_note {
-            self.create_doc(false);
-        }
-        if response.create_drawing {
-            self.create_doc(true);
-        }
-        if response.create_folder {
-            self.create_folder();
-        }
-        if let Some((id, name)) = response.rename_request {
-            self.rename_file((id, name), true);
-        }
-        if let Some(id) = response.delete_request {
-            self.delete_file(id);
-        }
-
-        // Persist landing page if it changed
-        if self.landing_page.dirty {
-            self.landing_page.dirty = false;
-            self.cfg.set_landing_page(self.landing_page.clone());
-        }
+        response
     }
 
     /// "Welcome, <Username>" or selected folder with breadcrumb for parent
-    fn show_heading(&mut self, ui: &mut egui::Ui) -> Response {
+    fn show_heading(&mut self, ui: &mut egui::Ui, scope: Uuid) -> Response {
         let mut response = Response::default();
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
         let files = &*files_guard;
-        let folder = files.get_by_id(self.effective_focused_parent()).unwrap();
+        let folder = files.get_by_id(scope).unwrap();
 
         ui.style_mut().visuals.hyperlink_color = ui.visuals().text_color();
         ui.vertical(|ui| {
@@ -416,14 +483,14 @@ impl Workspace {
     }
 
     /// Create button, filter text box, show folders toggle, file types selector, collaborators selector
-    fn show_filters(&mut self, ui: &mut egui::Ui) -> Response {
+    fn show_filters(&mut self, ui: &mut egui::Ui, ex: &mut Explorer, scope: Uuid) -> Response {
         let mut response = Response::default();
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
         let files = &*files_guard;
         let account = &self.account;
-        let folder = files.get_by_id(self.effective_focused_parent()).unwrap();
+        let folder = files.get_by_id(scope).unwrap();
 
         ui.horizontal_top(|ui| {
             // experimentally matches combo box height which I cannot figure out how to determine or control
@@ -504,18 +571,18 @@ impl Workspace {
             ui.with_layout(egui::Layout::right_to_left(egui::Align::TOP), |ui| {
                 // Collaborators filter
                 egui::ComboBox::from_id_salt(ui.next_auto_id())
-                    .selected_text(if self.landing_page.only_me {
+                    .selected_text(if ex.page.only_me {
                         "Collaborators: Only Me".to_string()
-                    } else if self.landing_page.collaborators.is_empty() {
+                    } else if ex.page.collaborators.is_empty() {
                         "Collaborators: Any".to_string()
                     } else {
-                        format!("Collaborators: {}", self.landing_page.collaborators.len())
+                        format!("Collaborators: {}", ex.page.collaborators.len())
                     })
                     .width(180.)
                     .height(f32::INFINITY)
                     .show_ui(ui, |ui| {
                         // Collect all unique collaborators from files in scope
-                        let files_in_scope = if self.landing_page.flatten_tree {
+                        let files_in_scope = if ex.page.flatten_tree {
                             files.descendents(folder.id)
                         } else {
                             files.children(folder.id)
@@ -544,62 +611,52 @@ impl Workspace {
                         ui.style_mut().spacing.button_padding.y = 5.0;
                         ui.add_space(5.);
                         if ui.button("Any").clicked() {
-                            self.landing_page.only_me = false;
-                            self.landing_page.collaborators.clear();
-                            self.landing_page.dirty = true;
+                            ex.page.only_me = false;
+                            ex.page.collaborators.clear();
+                            ex.page.dirty = true;
                         }
                         ui.add_space(5.);
                         if ui.button("Only Me").clicked() {
-                            self.landing_page.only_me = true;
-                            self.landing_page.collaborators.clear();
-                            self.landing_page.dirty = true;
+                            ex.page.only_me = true;
+                            ex.page.collaborators.clear();
+                            ex.page.dirty = true;
                         }
 
                         for collaborator in &collaborators_list {
-                            let mut is_selected = self
-                                .landing_page
-                                .collaborators
-                                .iter()
-                                .any(|c| c == collaborator);
+                            let mut is_selected =
+                                ex.page.collaborators.iter().any(|c| c == collaborator);
 
                             if ui.checkbox(&mut is_selected, collaborator).changed() {
                                 if is_selected {
                                     // Add the collaborator if not present
-                                    if !self
-                                        .landing_page
-                                        .collaborators
-                                        .iter()
-                                        .any(|c| c == collaborator)
-                                    {
-                                        self.landing_page.collaborators.push(collaborator.clone());
+                                    if !ex.page.collaborators.iter().any(|c| c == collaborator) {
+                                        ex.page.collaborators.push(collaborator.clone());
                                     }
                                 } else {
                                     // Remove the collaborator
-                                    self.landing_page
-                                        .collaborators
-                                        .retain(|c| c != collaborator);
+                                    ex.page.collaborators.retain(|c| c != collaborator);
                                 }
 
-                                self.landing_page.only_me = false;
-                                self.landing_page.dirty = true;
+                                ex.page.only_me = false;
+                                ex.page.dirty = true;
                             }
                         }
                     });
 
                 // File type filter
                 egui::ComboBox::from_id_salt(ui.next_auto_id())
-                    .selected_text(if self.landing_page.doc_types.is_empty() {
+                    .selected_text(if ex.page.doc_types.is_empty() {
                         "Types: Any".to_string()
                     } else {
-                        format!("Types: {}", self.landing_page.doc_types.len())
+                        format!("Types: {}", ex.page.doc_types.len())
                     })
                     .width(100.)
                     .height(f32::INFINITY)
                     .show_ui(ui, |ui| {
                         ui.style_mut().spacing.button_padding.y = 5.0;
                         if ui.button("Any").clicked() {
-                            self.landing_page.doc_types.clear();
-                            self.landing_page.dirty = true;
+                            ex.page.doc_types.clear();
+                            ex.page.dirty = true;
                         }
                         ui.add_space(5.);
 
@@ -613,26 +670,20 @@ impl Workspace {
                             DocType::Unknown,
                         ];
                         for doc_type in &doc_types {
-                            let mut is_selected =
-                                self.landing_page.doc_types.iter().any(|dt| dt == doc_type);
+                            let mut is_selected = ex.page.doc_types.iter().any(|dt| dt == doc_type);
 
                             ui.horizontal(|ui| {
                                 if ui.checkbox(&mut is_selected, "").changed() {
                                     if is_selected {
                                         // Add the doc type if not present
-                                        if !self
-                                            .landing_page
-                                            .doc_types
-                                            .iter()
-                                            .any(|dt| dt == doc_type)
-                                        {
-                                            self.landing_page.doc_types.push(*doc_type);
-                                            self.landing_page.dirty = true;
+                                        if !ex.page.doc_types.iter().any(|dt| dt == doc_type) {
+                                            ex.page.doc_types.push(*doc_type);
+                                            ex.page.dirty = true;
                                         }
                                     } else {
                                         // Remove the doc type
-                                        self.landing_page.doc_types.retain(|&t| t != *doc_type);
-                                        self.landing_page.dirty = true;
+                                        ex.page.doc_types.retain(|&t| t != *doc_type);
+                                        ex.page.dirty = true;
                                     }
                                 }
 
@@ -650,14 +701,13 @@ impl Workspace {
 
                 // Flatten tree toggle
                 if IconButton::new(
-                    if self.landing_page.flatten_tree { Icon::FOLDER_OPEN } else { Icon::FOLDER }
-                        .size(22.),
+                    if ex.page.flatten_tree { Icon::FOLDER_OPEN } else { Icon::FOLDER }.size(22.),
                 )
                 .show(ui)
                 .clicked()
                 {
-                    self.landing_page.flatten_tree = !self.landing_page.flatten_tree;
-                    self.landing_page.dirty = true;
+                    ex.page.flatten_tree = !ex.page.flatten_tree;
+                    ex.page.dirty = true;
                 }
 
                 // Search box - takes remaining space
@@ -689,7 +739,7 @@ impl Workspace {
                         let search_id = egui::Id::new("landing_search");
 
                         // Focus when Cmd+F is pressed or on first frame
-                        if cmd_f || self.landing_page_first_frame {
+                        if cmd_f || ex.first_frame {
                             ui.memory_mut(|m| m.request_focus(search_id));
                         }
 
@@ -699,7 +749,7 @@ impl Workspace {
                             format!("Filter in {}", &folder.name)
                         };
 
-                        let has_text = !self.landing_page.search_term.is_empty();
+                        let has_text = !ex.page.search_term.is_empty();
                         let clear_space = if has_text { 25.0 } else { 0.0 };
                         let edit_width = ui.available_width() - clear_space - 15.0;
 
@@ -707,13 +757,13 @@ impl Workspace {
                             Vec2::new(edit_width, filters_height),
                             egui::Layout::left_to_right(egui::Align::Center),
                             |ui| {
-                                if GlyphonTextEdit::new(&mut self.landing_page.search_term)
+                                if GlyphonTextEdit::new(&mut ex.page.search_term)
                                     .id(search_id)
                                     .hint_text(hint)
                                     .show(ui)
                                     .changed()
                                 {
-                                    self.landing_page.dirty = true;
+                                    ex.page.dirty = true;
                                 }
                             },
                         );
@@ -726,8 +776,8 @@ impl Workspace {
                                 .show(ui)
                                 .clicked()
                             {
-                                self.landing_page.search_term.clear();
-                                self.landing_page.dirty = true;
+                                ex.page.search_term.clear();
+                                ex.page.dirty = true;
                             }
                         }
                     },
@@ -738,11 +788,11 @@ impl Workspace {
         response
     }
 
-    fn filtered_sorted_files(&mut self, files: &FileCache, account: &Account) {
-        let focused = self.effective_focused_parent();
-        if self.landing_page.cache_generation == files.last_modified
-            && self.landing_page.cache_snapshot.as_deref() == Some(&self.landing_page)
-            && self.landing_page.cached_focused_parent == Some(focused)
+    fn filtered_sorted_files(ex: &mut Explorer, files: &FileCache, account: &Account, scope: Uuid) {
+        let focused = scope;
+        if ex.page.cache_generation == files.last_modified
+            && ex.page.cache_snapshot.as_deref() == Some(&ex.page)
+            && ex.page.cached_focused_parent == Some(focused)
         {
             return;
         }
@@ -750,7 +800,7 @@ impl Workspace {
         let folder = files.get_by_id(focused).unwrap();
 
         // Filter
-        let mut descendents = if self.landing_page.flatten_tree {
+        let mut descendents = if ex.page.flatten_tree {
             files.descendents(folder.id)
         } else {
             files.children(folder.id)
@@ -758,7 +808,7 @@ impl Workspace {
 
         // At root, include pending shares
         if folder.is_root() {
-            if self.landing_page.flatten_tree {
+            if ex.page.flatten_tree {
                 // When flattening, include all shared files (documents will
                 // survive the flatten filter below, just like own-tree files)
                 for f in files.shared.values() {
@@ -777,37 +827,37 @@ impl Workspace {
             .into_iter()
             .filter(|child| {
                 // Search term filter
-                let search_match = if self.landing_page.search_term.is_empty() {
+                let search_match = if ex.page.search_term.is_empty() {
                     true
                 } else {
                     child
                         .name
                         .to_lowercase()
-                        .contains(&self.landing_page.search_term.to_lowercase())
+                        .contains(&ex.page.search_term.to_lowercase())
                 };
 
                 // Flatten tree filter - hide folders when flattening
-                let flatten_match = !self.landing_page.flatten_tree || child.is_document();
+                let flatten_match = !ex.page.flatten_tree || child.is_document();
 
                 // Doc type filter
-                let doc_type_match = if self.landing_page.doc_types.is_empty() {
+                let doc_type_match = if ex.page.doc_types.is_empty() {
                     true
                 } else if child.is_folder() {
                     // hide folders
                     false
                 } else {
                     let child_doc_type = DocType::from_name(&child.name);
-                    self.landing_page
+                    ex.page
                         .doc_types
                         .iter()
                         .any(|filter_type| filter_type == &child_doc_type)
                 };
 
                 // Collaborator filter
-                let collaborator_match = if self.landing_page.only_me {
+                let collaborator_match = if ex.page.only_me {
                     // Only show files where the current user is the only collaborator
                     child.shares.is_empty()
-                } else if self.landing_page.collaborators.is_empty() {
+                } else if ex.page.collaborators.is_empty() {
                     // No collaborator filter
                     true
                 } else {
@@ -824,7 +874,7 @@ impl Workspace {
                     }
 
                     // Check if filter collaborators are a subset of file collaborators
-                    self.landing_page
+                    ex.page
                         .collaborators
                         .iter()
                         .all(|filter_collab| file_collaborators.contains(&filter_collab))
@@ -835,7 +885,7 @@ impl Workspace {
             .collect();
 
         // Sort
-        match self.landing_page.sort {
+        match ex.page.sort {
             Sort::Name => {
                 descendents.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
             }
@@ -863,28 +913,28 @@ impl Workspace {
             Sort::Collaborators => descendents.sort_by_key(|f| usize::MAX - f.shares.len()),
             Sort::Size => descendents.sort_by_key(|f| u64::MAX - files.size_bytes_recursive[&f.id]),
         }
-        if !self.landing_page.sort_asc {
+        if !ex.page.sort_asc {
             descendents.reverse()
         }
 
-        self.landing_page.cached_files = descendents.into_iter().cloned().collect();
-        self.landing_page.cache_generation = files.last_modified;
-        self.landing_page.cached_focused_parent = Some(focused);
-        self.landing_page.cache_snapshot = Some(Box::new(self.landing_page.clone()));
+        ex.page.cached_files = descendents.into_iter().cloned().collect();
+        ex.page.cache_generation = files.last_modified;
+        ex.page.cached_focused_parent = Some(focused);
+        ex.page.cache_snapshot = Some(Box::new(ex.page.clone()));
     }
 
     /// Files table with columns that you click to select a sort key
-    fn show_files(&mut self, ui: &mut egui::Ui) -> Response {
+    fn show_files(&mut self, ui: &mut egui::Ui, ex: &mut Explorer, scope: Uuid) -> Response {
         let mut response = Response::default();
 
         let files_arc = Arc::clone(&self.files);
         let files_guard = files_arc.read().unwrap();
         let files = &*files_guard;
         let account = self.account.clone();
-        self.filtered_sorted_files(files, &account);
+        Self::filtered_sorted_files(ex, files, &account, scope);
 
-        if self.landing_page.cached_files.is_empty() {
-            if !self.landing_page.search_term.is_empty() {
+        if ex.page.cached_files.is_empty() {
+            if !ex.page.search_term.is_empty() {
                 ui.label(
                     RichText::new("No files found matching your search.")
                         .color(ui.visuals().weak_text_color()),
@@ -893,22 +943,24 @@ impl Workspace {
             return response;
         }
 
-        ui.ctx().style_mut(|style| {
+        // Scoped to this ui (the file scroll area inherits it) — mutating the
+        // ctx style here would leak the solid scrollbar into the tab strip and
+        // the host's scroll areas.
+        ui.style_mut().spacing.scroll = {
             let mut s = egui::style::ScrollStyle::solid();
             s.bar_width = 10.0;
-            style.spacing.scroll = s;
-        });
+            s
+        };
 
-        let max_usage = self
-            .landing_page
+        let max_usage = ex
+            .page
             .cached_files
             .iter()
             .filter_map(|f| files.size_bytes_recursive.get(&f.id).copied())
             .max()
             .unwrap_or(1) as f32;
 
-        let (rows, total_height) =
-            build_row_layout(&self.landing_page.cached_files, &self.landing_page.sort, files);
+        let (rows, total_height) = build_row_layout(&ex.page.cached_files, &ex.page.sort, files);
 
         // Header lives outside the scroll area so it doesn't scroll away.
         // Uses the same centering math as the rows below.
@@ -921,12 +973,13 @@ impl Workspace {
             ui.allocate_ui_with_layout(
                 Vec2::new(content_w, HEADER_HEIGHT),
                 Layout::top_down(Align::Min),
-                |ui| self.show_header_row(ui, cols),
+                |ui| Self::show_header_row(ex, ui, cols),
             );
         });
         ui.add_space(8.0);
 
         egui::ScrollArea::vertical()
+            .id_salt(("explorer_files", ex.instance))
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
             .show_viewport(ui, |ui, viewport| {
                 // Pin the scroll body to canvas width with a zero-height
@@ -950,8 +1003,9 @@ impl Workspace {
                         Vec2::new(content_w, row.height),
                     );
                     ui.scope_builder(UiBuilder::new().max_rect(row_rect), |ui| match row.kind {
-                        RowKind::TimeSeparator(label) => self.show_separator_row(ui, label),
-                        RowKind::File(idx) => self.show_file_row(
+                        RowKind::TimeSeparator(label) => Self::show_separator_row(ui, label),
+                        RowKind::File(idx) => Self::show_file_row(
+                            ex,
                             ui,
                             idx,
                             files,
@@ -976,101 +1030,88 @@ impl Workspace {
         response
     }
 
-    fn show_header_row(&mut self, ui: &mut egui::Ui, cols: LayoutCols) {
+    fn show_header_row(ex: &mut Explorer, ui: &mut egui::Ui, cols: LayoutCols) {
         let header_font = FontId::new(16.0, egui::FontFamily::Name(Arc::from("Bold")));
         let rects = col_rects(ui.max_rect(), cols);
 
         // Helper: render one sort-button header in `rect`. Closure decides
         // what the click means (cycle name<->type, or toggle asc/desc).
-        let render_header = |this: &mut Self,
-                             ui: &mut egui::Ui,
-                             rect: Rect,
-                             text: &str,
-                             active: bool,
-                             on_click: &mut dyn FnMut(&mut Self)| {
-            ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                ui.horizontal(|ui| {
-                    let resp = ui.add(
-                        Button::new(RichText::new(text).font(header_font.clone())).frame(false),
-                    );
-                    if resp.clicked() {
-                        on_click(this);
-                    }
-                    if active {
-                        let chevron = if this.landing_page.sort_asc {
-                            Icon::CHEVRON_DOWN
-                        } else {
-                            Icon::CHEVRON_UP
-                        };
-                        ui.label(RichText::new(chevron.icon).font(FontId::monospace(12.0)));
-                    }
+        let render_header =
+            |page: &mut LandingPage,
+             ui: &mut egui::Ui,
+             rect: Rect,
+             text: &str,
+             active: bool,
+             on_click: &mut dyn FnMut(&mut LandingPage)| {
+                ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
+                    ui.horizontal(|ui| {
+                        let resp = ui.add(
+                            Button::new(RichText::new(text).font(header_font.clone())).frame(false),
+                        );
+                        if resp.clicked() {
+                            on_click(page);
+                        }
+                        if active {
+                            let chevron =
+                                if page.sort_asc { Icon::CHEVRON_DOWN } else { Icon::CHEVRON_UP };
+                            ui.label(RichText::new(chevron.icon).font(FontId::monospace(12.0)));
+                        }
+                    });
                 });
-            });
-        };
+            };
 
         // Name / Type — clicking cycles name asc → desc → type asc → desc → name.
-        let name_text = if self.landing_page.sort == Sort::Type { "Type" } else { "Name" };
-        let name_active = matches!(self.landing_page.sort, Sort::Name | Sort::Type);
-        render_header(self, ui, rects.name, name_text, name_active, &mut |this| {
-            match (&this.landing_page.sort, this.landing_page.sort_asc) {
-                (Sort::Name, true) => this.landing_page.sort_asc = false,
+        let name_text = if ex.page.sort == Sort::Type { "Type" } else { "Name" };
+        let name_active = matches!(ex.page.sort, Sort::Name | Sort::Type);
+        render_header(&mut ex.page, ui, rects.name, name_text, name_active, &mut |page| {
+            match (&page.sort, page.sort_asc) {
+                (Sort::Name, true) => page.sort_asc = false,
                 (Sort::Name, false) => {
-                    this.landing_page.sort = Sort::Type;
-                    this.landing_page.sort_asc = true;
+                    page.sort = Sort::Type;
+                    page.sort_asc = true;
                 }
-                (Sort::Type, true) => this.landing_page.sort_asc = false,
+                (Sort::Type, true) => page.sort_asc = false,
                 _ => {
-                    this.landing_page.sort = Sort::Name;
-                    this.landing_page.sort_asc = true;
+                    page.sort = Sort::Name;
+                    page.sort_asc = true;
                 }
             };
-            this.landing_page.dirty = true;
+            page.dirty = true;
         });
 
-        let toggle_sort = |this: &mut Self, target: Sort| {
-            if this.landing_page.sort == target {
-                this.landing_page.sort_asc = !this.landing_page.sort_asc;
+        let toggle_sort = |page: &mut LandingPage, target: Sort| {
+            if page.sort == target {
+                page.sort_asc = !page.sort_asc;
             } else {
-                this.landing_page.sort = target;
-                this.landing_page.sort_asc = true;
+                page.sort = target;
+                page.sort_asc = true;
             }
+            page.dirty = true;
         };
 
         if let Some(rect) = rects.modified {
-            render_header(
-                self,
-                ui,
-                rect,
-                "Modified",
-                self.landing_page.sort == Sort::Modified,
-                &mut |this| toggle_sort(this, Sort::Modified),
-            );
+            let active = ex.page.sort == Sort::Modified;
+            render_header(&mut ex.page, ui, rect, "Modified", active, &mut |page| {
+                toggle_sort(page, Sort::Modified)
+            });
         }
 
         if let Some(rect) = rects.collab {
-            render_header(
-                self,
-                ui,
-                rect,
-                "Collaborators",
-                self.landing_page.sort == Sort::Collaborators,
-                &mut |this| toggle_sort(this, Sort::Collaborators),
-            );
+            let active = ex.page.sort == Sort::Collaborators;
+            render_header(&mut ex.page, ui, rect, "Collaborators", active, &mut |page| {
+                toggle_sort(page, Sort::Collaborators)
+            });
         }
 
         if let Some(rect) = rects.size {
-            render_header(
-                self,
-                ui,
-                rect,
-                "Size",
-                self.landing_page.sort == Sort::Size,
-                &mut |this| toggle_sort(this, Sort::Size),
-            );
+            let active = ex.page.sort == Sort::Size;
+            render_header(&mut ex.page, ui, rect, "Size", active, &mut |page| {
+                toggle_sort(page, Sort::Size)
+            });
         }
     }
 
-    fn show_separator_row(&mut self, ui: &mut egui::Ui, label: &'static str) {
+    fn show_separator_row(ui: &mut egui::Ui, label: &'static str) {
         let row_rect = ui.max_rect().shrink2(Vec2::new(ROW_PAD_X, 0.0));
         // Bottom-align the bold label so the breathing room from the
         // original design sits above the text, not below.
@@ -1091,13 +1132,14 @@ impl Workspace {
 
     #[allow(clippy::too_many_arguments)]
     fn show_file_row(
-        &mut self, ui: &mut egui::Ui, idx: usize, files: &FileCache, account: &Account,
+        ex: &mut Explorer, ui: &mut egui::Ui, idx: usize, files: &FileCache, account: &Account,
         max_usage: f32, cols: LayoutCols, response: &mut Response,
     ) {
         let row_rect = ui.max_rect();
         let rects = col_rects(row_rect, cols);
-        let child = self.landing_page.cached_files.get(idx).unwrap();
-        let is_renaming = self.landing_rename_target == Some(child.id);
+        let child = ex.page.cached_files[idx].clone();
+        let child = &child;
+        let is_renaming = ex.rename_target == Some(child.id);
 
         // Positional hover check — child widgets would steal `Response::hovered`.
         if ui.rect_contains_pointer(row_rect) {
@@ -1120,14 +1162,14 @@ impl Workspace {
 
         // ── Name cell (icon + label / textedit) ────────────────────────────
         let rename_id = egui::Id::new("landing_rename");
-        let rename_submitted = is_renaming
-            && GlyphonTextEdit::process_events(ui, rename_id, &mut self.landing_rename_buffer);
+        let rename_submitted =
+            is_renaming && GlyphonTextEdit::process_events(ui, rename_id, &mut ex.rename_buffer);
 
         let inner_resp = ui
             .scope_builder(UiBuilder::new().max_rect(rects.name), |ui| {
                 ui.horizontal(|ui| -> egui::Response {
                     let doc_type = DocType::from_name(if is_renaming {
-                        &self.landing_rename_buffer
+                        &ex.rename_buffer
                     } else {
                         &child.name
                     });
@@ -1163,18 +1205,16 @@ impl Workspace {
                     }
 
                     if is_renaming {
-                        let stem_end = self
-                            .landing_rename_buffer
+                        let stem_end = ex
+                            .rename_buffer
                             .rfind('.')
-                            .unwrap_or(self.landing_rename_buffer.len());
-                        let rename_w = GlyphonLabel::new(
-                            &self.landing_rename_buffer,
-                            egui::Color32::default(),
-                        )
-                        .font_size(font_size)
-                        .line_height(line_height)
-                        .measure(ui)
-                        .x;
+                            .unwrap_or(ex.rename_buffer.len());
+                        let rename_w =
+                            GlyphonLabel::new(&ex.rename_buffer, egui::Color32::default())
+                                .font_size(font_size)
+                                .line_height(line_height)
+                                .measure(ui)
+                                .x;
                         let text_width = rename_w.max(ui.available_width());
                         let (text_rect, _) = ui.allocate_exact_size(
                             egui::vec2(text_width, line_height),
@@ -1182,7 +1222,7 @@ impl Workspace {
                         );
                         ui.place(
                             text_rect,
-                            GlyphonTextEdit::new(&mut self.landing_rename_buffer)
+                            GlyphonTextEdit::new(&mut ex.rename_buffer)
                                 .id(rename_id)
                                 .font_size(font_size)
                                 .line_height(line_height)
@@ -1210,10 +1250,10 @@ impl Workspace {
                 ui.memory_mut(|m| m.request_focus(rename_id));
             }
             if rename_submitted {
-                response.rename_request = Some((child.id, self.landing_rename_buffer.clone()));
-                self.landing_rename_target = None;
+                response.rename_request = Some((child.id, ex.rename_buffer.clone()));
+                ex.rename_target = None;
             } else if inner_resp.lost_focus() {
-                self.landing_rename_target = None;
+                ex.rename_target = None;
             }
         }
 
@@ -1444,8 +1484,8 @@ impl Workspace {
                         ui.separator();
                     }
                     if ui.button("Rename").clicked() {
-                        self.landing_rename_target = Some(child.id);
-                        self.landing_rename_buffer = child.name.clone();
+                        ex.rename_target = Some(child.id);
+                        ex.rename_buffer = child.name.clone();
                         ui.close();
                     }
                     if ui.button("Delete").clicked() {

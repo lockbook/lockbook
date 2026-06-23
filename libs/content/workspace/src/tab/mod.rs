@@ -1,4 +1,5 @@
 use crate::file_cache::FilesExt;
+use crate::landing::Explorer;
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
 use crate::search::Search;
@@ -38,13 +39,16 @@ pub enum Destination {
     MindMap(Uuid),
     SpaceInspector(Uuid),
     Search,
+    /// A file explorer / search surface. The `Uuid` is a per-tab instance id,
+    /// not a file id — its working directory lives in the tab's `Explorer`.
+    Explorer(Uuid),
 }
 
 impl Destination {
     pub fn id(&self) -> Uuid {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
-            Self::Search => Uuid::nil(),
+            Self::Search | Self::Explorer(_) => Uuid::nil(),
         }
     }
 }
@@ -75,7 +79,7 @@ pub struct Tab {
 impl Tab {
     pub fn id(&self) -> Option<Uuid> {
         match self.destination {
-            Destination::Search => None,
+            Destination::Search | Destination::Explorer(_) => None,
             _ => Some(self.destination.id()),
         }
     }
@@ -228,6 +232,7 @@ impl Tab {
                         sv.show(ui);
                     }
                     TabContent::Search(_) => {}
+                    TabContent::Explorer(_) => {}
                 }
                 resp
             }
@@ -261,6 +266,7 @@ pub enum TabContent {
     MindMap(MindMap),
     SpaceInspector(SpaceInspector),
     Search(Search),
+    Explorer(Explorer),
 }
 
 impl std::fmt::Debug for TabContent {
@@ -275,6 +281,7 @@ impl std::fmt::Debug for TabContent {
             TabContent::MindMap(_) => write!(f, "TabContent::Graph"),
             TabContent::SpaceInspector(_) => write!(f, "TabContent::SpaceInspector"),
             TabContent::Search(_) => write!(f, "TabContent::Search"),
+            TabContent::Explorer(_) => write!(f, "TabContent::Explorer"),
         }
     }
 }
@@ -291,6 +298,7 @@ impl TabContent {
             TabContent::MindMap(_) => None,
             TabContent::SpaceInspector(_) => None,
             TabContent::Search(_) => None,
+            TabContent::Explorer(_) => None,
         }
     }
 
@@ -486,6 +494,16 @@ impl Workspace {
                 ContentState::Open(TabContent::MindMap(_)) => "Mind Map".into(),
                 ContentState::Open(TabContent::SpaceInspector(_)) => "Space Inspector".into(),
                 ContentState::Open(TabContent::Search(_)) => "Search".into(),
+                ContentState::Open(TabContent::Explorer(ref ex)) => {
+                    if ex.scope == files_guard.root().id {
+                        "Home".into()
+                    } else {
+                        files_guard
+                            .get_by_id(ex.scope)
+                            .map(|f| f.name.clone())
+                            .unwrap_or_else(|| "Home".into())
+                    }
+                }
                 _ => "Unknown".into(),
             },
         }
