@@ -45,7 +45,11 @@ pub async fn import(api_url: ApiUrl) -> CliResult<()> {
     }
 
     // fall back to prompting
-    let account_string: String = input::std_in("paste your private key: ")?;
+    let config = rpassword::ConfigBuilder::new()
+        .password_feedback_mask('*')
+        .build();
+    let account_string = rpassword::prompt_password_with_config("paste your private key: ", config)
+        .map_err(|e| CliError::from(format!("failed to read from stdin: {e}")))?;
     import_key(lb, account_string.trim(), &api_url.0).await
 }
 
