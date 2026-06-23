@@ -14,6 +14,7 @@ use crate::workspace::WsPersistentStore;
 use egui::{Context, Pos2, RawInput, Rect, Ui, Vec2};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+use lb_rs::model::core_config::ClientType;
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
@@ -28,6 +29,7 @@ pub fn build_lb() -> Lb {
         stdout_logs: false,
         colored_logs: false,
         background_work: false,
+        client_type: ClientType::Unknown,
     })
     .unwrap()
 }

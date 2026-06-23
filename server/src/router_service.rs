@@ -42,7 +42,7 @@ macro_rules! core_req {
     ($Req: ty, $handler: path, $state: ident) => {{
         use lb_rs::model::api::{ErrorWrapper, Request};
         use lb_rs::model::file_metadata::Owner;
-        use lb_rs::model::wire::{WIRE_FORMAT_HEADER, WireFormat};
+        use lb_rs::model::wire::{CLIENT_HEADER, OS_HEADER, WIRE_FORMAT_HEADER, WireFormat};
         use std::net::SocketAddr;
         use tracing::*;
         use $crate::router_service::{self, build_response, deserialize_and_check, method};
@@ -57,6 +57,8 @@ macro_rules! core_req {
             .and(warp::body::bytes())
             .and(warp::header::optional::<String>("Accept-Version"))
             .and(warp::header::optional::<String>(WIRE_FORMAT_HEADER))
+            .and(warp::header::optional::<String>(OS_HEADER))
+            .and(warp::header::optional::<String>(CLIENT_HEADER))
             .and(warp::filters::addr::remote())
             .then(
                 |state: Arc<ServerState<S, A, G, D>>,
@@ -64,6 +66,8 @@ macro_rules! core_req {
                  request: Bytes,
                  version: Option<String>,
                  wire_format_header: Option<String>,
+                 os: Option<String>,
+                 client_type: Option<String>,
                  ip: Option<SocketAddr>| {
                     if ip.is_none() {
                         tracing::error!("ip not present in request");
@@ -81,6 +85,8 @@ macro_rules! core_req {
                             .clone()
                             .unwrap_or_else(|| String::from("not-present")),
                         wire_format = wire_format.as_str(),
+                        os = os.unwrap_or_else(|| String::from("not-present")),
+                        client_type = client_type.unwrap_or_else(|| String::from("not-present")),
                     );
 
                     async move {

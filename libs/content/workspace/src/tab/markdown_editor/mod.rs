@@ -21,6 +21,8 @@ use input::cursor::CursorState;
 use input::mutation::EventState;
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
+#[cfg(test)]
+use lb_rs::model::core_config::ClientType;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Byte, Grapheme};
@@ -683,6 +685,7 @@ impl Editor {
             stdout_logs: false,
             colored_logs: false,
             background_work: false,
+            client_type: ClientType::Unknown,
         })
         .unwrap();
         Self::new(

@@ -12,7 +12,7 @@ use lb_rs::model::account::Account;
 use lb_rs::model::api::{
     AppStoreAccountState, GooglePlayAccountState, PaymentPlatform, SubscriptionInfo,
 };
-pub use lb_rs::model::core_config::Config;
+pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::search::{
@@ -34,6 +34,7 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
         logs: true,
         stdout_logs: true,
         colored_logs: false,
+        client_type: ClientType::Ui,
     };
 
     match Lb::init(config) {

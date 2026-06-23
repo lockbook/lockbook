@@ -2,7 +2,7 @@ use crate::cache::FileEntry;
 use crate::fs_impl::Drive;
 use crate::mount::{mount, umount};
 use cli_rs::cli_error::{CliError, CliResult};
-use lb_rs::model::core_config::Config;
+use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::errors::Unexpected;
 use lb_rs::service::events::{Actor, Event};
 use lb_rs::{Lb, Uuid};
@@ -30,6 +30,7 @@ impl Drive {
             logs: false,
             stdout_logs: false,
             colored_logs: false,
+            client_type: ClientType::Cli,
         })
         .await
         .unwrap();
