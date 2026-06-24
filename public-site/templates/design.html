@@ -1,0 +1,918 @@
+{% extends "base.html" %}
+{% block title %}Design — Lockbook{% endblock %}
+
+{% block content %}
+
+<div class="max-w-6xl mx-auto px-6 lg:px-12 pt-16 pb-24">
+
+    <header class="mb-16 flex items-baseline justify-between gap-6 flex-wrap">
+        <h1 class="text-3xl font-medium tracking-tightest">Design</h1>
+        <nav class="flex gap-1.5 flex-wrap">
+            <a href="/design" class="btn-segmented is-selected">Design</a>
+            <a href="/type" class="btn-segmented">Type</a>
+        </nav>
+    </header>
+
+
+    <!-- ───── LIGHT ───── -->
+    <section class="mb-24">
+        <div class="flex items-baseline justify-between mb-8 pb-3 border-b border-line">
+            <h2 class="text-2xl font-medium tracking-tightest">Light</h2>
+            <p class="font-mono text-xs text-fg-muted">surfaces lift · light appears</p>
+        </div>
+
+        <ul class="text-sm text-fg-muted max-w-2xl mb-12 leading-relaxed list-disc pl-5 space-y-1.5 marker:text-fg-faint">
+            <li>Interactive surfaces lift on hover and a light effect appears alongside. The rise and the light read as one gesture; press snaps the surface flat instantly. Animation: 0.3s <code class="font-mono">cubic-bezier(0.22, 1, 0.36, 1)</code> springy ease-out.</li>
+            <li><strong class="text-fg">Shadow</strong> — drop below the surface, for elevating cards, panels, and other generic surfaces. Tokens <code class="font-mono">--shadow-y</code>, <code class="font-mono">--shadow-blur</code>, <code class="font-mono">--shadow-alpha</code> (alpha jumps 0.2 → 0.8 in dark mode).</li>
+            <li><strong class="text-fg">Glow</strong> — colored halo + white-hot core under the surface, the marquee button effect. Productized as the <code class="font-mono">.btn-glow</code> wrapper recipe (shadow-gradient pseudo + plus-lighter core pseudo).</li>
+            <li>Source of truth for glow: <code class="font-mono">--z</code> (button height above page, px). State machine via <code class="font-mono">--btn-z-rest</code> / <code class="font-mono">--btn-z-hover</code> — defaults 0 / 3 (secondary); primary CTAs opt in to 3 / 5 (glow at rest).</li>
+        </ul>
+
+        <style>
+            .shadow-standard-demo {
+                box-shadow: 0 0 0 rgba(0, 0, 0, 0);
+                transform: translateY(0);
+                transition: transform 0.17s ease, box-shadow 0.17s ease;
+                cursor: pointer;
+            }
+            .shadow-standard-demo:hover {
+                transform: translateY(calc(-1 * var(--shadow-y)));
+                box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));
+            }
+
+            /* Center the label on every color swatch (Spine + chroma).
+               The chroma swatches set this inline; declaring it here lets the
+               spine + lead-accent swatches omit the inline classes and still
+               center their "Aa" / value label. */
+            .color-btn {
+                display: flex;
+                align-items: center;
+                justify-content: center;
+            }
+            /* Copy-confirmation icon. Pulled out of flex flow so it doesn't
+               allocate horizontal space next to the label (which would push
+               the label off-center). Hidden at rest; on click the JS handler
+               adds `.copied` for 1.5s, which fades the label out, fades the
+               check in, and strokes the path on. */
+            .color-btn .check,
+            .color-btn .label {
+                transition: opacity 0.15s ease;
+            }
+            .color-btn .check {
+                position: absolute;
+                inset: 0;
+                margin: auto;
+                opacity: 0;
+                pointer-events: none;
+            }
+            .color-btn .check path {
+                stroke-dashoffset: 100;
+                transition: stroke-dashoffset 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+            }
+            .color-btn.copied .label { opacity: 0; }
+            .color-btn.copied .check { opacity: 1; }
+            .color-btn.copied .check path { stroke-dashoffset: 0; }
+        </style>
+
+        <div class="mb-12">
+            <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Shadow · surface elevation</p>
+            <div class="flex items-center gap-8">
+                <div class="h-10 w-40 shrink-0 rounded-edge bg-accent shadow-standard-demo"></div>
+                <p class="text-xs text-fg-muted leading-relaxed max-w-md">
+                    Flat at rest. Hover lifts by <code class="font-mono">--shadow-y</code> while the shadow drops by the same amount. For generic surfaces; for buttons, use the glow recipe below.
+                </p>
+                <p class="font-mono text-xs text-fg-faint mt-3">box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));</p>
+            </div>
+        </div>
+
+        <div>
+            <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Glow · button recipe</p>
+
+            <p class="text-xs text-fg-muted mb-4 max-w-2xl">Static — varying <code class="font-mono">--z</code> to visualize the physical model:</p>
+            <div class="flex items-end gap-16 flex-wrap mb-12">
+                <div class="text-center">
+                    <span class="btn-glow shrink-0" style="--btn-z-rest: 0; --btn-z-hover: 0; --glow-rgb: 102 178 255;">
+                        <button type="button" class="h-10 w-40 rounded-edge bg-base text-fg font-medium text-sm">Click</button>
+                    </span>
+                    <p class="font-mono text-xs text-fg-faint mt-3">z = 0</p>
+                </div>
+                <div class="text-center">
+                    <span class="btn-glow shrink-0" style="--btn-z-rest: 3; --btn-z-hover: 3; --glow-rgb: 102 178 255;">
+                        <button type="button" class="h-10 w-40 rounded-edge bg-base text-fg font-medium text-sm">Click</button>
+                    </span>
+                    <p class="font-mono text-xs text-fg-faint mt-3">z = 3</p>
+                </div>
+                <div class="text-center">
+                    <span class="btn-glow shrink-0" style="--btn-z-rest: 5; --btn-z-hover: 5; --glow-rgb: 102 178 255;">
+                        <button type="button" class="h-10 w-40 rounded-edge bg-base text-fg font-medium text-sm">Click</button>
+                    </span>
+                    <p class="font-mono text-xs text-fg-faint mt-3">z = 5</p>
+                </div>
+            </div>
+
+            <p class="text-xs text-fg-muted mb-4">Interactive — hover and press the state-machine profiles:</p>
+            <div class="flex items-end gap-16 flex-wrap mb-8">
+                <div class="text-center">
+                    <span class="btn-glow shrink-0" style="--btn-z-rest: 3; --btn-z-hover: 5; --glow-rgb: 102 178 255;">
+                        <button type="button" class="h-10 w-40 rounded-edge bg-base text-fg font-medium text-sm">Primary</button>
+                    </span>
+                    <p class="font-mono text-xs text-fg-faint mt-3">primary · rest z=3, hover z=5</p>
+                </div>
+                <div class="text-center">
+                    <span class="btn-glow shrink-0" style="--glow-rgb: 102 178 255;">
+                        <button type="button" class="h-10 w-40 rounded-edge bg-base text-fg font-medium text-sm">Secondary</button>
+                    </span>
+                    <p class="font-mono text-xs text-fg-faint mt-3">secondary · rest z=0, hover z=3 (defaults)</p>
+                </div>
+            </div>
+            <p class="font-mono text-xs text-fg-faint">Markup: &lt;span class="btn-glow" style="--btn-z-rest: 3; --btn-z-hover: 5; --glow-rgb: 102 178 255"&gt;&lt;button&gt;Primary&lt;/button&gt;&lt;/span&gt;</p>
+        </div>
+    </section>
+
+    <!-- ───── COLOR ───── -->
+    <section class="mb-24">
+        <div class="flex items-baseline justify-between mb-8 pb-3 border-b border-line">
+            <h2 class="text-2xl font-medium tracking-tightest">Color</h2>
+            <p class="font-mono text-xs text-fg-muted">from the Mnemonic theme</p>
+        </div>
+
+        <ul class="text-sm text-fg-muted max-w-2xl mb-12 leading-relaxed list-disc pl-5 space-y-1.5 marker:text-fg-faint">
+            <li>Neutrals + one accent + paired chroma palette.</li>
+            <li><strong class="text-fg">Foreground is never colored — except in monospace.</strong></li>
+            <li>Proportional text stays ink; <code class="font-mono">font-mono</code> may take a chroma color where the type reads as data, label, or code.</li>
+        </ul>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Three layers</h3>
+        <ul class="text-xs text-fg-muted max-w-2xl mb-6 leading-relaxed list-disc pl-5 space-y-1 marker:text-fg-faint">
+            <li>Every color sits at one of three layers — primitive, family, role.</li>
+            <li>Verbal shorthand mirrors the code: <em>"dark blue"</em> = Layer 1, <em>"foreground blue"</em> = Layer 2, <em>"accent text"</em> = Layer 3.</li>
+        </ul>
+        <div class="overflow-x-auto mb-12">
+            <table class="w-full text-xs text-fg-muted">
+                <thead class="font-mono uppercase tracking-widest text-fg-faint">
+                    <tr class="text-left">
+                        <th class="py-2 pr-6 font-normal align-bottom">Layer</th>
+                        <th class="py-2 pr-6 font-normal align-bottom">What it is</th>
+                        <th class="py-2 pr-6 font-normal align-bottom">Naming</th>
+                        <th class="py-2 font-normal align-bottom">Use when</th>
+                    </tr>
+                </thead>
+                <tbody class="leading-relaxed">
+                    <tr class="border-t border-line">
+                        <td class="py-3 pr-6 align-top text-fg">1 · Primitive</td>
+                        <td class="py-3 pr-6 align-top">Literal hex, immutable. Named after the shade.</td>
+                        <td class="py-3 pr-6 align-top font-mono"><span class="text-accent-fg">chroma-blue</span> · <span class="text-accent-fg">chroma-sky</span> · 10 more</td>
+                        <td class="py-3 align-top">You need a specific shade regardless of mode (a 3rd-party brand color match; a code-block syntax token).</td>
+                    </tr>
+                    <tr class="border-t border-line">
+                        <td class="py-3 pr-6 align-top text-fg">2 · Family</td>
+                        <td class="py-3 pr-6 align-top">Semantic, mode-aware. A hue with a foreground variant (readable on the page) and a background variant (brand-stable).</td>
+                        <td class="py-3 pr-6 align-top font-mono"><span class="text-accent-fg">fg-blue</span> (flips) · <span class="text-accent-fg">bg-blue</span> (constant)</td>
+                        <td class="py-3 align-top">You want "the foreground blue" without thinking about mode. Today only blue has a family; other chromas grow one when they earn it.</td>
+                    </tr>
+                    <tr class="border-t border-line">
+                        <td class="py-3 pr-6 align-top text-fg">3 · Role</td>
+                        <td class="py-3 pr-6 align-top">Bound to a UI pattern. Thin alias over Layer 2.</td>
+                        <td class="py-3 pr-6 align-top font-mono"><span class="text-accent-fg">accent</span> = bg-blue · <span class="text-accent-fg">accent-fg</span> = fg-blue</td>
+                        <td class="py-3 align-top">Default — the role name says <em>what for</em>, not <em>which color</em>. Most callsites should reach for this layer.</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Spine</h3>
+        <ul class="text-xs text-fg-muted max-w-2xl mb-3 leading-relaxed list-disc pl-5 space-y-1 marker:text-fg-faint">
+            <li>Six mode-flipping CSS vars driving every neutral surface + text.</li>
+            <li>Foreground family: <code class="font-mono">bg-fg</code> / <code class="font-mono">bg-fg-muted</code> / <code class="font-mono">bg-fg-faint</code> (plus <code class="font-mono">text-*</code> and <code class="font-mono">outline-*</code> counterparts).</li>
+            <li>Background family: <code class="font-mono">bg-line</code> / <code class="font-mono">bg-raised</code> / <code class="font-mono">bg-base</code> (plus <code class="font-mono">text-*</code> and <code class="font-mono">outline-*</code>).</li>
+            <li>Click any swatch to copy its current hex.</li>
+        </ul>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-12">
+            <div>
+                <span style="--glow-rgb: var(--fg)" class="btn-glow block">
+                    <button type="button" data-copy-var="--fg" class="color-btn relative h-10 w-full rounded-edge bg-fg text-sm font-medium" style="color: rgb(var(--bg-base))">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2"><span class="dark:hidden">Eerie Black</span><span class="hidden dark:inline">White</span></p>
+                <p class="font-mono text-xs text-fg-faint"><span class="dark:hidden">1A1A1A</span><span class="hidden dark:inline">FFFFFF</span></p>
+            </div>
+            <div>
+                <span style="--glow-rgb: var(--fg)" class="btn-glow block">
+                    <button type="button" data-copy-var="--fg-muted" class="color-btn relative h-10 w-full rounded-edge bg-fg-muted text-sm font-medium" style="color: rgb(var(--bg-base))">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2"><span class="dark:hidden">Davy's Gray</span><span class="hidden dark:inline">Light Gray</span></p>
+                <p class="font-mono text-xs text-fg-faint"><span class="dark:hidden">505050</span><span class="hidden dark:inline">D0D0D0</span></p>
+            </div>
+            <div>
+                <span style="--glow-rgb: var(--fg)" class="btn-glow block">
+                    <button type="button" data-copy-var="--fg-faint" class="color-btn relative h-10 w-full rounded-edge bg-fg-faint text-sm font-medium" style="color: rgb(var(--bg-base))">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Gray</p>
+                <p class="font-mono text-xs text-fg-faint">808080</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: var(--fg)" class="btn-glow block">
+                    <button type="button" data-copy-var="--bg-line" class="color-btn relative h-10 w-full rounded-edge bg-line text-fg text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2"><span class="dark:hidden">Light Gray</span><span class="hidden dark:inline">Davy's Gray</span></p>
+                <p class="font-mono text-xs text-fg-faint"><span class="dark:hidden">D0D0D0</span><span class="hidden dark:inline">505050</span></p>
+            </div>
+            <div>
+                <span style="--glow-rgb: var(--fg)" class="btn-glow block">
+                    <button type="button" data-copy-var="--bg-raised" class="color-btn relative h-10 w-full rounded-edge outline outline-1 outline-line bg-raised text-fg text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2"><span class="dark:hidden">Anti-Flash White</span><span class="hidden dark:inline">Raisin Black</span></p>
+                <p class="font-mono text-xs text-fg-faint"><span class="dark:hidden">F0F0F0</span><span class="hidden dark:inline">2A2A2A</span></p>
+            </div>
+            <div>
+                <span style="--glow-rgb: var(--fg)" class="btn-glow block">
+                    <button type="button" data-copy-var="--bg-base" class="color-btn relative h-10 w-full rounded-edge outline outline-1 outline-line bg-base text-fg text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2"><span class="dark:hidden">White</span><span class="hidden dark:inline">Eerie Black</span></p>
+                <p class="font-mono text-xs text-fg-faint"><span class="dark:hidden">FFFFFF</span><span class="hidden dark:inline">1A1A1A</span></p>
+            </div>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4 mt-12">Lead accent</h3>
+        <ul class="text-xs text-fg-muted max-w-2xl mb-8 leading-relaxed list-disc pl-5 space-y-1 marker:text-fg-faint">
+            <li>Two role tokens over the blue family.</li>
+            <li><code class="font-mono">bg-accent</code> + <code class="font-mono">outline-accent</code> → <code class="font-mono">bg-blue</code> (Steel always — brand mark on CTA fills + Premium card border).</li>
+            <li><code class="font-mono">text-accent-fg</code> → <code class="font-mono">fg-blue</code> (Steel light, Sky dark — eyebrows + mono labels read against either page bg).</li>
+        </ul>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-3">
+            <div>
+                <span style="--glow-rgb: var(--accent-rgb)" class="btn-glow block">
+                    <button type="button" data-copy-var="--accent-rgb" class="color-btn relative h-10 w-full rounded-edge bg-accent text-white text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">bg-accent</p>
+                <p class="font-mono text-xs text-fg-faint">Steel · 207FDF</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: var(--accent-fg-rgb)" class="btn-glow block">
+                    <button type="button" data-copy-var="--accent-fg-rgb" class="color-btn relative h-10 w-full rounded-edge outline outline-1 outline-line bg-base text-accent-fg text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">text-accent-fg</p>
+                <p class="font-mono text-xs text-fg-faint"><span class="dark:hidden">Steel · 207FDF</span><span class="hidden dark:inline">Sky · 66B2FF</span></p>
+            </div>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4 mt-24">Hue pairs — six dark, six light</h3>
+        <ul class="text-xs text-fg-muted max-w-2xl mb-8 leading-relaxed list-disc pl-5 space-y-1 marker:text-fg-faint">
+            <li>Twelve hues, paired light/dark.</li>
+            <li>Light variant → fills: <code class="font-mono">bg-chroma-mint</code>, <code class="font-mono">bg-chroma-cream</code>, <code class="font-mono">bg-chroma-coral</code>, <code class="font-mono">bg-chroma-lilac</code>, <code class="font-mono">bg-chroma-sky</code>, <code class="font-mono">bg-chroma-cyan</code>.</li>
+            <li>Dark variant → borders + ink: <code class="font-mono">outline-chroma-green</code>, <code class="font-mono">text-chroma-gold</code>, etc.</li>
+            <li>Click any tile to copy its hex.</li>
+        </ul>
+
+        <p class="font-mono text-xs uppercase tracking-widest text-fg-faint mb-3">Dark 6 · accent borders</p>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-3 mb-12">
+            <div>
+                <span style="--glow-rgb: 0 179 113" class="btn-glow block">
+                    <button type="button" data-copy-color="00B371" class="color-btn relative h-10 w-full rounded-edge outline outline-1 outline-line hover:outline-chroma-green flex items-center justify-center bg-base text-chroma-green text-sm font-mono transition-colors">
+                        <span class="label">00B371</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Persian Green</p>
+                <p class="font-mono text-xs text-fg-faint">00B371</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 255 191 0" class="btn-glow block">
+                    <button type="button" data-copy-color="FFBF00" class="color-btn relative h-10 w-full rounded-edge outline outline-1 outline-line hover:outline-chroma-gold flex items-center justify-center bg-base text-chroma-gold text-sm font-mono transition-colors">
+                        <span class="label">FFBF00</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Amber</p>
+                <p class="font-mono text-xs text-fg-faint">FFBF00</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 223 32 64" class="btn-glow block">
+                    <button type="button" data-copy-color="DF2040" class="color-btn relative h-10 w-full rounded-edge outline outline-1 outline-line hover:outline-chroma-red flex items-center justify-center bg-base text-chroma-red text-sm font-mono transition-colors">
+                        <span class="label">DF2040</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Amaranth Red</p>
+                <p class="font-mono text-xs text-fg-faint">DF2040</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 120 85 170" class="btn-glow block">
+                    <button type="button" data-copy-color="7855AA" class="color-btn relative h-10 w-full rounded-edge outline outline-1 outline-line hover:outline-chroma-iris flex items-center justify-center bg-base text-chroma-iris text-sm font-mono transition-colors">
+                        <span class="label">7855AA</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Royal Purple</p>
+                <p class="font-mono text-xs text-fg-faint">7855AA</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 32 127 223" class="btn-glow block">
+                    <button type="button" data-copy-color="207FDF" class="color-btn relative h-10 w-full rounded-edge outline outline-1 outline-line hover:outline-chroma-blue flex items-center justify-center bg-base text-chroma-blue text-sm font-mono transition-colors">
+                        <span class="label">207FDF</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Steel Blue</p>
+                <p class="font-mono text-xs text-fg-faint">207FDF</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 15 174 189" class="btn-glow block">
+                    <button type="button" data-copy-color="0FAEBD" class="color-btn relative h-10 w-full rounded-edge outline outline-1 outline-line hover:outline-chroma-teal flex items-center justify-center bg-base text-chroma-teal text-sm font-mono transition-colors">
+                        <span class="label">0FAEBD</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Pacific Cyan</p>
+                <p class="font-mono text-xs text-fg-faint">0FAEBD</p>
+            </div>
+        </div>
+
+        <p class="font-mono text-xs uppercase tracking-widest text-fg-faint mb-3">Light 6 · accent backgrounds</p>
+        <div class="grid grid-cols-3 sm:grid-cols-6 gap-3">
+            <div>
+                <span style="--glow-rgb: 0 179 113" class="btn-glow block">
+                    <button type="button" data-copy-color="67E4B6" class="color-btn relative h-10 w-full rounded-edge flex items-center justify-center bg-chroma-mint text-[#1A1A1A] text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Aquamarine</p>
+                <p class="font-mono text-xs text-fg-faint">67E4B6</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 255 191 0" class="btn-glow block">
+                    <button type="button" data-copy-color="FFDB70" class="color-btn relative h-10 w-full rounded-edge flex items-center justify-center bg-chroma-cream text-[#1A1A1A] text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Jasmine</p>
+                <p class="font-mono text-xs text-fg-faint">FFDB70</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 223 32 64" class="btn-glow block">
+                    <button type="button" data-copy-color="FF6680" class="color-btn relative h-10 w-full rounded-edge flex items-center justify-center bg-chroma-coral text-[#1A1A1A] text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Tickle Me Pink</p>
+                <p class="font-mono text-xs text-fg-faint">FF6680</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 120 85 170" class="btn-glow block">
+                    <button type="button" data-copy-color="AC8CD9" class="color-btn relative h-10 w-full rounded-edge flex items-center justify-center bg-chroma-lilac text-[#1A1A1A] text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Lavender</p>
+                <p class="font-mono text-xs text-fg-faint">AC8CD9</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 32 127 223" class="btn-glow block">
+                    <button type="button" data-copy-color="66B2FF" class="color-btn relative h-10 w-full rounded-edge flex items-center justify-center bg-chroma-sky text-[#1A1A1A] text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Sky Blue</p>
+                <p class="font-mono text-xs text-fg-faint">66B2FF</p>
+            </div>
+            <div>
+                <span style="--glow-rgb: 15 174 189" class="btn-glow block">
+                    <button type="button" data-copy-color="6EECF7" class="color-btn relative h-10 w-full rounded-edge flex items-center justify-center bg-chroma-cyan text-[#1A1A1A] text-sm font-medium">
+                        <span class="label">Aa</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-2">Cyan</p>
+                <p class="font-mono text-xs text-fg-faint">6EECF7</p>
+            </div>
+        </div>
+
+    </section>
+
+    <!-- ───── SURFACES ───── -->
+    <section class="mb-24">
+        <div class="flex items-baseline justify-between mb-8 pb-3 border-b border-line">
+            <h2 class="text-2xl font-medium tracking-tightest">Surfaces</h2>
+            <p class="font-mono text-xs text-fg-muted">flat · wireframe · glass</p>
+        </div>
+
+        <ul class="text-sm text-fg-muted max-w-2xl mb-12 leading-relaxed list-disc pl-5 space-y-1.5 marker:text-fg-faint">
+            <li>Three treatments — flat, wireframe, glass — for any container.</li>
+            <li>Pair with <code class="font-mono">rounded-edge</code> for the standard corner.</li>
+            <li>Add the inline <code class="font-mono">box-shadow</code> from Shadows when lift is wanted.</li>
+        </ul>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-12 gap-y-12">
+
+            <!-- Flat -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Flat</p>
+                <div class="aspect-[4/3] rounded-edge bg-raised dark:bg-[#101010]" style="box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));"></div>
+                <p class="text-xs text-fg-muted mt-4 leading-relaxed">
+                    Solid fill, no border. For primary CTAs, color swatches, and the headline accent CTA — fill carries the identity.
+                </p>
+                <p class="font-mono text-xs text-fg-faint mt-3">bg-raised · bg-base · bg-fg · bg-accent · bg-chroma-*</p>
+            </div>
+
+            <!-- Wireframe -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Wireframe</p>
+                <div class="aspect-[4/3] rounded-edge outline outline-1 outline-line bg-base" style="box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));"></div>
+                <p class="text-xs text-fg-muted mt-4 leading-relaxed">
+                    Outside outline, paper fill, no chroma at rest. Secondary buttons, content cards, layout sections. Identity arrives on hover/select via outline color (ink for neutral, accent for branded).
+                </p>
+                <p class="font-mono text-xs text-fg-faint mt-3">outline outline-1 outline-line · bg-base</p>
+            </div>
+
+            <!-- Glass -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Glass</p>
+                <div class="relative aspect-[4/3] rounded-edge overflow-hidden" style="box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));">
+                    <img src="/moodboard/31.jpg" alt="" class="absolute inset-0 w-full h-full object-cover dark:hidden" loading="lazy" />
+                    <img src="/moodboard/17.jpg" alt="" class="hidden dark:block absolute inset-0 w-full h-full object-cover" loading="lazy" />
+                    <div class="surface-glass absolute top-0 bottom-0 left-0 w-1/2" style="border-right: 1px solid rgb(var(--bg-line) / var(--glass-border-alpha));"></div>
+                </div>
+                <p class="text-xs text-fg-muted mt-4 leading-relaxed">
+                    Translucent: backdrop-blur + paper tint + top highlight + soft rim. For panels over imagery (trust banner, copy-confirmation disc over a swatch, modals). Tunable via <code class="font-mono">--glass-tint</code>, <code class="font-mono">--glass-blur</code>, <code class="font-mono">--glass-sat</code>, <code class="font-mono">--glass-highlight</code>, <code class="font-mono">--glass-border-alpha</code>.
+                </p>
+                <p class="font-mono text-xs text-fg-faint mt-3">surface-glass</p>
+            </div>
+
+        </div>
+    </section>
+
+    <!-- ───── BUTTONS ───── -->
+    <section class="mb-24">
+        <div class="flex items-baseline justify-between mb-8 pb-3 border-b border-line">
+            <h2 class="text-2xl font-medium tracking-tightest">Buttons</h2>
+            <p class="font-mono text-xs text-fg-muted">flat · wireframe · glass</p>
+        </div>
+
+        <ul class="text-sm text-fg-muted max-w-2xl mb-12 leading-relaxed list-disc pl-5 space-y-1.5 marker:text-fg-faint">
+            <li>Three intent classes, one shared hover.</li>
+            <li><strong class="text-fg">Flat</strong> (<code class="font-mono">.btn-flat</code>) — identity in the fill.</li>
+            <li><strong class="text-fg">Wireframe</strong> (<code class="font-mono">.btn-primary</code> + <code class="font-mono">.btn-segmented</code>) — identity in the outline.</li>
+            <li><strong class="text-fg">Glass</strong> (<code class="font-mono">.btn-glass</code>) — identity through translucency; for buttons over imagery.</li>
+            <li>All three pair with a <code class="font-mono">.btn-glow</code> wrapper for the lift-and-underglow hover.</li>
+            <li>Modifiers: <code class="font-mono">.is-accent</code> swaps the identity to Steel Blue; <code class="font-mono">.is-selected</code> holds the hover state without the pointer.</li>
+        </ul>
+
+        <!-- Primary CTA — surface is bg-base (matches page); the glow IS the affordance -->
+        <div class="mb-16 pb-12 border-b border-line">
+            <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Primary CTA · glow-as-affordance</p>
+            <ul class="text-xs text-fg-muted max-w-2xl mb-6 leading-relaxed list-disc pl-5 space-y-1 marker:text-fg-faint">
+                <li>Surface is <code class="font-mono">bg-base</code> (matches page background); no fill, no outline.</li>
+                <li>The glow at <code class="font-mono">z=3</code> rest IS the affordance — the button reads as a button because it's hovering above the page with a colored halo underneath.</li>
+                <li>Hovers to <code class="font-mono">z=5</code> (brighter glow), presses to <code class="font-mono">z=0</code> (snaps flat — the glow vanishes momentarily).</li>
+                <li>For the page's primary action: hero CTA, download buttons, anything that's "THE" thing to do on that view.</li>
+            </ul>
+            <span class="btn-glow" style="--btn-z-rest: 3; --btn-z-hover: 5; --glow-rgb: 102 178 255;">
+                <a href="#" class="btn-flat bg-base text-fg gap-2">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                        <polyline points="7 10 12 15 17 10" />
+                        <line x1="12" y1="15" x2="12" y2="3" />
+                    </svg>
+                    Download
+                </a>
+            </span>
+            <p class="font-mono text-xs text-fg-faint mt-4">&lt;span class="btn-glow" style="--btn-z-rest: 3; --btn-z-hover: 5; --glow-rgb: 102 178 255"&gt;&lt;a class="btn-flat bg-base text-fg"&gt;Download&lt;/a&gt;&lt;/span&gt;</p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-x-12 gap-y-12 mb-16">
+
+            <!-- Row 1: idle — Flat -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Flat · idle</p>
+                <div class="flex flex-wrap items-center gap-3">
+                    <span style="--glow-rgb: var(--fg)" class="btn-glow"><a href="#" class="btn-flat bg-fg" style="color: rgb(var(--bg-base))">Neutral</a></span>
+                    <span style="--glow-rgb: var(--accent-rgb)" class="btn-glow"><a href="#" class="btn-flat bg-accent">Accent</a></span>
+                </div>
+                <p class="text-xs text-fg-muted mt-4 max-w-sm leading-relaxed">
+                    Two fills: <code class="font-mono">bg-fg</code> for neutral CTAs, <code class="font-mono">bg-accent</code> for branded. White text in both (set on the class).
+                </p>
+            </div>
+
+            <!-- Row 1: idle — Wireframe -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Wireframe · idle</p>
+                <div class="flex flex-wrap items-center gap-3">
+                    <span style="--glow-rgb: var(--fg)" class="btn-glow"><a href="#" class="btn-primary">Neutral</a></span>
+                    <span style="--glow-rgb: var(--accent-rgb)" class="btn-glow"><a href="#" class="btn-primary is-accent">Accent</a></span>
+                </div>
+                <p class="text-xs text-fg-muted mt-4 max-w-sm leading-relaxed">
+                    Identical at rest. On hover the outline swaps — to ink for neutral, to Steel Blue for <code class="font-mono">.is-accent</code>.
+                </p>
+            </div>
+
+            <!-- Row 1: idle — Glass -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Glass · idle</p>
+                <div class="relative rounded-edge">
+                    <img src="/moodboard/31.jpg" alt="" class="absolute inset-0 w-full h-full object-cover rounded-edge dark:hidden" loading="lazy" />
+                    <img src="/moodboard/17.jpg" alt="" class="hidden dark:block absolute inset-0 w-full h-full object-cover rounded-edge" loading="lazy" />
+                    <div class="relative flex flex-wrap items-center gap-3 px-6 py-8">
+                        <span style="--glow-rgb: var(--fg)" class="btn-glow"><a href="#" class="btn-glass">Neutral</a></span>
+                        <span style="--glow-rgb: var(--accent-rgb)" class="btn-glow"><a href="#" class="btn-glass is-accent">Accent</a></span>
+                    </div>
+                </div>
+                <p class="text-xs text-fg-muted mt-4 max-w-sm leading-relaxed">
+                    Wireframe footprint with translucent fill (backdrop-blur + paper tint). Outline hover swap same as wireframe, with the accent variant softened to 0.8 alpha so it doesn't fight the backdrop.
+                </p>
+            </div>
+
+            <!-- Row 2: active — Flat selector -->
+            <div data-selector-group="flat">
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Flat · active</p>
+                <div class="flex gap-3">
+                    <span class="btn-glow" style="--glow-rgb: 103 228 182"><button type="button" aria-label="mint"  class="w-7 h-7 rounded-edge bg-chroma-mint"></button></span>
+                    <span class="btn-glow is-selected" style="--glow-rgb: 255 219 112"><button type="button" aria-label="cream" class="w-7 h-7 rounded-edge bg-chroma-cream"></button></span>
+                    <span class="btn-glow" style="--glow-rgb: 255 102 128"><button type="button" aria-label="coral" class="w-7 h-7 rounded-edge bg-chroma-coral"></button></span>
+                </div>
+                <p class="text-xs text-fg-muted mt-4 max-w-sm leading-relaxed">
+                    The <code class="font-mono">.is-selected</code> wrapper holds the lift + underglow without the pointer. Used for the platform-grid OS-detected highlight.
+                </p>
+            </div>
+
+            <!-- Row 2: active — Wireframe selector -->
+            <div data-selector-group="wireframe">
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Wireframe · active</p>
+                <div class="flex gap-1.5">
+                    <span class="btn-glow" style="--glow-rgb: var(--fg)"><button type="button" class="btn-segmented">One</button></span>
+                    <span class="btn-glow" style="--glow-rgb: var(--fg)"><button type="button" class="btn-segmented is-selected">Two</button></span>
+                    <span class="btn-glow" style="--glow-rgb: var(--fg)"><button type="button" class="btn-segmented">Three</button></span>
+                </div>
+                <p class="text-xs text-fg-muted mt-4 max-w-sm leading-relaxed">
+                    Pill-row picker (<code class="font-mono">.btn-segmented</code>). <code class="font-mono">.is-selected</code> swaps outline line → ink. No thickness change.
+                </p>
+            </div>
+
+            <!-- Row 2: active — Glass selector -->
+            <div data-selector-group="glass">
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Glass · active</p>
+                <div class="relative rounded-edge">
+                    <img src="/moodboard/31.jpg" alt="" class="absolute inset-0 w-full h-full object-cover rounded-edge dark:hidden" loading="lazy" />
+                    <img src="/moodboard/17.jpg" alt="" class="hidden dark:block absolute inset-0 w-full h-full object-cover rounded-edge" loading="lazy" />
+                    <div class="relative flex gap-2 px-6 py-8">
+                        <span class="btn-glow" style="--glow-rgb: var(--fg)"><button type="button" class="btn-glass">One</button></span>
+                        <span class="btn-glow" style="--glow-rgb: var(--fg)"><button type="button" class="btn-glass is-selected">Two</button></span>
+                        <span class="btn-glow" style="--glow-rgb: var(--fg)"><button type="button" class="btn-glass">Three</button></span>
+                    </div>
+                </div>
+                <p class="text-xs text-fg-muted mt-4 max-w-sm leading-relaxed">
+                    Same <code class="font-mono">.is-selected</code> outline swap as wireframe, on the translucent surface.
+                </p>
+            </div>
+
+            <!-- Row 3: one-shot — Flat -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Flat · one-shot</p>
+                <span style="--glow-rgb: var(--fg)" class="btn-glow">
+                    <button type="button" class="btn-flat bg-fg color-btn" style="color: rgb(var(--bg-base))">
+                        <span class="label">Send</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-4 max-w-sm leading-relaxed">
+                    Click adds <code class="font-mono">.copied</code> for 1.5s — the <code class="font-mono">.label</code> fades out and the <code class="font-mono">.check</code> SVG strokes on. Add <code class="font-mono">.color-btn</code> to any button to opt in to the one-shot animation.
+                </p>
+            </div>
+
+            <!-- Row 3: one-shot — Wireframe -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Wireframe · one-shot</p>
+                <span style="--glow-rgb: var(--fg)" class="btn-glow">
+                    <button type="button" class="btn-primary color-btn relative">
+                        <span class="label">Confirm</span>
+                        <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                    </button>
+                </span>
+                <p class="text-xs text-fg-muted mt-4 max-w-sm leading-relaxed">
+                    Same one-shot animation on the wireframe shape — check inks instead of fills.
+                </p>
+            </div>
+
+            <!-- Row 3: one-shot — Glass -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Glass · one-shot</p>
+                <div class="relative rounded-edge">
+                    <img src="/moodboard/31.jpg" alt="" class="absolute inset-0 w-full h-full object-cover rounded-edge dark:hidden" loading="lazy" />
+                    <img src="/moodboard/17.jpg" alt="" class="hidden dark:block absolute inset-0 w-full h-full object-cover rounded-edge" loading="lazy" />
+                    <div class="relative px-6 py-8">
+                        <span style="--glow-rgb: var(--fg)" class="btn-glow">
+                            <button type="button" class="btn-glass color-btn relative">
+                                <span class="label">Confirm</span>
+                                <svg class="check" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 13l4 4L19 7" pathLength="100" stroke-dasharray="100" stroke-dashoffset="100" /></svg>
+                            </button>
+                        </span>
+                    </div>
+                </div>
+                <p class="text-xs text-fg-muted mt-4 max-w-sm leading-relaxed">
+                    Same animation through the translucent surface; check inks so it reads against whatever's behind the glass.
+                </p>
+            </div>
+
+        </div>
+
+        <!-- Inline link — quiet trigger, no container, no lift. Lives at the bottom
+             of Buttons because it's the no-shape button, conceptually. See /type for
+             the typographic rationale (link = type style, not a primitive). -->
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4 mt-24">Inline · link</h3>
+        <div class="max-w-md">
+            <a href="#" class="btn-text">Read the blog &rarr;</a>
+            <p class="text-xs text-fg-muted mt-3 leading-relaxed">
+                <code class="font-mono">.btn-text</code> — type-only, no container, no lift. Inherits surrounding type's size and family; muted at rest, ink on hover. For inline triggers in prose, nav bars, anywhere a trigger should disappear until wanted.
+            </p>
+        </div>
+
+    </section>
+
+
+    <!-- ───── SECTION HEADERS ───── -->
+    <section class="mb-24">
+        <div class="flex items-baseline justify-between mb-8 pb-3 border-b border-line">
+            <h2 class="text-2xl font-medium tracking-tightest">Section headers</h2>
+            <p class="font-mono text-xs text-fg-muted">eyebrow · headline · lead</p>
+        </div>
+
+        <ul class="text-sm text-fg-muted max-w-2xl mb-12 leading-relaxed list-disc pl-5 space-y-1.5 marker:text-fg-faint">
+            <li>Primary content-block rhythm — used 8× on the homepage.</li>
+            <li><strong class="text-fg">Eyebrow</strong> (icon + mono label) — names the topic.</li>
+            <li><strong class="text-fg">Headline</strong> — states the claim.</li>
+            <li><strong class="text-fg">Lead</strong> — earns it.</li>
+        </ul>
+
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-x-12 gap-y-12">
+
+            <!-- Specimen -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Specimen</p>
+                <div class="rounded-edge bg-raised p-8">
+                    <div class="flex items-center gap-2 mb-4">
+                        <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="4" y="2" width="16" height="20" rx="2" />
+                            <line x1="8" y1="7" x2="16" y2="7" />
+                            <line x1="8" y1="12" x2="16" y2="12" />
+                            <line x1="8" y1="17" x2="13" y2="17" />
+                        </svg>
+                        <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Notes</p>
+                    </div>
+                    <h2 class="text-2xl font-medium tracking-tightest leading-tight">
+                        Plain markdown, formatted live.
+                    </h2>
+                    <p class="mt-6 text-sm text-fg-muted leading-relaxed max-w-md">
+                        Write notes in flawless style with a live-rendering markdown editor.
+                    </p>
+                </div>
+            </div>
+
+            <!-- Recipe -->
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Recipe</p>
+                <div class="rounded-edge bg-raised p-8 font-mono text-xs leading-relaxed text-fg-muted overflow-x-auto"><div class="whitespace-pre">&lt;div class=<span class="text-accent-fg">"flex items-center gap-2 mb-4"</span>&gt;
+  &lt;svg class=<span class="text-accent-fg">"w-5 h-5 text-fg-muted shrink-0"</span> …/&gt;
+  &lt;p class=<span class="text-accent-fg">"font-mono text-xs uppercase
+              tracking-widest text-accent-fg"</span>&gt;
+    Eyebrow
+  &lt;/p&gt;
+&lt;/div&gt;
+&lt;h2 class=<span class="text-accent-fg">"text-2xl font-medium
+            tracking-tightest leading-tight"</span>&gt;
+  Headline
+&lt;/h2&gt;
+&lt;p class=<span class="text-accent-fg">"mt-6 text-sm text-fg-muted
+           leading-relaxed max-w-md"</span>&gt;
+  Lead.
+&lt;/p&gt;</div></div>
+                <p class="text-xs text-fg-muted mt-4 leading-relaxed">
+                    Drop a <code class="font-mono">mt-6</code> between eyebrow and h2 if the section needs more breathing room (used on the larger feature blocks); the trust panels keep <code class="font-mono">mb-4</code> for tighter rhythm.
+                </p>
+            </div>
+
+        </div>
+    </section>
+
+
+    <!-- ───── VISUAL EFFECTS ───── -->
+    <section class="mb-24">
+        <div class="flex items-baseline justify-between mb-8 pb-3 border-b border-line">
+            <h2 class="text-2xl font-medium tracking-tightest">Wave field</h2>
+            <p class="font-mono text-xs text-fg-muted">tiles · waves · spring</p>
+        </div>
+
+        <ul class="text-sm text-fg-muted max-w-2xl mb-12 leading-relaxed list-disc pl-5 space-y-1.5 marker:text-fg-faint">
+            <li>Ambient brand effect for hero / landing surfaces — motion in place of imagery.</li>
+            <li>Same 2:1 horizontal rhombus shape as the book logo, tessellated edge-to-edge across a fixed-aspect container.</li>
+        </ul>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-4">Mechanics</h3>
+        <ul class="text-xs text-fg-muted max-w-2xl mb-6 leading-relaxed list-disc pl-5 space-y-1 marker:text-fg-faint">
+            <li>Each tile carries a signed displacement <code class="font-mono">u</code> (px). Per-frame leapfrog integrates the damped 2D wave equation: <code class="font-mono">u_new = (2−γ)u − (1−γ)u_prev + c²·Σ(u_nb − u)</code>, summed over the 4 edge-sharing diagonal neighbors. The iso-rhombus grid is topologically a square grid at 45° + 2:1 squish — same-row tiles only touch at corners and aren't true neighbors.</li>
+            <li>Cursor adds a damped-spring force <code class="font-mono">k·(target − u) − b·(u − u_prev)</code> to tiles in radius, NOT a hard clamp — so velocity history stays intact across cursor sweeps and the wave eq sees consistent state on entry and exit.</li>
+            <li>Displayed <code class="font-mono">--lift</code> is the 2-tap moving average <code class="font-mono">(u + u_prev) / 2</code> — kills the Nyquist checkerboard mode that leapfrog has zero dissipation for. <code class="font-mono">u_new</code> is hard-clipped to ±<code class="font-mono">--lift-max</code> so cursor resonance can't pump tiles off-screen.</li>
+            <li>Initial impulse (page load or button) seeds <code class="font-mono">u = max·fall²</code>, <code class="font-mono">u_prev = 3u</code> — peak displacement plus impact velocity (kinetic + potential), like a stone still moving when it hits water.</li>
+            <li>Stability requires <code class="font-mono">c² &lt; ~1/4</code> on the 4-neighbor laplacian; settings sit well under for slow, smooth propagation. Idle field early-returns from the rAF loop; offscreen fields pause via IntersectionObserver; <code class="font-mono">prefers-reduced-motion</code> disables the sim entirely.</li>
+        </ul>
+
+        <!-- Tile-field CSS + auto-wiring JS live in base.html (also used by
+             the hero on /). This demo wires the same field to a re-drop
+             button + a tuning panel. -->
+
+        <div id="tile-demo-container" class="relative aspect-[4/3] bg-sunken rounded-edge overflow-hidden"
+             style="--tile-lift: 25; --tile-reach: 120; --tile-gap: 3px;
+                    --wave-speed: 0.05; --wave-damping: 0.015;
+                    --cursor-stiffness: 0.3; --cursor-drag: 0.5;
+                    --lift-max: 60;
+                    --tile-bg: var(--bg-base);
+                    box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));">
+            <!-- Impulse target — a 1×1 marker at field center. The drop
+                 button calls field.dropImpulse() against this element. -->
+            <div id="tile-demo-target" class="absolute" style="left: 50%; top: 50%; width: 1px; height: 1px;"></div>
+            <div id="tile-demo-field" class="tile-field absolute inset-0" data-shape="rhombus" data-tile-w="64" data-impulse-target="#tile-demo-target" data-impulse-delay="600"></div>
+        </div>
+
+        <div class="mt-4 flex items-baseline justify-between gap-6 max-w-2xl">
+            <p class="text-xs text-fg-muted leading-relaxed">
+                A centered drop fires 600 ms after layout. Move the cursor over the field for live interaction. Sliders below tune the running sim; the re-drop button replays the impulse.
+            </p>
+            <button id="tile-demo-drop" type="button" class="btn-text text-xs whitespace-nowrap">Re-drop ⤓</button>
+        </div>
+
+        <div id="tile-demo-tuner" class="mt-8 grid grid-cols-2 gap-x-8 gap-y-4 max-w-2xl text-sm">
+            <label class="block">
+                <span class="flex justify-between font-mono text-xs text-fg-muted">
+                    <span>--wave-speed (c²)</span>
+                    <span data-readout="--wave-speed">0.05</span>
+                </span>
+                <input class="block w-full mt-1" type="range" min="0.01" max="0.24" step="0.005" value="0.05" data-css-var="--wave-speed">
+            </label>
+            <label class="block">
+                <span class="flex justify-between font-mono text-xs text-fg-muted">
+                    <span>--wave-damping (γ)</span>
+                    <span data-readout="--wave-damping">0.015</span>
+                </span>
+                <input class="block w-full mt-1" type="range" min="0.001" max="0.06" step="0.001" value="0.015" data-css-var="--wave-damping">
+            </label>
+            <label class="block">
+                <span class="flex justify-between font-mono text-xs text-fg-muted">
+                    <span>--tile-lift (press depth px)</span>
+                    <span data-readout="--tile-lift">25</span>
+                </span>
+                <input class="block w-full mt-1" type="range" min="1" max="80" step="0.5" value="25" data-css-var="--tile-lift">
+            </label>
+            <label class="block">
+                <span class="flex justify-between font-mono text-xs text-fg-muted">
+                    <span>--tile-reach (press radius px)</span>
+                    <span data-readout="--tile-reach">120</span>
+                </span>
+                <input class="block w-full mt-1" type="range" min="20" max="300" step="2" value="120" data-css-var="--tile-reach">
+            </label>
+            <label class="block">
+                <span class="flex justify-between font-mono text-xs text-fg-muted">
+                    <span>--cursor-stiffness (spring k)</span>
+                    <span data-readout="--cursor-stiffness">0.3</span>
+                </span>
+                <input class="block w-full mt-1" type="range" min="0" max="1" step="0.02" value="0.3" data-css-var="--cursor-stiffness">
+            </label>
+            <label class="block">
+                <span class="flex justify-between font-mono text-xs text-fg-muted">
+                    <span>--cursor-drag (spring b)</span>
+                    <span data-readout="--cursor-drag">0.5</span>
+                </span>
+                <input class="block w-full mt-1" type="range" min="0" max="1" step="0.02" value="0.5" data-css-var="--cursor-drag">
+            </label>
+            <label class="block">
+                <span class="flex justify-between font-mono text-xs text-fg-muted">
+                    <span>--lift-max (px hard cap)</span>
+                    <span data-readout="--lift-max">60</span>
+                </span>
+                <input class="block w-full mt-1" type="range" min="10" max="200" step="1" value="60" data-css-var="--lift-max">
+            </label>
+            <label class="block">
+                <span class="flex justify-between font-mono text-xs text-fg-muted">
+                    <span>--tile-gap (corner-touch gap px)</span>
+                    <span data-readout="--tile-gap">3</span>
+                </span>
+                <input class="block w-full mt-1" type="range" min="0" max="12" step="0.5" value="3" data-css-var="--tile-gap">
+            </label>
+        </div>
+        <script>
+            (function () {
+                const container = document.getElementById('tile-demo-container');
+                const field = document.getElementById('tile-demo-field');
+                const tuner = document.getElementById('tile-demo-tuner');
+                const dropBtn = document.getElementById('tile-demo-drop');
+                const target = document.getElementById('tile-demo-target');
+                if (!container || !field || !tuner) return;
+                tuner.querySelectorAll('input[data-css-var]').forEach(input => {
+                    input.addEventListener('input', e => {
+                        const name = e.target.dataset.cssVar;
+                        const val = e.target.value;
+                        container.style.setProperty(name, val);
+                        const readout = tuner.querySelector(`[data-readout="${name}"]`);
+                        if (readout) readout.textContent = val;
+                        if (field.refreshWaveConfig) field.refreshWaveConfig();
+                    });
+                });
+                if (dropBtn && target) {
+                    dropBtn.addEventListener('click', () => {
+                        if (field.dropImpulse) field.dropImpulse(target);
+                    });
+                }
+            })();
+        </script>
+    </section>
+
+
+
+</div>
+
+
+<script>
+    // Design preview: stop placeholder links (href="#") from scrolling the page
+    // back to the top so the user can test press/hover affordances in place.
+    document.addEventListener('click', e => {
+        const a = e.target.closest('a[href="#"]');
+        if (a) e.preventDefault();
+    });
+
+    // Selector groups — one-of-N toggle behavior. Flat selectors put
+    // .is-selected on the .btn-glow wrapper (persistent lift + lit); wireframe
+    // selectors put it on the inner button (border swap). Either way only one
+    // option in the group is active at a time.
+    document.querySelectorAll('[data-selector-group="flat"]').forEach(group => {
+        group.addEventListener('click', e => {
+            const wrap = e.target.closest('.btn-glow');
+            if (!wrap || !group.contains(wrap)) return;
+            group.querySelectorAll('.btn-glow').forEach(w => w.classList.remove('is-selected'));
+            wrap.classList.add('is-selected');
+        });
+    });
+    document.querySelectorAll('[data-selector-group="wireframe"], [data-selector-group="glass"]').forEach(group => {
+        group.addEventListener('click', e => {
+            const btn = e.target.closest('button, a');
+            if (!btn || !group.contains(btn)) return;
+            group.querySelectorAll('button, a').forEach(b => b.classList.remove('is-selected'));
+            btn.classList.add('is-selected');
+        });
+    });
+
+    // .color-btn → copy something to clipboard, show animated check for 1.5s.
+    // Three flavors of source:
+    //   data-copy-color="HEX"   — static chroma values
+    //   data-copy-var="--name"  — spine tokens (resolves live CSS var so the
+    //                              copied hex tracks mode)
+    //   data-copy-text="..."    — arbitrary string (e.g. mood board image paths)
+    document.querySelectorAll('button.color-btn').forEach(btn => {
+        btn.addEventListener('click', async () => {
+            let text;
+            if (btn.dataset.copyVar) {
+                const rgb = getComputedStyle(document.documentElement)
+                    .getPropertyValue(btn.dataset.copyVar).trim();
+                const [r, g, b] = rgb.split(/\s+/).map(Number);
+                text = '#' + [r, g, b].map(n => n.toString(16).padStart(2, '0').toUpperCase()).join('');
+            } else if (btn.dataset.copyColor) {
+                text = '#' + btn.dataset.copyColor.toUpperCase();
+            } else if (btn.dataset.copyText) {
+                text = btn.dataset.copyText;
+            }
+            try { if (text) await navigator.clipboard.writeText(text); }
+            catch (e) { /* clipboard unavailable — still flash the check */ }
+            btn.classList.add('copied');
+            setTimeout(() => btn.classList.remove('copied'), 1500);
+        });
+    });
+
+    // Tile-field auto-wiring lives in base.html so it runs site-wide.
+
+</script>
+
+{% endblock content %}

@@ -8,15 +8,12 @@
 <head>
     <title>lockbook</title>
 
-    <!-- <link data-trunk rel="copy-file" href="assets/sw.js"/> -->
-    <link data-trunk rel="copy-file" href="../static/screenshot.png"/>
-    <link data-trunk rel="copy-file" href="../static/logo.svg"/>
-    <link data-trunk rel="copy-file" href="../static/banner-bg.svg"/>
-
-    <!-- <link data-trunk rel="rust" data-wasm-opt="2" /> -->
-
-
-    <link data-trunk rel="tailwind-css" href="tailwind.css" />
+    <!-- Trunk dist is configured (Trunk.toml) to write `public-site.js` and
+         `public-site_bg.wasm` into the Zola site's static/wasm/ directory.
+         The Zola template includes the loader script directly, so we don't
+         need Trunk to emit asset copies or process the tailwind here — that
+         is all handled by Zola + Tailwind CDN in the main site. -->
+    <link data-trunk rel="rust" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Martian+Mono:wght@100..800&display=swap" rel="stylesheet" />

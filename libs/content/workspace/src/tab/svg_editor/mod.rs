@@ -101,7 +101,7 @@ pub struct Response {
 pub struct CanvasSettings {
     pub pencil_only_drawing: bool,
     background_type: BackgroundOverlay,
-    background_color: DynamicColor,
+    pub background_color: DynamicColor,
     pub left_locked: bool,
     pub right_locked: bool,
     pub bottom_locked: bool,

@@ -1,0 +1,910 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>{% block title %}Lockbook{% endblock %}</title>
+
+    <link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+    <link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96x96.png" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+    <link rel="manifest" href="/favicon/site.webmanifest" />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet" />
+
+    <!-- Apply theme before paint to avoid FOUC. -->
+    <script>
+      (function () {
+        var saved = localStorage.getItem('theme');
+        var prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+        if (saved === 'dark' || (saved === null && prefersDark)) {
+          document.documentElement.classList.add('dark');
+        }
+      })();
+    </script>
+
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script>
+      // Design tokens — derived from the Mnemonic theme palette.
+      // Spine tokens route through CSS variables so .dark flips them in place.
+      tailwind.config = {
+        darkMode: 'class',
+        theme: {
+          extend: {
+            colors: {
+              // Spine — role-split scale, light/dark via CSS vars.
+              //   bg-*  : surface family (lowest → highest contrast against page bg)
+              //   fg-*  : text family (faintest → most prominent)
+              // Tailwind utility names drop the bg-/fg- prefix where unambiguous
+              // (e.g. `bg-base` instead of `bg-bg-base`); CSS var names keep the
+              // family prefix so the source-of-truth tokens stay self-describing.
+              sunken:     'rgb(var(--bg-sunken) / <alpha-value>)',
+              base:       'rgb(var(--bg-base) / <alpha-value>)',
+              raised:     'rgb(var(--bg-raised) / <alpha-value>)',
+              line:       'rgb(var(--bg-line) / <alpha-value>)',
+              'fg-faint': 'rgb(var(--fg-faint) / <alpha-value>)',
+              'fg-muted': 'rgb(var(--fg-muted) / <alpha-value>)',
+              fg:         'rgb(var(--fg) / <alpha-value>)',
+
+              // Layer 2 — blue family (mode-aware). fg-blue flips Steel→Sky
+              // for readable text on the dark page; bg-blue stays Steel as the
+              // brand-fill anchor. Other chroma hues stay at Layer 1 (primitives
+              // in `chroma.*`) until they earn a family of their own.
+              'fg-blue': 'rgb(var(--fg-blue-rgb) / <alpha-value>)',
+              'bg-blue': 'rgb(var(--bg-blue-rgb) / <alpha-value>)',
+
+              // Layer 3 — accent roles. `accent` is the brand fill (constant
+              // Steel Blue, used by bg-accent / outline-accent). `accent-fg` is
+              // the readable text variant (mode-aware, used by text-accent-fg
+              // on eyebrows and mono-emphasis spans). Both alias Layer 2.
+              accent:      'rgb(var(--accent-rgb) / <alpha-value>)',
+              'accent-fg': 'rgb(var(--accent-fg-rgb) / <alpha-value>)',
+
+              // (border radius lives further down under borderRadius — same indirection pattern)
+
+              // Layer 1 — primitives (chroma palette). Literal hex values,
+              // never mode-dependent. Use directly when you want a specific
+              // shade; prefer Layer 2/3 when the role matters more than the hue.
+              chroma: {
+                mint:   '#67E4B6',
+                green:  '#00B371',
+                gold:   '#FFBF00',
+                cream:  '#FFDB70',
+                blue:   '#207FDF',
+                sky:    '#66B2FF',
+                teal:   '#0FAEBD',
+                cyan:   '#6EECF7',
+                iris:   '#7855AA',
+                lilac:  '#AC8CD9',
+                coral:  '#FF6680',
+                red:    '#DF2040',
+              },
+            },
+            fontFamily: {
+              sans: ['Inter', 'ui-sans-serif', 'system-ui', 'sans-serif'],
+              mono: ['"JetBrains Mono"', 'ui-monospace', 'monospace'],
+            },
+            letterSpacing: {
+              tightest: '-0.04em',
+            },
+            // One radius token, threaded through --radius for easy adjustment.
+            borderRadius: {
+              edge: 'var(--radius)',
+            },
+            // Override `transition-colors` to also animate outline-color.
+            // The site uses outlines (drawn outside the box) instead of borders
+            // for surfaces, so hover swaps need outline-color in the property list.
+            transitionProperty: {
+              colors: 'color, background-color, border-color, outline-color, text-decoration-color, fill, stroke',
+            },
+          },
+        },
+      }
+    </script>
+
+    <style>
+      :root {
+        /* Surface family — three elevation tiers around the page bg + a border tone.
+           Sunken sits "below" the page (the editor/canvas live here); base IS
+           the page; raised sits "above" the page (cards, swatches, chips).
+           --bg-sunken mirrors workspace_rs theme.neutral_bg() so the WASM
+           demos blend seamlessly into their sunken-surface containers. */
+        --bg-sunken: 245 245 245;  /* #F5F5F5 — inset surface; one shade darker than base so depth reads in light mode (parallel to dark mode's 10/255 sunken/base delta) */
+        --bg-base:   255 255 255;  /* #FFFFFF — page bg */
+        --bg-raised: 240 240 240;  /* #F0F0F0 — subtle raised surface */
+        --bg-line:   208 208 208;  /* #D0D0D0 — borders, lines */
+
+        /* Demo bg — pure white in light, deepest in dark. Used by the
+           canvas + terminal demos so they read as a clean surface in
+           each mode rather than the mid-tone bg-sunken. */
+        --demo-bg:   var(--bg-base);
+
+        /* Foreground family — faintest text → primary text. */
+        --fg-faint:  128 128 128;  /* #808080 — dim labels, token values */
+        --fg-muted:  80 80 80;     /* #505050 — secondary text */
+        --fg:        26 26 26;     /* #1A1A1A — primary text */
+
+        --radius: 3px;             /* uniform rounding for images, swatches, cards */
+
+        /* ─── Color, three layers ──────────────────────────────────────────
+           Layer 1 · primitives (literal hex) live as Tailwind `chroma.*`
+                     (e.g. chroma-blue = #207FDF, chroma-sky = #66B2FF). Never change.
+           Layer 2 · families (semantic, mode-aware). Each color that has
+                     both a foreground and background role gets a pair:
+                     --fg-{hue} flips for readable text contrast;
+                     --bg-{hue} stays put for brand-surface identity.
+                     Today only the blue family is defined — extend per hue as needed.
+           Layer 3 · roles (bound to a UI pattern). Thin aliases over Layer 2 —
+                     when you read `text-accent-fg` you're reaching the
+                     readable blue regardless of mode; `bg-accent` always lands
+                     on the brand Steel Blue.
+           Verbal vocabulary mirrors this: "Steel Blue" / "Sky Blue" (Layer 1),
+           "foreground blue" / "background blue" (Layer 2), "accent text" /
+           "accent fill" (Layer 3). */
+        --fg-blue-rgb: 32 127 223;       /* Layer 2 — Steel; foreground blue (light mode) */
+        --bg-blue-rgb: 32 127 223;       /* Layer 2 — Steel; background blue (constant; brand) */
+        --accent-rgb: var(--bg-blue-rgb);    /* Layer 3 — brand fill (bg-accent, outline-accent) */
+        --accent-fg-rgb: var(--fg-blue-rgb); /* Layer 3 — accent text (text-accent-fg) */
+
+        --shadow-y: 2px;
+        --shadow-blur: 10px;
+        --shadow-alpha: 0.2;       /* light mode — overridden in .dark below */
+
+        /* Glass surface — translucent recipe shared by .surface-glass, .btn-glass,
+           and any element that wants to read the tokens directly. Local overrides
+           on a descendant element cascade naturally for variants needing a
+           heavier blur or lighter tint. */
+        --glass-tint: 0.55;        /* alpha of the base-paper fill */
+        --glass-blur: 8px;         /* backdrop-filter blur radius */
+        --glass-sat: 1.4;          /* backdrop-filter saturation multiplier */
+        --glass-highlight: 0.12;   /* top-edge white-gradient alpha */
+        --glass-border-alpha: 0.7; /* line-color alpha for the glass border */
+      }
+      .dark {
+        --bg-sunken: 16 16 16;     /* #101010 — inset surface (dim.black); reads as "below" the page */
+        --bg-base:   26 26 26;     /* #1A1A1A — page bg */
+        --bg-raised: 42 42 42;     /* #2A2A2A — slight lift over base */
+        --bg-line:   80 80 80;     /* #505050 — borders, lines */
+        --demo-bg:   var(--bg-sunken);
+
+        --fg-faint:  128 128 128;  /* #808080 — same gray reads as faint on dark too */
+        --fg-muted:  208 208 208;  /* #D0D0D0 — secondary text */
+        --fg:        255 255 255;  /* #FFFFFF — primary text */
+
+        /* Foreground blue flips to Sky (#66B2FF) for readable text on the
+           dark page. Background blue stays Steel — the brand is mode-invariant.
+           Role tokens (--accent-rgb, --accent-fg-rgb) inherit through their
+           Layer 2 vars, so this one flip propagates to every text-accent-fg
+           callsite without touching --accent-rgb itself. */
+        --fg-blue-rgb: 102 178 255; /* Sky — foreground blue (dark mode) */
+
+        --shadow-alpha: 0.8;       /* shadows pull more weight in dark mode */
+      }
+      html { -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; }
+      body { font-feature-settings: "ss01", "cv11"; }
+
+      /* Button glow — wrapper hosts two layered light effects as pseudo-elements,
+         the button is the child (no extra markup required). See the design guide's
+         Glow · physical model section for the visual + math derivation.
+
+         Recipe:
+           ::before — SHADOW: button-sized radial gradient (glow color center →
+                      shadow color outside → transparent) softened by Gaussian
+                      blur. Provides both the dark drop AND the saturated color
+                      band around the button.
+           ::after  — WHITE-HOT CORE: solid-white circle sized = button height,
+                      centered on the button, mix-blend-mode: plus-lighter.
+                      Fully occluded by the button itself; only the blur's
+                      Gaussian extension makes it visible past the button edges,
+                      additively brightening the surrounding glow toward white.
+           > *      — the BUTTON: paints above both pseudos via z-index; lifts
+                      with --z.
+
+         Source of truth: --z (button height above page, in px). All three layers
+         derive their visual properties from it. State machine:
+           rest     → --btn-z-rest (default 0; bump to 3 for primary CTAs that
+                                    should glow at rest to invite action)
+           hover    → --btn-z-hover (default 3; bump to 5 for primary)
+           :active  → 0 (snap, instant)
+         Hover-in, release, and settle animate via the springy curve below;
+         :active disables transitions so the press snaps.
+
+         Markup contract is unchanged: <span class="btn-glow"><button>…</button></span>
+         Per-instance tint via inline `style="--glow-rgb: …"`.
+         Per-instance state via inline `style="--btn-z-rest: 3; --btn-z-hover: 5"`. */
+      .btn-glow {
+        --z: var(--btn-z-rest, 0);
+        /* Multiplier on both pseudos' opacity. Default 1 = full glow;
+           translucent surfaces (.btn-glass) auto-reduce via the :has()
+           rule below so the glow doesn't leak through too strongly. */
+        --glow-strength: 1;
+        position: relative;
+        /* inline-flex (not inline-block) so the wrapper's height is
+           exactly the child's height — no baseline descender space below
+           the button. With inline-block + inherited line-height, the
+           wrapper rendered taller than the child, and the ::before
+           gradient filled that extra strip, painting a sharp shadow band
+           offset below the button at rest (z=0, no blur). */
+        display: inline-flex;
+      }
+      /* Translucent surfaces don't occlude the pseudos geometrically, so
+         the full-strength glow reads as too punchy through the glass.
+         Halve it. Modern browsers (:has support: Chrome 105+, Firefox 121+,
+         Safari 15.4+). */
+      .btn-glow:has(.btn-glass) {
+        --glow-strength: 0.5;
+      }
+      .btn-glow::before {
+        content: '';
+        position: absolute;
+        inset: 0;
+        border-radius: var(--radius);
+        background: radial-gradient(ellipse 100% 200% at center,
+          rgb(var(--glow-rgb)) 0%,
+          rgb(0 0 0 / var(--shadow-alpha)) 50%,
+          rgb(0 0 0 / 0) 100%);
+        /* --glow-scale (default 1) multiplies the blur so individual
+           CTAs can dial up softness/spread without changing the lift. */
+        filter: blur(calc(var(--z) * 1px * var(--glow-scale, 1)));
+        /* Opacity stays at --glow-strength regardless of z. The gate
+           isn't needed: at z=0, blur is 0 so the sharp gradient sits
+           exactly at the button's bounding box, and the button (z=2)
+           occludes it. The gradient self-hides at rest via geometry. */
+        opacity: var(--glow-strength);
+        transition: filter 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+                    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        pointer-events: none;
+        z-index: 0;
+      }
+      .btn-glow::after {
+        content: '';
+        position: absolute;
+        left: 50%;
+        top: 50%;
+        /* Square sized to button height so the circle gradient diameter
+           equals the button height. */
+        height: 100%;
+        aspect-ratio: 1;
+        transform: translate(-50%, calc(-50% - var(--z) * 1px));
+        background: radial-gradient(circle closest-side at center,
+          rgb(255 255 255) 0%,
+          rgb(255 255 255 / 0) 100%);
+        border-radius: 50%;
+        mix-blend-mode: plus-lighter;
+        filter: blur(calc(var(--z) * 1px * var(--glow-scale, 1)));
+        /* Same self-hiding logic as ::before: at z=0 the core is sharp,
+           sized to button height, centered behind the button (z=2)
+           which occludes it. plus-lighter has nothing exposed to act on. */
+        opacity: var(--glow-strength);
+        transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+                    filter 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+                    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+        pointer-events: none;
+        z-index: 1;
+      }
+      .btn-glow > * {
+        position: relative;
+        z-index: 2;       /* above both pseudos */
+        transform: translateY(calc(-1 * var(--z) * 1px));
+        transition: transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+      }
+      /* State machine. .is-selected mirrors :hover for persistent active states. */
+      .btn-glow:hover,
+      .btn-glow.is-selected {
+        --z: var(--btn-z-hover, 3);
+      }
+      .btn-glow:active,
+      .btn-glow.is-selected:active {
+        --z: 0;
+      }
+      /* Press is instant — disable transitions while :active is held. When
+         :active releases, the default transitions resume and the lift back
+         animates. */
+      .btn-glow:active::before,
+      .btn-glow:active::after,
+      .btn-glow:active > *,
+      .btn-glow.is-selected:active::before,
+      .btn-glow.is-selected:active::after,
+      .btn-glow.is-selected:active > * {
+        transition: none;
+      }
+      /* Default --glow-rgb tint: picks up --btn-bg from an ancestor (e.g. glass
+         cards) automatically, else falls back to --fg. Per-instance overrides via
+         inline style="--glow-rgb" still win. */
+      .btn-glow {
+        --glow-rgb: var(--btn-bg, var(--fg));
+      }
+
+      /* ─── Button variants ───────────────────────────────────────────────────
+         Centralized so call sites don't repeat Tailwind utility chains. Wrap
+         any of these in .btn-glow for the lift+underglow treatment.
+
+         Markup:
+           <span class="btn-glow"><a class="btn-primary">…</a></span>
+
+         Variants:
+           .btn-flat         — solid colored fill, paper text. Identity is the fill.
+           .btn-primary      — wireframe outline: neutral border at rest, ink on hover
+           .btn-primary.is-accent — same as above but hovers to the accent blue
+           .btn-glass        — translucent backdrop-blur surface. Identity is the
+                              border swap. Belongs over imagery / busy backdrops.
+           .btn-text         — type-only link: muted at rest, ink on hover
+           .btn-segmented    — pill-row picker (font-mono, smaller). Toggle
+                              .is-selected for the active state.
+           .btn-icon         — icon-only, muted at rest, ink on hover */
+      /* Flat — colored fill, no border, white text. Bg color is set per-instance
+         via a Tailwind utility (e.g. bg-accent, bg-chroma-mint). Pair with the
+         .btn-glow wrapper for lift + underglow on hover. */
+      .btn-flat {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem 1.25rem;
+        border-radius: var(--radius);
+        color: rgb(255 255 255);
+        font-size: 0.875rem;
+        font-weight: 500;
+      }
+
+      .btn-primary {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem 1.25rem;
+        border-radius: var(--radius);
+        outline: 1px solid rgb(var(--bg-line));
+        background: rgb(var(--bg-base));
+        color: rgb(var(--fg));
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: outline-color 0.15s ease;
+      }
+      /* Hover swaps the outline to the variant's identity color so the wireframe
+         signals its intent before commit (ink for neutral, accent for .is-accent).
+         Selection (.is-selected) holds that same swap in place even without the
+         pointer. Outline thickness never changes — only color. */
+      .btn-primary:hover { outline-color: rgb(var(--fg)); }
+      .btn-primary.is-accent:hover { outline-color: rgb(var(--accent-rgb)); }
+      .btn-primary.is-selected { outline-color: rgb(var(--fg)); }
+      .btn-primary.is-accent.is-selected { outline-color: rgb(var(--accent-rgb)); }
+
+/* Glass surface — the canonical recipe used by .btn-glass, the sticky
+         header, the Surfaces demo, the trust banner's claim panels, and
+         anywhere else a translucent container is needed. Tokens live at
+         :root; consumers can override locally for variants. */
+      .surface-glass {
+        background:
+          linear-gradient(to bottom, rgba(255, 255, 255, var(--glass-highlight)), transparent),
+          rgb(var(--bg-base) / var(--glass-tint));
+        backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+      }
+
+      /* Glass button — wireframe footprint of .btn-primary with the glass
+         surface recipe as its fill. Identity rides the border on hover/select.
+         Only meaningful over imagery or busy backdrops; against the page bg
+         it just reads as a softer wireframe. */
+      .btn-glass {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.5rem 1.25rem;
+        border-radius: var(--radius);
+        outline: 1px solid rgb(var(--bg-line) / var(--glass-border-alpha));
+        background:
+          linear-gradient(to bottom, rgba(255, 255, 255, var(--glass-highlight)), transparent),
+          rgb(var(--bg-base) / var(--glass-tint));
+        backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+        -webkit-backdrop-filter: blur(var(--glass-blur)) saturate(var(--glass-sat));
+        color: rgb(var(--fg));
+        font-size: 0.875rem;
+        font-weight: 500;
+        transition: outline-color 0.15s ease;
+      }
+      .btn-glass:hover { outline-color: rgb(var(--fg) / 0.75); }
+      .btn-glass.is-accent:hover { outline-color: rgb(var(--accent-rgb) / 0.8); }
+      .btn-glass.is-selected { outline-color: rgb(var(--fg) / 0.75); }
+      .btn-glass.is-accent.is-selected { outline-color: rgb(var(--accent-rgb) / 0.8); }
+
+      .btn-text {
+        font-size: 0.875rem;
+        color: rgb(var(--fg-muted));
+        transition: color 0.15s ease;
+      }
+      .btn-text:hover { color: rgb(var(--fg)); }
+
+      .btn-segmented {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        padding: 0.375rem 0.75rem;
+        border-radius: var(--radius);
+        font-family: 'JetBrains Mono', ui-monospace, monospace;
+        font-size: 10px;
+        text-transform: uppercase;
+        letter-spacing: 0.1em;
+        outline: 1px solid rgb(var(--bg-line));
+        background: rgb(var(--bg-base));
+        color: rgb(var(--fg));
+        transition: outline-color 0.15s ease;
+      }
+      /* Hover and selection both swap the outline to ink, matching the
+         wireframe identity-reveal pattern. Hover is a preview of the selected
+         state; selection holds it. No thickness change either way, so the
+         button doesn't shift size. */
+      .btn-segmented:hover { outline-color: rgb(var(--fg)); }
+      .btn-segmented.is-selected { outline-color: rgb(var(--fg)); }
+
+      .btn-icon {
+        color: rgb(var(--fg-muted));
+        transition: color 0.15s ease;
+      }
+      .btn-icon:hover { color: rgb(var(--fg)); }
+
+      /* Tile field — pointer-driven wave grid. JS auto-wires any
+         `.tile-field`, generates rhombus tiles, and writes a signed
+         `--lift` per tile. Container must be a positioned block. */
+      /* Scroll-fade-down — same vocabulary as .fade-down (translate +
+         blur + opacity, exp-out easing) but triggered by scroll: starts
+         in the hidden state and animates via transition once
+         `.is-visible` is added by the IntersectionObserver below. Shorter
+         duration + smaller distance than the hero — supporting motion,
+         not the brand moment. Per-instance `--fade-delay` for staggers. */
+      .scroll-fade-down {
+        opacity: 0;
+        transform: translateY(-16px);
+        filter: blur(6px);
+        transition:
+          opacity   800ms cubic-bezier(0.16, 1, 0.3, 1) var(--fade-delay, 0ms),
+          transform 800ms cubic-bezier(0.16, 1, 0.3, 1) var(--fade-delay, 0ms),
+          filter    800ms cubic-bezier(0.16, 1, 0.3, 1) var(--fade-delay, 0ms);
+      }
+      .scroll-fade-down.is-visible {
+        opacity: 1;
+        transform: translateY(0);
+        filter: blur(0);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .scroll-fade-down {
+          opacity: 1;
+          transform: none;
+          filter: none;
+          transition: none;
+        }
+      }
+
+      /* Fade-down — element starts above its final position, blurred, at
+         zero opacity. Opacity + translate + blur all resolve together
+         for a "camera pulling focus" reveal. Long exp-out easing (fast
+         start, long deceleration) reads as cinematic rather than springy.
+         Per-instance `--fade-delay` for staggered sequences. */
+      @keyframes fade-down {
+        from { opacity: 0; transform: translateY(-24px); filter: blur(8px); }
+        to   { opacity: 1; transform: translateY(0);     filter: blur(0); }
+      }
+      .fade-down {
+        animation: fade-down 1200ms cubic-bezier(0.16, 1, 0.3, 1) both;
+        animation-delay: var(--fade-delay, 0ms);
+      }
+      @media (prefers-reduced-motion: reduce) {
+        .fade-down { animation: none; }
+      }
+
+      .tile-field[data-shape="rhombus"] .tile {
+        position: absolute;
+        will-change: transform;
+        --lift: 0;
+        transform: translateY(calc(var(--lift) * -1px));
+        clip-path: polygon(0 50%, 50% 0, 100% 50%, 50% 100%);
+        background: rgb(var(--tile-bg, var(--bg-sunken)));
+      }
+    </style>
+</head>
+
+<body class="bg-base text-fg font-sans">
+    <!-- Sticky nav uses the system's glass surface. Border kept bottom-only
+         since the top/sides sit at the page edge. -->
+    <header class="surface-glass sticky top-0 z-50 border-b border-line/70 px-6 lg:px-12 py-6">
+        <div class="flex items-center justify-between max-w-6xl mx-auto">
+            <a href="/" class="flex items-center gap-2.5 font-medium tracking-tightest text-lg text-fg">
+                <svg class="w-7 h-auto text-accent-fg" viewBox="0 0 2160 2160" fill="currentColor" aria-hidden="true">
+                    <g transform="matrix(0.998816,0,0,0.998816,0,53.2371)">
+                        <path d="M0,651.781C0,638.715 6.374,626.471 17.077,618.977C128.402,541.026 750.275,105.586 878.097,16.084C891.888,6.427 910.246,6.427 924.038,16.084C1082.22,126.847 2007.96,775.055 2145.48,871.35C2156.19,878.845 2162.56,891.089 2162.56,904.155C2162.56,927.543 2162.56,965.259 2162.56,988.647C2162.56,1001.71 2156.19,1013.96 2145.48,1021.45C2039.67,1095.55 1474.5,1491.28 1368.68,1565.38C1357.98,1572.87 1351.6,1585.12 1351.6,1598.18L1351.6,1810.48C1351.6,1814.21 1353.68,1817.63 1356.99,1819.36C1360.3,1821.08 1364.3,1820.82 1367.36,1818.68C1403,1793.72 1486.76,1735.07 1486.76,1735.07L1486.76,1629.73C1486.76,1616.66 1493.13,1604.42 1503.84,1596.92C1538.68,1572.53 1617.52,1517.32 1651.22,1493.73C1654.28,1491.59 1658.27,1491.32 1661.59,1493.05C1664.9,1494.77 1666.97,1498.19 1666.97,1501.93C1666.97,1537.25 1666.97,1608.88 1666.97,1608.88C1666.97,1608.88 2062.35,1332.04 2146.81,1272.9C2149.87,1270.76 2153.86,1270.5 2157.17,1272.22C2160.48,1273.94 2162.56,1277.37 2162.56,1281.1C2162.56,1304.33 2162.56,1343.27 2162.56,1367.21C2162.56,1380.27 2156.19,1392.52 2145.48,1400.01C2058.3,1461.06 1666.97,1735.07 1666.97,1735.07L1666.97,1977.43C1666.97,1980.09 1665.92,1982.63 1664.04,1984.51C1662.16,1986.39 1659.62,1987.44 1656.96,1987.44C1633.49,1987.44 1576.87,1987.44 1576.87,1987.44C1576.87,1987.44 1531.24,2051.34 1504.92,2088.2C1502.39,2091.74 1497.86,2093.24 1493.72,2091.91C1489.57,2090.59 1486.76,2086.73 1486.76,2082.38C1486.76,2014.83 1486.76,1861.26 1486.76,1861.26C1486.76,1861.26 1341.82,1962.74 1284.46,2002.9C1270.67,2012.56 1252.32,2012.56 1238.52,2002.9C1080.34,1892.14 154.601,1243.93 17.077,1147.64C6.374,1140.14 0,1127.9 0,1114.83L0,651.781ZM990.381,799.075C993.724,798.532 997.114,799.717 999.391,802.223C1023.81,829.081 1162.83,982.046 1204.58,1027.99C1211.36,1035.45 1222.63,1036.71 1230.88,1030.93C1277.76,998.104 1425.33,894.777 1472.27,861.907C1475.23,859.838 1476.84,856.339 1476.49,852.748C1476.15,849.157 1473.9,846.029 1470.6,844.561C1409.38,817.279 1192.85,720.799 1148.06,700.84C1143.52,698.815 1141.15,693.761 1142.5,688.974C1144.89,680.402 1146.12,671.541 1146.12,662.481C1146.12,585.19 1056.5,522.439 946.121,522.439C835.738,522.439 746.121,585.19 746.121,662.481C746.121,739.772 835.738,802.522 946.121,802.522C961.328,802.522 976.142,801.331 990.381,799.075Z"/>
+                    </g>
+                </svg>
+                <span>lockbook</span>
+            </a>
+            <nav class="flex items-center gap-6 text-sm text-fg-muted">
+                <a href="/blog" class="btn-text">Blog</a>
+                <a href="/docs" class="btn-text">Docs</a>
+                <a href="https://github.com/lockbook/lockbook" class="btn-text">GitHub</a>
+                <a href="https://discord.gg/lockbook" class="btn-text">Discord</a>
+                <button id="theme-toggle" type="button" aria-label="Toggle dark mode" class="btn-icon">
+                    <!-- sun (visible in light mode) -->
+                    <svg class="w-4 h-4 dark:hidden" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <circle cx="12" cy="12" r="4" />
+                        <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                    </svg>
+                    <!-- moon (visible in dark mode) -->
+                    <svg class="w-4 h-4 hidden dark:block" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z" />
+                    </svg>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+    {% block content %}{% endblock %}
+
+    <footer class="border-t border-line mt-12">
+        <div class="max-w-6xl mx-auto px-6 lg:px-12 py-10 text-sm text-fg-muted">
+            <div class="grid grid-cols-1 sm:grid-cols-2 gap-10 mb-10">
+                <div>
+                    <p class="font-mono text-xs uppercase tracking-widest text-accent-fg mb-4">Open</p>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <a href="https://github.com/lockbook/lockbook/blob/master/UNLICENSE" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-sm text-fg-muted hover:text-fg transition-colors">
+                            <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                                <path d="m16 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+                                <path d="m2 16 3-8 3 8c-.87.65-1.92 1-3 1s-2.13-.35-3-1Z" />
+                                <path d="M7 21h10" />
+                                <path d="M12 3v18" />
+                                <path d="M3 7h2c2 0 5-1 7-2 2 1 5 2 7 2h2" />
+                            </svg>
+                            <span>License</span>
+                        </a>
+                        <a href="https://github.com/lockbook/lockbook" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-sm text-fg-muted hover:text-fg transition-colors">
+                            <svg class="w-5 h-5 shrink-0" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                                <path d="M12 .297c-6.63 0-12 5.373-12 12 0 5.303 3.438 9.8 8.205 11.385.6.113.82-.258.82-.577 0-.285-.01-1.04-.015-2.04-3.338.724-4.042-1.61-4.042-1.61C4.422 18.07 3.633 17.7 3.633 17.7c-1.087-.744.084-.729.084-.729 1.205.084 1.838 1.236 1.838 1.236 1.07 1.835 2.809 1.305 3.495.998.108-.776.417-1.305.76-1.605-2.665-.3-5.466-1.332-5.466-5.93 0-1.31.465-2.38 1.235-3.22-.135-.303-.54-1.523.105-3.176 0 0 1.005-.322 3.3 1.23.96-.267 1.98-.399 3-.405 1.02.006 2.04.138 3 .405 2.28-1.552 3.285-1.23 3.285-1.23.645 1.653.24 2.873.12 3.176.765.84 1.23 1.91 1.23 3.22 0 4.61-2.805 5.625-5.475 5.92.42.36.81 1.096.81 2.22 0 1.606-.015 2.896-.015 3.286 0 .315.21.69.825.57C20.565 22.092 24 17.592 24 12.297c0-6.627-5.373-12-12-12" />
+                            </svg>
+                            <span>Source</span>
+                        </a>
+                    </div>
+                </div>
+                <div>
+                    <p class="font-mono text-xs uppercase tracking-widest text-accent-fg mb-4">Built by</p>
+                    <div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+                        <a href="https://github.com/tvanderstad" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-sm text-fg-muted hover:text-fg transition-colors">
+                            <img src="https://github.com/tvanderstad.png?size=48" alt="Travis on GitHub" class="w-6 h-6 rounded-full outline outline-1 outline-line" loading="lazy" />
+                            <span>Travis</span>
+                        </a>
+                        <a href="https://github.com/Parth" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-sm text-fg-muted hover:text-fg transition-colors">
+                            <img src="https://github.com/Parth.png?size=48" alt="Parth on GitHub" class="w-6 h-6 rounded-full outline outline-1 outline-line" loading="lazy" />
+                            <span>Parth</span>
+                        </a>
+                        <a href="https://github.com/ad-tra" target="_blank" rel="noopener" class="inline-flex items-center gap-2 text-sm text-fg-muted hover:text-fg transition-colors">
+                            <img src="https://github.com/ad-tra.png?size=48" alt="Adam on GitHub" class="w-6 h-6 rounded-full outline outline-1 outline-line" loading="lazy" />
+                            <span>Adam</span>
+                        </a>
+                        <a href="https://github.com/lockbook/lockbook/graphs/contributors" target="_blank" rel="noopener" class="inline-flex items-center text-sm text-fg-muted hover:text-fg transition-colors">
+                            + 25 more &rarr;
+                        </a>
+                    </div>
+                </div>
+            </div>
+            <div class="pt-6 border-t border-line flex flex-col sm:flex-row sm:items-center sm:justify-between gap-6">
+                <p class="font-mono text-xs">Lockbook</p>
+                <nav class="flex flex-wrap gap-x-6 gap-y-2">
+                    <a href="/blog" class="btn-text">Blog</a>
+                    <a href="/docs" class="btn-text">Docs</a>
+                    <a href="https://github.com/lockbook/lockbook" class="btn-text">GitHub</a>
+                    <a href="https://discord.gg/lockbook" class="btn-text">Discord</a>
+                    <a href="/privacy-policy" class="btn-text">Privacy</a>
+                    <a href="/tos" class="btn-text">Terms</a>
+                </nav>
+            </div>
+        </div>
+    </footer>
+
+    <script>
+      document.getElementById('theme-toggle').addEventListener('click', function () {
+        var nowDark = document.documentElement.classList.toggle('dark');
+        localStorage.setItem('theme', nowDark ? 'dark' : 'light');
+      });
+
+      // Scroll-triggered fade-down. Each .scroll-fade-down element waits
+      // for its top edge to enter the upper 85% of the viewport, then
+      // gets .is-visible — the CSS transition does the rest. Unobserve
+      // after firing so each element animates exactly once.
+      if (typeof IntersectionObserver !== 'undefined') {
+        const scrollFade = new IntersectionObserver(entries => {
+          for (const entry of entries) {
+            if (entry.isIntersecting) {
+              entry.target.classList.add('is-visible');
+              scrollFade.unobserve(entry.target);
+            }
+          }
+        }, { rootMargin: '0px 0px -15% 0px' });
+        document.querySelectorAll('.scroll-fade-down').forEach(el => scrollFade.observe(el));
+      } else {
+        document.querySelectorAll('.scroll-fade-down').forEach(el => el.classList.add('is-visible'));
+      }
+
+      // Tile-field grid. Each `.tile-field` runs a damped 2D wave eq on
+      // a rhombus lattice; cursor presses a soft radius, releases on
+      // move, rebound propagates outward. Pointer events bind to the
+      // field's PARENT so overlaying content doesn't dead-zone it.
+      document.querySelectorAll('.tile-field').forEach(field => {
+          const shape = field.dataset.shape || 'rhombus';
+          // data-tile-w fixes pixel size (cols derived); data-cols fixes
+          // count (size scales with container). tile-w wins if both set.
+          const targetTileW = parseFloat(field.dataset.tileW);
+          const fallbackCols = parseInt(field.dataset.cols, 10) || 18;
+          const tiles = [];
+          const cssVar = (name, fallback) => {
+              const v = parseFloat(getComputedStyle(field).getPropertyValue(name));
+              return Number.isFinite(v) ? v : fallback;
+          };
+          // Centers as typed arrays — press loop reads n=~800/frame.
+          let centersX = null, centersY = null, centerCount = 0;
+          // u, u_prev = leapfrog history; u_new = scratch, rotated each
+          // step. neighbors[i] = 4 edge-sharing tiles (iso-rhombus =
+          // square grid at 45° + 2:1 squish). Reallocated on layout.
+          let u = null, u_prev = null, u_new = null;
+          let neighbors = null;
+          // Last --lift written per tile. Per-frame writes gated by
+          // Δ > 0.01 so unchanged tiles skip the cascade recompute.
+          let lastLift = null;
+
+          const layout = () => {
+              if (shape !== 'rhombus') return;
+              const W = field.clientWidth;
+              const H = field.clientHeight;
+              if (W <= 0 || H <= 0) return;
+              const cols = Number.isFinite(targetTileW) && targetTileW > 0
+                  ? Math.max(1, Math.round(W / targetTileW))
+                  : fallbackCols;
+              const tileW = W / cols;
+              const tileH = tileW / 2;
+              // --tile-gap shrinks each tile uniformly (centers fixed),
+              // leaving space between left/right corner-touchers.
+              const gap = cssVar('--tile-gap', 0);
+              const scale = tileW > 0 ? Math.max(0.5, 1 - gap / tileW) : 1;
+              const sW = tileW * scale;
+              const sH = tileH * scale;
+              const offX = (tileW - sW) / 2;
+              const offY = (tileH - sH) / 2;
+              // Bleed past the field bounds; parent's overflow-hidden
+              // clips. Must be generous enough that a tile lifting near
+              // the edge (up to --lift-max px) doesn't expose background.
+              const BLEED_COLS = 4;
+              const BLEED_ROWS = 8;
+              const renderCols = cols + 2 * BLEED_COLS;
+              const renderRows = Math.ceil(H / (tileH / 2)) + 2 * BLEED_ROWS;
+              const startCol = -BLEED_COLS;
+              const startRow = -BLEED_ROWS;
+              const needed = renderCols * renderRows;
+              while (tiles.length < needed) {
+                  const t = document.createElement('div');
+                  t.className = 'tile';
+                  field.appendChild(t);
+                  tiles.push(t);
+              }
+              while (tiles.length > needed) {
+                  tiles.pop().remove();
+              }
+              let i = 0;
+              for (let r = 0; r < renderRows; r++) {
+                  const row = r + startRow;
+                  const oddOffset = (row & 1) ? tileW / 2 : 0;
+                  const top = row * (tileH / 2);
+                  for (let c = 0; c < renderCols; c++) {
+                      const col = c + startCol;
+                      const tile = tiles[i++];
+                      tile.style.width  = sW + 'px';
+                      tile.style.height = sH + 'px';
+                      tile.style.left = (col * tileW + oddOffset + offX) + 'px';
+                      tile.style.top  = (top + offY) + 'px';
+                  }
+              }
+              // Refresh field rect + tile centers in one measure pass.
+              const fr = field.getBoundingClientRect();
+              fieldRect = fr;
+              rectDirty = false;
+              centerCount = tiles.length;
+              centersX = new Float32Array(centerCount);
+              centersY = new Float32Array(centerCount);
+              for (let k = 0; k < centerCount; k++) {
+                  const r = tiles[k].getBoundingClientRect();
+                  centersX[k] = r.left - fr.left + r.width / 2;
+                  centersY[k] = r.top - fr.top + r.height / 2;
+              }
+
+              // Reset sim state + adjacency for the new tile count;
+              // also zero --lift so reused tiles don't carry stale state.
+              const n = tiles.length;
+              u = new Float32Array(n);
+              u_prev = new Float32Array(n);
+              u_new = new Float32Array(n);
+              lastLift = new Float32Array(n);
+              for (let i = 0; i < n; i++) tiles[i].style.setProperty('--lift', '0');
+              neighbors = new Array(n);
+              for (let i = 0; i < n; i++) {
+                  const rr = Math.floor(i / renderCols);
+                  const cc = i % renderCols;
+                  const actualRow = rr + startRow;
+                  // ((x & 1) + 2) & 1 keeps parity correct for negatives.
+                  const odd = ((actualRow & 1) + 2) & 1;
+                  const cands = odd
+                      ? [[cc, rr-1], [cc+1, rr-1], [cc, rr+1], [cc+1, rr+1]]
+                      : [[cc-1, rr-1], [cc, rr-1], [cc-1, rr+1], [cc, rr+1]];
+                  const out = [];
+                  for (let k = 0; k < cands.length; k++) {
+                      const nc = cands[k][0], nr = cands[k][1];
+                      if (nc >= 0 && nc < renderCols && nr >= 0 && nr < renderRows) {
+                          out.push(nr * renderCols + nc);
+                      }
+                  }
+                  neighbors[i] = out;
+              }
+          };
+          let mouseX = -9999, mouseY = -9999;
+          // Cached field rect — pointermove fires often and
+          // getBoundingClientRect forces layout. Invalidated on
+          // scroll/resize; layout() also refreshes it.
+          let fieldRect = null;
+          let rectDirty = true;
+          window.addEventListener('scroll', () => { rectDirty = true; }, { passive: true });
+          window.addEventListener('resize', () => { rectDirty = true; });
+          const tracker = field.parentElement;
+          tracker.addEventListener('pointermove', e => {
+              if (rectDirty || !fieldRect) {
+                  fieldRect = field.getBoundingClientRect();
+                  rectDirty = false;
+              }
+              mouseX = e.clientX - fieldRect.left;
+              mouseY = e.clientY - fieldRect.top;
+          });
+          tracker.addEventListener('pointerleave', () => {
+              mouseX = mouseY = -9999;
+          });
+          // Defer one frame so flex/aspect-ratio heights have settled.
+          requestAnimationFrame(layout);
+          if (typeof ResizeObserver !== 'undefined') {
+              new ResizeObserver(layout).observe(field);
+          } else {
+              window.addEventListener('resize', layout);
+          }
+
+          // Wave eq: u_new = (2−γ)u − (1−γ)u_prev + c²·Σ(u_nb − u).
+          // CFL bounds c² < ~1/4 on a 4-neighbor grid. Tunables come
+          // from CSS vars so sliders/inline overrides can update live.
+          const cfg = { speedSq: 0, damping: 0, pressDepth: 0, pressRadius: 0,
+                        cursorK: 0, cursorB: 0, maxLift: 0 };
+          const refreshCfg = () => {
+              cfg.speedSq     = cssVar('--wave-speed',        0.14);
+              cfg.damping     = cssVar('--wave-damping',      0.012);
+              cfg.pressDepth  = cssVar('--tile-lift',         14);
+              cfg.pressRadius = cssVar('--tile-reach',        80);
+              cfg.cursorK     = cssVar('--cursor-stiffness',  0.3);
+              cfg.cursorB     = cssVar('--cursor-drag',       0.5);
+              cfg.maxLift     = cssVar('--lift-max',          60);
+          };
+          refreshCfg();
+          field.refreshWaveConfig = refreshCfg;
+
+          let rafId = null;
+          let isVisible = true;
+          // Set after a step with max |u| < threshold + no cursor; the
+          // next frame early-returns until cursor or wave reappears.
+          let atRest = true;
+          const reducedMotion = typeof window.matchMedia === 'function'
+              && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+
+          const step = () => {
+              rafId = requestAnimationFrame(step);
+              if (!u || !centerCount) return;
+              const cursorActive = mouseX > -9000;
+              if (atRest && !cursorActive) return;
+              const n = u.length;
+              const pressR2 = cfg.pressRadius * cfg.pressRadius;
+
+              // Wave eq + damped-spring cursor force. Tiles in cursor
+              // radius get a pull toward target (k·(tgt − u)) plus extra
+              // drag (−b·(u − u_prev)). effY shifts cursor down by
+              // pressDepth so the lifted peak lands AT the cursor.
+              // u_n is hard-clipped to ±maxLift so cursor resonance can't
+              // pump tiles arbitrarily high (drag everything off-screen).
+              const effY = mouseY + cfg.pressDepth;
+              const cX = centersX, cY = centersY;
+              const k = cfg.cursorK;
+              const b = cfg.cursorB;
+              const lo = -cfg.maxLift, hi = cfg.maxLift;
+              for (let i = 0; i < n; i++) {
+                  const u_i = u[i];
+                  const u_p = u_prev[i];
+                  const nb = neighbors[i];
+                  let sum = 0;
+                  for (let j = 0; j < nb.length; j++) sum += u[nb[j]];
+                  const lap = sum - nb.length * u_i;
+                  let u_n = (2 - cfg.damping) * u_i - (1 - cfg.damping) * u_p + cfg.speedSq * lap;
+                  if (cursorActive) {
+                      const dx = cX[i] - mouseX, dy = cY[i] - effY;
+                      const d2 = dx*dx + dy*dy;
+                      if (d2 < pressR2) {
+                          const fall = 1 - Math.sqrt(d2) / cfg.pressRadius;
+                          const tgt = cfg.pressDepth * fall * fall;
+                          u_n += k * (tgt - u_i) - b * (u_i - u_p);
+                      }
+                  }
+                  if (u_n > hi) u_n = hi;
+                  else if (u_n < lo) u_n = lo;
+                  u_new[i] = u_n;
+              }
+              const tmp = u_prev;
+              u_prev = u;
+              u = u_new;
+              u_new = tmp;
+
+              // Display value averages this frame + last to attenuate the
+              // Nyquist checkerboard mode (leapfrog has zero dissipation
+              // there). maxAmp tracks the DISPLAYED value so at-rest
+              // fires as soon as the visual settles, even if the sim is
+              // still carrying small trapped modes underneath.
+              let maxAmp = 0;
+              for (let i = 0; i < n; i++) {
+                  const v = (u[i] + u_prev[i]) * 0.5;
+                  const a = Math.abs(v);
+                  if (a > maxAmp) maxAmp = a;
+                  if (Math.abs(v - lastLift[i]) > 0.01) {
+                      tiles[i].style.setProperty('--lift', v.toFixed(2));
+                      lastLift[i] = v;
+                  }
+              }
+              atRest = maxAmp < 0.02 && !cursorActive;
+          };
+          const startSim = () => {
+              if (rafId || reducedMotion) return;
+              rafId = requestAnimationFrame(step);
+          };
+          const stopSim = () => {
+              if (rafId) { cancelAnimationFrame(rafId); rafId = null; }
+          };
+          // Pause when offscreen — sim is cheap but pointless idle.
+          if (typeof IntersectionObserver !== 'undefined') {
+              new IntersectionObserver(entries => {
+                  isVisible = entries[0].isIntersecting;
+                  if (isVisible) startSim(); else stopSim();
+              }).observe(field);
+          } else {
+              startSim();
+          }
+
+          // Drop a wave centered on an element. Seeds u (displacement)
+          // and u_prev = 3·u so velocity at impact = −2·u — the tile is
+          // moving DOWN at twice the impact amplitude, adding kinetic
+          // energy on top of potential. Wave eq takes it from there.
+          // Exposed on the field so demos can re-trigger.
+          field.dropImpulse = (target) => {
+              if (!centerCount || !target || reducedMotion) return;
+              const tr = target.getBoundingClientRect();
+              const fr = field.getBoundingClientRect();
+              const tx = tr.left + tr.width/2 - fr.left;
+              const ty = tr.top + tr.height/2 - fr.top;
+              const radius = cfg.pressRadius;
+              const r2 = radius * radius;
+              for (let i = 0; i < centerCount; i++) {
+                  const dx = centersX[i] - tx, dy = centersY[i] - ty;
+                  const d2 = dx*dx + dy*dy;
+                  if (d2 < r2) {
+                      const fall = 1 - Math.sqrt(d2) / radius;
+                      const v = cfg.maxLift * fall * fall;
+                      u[i] = v;
+                      u_prev[i] = v * 3;
+                  }
+              }
+              atRest = false;
+              startSim();
+          };
+          // Optional one-shot impulse on load via data-impulse-target +
+          // data-impulse-delay.
+          const impulseSelector = field.dataset.impulseTarget;
+          const impulseDelay = parseInt(field.dataset.impulseDelay, 10) || 0;
+          if (impulseSelector) {
+              setTimeout(() => field.dropImpulse(document.querySelector(impulseSelector)), impulseDelay);
+          }
+      });
+    </script>
+</body>
+</html>

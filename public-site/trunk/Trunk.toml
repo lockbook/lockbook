@@ -1,6 +1,7 @@
 [build]
 target = "base.html"
 html_output = "base.html"
-dist = "../trunk-build"
+dist = "../static/wasm"
 minify = "on_release"
-release=true
+release = true
+filehash = false

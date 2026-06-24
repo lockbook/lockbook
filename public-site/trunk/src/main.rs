@@ -8,6 +8,23 @@ use public_site::LbWebApp;
 #[cfg(target_arch = "wasm32")]
 use eframe::wasm_bindgen::JsCast;
 
+/// Pins both demo canvases to the same wgpu backend so the surface formats
+/// (and therefore egui's gamma-vs-linear shader path) match across them. With
+/// the default `Backends::PRIMARY | GL`, the first runner can land on WebGPU
+/// and the second on WebGL fallback, picking different surface formats — the
+/// markdown editor then renders #101010 as ~#0A0A0A while the canvas demo
+/// renders it correctly. Forcing BROWSER_WEBGPU keeps the byte value identical
+/// across both demos.
+#[cfg(target_arch = "wasm32")]
+fn web_options() -> eframe::WebOptions {
+    use eframe::egui_wgpu::WgpuSetup;
+    let mut opts = eframe::WebOptions::default();
+    if let WgpuSetup::CreateNew(ref mut new) = opts.wgpu_options.wgpu_setup {
+        new.instance_descriptor.backends = eframe::wgpu::Backends::BROWSER_WEBGPU;
+    }
+    opts
+}
+
 // When compiling to web using trunk:
 #[cfg(target_arch = "wasm32")]
 fn main() {
@@ -25,26 +42,13 @@ fn main() {
         let start_result = eframe::WebRunner::new()
             .start(
                 editor_demo_el,
-                Default::default(),
+                web_options(),
                 Box::new(|cc| Ok(Box::new(LbWebApp::new(cc, InitialScreen::Editor)))),
             )
             .await;
 
-        // Remove the loading text and spinner:
-        let loading_text = web_sys::window()
-            .and_then(|w| w.document())
-            .and_then(|d| d.get_element_by_id("editor-loading"));
-
-        if let Some(loading_text) = loading_text {
-            match start_result {
-                Ok(_) => {
-                    loading_text.remove();
-                }
-                Err(e) => {
-                    loading_text.set_inner_html("<p> Unexpected error occurred</p>");
-                    panic!("Failed to start eframe: {e:?}");
-                }
-            }
+        if let Err(e) = start_result {
+            panic!("Failed to start editor eframe: {e:?}");
         }
 
         let canvas_demo_el = get_canvas_element("canvas-demo");
@@ -52,27 +56,13 @@ fn main() {
         let start_result = eframe::WebRunner::new()
             .start(
                 canvas_demo_el,
-                Default::default(),
+                web_options(),
                 Box::new(|cc| Ok(Box::new(LbWebApp::new(cc, InitialScreen::Canvas)))),
             )
             .await;
 
-        // Remove the loading text and spinner:
-        let loading_text = web_sys::window()
-            .and_then(|w| w.document())
-            .and_then(|d| d.get_element_by_id("canvas-loading"));
-        if let Some(loading_text) = loading_text {
-            match start_result {
-                Ok(_) => {
-                    loading_text.remove();
-                }
-                Err(e) => {
-                    loading_text.set_inner_html(
-                        "<p> The app has crashed. See the developer console for details. </p>",
-                    );
-                    panic!("Failed to start eframe: {e:?}");
-                }
-            }
+        if let Err(e) = start_result {
+            panic!("Failed to start canvas eframe: {e:?}");
         }
     });
 }

@@ -433,45 +433,45 @@ pub fn get_canvas_colors() -> Vec<DynamicColor> {
     highlighter_colors
 }
 
+// Canvas color palettes — brand chroma pairs that flip with theme.
+// Light mode (canvas bg ≈ white): use the Dark 6 hues (high contrast on paper).
+// Dark mode (canvas bg ≈ black): use the Light 6 hues (high contrast on dark).
+// The "white" entry is foreground in each mode (black on light, white on dark).
+//                  Light mode (Dark 6)        Dark mode (Light 6)
+//   green/mint     #00B371  (0, 179, 113)     #67E4B6  (103, 228, 182)
+//   gold/cream     #FFBF00  (255, 191,   0)   #FFDB70  (255, 219, 112)
+//   red/coral      #DF2040  (223,  32,  64)   #FF6680  (255, 102, 128)
+//   iris/lilac     #7855AA  (120,  85, 170)   #AC8CD9  (172, 140, 217)
+//   blue/sky       #207FDF  ( 32, 127, 223)   #66B2FF  (102, 178, 255)
+//   teal/cyan      #0FAEBD  ( 15, 174, 189)   #6EECF7  (110, 236, 247)
+//   fg             black                       white
+
 pub fn get_highlighter_colors() -> Vec<DynamicColor> {
-    let yellow =
-        DynamicColor { light: Color::new_rgb(244, 250, 65), dark: Color::new_rgb(244, 250, 65) };
-    let blue =
-        DynamicColor { light: Color::new_rgb(65, 194, 250), dark: Color::new_rgb(65, 194, 250) };
-    let pink =
-        DynamicColor { light: Color::new_rgb(254, 110, 175), dark: Color::new_rgb(254, 110, 175) };
-    vec![yellow, blue, pink]
+    let cream =
+        DynamicColor { light: Color::new_rgb(255, 191, 0), dark: Color::new_rgb(255, 219, 112) };
+    let sky =
+        DynamicColor { light: Color::new_rgb(32, 127, 223), dark: Color::new_rgb(102, 178, 255) };
+    let coral =
+        DynamicColor { light: Color::new_rgb(223, 32, 64), dark: Color::new_rgb(255, 102, 128) };
+    vec![cream, sky, coral]
 }
 
 pub fn get_pen_colors() -> Vec<DynamicColor> {
-    let red =
-        DynamicColor { light: Color::new_rgb(218, 21, 21), dark: Color::new_rgb(174, 33, 33) };
-    let orange =
-        DynamicColor { light: Color::new_rgb(255, 149, 0), dark: Color::new_rgb(255, 159, 10) };
-    let yellow =
-        DynamicColor { light: Color::new_rgb(255, 204, 0), dark: Color::new_rgb(255, 214, 10) };
-    let green =
-        DynamicColor { light: Color::new_rgb(42, 136, 49), dark: Color::new_rgb(56, 176, 65) };
-    let teal =
-        DynamicColor { light: Color::new_rgb(0, 128, 128), dark: Color::new_rgb(0, 147, 147) };
+    let mint =
+        DynamicColor { light: Color::new_rgb(0, 179, 113), dark: Color::new_rgb(103, 228, 182) };
+    let cream =
+        DynamicColor { light: Color::new_rgb(255, 191, 0), dark: Color::new_rgb(255, 219, 112) };
+    let coral =
+        DynamicColor { light: Color::new_rgb(223, 32, 64), dark: Color::new_rgb(255, 102, 128) };
+    let lilac =
+        DynamicColor { light: Color::new_rgb(120, 85, 170), dark: Color::new_rgb(172, 140, 217) };
+    let sky =
+        DynamicColor { light: Color::new_rgb(32, 127, 223), dark: Color::new_rgb(102, 178, 255) };
     let cyan =
-        DynamicColor { light: Color::new_rgb(85, 190, 240), dark: Color::new_rgb(90, 200, 245) };
-    let blue =
-        DynamicColor { light: Color::new_rgb(62, 130, 230), dark: Color::new_rgb(54, 116, 207) };
-    let indigo =
-        DynamicColor { light: Color::new_rgb(75, 0, 130), dark: Color::new_rgb(64, 0, 110) };
-    let purple =
-        DynamicColor { light: Color::new_rgb(128, 0, 128), dark: Color::new_rgb(147, 0, 147) };
-    let magenta =
-        DynamicColor { light: Color::new_rgb(175, 82, 222), dark: Color::new_rgb(191, 90, 242) };
-    let pink =
-        DynamicColor { light: Color::new_rgb(255, 105, 180), dark: Color::new_rgb(255, 120, 190) };
-    let brown =
-        DynamicColor { light: Color::new_rgb(139, 69, 19), dark: Color::new_rgb(101, 53, 17) };
-
+        DynamicColor { light: Color::new_rgb(15, 174, 189), dark: Color::new_rgb(110, 236, 247) };
     let fg = DynamicColor { light: Color::black(), dark: Color::white() };
 
-    vec![fg, red, orange, yellow, green, teal, cyan, blue, indigo, purple, brown, magenta, pink]
+    vec![mint, cream, coral, lilac, sky, cyan, fg]
 }
 
 pub fn get_background_colors() -> Vec<DynamicColor> {

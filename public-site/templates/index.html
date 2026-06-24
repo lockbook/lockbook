@@ -1,297 +1,549 @@
 {% extends "base.html" %}
+
 {% block content %}
 
-  <div class="relative mt-14 lg:mt-40">
-      <h1 class="max-w-4xl px-3 mx-auto text-3xl/relaxed [word-spacing:-6px] font-bold lg:text-center lg:text-4xl/snug  text-egshell">
-          The secure place for
-          <p class="relative inline-block">
-            <!-- <span class="absolute left-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-4 -translate-y-1 lg:-translate-y-2 text-abyss-900 -z-10 -rotate-6 text-abyss rounded-2xl bg-sundown">markdown</span>  -->
-            writing</p>
-          notes
-          <p class="relative inline-block">sketching 
-          <!-- <span class="absolute right-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-1 -translate-y-1 text-abyss-900 -z-10 rotate-6 text-abyss rounded-2xl bg-dusk">svg</span> -->
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 1 · HERO
+     Near-fullscreen opener. min-h-[85vh] occupies nearly the whole viewport
+     while letting a sliver of Section 2 peek above the fold to invite the
+     scroll. Content centers on both axes (flex items-center justify-center
+     + text-center), leaving the section's "striking visual effect" to be
+     layered in as an absolutely-positioned backdrop child of this section.
+═══════════════════════════════════════════════════════════════════════ -->
+<section class="relative min-h-[85vh] bg-sunken px-6 lg:px-12 flex items-center justify-center overflow-hidden"
+         style="--tile-lift: 25; --tile-reach: 120; --tile-gap: 3px;
+                --wave-speed: 0.05; --wave-damping: 0.015;
+                --cursor-stiffness: 0.3; --cursor-drag: 0.5;
+                --lift-max: 60;
+                --tile-bg: var(--bg-base);">
+    <!-- Backdrop: hover-anticipation iso-rhombus grid. Tiles are bg-base on
+         the hero's bg-sunken surface — in dark mode they read as gentle
+         raised pixels emerging from the deep editor tone; in light mode
+         both are white (flat on purpose). The tile-field + pointer math
+         live in base.html so it auto-wires from data attributes here.
+         data-tile-w fixes tile pixel size (cols derived from viewport
+         width) so the texture stays consistent across breakpoints + the
+         design-guide demo. -->
+    <div class="tile-field absolute inset-0" data-shape="rhombus" data-tile-w="64" data-impulse-target="#hero-download" data-impulse-delay="1200"></div>
+
+    <div class="relative max-w-3xl text-center">
+        <h1 id="hero-heading" class="fade-down text-5xl sm:text-6xl font-medium tracking-tightest leading-[1.05]" style="--fade-delay: 200ms;">
+            Notes that stay yours.
+        </h1>
+
+        <p id="hero-tagline" class="fade-down mt-6 text-lg text-fg-muted leading-relaxed max-w-2xl mx-auto" style="--fade-delay: 450ms;">
+            Lockbook is an open-source notebook for markdown notes &amp; SVG drawings — encrypted on your device and shared only by invitation.
         </p>
-          ideas and storing files
-      </h1>
-      <span class="pointer-events-none  w-[100rem] lg:w-[100rem] n h-screen absolute left-0 top-0 lg:inset-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(at_center,_theme('colors.egshell')_-200%,_transparent_30%)]"></span>
-  </div>
 
-
-    <div class="grid grid-cols-1 gap-5 sm:grid-cols-3 px-7  text-egshell max-w-[58rem] m-auto mt-20">
-        <div class="p-4 text-lbneutral-100 bg-abyss-400">
-            <h4 class="mb-4 text-sm text-surfline">⚷ Private</h4>
-            <p class="text-xs">We use cryptography to keep your data secret<span class="opacity-50">, </span>even from us<span class="opacity-50">.</span></p>
-        </div>
-
-        <div class="p-4 text-lbneutral-100 bg-abyss-400">
-            <h4 class="mb-4 text-sm text-lbyellow-700">𖨆𖨆 Collaborative</h4>
-            <p class="text-xs">Share with friends<span class="opacity-50">, </span>teams<span class="opacity-50">, </span>and everyone else you trust<span class="opacity-50">.</span></p>
-        </div>
-
-        <div class="p-4 text-lbneutral-100 bg-abyss-400">
-            <h4 class="mb-4 text-sm text-lbblue-700">⊹ Extensible</h4>
-            <p class="text-xs">Open formats work nicely with your favorite apps and tools<span class="opacity-50">.</span></p>
+        <div class="fade-down mt-10 flex items-center justify-center" style="--fade-delay: 700ms;">
+            <span style="--glow-rgb: 102 178 255; --btn-z-rest: 3; --btn-z-hover: 5; --glow-scale: 2;" class="btn-glow">
+                <a id="hero-download" href="#download" class="btn-flat bg-base text-fg gap-2">
+                    <span id="hero-download-icon" class="inline-flex items-center">
+                        <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                            <polyline points="7 10 12 15 17 10" />
+                            <line x1="12" y1="15" x2="12" y2="3" />
+                        </svg>
+                    </span>
+                    <span id="hero-download-text">Download</span>
+                </a>
+            </span>
         </div>
     </div>
-
-   <div class="max-w-[58rem] m-auto mt-8  px-7 h-[40rem] mb-10 relative">
-      <canvas id="editor-demo" class="w-full h-full"></canvas>
-      <div class="absolute top-0 left-0 w-full h-full py-12 text-center bg-abyss-400 text-egshell" id="editor-loading"> 
-        <div class="flex items-center justify-center">
-            <p>Editor Demo</p>
-            <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
-        </div>
-      </div>
-  </div>
+</section>
 
 
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 2 · DEMOS
+     Three product capabilities — each its own eyebrow + headline + live
+     demo, alternating sides: Markdown text-left/demo-right, Canvas
+     text-right/demo-left, Terminal text-left/demo-right.
+═══════════════════════════════════════════════════════════════════════ -->
+<section class="px-6 lg:px-12 py-40 border-t border-line">
+    <div class="max-w-6xl mx-auto space-y-24">
 
-
-  <div class="bg-abyss-900 text-egshell">
-    <div class="px-3 text-center max-sm:text-left">
-        <h2 class="text-2xl font-bold pt-28">Protect your data across your favorite devices<span class="opacity-50">.</span></h2>
-        <h3 class="mt-2 mb-20">handcrafted clients for each platform<span class="opacity-50">.</span> no electron bs</h3>
-    </div>
-
-      <div class="mx-auto w-1/2 h-[34rem] max-sm:h-72 relative max-sm:w-full max-sm:mt-36 ">
-        <div id="screenshots" class="flex h-full">
-            <img src="ios-screenshot.png" alt="screenshot of the ui on an iOS device" class="absolute hidden object-contain object-top w-full h-full" data-platform="ios" > 
-            <img src="macos-screenshot.png" alt="screenshot of the ui on an macos device" class="absolute hidden object-contain object-top w-full h-full" data-platform="macos" > 
-            <img src="linux-screenshot1.png" alt="screenshot of the ui on an linux device" class="absolute visible object-contain object-top w-full h-full" data-platform="linux" > 
-            <img src="android-screenshot.png" alt="screenshot of the ui on an android device" class="absolute hidden object-contain object-top w-full h-full" data-platform="android" > 
-            <img src="windows-screenshot.png" alt="screenshot of the ui on an windows device" class="absolute hidden object-contain object-top w-full h-full" data-platform="windows" > 
-        </div>
-        
-        <div class="absolute top-0 left-0 px-3 -translate-x-full translate-y-full max-sm:-translate-y-[110%]  max-sm:translate-x-0 ">
-            <p class="mb-2 uppercase opacity-30">screenshots</p>
-            <div class="flex flex-col flex-wrap items-start justify-center max-sm:flex-row max-sm:justify-around " id="toggle-screenshots">
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30" data-platform="ios">iOS</button>
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30" data-platform="macos">macOS</button>
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30" data-platform="windows">windows</button>
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 border-lbblue-700" data-platform="linux">linux</button>
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30 "data-platform="android">android</button>
+        <!-- Block 1 · MARKDOWN  · text-left, image-right -->
+        <div class="scroll-fade-down grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div class="lg:col-span-5">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="4" y="2" width="16" height="20" rx="2" />
+                        <line x1="8" y1="7" x2="16" y2="7" />
+                        <line x1="8" y1="12" x2="16" y2="12" />
+                        <line x1="8" y1="17" x2="13" y2="17" />
+                    </svg>
+                    <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Notes</p>
+                </div>
+                <h2 class="text-2xl font-medium tracking-tightest leading-tight">
+                    Plain markdown, formatted live.
+                </h2>
+                <p class="mt-6 text-sm text-fg-muted leading-relaxed max-w-md">
+                    Write notes in flawless style with a live-rendering markdown editor.
+                </p>
+            </div>
+            <div class="lg:col-span-7">
+                <!-- Demo: live markdown editor — WASM mounts onto #editor-demo
+                     canvas (see public-site/trunk/src/main.rs). -->
+                <div class="relative aspect-[4/3] bg-sunken rounded-edge overflow-hidden"
+                     style="box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));">
+                    <canvas id="editor-demo" class="block w-full h-full"></canvas>
+                </div>
             </div>
         </div>
-      </div>
-  </div>
-  
-  <div class="max-w-[58rem] m-auto mt-40  px-7 h-[40rem]  relative">
 
-    <canvas id="canvas-demo" class="w-full h-full"></canvas>
-      
-      <div class="absolute top-0 left-0 w-full h-full py-12 text-center bg-abyss-400 text-egshell" id="canvas-loading"> 
-        <div class="flex items-center justify-center">
-            <p>Canvas Demo</p>
-            <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+        <!-- Block 2 · CANVAS  · text-right, image-left -->
+        <div class="scroll-fade-down grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div class="lg:col-span-5 lg:order-2">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M12 20h9" />
+                        <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z" />
+                    </svg>
+                    <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Drawings</p>
+                </div>
+                <h2 class="text-2xl font-medium tracking-tightest leading-tight">
+                    Drawings, images, and PDFs.
+                </h2>
+                <p class="mt-6 text-sm text-fg-muted leading-relaxed max-w-md">
+                    Sketch with a stylus, drop in images, embed files — all in one platform.
+                </p>
+            </div>
+            <div class="lg:col-span-7 lg:order-1">
+                <!-- Demo: live SVG canvas — WASM mounts onto #canvas-demo canvas.
+                     Same WASM bundle as #editor-demo, different InitialScreen. -->
+                <div class="relative aspect-[4/3] bg-base dark:bg-sunken rounded-edge overflow-hidden"
+                     style="box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));">
+                    <canvas id="canvas-demo" class="block w-full h-full"></canvas>
+                </div>
+            </div>
         </div>
-      </div>
-  </div>
 
-  
-
-  <div class="pb-32 max-sm:pb-0 bg-abyss-900 text-egshell" id="pricing">
-    <div class="px-3 text-center max-sm:text-left">
-        <h2 class="pt-32 text-2xl font-bold ">Pricing</h2>
-        <h3 class="mt-2 mb-20">Be the customer<span class="opacity-50">,</span> not the product<span class="opacity-50">.</span> We sell a note-taking app<span class="opacity-50">,</span> not your data. </h3>
-    </div>
-      
-      <div class="flex justify-center max-sm:flex-col max-sm:mx-7">
-          <div class=" p-11">
-              <h4 class="mb-12 text-xl font-bold " >Free</h4>
-              <ul class="mb-20 text-xs list-disc list-inside ">
-                  <li class="mb-4">25MB storage capacity </li>
-                  <li class="mb-4">sharing and collaboration</li>
-                  <li class="mb-4">markdown support</li>
-                  <li class="mb-4">drawing support</li>
-                  <li class="mb-4">offline mode</li>
-              </ul>
-              <a href="#" class="text-sm underline text-surfline font-xs" id="free-download" >Download for free</a>
-          </div>
-  
-          <div class="w-full max-w-xl ml-8 max-sm:ml-0 bg-abyss-400 p-11 max-sm:py-20">
-              <div class="flex flex-row justify-between mb-8" >
-                  <h4  class="text-xl font-bold" >Premium</h4>
-                  <div>
-                      <h4 class="text-xl font-bold" >$2.99</h4>
-                      <p class="text-xs text-right">monthly</p>
-                  </div>
-              </div>
-              <ul class="mb-20 text-xs list-disc list-inside ">
-                  <li class="mb-4 ">30GB storage capacity </li>
-                  <li class="mb-4 opacity-60">sharing and collaboration</li>
-                  <li class="mb-4 opacity-60">markdown support</li>
-                  <li class="mb-4 opacity-60">drawing support</li>
-                  <li class="mb-4 opacity-60">offline mode</li>
-              </ul>
-              <a href="#" class="px-6 py-2 text-sm text-abyss-900 bg-surfline" id="paid-download" >Purchase in app</a>
-          </div>
-      </div>
-  </div>
-  
-
-  <div class="pb-56 bg-abyss-900 text-egshell max-sm:pb-32">
-    <div class="px-3 text-center max-sm:text-left">
-        <h2 class="pt-24 text-2xl font-bold ">Project roadmap</h2>
-        <h3 class="mt-2 mb-20">Lockbook is in its infancy. Here's what we accomplished and what we'll deliver</h3>
-    </div>
-
-    <div class="flex justify-between max-w-6xl px-3 mx-auto max-sm:flex-col">
-        <div>
-            <div class="relative">
-                <h4 class="text-lg font-bold ">Features</h4>
-                <span class="pointer-events-none  w-96 h-96  left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[50%] bg-[radial-gradient(at_center,green_-80%,_transparent_30%)]"></span>
+        <!-- Block 3 · TERMINAL  · text-left, image-right
+             Fake JS shell — accepts any subcommand after `$ lockbook` and
+             returns the same self-aware error. The brand-voice "we know"
+             gag IS the demo; the real CLI is one Github Releases click away.
+             Terminal-shaped aspect ratio (16:10) breaks the row's 4:3 rhythm
+             on purpose. -->
+        <div class="scroll-fade-down grid grid-cols-1 lg:grid-cols-12 gap-12 items-center">
+            <div class="lg:col-span-5">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="4 17 10 11 4 5" />
+                        <line x1="12" y1="19" x2="20" y2="19" />
+                    </svg>
+                    <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Terminal</p>
+                </div>
+                <h2 class="text-2xl font-medium tracking-tightest leading-tight">
+                    Architected for extensibility.
+                </h2>
+                <p class="mt-6 text-sm text-fg-muted leading-relaxed max-w-md">
+                    Find files with <code class="font-mono">fzf</code> and schedule backups with <code class="font-mono">cron</code>. When the shell isn't enough, the Rust library is.
+                </p>
+                <div class="mt-6 flex flex-col gap-2">
+                    <a href="https://github.com/lockbook/lockbook/tree/master/clients/cli" class="btn-text">CLI reference &rarr;</a>
+                    <a href="https://crates.io/crates/lb-rs" class="btn-text">crates.io/lockbook &rarr;</a>
+                </div>
             </div>
-            <ul class="text-sm list-inside font-extralight">
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600 ">End to End encryption</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">Collaboration</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">Offline Support</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">Markdown and SVG editing support</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">PDF and Image Preview</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">CLI support</li>
-            </ul>  
-        </div> 
+            <div class="lg:col-span-7">
+                <div class="aspect-[16/10] bg-base dark:bg-sunken rounded-edge overflow-hidden flex flex-col font-mono text-sm"
+                     style="box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));">
+                    <div id="terminal-history" class="flex-1 overflow-y-auto p-4 leading-relaxed text-fg"><div class="whitespace-pre">Lockbook CLI v26.6.16
 
-        <div class="mt-28 max-sm:mt-20">
-            <div class="relative">
-                <h4 class="text-lg font-bold ">In development</h4>
-                <span class="pointer-events-none  w-96 h-96  left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[50%] bg-[radial-gradient(at_center,orange_-160%,_transparent_30%)]"></span>
-            </div>
-            <ul class="text-sm list-inside font-extralight">
-                <li class="mt-4 before:content-['◍'] before:pr-4 before:text-yellow-700 ">Stability and Scaling improvements</li>
-                <li class="mt-4 before:content-['◍'] before:pr-4 before:text-yellow-700">Large File Support</li>
-                <li class="mt-4 before:content-['◍'] before:pr-4 before:text-yellow-700">PDF editing</li>
-                <li class="mt-4 before:content-['◍'] before:pr-4 before:text-yellow-700">File System Integration</li>
-            </ul>  
-        </div> 
+USAGE
+    <span class="text-accent-fg">lockbook</span> &lt;command&gt; [args...]
 
-        <div class="max-sm:mt-20">
-            <div class="relative">
-                <h4 class="text-lg font-bold ">Coming soon</h4>
-                <span class="pointer-events-none  w-96 h-96  left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[50%] bg-[radial-gradient(at_center,_theme('colors.lbblue.500')_-160%,_transparent_30%)]"></span>
+COMMANDS
+    <span class="text-accent-fg">lockbook</span> account new &lt;username&gt;    create a new account
+    <span class="text-accent-fg">lockbook</span> sync                      sync with the server
+    <span class="text-accent-fg">lockbook</span> list                      list your notes
+    <span class="text-accent-fg">lockbook</span> edit &lt;path&gt;               open in $EDITOR
+    <span class="text-accent-fg">lockbook</span> share &lt;path&gt; &lt;user&gt;       share by invitation
+    <span class="text-accent-fg">lockbook</span> --help                    show this help</div></div>
+                    <div class="flex items-center gap-2 px-4 py-2 border-t border-line">
+                        <span class="text-fg-muted select-none">$</span>
+                        <span class="text-accent-fg select-none">lockbook</span>
+                        <input id="terminal-input" type="text"
+                               class="flex-1 bg-transparent outline-none text-fg placeholder:text-fg-faint"
+                               autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+                    </div>
+                </div>
             </div>
-            <ul class="text-sm list-inside font-extralight">
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">Document History</li>
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">Transcription / Audio support</li>
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">Mentions, Comments and Notifications</li>
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">Browser Extension for "Clippings"</li>
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">LLM Integration</li>
-            </ul>  
-        </div> 
+        </div>
+
     </div>
-
-</div>
-
-  <div class="relative py-20 pl-24 max-sm:px-3 text-egshell bg-gradient-to-b from-abyss-900 to-abyss-400" id="download">
-      <h1 class="text-4xl font-bold mb-28 max-sm:text-3xl">Join the community</h1>
-      <div class="flex items-center max-sm:items-start max-sm:flex-col " id="download-center">
-          <a href="" class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline ">Download for macOS</a>
-          <p class="ml-8 text-xs font-extralight max-sm:mx-0 max-sm:mt-4">also available for 
-              <a href="#" class="underline text-lbblue-700 ">iOS</a>,
-              <a href="#" class="underline text-lbblue-700 ">android</a>
-              <a href="#" class="underline text-lbblue-700 ">linux</a>, and
-              <a href="#" class="underline text-lbblue-700 ">windows</a></p>
-      </div>
-      <div class="absolute top-0 right-0 w-1/4 h-full overflow-hidden pointer-events-none min-w-80 max-sm:h-full max-sm:w-full max-sm:-z-10 max-sm:opacity-5">
-          <img src="./banner-bg.svg" alt="pattern of lockbook's logo" class="">
-      </div>
-  </div>
-
-  
-  <!--Register Service Worker. this will cache the wasm / js scripts for offline use (for PWA functionality). -->
-  <!-- Force refresh (Ctrl + F5) to load the latest files instead of cached files  -->
-  <script>
-      // We disable caching during development so that we always view the latest version.
-      if ('serviceWorker' in navigator && window.location.hash !== "#dev") {
-          window.addEventListener('load', function() {
-              navigator.serviceWorker.register('sw.js');
-          });
-      }
-
-      let unselectedStyles = "pt-1 px-4 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30";
-      let selectedStyles = "pt-1 px-4 border-l-8 max-sm:border-l-4 border-lbblue-700";
-
-      let screenshotToggleBtns = [...document.querySelector("#toggle-screenshots").children].filter(el => el.nodeName === "BUTTON");
-
-      let screenshotImgs = [...document.querySelector("#screenshots").children]
-
-      screenshotToggleBtns.forEach(clickedBtn => clickedBtn.addEventListener('click', e => {
-          screenshotToggleBtns.forEach(nonClickedBtn => nonClickedBtn.className = unselectedStyles)
-          clickedBtn.className = selectedStyles;
-          let clickedPlatform = clickedBtn.dataset.platform
-
-          screenshotImgs.forEach(img => {
-            img.classList.remove("visible")
-            img.classList.add("hidden")
-        })
-          selectedImg = screenshotImgs.find(img => img.dataset.platform === clickedPlatform)
-          selectedImg.classList.remove("hidden")
-          selectedImg.classList.add("visible")
-
-      }))
-      let editorCanvas = document.querySelector("#editor-demo")
-
-      // Make canvas focusable
-      editorCanvas.setAttribute("tabindex", "0");
-
-      // List of events to prevent propagation and default behavior
-      const eventsToBlock = [
-          "keydown", "keyup", "keypress",
-          "wheel", "mousedown", "mouseup",
-          "click", "dblclick", "touchstart",
-          "touchmove", "touchend", "contextmenu"
-      ];
-
-      eventsToBlock.forEach(eventType => {
-          editorCanvas.addEventListener(eventType, function(event) {
-              event.preventDefault();
-          }, {
-              passive: false
-          }); // passive: false ensures preventDefault works on wheel/touch events
-      });
-
-      // Focus canvas when clicked so it can receive key events
-      editorCanvas.addEventListener("click", () => {
-          editorCanvas.focus();
-      });
+</section>
 
 
-      function getUserPlatform() {
-        if (window.navigator.userAgent.includes("Windows"))
-            return "windows"
-        if (window.navigator.userAgent.includes("iPhone"))
-            return "ios"
-        if (window.navigator.userAgent.includes("Mac"))
-            return "macos"
-        if (window.navigator.userAgent.includes("Android"))
-            return "android"
-        if (window.navigator.userAgent.includes("Linux"))
-            return "linux"
-    }
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 3 · TRUST
+     Job: state the structural properties that make the hero's "stay yours"
+     claim true. Visual rhythm changes from big alternating blocks to a
+     tight three-column read — the page slows here before the download.
+     Order: Offline (foundation — local-first) → Sharing (extends without
+     breaking) → Encrypted (mechanism underlying both).
+═══════════════════════════════════════════════════════════════════════ -->
+<section class="relative px-6 lg:px-12 py-40 border-t border-line overflow-hidden">
+    <!-- Mode-paired backdrops. Light: Lake George — cumulus over forested
+         hills, classic American landscape. Dark: glass cathedral ceiling —
+         cool, geometric, dense. Each gets its own tint so the glass-frosted
+         panels keep legible contrast against the dominant value of its photo. -->
+    <div aria-hidden="true" class="absolute inset-0 bg-cover bg-center dark:hidden" style="background-image: url('/moodboard/31.jpg'); filter: saturate(1.35) contrast(1.05);"></div>
+    <div aria-hidden="true" class="absolute inset-0 bg-cover bg-center hidden dark:block" style="background-image: linear-gradient(rgba(8, 10, 14, 0.45), rgba(8, 10, 14, 0.45)), url('/moodboard/17.jpg');"></div>
+    <!-- Fine-grain dither overlay. Breaks up JPEG banding (esp. in the sky)
+         and adds tactile film grain. Mode-independent — overlay blend
+         lifts shadows and adds grit to highlights uniformly. -->
+    <div aria-hidden="true" class="absolute inset-0 pointer-events-none" style="background-image: url('data:image/svg+xml;utf8,%3Csvg xmlns=%22http://www.w3.org/2000/svg%22 width=%22240%22 height=%22240%22%3E%3Cfilter id=%22n%22%3E%3CfeTurbulence type=%22fractalNoise%22 baseFrequency=%220.9%22 numOctaves=%222%22 stitchTiles=%22stitch%22/%3E%3CfeColorMatrix values=%220 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0 0.6 0%22/%3E%3C/filter%3E%3Crect width=%22100%25%22 height=%22100%25%22 filter=%22url(%23n)%22/%3E%3C/svg%3E'); opacity: 0.22; mix-blend-mode: overlay;"></div>
 
-    let downloadHrefMap = {
-        windows: {prettyName: "Windows", others: ["ios", "macos", "android", "linux"], href: "https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-setup-x86_64.exe"},
-        macos: {prettyName: "macOS", others: ["ios", "linux", "android", "windows"], href: "https://apps.apple.com/us/app/lockbook/id1526775001"},
-        ios: {prettyName: "iPhone", others: ["macos", "linux", "android", "windows"],  href: "https://apps.apple.com/us/app/lockbook/id1526775001"},
-        linux: {prettyName: "Linux",others: ["android", "macos", "ios", "windows"], href: "https://github.com/lockbook/lockbook/releases/latest/download/lockbook-linux"},
-        android: {prettyName: "Android", others: ["linux", "windows", "ios", "macos"], href: "https://play.google.com/store/apps/details?id=app.lockbook"}
+    <div class="max-w-6xl mx-auto relative">
+
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-6">
+
+            <div class="scroll-fade-down surface-glass outline outline-1 outline-line/70 rounded-edge p-8">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="m2 2 20 20" />
+                        <path d="M5.782 5.782A7 7 0 0 0 9 19h8.5a4.5 4.5 0 0 0 1.307-.193" />
+                        <path d="M21.532 16.5A4.5 4.5 0 0 0 17.5 10h-1.79A7 7 0 0 0 9.5 4.5" />
+                    </svg>
+                    <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Offline</p>
+                </div>
+                <h3 class="text-xl font-medium tracking-tightest leading-tight mb-3">
+                    Local markdown by default.
+                </h3>
+                <p class="text-sm text-fg-muted leading-relaxed">
+                    Write on a plane. It syncs when you land.
+                </p>
+            </div>
+
+            <div class="scroll-fade-down surface-glass outline outline-1 outline-line/70 rounded-edge p-8" style="--fade-delay: 150ms;">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
+                        <circle cx="9" cy="7" r="4" />
+                        <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
+                        <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+                    </svg>
+                    <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Sharing</p>
+                </div>
+                <h3 class="text-xl font-medium tracking-tightest leading-tight mb-3">
+                    Collaborate in real time.
+                </h3>
+                <p class="text-sm text-fg-muted leading-relaxed">
+                    See live edits and file updates with collaborators.
+                </p>
+            </div>
+
+            <div class="scroll-fade-down surface-glass outline outline-1 outline-line/70 rounded-edge p-8" style="--fade-delay: 300ms;">
+                <div class="flex items-center gap-2 mb-4">
+                    <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                        <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                    </svg>
+                    <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Encrypted</p>
+                </div>
+                <h3 class="text-xl font-medium tracking-tightest leading-tight mb-3">
+                    Share with your people,<br>not with ours.
+                </h3>
+                <p class="text-sm text-fg-muted leading-relaxed">
+                    Notes are encrypted on your devices so only your invitees can read them.
+                </p>
+            </div>
+
+        </div>
+
+    </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 4 · PRICING
+     The visual interest comes from the two cards being lifted off the
+     page via shadow + border — no colored section bg required. Cards use
+     system tokens (bg-base, text-fg, border-line) so they flip with mode
+     naturally. The Premium card gets a thicker accent border so it reads
+     as the recommended tier without needing a badge.
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="pricing" class="px-6 lg:px-12 pt-40 pb-8 border-t border-line">
+    <div class="max-w-6xl mx-auto">
+
+        <div class="scroll-fade-down mb-12 max-w-2xl">
+            <div class="flex items-center gap-2 mb-4">
+                <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M20.59 13.41l-7.17 7.17a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z" />
+                    <line x1="7" y1="7" x2="7.01" y2="7" />
+                </svg>
+                <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Pricing</p>
+            </div>
+            <h2 class="text-2xl font-medium tracking-tightest leading-tight">
+                We charge for storage.
+            </h2>
+            <p class="mt-6 text-sm text-fg-muted leading-relaxed">
+                Free up to 25 MB, premium for 30 GB.
+            </p>
+        </div>
+
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-6">
+
+            <!-- Free tier -->
+            <div class="scroll-fade-down p-8 rounded-edge bg-base outline outline-1 outline-line flex flex-col"
+                 style="--fade-delay: 150ms; box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));">
+                <p class="font-mono text-xs uppercase tracking-widest text-accent-fg mb-2">Free</p>
+                <p class="text-4xl font-medium tracking-tightest mb-6">$0</p>
+                <p class="text-xl font-medium tracking-tightest leading-tight mb-6">25 MB of encrypted storage</p>
+                <ul class="space-y-2 text-sm text-fg-muted mb-8 flex-1">
+                    <li>Cross-platform sync</li>
+                    <li>Unlimited collaborators</li>
+                </ul>
+                <div class="pt-4 border-t border-line">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <line x1="12" y1="5" x2="12" y2="19" />
+                            <polyline points="19 12 12 19 5 12" />
+                        </svg>
+                        <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Download below</p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Premium tier -->
+            <div class="scroll-fade-down p-8 rounded-edge bg-base outline outline-2 outline-accent flex flex-col"
+                 style="--fade-delay: 300ms; box-shadow: 0 var(--shadow-y) var(--shadow-blur) rgba(0, 0, 0, var(--shadow-alpha));">
+                <p class="font-mono text-xs uppercase tracking-widest text-accent-fg mb-2">Premium</p>
+                <p class="text-4xl font-medium tracking-tightest mb-6">
+                    $2.99<span class="text-sm font-normal text-fg-muted">/month</span>
+                </p>
+                <p class="text-xl font-medium tracking-tightest leading-tight mb-6">30 GB of encrypted storage</p>
+                <ul class="space-y-2 text-sm text-fg-muted mb-8 flex-1">
+                    <li>Priority support</li>
+                    <li>Fund Lockbook development</li>
+                </ul>
+                <div class="pt-4 border-t border-line">
+                    <div class="flex items-center gap-2">
+                        <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <rect x="6" y="2" width="12" height="20" rx="2" />
+                            <line x1="11" y1="18" x2="13" y2="18" />
+                        </svg>
+                        <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Subscribe in-app</p>
+                    </div>
+                </div>
+            </div>
+
+        </div>
+
+    </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     SECTION 5 · DOWNLOAD + STRUCTURAL CLAIMS
+     Job: convert earned trust into a download. Provide structural evidence —
+     who, how much, where, prove it. The grid IS the cross-platform claim
+     (six labeled buttons = "native everywhere"); below it, four falsifiable
+     columns close the page (Open · Priced · Native · Built by).
+═══════════════════════════════════════════════════════════════════════ -->
+<section id="download" class="px-6 lg:px-12 pt-16 pb-40">
+    <div class="max-w-6xl mx-auto">
+
+        <div class="scroll-fade-down mb-8 max-w-2xl">
+            <div class="flex items-center gap-2 mb-4">
+                <svg class="w-5 h-5 text-fg-muted shrink-0" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                </svg>
+                <p class="font-mono text-xs uppercase tracking-widest text-accent-fg">Download</p>
+            </div>
+            <h2 class="text-2xl font-medium tracking-tightest leading-tight">
+                Native everywhere.
+            </h2>
+        </div>
+
+        <!-- Platform download grid · six platforms, .btn-primary wireframe. -->
+        <div class="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-6 gap-3">
+            <!-- macOS / Apple logo -->
+            <span class="scroll-fade-down btn-glow w-full" style="--fade-delay: 150ms;" data-platform="macOS"><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-macos.app.zip" target="_blank" rel="noopener" class="btn-primary justify-center w-full gap-2">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                </svg>
+                macOS
+            </a></span>
+
+            <!-- iOS / Apple logo (same as macOS) -->
+            <span class="scroll-fade-down btn-glow w-full" style="--fade-delay: 230ms;" data-platform="iOS"><a href="https://apps.apple.com/us/app/lockbook/id1526775001" target="_blank" rel="noopener" class="btn-primary justify-center w-full gap-2">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/>
+                </svg>
+                iOS
+            </a></span>
+
+            <!-- Android robot -->
+            <span class="scroll-fade-down btn-glow w-full" style="--fade-delay: 310ms;" data-platform="Android"><a href="https://play.google.com/store/apps/details?id=app.lockbook" target="_blank" rel="noopener" class="btn-primary justify-center w-full gap-2">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M17.523 15.34c-.55 0-.999-.45-.999-1s.449-1 .999-1 .999.45.999 1-.449 1-.999 1zm-11.046 0c-.55 0-.999-.45-.999-1s.449-1 .999-1 .999.45.999 1-.449 1-.999 1zm11.405-6.02l1.997-3.46a.42.42 0 00-.152-.568.42.42 0 00-.568.152l-2.022 3.503A12.46 12.46 0 0012 7.85c-1.83 0-3.59.39-5.137 1.1L4.84 5.48a.42.42 0 00-.568-.152.42.42 0 00-.152.568l1.997 3.46C2.69 11.187.343 14.66 0 18.76h24c-.343-4.1-2.69-7.574-6.118-9.44z"/>
+                </svg>
+                Android
+            </a></span>
+
+            <!-- Linux / Tux (Simple Icons official path) — links to Flathub -->
+            <span class="scroll-fade-down btn-glow w-full" style="--fade-delay: 390ms;" data-platform="Linux"><a href="https://flathub.org/en/apps/net.lockbook.Lockbook" target="_blank" rel="noopener" class="btn-primary justify-center w-full gap-2">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 0 0-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.485.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.31v-.006c-.193-.214-.265-.534-.354-.913-.094-.378-.176-.772-.474-1.063-.057-.087-.14-.156-.215-.198-.046-.025-.087-.024-.131-.025-.169-.193-.477-.247-.802-.273-.42-.058-.787-.143-.99-.34-.184-.182-.302-.412-.421-.62-.111-.225-.246-.508-.485-.737a3.205 3.205 0 0 0-.467-.487c.181-.526.28-1.05.27-1.553-.018-1.073-.4-2.092-.808-3.069-.422-.978-.797-1.787-.787-2.387.014-.879.071-3.36-.71-5.59-.781-2.23-2.366-3.917-5.103-3.92z"/>
+                </svg>
+                Linux
+            </a></span>
+
+            <!-- Windows 4-pane logo -->
+            <span class="scroll-fade-down btn-glow w-full" style="--fade-delay: 470ms;" data-platform="Windows"><a href="https://github.com/lockbook/lockbook/releases/latest" target="_blank" rel="noopener" class="btn-primary justify-center w-full gap-2">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699m10.949-8.099H24V24l-13.051-1.849"/>
+                </svg>
+                Windows
+            </a></span>
+
+            <!-- Terminal prompt (matches the existing Section 2 Terminal block icon) -->
+            <span class="scroll-fade-down btn-glow w-full" style="--fade-delay: 550ms;" data-platform="Terminal"><a href="https://github.com/lockbook/lockbook/releases/latest" target="_blank" rel="noopener" class="btn-primary justify-center w-full gap-2">
+                <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <polyline points="4 17 10 11 4 5" />
+                    <line x1="12" y1="19" x2="20" y2="19" />
+                </svg>
+                Terminal
+            </a></span>
+        </div>
+
+    </div>
+</section>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════
+     LIVE EDITOR + CANVAS DEMOS
+     The WASM bundle is built from public-site/trunk via `trunk build`. It
+     mounts onto #editor-demo and #canvas-demo canvas elements above. The
+     same bundle initializes twice — once for each canvas, with a different
+     InitialScreen (Editor / Canvas) decided per-canvas by the Rust app.
+     Loading state divs (#editor-loading / #canvas-loading) are removed by
+     the WASM init code once each runner starts successfully.
+═══════════════════════════════════════════════════════════════════════ -->
+<script type="module">
+    // Prevent the "yeet to top" — eframe/egui calls focus() programmatically
+    // during canvas init and interaction handling, and the browser's default
+    // focus() behavior scrolls the focused element into view. egui's web
+    // runner creates a hidden text input for IME / keyboard handling and
+    // focuses *that*, so per-canvas overrides miss it. We patch focus
+    // globally so every focus call uses {preventScroll: true}; the browser
+    // never scrolls on focus, no jump to revert. Trade-off: focus-scrolls
+    // for accessibility navigation are also suppressed page-wide — acceptable
+    // here since there are no form fields or skip-link targets to land on.
+    const __origFocus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function(opts) {
+        return __origFocus.call(this, { preventScroll: true, ...(opts || {}) });
     };
 
-    let userPlatform = getUserPlatform();
-    
-    [...document.querySelectorAll("#download-center a")].forEach((link,i) => {
-            let platform =  i === 0 ? userPlatform : downloadHrefMap[userPlatform].others[i-1]
-            let platformObj = downloadHrefMap[platform]
-            link.textContent = link.textContent.replace(/\S+$/, platformObj.prettyName)
-            link.href = platformObj.href
+    // Terminal: fake CLI. Accepts any subcommand after `$ lockbook`, always
+    // returns the same self-aware error. The brand-voice gag IS the demo;
+    // the real CLI is on Github Releases.
+    const __termInput = document.getElementById('terminal-input');
+    const __termHistory = document.getElementById('terminal-history');
+    if (__termInput && __termHistory) {
+        const escapeHtml = s => {
+            const d = document.createElement('div');
+            d.textContent = s;
+            return d.innerHTML;
+        };
+        __termInput.addEventListener('keydown', e => {
+            if (e.key !== 'Enter') return;
+            const sub = __termInput.value.trim();
+            if (!sub) return;
+            const block = document.createElement('div');
+            block.className = 'mt-3';
+            block.innerHTML =
+                `<div>$ <span class="text-accent-fg">lockbook</span> ${escapeHtml(sub)}</div>` +
+                `<div><span class="text-chroma-red dark:text-chroma-coral">[ERROR]</span>: Developers too lazy to build a working terminal demo. Download the CLI from <a href="https://github.com/lockbook/lockbook/releases" target="_blank" rel="noopener" class="text-accent-fg underline">Github</a>.</div>`;
+            __termHistory.appendChild(block);
+            __termInput.value = '';
+            __termHistory.scrollTop = __termHistory.scrollHeight;
+        });
+    }
+
+    // OS detection — runs once on page load.
+    //  · Hero "Download" CTA updates to "Download for <OS>" with a direct
+    //    download URL (App Store / Play Store / GitHub Releases).
+    //  · The matching grid button gets .is-selected (lift + accent border).
+    //  · Terminal stays plain — it's the deliberate-choice button, not a
+    //    default any browser would resolve to.
+    //  · If nothing detects (unknown OS, headless, etc.), hero CTA stays as
+    //    "Download" scrolling to #download — graceful fallback.
+    (function() {
+        const ua = navigator.userAgent || '';
+        const platform = navigator.platform || '';
+        const touch = navigator.maxTouchPoints || 0;
+
+        const PLATFORM_URLS = {
+            macOS:   'https://github.com/lockbook/lockbook/releases/latest/download/lockbook-macos.app.zip',
+            iOS:     'https://apps.apple.com/us/app/lockbook/id1526775001',
+            Android: 'https://play.google.com/store/apps/details?id=app.lockbook',
+            Linux:   'https://flathub.org/en/apps/net.lockbook.Lockbook',
+            Windows: 'https://github.com/lockbook/lockbook/releases/latest',
+        };
+
+        let detected = null;
+        if (/iPhone|iPod/.test(ua))                                     detected = 'iOS';
+        else if (/iPad/.test(ua) || (/Mac/.test(platform) && touch > 1)) detected = 'iOS';   // iPadOS spoofs Mac
+        else if (/Mac/.test(platform) || /Mac/.test(ua))                detected = 'macOS';
+        else if (/Android/.test(ua))                                    detected = 'Android';
+        else if (/Win/.test(platform) || /Windows/.test(ua))            detected = 'Windows';
+        else if (/Linux|X11/.test(platform) || /Linux/.test(ua))        detected = 'Linux';
+
+        // Filled-brand SVGs matching the grid button icons. Stroked download
+        // arrow stays as the fallback (initial markup). macOS and iOS share
+        // the Apple glyph.
+        const APPLE_SVG   = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.05 20.28c-.98.95-2.05.8-3.08.35-1.09-.46-2.09-.48-3.24 0-1.44.62-2.2.44-3.06-.35C2.79 15.25 3.51 7.59 9.05 7.31c1.35.07 2.29.74 3.08.8 1.18-.24 2.31-.93 3.57-.84 1.51.12 2.65.72 3.4 1.8-3.12 1.87-2.38 5.98.48 7.13-.57 1.5-1.31 2.99-2.54 4.09zM12 7.25c-.15-2.23 1.66-4.07 3.74-4.25.29 2.58-2.34 4.5-3.74 4.25z"/></svg>';
+        const ANDROID_SVG = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M17.523 15.34c-.55 0-.999-.45-.999-1s.449-1 .999-1 .999.45.999 1-.449 1-.999 1zm-11.046 0c-.55 0-.999-.45-.999-1s.449-1 .999-1 .999.45.999 1-.449 1-.999 1zm11.405-6.02l1.997-3.46a.42.42 0 00-.152-.568.42.42 0 00-.568.152l-2.022 3.503A12.46 12.46 0 0012 7.85c-1.83 0-3.59.39-5.137 1.1L4.84 5.48a.42.42 0 00-.568-.152.42.42 0 00-.152.568l1.997 3.46C2.69 11.187.343 14.66 0 18.76h24c-.343-4.1-2.69-7.574-6.118-9.44z"/></svg>';
+        const LINUX_SVG   = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.504 0c-.155 0-.315.008-.48.021-4.226.333-3.105 4.807-3.17 6.298-.076 1.092-.3 1.953-1.05 3.02-.885 1.051-2.127 2.75-2.716 4.521-.278.832-.41 1.684-.287 2.489a.424.424 0 0 0-.11.135c-.26.268-.45.6-.663.839-.199.199-.485.267-.797.4-.313.136-.658.269-.864.68-.09.189-.136.394-.132.602 0 .199.027.4.055.536.058.399.116.728.04.97-.249.68-.28 1.145-.106 1.484.174.334.535.47.94.601.81.2 1.91.135 2.774.6.926.466 1.866.67 2.616.47.526-.116.97-.464 1.208-.946.587-.003 1.23-.269 2.26-.334.699-.058 1.574.267 2.577.2.025.134.063.198.114.333l.003.003c.391.778 1.113 1.132 1.884 1.071.771-.06 1.592-.536 2.257-1.306.631-.765 1.683-1.084 2.378-1.485.348-.199.629-.469.649-.853.023-.4-.2-.811-.714-1.31v-.006c-.193-.214-.265-.534-.354-.913-.094-.378-.176-.772-.474-1.063-.057-.087-.14-.156-.215-.198-.046-.025-.087-.024-.131-.025-.169-.193-.477-.247-.802-.273-.42-.058-.787-.143-.99-.34-.184-.182-.302-.412-.421-.62-.111-.225-.246-.508-.485-.737a3.205 3.205 0 0 0-.467-.487c.181-.526.28-1.05.27-1.553-.018-1.073-.4-2.092-.808-3.069-.422-.978-.797-1.787-.787-2.387.014-.879.071-3.36-.71-5.59-.781-2.23-2.366-3.917-5.103-3.92z"/></svg>';
+        const WINDOWS_SVG = '<svg class="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0 3.449L9.75 2.1v9.451H0m10.949-9.602L24 0v11.4H10.949M0 12.6h9.75v9.451L0 20.699m10.949-8.099H24V24l-13.051-1.849"/></svg>';
+        const PLATFORM_ICONS = {
+            macOS:   APPLE_SVG,
+            iOS:     APPLE_SVG,
+            Android: ANDROID_SVG,
+            Linux:   LINUX_SVG,
+            Windows: WINDOWS_SVG,
+        };
+
+        if (detected) {
+            const heroCta = document.getElementById('hero-download');
+            const heroText = document.getElementById('hero-download-text');
+            const heroIcon = document.getElementById('hero-download-icon');
+            if (heroCta) {
+                heroCta.href = PLATFORM_URLS[detected];
+                heroCta.target = '_blank';
+                heroCta.rel = 'noopener';
+            }
+            if (heroText) {
+                heroText.textContent = `Download for ${detected}`;
+            }
+            if (heroIcon && PLATFORM_ICONS[detected]) {
+                heroIcon.innerHTML = PLATFORM_ICONS[detected];
+            }
+            const gridButton = document.querySelector(`[data-platform="${detected}"]`);
+            if (gridButton) {
+                // Sky-blue glow halos the accent-color wireframe button —
+                // same hue as the hero CTA glow for cross-section rhyme.
+                // is-selected stays on the inner <a> for the accent
+                // outline, but NOT on the .btn-glow span — otherwise the
+                // glow z would be pinned at hover and real hover would
+                // have nowhere further to lift to.
+                gridButton.style.setProperty('--glow-rgb', '102 178 255');
+                gridButton.style.setProperty('--btn-z-rest', '3');
+                gridButton.style.setProperty('--btn-z-hover', '5');
+                const inner = gridButton.querySelector('a');
+                if (inner) inner.classList.add('is-selected', 'is-accent');
+            }
+        }
+    })();
+
+    import init from '/wasm/public-site.js';
+    init('/wasm/public-site_bg.wasm').catch(err => {
+        console.error('Lockbook WASM init failed:', err);
     });
-
-    [...document.querySelectorAll("#paid-download, #free-download")]
-        .forEach(link => link.href = downloadHrefMap[userPlatform].href )
- 
-    screenshotToggleBtns.find(btn => btn.dataset.platform === userPlatform).click()
-
-    document.querySelector("#nav-download").href = downloadHrefMap[userPlatform].href;
-
-  </script>
+</script>
 
 {% endblock content %}

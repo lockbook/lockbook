@@ -1,0 +1,380 @@
+{% extends "base.html" %}
+{% block title %}Type — Lockbook{% endblock %}
+
+{% block content %}
+
+<div class="max-w-6xl mx-auto px-6 lg:px-12 pt-16 pb-24">
+
+    <header class="mb-24 flex items-baseline justify-between gap-6 flex-wrap">
+        <h1 class="text-3xl font-medium tracking-tightest">Type</h1>
+        <nav class="flex gap-1.5 flex-wrap">
+            <a href="/design" class="btn-segmented">Design</a>
+            <a href="/type" class="btn-segmented is-selected">Type</a>
+        </nav>
+    </header>
+
+    <!-- ───── SPACING ───── -->
+    <section class="mb-24">
+        <div class="flex items-baseline justify-between mb-8 pb-3 border-b border-line">
+            <h2 class="text-2xl font-medium tracking-tightest">Spacing</h2>
+            <p class="font-mono text-xs text-fg-muted">tight → architectural</p>
+        </div>
+
+        <p class="text-sm text-fg-muted max-w-2xl mb-12 leading-relaxed">
+            Spacing carries half the typographic load — what shapes the type says, the silence between it accents. Nine tokens, grouped by what's being separated. Bars are rendered at the literal token width.
+        </p>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">Tight</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6 mb-12">
+            <div class="flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-1.5">Hair</p>
+                    <p class="font-mono text-xs text-fg-faint">1.5 · 6px · nav chip, bar pad</p>
+                </div>
+                <div class="w-24 shrink-0"><div class="h-1 bg-fg w-1.5"></div></div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-1.5">Cluster</p>
+                    <p class="font-mono text-xs text-fg-faint">2 · 8px · within label cells</p>
+                </div>
+                <div class="w-24 shrink-0"><div class="h-1 bg-fg w-2"></div></div>
+            </div>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">Comfortable</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6 mb-12">
+            <div class="flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-1.5">Inline</p>
+                    <p class="font-mono text-xs text-fg-faint">3 · 12px · between buttons</p>
+                </div>
+                <div class="w-24 shrink-0"><div class="h-1 bg-fg w-3"></div></div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-1.5">Compact</p>
+                    <p class="font-mono text-xs text-fg-faint">4 · 16px · short label to content</p>
+                </div>
+                <div class="w-24 shrink-0"><div class="h-1 bg-fg w-4"></div></div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-1.5">Easy</p>
+                    <p class="font-mono text-xs text-fg-faint">6 · 24px · page gutter (sm), h3→row</p>
+                </div>
+                <div class="w-24 shrink-0"><div class="h-1 bg-fg w-6"></div></div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-1.5">Roomy</p>
+                    <p class="font-mono text-xs text-fg-faint">8 · 32px · between text blocks</p>
+                </div>
+                <div class="w-24 shrink-0"><div class="h-1 bg-fg w-8"></div></div>
+            </div>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">Architectural</h3>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-6">
+            <div class="flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-1.5">Block</p>
+                    <p class="font-mono text-xs text-fg-faint">12 · 48px · column gap, page gutter (lg)</p>
+                </div>
+                <div class="w-24 shrink-0"><div class="h-1 bg-fg w-12"></div></div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-1.5">Headroom</p>
+                    <p class="font-mono text-xs text-fg-faint">16 · 64px · page-top entry</p>
+                </div>
+                <div class="w-24 shrink-0"><div class="h-1 bg-fg w-16"></div></div>
+            </div>
+            <div class="flex items-center gap-4">
+                <div class="flex-1 min-w-0">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-1.5">Section</p>
+                    <p class="font-mono text-xs text-fg-faint">24 · 96px · between sections</p>
+                </div>
+                <div class="w-24 shrink-0"><div class="h-1 bg-fg w-24"></div></div>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ───── TYPE ───── -->
+    <section class="mb-24">
+        <div class="flex items-baseline justify-between mb-8 pb-3 border-b border-line">
+            <h2 class="text-2xl font-medium tracking-tightest">Type</h2>
+            <p class="font-mono text-xs text-fg-muted">Inter + JetBrains Mono</p>
+        </div>
+
+        <p class="text-sm text-fg-muted max-w-2xl mb-24 leading-relaxed">
+            Two faces. <strong class="text-fg">Inter</strong> for prose and headings — neutral, readable at every size. <strong class="text-fg">JetBrains Mono</strong> for anything that behaves like a label — eyebrows, token values, captions. Tracking goes tight on display copy, relaxed on uppercase eyebrows.
+        </p>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">Display</h3>
+        <div class="space-y-12 mb-24">
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Hero</p>
+                    <p class="font-mono text-xs text-fg-faint">text-4xl sm:text-5xl · tracking-tightest</p>
+                </div>
+                <p class="col-span-9 text-4xl sm:text-5xl font-medium tracking-tightest leading-[1.05]">The notes app you can keep.</p>
+            </div>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">Headings</h3>
+        <div class="space-y-12 mb-24">
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Section · h2</p>
+                    <p class="font-mono text-xs text-fg-faint">text-2xl · medium · tracking-tightest</p>
+                </div>
+                <p class="col-span-9 text-2xl font-medium tracking-tightest">Buttons &amp; links</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Subsection · h3</p>
+                    <p class="font-mono text-xs text-fg-faint">font-mono text-xs uppercase · muted</p>
+                </div>
+                <p class="col-span-9 font-mono text-xs uppercase tracking-widest text-fg-muted">Spine</p>
+            </div>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">Body</h3>
+        <div class="space-y-12 mb-24">
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Lead</p>
+                    <p class="font-mono text-xs text-fg-faint">text-sm · muted · max-w-2xl</p>
+                </div>
+                <p class="col-span-9 text-sm text-fg-muted max-w-2xl leading-relaxed">Section-level explanation. A paragraph that introduces what follows, sets the framing, and reads in a single comfortable breath.</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Description</p>
+                    <p class="font-mono text-xs text-fg-faint">text-xs · muted</p>
+                </div>
+                <p class="col-span-9 text-xs text-fg-muted leading-relaxed max-w-md">Quieter notes — caption-sized prose that sits below demos or alongside labels in cell descriptions.</p>
+            </div>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">Labels</h3>
+        <div class="space-y-12">
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Section sub</p>
+                    <p class="font-mono text-xs text-fg-faint">font-mono text-xs · muted</p>
+                </div>
+                <p class="col-span-9 font-mono text-xs text-fg-muted">flat · wireframe · shared hover</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Cell eyebrow</p>
+                    <p class="font-mono text-xs text-fg-faint">font-mono text-xs uppercase · muted</p>
+                </div>
+                <p class="col-span-9 font-mono text-xs uppercase tracking-widest text-fg-muted">Flat · idle</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Mini · mono</p>
+                    <p class="font-mono text-xs text-fg-faint">font-mono text-xs · dim</p>
+                </div>
+                <div class="col-span-9 space-y-2">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-faint">Dark 6 · foreground in light mode</p>
+                    <p class="font-mono text-xs text-fg-faint">00B371</p>
+                </div>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Tag</p>
+                    <p class="font-mono text-xs text-fg-faint">text-xs · muted</p>
+                </div>
+                <p class="col-span-9 text-xs text-fg-muted">Persian Green</p>
+            </div>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6 mt-24">Icons</h3>
+        <p class="text-sm text-fg-muted max-w-2xl mb-12 leading-relaxed">
+            Line icons treated as glyphs — same family as the letterforms. Sized to text, stroked at 1.5, rendered in <code class="text-fg">currentColor</code> so they inherit the surrounding text color and any state on its parent. Muted at rest, ink on hover when interactive.
+        </p>
+
+        <div class="space-y-12">
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Quiet glyph</p>
+                    <p class="font-mono text-xs text-fg-faint">w-5 h-5 · stroke 1.5 · currentColor</p>
+                </div>
+                <div class="col-span-9 flex items-center gap-6">
+                    <button type="button" aria-label="theme" class="btn-icon">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <circle cx="12" cy="12" r="4" />
+                            <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M4.93 19.07l1.41-1.41M17.66 6.34l1.41-1.41" />
+                        </svg>
+                    </button>
+                    <button type="button" aria-label="open" class="btn-icon">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M5 12h14M13 5l7 7-7 7" />
+                        </svg>
+                    </button>
+                    <button type="button" aria-label="close" class="btn-icon">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M18 6L6 18M6 6l12 12" />
+                        </svg>
+                    </button>
+                    <button type="button" aria-label="confirm" class="btn-icon">
+                        <svg class="w-5 h-5" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                            <path d="M20 6L9 17l-5-5" />
+                        </svg>
+                    </button>
+                </div>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Inline · ink</p>
+                    <p class="font-mono text-xs text-fg-faint">w-4 h-4 · stroke 1.5 · text-fg</p>
+                </div>
+                <p class="col-span-9 flex items-center gap-2 text-fg">
+                    <svg class="w-4 h-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M5 12h14M13 5l7 7-7 7" /></svg>
+                    Following the surrounding text size, in the surrounding text color.
+                </p>
+            </div>
+        </div>
+    </section>
+
+
+    <!-- ───── BRAND TONE ───── -->
+    <section class="mb-24">
+        <div class="flex items-baseline justify-between mb-8 pb-3 border-b border-line">
+            <h2 class="text-2xl font-medium tracking-tightest">Brand tone</h2>
+            <p class="font-mono text-xs text-fg-muted">dense · easy · artful</p>
+        </div>
+
+        <p class="text-sm text-fg-muted max-w-2xl mb-24 leading-relaxed">
+            Lockbook talks like a thoughtful person, not like a product. Quiet confidence, concrete claims, warm cadence. Every sentence passes three filters before it ships.
+        </p>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">The test</h3>
+        <div class="space-y-12 mb-24">
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Dense</p>
+                    <p class="font-mono text-xs text-fg-faint">no words wasted</p>
+                </div>
+                <p class="col-span-9 text-sm text-fg leading-relaxed">If you can cut it, cut it. Compression is craft.</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Easy</p>
+                    <p class="font-mono text-xs text-fg-faint">no re-reading</p>
+                </div>
+                <p class="col-span-9 text-sm text-fg leading-relaxed">Ideas stay simple. One thought per sentence.</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Artful</p>
+                    <p class="font-mono text-xs text-fg-faint">cadence lands</p>
+                </div>
+                <p class="col-span-9 text-sm text-fg leading-relaxed">Beautifully simple, not clever. A line you'd remember.</p>
+            </div>
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">In practice</h3>
+        <p class="text-sm text-fg-muted max-w-2xl mb-12 leading-relaxed">
+            Four patterns recur: one claim per sentence, plain words over jargon, numbers before morals, situation then exits. The specimens that follow put them in product context.
+        </p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-x-12 gap-y-16 mb-24">
+
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-3">Markdown</p>
+                <h4 class="text-xl font-medium tracking-tightest leading-tight mb-3">Plain markdown, always</h4>
+                <p class="text-sm text-fg-muted leading-relaxed max-w-md">Your notes are .md files. Editable here, readable anywhere, yours forever if you leave.</p>
+            </div>
+
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-3">Canvas</p>
+                <h4 class="text-xl font-medium tracking-tightest leading-tight mb-3">Drawings and images</h4>
+                <p class="text-sm text-fg-muted leading-relaxed max-w-md">Sketch with a stylus, drop in images, embed files — stored right in your notes.</p>
+            </div>
+
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-3">Offline</p>
+                <h4 class="text-xl font-medium tracking-tightest leading-tight mb-3">Offline by default</h4>
+                <p class="text-sm text-fg-muted leading-relaxed max-w-md">Write on a plane. It syncs when you land.</p>
+            </div>
+
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-3">Sharing</p>
+                <h4 class="text-xl font-medium tracking-tightest leading-tight mb-3">Real-time collaboration</h4>
+                <p class="text-sm text-fg-muted leading-relaxed max-w-md">Share a file and edit it together, live. Everyone sees the same cursor in the same sentence.</p>
+            </div>
+
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-3">Native</p>
+                <h4 class="text-xl font-medium tracking-tightest leading-tight mb-3">Native everywhere</h4>
+                <p class="text-sm text-fg-muted leading-relaxed max-w-md">macOS, Windows, Linux, iOS, Android, and the terminal. One account, one set of files.</p>
+            </div>
+
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-3">E2EE</p>
+                <h4 class="text-xl font-medium tracking-tightest leading-tight mb-3">End-to-end encrypted</h4>
+                <p class="text-sm text-fg-muted leading-relaxed max-w-md">Keys are generated on your device. Notes are sealed before they touch the network.</p>
+            </div>
+
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-3">MIT</p>
+                <h4 class="text-xl font-medium tracking-tightest leading-tight mb-3">100% open source</h4>
+                <p class="text-sm text-fg-muted leading-relaxed max-w-md">Client and server are on GitHub. Build it yourself if you prefer.</p>
+            </div>
+
+            <div>
+                <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-3">Pricing</p>
+                <h4 class="text-xl font-medium tracking-tightest leading-tight mb-3">Be the customer, not the product</h4>
+                <p class="text-sm text-fg-muted leading-relaxed max-w-md">We sell a notes app, not your data. Details below.</p>
+            </div>
+
+        </div>
+
+        <h3 class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-6">Avoid</h3>
+        <div class="space-y-12">
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Marketing verbs</p>
+                    <p class="font-mono text-xs text-fg-faint">puffery dressed as action</p>
+                </div>
+                <p class="col-span-9 text-sm text-fg-faint leading-relaxed">unlock · leverage · reimagined · supercharge · empower · seamless</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">AI invocations</p>
+                    <p class="font-mono text-xs text-fg-faint">era-stamp without content</p>
+                </div>
+                <p class="col-span-9 text-sm text-fg-faint leading-relaxed">AI-powered · intelligent · smart · magical · agentic</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Symmetry as decoration</p>
+                    <p class="font-mono text-xs text-fg-faint">two halves, no idea</p>
+                </div>
+                <p class="col-span-9 text-sm text-fg-faint leading-relaxed">Built for you. Made for everyone.</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Exclamation</p>
+                    <p class="font-mono text-xs text-fg-faint">let the words carry it</p>
+                </div>
+                <p class="col-span-9 text-sm text-fg-faint leading-relaxed">Welcome to Lockbook! Your notes, finally safe!</p>
+            </div>
+            <div class="grid grid-cols-12 gap-12 items-start">
+                <div class="col-span-3">
+                    <p class="font-mono text-xs uppercase tracking-widest text-fg-muted mb-2">Sparkle</p>
+                    <p class="font-mono text-xs text-fg-faint">decoration, not signal</p>
+                </div>
+                <p class="col-span-9 text-sm text-fg-faint leading-relaxed">✨ 🚀 🎉 ⚡ — anything that says "look at me"</p>
+            </div>
+        </div>
+    </section>
+
+</div>
+
+{% endblock content %}
