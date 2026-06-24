@@ -48,6 +48,7 @@ class FilesListFragment :
     private var actionModeMenu: ActionMode? = null
     private var folderTransition: Animator? = null
     private var folderTransitionId = 0
+    private var previousStatusBarColor: Int? = null
 
     private var currentTab: WorkspaceTab = WorkspaceTab.welcome
     private val selectedFileIds: MutableSet<String> = mutableSetOf()

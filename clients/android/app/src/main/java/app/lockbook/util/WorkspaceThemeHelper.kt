@@ -49,7 +49,7 @@ object WorkspaceThemeHelper {
     ): WorkspaceTheme {
         val defaultTheme = Workspace.defaultTheme(darkMode) as WorkspaceTheme
         val materialPrimary =
-            context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorPrimaryFixed, R.color.md_theme_primary)
+            context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorOnPrimaryContainer, R.color.md_theme_primary)
         val materialSecondary =
             context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorSecondary, R.color.md_theme_secondary)
         val materialTertiary =
@@ -80,18 +80,18 @@ object WorkspaceThemeHelper {
                 },
             )
 
-        val renderedAccentSlots =
+        val preferenceAccentSlots =
             if (darkMode) {
-                harmonizedBright.accentColors()
+                defaultTheme.bright.accentColors()
             } else {
-                harmonizedDim.accentColors()
+                defaultTheme.dim.accentColors()
             }
         val prefs =
             pickWorkspacePreferences(
                 intArrayOf(materialPrimary, materialSecondary, materialTertiary),
-                renderedAccentSlots,
+                preferenceAccentSlots,
             )
-        val materialRoleColors =
+        val nonHarmonizedPreferenceColors =
             mapOf(
                 prefs.primary to materialPrimary,
                 prefs.secondary to materialSecondary,
@@ -104,7 +104,7 @@ object WorkspaceThemeHelper {
                     black = if (darkMode) materialSurface else materialOnSurface,
                     grey = materialOnSurfaceVariant,
                     white = if (darkMode) materialOnSurface else materialSurface,
-                ).withPaletteColors(materialRoleColors)
+                ).withPaletteColors(nonHarmonizedPreferenceColors)
 
         val bright =
             harmonizedBright
@@ -112,7 +112,7 @@ object WorkspaceThemeHelper {
                     black = materialOnSurface,
                     grey = if (darkMode) materialOnSurfaceVariant else materialSurfaceVariant,
                     white = materialSurface,
-                ).withPaletteColors(materialRoleColors)
+                ).withPaletteColors(nonHarmonizedPreferenceColors)
 
         return WorkspaceTheme(
             isDark = darkMode,
@@ -156,16 +156,16 @@ object WorkspaceThemeHelper {
 
     private fun pickWorkspacePreferences(
         materialRoles: IntArray,
-        renderedAccentSlots: List<Int>,
+        preferenceAccentSlots: List<Int>,
     ): WorkspaceThemePreferences {
         val paletteSlots =
             mutableListOf(
-                PALETTE_RED to renderedAccentSlots[0],
-                PALETTE_GREEN to renderedAccentSlots[1],
-                PALETTE_YELLOW to renderedAccentSlots[2],
-                PALETTE_BLUE to renderedAccentSlots[3],
-                PALETTE_MAGENTA to renderedAccentSlots[4],
-                PALETTE_CYAN to renderedAccentSlots[5],
+                PALETTE_RED to preferenceAccentSlots[0],
+                PALETTE_GREEN to preferenceAccentSlots[1],
+                PALETTE_YELLOW to preferenceAccentSlots[2],
+                PALETTE_BLUE to preferenceAccentSlots[3],
+                PALETTE_MAGENTA to preferenceAccentSlots[4],
+                PALETTE_CYAN to preferenceAccentSlots[5],
             )
 
         val picked =
