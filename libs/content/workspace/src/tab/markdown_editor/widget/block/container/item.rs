@@ -45,9 +45,7 @@ impl<'ast> MdRender {
         let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        // Drag-to-reorder: the marker doubles as the drag handle. The
-        // bullet/number is non-interactive, so a plain drag sense over
-        // the marker rect doesn't collide with anything.
+        // Marker doubles as drag handle (bullet/number is non-interactive).
         let drag_id = ui.id().with(("item_drag", self.node_range(node)));
         let drag_resp = ui.interact(annotation_space, drag_id, egui::Sense::drag());
         self.handle_item_drag_resp(ui, node, &drag_resp);

@@ -60,8 +60,7 @@ impl<'ast> MdRender {
                 checkbox_space = checkbox_space.expand(0.5);
             }
             self.touch_consuming_rects.push(clickable_space);
-            // Drag-to-reorder shares the checkbox's response: click
-            // toggles, drag starts a reorder (the `Sense::click_and_drag`
+            // Click toggles; drag starts a reorder (`click_and_drag`
             // above distinguishes the two).
             self.handle_item_drag_resp(ui, node, &checkbox_response);
 

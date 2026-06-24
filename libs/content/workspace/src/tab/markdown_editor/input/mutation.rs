@@ -24,16 +24,10 @@ pub struct EventState {
 }
 
 impl MdEdit {
-    /// Reorder a list item: move the unit at `section_range` to the gap
-    /// whose insertion point is `insert_offset` (drag-to-reorder
-    /// release). No-op moves do nothing.
-    ///
-    /// The move rewrites the dragged unit's sibling run as a single edit
-    /// ([`MdRender::plan_block_move`] — the positional pseudoblock
-    /// model), so separators stay in place and spacing is preserved.
-    /// The selection is applied as a *separate* batch afterward (base =
-    /// post-move) so it isn't transformed against the edit and lands on
-    /// the moved item.
+    /// Reorder a list item to the gap at `insert_offset` via
+    /// [`MdRender::plan_block_move`]. The post-move selection is
+    /// applied in a separate batch so it isn't transformed against the
+    /// edit and lands on the moved item.
     pub fn move_block(&mut self, section_range: (Grapheme, Grapheme), insert_offset: Grapheme) {
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);

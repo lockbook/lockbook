@@ -131,11 +131,8 @@ impl<'ast> MdRender {
             if block_visible || block_needed {
                 self.show_block(ui, child, top_left);
 
-                // Drag-to-reorder geometry index: only list items
-                // register, since only they grow drag handles. The
-                // parent is this container — for items, that's a
-                // `List` and its start uniquely identifies the sibling
-                // group.
+                // Index list items for drag-to-reorder; the parent
+                // `List`'s start identifies the sibling group.
                 if matches!(child.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
                 {
                     let block_rect = Rect::from_min_size(

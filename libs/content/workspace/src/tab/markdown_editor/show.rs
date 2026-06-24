@@ -184,24 +184,18 @@ impl MdEdit {
         self.draw_dragged_overlay(ui, root);
     }
 
-    /// Consume the marker's [`BlockDragAction`] for the frame: track the
-    /// in-progress drag and, on release, commit the reorder via
-    /// [`MdEdit::move_block`]. Runs before `post_render`; visuals are
-    /// drawn afterward by [`MdEdit::draw_dragged_overlay`].
+    /// Consume the marker's [`BlockDragAction`] for the frame and, on
+    /// release, commit the reorder via [`MdEdit::move_block`].
     pub(crate) fn handle_block_drag(&mut self, ui: &mut Ui) {
         use crate::tab::markdown_editor::widget::block::drag::BlockDragAction;
 
         match self.renderer.block_drag_action.take() {
             Some(BlockDragAction::Started(drag)) => {
                 self.in_progress_block_drag = Some(drag);
-                // Selection follows the drag (best effort): grabbing
-                // an item selects it, so the selection travels to the
-                // destination when the move commits. With shift held,
-                // extend the existing selection to encompass the
-                // clicked item and everything in between — lets
-                // shift-clicking markers build up a multi-item span
-                // (works through a click-that-becomes-a-tiny-drag, so
-                // even a bare click respects the modifier).
+                // Select what's being dragged so the selection follows
+                // the move. Shift extends the existing selection — works
+                // through a click-that-becomes-a-tiny-drag, so a bare
+                // shift+click respects the modifier too.
                 let shift = ui.input(|i| i.modifiers.shift);
                 let region = if shift {
                     let sel = self.renderer.buffer.current.selection;
@@ -225,34 +219,22 @@ impl MdEdit {
             }
             None => {}
         }
-        // While the drag is live, edge-scroll: pad the pointer's
-        // viewport-y by `row_height` on each side and `Reveal::Nearest`
-        // it — same pattern as drag-select's `scroll_to_cursor`, but
-        // anchored at the pointer rather than the cursor.
         if self.in_progress_block_drag.is_some() {
             self.auto_scroll_to_drag_pointer(ui);
             ui.ctx().request_repaint();
         }
     }
 
-    /// Edge-scroll the editor while a block drag is in flight. Pads the
-    /// pointer's viewport-y by `row_height` on each side and reveals
-    /// that range with [`Align::Nearest`] — when the pointer is within
-    /// `row_height` of the top or bottom, the padded rect overhangs the
-    /// edge and the scroll area moves to bring it in view. Reuses the
-    /// `Reveal::Nearest` mechanism that drag-select already uses (see
-    /// `scroll_to_cursor`), so the per-frame rate matches.
+    /// Edge-scroll while a block drag is in flight: reveal the pointer
+    /// padded by `row_height` on each side. The pointer y is clamped to
+    /// the viewport so dragging past the toolbar / window edge still
+    /// scrolls at full rate.
     fn auto_scroll_to_drag_pointer(&mut self, ui: &mut Ui) {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
         use crate::widgets::affine_scroll::{Align, Reveal};
 
         let Some(pointer) = ui.input(|i| i.pointer.latest_pos()) else { return };
         let viewport = ui.clip_rect();
-        // Clamp rather than early-return: the user might drag past the
-        // top toolbar or off the bottom of the window. Pinning
-        // `viewport_y` to the nearest edge keeps the edge-scroll going
-        // at max rate (the padded reveal range fully overhangs that
-        // edge) until they pull back in or release.
         let viewport_y = (pointer.y - viewport.min.y).clamp(0.0, viewport.height());
         let pad = self.renderer.layout.row_height;
 
@@ -277,14 +259,9 @@ impl MdEdit {
             .reveal(&content, Reveal { top, bottom }, Align::Nearest);
     }
 
-    /// While a drag is in flight: draw the drop indicator, leave an
-    /// inset gap where the item was, and render the item floating at
-    /// the pointer (a card + drop shadow with the item re-drawn on top).
-    ///
-    /// Must run *after* `post_render`: the source-hiding cover and the
-    /// floating content (painter shapes + a second glyph callback) are
-    /// submitted after the main text callback so they composite on top
-    /// — the same ordering trick `show_completions` uses.
+    /// Drop indicator + source cutout + floating card. Must run after
+    /// `post_render` so its paint and second glyph callback composite
+    /// above the main text — same ordering trick `show_completions` uses.
     pub(crate) fn draw_dragged_overlay<'a>(
         &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
     ) {
@@ -293,8 +270,7 @@ impl MdEdit {
         let theme = self.renderer.ctx.get_lb_theme();
         let primary = theme.bg().get_color(theme.prefs().primary);
 
-        // Drop-gap indicator across the dragged item's sibling column:
-        // soft-glowing rounded capsule with a hollow leading dot.
+        // Drop-gap indicator: soft capsule with a hollow leading dot.
         if let Some(gap) = self.renderer.drop_gap_for(&drag, p) {
             let (x0, x1) = self
                 .renderer
@@ -305,8 +281,7 @@ impl MdEdit {
                     (a.min(bx.rect.left()), b.max(bx.rect.right()))
                 });
             if x0 <= x1 {
-                // Start in the gutter so the dot/line isn't hidden
-                // under the block's left-edge content (markers).
+                // Start in the gutter so the dot isn't hidden by markers.
                 let x0 = x0 - self.renderer.layout.indent;
                 let y = gap.y as f32;
                 let dot = 4.0;
@@ -331,22 +306,16 @@ impl MdEdit {
         }
 
         let Some(src_rect) = self.renderer.section_rect(drag.section_range) else { return };
-        // Vertical pad on both the cutout and the card so they also
-        // hide / cover content that overflows the section's rect (a
-        // taller cursor row, code/spoiler outlines). No horizontal pad
-        // — the item's `src_rect` already spans the marker column, so
-        // the cutout matches the source's visual width exactly.
+        // Vertical pad covers content that overflows the section rect
+        // (taller cursor row, code/spoiler outlines).
         let vpad = self.renderer.layout.block_spacing / 2.0;
         let card_rect = src_rect.expand2(egui::Vec2::new(0.0, vpad));
         let hole = src_rect.expand2(egui::Vec2::new(0.0, vpad));
 
-        // Empty-slot cutout: secondary-bg fill with a soft inset
-        // shadow on the top + left edges. egui's `Shadow::as_shape`
-        // only emits outward shadows, so the trick is to place each
-        // source rect *outside* the hole with its inner edge flush
-        // against the hole boundary, then clip the painter to the
-        // hole: the blur fades from the rim inward, giving a CSS-
-        // `box-shadow: inset` look without per-frame rect stacks.
+        // Cutout with a CSS-`box-shadow: inset` on top + left edges:
+        // `Shadow::as_shape` only blurs outward, so place each source
+        // rect outside the hole, flush against it, and clip the
+        // painter — the blur fades from the rim inward.
         let radius = egui::CornerRadius::same(3);
         ui.painter()
             .rect_filled(hole, radius, theme.neutral_bg_secondary());
@@ -381,16 +350,11 @@ impl MdEdit {
             .as_shape(left_source, egui::CornerRadius::ZERO),
         );
 
-        // Floating card + drop shadow at the translated position. The
-        // translation places `src_rect.top_left` at `pointer -
-        // grab_offset`, so the grab-point stays under the pointer
-        // regardless of any scroll that happened mid-drag.
+        // Floating card translated so the grab-point stays under the
+        // pointer regardless of mid-drag scroll.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = card_rect.translate(offset);
-        // Flat canvas-island styling: a slightly-off-background fill
-        // and a thin neutral stroke, no shadow in either mode — the
-        // source cutout already signals which item is being moved.
-        // Values match `svg_editor::mod.rs`.
+        // Flat canvas-island styling; values match `svg_editor::mod.rs`.
         let card_corner = egui::CornerRadius::same(4);
         let (fill, stroke_color) = if self.renderer.dark_mode {
             (egui::Color32::from_rgb(30, 30, 30), egui::Color32::from_rgb(56, 56, 56))
@@ -405,17 +369,13 @@ impl MdEdit {
             egui::epaint::StrokeKind::Inside,
         );
 
-        // Re-draw the dragged span's items, translated. `post_render`
-        // already drained text_areas/deco_lines, so what this appends
-        // is just the floating copy; submit it as a second callback (on
-        // top). Discard the fragments/block_boxes it produces (they'd
-        // corrupt hit-testing and drop math).
+        // Re-draw the span translated; submit a second callback above
+        // the main text. Discard the fragments/block_boxes the float
+        // produces — keeping them would corrupt hit-testing.
         let frag_len = self.renderer.fragments.len();
         let box_len = self.renderer.block_boxes.len();
         let section = drag.section_range;
-        // Constituent items inside the dragged span. Each item's whole
-        // subtree paints when `show_block` walks it, so we only invoke
-        // the top-most items in the span — the others are descendants.
+        // Top-most items in the span; descendants paint via `show_block`.
         let in_span: Vec<crate::tab::markdown_editor::widget::block::drag::BlockBox> = self
             .renderer
             .block_boxes

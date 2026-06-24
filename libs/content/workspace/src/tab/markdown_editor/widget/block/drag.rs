@@ -1,12 +1,8 @@
-//! Drag-to-reorder for list items. A per-frame geometry index
-//! ([`BlockBox`]) mirrors `fragments`: cleared each frame, filled during
-//! the render DFS, read for pointer hit-testing and drop-gap math.
+//! Drag-to-reorder for list items. A per-frame [`BlockBox`] index is
+//! filled during the render DFS and read for hit-testing.
 //!
-//! v1 covers list items only (`Item` and `TaskItem`) and reorders among
-//! siblings under the same list. No reparenting. The release is a pure
-//! text op: rewrite the dragged item's sibling run with the items
-//! permuted — computed by [`MdRender::plan_block_move`] so tests can
-//! exercise it without simulating a mouse drag.
+//! Reorder is sibling-only (same parent `List`); release rewrites the
+//! sibling run as a single text op via [`MdRender::plan_block_move`].
 
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{CursorIcon, Pos2, Rect, Ui, Vec2};
@@ -14,7 +10,6 @@ use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 
-/// What a list-item marker reported this frame, for `MdEdit::show` to act on.
 #[derive(Clone, Copy, Debug)]
 pub enum BlockDragAction {
     Started(BlockDrag),
@@ -22,53 +17,37 @@ pub enum BlockDragAction {
     Released(Pos2),
 }
 
-/// One reorderable list item's geometry for the frame.
 #[derive(Clone, Copy, Debug)]
 pub struct BlockBox {
-    /// The item node's source range. Containers' children (a nested
-    /// list, more items) live inside this range — moving the item moves
-    /// them too, no separate section field required.
+    /// Item's source range (includes nested children).
     pub node_range: (Grapheme, Grapheme),
-    /// Painted extent of the item.
     pub rect: Rect,
-    /// `node_range.start` of this item's parent `List` — the sibling
-    /// group identifier. Two items are reorder siblings iff their
-    /// `parent_start` matches.
+    /// Start of the parent `List`; two items are reorder siblings iff
+    /// their `parent_start` matches.
     pub parent_start: Grapheme,
 }
 
-/// State held across frames while a list-item drag is in flight.
 #[derive(Clone, Copy, Debug)]
 pub struct BlockDrag {
-    /// The full dragged span — one item, or several selected sibling items.
+    /// Full dragged span — one item, or several selected siblings.
     pub section_range: (Grapheme, Grapheme),
-    /// The node range of the specific item whose marker was grabbed.
     pub grabbed: (Grapheme, Grapheme),
     pub parent_start: Grapheme,
-    /// Vector from the source item's top-left to the grab pointer at
-    /// grab time — scroll-invariant, unlike a stored screen-space
-    /// `origin`. Used to anchor the floating render (`pointer -
-    /// grab_offset` is the floating card's top-left, regardless of how
-    /// far the doc has scrolled since) and to position the drop
-    /// indicator.
+    /// Pointer minus the section's top-left at grab time. Scroll-
+    /// invariant, so `pointer - grab_offset` tracks the floating card.
     pub grab_offset: Vec2,
 }
 
-/// A resolved drop target within the dragged item's sibling group.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub struct DropGap {
-    /// The source offset at which the dragged item's text is inserted.
     pub insert_offset: Grapheme,
-    /// Index of the gap among the sibling group (0 = before first item).
+    /// Gap index among siblings (0 = before first item).
     pub gap_index: usize,
-    /// Y of the insertion line indicator.
     pub y: i32,
 }
 
 impl<'ast> MdRender {
-    /// Whether `node` is an `Item`/`TaskItem` belonging to a permutable
-    /// list — its parent has ≥2 item children. An only-child item
-    /// affords no reorder, so it gets no handle.
+    /// True iff `node` is an `Item`/`TaskItem` with ≥1 sibling item.
     pub fn is_reorderable_item(&self, node: &'ast AstNode<'ast>) -> bool {
         if !matches!(node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
             return false;
@@ -83,9 +62,8 @@ impl<'ast> MdRender {
             .is_some()
     }
 
-    /// The range a drag should carry: when `node` is part of a multi-item
-    /// selection, the union of the selected sibling items (guaranteed
-    /// contiguous); otherwise just `node`'s own node range.
+    /// Union of the selected sibling items including `node`, or just
+    /// `node`'s range when no multi-item selection is active.
     pub(crate) fn drag_span(&self, node: &'ast AstNode<'ast>) -> (Grapheme, Grapheme) {
         let own = self.node_range(node);
         if !self.selected_block(node) {
@@ -104,8 +82,6 @@ impl<'ast> MdRender {
         span
     }
 
-    /// Push an item box for the frame's geometry index. Called from the
-    /// render DFS for every reorderable item child.
     pub fn push_block_box(
         &mut self, node: &'ast AstNode<'ast>, rect: Rect, parent_start: Grapheme,
     ) {
@@ -114,10 +90,9 @@ impl<'ast> MdRender {
             .push(BlockBox { node_range, rect, parent_start });
     }
 
-    /// Process the marker's interaction response into a drag action and
-    /// the right cursor icon. Shared by `show_item` (bullet/ordered
-    /// marker) and `show_task_item` (checkbox response). Early-returns
-    /// for non-reorderable items (only child) and in read-only mode.
+    /// Shared by `show_item` (marker rect) and `show_task_item`
+    /// (checkbox response): translate the response into a drag action
+    /// and set the cursor icon.
     pub fn handle_item_drag_resp(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, resp: &egui::Response,
     ) {
@@ -143,16 +118,9 @@ impl<'ast> MdRender {
             let Some(parent) = node.parent() else { return };
             let parent_start = self.node_range(parent).start();
             let section_range = self.drag_span(node);
-            // Measure `grab_offset` from the *section's* top-left, not
-            // the grabbed item's. For a multi-item drag the section can
-            // span many items above the grabbed one; `draw_dragged_overlay`
-            // positions the floating card by `pointer - grab_offset`, so
-            // anchoring on the section top keeps the grabbed item under
-            // the cursor regardless of where in the run it sits.
-            // `section_rect` reads `block_boxes`, which DFS-populates top-
-            // to-bottom, so by the time the grabbed item fires
-            // `drag_started`, every other in-span item is already
-            // indexed.
+            // Anchor on the section's top-left so multi-item drags keep
+            // the grabbed item under the cursor. DFS top-to-bottom fill
+            // means every in-span box is indexed by now.
             let span_top_left = self
                 .section_rect(section_range)
                 .map(|r| r.left_top())
@@ -175,9 +143,7 @@ impl<'ast> MdRender {
         }
     }
 
-    /// Union of the painted rects of every indexed item within `span` —
-    /// the on-screen extent of what a drag moves. Valid once the frame's
-    /// geometry index is fully populated.
+    /// Union of indexed item rects within `span`.
     pub fn section_rect(&self, span: (Grapheme, Grapheme)) -> Option<Rect> {
         let mut rect: Option<Rect> = None;
         for b in &self.block_boxes {
@@ -188,14 +154,8 @@ impl<'ast> MdRender {
         rect
     }
 
-    /// The drop gap nearest the dragged item's translated top, among its
-    /// sibling group.
-    ///
-    /// Only gaps that actually move the item are offered. Dropping into
-    /// the slot the item already occupies is a no-op, so it's filtered
-    /// rather than left as a dead target. Staying within the item's own
-    /// vertical span is a cancel (returns `None`), so a small drag snaps
-    /// back.
+    /// Drop gap nearest the dragged item's translated top within its
+    /// sibling group. `None` if hovering the item's own slot (cancel).
     pub fn drop_gap_for(&self, drag: &BlockDrag, pointer: Pos2) -> Option<DropGap> {
         let mut units: Vec<BlockBox> = self
             .block_boxes
@@ -208,8 +168,7 @@ impl<'ast> MdRender {
         }
         units.sort_by_key(|b| b.node_range.start());
 
-        // The dragged span may cover several units (multi-item selection);
-        // they move as one. Find the contiguous run [lo, hi] inside it.
+        // [lo, hi] is the contiguous selected run inside `units`.
         let in_span = |u: &BlockBox| {
             u.node_range.start() >= drag.section_range.start()
                 && u.node_range.end() <= drag.section_range.end()
@@ -217,12 +176,8 @@ impl<'ast> MdRender {
         let lo = units.iter().position(in_span)?;
         let hi = units.iter().rposition(in_span)?;
 
-        // Order by handle position — the thing you're holding. Each
-        // unit's marker sits at its top (first row); the dragged run's
-        // marker floats at `pointer.y - grab_offset.y`, which is the
-        // screen-Y of the floating card's top (scroll-invariant). The
-        // run sorts before any other unit whose marker is below the
-        // floating one.
+        // Sort by handle position (the marker top) — for the dragged
+        // run that's the floating card's top.
         let dragged_handle_y = pointer.y - drag.grab_offset.y;
 
         let others: Vec<&BlockBox> = units
@@ -236,18 +191,12 @@ impl<'ast> MdRender {
             .filter(|u| u.rect.top() < dragged_handle_y)
             .count();
 
-        // `to == lo` is the run's own slot (removing it merges its
-        // neighboring gaps) — no move, snap back.
+        // `to == lo` is the run's own slot — snap back.
         if to == lo {
             return None;
         }
 
-        // Sit the indicator in the visual middle of the inter-item gap:
-        // between two neighbors that's the midpoint of prev.bottom and
-        // next.top, so for loose lists the line lands in the spacing
-        // rather than on the next item's first row. For the leading /
-        // trailing gap (no neighbor on one side) fall back to a half-
-        // `block_spacing` offset past the lone neighbor.
+        // Indicator y sits in the visual middle of the inter-item gap.
         let pad = self.layout.block_spacing / 2.0;
         let prev = to.checked_sub(1).map(|i| others[i]);
         let next = others.get(to).copied();
@@ -269,34 +218,23 @@ impl<'ast> MdRender {
     }
 }
 
-/// A planned item move as a single text edit. `moved_range` is the new
-/// selection in post-move document offsets.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct BlockMovePlan {
-    /// The contiguous run of sibling items to replace.
     pub run_range: (Grapheme, Grapheme),
-    /// The run rebuilt with the dragged item moved to its new slot.
     pub new_run: String,
-    /// The moved item's range after the edit (for selection).
+    /// Moved item's range in post-move offsets (for selection).
     pub moved_range: (Grapheme, Grapheme),
 }
 
 impl<'ast> MdRender {
-    /// Plan a sibling reorder as a positional permutation: move the
-    /// item at `section_range` to the gap at `insert_offset`, keeping
-    /// every separator in its slot. `None` for a no-op or if the item
-    /// can't be located.
-    ///
-    /// Separators are positional pseudoblocks: the run `B0 G0 B1 G1 …
-    /// Bn` is rebuilt with the items permuted and gaps `Gi` untouched.
-    /// Same-depth siblings share a line prefix, so item text moves
-    /// verbatim — no re-prefixing for v1 (reorder only, no reparent).
+    /// Plan a sibling reorder as a positional permutation: items are
+    /// permuted, separator gaps `Gi` stay in their slots. Same-depth
+    /// siblings share a line prefix, so item text moves verbatim.
+    /// `None` for a no-op or unlocatable item.
     pub fn plan_block_move(
         &self, root: &'ast AstNode<'ast>, section_range: (Grapheme, Grapheme),
         insert_offset: Grapheme,
     ) -> Option<BlockMovePlan> {
-        // Locate the first item in the span. `section_range` may cover
-        // several sibling items (multi-item selection).
         let dragged = root.descendants().find(|n| {
             matches!(n.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)) && {
                 let r = self.node_range(n);
@@ -317,8 +255,6 @@ impl<'ast> MdRender {
             return None;
         }
 
-        // The selected run [lo, hi] (one item for a single drag) moves
-        // together. The destination index `to` is in unit-space.
         let lo = units
             .iter()
             .position(|u| u.start() >= section_range.start())?;
@@ -328,7 +264,6 @@ impl<'ast> MdRender {
         }
         let to = units.iter().filter(|u| u.start() < insert_offset).count();
 
-        // Whole-line item text and the gaps between consecutive items.
         let lines = &self.bounds.source_lines;
         let block_range = |u: (Grapheme, Grapheme)| {
             let fi = self.line_idx_for_offset(u.start());
@@ -346,8 +281,7 @@ impl<'ast> MdRender {
         let run_range = (branges[0].0, branges[branges.len() - 1].1);
 
         // Collapse the selected run into a single super-item (carrying
-        // its internal gaps), so the positional permutation moves it as
-        // one. Gaps outside the run stay in their slots.
+        // its internal gaps) so it permutes as one unit.
         let mut merged = String::new();
         for i in lo..=hi {
             merged.push_str(&blocks[i]);
@@ -363,9 +297,7 @@ impl<'ast> MdRender {
         rgaps.extend(gaps[..lo].iter().cloned());
         rgaps.extend(gaps[hi..].iter().cloned());
 
-        // Map the full-unit destination into the reduced list (run
-        // collapsed to one slot at `lo`), then to the post-removal
-        // insert index.
+        // Destination in reduced-list space, then post-removal index.
         let to_reduced = if to <= lo { to } else { to - (hi - lo) };
         let to_adj = if to_reduced > lo { to_reduced - 1 } else { to_reduced };
         if to_adj == lo {
@@ -405,9 +337,8 @@ impl<'ast> MdRender {
             .unwrap_or(lines.len().saturating_sub(1))
     }
 
-    /// Index of the source line whose end is at (or contains) an
-    /// exclusive range end. A section end on a line boundary belongs to
-    /// the preceding line.
+    /// Source-line index for an exclusive range end. An end on a line
+    /// boundary belongs to the preceding line.
     fn last_line_idx_for_end(&self, end: Grapheme) -> usize {
         let lines = &self.bounds.source_lines;
         for i in (0..lines.len()).rev() {
