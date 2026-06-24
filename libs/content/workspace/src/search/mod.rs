@@ -6,6 +6,8 @@ pub struct Search {
     pub query: String,
     pub initialized: bool,
     pub executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
+    pub filters_open: bool,
+    pub scope: Option<lb_rs::Uuid>,
     dispatched_query: String,
     building: Arc<AtomicBool>,
 
@@ -66,6 +68,8 @@ impl Search {
             query: String::new(),
             initialized: false,
             executor: Arc::new(RwLock::new(None)),
+            filters_open: false,
+            scope: None,
             dispatched_query: String::new(),
             building: Arc::new(AtomicBool::new(false)),
             core: lb.clone(),
@@ -177,26 +181,39 @@ impl Search {
                         .color(theme.neutral_fg_secondary())
                         .show(ui);
 
-                    let resp = TextEdit::singleline(&mut self.query)
-                        .id(text_id)
-                        .frame(false)
-                        .hint_text(
-                            RichText::new(hint)
-                                .size(22.0)
-                                .color(theme.neutral_fg_secondary()),
-                        )
-                        .text_color(theme.neutral_fg())
-                        .font(egui::FontId::proportional(22.0))
-                        .vertical_align(egui::Align::Center)
-                        .desired_width(ui.available_width())
-                        .margin(Margin::ZERO)
-                        .show(ui)
-                        .response;
+                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                        let filter = IconButton::new(Icon::FILTER.size(18.0))
+                            .tooltip("Filters")
+                            .colored(self.filters_open)
+                            .show(ui);
+                        if filter.clicked() {
+                            self.filters_open = !self.filters_open;
+                            if !self.filters_open {
+                                self.scope = None;
+                            }
+                        }
 
-                    if !self.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
-                        self.initialized = true;
-                        resp.request_focus();
-                    }
+                        let resp = TextEdit::singleline(&mut self.query)
+                            .id(text_id)
+                            .frame(false)
+                            .hint_text(
+                                RichText::new(hint)
+                                    .size(22.0)
+                                    .color(theme.neutral_fg_secondary()),
+                            )
+                            .text_color(theme.neutral_fg())
+                            .font(egui::FontId::proportional(22.0))
+                            .vertical_align(egui::Align::Center)
+                            .desired_width(ui.available_width())
+                            .margin(Margin::ZERO)
+                            .show(ui)
+                            .response;
+
+                        if !self.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
+                            self.initialized = true;
+                            resp.request_focus();
+                        }
+                    });
                 });
 
                 // Executor selector along the bottom of the box.
@@ -211,8 +228,19 @@ impl Search {
                     ui.radio_value(&mut self.search_type, SearchType::Path, label("Filenames"));
                     ui.radio_value(&mut self.search_type, SearchType::Content, label("Contents"));
                 });
+
+                if self.filters_open {
+                    ui.add_space(8.0);
+                    self.show_filter_bar(ui);
+                }
             });
         });
+
+        if self.scope.is_some()
+            && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
+        {
+            self.scope = None;
+        }
 
         if focused {
             ui.painter().rect_stroke(
@@ -222,6 +250,25 @@ impl Search {
                 egui::epaint::StrokeKind::Inside,
             );
         }
+    }
+
+    fn show_filter_bar(&mut self, ui: &mut Ui) {
+        let theme = ui.ctx().get_lb_theme();
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing.x = 8.0;
+            ui.label(
+                RichText::new("Searching inside")
+                    .size(14.0)
+                    .color(theme.neutral_fg_secondary()),
+            );
+            let home = IconButton::new(Icon::HOME.size(16.0))
+                .tooltip("Home")
+                .colored(self.scope.is_none())
+                .show(ui);
+            if home.clicked() {
+                self.scope = None;
+            }
+        });
     }
 }
 
@@ -376,5 +423,6 @@ use crate::{
     search::{content::ContentSearch, path::PathSearch},
     tab::{ContentState, Destination, TabContent},
     theme::{icons::Icon, palette_v2::ThemeExt},
+    widgets::IconButton,
     workspace::Workspace,
 };
