@@ -54,8 +54,8 @@ impl SearchExecutor for PathSearch {
         self.kb_mode = kb_mode;
     }
 
-    fn show_result_picker(&mut self, ui: &mut egui::Ui) -> super::PickerResponse {
-        self.process_keys(ui.ctx());
+    fn show_result_picker(&mut self, ui: &mut egui::Ui, allow_kb_nav: bool) -> super::PickerResponse {
+        self.process_keys(ui.ctx(), allow_kb_nav);
 
         // Suggested docs (shown before a query is typed) don't auto-select the
         // first row the way query results do — there's no selection (and so no
@@ -214,7 +214,7 @@ impl PathSearch {
         }
     }
 
-    fn process_keys(&mut self, ctx: &Context) {
+    fn process_keys(&mut self, ctx: &Context, allow_kb_nav: bool) {
         const NUM_KEYS: [Key; 9] = [
             Key::Num1,
             Key::Num2,
@@ -231,28 +231,30 @@ impl PathSearch {
         // first arrow press lands on the first row rather than stepping past it.
         let has_selection = !self.submitted_query.is_empty() || self.interacted;
 
-        ctx.input_mut(|i| {
-            if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) {
-                self.selected = if has_selection { self.selected.saturating_add(1) } else { 0 };
-                self.interacted = true;
-                self.kb_mode = true;
-            }
-            if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
-                self.selected = if has_selection { self.selected.saturating_sub(1) } else { 0 };
-                self.interacted = true;
-                self.kb_mode = true;
-            }
-            if i.consume_key_exact(Modifiers::NONE, Key::Enter) {
-                self.activate = true;
-            }
-            for (idx, &k) in NUM_KEYS.iter().enumerate() {
-                if i.consume_key_exact(Modifiers::COMMAND, k) {
-                    self.selected = idx;
-                    self.activate = true;
+        if allow_kb_nav {
+            ctx.input_mut(|i| {
+                if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) {
+                    self.selected = if has_selection { self.selected.saturating_add(1) } else { 0 };
                     self.interacted = true;
+                    self.kb_mode = true;
                 }
-            }
-        });
+                if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
+                    self.selected = if has_selection { self.selected.saturating_sub(1) } else { 0 };
+                    self.interacted = true;
+                    self.kb_mode = true;
+                }
+                if i.consume_key_exact(Modifiers::NONE, Key::Enter) {
+                    self.activate = true;
+                }
+                for (idx, &k) in NUM_KEYS.iter().enumerate() {
+                    if i.consume_key_exact(Modifiers::COMMAND, k) {
+                        self.selected = idx;
+                        self.activate = true;
+                        self.interacted = true;
+                    }
+                }
+            });
+        }
 
         if ctx.input(|i| i.pointer.delta().length_sq() > 0.0) {
             self.kb_mode = false;

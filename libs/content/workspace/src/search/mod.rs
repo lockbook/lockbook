@@ -8,6 +8,10 @@ pub struct Search {
     pub executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
     pub filters_open: bool,
     pub scope_path: String,
+    folders: Arc<RwLock<Vec<(lb_rs::Uuid, String)>>>,
+    scope_selected: usize,
+    scope_was_focused: bool,
+    query_focused: bool,
     dispatched_query: String,
     building: Arc<AtomicBool>,
 
@@ -58,7 +62,7 @@ pub trait SearchExecutor: Send + Sync {
     /// Render the result list. `activated` is set when the user opens a result
     /// (e.g. Enter or row shortcut); `selected` tracks the highlighted row for
     /// the preview pane.
-    fn show_result_picker(&mut self, ui: &mut Ui) -> PickerResponse;
+    fn show_result_picker(&mut self, ui: &mut Ui, allow_kb_nav: bool) -> PickerResponse;
 }
 
 impl Search {
@@ -70,13 +74,31 @@ impl Search {
             executor: Arc::new(RwLock::new(None)),
             filters_open: false,
             scope_path: String::new(),
+            folders: Arc::new(RwLock::new(Vec::new())),
+            scope_selected: 0,
+            scope_was_focused: false,
+            query_focused: false,
             dispatched_query: String::new(),
             building: Arc::new(AtomicBool::new(false)),
             core: lb.clone(),
             files,
         };
         search.spawn_build(ctx);
+        search.spawn_load_folders(ctx);
         search
+    }
+
+    fn spawn_load_folders(&self, ctx: &Context) {
+        let folders = self.folders.clone();
+        let core = self.core.clone();
+        let ctx = ctx.clone();
+        thread::spawn(move || {
+            let loaded = core
+                .list_paths_with_ids(Some(Filter::FoldersOnly))
+                .unwrap_or_default();
+            *folders.write().unwrap() = loaded;
+            ctx.request_repaint();
+        });
     }
 
     fn spawn_build(&mut self, ctx: &Context) {
@@ -162,6 +184,7 @@ impl Search {
 
         let text_id = ui.id().with("search_query_input");
         let focused = ui.memory(|m| m.has_focus(text_id));
+        self.query_focused = focused;
 
         let fill =
             if focused { ui.visuals().extreme_bg_color } else { theme.neutral_bg_secondary() };
@@ -269,20 +292,96 @@ impl Search {
                 self.scope_path.clear();
             }
 
-            TextEdit::singleline(&mut self.scope_path)
+            let resp = TextEdit::singleline(&mut self.scope_path)
                 .frame(false)
-                .hint_text(
-                    RichText::new("/")
-                        .size(14.0)
-                        .color(theme.neutral_fg_secondary()),
-                )
                 .text_color(theme.neutral_fg())
                 .font(egui::FontId::proportional(14.0))
                 .vertical_align(egui::Align::Center)
                 .desired_width(ui.available_width())
                 .margin(Margin::ZERO)
-                .show(ui);
+                .show(ui)
+                .response;
+
+            if resp.changed() {
+                self.scope_selected = 0;
+            }
+            self.show_folder_dropdown(&resp);
         });
+    }
+
+    fn show_folder_dropdown(&mut self, anchor: &egui::Response) {
+        let focused = anchor.has_focus();
+        let open = focused || self.scope_was_focused;
+        self.scope_was_focused = focused;
+        if !open {
+            return;
+        }
+
+        let needle = self.scope_path.to_lowercase();
+        let matches: Vec<String> = {
+            let folders = self.folders.read().unwrap();
+            let mut matches: Vec<String> = folders
+                .iter()
+                .filter(|(_, path)| needle.is_empty() || path.to_lowercase().contains(&needle))
+                .map(|(_, path)| path.clone())
+                .collect();
+            matches.sort_by(|a, b| {
+                let depth = |p: &str| p.matches('/').count();
+                depth(a)
+                    .cmp(&depth(b))
+                    .then_with(|| a.len().cmp(&b.len()))
+                    .then_with(|| a.to_lowercase().cmp(&b.to_lowercase()))
+            });
+            matches.truncate(50);
+            matches
+        };
+        if matches.is_empty() {
+            return;
+        }
+
+        self.scope_selected = self.scope_selected.min(matches.len() - 1);
+        anchor.ctx.input_mut(|i| {
+            if i.consume_key_exact(egui::Modifiers::NONE, egui::Key::ArrowDown) {
+                self.scope_selected = (self.scope_selected + 1).min(matches.len() - 1);
+            }
+            if i.consume_key_exact(egui::Modifiers::NONE, egui::Key::ArrowUp) {
+                self.scope_selected = self.scope_selected.saturating_sub(1);
+            }
+        });
+
+        let mut chosen = None;
+        if anchor.ctx.input_mut(|i| i.consume_key_exact(egui::Modifiers::NONE, egui::Key::Enter)) {
+            chosen = matches.get(self.scope_selected).cloned();
+        }
+
+        egui::Popup::from_response(anchor)
+            .open(true)
+            .width(anchor.rect.width())
+            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
+            .show(|ui| {
+                ui.spacing_mut().item_spacing.y = 2.0;
+                egui::ScrollArea::vertical()
+                    .max_height(160.0)
+                    .show(ui, |ui| {
+                        for (idx, path) in matches.iter().enumerate() {
+                            let label = RichText::new(path).size(13.0);
+                            let row = ui.selectable_label(idx == self.scope_selected, label);
+                            if row.clicked() {
+                                chosen = Some(path.clone());
+                            }
+                            if idx == self.scope_selected {
+                                row.scroll_to_me(None);
+                            }
+                        }
+                    });
+            });
+
+        if let Some(path) = chosen {
+            self.scope_path = path;
+            self.scope_selected = 0;
+            self.scope_was_focused = false;
+            anchor.surrender_focus();
+        }
     }
 }
 
@@ -308,15 +407,17 @@ impl Workspace {
                 search.manage_executors(ui.ctx());
                 ui.add_space(16.0);
                 search.show_query_box(ui);
-                (search.executor.clone(), search.search_type)
+                (search.executor.clone(), search.search_type, search.query_focused)
             };
-            let (executor, search_type) = extracted;
+            let (executor, search_type, query_focused) = extracted;
 
             ui.add_space(10.0);
             Self::hairline(ui, true);
             ui.add_space(6.0);
 
-            if let Some((id, in_new_tab)) = self.results_and_preview(ui, &executor, search_type) {
+            if let Some((id, in_new_tab)) =
+                self.results_and_preview(ui, &executor, search_type, query_focused)
+            {
                 if self.is_folder(id) {
                     self.out.selected_file = Some(id);
                 } else if in_new_tab {
@@ -330,7 +431,7 @@ impl Workspace {
 
     fn results_and_preview(
         &mut self, ui: &mut Ui, executor: &Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
-        search_type: SearchType,
+        search_type: SearchType, allow_kb_nav: bool,
     ) -> Option<(lb_rs::Uuid, bool)> {
         const OUTER_PAD: f32 = 24.0;
         const MIN_PREVIEW_WIDTH: f32 = 720.0;
@@ -350,10 +451,9 @@ impl Workspace {
                     Vec2::new(picker_width, ui.available_height()),
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
-                        let picker = executor
-                            .try_write()
-                            .ok()
-                            .and_then(|mut guard| guard.as_mut().map(|e| e.show_result_picker(ui)));
+                        let picker = executor.try_write().ok().and_then(|mut guard| {
+                            guard.as_mut().map(|e| e.show_result_picker(ui, allow_kb_nav))
+                        });
                         match picker {
                             Some(picker) => (picker, true),
                             None => {
@@ -431,10 +531,12 @@ use std::thread;
 
 use egui::{Context, CornerRadius, Frame, Margin, RichText, TextEdit, Ui, Vec2};
 use lb_rs::blocking::Lb;
+use lb_rs::model::path_ops::Filter;
 
 use crate::{
     file_cache::FileCache,
     search::{content::ContentSearch, path::PathSearch},
+    show::InputStateExt,
     tab::{ContentState, Destination, TabContent},
     theme::{icons::Icon, palette_v2::ThemeExt},
     widgets::IconButton,
