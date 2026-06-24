@@ -22,6 +22,7 @@ pub(crate) mod doc_gen;
 mod harness;
 
 mod benches;
+mod block_drag;
 mod edit_props;
 mod folding;
 mod regressions;
