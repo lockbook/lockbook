@@ -537,7 +537,7 @@ impl MdRender {
 /// Shared by the walker (which lays the pads between the glyph and
 /// the capsule edges) and by cursor math (which backs them out so the
 /// caret beside the atom renders beside the capsule).
-const CHIP_SIDE_PAD: f32 = 0.3;
+const CHIP_SIDE_PAD: f32 = 0.5;
 
 /// Tab pixel-stop interval. Walker resolves tab advance from running
 /// x within the wrap unit (`ceil(x/stop) * stop - x`). Matches the
@@ -1901,13 +1901,41 @@ impl MdRender {
             .filter(|s| s.chip)
             .map(|s| s.source_range);
         if fragment.atomic {
-            // The caret beside a chip atom sits beside the capsule: back
-            // out the side pad between this fragment's glyph rect and the
-            // capsule edge (pads span the row, so height ≈ row height).
+            // A chip atom snaps to the *capsule's* outer edges, not the
+            // fragment's own edges. When a chip contains multiple atomic
+            // chunks — e.g. the link pill's `\u{2003}Title` produces a
+            // separate em-space chunk and title chunk, both with the
+            // same atomic source range — using `fragment.rect ± pad`
+            // would land between chunks (between favicon and text).
+            // Lookup the leading / trailing pad spacers for this chip
+            // scope and use their outer edges; the spacers always sit
+            // at chain_left and chain_right by construction.
+            if let Some(scope) = chip_scope {
+                let mid = scope.start().0 + (scope.end().0.saturating_sub(scope.start().0)) / 2;
+                let pad_x = |edge: Grapheme, take_max: bool| -> Option<f32> {
+                    self.fragments
+                        .iter()
+                        .find(|f| {
+                            matches!(f.content, FragmentContent::Spacer)
+                                && f.source_range == (edge, edge)
+                                && f.style_stack
+                                    .last()
+                                    .is_some_and(|s| s.chip && s.source_range == scope)
+                        })
+                        .map(|f| if take_max { f.rect.max.x } else { f.rect.min.x })
+                };
+                if offset.0 < mid {
+                    if let Some(x) = pad_x(scope.start(), false) {
+                        return x;
+                    }
+                } else if let Some(x) = pad_x(scope.end(), true) {
+                    return x;
+                }
+                // Pad spacers missing (shouldn't happen for chips); fall
+                // through to the rect-based snap below.
+            }
             let pad =
                 if chip_scope.is_some() { fragment.rect.height() * CHIP_SIDE_PAD } else { 0.0 };
-            // Absolute midpoint offset of the range; offsets in the first
-            // half snap to the left edge, the rest to the right edge.
             let mid = fragment.source_range.start().0
                 + (fragment
                     .source_range

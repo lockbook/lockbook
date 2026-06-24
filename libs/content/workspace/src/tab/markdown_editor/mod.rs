@@ -73,6 +73,7 @@ mod tests;
 
 pub use input::Event;
 pub use md_label::MdLabel;
+pub use widget::inline::link::LinkMeta;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::scroll_content::DocRowId;
@@ -147,6 +148,11 @@ pub struct MdRender {
     pub client: HttpClient,
     pub files: Arc<RwLock<FileCache>>,
     pub ws_seq: Arc<std::sync::atomic::AtomicU64>,
+    /// Workspace persistence handle. `None` in `empty()`/`test()` renderers
+    /// (the composer use case and unit tests); `Some` in the full editor.
+    /// Fetched link metadata writes through here so previews survive
+    /// session restarts.
+    pub persistence: Option<WsPersistentStore>,
 
     // caches
     pub layout_cache: LayoutCache,
@@ -209,6 +215,11 @@ pub struct MdEdit {
     /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
     pub link_completions: LinkCompletions,
 
+    /// Four-pill popover summoned when the cursor sits inside a link node —
+    /// lets the user step the link through Keep / Title / Small / Large.
+    pub link_preview_completions:
+        crate::tab::markdown_editor::widget::link_preview_completions::LinkPreviewCompletions,
+
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
@@ -235,6 +246,7 @@ impl MdEdit {
             file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
+            link_preview_completions: Default::default(),
             scroll_area: AffineScrollArea::new(file_id),
         }
     }
@@ -408,6 +420,7 @@ impl MdRender {
             client: Default::default(),
             files: Arc::new(RwLock::new(FileCache::empty())),
             ws_seq,
+            persistence: None,
             layout_cache: Default::default(),
             syntax: Default::default(),
             width: Default::default(),
@@ -471,6 +484,7 @@ impl MdRender {
             link_resolver: Box::new(()),
             client: Default::default(),
             files: Arc::new(RwLock::new(FileCache::empty())),
+            persistence: None,
             layout_cache: Default::default(),
             syntax: Default::default(),
             width: Default::default(),
@@ -621,6 +635,7 @@ impl Editor {
             link_resolver,
             client,
             files,
+            persistence: Some(persistence.clone()),
 
             layout_cache: Default::default(),
             syntax: Default::default(),
@@ -638,6 +653,21 @@ impl Editor {
             frame_times_idx: 0,
         };
 
+        // Seed the link-meta cache with previously persisted entries so
+        // previews paint immediately on reopen — without this we'd re-fetch
+        // every link on every cold start.
+        {
+            let mut cache = renderer.layout_cache.link_meta.borrow_mut();
+            for (url, meta) in persistence.link_meta() {
+                cache.insert(
+                    url,
+                    Arc::new(std::sync::Mutex::new(
+                        crate::tab::markdown_editor::widget::block::LinkMetaState::Loaded(meta),
+                    )),
+                );
+            }
+        }
+
         Self {
             edit: MdEdit {
                 renderer,
@@ -650,6 +680,7 @@ impl Editor {
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: Default::default(),
+                link_preview_completions: Default::default(),
                 scroll_area: AffineScrollArea::new(file_id),
             },
 

@@ -14,6 +14,15 @@ pub trait EmbedResolver {
 
     /// Increment this to signal when any return value could change.
     fn seq(&self) -> u64;
+
+    /// True if the content at `url` is fully loaded and `show` would
+    /// paint pixels rather than a loading/error placeholder. Callers
+    /// painting into very small rects (inline favicons) use this to
+    /// suppress the default 48pt placeholder — which would overflow.
+    /// Default `false` for the no-op resolver.
+    fn is_loaded(&self, _url: &str) -> bool {
+        false
+    }
 }
 
 impl EmbedResolver for () {

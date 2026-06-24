@@ -33,7 +33,7 @@ use crate::space_inspector::show::SpaceInspector;
 use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{
-    Editor as Markdown, HttpClient, MdConfig, MdPersistence, MdResources,
+    Editor as Markdown, HttpClient, LinkMeta, MdConfig, MdPersistence, MdResources,
 };
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
@@ -1251,6 +1251,11 @@ pub struct WsPresistentData {
     zoom_factor: f32,
     #[serde(default)]
     image_dims: HashMap<String, [f32; 2]>,
+    /// Fetched preview metadata (title / favicon / thumbnail URL) keyed by
+    /// destination URL. Seeded into the editor's in-memory cache on
+    /// startup so previews render on first paint without a re-fetch.
+    #[serde(default)]
+    link_meta: HashMap<String, LinkMeta>,
 }
 
 impl Default for WsPresistentData {
@@ -1265,6 +1270,7 @@ impl Default for WsPresistentData {
             landing_page: LandingPage::default(),
             zoom_factor: 1.,
             image_dims: HashMap::default(),
+            link_meta: HashMap::default(),
         }
     }
 }
@@ -1374,6 +1380,17 @@ impl WsPersistentStore {
     pub fn merge_image_dims(&self, new_dims: HashMap<String, [f32; 2]>) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.image_dims.extend(new_dims);
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn link_meta(&self) -> HashMap<String, LinkMeta> {
+        self.data.read().unwrap().link_meta.clone()
+    }
+
+    pub fn merge_link_meta(&self, new_meta: HashMap<String, LinkMeta>) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.link_meta.extend(new_meta);
         drop(data_lock);
         self.write_to_file();
     }
