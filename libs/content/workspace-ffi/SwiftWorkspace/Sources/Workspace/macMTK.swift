@@ -20,8 +20,6 @@
         var lastCursor: NSCursor = .arrow
         var cursorHidden: Bool = false
 
-        var lastLoggedWidth: CGFloat = 0
-
         var modifierEventHandle: Any?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -304,26 +302,6 @@
             reservedChromeRectInView()?.maxX ?? 0
         }
 
-        func logSidebarGeometryIfAnimating() {
-            guard bounds.width != lastLoggedWidth else { return }
-            lastLoggedWidth = bounds.width
-
-            guard let chrome = reservedChromeRectInView() else {
-                print("[sidebar-anim] viewBounds=\(bounds) reservedChrome=none (sidebar open)")
-                return
-            }
-            let scale = window?.backingScaleFactor ?? 1.0
-            let topY = bounds.height - chrome.maxY
-            let pxRect = CGRect(
-                x: chrome.minX * scale,
-                y: topY * scale,
-                width: chrome.width * scale,
-                height: chrome.height * scale
-            )
-
-            print("[sidebar-anim] viewBounds=\(bounds) reservedChrome(view, bottom-left origin)=\(chrome) reservedChrome(top-left px)=\(pxRect) tabStripInset(points)=\(tabStripInset())")
-        }
-
         public func mtkView(_: MTKView, drawableSizeWillChange size: CGSize) {
             // initially window is not set, this defaults to 1.0, initial frame comes from `init_editor`
             // we probably want a setNeedsDisplay here
@@ -350,7 +328,6 @@
             dark_mode(wsHandle, isDarkMode())
             set_scale(wsHandle, scale)
 
-            logSidebarGeometryIfAnimating()
             set_tab_strip_inset(wsHandle, Float(tabStripInset()))
 
             let output = macos_frame(wsHandle)

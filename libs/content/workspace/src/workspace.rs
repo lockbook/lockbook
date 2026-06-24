@@ -82,7 +82,7 @@ pub struct Workspace {
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
 
-    pub show_tabs: bool,              // set on mobile to hide the tab strip
+    pub show_tabs: bool, // set on mobile to hide the tab strip
     pub tab_strip_left_inset: f32,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
