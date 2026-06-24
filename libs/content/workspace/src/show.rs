@@ -265,6 +265,9 @@ impl Workspace {
 
         let cursor = ui
             .horizontal(|ui| {
+                if self.tab_strip_left_inset > 0.0 {
+                    ui.add_space(self.tab_strip_left_inset);
+                }
                 egui::Frame::default()
                     .fill(ui.ctx().style().visuals.panel_fill)
                     .show(ui, |ui| {

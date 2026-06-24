@@ -20,6 +20,8 @@
         var lastCursor: NSCursor = .arrow
         var cursorHidden: Bool = false
 
+        var lastLoggedWidth: CGFloat = 0
+
         var modifierEventHandle: Any?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -269,6 +271,59 @@
             return local
         }
 
+        func trafficLightRectInView() -> CGRect? {
+            guard let window else { return nil }
+            let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton]
+                .compactMap { window.standardWindowButton($0) }
+            guard !buttons.isEmpty else { return nil }
+            var union = CGRect.null
+            for button in buttons {
+                union = union.union(button.convert(button.bounds, to: self))
+            }
+            return union
+        }
+
+        func titlebarBandHeight() -> CGFloat {
+            guard let window, let content = window.contentView else { return 0 }
+            return content.bounds.height - window.contentLayoutRect.height
+        }
+
+        func sidebarIsCollapsed() -> Bool {
+            guard let rect = trafficLightRectInView() else { return false }
+            return rect.minX >= 0
+        }
+
+        func reservedChromeRectInView() -> CGRect? {
+            guard sidebarIsCollapsed() else { return nil }
+            let leadingWidth: CGFloat = 165
+            let band = titlebarBandHeight()
+            return CGRect(x: 0, y: bounds.height - band, width: leadingWidth, height: band)
+        }
+
+        func tabStripInset() -> CGFloat {
+            reservedChromeRectInView()?.maxX ?? 0
+        }
+
+        func logSidebarGeometryIfAnimating() {
+            guard bounds.width != lastLoggedWidth else { return }
+            lastLoggedWidth = bounds.width
+
+            guard let chrome = reservedChromeRectInView() else {
+                print("[sidebar-anim] viewBounds=\(bounds) reservedChrome=none (sidebar open)")
+                return
+            }
+            let scale = window?.backingScaleFactor ?? 1.0
+            let topY = bounds.height - chrome.maxY
+            let pxRect = CGRect(
+                x: chrome.minX * scale,
+                y: topY * scale,
+                width: chrome.width * scale,
+                height: chrome.height * scale
+            )
+
+            print("[sidebar-anim] viewBounds=\(bounds) reservedChrome(view, bottom-left origin)=\(chrome) reservedChrome(top-left px)=\(pxRect) tabStripInset(points)=\(tabStripInset())")
+        }
+
         public func mtkView(_: MTKView, drawableSizeWillChange size: CGSize) {
             // initially window is not set, this defaults to 1.0, initial frame comes from `init_editor`
             // we probably want a setNeedsDisplay here
@@ -294,6 +349,10 @@
             let scale = Float(window?.backingScaleFactor ?? 1.0)
             dark_mode(wsHandle, isDarkMode())
             set_scale(wsHandle, scale)
+
+            logSidebarGeometryIfAnimating()
+            set_tab_strip_inset(wsHandle, Float(tabStripInset()))
+
             let output = macos_frame(wsHandle)
 
             if output.selected_folder_changed {
