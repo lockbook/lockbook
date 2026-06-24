@@ -265,12 +265,15 @@ impl Workspace {
 
         let cursor = ui
             .horizontal(|ui| {
-                if self.tab_strip_left_inset > 0.0 {
-                    ui.add_space(self.tab_strip_left_inset);
-                }
                 egui::Frame::default()
                     .fill(ui.ctx().style().visuals.panel_fill)
                     .show(ui, |ui| {
+                        if self.tab_strip_min_height > 0.0 {
+                            ui.set_min_height(self.tab_strip_min_height);
+                        }
+                        if self.tab_strip_left_inset > 0.0 {
+                            ui.add_space(self.tab_strip_left_inset);
+                        }
                         if IconButton::new(Icon::ARROW_LEFT)
                             .disabled(
                                 self.current_tab
@@ -643,7 +646,13 @@ impl Workspace {
             self.ctx.get_lb_theme().neutral_bg_secondary()
         };
 
-        let tab_padding = egui::Margin::symmetric(10, 10);
+        let tab_text_height = 20.0;
+        let tab_padding = if self.tab_strip_min_height > tab_text_height + 20.0 {
+            let v = ((self.tab_strip_min_height - tab_text_height) / 2.0).round() as i8;
+            egui::Margin { left: 10, right: 10, top: v, bottom: v }
+        } else {
+            egui::Margin::symmetric(10, 10)
+        };
 
         let rename_id = egui::Id::new("rename_tab").with(t);
         let mut rename_submitted = false;

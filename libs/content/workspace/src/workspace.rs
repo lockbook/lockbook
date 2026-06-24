@@ -84,6 +84,7 @@ pub struct Workspace {
 
     pub show_tabs: bool, // set on mobile to hide the tab strip
     pub tab_strip_left_inset: f32,
+    pub tab_strip_min_height: f32,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
     // Transient state (consider removing)
@@ -146,6 +147,7 @@ impl Workspace {
 
             show_tabs,
             tab_strip_left_inset: 0.0,
+            tab_strip_min_height: 0.0,
             focused_parent: Default::default(),
 
             landing_page_first_frame: true,

@@ -20,6 +20,8 @@
         var lastCursor: NSCursor = .arrow
         var cursorHidden: Bool = false
 
+        var lastWindowBgColor: UInt32 = 0
+
         var modifierEventHandle: Any?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
@@ -302,6 +304,23 @@
             reservedChromeRectInView()?.maxX ?? 0
         }
 
+        func tabStripMinHeight() -> CGFloat {
+            titlebarBandHeight()
+        }
+
+        func syncWindowBackground() {
+            guard let wsHandle, let window else { return }
+            let packed = desired_sidebar_color(wsHandle)
+            guard packed != lastWindowBgColor else { return }
+            lastWindowBgColor = packed
+
+            let r = CGFloat((packed >> 24) & 0xFF) / 255
+            let g = CGFloat((packed >> 16) & 0xFF) / 255
+            let b = CGFloat((packed >> 8) & 0xFF) / 255
+            let a = CGFloat(packed & 0xFF) / 255
+            window.backgroundColor = NSColor(srgbRed: r, green: g, blue: b, alpha: a)
+        }
+
         public func mtkView(_: MTKView, drawableSizeWillChange size: CGSize) {
             // initially window is not set, this defaults to 1.0, initial frame comes from `init_editor`
             // we probably want a setNeedsDisplay here
@@ -329,8 +348,11 @@
             set_scale(wsHandle, scale)
 
             set_tab_strip_inset(wsHandle, Float(tabStripInset()))
+            set_tab_strip_height(wsHandle, Float(tabStripMinHeight()))
 
             let output = macos_frame(wsHandle)
+
+            syncWindowBackground()
 
             if output.selected_folder_changed {
                 let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
