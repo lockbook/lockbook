@@ -171,6 +171,33 @@ fn nested_indent_columns_are_selectable() {
     );
 }
 
+/// A sub-list indented past its marker (relative indent 1-3, the common
+/// 4-space style) captures its full marker — content doesn't begin with a
+/// leaked `* `. The exact document from the report; `own_prefix_len_item`.
+#[test]
+fn deep_indent_does_not_leak_marker() {
+    use comrak::nodes::NodeValue;
+
+    let md = "  * Lockbook\n      * Active Queue\n          * marketing\n";
+    let mut r = test_renderer(md);
+    render_frame(&mut r, 800.0, None, |_| {});
+
+    let arena = Arena::new();
+    let root = r.reparse(&arena);
+    let deepest = root
+        .descendants()
+        .filter(|n| matches!(n.data.borrow().value, NodeValue::Item(_)))
+        .max_by_key(|n| n.ancestors().count())
+        .expect("an item");
+
+    // Hidden prefix ends exactly where the item's content block begins.
+    let first_line = r.node_first_line(deepest);
+    let content_start = r.line_content(deepest, first_line).start();
+    let block_start = r.node_range(deepest.first_child().unwrap()).start();
+    assert_eq!(content_start, block_start, "leaked: {:?}", &r.buffer[(content_start, block_start)]);
+    assert_eq!(&r.buffer[r.line_content(deepest, first_line)], "marketing");
+}
+
 #[test]
 fn reveal_toggle_preserves_content_coverage() {
     // Move the cursor through every grapheme position of a doc with

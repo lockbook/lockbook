@@ -87,9 +87,11 @@ fn render_deterministic() {
 fn resize_idempotence() {
     run(resize_idempotence_check, Features::all(), 1000);
 }
+// tier_a, not all(): the table × wide-indent reveal bug (see `tier_a`) is
+// demoted out; wide-indented lists are still covered.
 #[test]
 fn drag_never_reveals() {
-    run(drag_never_reveals_check, Features::all(), 1000);
+    run(drag_never_reveals_check, Features::tier_a(), 1000);
 }
 
 // cursor hit-testing
@@ -103,10 +105,17 @@ fn cursor_x_roundtrip() {
 fn content_coverage() {
     run(content_coverage_check, Features::all(), 1000);
 }
+#[test]
+fn list_marker_fully_captured() {
+    // Clean ASCII-list corpus + wide indent (the regime the capture bug
+    // lived in; `nested_lists` doesn't carry it on its own).
+    let mut f = Features::nested_lists();
+    f.blocks.wide_list_indent = true;
+    run(list_marker_fully_captured_check, f, 1000);
+}
 
-// glyph painting — tier_b excludes complex scripts / long tokens (font-fallback
-// px drift, by design) and nested containers (columns shift under reveal); a
-// failure on tier_b is a real walker bug.
+// glyph painting — runs on tier_b (no tables / scripts / long tokens /
+// nesting, see those defs); a failure there is a real walker bug.
 #[test]
 fn glyph_in_render_area() {
     // …plus inline math off: math isn't a supported feature, so its layout
@@ -288,6 +297,54 @@ fn content_coverage_check(buf: &[u8], f: &Features) -> Result<(), &'static str> 
     let mut src = ByteSource::new(buf);
     let md = gen_doc(&mut src, f);
     content_coverage_check_md(&md)
+}
+
+/// Property: a list item captures its full structural prefix (marker +
+/// indentation), so content begins exactly where the parser places it.
+///
+/// Conservation law over one doc: the editor's per-line prefix math
+/// (`line_content`) must end where the item's first content block begins
+/// (`node_range`). A marker indented past its width leaks into the content
+/// — `line_content` starts before `node_range`; over-capture, after.
+fn list_marker_fully_captured_check(buf: &[u8], f: &Features) -> Result<(), String> {
+    use comrak::nodes::NodeValue;
+
+    let mut src = ByteSource::new(buf);
+    let md = gen_doc(&mut src, f);
+
+    let mut r = test_renderer(&md);
+    render_frame(&mut r, 800.0, None, |_| {});
+    let arena = Arena::new();
+    let root = r.reparse(&arena);
+
+    for node in root.descendants() {
+        if !matches!(node.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_)) {
+            continue;
+        }
+        // Skip items whose first block opens on a later line (e.g. a bare
+        // item holding only a sub-list): no content on the marker line.
+        let Some(child) = node.children().next() else {
+            continue;
+        };
+        let first_line = r.node_first_line(node);
+        let child_start = r.node_range(child).start();
+        if !first_line.contains(child_start, true, true) {
+            continue;
+        }
+
+        let content_start = r.line_content(node, first_line).start();
+        if content_start != child_start {
+            // `(min, max)` so the slice is valid either direction.
+            let gap = (content_start.min(child_start), content_start.max(child_start));
+            return Err(format!(
+                "item content starts at {content_start:?} but its block content begins at \
+                 {child_start:?}\nhidden prefix: {:?}\nmismatched span: {:?}\nmd (literal):\n{md}",
+                &r.buffer[r.line_prefix(node, first_line)],
+                &r.buffer[gap],
+            ));
+        }
+    }
+    Ok(())
 }
 
 /// Property: widening the viewport cannot increase rendered height.

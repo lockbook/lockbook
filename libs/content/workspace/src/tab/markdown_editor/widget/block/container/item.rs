@@ -7,7 +7,7 @@ use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{BufferExt as _, FontFamily};
 use crate::tab::markdown_editor::widget::utils::{
-    consume_indent_columns, consume_indent_columns_ceil,
+    consume_indent_columns, consume_indent_columns_ceil, leading_indent_cols_ceil,
 };
 
 use crate::theme::palette_v2::ThemeExt as _;
@@ -165,16 +165,14 @@ impl<'ast> MdRender {
         // #1, #2, or #3, then the result of indenting each line of Ls by 1-3
         // spaces (the same for each line) also constitutes a list item with the
         // same contents and attributes."
-        let indentation = {
-            let first_line = self.node_first_line(node);
-            let first_node_line = self.node_line(node, first_line);
+        let first_node_line = self.node_line(node, self.node_first_line(node));
+        let first_text = &self.buffer[first_node_line];
 
-            // 1-3 columns of relative indent before the marker. Ceil so a
-            // tab a parent level left straddling the boundary is claimed as
-            // this item's indent rather than leaking into content.
-            let text = &self.buffer[first_node_line];
-            consume_indent_columns_ceil(text, 3)
-        };
+        // 1-3 cols of relative indent before the marker; ceil claims a
+        // straddling tab as indent, not content. `indentation` (graphemes)
+        // advances the first-line prefix; `indent_cols` sizes continuations.
+        let indentation = consume_indent_columns_ceil(first_text, 3);
+        let indent_cols = leading_indent_cols_ceil(first_text, 3);
         let NodeList { padding: marker_width_including_spaces, .. } = *node_list;
         if line == self.node_first_line(node) {
             result += indentation;
@@ -236,9 +234,14 @@ impl<'ast> MdRender {
                     }
                 });
                 if has_deeper {
-                    // Claim only this level's columns (ceil keeps a
-                    // straddling tab); the deeper level takes the rest.
-                    result += consume_indent_columns_ceil(text, marker_width_including_spaces);
+                    // Claim this item's content column (relative indent +
+                    // marker) so the deeper level starts where content does;
+                    // marker width alone under-claims when source indents
+                    // wider than the marker. Ceil keeps a straddling tab.
+                    result += consume_indent_columns_ceil(
+                        text,
+                        indent_cols + marker_width_including_spaces,
+                    );
                 } else {
                     // Deepest gutter item — take the rest so content
                     // isn't over-indented.
