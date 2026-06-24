@@ -340,7 +340,7 @@ pub struct MdLayout {
 impl MdLayout {
     pub fn mobile() -> Self {
         Self {
-            margin: 45.0,
+            margin: if cfg!(target_os = "android") { 32.0 } else { 45.0 },
             max_width: 1000.0,
             inline_padding: 3.0,
             annotation_font_size: 12.0,
