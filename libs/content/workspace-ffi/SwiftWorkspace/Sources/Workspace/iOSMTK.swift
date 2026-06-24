@@ -1302,6 +1302,12 @@
             dark_mode(wsHandle, mtkView.isDarkMode())
             show_hide_tabs(wsHandle, !mtkView.isCompact())
 
+            let needsToggleInset =
+                !mtkView.isCompact() && !(mtkView.workspaceInput?.sidebarVisible ?? false)
+            set_tab_strip_inset(
+                wsHandle, Float(needsToggleInset ? iOSMTK.SIDEBAR_TOGGLE_INSET : 0)
+            )
+
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
             let overlap = max(0, mtkView.bounds.maxY - keyboardTop)
@@ -1521,6 +1527,7 @@
     public class iOSMTK: MTKView {
         public static let TAB_BAR_HEIGHT: CGFloat = 40
         public static let TITLE_BAR_HEIGHT: CGFloat = 33
+        public static let SIDEBAR_TOGGLE_INSET: CGFloat = 52
         public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
         public var wsHandle: UnsafeMutableRawPointer?

@@ -25,6 +25,8 @@ public class WorkspaceInputState: ObservableObject {
     public var coreHandle: UnsafeMutableRawPointer?
     public var wsHandle: UnsafeMutableRawPointer?
 
+    public var sidebarVisible: Bool = false
+
     public var redraw = PassthroughSubject<Void, Never>()
     public var focus = PassthroughSubject<Void, Never>()
     //    maybe make unfocus variable
