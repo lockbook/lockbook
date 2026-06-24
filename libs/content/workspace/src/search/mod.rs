@@ -7,7 +7,7 @@ pub struct Search {
     pub initialized: bool,
     pub executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
     pub filters_open: bool,
-    pub scope: Option<lb_rs::Uuid>,
+    pub scope_path: String,
     dispatched_query: String,
     building: Arc<AtomicBool>,
 
@@ -69,7 +69,7 @@ impl Search {
             initialized: false,
             executor: Arc::new(RwLock::new(None)),
             filters_open: false,
-            scope: None,
+            scope_path: String::new(),
             dispatched_query: String::new(),
             building: Arc::new(AtomicBool::new(false)),
             core: lb.clone(),
@@ -189,7 +189,7 @@ impl Search {
                         if filter.clicked() {
                             self.filters_open = !self.filters_open;
                             if !self.filters_open {
-                                self.scope = None;
+                                self.scope_path.clear();
                             }
                         }
 
@@ -236,10 +236,10 @@ impl Search {
             });
         });
 
-        if self.scope.is_some()
+        if !self.scope_path.is_empty()
             && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
         {
-            self.scope = None;
+            self.scope_path.clear();
         }
 
         if focused {
@@ -263,11 +263,25 @@ impl Search {
             );
             let home = IconButton::new(Icon::HOME.size(16.0))
                 .tooltip("Home")
-                .colored(self.scope.is_none())
+                .colored(self.scope_path.is_empty())
                 .show(ui);
             if home.clicked() {
-                self.scope = None;
+                self.scope_path.clear();
             }
+
+            TextEdit::singleline(&mut self.scope_path)
+                .frame(false)
+                .hint_text(
+                    RichText::new("/")
+                        .size(14.0)
+                        .color(theme.neutral_fg_secondary()),
+                )
+                .text_color(theme.neutral_fg())
+                .font(egui::FontId::proportional(14.0))
+                .vertical_align(egui::Align::Center)
+                .desired_width(ui.available_width())
+                .margin(Margin::ZERO)
+                .show(ui);
         });
     }
 }
