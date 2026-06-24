@@ -6,7 +6,7 @@
 //!   test below consumes them.
 //! - [`render_props`] / [`edit_props`] — the property **audit tables**. Each
 //!   `#[test]` row calls a per-corpus runner — `run` with an explicit
-//!   `Features` corpus (`all()`, `tier_b()`, …), or `run_all` / `run_simple`
+//!   `Features` corpus (`all()` ⊃ `tier_a()` ⊃ `tier_b()`, …), or `run_all` / `run_simple`
 //!   / `run_lists` / `run_quotes` / `run_raw` which name theirs — plus a seed
 //!   count; the `_check` body states the invariant. Regressions and exact-
 //!   behavior example tests live behind a banner at the bottom of each file.
@@ -22,6 +22,7 @@ pub(crate) mod doc_gen;
 mod harness;
 
 mod benches;
+mod block_drag;
 mod edit_props;
 mod folding;
 mod regressions;

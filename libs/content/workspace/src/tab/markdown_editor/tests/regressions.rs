@@ -17,6 +17,82 @@ use super::render_props::{
 
 // ── renderer ──
 
+/// Image fragments allocate exactly the image's logical size — no
+/// doubled advance or padding.
+#[test]
+fn inline_image_advance_matches_rendered_width() {
+    use crate::file_cache::FileCache;
+    use crate::resolvers::image_embed::ImageEmbedResolver;
+    use crate::widgets::image_cache::ImageCache;
+    use crate::workspace::WsPersistentStore;
+    use egui::{Color32, ColorImage, ImageData, TextureOptions};
+    use lb_rs::Uuid;
+    use std::sync::Arc;
+    use std::sync::RwLock;
+
+    let lb = super::harness::build_lb();
+    let ctx = egui::Context::default();
+    ctx.set_pixels_per_point(2.0);
+    let client = super::super::HttpClient::default();
+    let files = Arc::new(RwLock::new(FileCache::empty()));
+    let persistence = WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into());
+    let image_cache =
+        ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());
+    let image_cache_handle = image_cache.clone();
+    let file_id = Uuid::new_v4();
+    let embed = Box::new(ImageEmbedResolver::new(image_cache, file_id));
+    let url = "https://placehold.co/180x120";
+    let editor = super::super::Editor::new(
+        &format!("![]({url}) ![]({url})\n\nfollow\n"),
+        file_id,
+        None,
+        super::super::MdResources {
+            ctx: ctx.clone(),
+            core: lb,
+            persistence,
+            link_resolver: Box::new(()),
+            embeds: embed,
+            files,
+        },
+        super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
+    );
+    let mut ws = super::harness::TestEditor::from_editor(editor);
+
+    // 180×120 SVG rasterized at ppi=2 → 360×240 px texture.
+    let texture_id = {
+        let pixels = vec![Color32::WHITE; 360 * 240];
+        let image = ImageData::Color(Arc::new(ColorImage::new([360, 240], pixels)));
+        ctx.tex_manager()
+            .write()
+            .alloc("placehold_test".into(), image, TextureOptions::default())
+    };
+    image_cache_handle.complete_load(url, Ok(texture_id));
+
+    // Cursor off both images so they collapse rather than revealing.
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(80)),
+            end: Location::Grapheme(Grapheme(80)),
+        },
+    });
+    ws.enter_frame();
+    ws.enter_frame();
+
+    let images: Vec<_> = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .filter(|f| matches!(f.content, FragmentContent::Image { .. }))
+        .collect();
+    assert_eq!(images.len(), 2);
+    for f in &images {
+        assert!((f.rect.width() - 180.0).abs() < 1.0, "width: {}", f.rect.width());
+        assert!((f.rect.height() - 120.0).abs() < 1.0, "height: {}", f.rect.height());
+    }
+}
+
 #[test]
 fn image_link_no_break_opportunities_wraps() {
     // Real-world content from a user file (cb650r.md): a line
@@ -169,6 +245,33 @@ fn nested_indent_columns_are_selectable() {
         (row.last().unwrap().max.x - marker_rect.max.x).abs() < 0.5,
         "gutter columns don't reach the marker"
     );
+}
+
+/// A sub-list indented past its marker (relative indent 1-3, the common
+/// 4-space style) captures its full marker — content doesn't begin with a
+/// leaked `* `. The exact document from the report; `own_prefix_len_item`.
+#[test]
+fn deep_indent_does_not_leak_marker() {
+    use comrak::nodes::NodeValue;
+
+    let md = "  * Lockbook\n      * Active Queue\n          * marketing\n";
+    let mut r = test_renderer(md);
+    render_frame(&mut r, 800.0, None, |_| {});
+
+    let arena = Arena::new();
+    let root = r.reparse(&arena);
+    let deepest = root
+        .descendants()
+        .filter(|n| matches!(n.data.borrow().value, NodeValue::Item(_)))
+        .max_by_key(|n| n.ancestors().count())
+        .expect("an item");
+
+    // Hidden prefix ends exactly where the item's content block begins.
+    let first_line = r.node_first_line(deepest);
+    let content_start = r.line_content(deepest, first_line).start();
+    let block_start = r.node_range(deepest.first_child().unwrap()).start();
+    assert_eq!(content_start, block_start, "leaked: {:?}", &r.buffer[(content_start, block_start)]);
+    assert_eq!(&r.buffer[r.line_content(deepest, first_line)], "marketing");
 }
 
 #[test]

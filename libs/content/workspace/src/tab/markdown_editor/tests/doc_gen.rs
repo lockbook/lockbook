@@ -284,6 +284,9 @@ pub struct BlockFeatures {
     pub alert: bool,
     pub nested_containers: bool,
     pub multi_line_paragraph: bool,
+    /// Sub-lists / continuation indented 1-3 columns past the marker's
+    /// content column (valid relative indent per GFM), not flush to it
+    pub wide_list_indent: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -353,23 +356,31 @@ impl Features {
                 alert: true,
                 nested_containers: true,
                 multi_line_paragraph: true,
+                wide_list_indent: true,
             },
             document: DocumentFeatures { front_matter: true, crlf: true, empty_corner_cases: true },
         }
     }
 
-    /// [`Self::all`] minus the axes whose layout behavior is by-design
-    /// fuzzy rather than buggy — complex scripts and long unbreakable
-    /// tokens (font-fallback / wrap divergence) and container nesting
-    /// (inner columns shift under reveal). The shared corpus for the
-    /// layout-precision invariants; a failure on this set is a real bug.
-    pub fn tier_b() -> Self {
+    /// [`Self::all`] minus tables: a table in a wide-indented item mis-tiles
+    /// its row prefix (drag reveals on the leaked space), so tables stay
+    /// top-tier-only until fixed. For layout invariants needing nesting.
+    pub fn tier_a() -> Self {
         let all = Self::all();
+        Self { blocks: BlockFeatures { table: false, ..all.blocks }, ..all }
+    }
+
+    /// [`Self::tier_a`] (so also no tables) minus the by-design-fuzzy axes:
+    /// complex scripts and long unbreakable tokens (font-fallback / wrap
+    /// divergence) and container nesting (inner columns shift under reveal).
+    /// The layout-precision corpus; a failure here is a real bug.
+    pub fn tier_b() -> Self {
+        let a = Self::tier_a();
         Self {
             scripts: ScriptFeatures::default(),
-            whitespace: WhitespaceFeatures { long_token: false, id_token: false, ..all.whitespace },
-            blocks: BlockFeatures { nested_containers: false, ..all.blocks },
-            ..all
+            whitespace: WhitespaceFeatures { long_token: false, id_token: false, ..a.whitespace },
+            blocks: BlockFeatures { nested_containers: false, ..a.blocks },
+            ..a
         }
     }
 
@@ -776,10 +787,12 @@ fn gen_container_block_f(src: &mut ByteSource, f: &Features, depth: usize) -> Op
                     3 => format!("{}. ", start + i),
                     _ => format!("{}) ", start + i),
                 };
-                // CommonMark continuation indent is the marker's content
-                // column; `encode_indent` varies its spelling (spaces /
-                // tabs / mix).
-                let indent = encode_indent(marker.len(), f, src);
+                // Continuation indent is the marker's content column;
+                // `encode_indent` varies its spelling (spaces / tabs / mix).
+                // `wide_list_indent` adds 0-3 cols so sub-lists sit past it
+                // (relative indent 1-3) — still one list, not content.
+                let extra = if f.blocks.wide_list_indent { src.bias(&[4, 2, 2, 1]) } else { 0 };
+                let indent = encode_indent(marker.len() + extra, f, src);
                 let inner = gen_block_seq_f(src, f, inner_depth);
                 let body = indent_continuation(&inner, &indent);
                 out.push_str(&format!("{marker}{body}\n"));

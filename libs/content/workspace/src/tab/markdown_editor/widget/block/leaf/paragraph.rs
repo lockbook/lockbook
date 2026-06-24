@@ -1,4 +1,4 @@
-use comrak::nodes::{AstNode, NodeLink, NodeValue};
+use comrak::nodes::AstNode;
 use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt, RangeIterExt as _};
 
@@ -8,16 +8,6 @@ use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
 impl<'ast> MdRender {
     pub fn height_paragraph(&self, node: &'ast AstNode<'ast>) -> f32 {
         let mut result = 0.;
-        if !self.disable_images {
-            for descendant in node.descendants() {
-                if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
-                    let NodeLink { url, .. } = &**node_link;
-                    result += self.height_image(node, url, self.image_dims(descendant));
-                    result += self.layout.block_spacing;
-                }
-            }
-        }
-
         let last_line_idx = self.node_last_line_idx(node);
         for line_idx in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line_idx];
@@ -80,20 +70,6 @@ impl<'ast> MdRender {
         for line in self.node_lines(node).iter() {
             let line = self.bounds.source_lines[line];
             let node_line = self.node_line(node, line);
-
-            if !self.disable_images {
-                for descendant in node.descendants() {
-                    if let NodeValue::Image(node_link) = &descendant.data.borrow().value {
-                        let NodeLink { url, .. } = &**node_link;
-                        if node_line.contains_inclusive(self.node_range(descendant).start()) {
-                            let dims = self.image_dims(descendant);
-                            self.show_image_block(ui, node, top_left, url, dims);
-                            top_left.y += self.height_image(node, url, dims);
-                            top_left.y += self.layout.block_spacing;
-                        }
-                    }
-                }
-            }
 
             let line_height = self.height_paragraph_line(node, node_line);
 

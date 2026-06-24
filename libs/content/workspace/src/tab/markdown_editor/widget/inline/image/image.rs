@@ -1,11 +1,12 @@
 use std::f32;
 
 use comrak::nodes::AstNode;
-use egui::{self, Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::Grapheme;
+use egui::{self, Vec2};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
+use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{ImageSpec, Layout};
 
 impl MdRender {
     pub fn warm_images<'a>(&self, node: &'a comrak::nodes::AstNode<'a>) {
@@ -20,26 +21,6 @@ impl MdRender {
 }
 
 impl<'ast> MdRender {
-    pub fn height_image(&self, node: &'ast AstNode<'ast>, url: &str, requested: ImageDims) -> f32 {
-        let width = self.width(node);
-        let dims = self.embeds.size(url);
-        self.image_size(dims, width, requested).y
-    }
-
-    pub fn show_image_block(
-        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, url: &str,
-        requested: ImageDims,
-    ) {
-        let width = self.width(node);
-        let dims = self.embeds.size(url);
-        let size = self.image_size(dims, width, requested);
-        let padding = (width - size.x) / 2.0;
-        let image_top_left = top_left + Vec2::new(padding, 0.);
-        let rect = Rect::from_min_size(image_top_left, size);
-
-        self.embeds.show(ui, url, rect);
-    }
-
     pub fn image_size(&self, texture_size: Vec2, width: f32, requested: ImageDims) -> Vec2 {
         // Constrain the image to fit the renderer with a margin of breathing
         // room. Clamp to non-negative — when the renderer is too small to
@@ -92,14 +73,51 @@ impl<'ast> MdRender {
         }
     }
 
-    /// Inline image. Block-positioned image rendering (the actual
-    /// image-rect) lives in `show_image_block` and runs above the
-    /// paragraph line; this just contributes the inline syntax bytes
-    /// (`![alt](url)`) to the wrap layout — same logic as `layout_link`.
+    /// Logical-point size an `Image` node will render at, constrained
+    /// by its block's width and any Obsidian `|WxH` hint. `None` if
+    /// `node` isn't an `Image`, has no leaf-block ancestor, or
+    /// collapses to zero on the first frame.
+    pub fn image_logical_size(&self, node: &'ast AstNode<'ast>) -> Option<Vec2> {
+        let url = match &node.data.borrow().value {
+            comrak::nodes::NodeValue::Image(link) => link.url.clone(),
+            _ => return None,
+        };
+        let block_ancestor = node
+            .ancestors()
+            .skip(1)
+            .find(|a| a.data.borrow().value.is_leaf_block())?;
+        let width = self.width(block_ancestor);
+        let texture_size = self.embeds.size(&url);
+        let size = self.image_size(texture_size, width, self.image_dims(node));
+        (size.x > 0.0 && size.y > 0.0).then_some(size)
+    }
+
+    /// Collapsed → emit one `InlineItem::Image` covering the syntax.
+    /// Revealed / `disable_images` / multi-line / unsizable → fall
+    /// through to `layout_link` so the source bytes render for editing.
     pub fn layout_image(
         &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
     ) {
-        self.layout_link(layout, node, range);
+        let node_range = self.node_range(node);
+        let single_line = range.contains_range(&node_range, true, true);
+        let collapsed_size = (!self.disable_images && !self.node_revealed(node) && single_line)
+            .then(|| self.image_logical_size(node))
+            .flatten();
+        let Some(size) = collapsed_size else {
+            self.layout_link(layout, node, range);
+            return;
+        };
+        let url = match &node.data.borrow().value {
+            comrak::nodes::NodeValue::Image(link) => link.url.clone(),
+            _ => return,
+        };
+        layout.push_image(ImageSpec {
+            advance: size.x,
+            ascent: size.y,
+            descent: 0.0,
+            source_range: node_range,
+            url,
+        });
     }
 }
 

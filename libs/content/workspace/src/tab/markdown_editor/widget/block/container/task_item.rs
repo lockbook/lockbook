@@ -21,8 +21,13 @@ impl<'ast> MdRender {
 
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
+        // Inflated when an image sits on the first row, so the
+        // checkbox centers on the visual row.
+        let annotation_row_height = self
+            .first_content_row_height_inflated(node)
+            .unwrap_or(row_height);
 
-        let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
+        let annotation_size = Vec2 { x: self.layout.indent, y: annotation_row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         // when revealed, the raw `- [ ]` marker occupies this column instead
         if !self.reveal_line(node, first_line) {
@@ -41,7 +46,7 @@ impl<'ast> MdRender {
             let extra_height = self.layout.row_spacing / 2.;
             let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
-            let sense = if self.readonly { Sense::hover() } else { Sense::click() };
+            let sense = if self.readonly { Sense::hover() } else { Sense::click_and_drag() };
             let checkbox_response =
             // ui.id().with() instead of Id::new() so two views of the same document
             // get distinct checkbox IDs
@@ -60,6 +65,9 @@ impl<'ast> MdRender {
                 checkbox_space = checkbox_space.expand(0.5);
             }
             self.touch_consuming_rects.push(clickable_space);
+            // Click toggles; drag starts a reorder (`click_and_drag`
+            // above distinguishes the two).
+            self.handle_item_drag_resp(ui, node, &checkbox_response);
 
             let how_on = ui.ctx().animate_value_with_time(
                 checkbox_id.with("animation"),

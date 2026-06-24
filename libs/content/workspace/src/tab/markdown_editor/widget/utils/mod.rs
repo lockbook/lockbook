@@ -114,6 +114,30 @@ pub fn leading_indent_cols(text: &str) -> usize {
     cols
 }
 
+/// Width, in columns, of `text`'s leading indentation, measured until it
+/// reaches `target` columns. A space is one column; a tab advances to the
+/// next 4-column stop (CommonMark §2.2), so the width can exceed the
+/// number of characters.
+///
+/// A tab is counted whole even when it crosses `target`, so the result can
+/// overshoot: one leading tab measured against `target` 3 returns 4, not
+/// 3. (This is what "ceil" names — the partial tab rounds up to its stop.)
+pub fn leading_indent_cols_ceil(text: &str, target: usize) -> usize {
+    let mut cols = 0;
+    for c in text.chars() {
+        if cols >= target {
+            break; // measured enough indentation
+        }
+        match c {
+            ' ' => cols += 1,
+            // jump to the next tab stop: the next multiple of 4 above `cols`
+            '\t' => cols = (cols / 4 + 1) * 4,
+            _ => break, // indentation ends at the first non-whitespace
+        }
+    }
+    cols
+}
+
 impl<'ast> MdRender {
     // wrappers because I'm tired of writing ".buffer.current.segs" all the time
     pub fn offset_to_byte(&self, i: Grapheme) -> Byte {

@@ -294,12 +294,20 @@ impl MdEdit {
     }
 
     pub fn cursor_line(&self, offset: Grapheme) -> Option<[Pos2; 2]> {
+        use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
         let frag = self.renderer.fragment_at_offset(offset)?;
         let x = self.renderer.fragment_x(frag, offset);
-        let y_range = frag
-            .rect
-            .y_range()
-            .expand(self.renderer.layout.row_spacing / 2.);
+        // Image fragments span the image band; `rect.bottom()` is the
+        // row's text baseline. Caret stays text-height around it.
+        let y_range = match &frag.content {
+            FragmentContent::Image { .. } => {
+                let baseline = frag.rect.bottom();
+                let row_h = self.renderer.layout.row_height;
+                egui::Rangef::new(baseline - row_h * 0.8, baseline + row_h * 0.2)
+            }
+            _ => frag.rect.y_range(),
+        };
+        let y_range = y_range.expand(self.renderer.layout.row_spacing / 2.);
         Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
     }
 }

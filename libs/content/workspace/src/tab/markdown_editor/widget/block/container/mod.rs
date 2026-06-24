@@ -130,6 +130,18 @@ impl<'ast> MdRender {
             let block_needed = intersects_any_required(&child_range);
             if block_visible || block_needed {
                 self.show_block(ui, child, top_left);
+
+                // Index list items for drag-to-reorder; the parent
+                // `List`'s start identifies the sibling group.
+                if matches!(child.data.borrow().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
+                {
+                    let block_rect = Rect::from_min_size(
+                        top_left,
+                        egui::Vec2::new(self.width(child), child_height),
+                    );
+                    let parent_start = self.node_range(node).start();
+                    self.push_block_box(child, block_rect, parent_start);
+                }
             } else {
                 let in_buffer = top_left.y + child_height > viewport.min.y - buffer
                     && top_left.y < viewport.max.y + buffer;
@@ -869,6 +881,33 @@ impl<'ast> MdRender {
         }
 
         self.row_height(node)
+    }
+
+    /// Visual height of `node`'s first content row when an inline image
+    /// inflates it; `None` otherwise. Mirrors the wrap-layout row
+    /// metric (`max(default_ascent, max_image_height) + default_descent`)
+    /// so sibling markers can center on the actual row.
+    pub fn first_content_row_height_inflated(&self, node: &'ast AstNode<'ast>) -> Option<f32> {
+        let mut leaf = node;
+        while !leaf.data.borrow().value.contains_inlines() {
+            leaf = leaf.children().next()?;
+        }
+        let leaf_first_line = self.node_first_line(leaf);
+        let leaf_node_line = self.node_line(leaf, leaf_first_line);
+        if leaf_node_line.is_empty() || self.disable_images {
+            return None;
+        }
+        let max_image_height = leaf
+            .descendants()
+            .filter(|d| matches!(d.data.borrow().value, NodeValue::Image(_)))
+            .filter(|d| leaf_node_line.contains_range(&self.node_range(d), true, true))
+            .filter(|d| !self.node_revealed(d))
+            .filter_map(|d| self.image_logical_size(d).map(|s| s.y))
+            .fold(0.0_f32, f32::max);
+        let leaf_row_height = self.row_height(leaf);
+        let leaf_ascent = leaf_row_height * 0.8;
+        let leaf_descent = leaf_row_height * 0.2;
+        (max_image_height > leaf_ascent).then_some(max_image_height + leaf_descent)
     }
 
     // compute bounds for blocks stacked vertically
