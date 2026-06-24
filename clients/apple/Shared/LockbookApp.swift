@@ -17,6 +17,7 @@ import SwiftWorkspace
                 ContentView()
                     .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
             }
+            .windowStyle(.hiddenTitleBar)
             .commands {
                 SidebarCommands()
 
