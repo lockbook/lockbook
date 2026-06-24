@@ -225,7 +225,9 @@ impl ImageCache {
                     let file = core.get_file_by_id(id).map_err(|e| e.to_string())?;
                     file.name.ends_with(".svg")
                 } else {
-                    url.ends_with(".svg")
+                    // Servers can return SVG without a `.svg` suffix
+                    // (placehold.co's default); sniff the bytes too.
+                    url.ends_with(".svg") || bytes_look_like_svg(&image_bytes)
                 };
 
                 let image_bytes = if is_svg {
@@ -274,6 +276,23 @@ impl ImageCache {
     }
 }
 
+/// Sniff for SVG bytes — `<?xml` or `<svg` after optional BOM and
+/// leading whitespace.
+fn bytes_look_like_svg(bytes: &[u8]) -> bool {
+    let mut s = bytes;
+    if let [0xEF, 0xBB, 0xBF, rest @ ..] = s {
+        s = rest;
+    }
+    while let [first, rest @ ..] = s {
+        if first.is_ascii_whitespace() {
+            s = rest;
+        } else {
+            break;
+        }
+    }
+    s.starts_with(b"<?xml") || s.starts_with(b"<svg")
+}
+
 fn rasterize_svg(
     bytes: &[u8], is_lockbook_svg: bool, viewport_width: f32, pixels_per_point: f32,
 ) -> Result<Vec<u8>, String> {
@@ -292,8 +311,9 @@ fn rasterize_svg(
     let scale = (viewport_width / w).min(1.0) * pixels_per_point;
     let pix_w = (w * scale) as u32;
     let pix_h = (h * scale) as u32;
-    let transform =
-        if scale < 1.0 { base_transform.post_scale(scale, scale) } else { base_transform };
+    // Pixmap is `w * scale` wide; the transform must match or the SVG
+    // draws at natural size into a too-big pixmap's top-left.
+    let transform = base_transform.post_scale(scale, scale);
 
     let mut pix_map = Pixmap::new(pix_w, pix_h)
         .ok_or("failed to create pixmap")
@@ -346,4 +366,53 @@ async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, Strin
         return Err(format!("{} {}", status.as_u16(), status.canonical_reason().unwrap_or("")));
     }
     Ok(response.bytes().await.map_err(|e| e.to_string())?.to_vec())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{bytes_look_like_svg, rasterize_svg};
+
+    /// At ppi>1 the SVG fills the whole upscaled pixmap, not just a
+    /// top-left `1/ppi × 1/ppi` quadrant.
+    #[test]
+    fn svg_rasterization_fills_pixmap_at_hidpi() {
+        let svg_str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"180\" height=\"120\" viewBox=\"0 0 180 120\"><rect width=\"100%\" height=\"100%\" fill=\"#DDDDDD\"/></svg>";
+        let png = rasterize_svg(svg_str.as_bytes(), false, 1920.0, 2.0).unwrap();
+        let img = image::ImageReader::new(std::io::Cursor::new(&png))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap()
+            .to_rgba8();
+        assert_eq!(img.dimensions(), (360, 240));
+        assert!(img.get_pixel(350, 120)[3] > 0, "far-right pixel transparent");
+    }
+
+    /// Synthetic stand-in for the placehold.co/180x120 response —
+    /// rasterized at ppi=2 should yield a 360×240 PNG.
+    #[test]
+    fn placehold_co_svg_dims() {
+        let svg_str = "<svg xmlns=\"http://www.w3.org/2000/svg\" width=\"180\" height=\"120\" viewBox=\"0 0 180 120\"><rect width=\"100%\" height=\"100%\" fill=\"#DDDDDD\"/></svg>";
+        let png_bytes = rasterize_svg(svg_str.as_bytes(), false, 1920.0, 2.0).unwrap();
+        let img = image::ImageReader::new(std::io::Cursor::new(&png_bytes))
+            .with_guessed_format()
+            .unwrap()
+            .decode()
+            .unwrap();
+        assert_eq!((img.width(), img.height()), (360, 240));
+    }
+
+    #[test]
+    fn svg_byte_sniff() {
+        assert!(bytes_look_like_svg(b"<svg xmlns=\"...\"></svg>"));
+        assert!(bytes_look_like_svg(b"<?xml version=\"1.0\"?><svg/>"));
+        assert!(bytes_look_like_svg(b"   <svg/>"));
+        assert!(bytes_look_like_svg(b"\xEF\xBB\xBF<svg/>"));
+        assert!(bytes_look_like_svg(b"\xEF\xBB\xBF\n<?xml ?><svg/>"));
+        assert!(!bytes_look_like_svg(b"\x89PNG\r\n\x1a\n"));
+        assert!(!bytes_look_like_svg(b"GIF89a"));
+        assert!(!bytes_look_like_svg(b"\xFF\xD8\xFF"));
+        assert!(!bytes_look_like_svg(b""));
+        assert!(!bytes_look_like_svg(b"<html><svg/></html>"));
+    }
 }

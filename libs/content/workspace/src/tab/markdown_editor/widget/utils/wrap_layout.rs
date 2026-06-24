@@ -142,6 +142,9 @@ pub enum InlineItem {
         source_range: (Grapheme, Grapheme),
         visible_byte_range: std::ops::Range<u32>,
     },
+    /// Inline embedded content (currently images). Atomic; breaker
+    /// treats it like a `Box`.
+    Image(ImageSpec),
     /// Open an inline-box style scope.
     StyleOpen(StyleInfo),
     /// Close the most recent open. AST nesting guarantees LIFO.
@@ -149,6 +152,18 @@ pub enum InlineItem {
     /// Tags subsequent fragments until `InteractionClose`.
     InteractionOpen(egui::Id, egui::Sense),
     InteractionClose,
+}
+
+/// Inline image's painted box and source span. `advance` is the box
+/// width; the box sits `ascent` above and `descent` below the row's
+/// text baseline. `source_range` covers the full `![alt](url)` syntax.
+#[derive(Clone, Debug)]
+pub struct ImageSpec {
+    pub advance: f32,
+    pub ascent: f32,
+    pub descent: f32,
+    pub source_range: (Grapheme, Grapheme),
+    pub url: String,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -279,6 +294,8 @@ pub enum FragmentContent {
     /// No glyphs; the rect just paints bg from `style_stack`.
     /// Standalone Pad / wrap-break-glue / Break / Anchor fragments.
     Spacer,
+    /// Embedded image; paint via `MdRender::embeds.show(ui, &url, rect)`.
+    Image { url: String },
 }
 
 /// Zero-width cursor position for source bytes with no painted
@@ -337,6 +354,8 @@ enum FlowEvent {
     /// Translates to an `InlineItem::Break` at this point in the
     /// shaped stream.
     Break((Grapheme, Grapheme)),
+    /// Embedded image; translates 1:1 to `InlineItem::Image`.
+    Image(ImageSpec),
     InteractionOpen(egui::Id, egui::Sense),
     InteractionClose,
 }
@@ -412,6 +431,12 @@ impl Layout {
     pub fn push_break(&mut self, source_range: (Grapheme, Grapheme)) {
         self.events
             .push((self.visible.len(), FlowEvent::Break(source_range)));
+    }
+
+    /// Emit a pre-sized inline image at the current position.
+    pub fn push_image(&mut self, spec: ImageSpec) {
+        self.events
+            .push((self.visible.len(), FlowEvent::Image(spec)));
     }
 
     /// Open an interaction scope; fragments emitted before the matching
@@ -602,6 +627,9 @@ fn shape_to_items(
                     items.push(InlineItem::Pad { advance: pad, source_pos: scope_range.end() });
                 }
                 items.push(InlineItem::StyleClose);
+            }
+            FlowEvent::Image(spec) => {
+                items.push(InlineItem::Image(spec.clone()));
             }
             FlowEvent::Break(r) => {
                 items.push(InlineItem::Break { source_range: *r, visible_byte_range: p..p });
@@ -1191,7 +1219,7 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
         let effective_width =
             if bg_open(&scope_bg_stack) { width - 2.0 * inline_pad } else { width };
         match &items[i] {
-            InlineItem::Box { advance, .. } => {
+            InlineItem::Box { advance, .. } | InlineItem::Image(ImageSpec { advance, .. }) => {
                 let lg = if cur_width + advance > effective_width {
                     pick_wrap_point(last_whitespace_glue, last_any_glue, i, effective_width)
                 } else {
@@ -1273,11 +1301,21 @@ fn item_advance(item: &InlineItem) -> f32 {
         InlineItem::Box { advance, .. } => *advance,
         InlineItem::Glue { natural, .. } => *natural,
         InlineItem::Pad { advance, .. } => *advance,
+        InlineItem::Image(spec) => spec.advance,
         InlineItem::Break { .. }
         | InlineItem::StyleOpen(_)
         | InlineItem::StyleClose
         | InlineItem::InteractionOpen(..)
         | InlineItem::InteractionClose => 0.0,
+    }
+}
+
+/// `Some(ascent, descent)` for items that override row metrics; row
+/// `ascent`/`descent` are the max of these and the text default.
+fn item_metrics(item: &InlineItem) -> Option<(f32, f32)> {
+    match item {
+        InlineItem::Image(spec) => Some((spec.ascent, spec.descent)),
+        _ => None,
     }
 }
 
@@ -1294,14 +1332,24 @@ pub fn build_rows(
     inline_pad: f32,
 ) -> Vec<Row> {
     let mut rows: Vec<Row> = Vec::with_capacity(breaks.len().saturating_sub(1));
-    let ascent = row_height * 0.8;
-    let descent = row_height * 0.2;
+    let default_ascent = row_height * 0.8;
+    let default_descent = row_height * 0.2;
     let mut style_stack: Vec<StyleInfo> = Vec::new();
     let mut interaction_stack: Vec<(egui::Id, egui::Sense)> = Vec::new();
     let mut y_top = 0.0f32;
 
     for win in breaks.windows(2) {
         let (start, end) = (win[0], win[1]);
+        // Row baseline = `y_top + ascent`. Text fragments span the
+        // text band (`baseline ± default_*`); image fragments hang
+        // above the baseline so `image_bottom == baseline`.
+        let (ascent, descent) = items[start..end]
+            .iter()
+            .filter_map(item_metrics)
+            .fold((default_ascent, default_descent), |(a, d), (ia, id)| (a.max(ia), d.max(id)));
+        let baseline = y_top + ascent;
+        let text_top = baseline - default_ascent;
+        let text_bottom = baseline + default_descent;
         // Last item is the row's "wrap break" — its advance is
         // suppressed and its source range is excluded from
         // `row.source_range`. Exactly one item per row plays this
@@ -1340,10 +1388,8 @@ pub fn build_rows(
             .is_some_and(|s| s.format.background != egui::Color32::TRANSPARENT)
         {
             let info = style_stack.last().unwrap();
-            let rect = Rect::from_min_max(
-                Pos2::new(x, y_top),
-                Pos2::new(x + inline_pad, y_top + ascent + descent),
-            );
+            let rect =
+                Rect::from_min_max(Pos2::new(x, text_top), Pos2::new(x + inline_pad, text_bottom));
             left_pad_idx = Some(row_fragments.len());
             row_fragments.push(Fragment {
                 rect,
@@ -1360,19 +1406,16 @@ pub fn build_rows(
         for (rel_idx, it) in items[start..end].iter().enumerate() {
             let abs_idx = start + rel_idx;
             let is_wrap_break = wrap_break_idx == Some(abs_idx);
-            // Super/sub shrink glyphs to 75% of the row metric; shift
-            // the fragment rect vertically so the smaller glyph sits at
-            // the top of the row (super) or the bottom (sub). Glue/Box
-            // only — Pads and Breaks inherit full row height so
-            // surrounding pills/decorations stay aligned with siblings.
+            // Super/sub stick to text-band edges, not `ascent` extremes —
+            // an image-inflated row would otherwise drag them outward.
             let (item_y_min, item_y_max) = {
                 let f = style_stack.last().map(|s| &s.format);
-                let full = ascent + descent;
-                let small = full * 0.75;
+                let text_height = default_ascent + default_descent;
+                let small = text_height * 0.75;
                 match f {
-                    Some(f) if f.superscript => (y_top, y_top + small),
-                    Some(f) if f.subscript => (y_top + (full - small), y_top + full),
-                    _ => (y_top, y_top + full),
+                    Some(f) if f.superscript => (text_top, text_top + small),
+                    Some(f) if f.subscript => (text_bottom - small, text_bottom),
+                    _ => (text_top, text_bottom),
                 }
             };
             match it {
@@ -1475,8 +1518,8 @@ pub fn build_rows(
                 }
                 InlineItem::Pad { advance, source_pos } => {
                     let rect = Rect::from_min_max(
-                        Pos2::new(x, y_top),
-                        Pos2::new(x + advance, y_top + ascent + descent),
+                        Pos2::new(x, text_top),
+                        Pos2::new(x + advance, text_bottom),
                     );
                     row_fragments.push(Fragment {
                         rect,
@@ -1489,11 +1532,29 @@ pub fn build_rows(
                     });
                     x += advance;
                 }
-                InlineItem::Break { source_range, visible_byte_range } => {
+                InlineItem::Image(spec) => {
+                    let img_top = baseline - spec.ascent;
+                    let img_bottom = baseline + spec.descent;
                     let rect = Rect::from_min_max(
-                        Pos2::new(x, y_top),
-                        Pos2::new(x, y_top + ascent + descent),
+                        Pos2::new(x, img_top),
+                        Pos2::new(x + spec.advance, img_bottom),
                     );
+                    src_lo = src_lo.min(spec.source_range.start());
+                    src_hi = src_hi.max(spec.source_range.end());
+                    row_fragments.push(Fragment {
+                        rect,
+                        content_inset: FragmentInset::default(),
+                        source_range: spec.source_range,
+                        style_stack: style_stack.clone(),
+                        content: FragmentContent::Image { url: spec.url.clone() },
+                        atomic: true,
+                        interaction: interaction_stack.last().copied(),
+                    });
+                    x += spec.advance;
+                }
+                InlineItem::Break { source_range, visible_byte_range } => {
+                    let rect =
+                        Rect::from_min_max(Pos2::new(x, text_top), Pos2::new(x, text_bottom));
                     byte_x.push((visible_byte_range.start, x));
                     byte_x.push((visible_byte_range.end, x));
                     row_visible_lo = Some(
@@ -1550,10 +1611,8 @@ pub fn build_rows(
         {
             let info = style_stack.last().unwrap();
             let source_pos = if src_lo <= src_hi { src_hi } else { info.source_range.start() };
-            let rect = Rect::from_min_max(
-                Pos2::new(x, y_top),
-                Pos2::new(x + inline_pad, y_top + ascent + descent),
-            );
+            let rect =
+                Rect::from_min_max(Pos2::new(x, text_top), Pos2::new(x + inline_pad, text_bottom));
             row_fragments.push(Fragment {
                 rect,
                 content_inset: FragmentInset::default(),
@@ -1587,8 +1646,8 @@ pub fn build_rows(
                 anchors.push(Anchor {
                     source_range: seg.source,
                     x: anchor_x,
-                    y_top,
-                    height: ascent + descent,
+                    y_top: text_top,
+                    height: text_bottom - text_top,
                 });
             }
         }
@@ -1728,6 +1787,10 @@ impl MdRender {
                         ui.ctx(),
                         ui.clip_rect(),
                     ));
+                }
+
+                if let FragmentContent::Image { url } = &frag.content {
+                    self.embeds.show(ui, url, screen_rect);
                 }
 
                 // Collected here, painted after the text callback (#4617).

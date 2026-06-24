@@ -21,8 +21,13 @@ impl<'ast> MdRender {
 
         let first_line = self.node_first_line(node);
         let row_height = self.node_line_row_height(node, first_line);
+        // Inflated when an image sits on the first row, so the
+        // checkbox centers on the visual row.
+        let annotation_row_height = self
+            .first_content_row_height_inflated(node)
+            .unwrap_or(row_height);
 
-        let annotation_size = Vec2 { x: self.layout.indent, y: row_height };
+        let annotation_size = Vec2 { x: self.layout.indent, y: annotation_row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
         // when revealed, the raw `- [ ]` marker occupies this column instead
         if !self.reveal_line(node, first_line) {
