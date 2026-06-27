@@ -10,41 +10,6 @@ use crate::model::file::File;
 pub use content::ContentSearcher;
 pub use path::PathSearcher;
 
-/// Map each file id to all of its descendant ids (children, grandchildren, ...).
-/// Built once when an executor's index is constructed.
-pub(crate) fn build_descendants(files: &[File]) -> HashMap<Uuid, Vec<Uuid>> {
-    let parent_of: HashMap<Uuid, Uuid> = files.iter().map(|f| (f.id, f.parent)).collect();
-
-    let mut descendants: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
-    for f in files {
-        let mut node = f.id;
-        while let Some(&parent) = parent_of.get(&node) {
-            if parent == node {
-                break; // root is its own parent
-            }
-            descendants.entry(parent).or_default().push(f.id);
-            node = parent;
-        }
-    }
-
-    descendants
-}
-
-/// Resolve a filter to the set of file ids it admits (the scoped folder's
-/// descendants), or `None` when there is no filter.
-pub(crate) fn resolve_filter(
-    filter: Option<SearchFilter>, path_to_id: &HashMap<String, Uuid>,
-    descendants: &HashMap<Uuid, Vec<Uuid>>,
-) -> Option<HashSet<Uuid>> {
-    filter.map(|SearchFilter::Path(path)| {
-        path_to_id
-            .get(&path)
-            .and_then(|id| descendants.get(id))
-            .map(|ids| ids.iter().copied().collect())
-            .unwrap_or_default()
-    })
-}
-
 /// Unified search result for both path and content searches.
 #[derive(Debug, Clone, Default)]
 pub struct SearchResult {
@@ -81,4 +46,39 @@ impl Lb {
     pub async fn path_searcher(&self) -> PathSearcher {
         PathSearcher::new(self).await
     }
+}
+
+/// Map each file id to all of its descendant ids (children, grandchildren, ...).
+/// Built once when an executor's index is constructed.
+pub(crate) fn build_descendants(files: &[File]) -> HashMap<Uuid, Vec<Uuid>> {
+    let parent_of: HashMap<Uuid, Uuid> = files.iter().map(|f| (f.id, f.parent)).collect();
+
+    let mut descendants: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
+    for f in files {
+        let mut node = f.id;
+        while let Some(&parent) = parent_of.get(&node) {
+            if parent == node {
+                break; // root is its own parent
+            }
+            descendants.entry(parent).or_default().push(f.id);
+            node = parent;
+        }
+    }
+
+    descendants
+}
+
+/// Resolve a filter to the set of file ids it admits (the scoped folder's
+/// descendants), or `None` when there is no filter.
+pub(crate) fn resolve_filter(
+    filter: Option<SearchFilter>, path_to_id: &HashMap<String, Uuid>,
+    descendants: &HashMap<Uuid, Vec<Uuid>>,
+) -> Option<HashSet<Uuid>> {
+    filter.map(|SearchFilter::Path(path)| {
+        path_to_id
+            .get(&path)
+            .and_then(|id| descendants.get(id))
+            .map(|ids| ids.iter().copied().collect())
+            .unwrap_or_default()
+    })
 }
