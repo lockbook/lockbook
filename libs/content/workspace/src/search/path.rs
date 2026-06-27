@@ -49,7 +49,9 @@ impl SearchExecutor for PathSearch {
         self.kb_mode = kb_mode;
     }
 
-    fn show_result_picker(&mut self, ui: &mut egui::Ui, allow_kb_nav: bool) -> super::PickerResponse {
+    fn show_result_picker(
+        &mut self, ui: &mut egui::Ui, allow_kb_nav: bool,
+    ) -> super::PickerResponse {
         self.process_keys(ui.ctx(), allow_kb_nav);
 
         let rows = self.rows();

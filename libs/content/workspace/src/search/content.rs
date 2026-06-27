@@ -135,7 +135,9 @@ impl SearchExecutor for ContentSearch {
         self.kb_mode = kb_mode;
     }
 
-    fn show_result_picker(&mut self, ui: &mut egui::Ui, allow_kb_nav: bool) -> super::PickerResponse {
+    fn show_result_picker(
+        &mut self, ui: &mut egui::Ui, allow_kb_nav: bool,
+    ) -> super::PickerResponse {
         self.process_keys(ui.ctx(), allow_kb_nav);
 
         let results = self.searcher.results();
@@ -430,7 +432,8 @@ impl ContentSearch {
                 if i.consume_key_exact(Modifiers::NONE, Key::Enter) {
                     self.activate = true;
                 }
-                if self.focused_file.is_some() && i.consume_key_exact(Modifiers::NONE, Key::Escape) {
+                if self.focused_file.is_some() && i.consume_key_exact(Modifiers::NONE, Key::Escape)
+                {
                     self.focused_file = None;
                     self.selected = 0;
                     self.kb_mode = true;

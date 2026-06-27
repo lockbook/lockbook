@@ -123,11 +123,19 @@ impl PathSearcher {
         if self.submitted_query.is_empty() {
             let mut entries: Vec<&PathEntry> = (0..snapshot.matched_item_count())
                 .filter_map(|i| snapshot.get_matched_item(i).map(|item| item.data))
-                .filter(|e| self.filter_ids.as_ref().map_or(true, |ids| ids.contains(&e.file.id)))
+                .filter(|e| {
+                    self.filter_ids
+                        .as_ref()
+                        .map_or(true, |ids| ids.contains(&e.file.id))
+                })
                 .collect();
             entries.sort_by_key(|e| Reverse(e.file.last_modified));
-            self.results
-                .extend(entries.into_iter().take(100).map(|e| path_result(e, Vec::new())));
+            self.results.extend(
+                entries
+                    .into_iter()
+                    .take(100)
+                    .map(|e| path_result(e, Vec::new())),
+            );
             return;
         }
 

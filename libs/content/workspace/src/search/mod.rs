@@ -377,7 +377,10 @@ impl Search {
         });
 
         let mut chosen = None;
-        if anchor.ctx.input_mut(|i| i.consume_key_exact(egui::Modifiers::NONE, egui::Key::Enter)) {
+        if anchor
+            .ctx
+            .input_mut(|i| i.consume_key_exact(egui::Modifiers::NONE, egui::Key::Enter))
+        {
             chosen = matches.get(self.scope_selected).cloned();
         }
 
@@ -502,7 +505,9 @@ impl Workspace {
                     egui::Layout::top_down(egui::Align::LEFT),
                     |ui| {
                         let picker = executor.try_write().ok().and_then(|mut guard| {
-                            guard.as_mut().map(|e| e.show_result_picker(ui, allow_kb_nav))
+                            guard
+                                .as_mut()
+                                .map(|e| e.show_result_picker(ui, allow_kb_nav))
                         });
                         match picker {
                             Some(picker) => (picker, true),
