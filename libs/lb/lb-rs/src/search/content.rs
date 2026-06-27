@@ -1,8 +1,9 @@
 use super::path::split_path;
-use super::{ContentMatch, SearchResult};
+use super::{ContentMatch, SearchFilter, SearchResult, build_descendants};
 use crate::blocking::Lb;
 use crate::model::file::File;
 use std::cmp::Reverse;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
 use std::thread;
@@ -21,6 +22,9 @@ pub struct ContentSearcher {
     results: Vec<SearchResult>,
     submitted_query: String,
     build_time: Duration,
+    descendants: HashMap<Uuid, Vec<Uuid>>,
+    path_to_id: HashMap<String, Uuid>,
+    filter_ids: Option<HashSet<Uuid>>,
 }
 
 impl ContentSearcher {
@@ -28,6 +32,9 @@ impl ContentSearcher {
         let start = Instant::now();
         let metas = lb.list_metadatas().unwrap_or_default();
         let paths = Arc::new(lb.list_paths_with_ids(None).unwrap_or_default());
+
+        let descendants = build_descendants(&metas);
+        let path_to_id = paths.iter().map(|(id, path)| (path.clone(), *id)).collect();
 
         let md_files: Vec<File> = metas
             .into_iter()
@@ -93,7 +100,24 @@ impl ContentSearcher {
             results: Vec::new(),
             submitted_query: String::new(),
             build_time: start.elapsed(),
+            descendants,
+            path_to_id,
+            filter_ids: None,
         }
+    }
+
+    /// Update the active filter and refresh results for the current query.
+    pub fn update_filter(&mut self, filter: Option<SearchFilter>) {
+        self.filter_ids = filter.map(|SearchFilter::Path(path)| {
+            self.path_to_id
+                .get(&path)
+                .and_then(|id| self.descendants.get(id))
+                .map(|ids| ids.iter().copied().collect())
+                .unwrap_or_default()
+        });
+        let query = self.submitted_query.clone();
+        self.submitted_query.clear();
+        self.query(&query);
     }
 
     /// Update the search query. Results available via `results()`.
@@ -113,6 +137,12 @@ impl ContentSearcher {
         let words: Vec<&str> = query.split_whitespace().collect();
 
         for doc in &self.documents {
+            if let Some(ids) = &self.filter_ids {
+                if !ids.contains(&doc.file.id) {
+                    continue;
+                }
+            }
+
             let path = if doc.parent_path == "/" {
                 format!("/{}", doc.filename)
             } else {
@@ -133,6 +163,7 @@ impl ContentSearcher {
                     id: doc.file.id,
                     filename: doc.filename.clone(),
                     parent_path: doc.parent_path.clone(),
+                    is_folder: false,
                     path_indices: Vec::new(),
                     path_matches,
                     content_matches,

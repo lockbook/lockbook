@@ -125,6 +125,12 @@ impl SearchExecutor for ContentSearch {
         self.focused_file = None;
     }
 
+    fn update_filter(&mut self, filter: Option<lb_rs::search::SearchFilter>) {
+        self.searcher.update_filter(filter);
+        self.selected = 0;
+        self.focused_file = None;
+    }
+
     fn set_kb_mode(&mut self, kb_mode: bool) {
         self.kb_mode = kb_mode;
     }

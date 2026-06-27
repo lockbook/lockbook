@@ -216,11 +216,9 @@ impl Workspace {
                     self.ctx.clone(),
                 )))
             }
-            Destination::Search => ContentState::Open(TabContent::Search(Search::new(
-                &self.core,
-                &self.ctx,
-                self.files.clone(),
-            ))),
+            Destination::Search => {
+                ContentState::Open(TabContent::Search(Search::new(&self.core, &self.ctx)))
+            }
         };
         let now = Instant::now();
         self.tabs.insert(

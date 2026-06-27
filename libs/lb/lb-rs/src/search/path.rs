@@ -1,11 +1,14 @@
-use super::SearchResult;
+use super::{SearchFilter, SearchResult, build_descendants};
 use crate::Lb;
 use crate::model::file::File;
 use nucleo::{
     Matcher, Nucleo,
     pattern::{CaseMatching, Normalization},
 };
+use std::cmp::Reverse;
+use std::collections::{HashMap, HashSet};
 use std::sync::Arc;
+use uuid::Uuid;
 
 /// Split a path into (parent_path, filename).
 pub(crate) fn split_path(path: &str) -> (&str, &str) {
@@ -30,6 +33,9 @@ pub struct PathSearcher {
     nucleo: Nucleo<PathEntry>,
     results: Vec<SearchResult>,
     submitted_query: String,
+    descendants: HashMap<Uuid, Vec<Uuid>>,
+    path_to_id: HashMap<String, Uuid>,
+    filter_ids: Option<HashSet<Uuid>>,
 }
 
 impl PathSearcher {
@@ -59,7 +65,32 @@ impl PathSearcher {
             }
         }
 
-        Self { nucleo, results: Vec::new(), submitted_query: String::new() }
+        let descendants = build_descendants(&files);
+        let path_to_id = paths.iter().map(|(id, path)| (path.clone(), *id)).collect();
+
+        let mut searcher = Self {
+            nucleo,
+            results: Vec::new(),
+            submitted_query: String::new(),
+            descendants,
+            path_to_id,
+            filter_ids: None,
+        };
+        searcher.query("");
+        searcher
+    }
+
+    /// Update the active filter and refresh results for the current query.
+    pub fn update_filter(&mut self, filter: Option<SearchFilter>) {
+        self.filter_ids = filter.map(|SearchFilter::Path(path)| {
+            self.path_to_id
+                .get(&path)
+                .and_then(|id| self.descendants.get(id))
+                .map(|ids| ids.iter().copied().collect())
+                .unwrap_or_default()
+        });
+        let query = self.submitted_query.clone();
+        self.query(&query);
     }
 
     /// Update the search query. Results available via `results()`.
@@ -78,11 +109,39 @@ impl PathSearcher {
         // Build results
         self.results.clear();
         let snapshot = self.nucleo.snapshot();
-        let count = snapshot.matched_item_count().min(100);
+
+        if input.is_empty() {
+            let mut entries: Vec<&PathEntry> = (0..snapshot.matched_item_count())
+                .filter_map(|i| snapshot.get_matched_item(i).map(|item| item.data))
+                .filter(|e| self.filter_ids.as_ref().map_or(true, |ids| ids.contains(&e.file.id)))
+                .collect();
+            entries.sort_by_key(|e| Reverse(e.file.last_modified));
+            self.results
+                .extend(entries.into_iter().take(100).map(|e| SearchResult {
+                    id: e.file.id,
+                    filename: e.filename.clone(),
+                    parent_path: e.parent_path.clone(),
+                    is_folder: e.file.is_folder(),
+                    path_indices: Vec::new(),
+                    path_matches: Vec::new(),
+                    content_matches: Vec::new(),
+                }));
+            return;
+        }
+
         let mut matcher = Matcher::new(nucleo::Config::DEFAULT);
 
-        for i in 0..count {
+        for i in 0..snapshot.matched_item_count() {
+            if self.results.len() >= 100 {
+                break;
+            }
             if let Some(item) = snapshot.get_matched_item(i) {
+                if let Some(ids) = &self.filter_ids {
+                    if !ids.contains(&item.data.file.id) {
+                        continue;
+                    }
+                }
+
                 let mut indices = Vec::new();
                 self.nucleo.pattern.column_pattern(0).indices(
                     item.matcher_columns[0].slice(..),
@@ -94,6 +153,7 @@ impl PathSearcher {
                     id: item.data.file.id,
                     filename: item.data.filename.clone(),
                     parent_path: item.data.parent_path.clone(),
+                    is_folder: item.data.file.is_folder(),
                     path_indices: indices,
                     path_matches: Vec::new(),
                     content_matches: Vec::new(),

@@ -13,10 +13,10 @@ pub struct Search {
     scope_was_focused: bool,
     query_focused: bool,
     dispatched_query: String,
+    dispatched_filter: String,
     building: Arc<AtomicBool>,
 
     core: Lb,
-    files: Arc<RwLock<FileCache>>,
 }
 
 #[derive(Default, Eq, PartialEq, Clone, Copy)]
@@ -27,9 +27,9 @@ pub enum SearchType {
 }
 
 impl SearchType {
-    fn create_executor(&self, lb: &Lb, files: &Arc<RwLock<FileCache>>) -> Box<dyn SearchExecutor> {
+    fn create_executor(&self, lb: &Lb) -> Box<dyn SearchExecutor> {
         match self {
-            SearchType::Path => Box::new(PathSearch::new(lb, files.clone())),
+            SearchType::Path => Box::new(PathSearch::new(lb)),
             SearchType::Content => Box::new(ContentSearch::new(lb)),
         }
     }
@@ -58,6 +58,7 @@ pub struct PickerResponse {
 pub trait SearchExecutor: Send + Sync {
     fn search_type(&self) -> SearchType;
     fn handle_query(&mut self, query: &str);
+    fn update_filter(&mut self, filter: Option<SearchFilter>);
     fn set_kb_mode(&mut self, kb_mode: bool);
     /// Render the result list. `activated` is set when the user opens a result
     /// (e.g. Enter or row shortcut); `selected` tracks the highlighted row for
@@ -66,7 +67,7 @@ pub trait SearchExecutor: Send + Sync {
 }
 
 impl Search {
-    pub fn new(lb: &Lb, ctx: &Context, files: Arc<RwLock<FileCache>>) -> Search {
+    pub fn new(lb: &Lb, ctx: &Context) -> Search {
         let mut search = Search {
             search_type: SearchType::Path,
             query: String::new(),
@@ -79,9 +80,9 @@ impl Search {
             scope_was_focused: false,
             query_focused: false,
             dispatched_query: String::new(),
+            dispatched_filter: String::new(),
             building: Arc::new(AtomicBool::new(false)),
             core: lb.clone(),
-            files,
         };
         search.spawn_build(ctx);
         search.spawn_load_folders(ctx);
@@ -104,16 +105,16 @@ impl Search {
     fn spawn_build(&mut self, ctx: &Context) {
         self.building.store(true, Ordering::SeqCst);
         self.dispatched_query.clear();
+        self.dispatched_filter.clear();
 
         let executor = self.executor.clone();
         let building = self.building.clone();
         let core = self.core.clone();
-        let files = self.files.clone();
         let ctx = ctx.clone();
         let search_type = self.search_type;
         thread::spawn(move || {
             let mut guard = executor.write().unwrap();
-            *guard = Some(search_type.create_executor(&core, &files));
+            *guard = Some(search_type.create_executor(&core));
             drop(guard);
             building.store(false, Ordering::SeqCst);
             ctx.request_repaint();
@@ -150,6 +151,25 @@ impl Search {
             thread::spawn(move || {
                 if let Some(executor) = executor.write().unwrap().as_mut() {
                     executor.handle_query(&query);
+                }
+                ctx.request_repaint();
+            });
+        }
+
+        if self.scope_path != self.dispatched_filter {
+            self.dispatched_filter = self.scope_path.clone();
+
+            let filter = if self.scope_path.is_empty() {
+                None
+            } else {
+                Some(SearchFilter::Path(self.scope_path.clone()))
+            };
+
+            let executor = self.executor.clone();
+            let ctx = ctx.clone();
+            thread::spawn(move || {
+                if let Some(executor) = executor.write().unwrap().as_mut() {
+                    executor.update_filter(filter);
                 }
                 ctx.request_repaint();
             });
@@ -259,10 +279,15 @@ impl Search {
             });
         });
 
-        if !self.scope_path.is_empty()
+        if (!self.scope_path.is_empty() || !self.query.is_empty())
             && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
         {
-            self.scope_path.clear();
+            if !self.scope_path.is_empty() {
+                self.scope_path.clear();
+                self.filters_open = false;
+            } else {
+                self.query.clear();
+            }
         }
 
         if focused {
@@ -279,6 +304,7 @@ impl Search {
         let theme = ui.ctx().get_lb_theme();
         ui.horizontal(|ui| {
             ui.spacing_mut().item_spacing.x = 8.0;
+            ui.set_min_height(22.0);
             ui.label(
                 RichText::new("Searching inside")
                     .size(14.0)
@@ -419,7 +445,14 @@ impl Workspace {
                 self.results_and_preview(ui, &executor, search_type, query_focused)
             {
                 if self.is_folder(id) {
-                    self.out.selected_file = Some(id);
+                    let path = self.files.read().unwrap().path(id);
+                    if let Some(tab) = self.tabs.get_mut(&Destination::Search) {
+                        if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                            search.scope_path = path;
+                            search.query.clear();
+                            search.filters_open = true;
+                        }
+                    }
                 } else if in_new_tab {
                     self.open_file(id, false, true);
                 } else {
@@ -532,9 +565,10 @@ use std::thread;
 use egui::{Context, CornerRadius, Frame, Margin, RichText, TextEdit, Ui, Vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::model::path_ops::Filter;
+use lb_rs::search::SearchFilter;
 
 use crate::{
-    file_cache::FileCache,
+    file_cache::FilesExt,
     search::{content::ContentSearch, path::PathSearch},
     show::InputStateExt,
     tab::{ContentState, Destination, TabContent},
