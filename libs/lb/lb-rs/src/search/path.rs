@@ -29,6 +29,18 @@ struct PathEntry {
     parent_path: String,
 }
 
+fn path_result(entry: &PathEntry, path_indices: Vec<u32>) -> SearchResult {
+    SearchResult {
+        id: entry.file.id,
+        filename: entry.filename.clone(),
+        parent_path: entry.parent_path.clone(),
+        is_folder: entry.file.is_folder(),
+        path_indices,
+        path_matches: Vec::new(),
+        content_matches: Vec::new(),
+    }
+}
+
 pub struct PathSearcher {
     nucleo: Nucleo<PathEntry>,
     results: Vec<SearchResult>,
@@ -82,15 +94,8 @@ impl PathSearcher {
 
     /// Update the active filter and refresh results for the current query.
     pub fn update_filter(&mut self, filter: Option<SearchFilter>) {
-        self.filter_ids = filter.map(|SearchFilter::Path(path)| {
-            self.path_to_id
-                .get(&path)
-                .and_then(|id| self.descendants.get(id))
-                .map(|ids| ids.iter().copied().collect())
-                .unwrap_or_default()
-        });
-        let query = self.submitted_query.clone();
-        self.query(&query);
+        self.filter_ids = super::resolve_filter(filter, &self.path_to_id, &self.descendants);
+        self.rebuild();
     }
 
     /// Update the search query. Results available via `results()`.
@@ -106,26 +111,23 @@ impl PathSearcher {
 
         while self.nucleo.tick(10).running {}
 
-        // Build results
+        self.rebuild();
+    }
+
+    /// Rebuild `results` from the current query and filter without re-running the
+    /// matcher. Shared by `query` (after a reparse) and `update_filter`.
+    fn rebuild(&mut self) {
         self.results.clear();
         let snapshot = self.nucleo.snapshot();
 
-        if input.is_empty() {
+        if self.submitted_query.is_empty() {
             let mut entries: Vec<&PathEntry> = (0..snapshot.matched_item_count())
                 .filter_map(|i| snapshot.get_matched_item(i).map(|item| item.data))
                 .filter(|e| self.filter_ids.as_ref().map_or(true, |ids| ids.contains(&e.file.id)))
                 .collect();
             entries.sort_by_key(|e| Reverse(e.file.last_modified));
             self.results
-                .extend(entries.into_iter().take(100).map(|e| SearchResult {
-                    id: e.file.id,
-                    filename: e.filename.clone(),
-                    parent_path: e.parent_path.clone(),
-                    is_folder: e.file.is_folder(),
-                    path_indices: Vec::new(),
-                    path_matches: Vec::new(),
-                    content_matches: Vec::new(),
-                }));
+                .extend(entries.into_iter().take(100).map(|e| path_result(e, Vec::new())));
             return;
         }
 
@@ -149,15 +151,7 @@ impl PathSearcher {
                     &mut indices,
                 );
 
-                self.results.push(SearchResult {
-                    id: item.data.file.id,
-                    filename: item.data.filename.clone(),
-                    parent_path: item.data.parent_path.clone(),
-                    is_folder: item.data.file.is_folder(),
-                    path_indices: indices,
-                    path_matches: Vec::new(),
-                    content_matches: Vec::new(),
-                });
+                self.results.push(path_result(item.data, indices));
             }
         }
     }

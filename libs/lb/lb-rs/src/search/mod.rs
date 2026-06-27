@@ -1,7 +1,7 @@
 pub mod content;
 pub mod path;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::ops::Range;
 use uuid::Uuid;
 
@@ -28,6 +28,21 @@ pub(crate) fn build_descendants(files: &[File]) -> HashMap<Uuid, Vec<Uuid>> {
     }
 
     descendants
+}
+
+/// Resolve a filter to the set of file ids it admits (the scoped folder's
+/// descendants), or `None` when there is no filter.
+pub(crate) fn resolve_filter(
+    filter: Option<SearchFilter>, path_to_id: &HashMap<String, Uuid>,
+    descendants: &HashMap<Uuid, Vec<Uuid>>,
+) -> Option<HashSet<Uuid>> {
+    filter.map(|SearchFilter::Path(path)| {
+        path_to_id
+            .get(&path)
+            .and_then(|id| descendants.get(id))
+            .map(|ids| ids.iter().copied().collect())
+            .unwrap_or_default()
+    })
 }
 
 /// Unified search result for both path and content searches.

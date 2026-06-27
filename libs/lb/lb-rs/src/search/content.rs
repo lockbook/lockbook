@@ -108,32 +108,29 @@ impl ContentSearcher {
 
     /// Update the active filter and refresh results for the current query.
     pub fn update_filter(&mut self, filter: Option<SearchFilter>) {
-        self.filter_ids = filter.map(|SearchFilter::Path(path)| {
-            self.path_to_id
-                .get(&path)
-                .and_then(|id| self.descendants.get(id))
-                .map(|ids| ids.iter().copied().collect())
-                .unwrap_or_default()
-        });
-        let query = self.submitted_query.clone();
-        self.submitted_query.clear();
-        self.query(&query);
+        self.filter_ids = super::resolve_filter(filter, &self.path_to_id, &self.descendants);
+        self.rebuild();
     }
 
     /// Update the search query. Results available via `results()`.
     pub fn query(&mut self, input: &str) {
         let query = input.to_lowercase();
-
         if self.submitted_query == query {
             return;
         }
-        self.submitted_query = query.clone();
-        self.results.clear();
+        self.submitted_query = query;
+        self.rebuild();
+    }
 
-        if query.is_empty() {
+    /// Rebuild `results` from the current query and filter. Shared by `query` and
+    /// `update_filter`.
+    fn rebuild(&mut self) {
+        self.results.clear();
+        if self.submitted_query.is_empty() {
             return;
         }
 
+        let query = &self.submitted_query;
         let words: Vec<&str> = query.split_whitespace().collect();
 
         for doc in &self.documents {
@@ -151,9 +148,9 @@ impl ContentSearcher {
             .to_lowercase();
 
             let mut matched_words = vec![false; words.len()];
-            let path_matches = collect_matches(&path, &query, &words, &mut matched_words);
+            let path_matches = collect_matches(&path, query, &words, &mut matched_words);
             let content_matches =
-                collect_matches(&doc.lowercased_content, &query, &words, &mut matched_words);
+                collect_matches(&doc.lowercased_content, query, &words, &mut matched_words);
 
             let all_words_matched = matched_words.iter().all(|&m| m);
             let has_match = !path_matches.is_empty() || !content_matches.is_empty();

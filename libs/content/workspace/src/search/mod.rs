@@ -311,6 +311,7 @@ impl Search {
                     .color(theme.neutral_fg_secondary()),
             );
             let home = IconButton::new(Icon::HOME.size(16.0))
+                .size(22.0)
                 .tooltip("Home")
                 .colored(self.scope_path.is_empty())
                 .show(ui);
@@ -382,20 +383,36 @@ impl Search {
 
         egui::Popup::from_response(anchor)
             .open(true)
-            .width(anchor.rect.width())
+            .width(400.)
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
             .show(|ui| {
+                ui.set_min_width(400.0);
                 ui.spacing_mut().item_spacing.y = 2.0;
                 egui::ScrollArea::vertical()
-                    .max_height(160.0)
+                    .max_height(600.0)
+                    .auto_shrink([false, true])
                     .show(ui, |ui| {
                         for (idx, path) in matches.iter().enumerate() {
-                            let label = RichText::new(path).size(13.0);
-                            let row = ui.selectable_label(idx == self.scope_selected, label);
+                            let selected = idx == self.scope_selected;
+                            let (rect, row) = ui.allocate_at_least(
+                                egui::vec2(ui.available_width(), 22.0),
+                                egui::Sense::click(),
+                            );
+                            let visuals = ui.style().interact_selectable(&row, selected);
+                            if selected || row.hovered() {
+                                ui.painter().rect_filled(rect, 4.0, visuals.bg_fill);
+                            }
+                            ui.painter().text(
+                                egui::pos2(rect.left() + 8.0, rect.center().y),
+                                egui::Align2::LEFT_CENTER,
+                                path,
+                                egui::FontId::proportional(13.0),
+                                visuals.text_color(),
+                            );
                             if row.clicked() {
                                 chosen = Some(path.clone());
                             }
-                            if idx == self.scope_selected {
+                            if selected {
                                 row.scroll_to_me(None);
                             }
                         }
