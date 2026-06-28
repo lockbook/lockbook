@@ -279,10 +279,11 @@ impl Search {
             });
         });
 
-        if (!self.scope_path.is_empty() || !self.query.is_empty())
+        let filters_shown = !self.scope_path.is_empty() || self.filters_open;
+        if (filters_shown || !self.query.is_empty())
             && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
         {
-            if !self.scope_path.is_empty() {
+            if filters_shown {
                 self.scope_path.clear();
                 self.filters_open = false;
             } else {
@@ -473,6 +474,7 @@ impl Workspace {
                             search.filters_open = true;
                         }
                     }
+                    self.out.selected_file = Some(id);
                 } else if in_new_tab {
                     self.open_file(id, false, true);
                 } else {

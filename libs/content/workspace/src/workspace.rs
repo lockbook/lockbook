@@ -1150,6 +1150,18 @@ impl Workspace {
         }
     }
 
+    pub fn search_in_folder(&mut self, folder_id: Uuid) {
+        self.upsert_search(Some(SearchType::Content));
+        let path = self.files.read().unwrap().path(folder_id);
+        if let Some(tab) = self.tabs.get_mut(&Destination::Search) {
+            if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                search.scope_path = path;
+                search.filters_open = true;
+            }
+        }
+        self.out.selected_file = Some(folder_id);
+    }
+
     pub fn start_space_inspector(&mut self, _core: Lb, folder: Option<File>) {
         if let Some(i) = self
             .tab_strip
