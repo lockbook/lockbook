@@ -55,6 +55,12 @@ impl MdEdit {
     pub fn handle_input(&mut self, ctx: &Context, id: Id) -> buffer::Response {
         let focused = ctx.memory(|m| m.has_focus(id));
 
+        // Deferred block reorder
+        let move_resp = match self.pending_block_move.take() {
+            Some((section_range, insert_offset)) => self.move_block(section_range, insert_offset),
+            None => buffer::Response::default(),
+        };
+
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
 
@@ -124,6 +130,7 @@ impl MdEdit {
         self.renderer.buffer.queue(ops);
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();
+        buf_resp |= move_resp; // a deferred reorder reports its text/selection edit
 
         if buf_resp.text_updated {
             self.renderer.bump_text_seq();
@@ -191,28 +198,36 @@ impl MdEdit {
         match self.renderer.block_drag_action.take() {
             Some(BlockDragAction::Started(drag)) => {
                 self.in_progress_block_drag = Some(drag);
-                // Select what's being dragged so the selection follows
-                // the move. Shift extends the existing selection — works
-                // through a click-that-becomes-a-tiny-drag, so a bare
-                // shift+click respects the modifier too.
-                let shift = ui.input(|i| i.modifiers.shift);
-                let region = if shift {
-                    let sel = self.renderer.buffer.current.selection;
-                    let lo = sel.start().min(drag.section_range.start());
-                    let hi = sel.end().max(drag.section_range.end());
-                    (lo, hi)
-                } else {
-                    drag.section_range
-                };
-                self.renderer
-                    .render_events
-                    .push(Event::Select { region: region.into() });
+                // Highlight the dragged section during a desktop drag. Skipped
+                // on touch: the highlight sits under the float's cutout (so
+                // it's invisible anyway), and on iOS UIKit would draw it
+                // natively *over* the cutout — messy rects at the source. The
+                // post-move selection comes from `move_block` regardless.
+                // Shift extends the existing selection — works through a
+                // click-that-becomes-a-tiny-drag, so a bare shift+click
+                // respects the modifier too.
+                if !self.renderer.touch_mode {
+                    let shift = ui.input(|i| i.modifiers.shift);
+                    let region = if shift {
+                        let sel = self.renderer.buffer.current.selection;
+                        let lo = sel.start().min(drag.section_range.start());
+                        let hi = sel.end().max(drag.section_range.end());
+                        (lo, hi)
+                    } else {
+                        drag.section_range
+                    };
+                    self.renderer
+                        .render_events
+                        .push(Event::Select { region: region.into() });
+                }
             }
             Some(BlockDragAction::Dragged(_)) => {}
             Some(BlockDragAction::Released(pointer)) => {
                 if let Some(drag) = self.in_progress_block_drag.take() {
                     if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
-                        self.move_block(drag.section_range, gap.insert_offset);
+                        // deferred move
+                        self.pending_block_move = Some((drag.section_range, gap.insert_offset));
+                        ui.ctx().request_repaint();
                     }
                 }
             }

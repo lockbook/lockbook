@@ -174,9 +174,13 @@
                 // and begins over an interactive markdown element, bail before
                 // cancelling the editor touch — otherwise the in-flight tap is
                 // dropped and the element (checkbox, fold, link, spoiler) neither
-                // toggles nor places a cursor.
+                // toggles nor places a cursor. Likewise yield to a list-item
+                // drag-reorder, which owns the long-press while the keyboard is
+                // down.
                 let location = recognizer.location(in: mtkView)
-                if touches_interactive_element(wsHandle, Float(location.x), Float(location.y)) {
+                if touches_interactive_element(wsHandle, Float(location.x), Float(location.y))
+                    || is_reordering(wsHandle)
+                {
                     recognizer.state = .failed
                     return
                 }
@@ -203,7 +207,9 @@
                 return
             case .began:
                 let location = recognizer.location(in: mtkView)
-                if touches_interactive_element(wsHandle, Float(location.x), Float(location.y)) {
+                if touches_interactive_element(wsHandle, Float(location.x), Float(location.y))
+                    || is_reordering(wsHandle)
+                {
                     recognizer.state = .failed
                     return
                 }
@@ -850,6 +856,17 @@
 
         override public var canBecomeFirstResponder: Bool {
             true
+        }
+
+        override public func becomeFirstResponder() -> Bool {
+            // A committed drag-reorder owns the gesture; focusing the editor
+            // here would summon the keyboard and place a cursor. Refuse while
+            // armed (a still-pending hold may resolve to a tap, which must
+            // focus). Focus returns to normal once the drag ends.
+            if is_reorder_armed(wsHandle) {
+                return false
+            }
+            return super.becomeFirstResponder()
         }
 
         override public var keyCommands: [UIKeyCommand]? {

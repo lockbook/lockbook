@@ -213,6 +213,12 @@ pub struct MdEdit {
     /// the marker handle directly). See [`MdEdit::detect_touch_reorder`].
     pub touch_reorder: widget::block::drag::TouchReorder,
 
+    /// A committed reorder `(section_range, insert_offset)`, applied at the
+    /// start of the next `handle_input` so the move lands pre-render — the
+    /// new layout is then current before the platform refetches selection
+    /// geometry. Set on drag release (which runs post-render).
+    pub pending_block_move: Option<((Grapheme, Grapheme), Grapheme)>,
+
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
     pub pending_scroll: Option<ScrollTarget>,
@@ -254,6 +260,7 @@ impl MdEdit {
             in_progress_selection: None,
             in_progress_block_drag: None,
             touch_reorder: Default::default(),
+            pending_block_move: None,
             pending_scroll: None,
             scroll_area_velocity: Default::default(),
             file_id,
@@ -689,6 +696,7 @@ impl Editor {
                 in_progress_selection: None,
                 in_progress_block_drag: None,
                 touch_reorder: Default::default(),
+                pending_block_move: None,
                 pending_scroll: None,
                 scroll_area_velocity: Default::default(),
                 file_id,
@@ -1199,7 +1207,26 @@ impl Editor {
         self.touches_interactive_element(pos)
             || self.edit.scroll_area_velocity.abs().max_elem() > 0. // velocity zeroed at touch down
             || self.edit.scroll_area.momentum_cancel_press() // platform can check at touch up
+            || self.reorder_armed() // a committed reorder isn't a tap
             || self.toolbar.menu_open
+    }
+
+    /// Whether a touch long-press is arming (`Pending`) or running (`Armed`)
+    /// a list-item drag-reorder. iOS reads this at its native long-press's
+    /// `.began` so the loupe yields *before* our threshold fires; only ever
+    /// true keyboard-down on a reorderable item (see
+    /// [`MdEdit::detect_touch_reorder`]).
+    pub fn reorder_in_progress(&self) -> bool {
+        use widget::block::drag::TouchReorder;
+        matches!(self.edit.touch_reorder, TouchReorder::Pending { .. } | TouchReorder::Armed { .. })
+    }
+
+    /// Whether a reorder is committed and dragging (`Armed`, not the
+    /// still-`Pending` hold). Gates keyboard/cursor suppression — a `Pending`
+    /// hold may still resolve to a tap, which must focus normally.
+    pub fn reorder_armed(&self) -> bool {
+        use widget::block::drag::TouchReorder;
+        matches!(self.edit.touch_reorder, TouchReorder::Armed { .. })
     }
 
     /// Whether `pos` is over an interactive element (checkbox, fold button,
