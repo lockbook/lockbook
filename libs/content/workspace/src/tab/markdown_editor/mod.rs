@@ -1174,7 +1174,8 @@ impl Editor {
 
     pub fn will_consume_touch(&self, pos: Pos2) -> bool {
         self.touches_interactive_element(pos)
-            || self.edit.scroll_area_velocity.abs().max_elem() > 0.
+            || self.edit.scroll_area_velocity.abs().max_elem() > 0. // velocity zeroed at touch down
+            || self.edit.scroll_area.momentum_cancel_press() // platform can check at touch up
             || self.toolbar.menu_open
     }
 
