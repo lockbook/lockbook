@@ -706,8 +706,11 @@ impl MdEdit {
                 .hline(deco.x, deco.y, Stroke::new(1.0, deco.color));
         }
 
-        let has_selection_handles = !self.renderer.buffer.current.selection.is_empty()
-            || self.in_progress_selection.is_some();
+        // A reorder selects the dragged section; its handles would clutter
+        // the floating card, so suppress them while a drag is in flight.
+        let has_selection_handles = (!self.renderer.buffer.current.selection.is_empty()
+            || self.in_progress_selection.is_some())
+            && self.in_progress_block_drag.is_none();
         if ui.ctx().os() == OperatingSystem::Android && has_selection_handles {
             self.show_selection_handles(ui);
         }
