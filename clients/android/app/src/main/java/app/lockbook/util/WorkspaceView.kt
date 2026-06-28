@@ -443,6 +443,14 @@ class WorkspaceView(
         return Workspace.willConsumeTouches(wgpuObj, x, y)
     }
 
+    fun setKeyboardShown(shown: Boolean) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.setKeyboardShown(wgpuObj, shown)
+    }
+
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {
         drawImmediately()
     }

@@ -281,6 +281,12 @@ pub struct Editor {
 
     // misc
     pub virtual_keyboard_shown: bool,
+    /// Real platform IME visibility, pushed by the client (Android inset
+    /// listener, iOS keyboard callbacks). Unlike `virtual_keyboard_shown`
+    /// — the editor's *request* — this is whether the keyboard is actually
+    /// on screen. Touch long-press uses it: keyboard down → drag-reorder,
+    /// keyboard up → text selection.
+    pub keyboard_visible: bool,
 
     // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
@@ -692,6 +698,7 @@ impl Editor {
 
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
+            keyboard_visible: false,
             unprocessed_scroll: Default::default(),
 
             prev_dimensions: None,

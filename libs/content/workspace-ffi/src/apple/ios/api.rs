@@ -805,6 +805,7 @@ pub unsafe extern "C" fn update_virtual_keyboard(obj: *mut c_void, showing: bool
     };
 
     markdown.virtual_keyboard_shown = showing;
+    markdown.keyboard_visible = showing;
 }
 
 /// # Safety
