@@ -102,6 +102,9 @@ pub struct MdRender {
     pub dark_mode: bool,
     pub ext: String,
     pub touch_mode: bool,
+    /// Set only while painting the floating drag-reorder card, so chrome
+    /// that shouldn't travel with it (the fold button) can opt out.
+    pub painting_drag_float: bool,
 
     // document
     pub buffer: Buffer,
@@ -409,6 +412,7 @@ impl MdRender {
             dark_mode,
             ext: "md".into(),
             touch_mode,
+            painting_drag_float: false,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
@@ -479,6 +483,7 @@ impl MdRender {
             dark_mode: false,
             ext: "md".into(),
             touch_mode: false,
+            painting_drag_float: false,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
@@ -628,6 +633,7 @@ impl Editor {
             dark_mode,
             ext,
             touch_mode,
+            painting_drag_float: false,
 
             bounds: Default::default(),
             buffer: md.into(),

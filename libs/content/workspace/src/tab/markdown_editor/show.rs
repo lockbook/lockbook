@@ -395,6 +395,7 @@ impl MdEdit {
             })
             .map(|b| (b.rect, b.node_range))
             .collect();
+        self.renderer.painting_drag_float = true;
         ui.push_id("md_block_drag_float", |ui| {
             for (rect, nr) in &constituents {
                 if let Some(node) = root
@@ -405,6 +406,7 @@ impl MdEdit {
                 }
             }
         });
+        self.renderer.painting_drag_float = false;
         let floating_text = std::mem::take(&mut self.renderer.text_areas);
         let floating_deco = std::mem::take(&mut self.renderer.deco_lines);
         self.renderer.fragments.truncate(frag_len);

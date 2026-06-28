@@ -152,6 +152,7 @@ impl<'ast> MdRender {
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
+            && !self.painting_drag_float // chrome shouldn't travel with the drag card
             && !self.reveal_line(node, first_line) // the revealed marker occupies the gutter
             && (self.touch_mode
                 || hovered
