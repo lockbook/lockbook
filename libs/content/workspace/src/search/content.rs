@@ -3,7 +3,7 @@ use std::ops::Range;
 use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::search::{ContentMatch, ContentSearcher, SearchResult};
+use lb_rs::search::{ContentMatch, ContentSearcher, SearchFilter, SearchResult};
 
 use crate::{
     search::{SearchExecutor, SearchType},
@@ -125,7 +125,7 @@ impl SearchExecutor for ContentSearch {
         self.focused_file = None;
     }
 
-    fn update_filter(&mut self, filter: Option<lb_rs::search::SearchFilter>) {
+    fn update_filter(&mut self, filter: Option<SearchFilter>) {
         self.searcher.update_filter(filter);
         self.selected = 0;
         self.focused_file = None;

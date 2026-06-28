@@ -126,7 +126,7 @@ impl PathSearcher {
                 .filter(|e| {
                     self.filter_ids
                         .as_ref()
-                        .map_or(true, |ids| ids.contains(&e.file.id))
+                        .is_none_or(|ids| ids.contains(&e.file.id))
                 })
                 .collect();
             entries.sort_by_key(|e| Reverse(e.file.last_modified));
