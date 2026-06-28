@@ -206,6 +206,10 @@ pub struct MdEdit {
     /// Mirrored onto the renderer each frame for the dim/indicator paint.
     pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
 
+    /// Touch long-press → reorder gesture state (touch only; desktop drags
+    /// the marker handle directly). See [`MdEdit::detect_touch_reorder`].
+    pub touch_reorder: widget::block::drag::TouchReorder,
+
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
     pub pending_scroll: Option<ScrollTarget>,
@@ -246,6 +250,7 @@ impl MdEdit {
             phone_mode: false,
             in_progress_selection: None,
             in_progress_block_drag: None,
+            touch_reorder: Default::default(),
             pending_scroll: None,
             scroll_area_velocity: Default::default(),
             file_id,
@@ -677,6 +682,7 @@ impl Editor {
                 event: Default::default(),
                 in_progress_selection: None,
                 in_progress_block_drag: None,
+                touch_reorder: Default::default(),
                 pending_scroll: None,
                 scroll_area_velocity: Default::default(),
                 file_id,
@@ -1240,6 +1246,12 @@ impl Editor {
                     .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
                         ui.set_clip_rect(canvas_rect);
                         self.edit.scroll_area.touch_scroll = touch_scroll;
+                        // An armed touch reorder owns the gesture — don't
+                        // scroll the body under the dragged item.
+                        self.edit.scroll_area.suppress_body_drag = matches!(
+                            self.edit.touch_reorder,
+                            widget::block::drag::TouchReorder::Armed { .. }
+                        );
 
                         // Body alloc → pre_render → scrollbar/content
                         // ordering puts pre_render's click rect above
@@ -1362,9 +1374,11 @@ impl Editor {
                             self.edit.show_range(ui, range, color);
                         }
 
-                        // List-item drag-to-reorder: consume the handle
-                        // action, commit on release (visuals are drawn
-                        // after post_render so they composite on top).
+                        // List-item drag-to-reorder: detect the touch
+                        // long-press, then consume the handle action and
+                        // commit on release (visuals are drawn after
+                        // post_render so they composite on top).
+                        self.edit.detect_touch_reorder(ui, self.keyboard_visible);
                         self.edit.handle_block_drag(ui);
                         pre
                     })

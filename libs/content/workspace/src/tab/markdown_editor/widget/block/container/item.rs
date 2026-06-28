@@ -49,9 +49,12 @@ impl<'ast> MdRender {
         let annotation_size = Vec2 { x: self.layout.indent, y: annotation_row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        // Marker doubles as drag handle (bullet/number is non-interactive).
+        // Desktop drag handle (bullet/number is non-interactive). On touch
+        // the body must own the press instead, so a pan scrolls and a hold
+        // arms a reorder (see `MdEdit::detect_touch_reorder`).
         let drag_id = ui.id().with(("item_drag", self.node_range(node)));
-        let drag_resp = ui.interact(annotation_space, drag_id, egui::Sense::drag());
+        let sense = if self.touch_mode { egui::Sense::hover() } else { egui::Sense::drag() };
+        let drag_resp = ui.interact(annotation_space, drag_id, sense);
         self.handle_item_drag_resp(ui, node, &drag_resp);
 
         let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();

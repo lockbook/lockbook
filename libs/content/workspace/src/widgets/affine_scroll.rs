@@ -1044,6 +1044,10 @@ pub struct AffineScrollArea<Id: Clone + Eq + std::fmt::Debug> {
     /// When true, drag on the body (not just the scrollbar) scrolls
     /// the content with momentum. Intended for touch input.
     pub touch_scroll: bool,
+    /// When true, body-drag scrolling is suppressed for the frame — the
+    /// embedder has claimed the touch for something else (e.g. an armed
+    /// list-item drag-reorder). Momentum and the scrollbar are unaffected.
+    pub suppress_body_drag: bool,
     /// Salt for the scrollbar's interact rect — must be stable across
     /// frames and unique among visible scroll areas.
     id_salt: egui::Id,
@@ -1057,6 +1061,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         Self {
             state: ScrollArea::default(),
             touch_scroll: false,
+            suppress_body_drag: false,
             id_salt: egui::Id::new(id_salt),
             momentum_cancel_press: false,
         }
@@ -1185,7 +1190,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         if self.touch_scroll && touch_cancelled {
             self.state.kill_momentum();
         }
-        if scrollable && self.touch_scroll && response.dragged() {
+        if scrollable && self.touch_scroll && !self.suppress_body_drag && response.dragged() {
             let drag_y = ui.input(|i| i.pointer.delta().y);
             let precise_delta = -drag_y;
             self.state

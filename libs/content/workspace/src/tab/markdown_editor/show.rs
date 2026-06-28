@@ -28,6 +28,7 @@ use crate::widgets::IconButton;
 use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
+use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
 pub struct PreRenderState {
@@ -187,8 +188,6 @@ impl MdEdit {
     /// Consume the marker's [`BlockDragAction`] for the frame and, on
     /// release, commit the reorder via [`MdEdit::move_block`].
     pub(crate) fn handle_block_drag(&mut self, ui: &mut Ui) {
-        use crate::tab::markdown_editor::widget::block::drag::BlockDragAction;
-
         match self.renderer.block_drag_action.take() {
             Some(BlockDragAction::Started(drag)) => {
                 self.in_progress_block_drag = Some(drag);
@@ -376,7 +375,7 @@ impl MdEdit {
         let box_len = self.renderer.block_boxes.len();
         let section = drag.section_range;
         // Top-most items in the span; descendants paint via `show_block`.
-        let in_span: Vec<crate::tab::markdown_editor::widget::block::drag::BlockBox> = self
+        let in_span: Vec<BlockBox> = self
             .renderer
             .block_boxes
             .iter()
@@ -549,6 +548,12 @@ impl MdEdit {
                 } else if response.clicked() && modifiers.shift && !cfg!(target_os = "android") {
                     Some(Region::ToLocation(location))
                 } else if response.clicked() && self.scroll_area.momentum_cancel_press() {
+                    None
+                } else if response.clicked()
+                    && matches!(self.touch_reorder, TouchReorder::Armed { .. })
+                {
+                    // Long-press that armed a reorder also lands as a click on
+                    // release — consume it so it doesn't place the cursor.
                     None
                 } else if response.clicked() {
                     if cfg!(target_os = "android") && self.selection_tap(pos) {
