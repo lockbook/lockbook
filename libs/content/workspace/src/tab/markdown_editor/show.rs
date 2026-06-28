@@ -55,6 +55,12 @@ impl MdEdit {
     pub fn handle_input(&mut self, ctx: &Context, id: Id) -> buffer::Response {
         let focused = ctx.memory(|m| m.has_focus(id));
 
+        // Deferred block reorder
+        let move_resp = match self.pending_block_move.take() {
+            Some((section_range, insert_offset)) => self.move_block(section_range, insert_offset),
+            None => buffer::Response::default(),
+        };
+
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
 
@@ -124,6 +130,7 @@ impl MdEdit {
         self.renderer.buffer.queue(ops);
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();
+        buf_resp |= move_resp; // a deferred reorder reports its text/selection edit
 
         if buf_resp.text_updated {
             self.renderer.bump_text_seq();
@@ -218,7 +225,9 @@ impl MdEdit {
             Some(BlockDragAction::Released(pointer)) => {
                 if let Some(drag) = self.in_progress_block_drag.take() {
                     if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
-                        self.move_block(drag.section_range, gap.insert_offset);
+                        // deferred move
+                        self.pending_block_move = Some((drag.section_range, gap.insert_offset));
+                        ui.ctx().request_repaint();
                     }
                 }
             }
