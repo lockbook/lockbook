@@ -191,22 +191,28 @@ impl MdEdit {
         match self.renderer.block_drag_action.take() {
             Some(BlockDragAction::Started(drag)) => {
                 self.in_progress_block_drag = Some(drag);
-                // Select what's being dragged so the selection follows
-                // the move. Shift extends the existing selection — works
-                // through a click-that-becomes-a-tiny-drag, so a bare
-                // shift+click respects the modifier too.
-                let shift = ui.input(|i| i.modifiers.shift);
-                let region = if shift {
-                    let sel = self.renderer.buffer.current.selection;
-                    let lo = sel.start().min(drag.section_range.start());
-                    let hi = sel.end().max(drag.section_range.end());
-                    (lo, hi)
-                } else {
-                    drag.section_range
-                };
-                self.renderer
-                    .render_events
-                    .push(Event::Select { region: region.into() });
+                // Highlight the dragged section during a desktop drag. Skipped
+                // on touch: the highlight sits under the float's cutout (so
+                // it's invisible anyway), and on iOS UIKit would draw it
+                // natively *over* the cutout — messy rects at the source. The
+                // post-move selection comes from `move_block` regardless.
+                // Shift extends the existing selection — works through a
+                // click-that-becomes-a-tiny-drag, so a bare shift+click
+                // respects the modifier too.
+                if !self.renderer.touch_mode {
+                    let shift = ui.input(|i| i.modifiers.shift);
+                    let region = if shift {
+                        let sel = self.renderer.buffer.current.selection;
+                        let lo = sel.start().min(drag.section_range.start());
+                        let hi = sel.end().max(drag.section_range.end());
+                        (lo, hi)
+                    } else {
+                        drag.section_range
+                    };
+                    self.renderer
+                        .render_events
+                        .push(Event::Select { region: region.into() });
+                }
             }
             Some(BlockDragAction::Dragged(_)) => {}
             Some(BlockDragAction::Released(pointer)) => {

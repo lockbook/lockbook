@@ -437,6 +437,48 @@ pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) ->
     }
 }
 
+/// Whether a list-item drag-reorder is arming or running. The native
+/// long-press (loupe) and tap gestures fail when this is true so the
+/// reorder owns the touch. See [`Editor::reorder_in_progress`].
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn is_reordering(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    if let Some(tab) = obj.workspace.current_tab() {
+        if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
+            md.reorder_in_progress()
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
+/// Whether a reorder is committed and dragging (not the pending hold). iOS
+/// refuses first-responder on this so a reorder doesn't summon the keyboard,
+/// while a tap still focuses. See [`Editor::reorder_armed`].
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn is_reorder_armed(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+
+    if let Some(tab) = obj.workspace.current_tab() {
+        if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
+            md.reorder_armed()
+        } else {
+            false
+        }
+    } else {
+        false
+    }
+}
+
 /// Region-only variant of [`will_consume_touch`]: interactive-element
 /// rects without the transient terms (momentum, open menu).
 ///
