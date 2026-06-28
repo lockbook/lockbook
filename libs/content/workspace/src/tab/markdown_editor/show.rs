@@ -548,6 +548,8 @@ impl MdEdit {
                     }
                 } else if response.clicked() && modifiers.shift && !cfg!(target_os = "android") {
                     Some(Region::ToLocation(location))
+                } else if response.clicked() && self.scroll_area.momentum_cancel_press() {
+                    None
                 } else if response.clicked() {
                     if cfg!(target_os = "android") && self.selection_tap(pos) {
                         let selection = self.renderer.buffer.current.selection;
