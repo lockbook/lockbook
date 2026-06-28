@@ -171,6 +171,18 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
     }
 }
 
+/// Push real IME visibility (from the Android inset listener) into the
+/// editor so touch long-press can pick drag-reorder vs text selection.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
+    _env: JNIEnv, _: JClass, obj: jlong, shown: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+        md.keyboard_visible = shown == 1;
+    }
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouches(
     _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,

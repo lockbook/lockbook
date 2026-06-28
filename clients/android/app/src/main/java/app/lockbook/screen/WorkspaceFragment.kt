@@ -104,6 +104,12 @@ class WorkspaceFragment : Fragment() {
             activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
         }
 
+        // Forward real IME visibility into the editor so touch long-press
+        // can pick drag-reorder (keyboard down) vs text selection (up).
+        model.keyboardVisible.observe(viewLifecycleOwner) { visible ->
+            workspaceWrapper.workspaceView.setKeyboardShown(visible)
+        }
+
         model.createDocAt.observe(viewLifecycleOwner) { it ->
             workspaceWrapper.workspaceView.createDocAt(it)
         }

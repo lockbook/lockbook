@@ -102,6 +102,9 @@ pub struct MdRender {
     pub dark_mode: bool,
     pub ext: String,
     pub touch_mode: bool,
+    /// Set only while painting the floating drag-reorder card, so chrome
+    /// that shouldn't travel with it (the fold button) can opt out.
+    pub painting_drag_float: bool,
 
     // document
     pub buffer: Buffer,
@@ -206,6 +209,10 @@ pub struct MdEdit {
     /// Mirrored onto the renderer each frame for the dim/indicator paint.
     pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
 
+    /// Touch long-press → reorder gesture state (touch only; desktop drags
+    /// the marker handle directly). See [`MdEdit::detect_touch_reorder`].
+    pub touch_reorder: widget::block::drag::TouchReorder,
+
     /// Frame-scoped single-target scroll intent, consumed at the end of the
     /// scroll area callback.
     pub pending_scroll: Option<ScrollTarget>,
@@ -246,6 +253,7 @@ impl MdEdit {
             phone_mode: false,
             in_progress_selection: None,
             in_progress_block_drag: None,
+            touch_reorder: Default::default(),
             pending_scroll: None,
             scroll_area_velocity: Default::default(),
             file_id,
@@ -281,6 +289,12 @@ pub struct Editor {
 
     // misc
     pub virtual_keyboard_shown: bool,
+    /// Real platform IME visibility, pushed by the client (Android inset
+    /// listener, iOS keyboard callbacks). Unlike `virtual_keyboard_shown`
+    /// — the editor's *request* — this is whether the keyboard is actually
+    /// on screen. Touch long-press uses it: keyboard down → drag-reorder,
+    /// keyboard up → text selection.
+    pub keyboard_visible: bool,
 
     // outputs from drawing a frame need an additional frame to process before reporting
     next_resp: Response,
@@ -398,6 +412,7 @@ impl MdRender {
             dark_mode,
             ext: "md".into(),
             touch_mode,
+            painting_drag_float: false,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
@@ -468,6 +483,7 @@ impl MdRender {
             dark_mode: false,
             ext: "md".into(),
             touch_mode: false,
+            painting_drag_float: false,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
@@ -617,6 +633,7 @@ impl Editor {
             dark_mode,
             ext,
             touch_mode,
+            painting_drag_float: false,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -671,6 +688,7 @@ impl Editor {
                 event: Default::default(),
                 in_progress_selection: None,
                 in_progress_block_drag: None,
+                touch_reorder: Default::default(),
                 pending_scroll: None,
                 scroll_area_velocity: Default::default(),
                 file_id,
@@ -692,6 +710,7 @@ impl Editor {
 
             // this is used to toggle the mobile toolbar
             virtual_keyboard_shown: cfg!(target_os = "android"),
+            keyboard_visible: false,
             unprocessed_scroll: Default::default(),
 
             prev_dimensions: None,
@@ -828,7 +847,11 @@ impl Editor {
 
         let all_selected = self.edit.renderer.buffer.current.selection
             == (0.into(), self.edit.renderer.last_cursor_position());
-        if self.initialized && buf_resp.selection_user_moved && !all_selected {
+        if self.initialized
+            && buf_resp.selection_user_moved
+            && !all_selected
+            && self.edit.in_progress_block_drag.is_none()
+        {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
         }
 
@@ -1233,6 +1256,12 @@ impl Editor {
                     .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
                         ui.set_clip_rect(canvas_rect);
                         self.edit.scroll_area.touch_scroll = touch_scroll;
+                        // An armed touch reorder owns the gesture — don't
+                        // scroll the body under the dragged item.
+                        self.edit.scroll_area.suppress_body_drag = matches!(
+                            self.edit.touch_reorder,
+                            widget::block::drag::TouchReorder::Armed { .. }
+                        );
 
                         // Body alloc → pre_render → scrollbar/content
                         // ordering puts pre_render's click rect above
@@ -1355,9 +1384,11 @@ impl Editor {
                             self.edit.show_range(ui, range, color);
                         }
 
-                        // List-item drag-to-reorder: consume the handle
-                        // action, commit on release (visuals are drawn
-                        // after post_render so they composite on top).
+                        // List-item drag-to-reorder: detect the touch
+                        // long-press, then consume the handle action and
+                        // commit on release (visuals are drawn after
+                        // post_render so they composite on top).
+                        self.edit.detect_touch_reorder(ui, self.keyboard_visible);
                         self.edit.handle_block_drag(ui);
                         pre
                     })
