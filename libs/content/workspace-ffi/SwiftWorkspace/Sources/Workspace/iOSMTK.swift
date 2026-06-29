@@ -877,7 +877,25 @@
 
             deleteWord.wantsPriorityOverSystemBehavior = true
 
-            return [deleteWord] + iOSMTK.workspaceBracketKeyCommands()
+            // Cmd+Return sends in the chat composer (forwarded into egui as
+            // Cmd+Enter, matching desktop). Without registration the system
+            // swallows the combo before it reaches `pressesBegan`.
+            let send = UIKeyCommand(
+                input: "\r", modifierFlags: [.command], action: #selector(sendCommand)
+            )
+            send.wantsPriorityOverSystemBehavior = true
+
+            return [deleteWord, send] + iOSMTK.workspaceBracketKeyCommands()
+        }
+
+        @objc func sendCommand() {
+            guard mtkView.workspaceOutput?.currentTab == .Chat else { return }
+            // Forward Cmd+Enter into egui (HID Return code, as `ios_key_event`
+            // maps via `UIKeys::from`) so the composer's send shortcut fires.
+            let key = UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue
+            ios_key_event(wsHandle, key, false, false, false, true, true)
+            ios_key_event(wsHandle, key, false, false, false, true, false)
+            mtkView.drawImmediately()
         }
 
         @objc func forwardBracketCommand(_ command: UIKeyCommand) {
@@ -1377,7 +1395,7 @@
             }
 
             if let currentWrapper = mtkView.currentWrapper as? MdView,
-               currentTab == .Markdown
+               currentTab == .Markdown || currentTab == .Chat
             {
                 if output.has_virtual_keyboard_shown {
                     if output.virtual_keyboard_shown {
@@ -2231,6 +2249,7 @@ public enum WorkspaceTab: Int {
     case Svg = 6
     case Graph = 7
     case SpaceInspector = 8
+    case Chat = 9
 
     func viewWrapperId() -> Int {
         switch self {
@@ -2238,7 +2257,7 @@ public enum WorkspaceTab: Int {
             1
         case .Svg, .Image, .Graph:
             2
-        case .PlainText, .Markdown:
+        case .PlainText, .Markdown, .Chat:
             3
         }
     }

@@ -23,6 +23,7 @@ use crate::{
             ChangeDocRequestV2, GetDocRequest, GetFileIdsRequest, GetUpdatesRequestV2,
             GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
         },
+        chat,
         crypto::{DecryptedDocument, EncryptedDocument},
         errors::{LbErr, Unexpected},
         file::ShareMode,
@@ -673,6 +674,22 @@ impl LocalLb {
                                             .update_document_unvalidated(
                                                 &id,
                                                 &merged_document.into_bytes(),
+                                                &self.keychain,
+                                            )?;
+                                        let hmac = merge.find(&id)?.document_hmac().copied();
+                                        self.docs.insert(id, hmac, &encrypted_document).await?;
+                                    }
+                                    DocumentType::Chat => {
+                                        // line-union of append-only JSONL turns
+                                        let merged_document = chat::Buffer::merge(
+                                            &base_document,
+                                            &local_document,
+                                            &remote_document,
+                                        );
+                                        let encrypted_document = merge
+                                            .update_document_unvalidated(
+                                                &id,
+                                                &merged_document,
                                                 &self.keychain,
                                             )?;
                                         let hmac = merge.find(&id)?.document_hmac().copied();

@@ -29,6 +29,7 @@ impl Icon {
     pub const BRUSH: Self = ic("\u{f1a0d}"); // 󰃣
     pub const BOLD: Self = ic("\u{f0264}"); // 󰉤
     pub const CAMERA: Self = ic("\u{f030}"); // 
+    pub const CHAT: Self = ic("\u{f27a}"); // nf-fa-message
     pub const CHECK_CIRCLE: Self = ic("\u{f05e0}"); // 󰗠
     pub const CIRCLE: Self = ic("\u{eabc}"); // 
     pub const CHEVRON_LEFT: Self = ic("\u{f0141}"); // 󰅁
@@ -83,6 +84,7 @@ impl Icon {
     pub const SPARKLE: Self = ic("\u{f51b}"); // 
     pub const SAVE: Self = ic("\u{f0193}"); // 󰆓
     pub const SCHEDULE: Self = ic("\u{f0954}"); // 󰥔
+    pub const SEND: Self = ic("\u{f1d8}"); // nf-fa-send
     pub const SEARCH: Self = ic("\u{e644}"); // 
     pub const FILTER: Self = ic("\u{f0232}"); // 󰈲
     pub const HOME: Self = ic("\u{f02dc}"); // 󰋜
