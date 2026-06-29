@@ -894,7 +894,7 @@
             // maps via `UIKeys::from`) so the composer's send shortcut fires.
             let key = UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue
             ios_key_event(wsHandle, key, false, false, false, true, true)
-            ios_key_event(wsHandle, key, false, false, false, true, false)
+            ios_key_event(wsHandle, key, false, false, false, false, false)
             mtkView.drawImmediately()
         }
 
@@ -1086,7 +1086,7 @@
             pan.delegate = gestureDelegate
             addGestureRecognizer(pan)
             panRecognizer = pan
-            
+
             refreshPanTouchRequirementsFromCurrentTab()
 
             NotificationCenter.default.addObserver(
@@ -1095,7 +1095,7 @@
                 name: UIApplication.didBecomeActiveNotification,
                 object: nil
             )
-            
+
             // gestures: pinch
             let pinch = UIPinchGestureRecognizer(
                 target: self, action: #selector(handlePinch(_:))
@@ -1126,10 +1126,10 @@
             let isImage = currentTab == .Image
             self.panRecognizer?.minimumNumberOfTouches =
                 (isImage || UIPencilInteraction.prefersPencilOnlyDrawing) ? 1 : 2
-            
+
             set_pencil_only_drawing(wsHandle, UIPencilInteraction.prefersPencilOnlyDrawing)
         }
-        
+
         @objc private func handleTap(_ gesture: UITapGestureRecognizer) {
             guard let menuInteraction else { return }
 
@@ -1606,7 +1606,7 @@
         var scrollSensitivity = 50.0
         var scrollId = 0
         var kineticTimer: Timer?
-        
+
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
 
@@ -1764,7 +1764,7 @@
                         kineticTimer = nil
                         return
                     }
-                        
+
                     multi_touch(
                         wsHandle,
                         Float(velocity.x),
@@ -1777,13 +1777,13 @@
                         UInt(panStartTouches.count)
                     )
 
-                    
+
                     self.setNeedsDisplay()
                 }
             } else {
                 let translation = event.translation(in: self)
 
-                
+
                 multi_touch(
                     wsHandle,
                     Float(translation.x),
@@ -1857,7 +1857,7 @@
                 nextTouchID += 1
                 return newID
             }
-            return 0 
+            return 0
         }
 
         override public func touchesMoved(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -1950,10 +1950,24 @@
                     break
                 }
 
-                let shift = key.modifierFlags.contains(.shift)
-                let ctrl = key.modifierFlags.contains(.control)
-                let option = key.modifierFlags.contains(.alternate)
-                let command = key.modifierFlags.contains(.command)
+                var shift = key.modifierFlags.contains(.shift)
+                var ctrl = key.modifierFlags.contains(.control)
+                var option = key.modifierFlags.contains(.alternate)
+                var command = key.modifierFlags.contains(.command)
+
+                // On a modifier key's own key-up, modifierFlags still reports
+                // it as held, so egui's persistent modifier state stays stuck
+                // (a later tap then reads cmd as down and opens links). Clear
+                // the released modifier.
+                if !pressBegan {
+                    switch key.keyCode {
+                    case .keyboardLeftGUI, .keyboardRightGUI: command = false
+                    case .keyboardLeftShift, .keyboardRightShift: shift = false
+                    case .keyboardLeftControl, .keyboardRightControl: ctrl = false
+                    case .keyboardLeftAlt, .keyboardRightAlt: option = false
+                    default: break
+                    }
+                }
 
                 if (command && key.keyCode == .keyboardW) || (shift && key.keyCode == .keyboardTab) {
                     forward = false
@@ -1987,10 +2001,9 @@
                 wsHandle, keyCode, mods.contains(.shift), mods.contains(.control),
                 mods.contains(.alternate), mods.contains(.command), true
             )
-            ios_key_event(
-                wsHandle, keyCode, mods.contains(.shift), mods.contains(.control),
-                mods.contains(.alternate), mods.contains(.command), false
-            )
+            // Release with no modifiers: this combo is swallowed by UIKeyCommand,
+            // so the physical cmd key-up never reaches handleKeyEvent to clear it.
+            ios_key_event(wsHandle, keyCode, false, false, false, false, false)
             setNeedsDisplay(frame)
         }
 
