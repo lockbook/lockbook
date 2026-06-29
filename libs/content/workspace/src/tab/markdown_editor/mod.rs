@@ -834,7 +834,7 @@ impl Editor {
         // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
         // MdEdit's internal event queue, then let MdEdit::handle_input drain
         // everything (workspace + keyboard + completions).
-        let workspace_events = self.drain_workspace_events(ui.ctx());
+        let workspace_events = self.edit.drain_workspace_events(ui.ctx());
         self.edit.event.internal_events.extend(workspace_events);
 
         let prior_selection = self.edit.renderer.buffer.current.selection;

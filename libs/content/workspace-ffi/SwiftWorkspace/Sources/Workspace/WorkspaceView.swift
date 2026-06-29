@@ -212,7 +212,7 @@ import SwiftUI
                 let headerSize = mtkView.docHeaderSize
 
                 switch newCurrentTab {
-                case .Welcome, .Pdf, .Loading, .SpaceInspector, .Chat:
+                case .Welcome, .Pdf, .Loading, .SpaceInspector:
                     if currentWrapper == nil {
                         return
                     }
@@ -262,7 +262,7 @@ import SwiftUI
                     ])
 
                     mtkView.becomeFirstResponder()
-                case .PlainText, .Markdown:
+                case .PlainText, .Markdown, .Chat:
                     if let currentWrapper = currentWrapper
                         as? MdView,
                         currentWrapper.currentHeaderSize

@@ -91,12 +91,12 @@ pub unsafe extern "C" fn backspace(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
 
-    !markdown.edit.renderer.buffer.is_empty()
+    !markdown.renderer.buffer.is_empty()
 }
 
 /// # Safety
@@ -141,14 +141,14 @@ pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *const c_char {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return null(),
     };
 
     let range: Option<(Grapheme, Grapheme)> = range.into();
     if let Some(range) = range {
-        CString::new(&markdown.edit.renderer.buffer[range])
+        CString::new(&markdown.renderer.buffer[range])
             .expect("Could not Rust String -> C String")
             .into_raw()
     } else {
@@ -166,7 +166,7 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
 #[no_mangle]
 pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return CTextRange::default(),
     };
@@ -174,13 +174,10 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
     CTextRange {
         none: false,
         start: CTextPosition {
-            pos: markdown.edit.renderer.buffer.current.selection.start().0,
+            pos: markdown.renderer.buffer.current.selection.start().0,
             none: false,
         },
-        end: CTextPosition {
-            pos: markdown.edit.renderer.buffer.current.selection.end().0,
-            none: false,
-        },
+        end: CTextPosition { pos: markdown.renderer.buffer.current.selection.end().0, none: false },
     }
 }
 
@@ -267,13 +264,12 @@ pub unsafe extern "C" fn beginning_of_document(_obj: *mut c_void) -> CTextPositi
 #[no_mangle]
 pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
 
     markdown
-        .edit
         .renderer
         .buffer
         .current
@@ -554,20 +550,14 @@ pub unsafe extern "C" fn position_offset(
     obj: *mut c_void, start: CTextPosition, offset: i32,
 ) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
 
     let start: Option<Grapheme> = start.into();
     if let Some(start) = start {
-        let last_cursor_position = markdown
-            .edit
-            .renderer
-            .buffer
-            .current
-            .segs
-            .last_cursor_position();
+        let last_cursor_position = markdown.renderer.buffer.current.segs.last_cursor_position();
 
         let result = if offset < 0 && -offset > start.0 as i32 {
             Grapheme::default()
@@ -594,7 +584,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
     obj: *mut c_void, start: CTextPosition, direction: CTextLayoutDirection, offset: i32,
 ) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
@@ -608,7 +598,7 @@ pub unsafe extern "C" fn position_offset_in_direction(
 
     let mut result: Grapheme = start.pos.into();
     for _ in 0..offset {
-        result = markdown.edit.advance(result, advance, backwards);
+        result = markdown.advance(result, advance, backwards);
     }
 
     CTextPosition { none: start.none, pos: result.0 }
@@ -627,7 +617,7 @@ pub unsafe extern "C" fn is_position_at_bound(
     }
 
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
@@ -635,9 +625,7 @@ pub unsafe extern "C" fn is_position_at_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
-        .edit
-        .is_position_at_boundary(text_position, at_boundary, backwards)
+    markdown.is_position_at_boundary(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -653,7 +641,7 @@ pub unsafe extern "C" fn is_position_within_bound(
     }
 
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
@@ -661,9 +649,7 @@ pub unsafe extern "C" fn is_position_within_bound(
     let text_position = pos.pos.into();
     let at_boundary = granularity.into();
 
-    markdown
-        .edit
-        .is_position_within_text_unit(text_position, at_boundary, backwards)
+    markdown.is_position_within_text_unit(text_position, at_boundary, backwards)
 }
 
 /// # Safety
@@ -675,7 +661,7 @@ pub unsafe extern "C" fn bound_from_position(
     obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
 ) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
@@ -687,7 +673,7 @@ pub unsafe extern "C" fn bound_from_position(
         Advance::Next(granularity.into())
     };
 
-    Some(markdown.edit.advance(text_position, advance, backwards)).into()
+    Some(markdown.advance(text_position, advance, backwards)).into()
 }
 
 /// # Safety
@@ -703,7 +689,7 @@ pub unsafe extern "C" fn bound_at_position(
     }
 
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return CTextRange::default(),
     };
@@ -711,9 +697,7 @@ pub unsafe extern "C" fn bound_at_position(
     let text_position = pos.pos.into();
     let with_granularity = granularity.into();
 
-    let result = markdown
-        .edit
-        .range_enclosing_position(text_position, with_granularity, backwards);
+    let result = markdown.range_enclosing_position(text_position, with_granularity, backwards);
 
     result.into()
 }
@@ -725,7 +709,7 @@ pub unsafe extern "C" fn bound_at_position(
 #[no_mangle]
 pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRect {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return CRect::default(),
     };
@@ -741,21 +725,16 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
         };
         let mut selection_start = range.start();
         let selection_end = range.end();
-        selection_start = markdown
-            .edit
-            .advance(selection_start, Advance::To(Bound::Line), false);
+        selection_start = markdown.advance(selection_start, Advance::To(Bound::Line), false);
         let end_of_selection_start_line = selection_start;
         let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
         (selection_start, end_of_rect)
     };
 
-    let Some(start_line) = markdown
-        .edit
-        .cursor_line(selection_representing_rect.start())
-    else {
+    let Some(start_line) = markdown.cursor_line(selection_representing_rect.start()) else {
         return CRect::default();
     };
-    let Some(end_line) = markdown.edit.cursor_line(selection_representing_rect.end()) else {
+    let Some(end_line) = markdown.cursor_line(selection_representing_rect.end()) else {
         return CRect::default();
     };
 
@@ -788,14 +767,13 @@ pub unsafe extern "C" fn clipboard_copy(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return CTextPosition::default(),
     };
 
-    let offset = markdown
-        .edit
-        .pos_to_char_offset(obj.renderer.pos_from_points(point.x as f32, point.y as f32));
+    let offset =
+        markdown.pos_to_char_offset(obj.renderer.pos_from_points(point.x as f32, point.y as f32));
 
     CTextPosition { none: false, pos: offset.0 }
 }
@@ -804,12 +782,12 @@ pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> C
 #[no_mangle]
 pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return null(),
     };
 
-    let value = markdown.edit.renderer.buffer.current.text.as_str();
+    let value = markdown.renderer.buffer.current.text.as_str();
 
     CString::new(value)
         .expect("Could not Rust String -> C String")
@@ -821,12 +799,12 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
 #[no_mangle]
 pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPosition) -> CRect {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return CRect::default(),
     };
 
-    let Some(line) = markdown.edit.cursor_line(pos.pos.into()) else { return CRect::default() };
+    let Some(line) = markdown.cursor_line(pos.pos.into()) else { return CRect::default() };
 
     CRect {
         min_x: line[0].x as f64,
@@ -857,7 +835,7 @@ pub unsafe extern "C" fn selection_rects(
     obj: *mut c_void, range: CTextRange,
 ) -> UITextSelectionRects {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return UITextSelectionRects::default(),
     };
@@ -872,7 +850,7 @@ pub unsafe extern "C" fn selection_rects(
     };
 
     let mut selection_rects = Vec::new();
-    for rect in markdown.edit.range_rects(range) {
+    for rect in markdown.range_rects(range) {
         selection_rects.push(CRect {
             min_x: rect.min.x as f64,
             min_y: rect.min.y as f64,
@@ -946,12 +924,12 @@ pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
 #[no_mangle]
 pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
 
-    !markdown.edit.renderer.readonly && markdown.edit.renderer.buffer.can_undo()
+    !markdown.renderer.readonly && markdown.renderer.buffer.can_undo()
 }
 
 /// # Safety
@@ -959,12 +937,12 @@ pub unsafe extern "C" fn can_undo(obj: *mut c_void) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return false,
     };
 
-    !markdown.edit.renderer.readonly && markdown.edit.renderer.buffer.can_redo()
+    !markdown.renderer.readonly && markdown.renderer.buffer.can_redo()
 }
 
 /// # Safety

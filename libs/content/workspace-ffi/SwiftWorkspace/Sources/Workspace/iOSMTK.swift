@@ -1395,7 +1395,7 @@
             }
 
             if let currentWrapper = mtkView.currentWrapper as? MdView,
-               currentTab == .Markdown
+               currentTab == .Markdown || currentTab == .Chat
             {
                 if output.has_virtual_keyboard_shown {
                     if output.virtual_keyboard_shown {
@@ -2253,11 +2253,11 @@ public enum WorkspaceTab: Int {
 
     func viewWrapperId() -> Int {
         switch self {
-        case .Welcome, .Pdf, .Loading, .SpaceInspector, .Chat:
+        case .Welcome, .Pdf, .Loading, .SpaceInspector:
             1
         case .Svg, .Image, .Graph:
             2
-        case .PlainText, .Markdown:
+        case .PlainText, .Markdown, .Chat:
             3
         }
     }

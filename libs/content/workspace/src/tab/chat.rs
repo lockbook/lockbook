@@ -173,8 +173,10 @@ impl Chat {
         true
     }
 
-    /// Returns true if the user sent a message this frame.
-    pub fn show(&mut self, ui: &mut Ui) -> bool {
+    /// Renders the transcript + composer. Returns whether the user sent a
+    /// message this frame, and the composer's text rect (egui points) used to
+    /// position the native iOS text-interaction overlay.
+    pub fn show(&mut self, ui: &mut Ui) -> (bool, Rect) {
         let theme = ui.ctx().get_lb_theme();
         let available_width = ui.available_width();
         let col_width = available_width.min(MAX_WIDTH);
@@ -201,7 +203,11 @@ impl Chat {
                 .ctx()
                 .input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Enter));
 
-        // Composer input phase — keyboard / completions / internal events.
+        // Composer input phase — drain workspace-origin events (native iOS
+        // text input arrives this way: Newline / Indent / Replace pushed by the
+        // FFI), then keyboard / completions / internal events.
+        let workspace_events = self.composer.drain_workspace_events(ui.ctx());
+        self.composer.event.internal_events.extend(workspace_events);
         let _ = self.composer.handle_input(ui.ctx(), composer_id);
 
         // Measure at the exact render width so the composer bubble grows
@@ -424,7 +430,7 @@ impl Chat {
         // Popups land last so they composite over composer + transcript.
         self.composer.show_completions(ui);
 
-        sent
+        (sent, inner_rect)
     }
 }
 
