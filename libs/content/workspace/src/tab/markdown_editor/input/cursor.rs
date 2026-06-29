@@ -7,7 +7,7 @@ use crate::tab::ExtendedInput as _;
 use crate::tab::markdown_editor::MdEdit;
 use crate::theme::palette_v2::ThemeExt as _;
 
-use super::{Event, Location, Region};
+use super::{Event, Region};
 
 const SELECTION_HANDLE_RADIUS: f32 = 12.0;
 pub(in crate::tab::markdown_editor) const SELECTION_HANDLE_HEIGHT: f32 =
@@ -225,6 +225,7 @@ impl MdEdit {
         let response = ui.interact(hit_rect, id, Sense::drag());
 
         if response.drag_stopped() {
+            self.in_progress_handle = None;
             if let Some(in_progress_selection) = mem::take(&mut self.in_progress_selection) {
                 let region = Region::from(in_progress_selection);
                 ui.ctx().push_markdown_event(Event::Select { region });
@@ -238,19 +239,17 @@ impl MdEdit {
             if let Some(last) = self.renderer.fragments.last() {
                 new_pos.y = new_pos.y.min(last.rect.max.y - 1.0);
             }
+            // The fixed handle anchors at the committed selection (the buffer
+            // selection doesn't change until drag release); handles paint at
+            // raw .0/.1. Clamp the dragged handle so the two never cross and
+            // the selection keeps ≥1 grapheme — matching Google Keep.
             let selection = self.renderer.buffer.current.selection;
-            let region = if is_start {
-                Region::BetweenLocations {
-                    start: Location::Pos(new_pos),
-                    end: Location::Grapheme(selection.1),
-                }
-            } else {
-                Region::BetweenLocations {
-                    start: Location::Grapheme(selection.0),
-                    end: Location::Pos(new_pos),
-                }
-            };
-            self.in_progress_selection = Some(self.region_to_range(region));
+            let dragged = self.pos_to_char_offset(new_pos);
+            let moving =
+                if is_start { dragged.min(selection.1 - 1) } else { dragged.max(selection.0 + 1) };
+            self.in_progress_selection =
+                Some(if is_start { (moving, selection.1) } else { (selection.0, moving) });
+            self.in_progress_handle = Some(moving);
             self.pending_scroll = Some(crate::tab::markdown_editor::ScrollTarget::Cursor);
         }
     }
@@ -260,13 +259,15 @@ impl MdEdit {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
         use crate::widgets::affine_scroll::Align;
 
-        // Make the moving end of the selection visible. Passed as a
-        // zero-length range — `build_target_reveal` handles single-point
-        // and multi-line ranges identically.
-        let cursor = self
-            .in_progress_selection
-            .unwrap_or(self.renderer.buffer.current.selection)
-            .1;
+        // Make the moving end of the selection visible. During a handle drag
+        // that's the dragged handle (either end); otherwise the selection end.
+        // Passed as a zero-length range — `build_target_reveal` handles
+        // single-point and multi-line ranges identically.
+        let cursor = self.in_progress_handle.unwrap_or_else(|| {
+            self.in_progress_selection
+                .unwrap_or(self.renderer.buffer.current.selection)
+                .1
+        });
 
         // expand cursor rect by one row to scroll while drag selecting
         let pad = if self.in_progress_selection.is_some() {
