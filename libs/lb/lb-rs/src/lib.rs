@@ -19,6 +19,7 @@
 extern crate tracing;
 
 pub mod blocking;
+pub mod experiments;
 pub mod io;
 pub mod ipc;
 pub mod macros;
