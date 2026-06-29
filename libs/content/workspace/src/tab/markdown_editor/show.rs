@@ -225,7 +225,7 @@ impl MdEdit {
             Some(BlockDragAction::Released(pointer)) => {
                 if let Some(drag) = self.in_progress_block_drag.take() {
                     if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
-                        // deferred move
+                        // deferred move (applied next frame in `handle_input`)
                         self.pending_block_move = Some((drag.section_range, gap.insert_offset));
                         ui.ctx().request_repaint();
                     }

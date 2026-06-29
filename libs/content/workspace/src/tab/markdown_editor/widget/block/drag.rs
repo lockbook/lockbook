@@ -28,8 +28,8 @@ pub enum TouchReorder {
     /// (arm) from pan (cancel).
     Pending { origin: Pos2, started: f64 },
     /// Long-press fired; the reorder runs via `in_progress_block_drag`.
-    /// `last` is the most recent live pointer — used on release, since
-    /// touch-up nulls `latest_pos` (Android `PointerGone`).
+    /// `last` is the most recent live pointer — the drop position on
+    /// release, since touch-up nulls `latest_pos` (`PointerGone`).
     Armed { last: Pos2 },
 }
 
@@ -394,15 +394,13 @@ impl<'ast> MdRender {
 }
 
 impl MdEdit {
-    /// Touch long-press → drag-reorder. Pre-arm the body owns the gesture
-    /// so a pan still scrolls; a stationary hold past `LONG_PRESS` arms the
-    /// reorder. Release is read from raw input (with the last live pointer),
-    /// so it fires even when touch-up nulls `latest_pos`. No-op unless touch,
-    /// editable, and the keyboard is down (keyboard up → text selection).
-    /// Emits into `block_drag_action`, consumed by `handle_block_drag`.
+    /// Touch long-press → drag-reorder. The body owns the press so a pan
+    /// still scrolls; a stationary hold past `LONG_PRESS` arms the reorder.
+    /// No-op unless touch, editable, and the keyboard is hidden (keyboard up
+    /// → long-press is text selection). Emits into `block_drag_action`,
+    /// consumed by `handle_block_drag`.
     pub(crate) fn detect_touch_reorder(&mut self, ui: &mut Ui, keyboard_visible: bool) {
-        // Structural conditions don't change mid-gesture; a non-touch /
-        // read-only / non-interactive editor never reorders.
+        // Structural conditions don't change mid-gesture.
         if !self.renderer.touch_mode || self.renderer.readonly || !self.renderer.interactive {
             self.touch_reorder = TouchReorder::Idle;
             return;
@@ -411,17 +409,21 @@ impl MdEdit {
         const LONG_PRESS: f64 = 0.4;
         const SLOP: f32 = 12.0;
 
-        let (any_down, any_pressed, any_released, origin, latest, time, t0) = ui.input(|i| {
+        let (any_down, any_pressed, origin, latest, time, t0) = ui.input(|i| {
             (
                 i.pointer.any_down(),
                 i.pointer.any_pressed(),
-                i.pointer.any_released(),
                 i.pointer.press_origin(),
                 i.pointer.latest_pos(),
                 i.time,
                 i.pointer.press_start_time(),
             )
         });
+        // Reliable "finger up": on iOS a touch-up over a click-sense widget
+        // (e.g. the task checkbox) can arrive as a bare `PointerGone`, leaving
+        // egui's button state stuck `down` — but it always nulls the live
+        // pointer, so `latest.is_none()` is the dependable lift signal.
+        let lifted = !any_down || latest.is_none();
 
         match self.touch_reorder {
             TouchReorder::Idle => {
@@ -436,8 +438,8 @@ impl MdEdit {
             }
             TouchReorder::Pending { origin, started } => {
                 let moved = latest.map(|p| (p - origin).length()).unwrap_or(0.0);
-                if keyboard_visible || !any_down {
-                    self.touch_reorder = TouchReorder::Idle; // keyboard rose, or tapped
+                if keyboard_visible || lifted {
+                    self.touch_reorder = TouchReorder::Idle; // tapped, or keyboard rose
                 } else if moved > SLOP {
                     self.touch_reorder = TouchReorder::Idle; // pan → leave it to scroll
                 } else if time - started >= LONG_PRESS {
@@ -454,12 +456,13 @@ impl MdEdit {
                 }
             }
             TouchReorder::Armed { last } => {
-                let last = latest.unwrap_or(last);
-                if any_released || !any_down {
-                    self.renderer.block_drag_action = Some(BlockDragAction::Released(last));
+                // Drop where the pointer last lived (touch-up nulls `latest`).
+                let pointer = latest.unwrap_or(last);
+                if lifted {
+                    self.renderer.block_drag_action = Some(BlockDragAction::Released(pointer));
                     self.touch_reorder = TouchReorder::Idle;
                 } else {
-                    self.touch_reorder = TouchReorder::Armed { last };
+                    self.touch_reorder = TouchReorder::Armed { last: pointer };
                 }
             }
         }
