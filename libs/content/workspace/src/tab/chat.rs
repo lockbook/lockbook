@@ -7,7 +7,8 @@ use std::sync::{Arc, RwLock};
 
 use chrono::{DateTime, Local, Utc};
 use egui::{
-    Color32, CornerRadius, Galley, Id, Key, Modifiers, Rect, ScrollArea, Sense, Ui, pos2, vec2,
+    Color32, CornerRadius, Galley, Id, Key, Modifiers, Rect, ScrollArea, Sense, Stroke, StrokeKind,
+    Ui, pos2, vec2,
 };
 use lb_rs::Uuid;
 use lb_rs::model::account::Account;
@@ -19,7 +20,7 @@ use crate::file_cache::FileCache;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
 use crate::theme::icons::Icon;
-use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
+use crate::theme::palette_v2::{ThemeExt, username_color};
 
 const MAX_WIDTH: f32 = 800.0;
 const H_PAD: f32 = 12.0;
@@ -27,10 +28,13 @@ const V_PAD: f32 = 10.0;
 const H_MARGIN: f32 = 12.0;
 const ROW_GAP: f32 = 4.0;
 const CORNER: u8 = 10;
-const TOP_MARGIN: f32 = 15.0;
+/// Bigger on Android to clear the status bar / safe area.
+const TOP_MARGIN: f32 = if cfg!(target_os = "android") { 60.0 } else { 15.0 };
 const BOTTOM_PAD: f32 = 15.0;
 const COMPOSER_MAX_HEIGHT: f32 = 160.0;
-const COMPOSER_BOTTOM_INSET: f32 = 16.0;
+const COMPOSER_BOTTOM_GAP: f32 = 16.0;
+/// Android nav-bar clearance, used while the keyboard is down.
+const COMPOSER_NAV_CLEARANCE: f32 = 60.0;
 /// Horizontal inset on each side of the composer bubble within its column. The
 /// send button lives in the right inset, outside the bubble.
 const SIDE_INSET: f32 = 48.0;
@@ -48,7 +52,9 @@ pub struct Entry {
 /// paints with no egui layout involvement.
 struct RowPlan {
     bubble_rect: Rect,
+    /// Fill for others' bubbles; outline stroke for the user's own.
     bubble_color: Color32,
+    is_mine: bool,
     name_galley: Option<Arc<Galley>>,
     name_h: f32,
     ts_galley: Option<Arc<Galley>>,
@@ -77,6 +83,8 @@ pub struct Chat {
     /// Last server state our local edits sit on top of — the merge base. Held
     /// so `reload` does a real 3-way merge instead of an empty-base union.
     base: Vec<u8>,
+    /// Composer region from the last frame, for `will_consume_touch`.
+    composer_rect: Rect,
     ctx: egui::Context,
 }
 
@@ -104,8 +112,16 @@ impl Chat {
             seq: 0,
             initialized: false,
             base: bytes.to_vec(),
+            composer_rect: Rect::NOTHING,
             ctx,
         }
+    }
+
+    /// True for transcript touches (which scroll), so Android doesn't treat a
+    /// short transcript scroll as a keyboard-summoning tap. Composer touches
+    /// fall through so they still raise the keyboard.
+    pub fn will_consume_touch(&self, pos: egui::Pos2) -> bool {
+        !self.composer_rect.contains(pos)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -186,8 +202,26 @@ impl Chat {
             .neutral_fg_secondary()
             .lerp_to_gamma(theme.neutral_fg(), 0.5); // fg secondary hard to read on colored bg
 
+        // Surface for the composer and others' bubbles — a slight lift off
+        // `neutral_bg`. Derived from `neutral_bg`/`neutral_fg` (the reliable
+        // poles) rather than `neutral_bg_secondary`, which Android Material You
+        // maps to a foreground tone (near-white in dark mode).
+        let bubble_surface = theme.neutral_bg().lerp_to_gamma(theme.neutral_fg(), 0.06);
+
         ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
         let full_rect = ui.available_rect_before_wrap();
+
+        // The panel is inset past the keyboard but not the nav bar, so on
+        // Android clear the nav bar only while the keyboard is down.
+        let keyboard_up = ui
+            .memory(|m| m.data.get_temp::<f32>(Id::new("ws_keyboard_height")))
+            .unwrap_or(0.0)
+            > 0.0;
+        let composer_bottom_inset = if cfg!(target_os = "android") && !keyboard_up {
+            COMPOSER_NAV_CLEARANCE
+        } else {
+            COMPOSER_BOTTOM_GAP
+        };
 
         let composer_id = Id::new("chat_composer");
         if !self.initialized {
@@ -221,7 +255,7 @@ impl Chat {
         let composer_height = (measured_h + V_PAD * 2.0).min(COMPOSER_MAX_HEIGHT);
         let transcript_rect = Rect::from_min_max(
             full_rect.min,
-            pos2(full_rect.max.x, full_rect.max.y - composer_height - COMPOSER_BOTTOM_INSET),
+            pos2(full_rect.max.x, full_rect.max.y - composer_height - composer_bottom_inset),
         );
         let mut text_areas = Vec::new();
 
@@ -291,15 +325,18 @@ impl Chat {
                         let bubble_rect =
                             Rect::from_min_size(pos2(bubble_x, y), vec2(bubble_w, bubble_h));
 
+                        // Own bubbles are outlined in the primary accent (reads
+                        // on the dark transcript); others' are filled.
                         let bubble_color = if is_mine {
-                            theme.bg().get_color(Palette::Blue)
+                            theme.fg().get_color(theme.prefs().primary)
                         } else {
-                            theme.neutral_bg_secondary()
+                            bubble_surface
                         };
 
                         plans.push(RowPlan {
                             bubble_rect,
                             bubble_color,
+                            is_mine,
                             name_galley,
                             name_h,
                             ts_galley,
@@ -315,11 +352,20 @@ impl Chat {
 
                     // pass 2: paint absolute. No egui layout calls.
                     for (i, plan) in plans.into_iter().enumerate() {
-                        ui.painter().rect_filled(
-                            plan.bubble_rect,
-                            CornerRadius::same(CORNER),
-                            plan.bubble_color,
-                        );
+                        if plan.is_mine {
+                            ui.painter().rect_stroke(
+                                plan.bubble_rect,
+                                CornerRadius::same(CORNER),
+                                Stroke::new(0.5, plan.bubble_color),
+                                StrokeKind::Inside,
+                            );
+                        } else {
+                            ui.painter().rect_filled(
+                                plan.bubble_rect,
+                                CornerRadius::same(CORNER),
+                                plan.bubble_color,
+                            );
+                        }
 
                         let mut text_y = plan.bubble_rect.min.y + V_PAD;
                         if let Some(ng) = plan.name_galley {
@@ -367,20 +413,18 @@ impl Chat {
 
         // Composer bubble + body.
         let composer_rect = Rect::from_min_max(
-            pos2(full_rect.min.x, full_rect.max.y - composer_height - COMPOSER_BOTTOM_INSET),
+            pos2(full_rect.min.x, full_rect.max.y - composer_height - composer_bottom_inset),
             full_rect.max,
         );
+        self.composer_rect = composer_rect;
         let col_pad = (available_width - col_width) / 2.0;
         let h_inset = col_pad + SIDE_INSET;
         let bubble_rect = Rect::from_min_max(
             pos2(composer_rect.min.x + h_inset, composer_rect.min.y),
-            pos2(composer_rect.max.x - h_inset, composer_rect.max.y - COMPOSER_BOTTOM_INSET),
+            pos2(composer_rect.max.x - h_inset, composer_rect.max.y - composer_bottom_inset),
         );
-        ui.painter().rect_filled(
-            bubble_rect,
-            CornerRadius::same(CORNER),
-            theme.neutral_bg_secondary(),
-        );
+        ui.painter()
+            .rect_filled(bubble_rect, CornerRadius::same(CORNER), bubble_surface);
 
         // Composer draw. Submits its own text callback internally.
         let inner_rect = bubble_rect.shrink2(vec2(H_PAD, V_PAD));
@@ -413,7 +457,7 @@ impl Chat {
             let resp = ui.interact(send_rect, Id::new("chat_send"), Sense::click());
 
             let painter = ui.painter();
-            painter.circle_filled(center, d / 2.0, theme.bg().get_color(Palette::Blue));
+            painter.circle_filled(center, d / 2.0, theme.bg().get_color(theme.prefs().primary));
             let icon = ui.fonts(|f| {
                 f.layout_no_wrap(
                     Icon::SEND.icon.to_string(),
