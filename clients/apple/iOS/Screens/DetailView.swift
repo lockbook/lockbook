@@ -90,16 +90,6 @@ struct DetailView: View {
             }.compactMap { $0 }
         )
     }
-
-    func runOnOpenDoc(f: @escaping (File) -> Void) {
-        guard let id = workspaceOutput.openDoc else {
-            return
-        }
-
-        if let file = filesModel.idsToFiles[id] {
-            f(file)
-        }
-    }
 }
 
 struct CompactTitle: ViewModifier {
@@ -119,9 +109,7 @@ struct CompactTitle: ViewModifier {
             content
                 .toolbar {
                     if workspaceOutput.openDoc != nil {
-                        if #available(iOS 26.0, *) {
-                            ToolbarSpacer(.fixed, placement: .topBarLeading)
-                        }
+                        ToolbarSpacer(.fixed, placement: .topBarLeading)
 
                         ToolbarItem(placement: .topBarLeading) {
                             Button(
