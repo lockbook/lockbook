@@ -49,16 +49,31 @@ object WorkspaceThemeHelper {
     ): WorkspaceTheme {
         val defaultTheme = Workspace.defaultTheme(darkMode) as WorkspaceTheme
         val materialPrimary =
-            context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorPrimaryFixed, R.color.md_theme_primary)
+            context.getMaterialColorOrFallback(androidx.appcompat.R.attr.colorPrimary, R.color.md_theme_primary)
         val materialSecondary =
             context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorSecondary, R.color.md_theme_secondary)
         val materialTertiary =
             context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorTertiary, R.color.md_theme_tertiary)
+        val materialPrimaryContainer =
+            context.getMaterialColorOrFallback(
+                com.google.android.material.R.attr.colorPrimaryContainer,
+                R.color.md_theme_primaryContainer,
+            )
+        val materialSecondaryContainer =
+            context.getMaterialColorOrFallback(
+                com.google.android.material.R.attr.colorSecondaryContainer,
+                R.color.md_theme_secondaryContainer,
+            )
+        val materialTertiaryContainer =
+            context.getMaterialColorOrFallback(
+                com.google.android.material.R.attr.colorTertiaryContainer,
+                R.color.md_theme_tertiaryContainer,
+            )
         val materialSurface =
             context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorSurface, R.color.md_theme_surface)
-        val materialSurfaceVariant =
+        val materialSurfaceContainerHigh =
             context.getMaterialColorOrFallback(
-                com.google.android.material.R.attr.colorSurfaceVariant,
+                com.google.android.material.R.attr.colorSurfaceContainerHigh,
                 R.color.md_theme_surfaceVariant,
             )
         val materialOnSurface =
@@ -91,28 +106,34 @@ object WorkspaceThemeHelper {
                 intArrayOf(materialPrimary, materialSecondary, materialTertiary),
                 renderedAccentSlots,
             )
-        val materialRoleColors =
+        val fgAccentColors =
             mapOf(
                 prefs.primary to materialPrimary,
                 prefs.secondary to materialSecondary,
                 prefs.tertiary to materialTertiary,
+            )
+        val bgAccentColors =
+            mapOf(
+                prefs.primary to materialPrimaryContainer,
+                prefs.secondary to materialSecondaryContainer,
+                prefs.tertiary to materialTertiaryContainer,
             )
 
         val dim =
             harmonizedDim
                 .copy(
                     black = if (darkMode) materialSurface else materialOnSurface,
-                    grey = materialOnSurfaceVariant,
+                    grey = if (darkMode) materialSurfaceContainerHigh else materialOnSurfaceVariant,
                     white = if (darkMode) materialOnSurface else materialSurface,
-                ).withPaletteColors(materialRoleColors)
+                ).withPaletteColors(if (darkMode) bgAccentColors else fgAccentColors)
 
         val bright =
             harmonizedBright
                 .copy(
                     black = materialOnSurface,
-                    grey = if (darkMode) materialOnSurfaceVariant else materialSurfaceVariant,
+                    grey = if (darkMode) materialOnSurfaceVariant else materialSurfaceContainerHigh,
                     white = materialSurface,
-                ).withPaletteColors(materialRoleColors)
+                ).withPaletteColors(if (darkMode) fgAccentColors else bgAccentColors)
 
         return WorkspaceTheme(
             isDark = darkMode,
