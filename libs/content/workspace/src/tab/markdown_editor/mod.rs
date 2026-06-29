@@ -512,7 +512,6 @@ impl MdRender {
             search_range: None,
             disable_images: false,
             in_progress_selection: None,
-            in_progress_handle: None,
             in_progress_block_drag: None,
             find_current_match: None,
             preview_match: None,
