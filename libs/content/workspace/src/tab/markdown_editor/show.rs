@@ -770,6 +770,7 @@ impl MdEdit {
         self.renderer.buffer = Buffer::from("");
         self.renderer.bump_text_seq();
         self.in_progress_selection = None;
+        self.in_progress_handle = None;
         self.event.internal_events.clear();
     }
 
