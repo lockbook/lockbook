@@ -109,9 +109,7 @@ struct CompactTitle: ViewModifier {
             content
                 .toolbar {
                     if workspaceOutput.openDoc != nil {
-                        if #available(iOS 26.0, *) {
-                            ToolbarSpacer(.fixed, placement: .topBarLeading)
-                        }
+                        ToolbarSpacer(.fixed, placement: .topBarLeading)
 
                         ToolbarItem(placement: .topBarLeading) {
                             Button(

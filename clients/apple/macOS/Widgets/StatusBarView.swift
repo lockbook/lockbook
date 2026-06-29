@@ -86,11 +86,7 @@ struct StatusBarView: View {
 
 struct GlassButtonViewModifier: ViewModifier {
     func body(content: Content) -> some View {
-        if #available(macOS 26.0, *) {
-            content.buttonStyle(.accessoryBar)
-        } else {
-            content
-        }
+        content.buttonStyle(.accessoryBar)
     }
 }
 

@@ -69,6 +69,7 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
     if execute_ios {
         println!("Building iOS");
         ios_build
+            .env("IPHONEOS_DEPLOYMENT_TARGET", "26.0")
             .args(args)
             .current_dir(workspace_ffi())
             .assert_success()?;
@@ -91,7 +92,7 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
     if execute_mac {
         println!("Building macOS");
         mac_build
-            .env("MACOSX_DEPLOYMENT_TARGET", "13.0")
+            .env("MACOSX_DEPLOYMENT_TARGET", "26.0")
             .args(args)
             .current_dir(workspace_ffi())
             .assert_success()?;
