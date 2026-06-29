@@ -205,6 +205,11 @@ pub struct MdEdit {
     /// when `None`.
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
 
+    /// Offset of the selection handle being dragged (Android), so auto-scroll
+    /// follows the moving handle rather than always the selection end. `None`
+    /// outside a handle drag — scroll then falls back to the selection end.
+    pub in_progress_handle: Option<Grapheme>,
+
     /// Active list-item drag-to-reorder — `Some` from grab until release.
     /// Mirrored onto the renderer each frame for the dim/indicator paint.
     pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
@@ -258,6 +263,7 @@ impl MdEdit {
             event: Default::default(),
             phone_mode: false,
             in_progress_selection: None,
+            in_progress_handle: None,
             in_progress_block_drag: None,
             touch_reorder: Default::default(),
             pending_block_move: None,
@@ -506,6 +512,7 @@ impl MdRender {
             search_range: None,
             disable_images: false,
             in_progress_selection: None,
+            in_progress_handle: None,
             in_progress_block_drag: None,
             find_current_match: None,
             preview_match: None,
@@ -694,6 +701,7 @@ impl Editor {
                 cursor: Default::default(),
                 event: Default::default(),
                 in_progress_selection: None,
+                in_progress_handle: None,
                 in_progress_block_drag: None,
                 touch_reorder: Default::default(),
                 pending_block_move: None,
@@ -1617,6 +1625,13 @@ enum EndpointSide {
     Bottom,
 }
 
+/// Height of the fixed overlay covering the top of the editor (Android
+/// status-bar safe area); zero elsewhere. Equals the leading pad, which
+/// exists to hold content clear of that overlay.
+fn android_top_overlay(content: &scroll_content::DocScrollContent<'_, '_>) -> f32 {
+    if cfg!(target_os = "android") { content.leading_precise } else { 0.0 }
+}
+
 fn endpoint_offset(
     renderer: &MdRender, content: &scroll_content::DocScrollContent<'_, '_>,
     state: &crate::widgets::affine_scroll::ScrollArea<DocRowId>, target: Grapheme,
@@ -1626,7 +1641,7 @@ fn endpoint_offset(
     if let Some(frag) = renderer.fragment_at_offset(target) {
         let y_range = frag.rect.y_range().expand(pad);
         let y = match side {
-            EndpointSide::Top => y_range.min,
+            EndpointSide::Top => y_range.min - android_top_overlay(content),
             EndpointSide::Bottom => y_range.max,
         };
         return state.offset_at_viewport_y(content, y - canvas_rect.min.y);
