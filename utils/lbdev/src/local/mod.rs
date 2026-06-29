@@ -91,6 +91,7 @@ fn apple_ws(targets: WsBuildTargets) -> CliResult<()> {
     if execute_mac {
         println!("Building macOS");
         mac_build
+            .env("MACOSX_DEPLOYMENT_TARGET", "13.0")
             .args(args)
             .current_dir(workspace_ffi())
             .assert_success()?;

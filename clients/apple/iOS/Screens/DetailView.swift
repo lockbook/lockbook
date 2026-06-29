@@ -90,16 +90,6 @@ struct DetailView: View {
             }.compactMap { $0 }
         )
     }
-
-    func runOnOpenDoc(f: @escaping (File) -> Void) {
-        guard let id = workspaceOutput.openDoc else {
-            return
-        }
-
-        if let file = filesModel.idsToFiles[id] {
-            f(file)
-        }
-    }
 }
 
 struct CompactTitle: ViewModifier {
