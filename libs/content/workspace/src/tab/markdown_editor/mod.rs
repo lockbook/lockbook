@@ -1641,7 +1641,6 @@ fn endpoint_offset(
     if let Some(frag) = renderer.fragment_at_offset(target) {
         let y_range = frag.rect.y_range().expand(pad);
         let y = match side {
-
             EndpointSide::Top => y_range.min - android_top_overlay(content),
             EndpointSide::Bottom => y_range.max,
         };
