@@ -8,7 +8,7 @@ use unicode_segmentation::UnicodeSegmentation as _;
 use std::sync::{Arc, RwLock};
 
 use crate::TextBufferArea;
-use crate::file_cache::{FileCache, FilesExt as _, relative_path};
+use crate::file_cache::{FileCache, FilesExt as _, relative_path, strip_ext};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
@@ -381,17 +381,16 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
         .map(|f| f.parent)
         .unwrap_or(file_id);
     let from_path = cache.path(from_id);
-    let lq = query.trim_end_matches(".md").to_lowercase();
+    let lq = query.to_lowercase();
 
-    // For image links, match against the full filename (including extension).
-    // For wikilinks and regular links, match against the title without .md.
+    // Match against the full filename. A query may omit the extension (`note`
+    // matches `note.svg`, since it's a prefix/subsequence of the full name) or
+    // include it to be specific.
     let file_matches = |name: &str| -> bool {
-        let search_name =
-            if mode == CompletionMode::ImageLink { name } else { name.trim_end_matches(".md") };
-        let ls = search_name.to_lowercase();
         if lq.is_empty() {
             return true;
         }
+        let ls = name.to_lowercase();
         ls == lq || ls.starts_with(&lq) || is_subsequence(&lq, &ls)
     };
 
@@ -472,7 +471,7 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             if !tree_allowed(f.id) {
                 continue;
             }
-            let display_name = f.name.trim_end_matches(".md").to_string();
+            let display_name = strip_ext(&f.name).to_string();
             results.push(make_result(f, display_name));
             if results.len() == MAX_RESULTS {
                 break;
@@ -494,12 +493,15 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             let display_name = if mode == CompletionMode::ImageLink {
                 f.name.clone()
             } else {
-                f.name.trim_end_matches(".md").to_string()
+                strip_ext(&f.name).to_string()
             };
-            let search_name = display_name.to_lowercase();
-            let tier = if search_name == lq {
+            // Rank exact name/stem matches first, then prefixes. A query with or
+            // without the extension can match either.
+            let lname = f.name.to_lowercase();
+            let lstem = display_name.to_lowercase();
+            let tier = if lstem == lq || lname == lq {
                 0u8
-            } else if search_name.starts_with(&lq) {
+            } else if lstem.starts_with(&lq) || lname.starts_with(&lq) {
                 1
             } else {
                 2
@@ -527,8 +529,9 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
 /// Fills `result.insert` for each entry.
 /// - Link/ImageLink: cross-tree uses `lb://uuid` (relative paths don't work
 ///   across trees); same-tree uses the encoded relative path.
-/// - WikiLink: bare title when unique, minimal partial path when ambiguous.
-///   Cross-tree results are filtered upstream (wikilinks are same-tree only).
+/// - WikiLink: the shortest reference that resolves unambiguously — bare stem,
+///   else full name (extension disambiguates), else a relative path. Cross-tree
+///   results are filtered upstream (wikilinks are same-tree only).
 fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: CompletionMode) {
     if mode != CompletionMode::WikiLink {
         for result in results.iter_mut() {
@@ -541,30 +544,36 @@ fn populate_insert(cache: &FileCache, results: &mut [FileResult], mode: Completi
         return;
     }
 
-    let all_titles: Vec<&str> = cache
-        .all_files()
-        .filter(|f| f.is_document())
-        .map(|f| f.name.trim_end_matches(".md"))
-        .collect();
+    let docs: Vec<&File> = cache.all_files().filter(|f| f.is_document()).collect();
+    let unique = |pred: &dyn Fn(&str) -> bool| docs.iter().filter(|d| pred(&d.name)).count() <= 1;
 
     for result in results.iter_mut() {
-        let count = all_titles
-            .iter()
-            .filter(|t| t.eq_ignore_ascii_case(&result.name))
-            .count();
-        result.insert = if count <= 1 {
-            result.name.clone()
-        } else {
-            let parts: Vec<&str> = result
-                .rel_path
-                .trim_end_matches(".md")
-                .rsplitn(2, '/')
-                .collect();
-            if parts.len() == 2 {
-                format!("{}/{}", parts[1], parts[0])
-            } else {
-                result.rel_path.trim_end_matches(".md").to_string()
-            }
+        let Some(f) = cache.get_by_id(result.id) else { continue };
+        let full = f.name.clone();
+        let stem = strip_ext(&full).to_string();
+
+        if unique(&|n| strip_ext(n).eq_ignore_ascii_case(&stem)) {
+            result.insert = stem;
+            continue;
+        }
+        if unique(&|n| n.eq_ignore_ascii_case(&full)) {
+            result.insert = full;
+            continue;
+        }
+
+        // The relative dir locates the folder; within it, the bare stem when
+        // unique among siblings, else the full name.
+        let sibling_stem_unique = cache
+            .children(f.parent)
+            .into_iter()
+            .filter(|d| d.is_document())
+            .filter(|d| strip_ext(&d.name).eq_ignore_ascii_case(&stem))
+            .count()
+            <= 1;
+        let last = if sibling_stem_unique { stem } else { full };
+        result.insert = match result.rel_path.rsplit_once('/') {
+            Some((dir, _)) => format!("{dir}/{last}"),
+            None => last,
         };
     }
 }
@@ -696,7 +705,7 @@ impl MdEdit {
         let text_color = ui.visuals().text_color();
         let hint_color = ui.visuals().weak_text_color();
         let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) { "⌘" } else { "^" };
-        let lq = query.trim_end_matches(".md").to_lowercase();
+        let lq = strip_ext(&query).to_lowercase();
 
         let shortcuts: Vec<String> = if self.phone_mode {
             Vec::new()
@@ -857,6 +866,90 @@ impl MdEdit {
                 &r.insert,
                 mode,
             );
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use lb_rs::Uuid;
+    use lb_rs::model::file::File;
+    use lb_rs::model::file_metadata::FileType;
+
+    use super::{CompletionMode, search};
+    use crate::file_cache::{FileCache, FilesExt as _};
+
+    fn file(id: Uuid, parent: Uuid, name: &str, file_type: FileType) -> File {
+        File {
+            id,
+            parent,
+            name: name.into(),
+            file_type,
+            last_modified: 0,
+            last_modified_by: String::new(),
+            owner: String::new(),
+            shares: vec![],
+            size_bytes: 0,
+        }
+    }
+
+    fn build(root: File, rest: Vec<File>) -> FileCache {
+        let files = std::iter::once(root.clone()).chain(rest);
+        FileCache {
+            root,
+            files: files.map(|f| (f.id, f)).collect(),
+            shared: HashMap::new(),
+            shared_roots: vec![],
+            suggested: vec![],
+            size_bytes_recursive: HashMap::new(),
+            last_modified_recursive: HashMap::new(),
+            last_modified_by_recursive: HashMap::new(),
+            last_modified: 0,
+        }
+    }
+
+    /// The completions/resolver contract: every wikilink completion offered
+    /// resolves back to the file it was for. Covers all three insert forms —
+    /// bare stem (`todo`), full name when the stem collides (`Pancakes.md`),
+    /// and a relative path when the full name collides across folders (`a/Spec`).
+    #[test]
+    fn wikilink_completions_resolve_back() {
+        let root_id = Uuid::new_v4();
+        let root = file(root_id, root_id, "root", FileType::Folder);
+        let (recipes, a, b, editing) =
+            (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+        let doc = |parent, name| file(Uuid::new_v4(), parent, name, FileType::Document);
+
+        let cache = build(
+            root,
+            vec![
+                file(editing, root_id, "editing.md", FileType::Document),
+                doc(root_id, "todo.txt"),
+                file(recipes, root_id, "recipes", FileType::Folder),
+                doc(recipes, "Pancakes.md"),
+                doc(recipes, "Pancakes.svg"),
+                file(a, root_id, "a", FileType::Folder),
+                doc(a, "Spec.md"),
+                file(b, root_id, "b", FileType::Folder),
+                doc(b, "Spec.md"),
+            ],
+        );
+        let from_id = cache.get_by_id(editing).unwrap().parent;
+
+        for query in ["pan", "todo", "spec"] {
+            let results = search(&cache, editing, query, CompletionMode::WikiLink);
+            assert!(!results.is_empty(), "query {query:?} produced no completions");
+            for r in results {
+                assert_eq!(
+                    cache.resolve_wikilink(&r.insert, from_id),
+                    Some(r.id),
+                    "query {query:?}: insert {:?} did not resolve to {:?}",
+                    r.insert,
+                    r.name,
+                );
+            }
         }
     }
 }
