@@ -408,53 +408,59 @@ pub trait FilesExt {
 
     /// Resolves a wikilink title to a document UUID.
     ///
-    /// - disambiguation paths ("folder/title") resolved via relative path from `from_id`
-    /// - bare titles matched case-insensitively within the same tree as `from_id`
-    /// - on conflict, prefers the file closest to `from_id`
+    /// Extensions are optional in the link, never stripped from the file:
+    /// `note` matches a document named `note.md`, `note.svg`, or `note`, while
+    /// `note.svg` matches only the exact name. An exact full-name match always
+    /// wins over a stem-only match.
     ///
-    /// Only documents match; folders are ignored. Cross-tree matches are never returned.
-    /// Returns None if no matching document is found.
+    /// - path titles (`folder/note`) resolve the folder relative to `from_id`,
+    ///   then match the final component among that folder's documents.
+    /// - bare titles match across the tree; the nearest match wins on distance.
+    ///
+    /// Only documents match; folders are ignored. Cross-tree matches are never
+    /// returned. Returns None when nothing matches or the match is ambiguous
+    /// (multiple equally-specific, equally-near documents) — adding an extension
+    /// or a path disambiguates.
     fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<Uuid> {
-        if title.contains('/') {
-            let with_ext =
-                if title.ends_with(".md") { title.to_string() } else { format!("{}.md", title) };
-            if let Some(file) = self
-                .resolve_relative_path(from_id, &with_ext)
+        if let Some((dir, last)) = title.rsplit_once('/') {
+            let dir_id = self.resolve_relative_path(from_id, dir)?.id;
+            let docs: Vec<&File> = self
+                .children(dir_id)
+                .into_iter()
                 .filter(|f| f.is_document())
-                .filter(|f| self.same_tree(from_id, f.id))
-            {
-                return Some(file.id);
-            }
+                .collect();
+            let id = match_title(&docs, last)?;
+            return self.same_tree(from_id, id).then_some(id);
         }
 
-        let bare_title = title
-            .rsplit('/')
-            .next()
-            .unwrap_or(title)
-            .trim_end_matches(".md");
-
-        let candidates: Vec<_> = self
+        let candidates: Vec<&File> = self
             .iter_files()
             .filter(|f| f.is_document())
             .filter(|f| self.same_tree(from_id, f.id))
-            .filter(|f| {
-                f.name
-                    .trim_end_matches(".md")
-                    .eq_ignore_ascii_case(bare_title)
-            })
+            .filter(|f| title_matches(&f.name, title))
             .collect();
 
-        match candidates.len() {
-            0 => None,
-            1 => Some(candidates[0].id),
-            _ => candidates
-                .iter()
-                .min_by_key(|f| {
-                    let from_path = self.path(from_id);
-                    let rel = relative_path(&from_path, &self.path(f.id));
-                    rel.matches('/').count()
-                })
-                .map(|f| f.id),
+        // Exact full-name matches outrank stem-only matches.
+        let exact: Vec<&File> = candidates
+            .iter()
+            .copied()
+            .filter(|f| f.name.eq_ignore_ascii_case(title))
+            .collect();
+        let pool = if exact.is_empty() { candidates } else { exact };
+
+        // Nearest wins; a tie at the minimum distance is ambiguous.
+        let from_path = self.path(from_id);
+        let distance = |f: &File| {
+            relative_path(&from_path, &self.path(f.id))
+                .matches('/')
+                .count()
+        };
+        let nearest = pool.iter().map(|f| distance(f)).min()?;
+        let mut tied = pool.into_iter().filter(|f| distance(f) == nearest);
+        let first = tied.next()?;
+        match tied.next() {
+            None => Some(first.id),
+            Some(_) => None,
         }
     }
 
@@ -588,6 +594,38 @@ impl FilesExt for FileCache {
 
     fn iter_files(&self) -> impl Iterator<Item = &File> {
         self.all_files()
+    }
+}
+
+/// A file name with its final extension removed (`note.svg` → `note`). Names
+/// with no extension, a leading dot, or a trailing dot are returned unchanged.
+pub fn strip_ext(name: &str) -> &str {
+    match name.rfind('.') {
+        Some(i) if i > 0 && i + 1 < name.len() => &name[..i],
+        _ => name,
+    }
+}
+
+/// Whether a wikilink title matches a file name: an exact match, or a match
+/// once the file's extension is dropped. Case-insensitive.
+pub fn title_matches(name: &str, title: &str) -> bool {
+    name.eq_ignore_ascii_case(title) || strip_ext(name).eq_ignore_ascii_case(title)
+}
+
+/// Picks the document matching `title` among `docs` (siblings in one folder).
+/// An exact full-name match wins; otherwise a unique stem match resolves and
+/// anything ambiguous returns None.
+fn match_title(docs: &[&File], title: &str) -> Option<Uuid> {
+    if let Some(f) = docs.iter().find(|f| f.name.eq_ignore_ascii_case(title)) {
+        return Some(f.id);
+    }
+    let mut stem = docs
+        .iter()
+        .filter(|f| strip_ext(&f.name).eq_ignore_ascii_case(title));
+    let first = stem.next()?;
+    match stem.next() {
+        None => Some(first.id),
+        Some(_) => None, // ambiguous
     }
 }
 

@@ -31,8 +31,10 @@
 //! - **`path()` produces wrong strings** — components in reverse order, or
 //!   own-tree paths missing their leading `/`.
 //! - **Percent-encoded absolute paths fail to resolve.**
-//! - **Wikilinks can't find their target** because `.md` isn't trimmed from
-//!   filenames before comparing to the title.
+//! - **Wikilinks can't find their target** because an omitted extension isn't
+//!   matched (`note` should find `note.md`).
+//! - **Wikilinks silently resolve an ambiguous stem** (`note` with both
+//!   `note.md` and `note.svg` present) instead of returning None.
 //! - **Folder paths resolve as documents** (should return None).
 //! - **Wikilink ties are resolved toward the farthest match** instead of the
 //!   nearest.
@@ -47,7 +49,7 @@ use lb_rs::model::file_metadata::FileType;
 use rand::{Rng, SeedableRng, rngs::StdRng};
 use urlencoding::encode as percent_encode;
 
-use crate::file_cache::{FileCache, FilesExt, ResolvedLink, relative_path};
+use crate::file_cache::{FileCache, FilesExt, ResolvedLink, relative_path, strip_ext};
 use crate::test_utils::byte_source::ByteSource;
 use crate::test_utils::shrink::shrink;
 
@@ -77,20 +79,27 @@ const SUBTREE_SIZE_BIAS: &[u32] = &[2, 3, 4, 4, 3, 2, 2, 1];
 /// assumption that every added file is a folder extending the deepest chain.
 const MAX_TREE_DEPTH: usize = SUBTREE_SIZE_BIAS.len() - 1;
 
+/// Document extensions drawn from for generated documents. The empty string
+/// models extension-less files; the mix of extensions produces sibling stem
+/// collisions (e.g. `a.md` + `a.svg`) that exercise wikilink ambiguity.
+const DOC_EXTS: [&str; 4] = [".md", ".txt", ".svg", ""];
+
 /// Picks a name and type: 50/50 folder/document, name drawn from `POOL`.
-/// Documents get `.md` appended.
+/// Documents get an extension drawn from `DOC_EXTS` (possibly none).
 fn pick_file(src: &mut ByteSource) -> (String, FileType) {
     let is_folder = src.bias(&[1, 1]) == 1;
     let c = POOL[src.draw(POOL.len())];
     if is_folder {
         (c.to_string(), FileType::Folder)
     } else {
-        (format!("{c}.md"), FileType::Document)
+        (format!("{c}{}", DOC_EXTS[src.draw(DOC_EXTS.len())]), FileType::Document)
     }
 }
 
 /// Fills descendants under `root_id` (already in `out`), skipping any sibling
-/// name collision since files can't have path conflicts.
+/// name collision since files can't have path conflicts. Sibling documents that
+/// share a stem but differ by extension are allowed — they make bare titles
+/// ambiguous, which the wikilink suite checks.
 fn fill_subtree(out: &mut Vec<File>, src: &mut ByteSource, root_id: Uuid) {
     let mut folders = vec![root_id];
     for _ in 0..src.bias(SUBTREE_SIZE_BIAS) {
@@ -223,50 +232,128 @@ fn link_check(buf: &[u8]) -> Result<(), &'static str> {
     Ok(())
 }
 
-/// Wikilinks resolve within the same tree by case-insensitive title match,
-/// with disambiguation via a relative path.
+/// Wikilinks resolve within the same tree by case-insensitive title match.
+/// Extensions are optional in the link (`note` matches `note.md`) but never
+/// stripped from the file, so an exact full name wins and stem collisions are
+/// ambiguous. Paths disambiguate via the folder relative to `from_id`.
 fn wikilink_check(buf: &[u8]) -> Result<(), &'static str> {
     let mut src = ByteSource::new(buf);
     let cache = cache(&mut src);
     let folders: Vec<&File> = cache.iter_files().filter(|f| f.is_folder()).collect();
     let from_id = folders[src.draw(folders.len())].id;
     let from_path = cache.path(from_id);
-    for f in cache.iter_files().filter(|f| f.is_document()) {
-        let title = f.name.trim_end_matches(".md");
-        // A: from own parent (always same tree), doc resolves to itself.
-        // Skip share-root documents whose parent isn't in the cache — "from own
-        // parent" isn't meaningful when the parent isn't a folder we can see.
+    let docs: Vec<&File> = cache.iter_files().filter(|f| f.is_document()).collect();
+
+    // Count of same-tree-as-`from_id` docs satisfying a name predicate.
+    let tree_count = |pred: &dyn Fn(&str) -> bool| {
+        docs.iter()
+            .filter(|d| cache.same_tree(from_id, d.id))
+            .filter(|d| pred(&d.name))
+            .count()
+    };
+
+    for f in &docs {
+        let full = f.name.as_str();
+        let stem = strip_ext(full);
+        let same = cache.same_tree(from_id, f.id);
+
+        // A: a doc's full name resolves to itself from its own parent. (Names
+        // are unique within a folder, so the exact match is unambiguous.) Skip
+        // share-root docs whose parent isn't a visible folder.
         if cache.get_by_id(f.parent).is_some()
-            && !matches!(cache.resolve_wikilink(title, f.parent), Some(id) if id == f.id)
+            && !matches!(cache.resolve_wikilink(full, f.parent), Some(id) if id == f.id)
         {
-            return Err("A: own parent self-resolve");
+            return Err("A: full-name own-parent self-resolve");
         }
-        // B: from any same-tree folder, resolves to a doc with matching title
-        if cache.same_tree(from_id, f.id) {
-            let Some(id) = cache.resolve_wikilink(title, from_id) else {
-                return Err("B: lookup returned None");
-            };
-            let Some(r) = cache.get_by_id(id) else {
-                return Err("B: resolved id not in cache");
-            };
-            if !r.name.trim_end_matches(".md").eq_ignore_ascii_case(title) {
-                return Err("B: resolved title mismatch");
-            }
-            // C: resolved id is always same-tree as from_id
-            if !cache.same_tree(from_id, id) {
-                return Err("C: resolved wikilink is cross-tree");
+
+        // B: the full relative path resolves to the doc (same tree).
+        if same {
+            let rel = relative_path(&from_path, &cache.path(f.id));
+            if !matches!(cache.resolve_wikilink(&rel, from_id), Some(id) if id == f.id) {
+                return Err("B: full relative-path round-trip");
             }
         }
-        // D: disambiguation path (relative path containing /) round-trips same-tree
-        if cache.same_tree(from_id, f.id) {
-            let abs = cache.path(f.id);
-            let rel = relative_path(&from_path, &abs);
-            if rel.contains('/') {
-                let disambiguation = rel.trim_end_matches(".md");
-                if !matches!(cache.resolve_wikilink(disambiguation, from_id), Some(id) if id == f.id)
-                {
-                    return Err("D: disambiguation round-trip");
+
+        // C: a path with the extension dropped resolves when the stem is unique
+        // within the doc's folder.
+        if same {
+            let folder_stem_unique = cache
+                .children(f.parent)
+                .into_iter()
+                .filter(|d| d.is_document())
+                .filter(|d| strip_ext(&d.name).eq_ignore_ascii_case(stem))
+                .count()
+                == 1;
+            let rel = relative_path(&from_path, &cache.path(f.id));
+            if folder_stem_unique && rel.contains('/') {
+                let (dir, _) = rel.rsplit_once('/').unwrap();
+                let rel_stem = format!("{dir}/{stem}");
+                if !matches!(cache.resolve_wikilink(&rel_stem, from_id), Some(id) if id == f.id) {
+                    return Err("C: stem relative-path round-trip");
                 }
+            }
+        }
+
+        // D: a globally-unique bare stem resolves to its doc from anywhere.
+        if same
+            && tree_count(&|n| strip_ext(n).eq_ignore_ascii_case(stem)) == 1
+            && !matches!(cache.resolve_wikilink(stem, from_id), Some(id) if id == f.id)
+        {
+            return Err("D: unique-stem bare resolve");
+        }
+
+        // E: a globally-unique bare full name resolves to its doc from anywhere.
+        if same
+            && tree_count(&|n| n.eq_ignore_ascii_case(full)) == 1
+            && !matches!(cache.resolve_wikilink(full, from_id), Some(id) if id == f.id)
+        {
+            return Err("E: unique-name bare resolve");
+        }
+    }
+
+    // F: soundness — any resolution returns a same-tree doc whose name matches
+    // the title (exactly or stem). Probe every doc's stem and full name.
+    for title in docs
+        .iter()
+        .flat_map(|f| [strip_ext(&f.name).to_string(), f.name.clone()])
+    {
+        if let Some(id) = cache.resolve_wikilink(&title, from_id) {
+            let Some(r) = cache.get_by_id(id) else {
+                return Err("F: resolved id not in cache");
+            };
+            if !(r.name.eq_ignore_ascii_case(&title)
+                || strip_ext(&r.name).eq_ignore_ascii_case(&title))
+            {
+                return Err("F: resolved file doesn't match title");
+            }
+            if !cache.same_tree(from_id, id) {
+                return Err("F: resolved wikilink is cross-tree");
+            }
+        }
+    }
+
+    // G: ambiguity — a stem shared by 2+ docs directly in a folder, with no doc
+    // named exactly that stem in the same tree, must not resolve from that
+    // folder (both are equally near; the link needs an extension).
+    for folder in cache.iter_files().filter(|f| f.is_folder()) {
+        let child_docs: Vec<&File> = cache
+            .children(folder.id)
+            .into_iter()
+            .filter(|d| d.is_document())
+            .collect();
+        for d in &child_docs {
+            let stem = strip_ext(&d.name);
+            let shared = child_docs
+                .iter()
+                .filter(|x| strip_ext(&x.name).eq_ignore_ascii_case(stem))
+                .count()
+                >= 2;
+            let exact_exists = docs
+                .iter()
+                .filter(|x| cache.same_tree(folder.id, x.id))
+                .any(|x| x.name.eq_ignore_ascii_case(stem));
+            if shared && !exact_exists && cache.resolve_wikilink(stem, folder.id).is_some() {
+                return Err("G: ambiguous stem must not resolve");
             }
         }
     }

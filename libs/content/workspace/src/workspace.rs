@@ -33,7 +33,7 @@ use crate::space_inspector::show::SpaceInspector;
 use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{
-    Editor as Markdown, HttpClient, MdConfig, MdPersistence, MdResources,
+    Editor as Markdown, HttpClient, MdConfig, MdEdit, MdPersistence, MdResources,
 };
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
@@ -337,6 +337,19 @@ impl Workspace {
     }
     pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
         self.current_tab_mut()?.svg_mut()
+    }
+
+    /// The active editable text widget for native (iOS) text input — the
+    /// markdown document's editor or the chat tab's composer. Lets the
+    /// `UITextInput` FFI bridge target whichever editor is current without
+    /// caring which kind of tab owns it.
+    pub fn focused_mdedit_mut(&mut self) -> Option<&mut MdEdit> {
+        let tab = self.current_tab_mut()?;
+        if tab.markdown().is_some() {
+            tab.markdown_mut().map(|md| &mut md.edit)
+        } else {
+            tab.chat_mut().map(|chat| &mut chat.composer)
+        }
     }
 
     pub fn make_current(&mut self, i: usize) -> bool {
