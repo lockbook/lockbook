@@ -1120,6 +1120,7 @@ impl DocType {
             DocType::Image => Icon::IMAGE,
             DocType::Code => Icon::CODE,
             DocType::PDF => Icon::DOC_PDF,
+            DocType::Chat => Icon::CHAT,
             _ => Icon::DOC_UNKNOWN,
         }
     }

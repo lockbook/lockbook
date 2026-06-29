@@ -18,6 +18,7 @@ use crate::GlyphonRendererCallback;
 use crate::file_cache::FileCache;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
+use crate::theme::icons::Icon;
 use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
 
 const MAX_WIDTH: f32 = 800.0;
@@ -30,6 +31,9 @@ const TOP_MARGIN: f32 = 15.0;
 const BOTTOM_PAD: f32 = 15.0;
 const COMPOSER_MAX_HEIGHT: f32 = 160.0;
 const COMPOSER_BOTTOM_INSET: f32 = 16.0;
+/// Horizontal inset on each side of the composer bubble within its column. The
+/// send button lives in the right inset, outside the bubble.
+const SIDE_INSET: f32 = 48.0;
 
 /// A message paired with the label that renders its markdown body. Labels
 /// are per-message so each one's `LayoutCache` can actually memoize across
@@ -141,9 +145,36 @@ impl Chat {
         self.hmac = Some(hmac);
     }
 
+    /// Append the trimmed composer text as a message and clear the composer.
+    /// Returns whether a (non-empty) message was sent.
+    fn submit(&mut self, ui: &Ui, composer_id: Id) -> bool {
+        let content = self
+            .composer
+            .renderer
+            .buffer
+            .current
+            .text
+            .trim()
+            .to_string();
+        if content.is_empty() {
+            return false;
+        }
+        let msg =
+            Message { from: self.account.username.clone(), content, ts: Utc::now().timestamp() };
+        self.entries.push(Entry::new(
+            msg,
+            &self.ctx,
+            Arc::clone(&self.composer.renderer.files),
+            self.id,
+        ));
+        self.composer.clear();
+        self.seq += 1;
+        ui.memory_mut(|m| m.request_focus(composer_id));
+        true
+    }
+
     /// Returns true if the user sent a message this frame.
     pub fn show(&mut self, ui: &mut Ui) -> bool {
-        let mut sent = false;
         let theme = ui.ctx().get_lb_theme();
         let available_width = ui.available_width();
         let col_width = available_width.min(MAX_WIDTH);
@@ -175,8 +206,8 @@ impl Chat {
 
         // Measure at the exact render width so the composer bubble grows
         // same-frame. The re-parse inside `show` below hits the layout cache.
-        // `48.0` and `H_PAD` mirror the h_inset / shrink geometry below.
-        let composer_inner_w = (col_width - 2.0 * 48.0 - 2.0 * H_PAD).max(0.0);
+        // `SIDE_INSET` and `H_PAD` mirror the h_inset / shrink geometry below.
+        let composer_inner_w = (col_width - 2.0 * SIDE_INSET - 2.0 * H_PAD).max(0.0);
         let measured_h = self.composer.measure_height(composer_inner_w);
 
         // Autogrow with a max cap, no lower floor — a lower floor makes a
@@ -255,10 +286,7 @@ impl Chat {
                             Rect::from_min_size(pos2(bubble_x, y), vec2(bubble_w, bubble_h));
 
                         let bubble_color = if is_mine {
-                            theme
-                                .bg()
-                                .get_color(Palette::Blue)
-                                .lerp_to_gamma(theme.neutral_bg(), 0.5)
+                            theme.bg().get_color(Palette::Blue)
                         } else {
                             theme.neutral_bg_secondary()
                         };
@@ -337,7 +365,7 @@ impl Chat {
             full_rect.max,
         );
         let col_pad = (available_width - col_width) / 2.0;
-        let h_inset = col_pad + 48.0;
+        let h_inset = col_pad + SIDE_INSET;
         let bubble_rect = Rect::from_min_max(
             pos2(composer_rect.min.x + h_inset, composer_rect.min.y),
             pos2(composer_rect.max.x - h_inset, composer_rect.max.y - COMPOSER_BOTTOM_INSET),
@@ -348,38 +376,50 @@ impl Chat {
             theme.neutral_bg_secondary(),
         );
 
-        let inner_rect = bubble_rect.shrink2(vec2(H_PAD, V_PAD));
-
         // Composer draw. Submits its own text callback internally.
+        let inner_rect = bubble_rect.shrink2(vec2(H_PAD, V_PAD));
         self.composer.show(ui, inner_rect, composer_id);
 
-        if send_requested {
-            let content = self
-                .composer
-                .renderer
-                .buffer
-                .current
-                .text
-                .trim()
-                .to_string();
-            if !content.is_empty() {
-                let msg = Message {
-                    from: self.account.username.clone(),
-                    content,
-                    ts: Utc::now().timestamp(),
-                };
-                self.entries.push(Entry::new(
-                    msg,
-                    &self.ctx,
-                    Arc::clone(&self.composer.renderer.files),
-                    self.id,
-                ));
-                self.composer.clear();
-                self.seq += 1;
-                ui.memory_mut(|m| m.request_focus(composer_id));
-                sent = true;
-            }
+        // Ghosted placeholder over the empty composer.
+        if self.composer.renderer.buffer.current.text.is_empty() {
+            let row_h = self.composer.row_height();
+            let hint = ui.fonts(|f| {
+                f.layout_no_wrap(
+                    "Type a message".into(),
+                    egui::FontId::proportional(row_h * 0.85),
+                    theme.neutral(),
+                )
+            });
+            let y = inner_rect.min.y + (row_h - hint.size().y) / 2.0;
+            ui.painter()
+                .galley(pos2(inner_rect.min.x, y), hint, theme.neutral());
         }
+
+        // Send button — shown when there's text. It lives in the right inset
+        // OUTSIDE the bubble, so `composer.show` can't occlude it. Sized to the
+        // composer's single-line starting height, bottom-aligned.
+        let non_empty = !self.composer.renderer.buffer.current.text.trim().is_empty();
+        let mut send_clicked = false;
+        if non_empty {
+            let d = (self.composer.row_height() + 2.0 * V_PAD).min(SIDE_INSET);
+            let center = pos2(bubble_rect.max.x + SIDE_INSET / 2.0, bubble_rect.max.y - d / 2.0);
+            let send_rect = Rect::from_center_size(center, vec2(d, d));
+            let resp = ui.interact(send_rect, Id::new("chat_send"), Sense::click());
+
+            let painter = ui.painter();
+            painter.circle_filled(center, d / 2.0, theme.bg().get_color(Palette::Blue));
+            let icon = ui.fonts(|f| {
+                f.layout_no_wrap(
+                    Icon::SEND.icon.to_string(),
+                    egui::FontId::monospace(d * 0.55),
+                    theme.neutral_fg(),
+                )
+            });
+            painter.galley(center - icon.size() / 2.0, icon, theme.neutral_fg());
+            send_clicked = resp.clicked();
+        }
+
+        let sent = (send_requested || send_clicked) && self.submit(ui, composer_id);
 
         // Popups land last so they composite over composer + transcript.
         self.composer.show_completions(ui);

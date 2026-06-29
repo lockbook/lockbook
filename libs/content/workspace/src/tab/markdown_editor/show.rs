@@ -645,9 +645,12 @@ impl MdEdit {
     pub fn post_render(&mut self, ui: &mut Ui, rect: Rect, id: Id, pre: PreRenderState) {
         let focused = pre.focused;
 
-        // Clip subsequent overlay paints (selection, cursor) to the
-        // editor rect so they don't bleed over toolbars or sidebars.
-        ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+        // Clip subsequent overlay paints (selection, cursor) to the editor rect
+        // so they don't bleed over toolbars or sidebars. Restored before
+        // returning so a caller passing its own `ui` (e.g. the chat composer)
+        // isn't left with a narrowed clip that swallows its later paints.
+        let entry_clip = ui.clip_rect();
+        ui.set_clip_rect(rect.intersect(entry_clip));
 
         // cursor / selection — iOS draws natively
         if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
@@ -736,6 +739,14 @@ impl MdEdit {
         self.event
             .internal_events
             .append(&mut self.renderer.render_events);
+
+        ui.set_clip_rect(entry_clip);
+    }
+
+    /// Height of one line of body text — the composer's single-line (starting)
+    /// content height, before any vertical padding the caller wraps it in.
+    pub fn row_height(&self) -> f32 {
+        self.renderer.layout.row_height
     }
 
     /// Measure the rendered height at the given `width` without drawing.
