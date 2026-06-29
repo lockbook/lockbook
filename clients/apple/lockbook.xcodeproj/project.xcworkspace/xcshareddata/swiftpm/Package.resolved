@@ -1,15 +1,6 @@
 {
   "pins" : [
     {
-      "identity" : "alerttoast",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/elai950/AlertToast",
-      "state" : {
-        "branch" : "master",
-        "revision" : "76a1c1793cd3443001c20c6033beb84453b25d9f"
-      }
-    },
-    {
       "identity" : "dsfappearancemanager",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/dagronf/DSFAppearanceManager",
