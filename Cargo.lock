@@ -10496,6 +10496,7 @@ dependencies = [
 name = "workspace"
 version = "26.6.9"
 dependencies = [
+ "async-trait",
  "basic-human-duration",
  "bezier-rs",
  "chrono",

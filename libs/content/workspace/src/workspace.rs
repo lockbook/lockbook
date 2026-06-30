@@ -874,6 +874,7 @@ impl Workspace {
                                     self.ctx.clone(),
                                     Arc::clone(&self.files),
                                     &self.core,
+                                    self.show_tabs,
                                 )));
                             } else {
                                 let chat = tab.chat_mut().unwrap();

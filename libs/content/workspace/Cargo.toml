@@ -7,6 +7,7 @@ edition = "2021"
 name = "workspace_rs"
 
 [dependencies]
+async-trait = "0.1.80"
 basic-human-duration = "0.2.0"
 bezier-rs = "0.2.0"
 chrono = "0.4"

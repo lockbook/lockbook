@@ -4,9 +4,15 @@
 //! `lb_rs::model::chat::Buffer::merge` (symmetric union over timestamp).
 
 #[cfg(not(target_family = "wasm"))]
+pub mod backend;
+#[cfg(not(target_family = "wasm"))]
 pub mod harness;
 #[cfg(not(target_family = "wasm"))]
+pub mod rig_backend;
+#[cfg(not(target_family = "wasm"))]
 pub mod settings;
+#[cfg(not(target_family = "wasm"))]
+pub mod tools;
 
 use std::sync::{Arc, RwLock};
 
@@ -100,6 +106,10 @@ pub struct Chat {
     pub account: Account,
     pub seq: usize,
     pub initialized: bool,
+    /// Regular size class (desktop or full-screen tablet), where a hardware
+    /// keyboard is plausible — gates the approval keyboard shortcuts. False on
+    /// phones (and compact-width tablets).
+    tablet_or_desktop: bool,
     /// Last server state our local edits sit on top of — the merge base. Held
     /// so `reload` does a real 3-way merge instead of an empty-base union.
     base: Vec<u8>,
@@ -115,17 +125,24 @@ pub struct Chat {
     settings_open: bool,
     #[cfg(not(target_family = "wasm"))]
     settings_dirty: bool,
+    /// Name of the provider being edited / made active.
+    #[cfg(not(target_family = "wasm"))]
+    provider_buf: String,
     #[cfg(not(target_family = "wasm"))]
     api_key_buf: String,
     #[cfg(not(target_family = "wasm"))]
     model_buf: String,
+    /// Loaded `/chat.json`, kept so the editor preserves the other configured
+    /// providers when it writes back.
+    #[cfg(not(target_family = "wasm"))]
+    settings: settings::ChatSettings,
     ctx: egui::Context,
 }
 
 impl Chat {
     pub fn new(
         bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, account: Account, ctx: egui::Context,
-        files: Arc<RwLock<FileCache>>, core: &lb_rs::blocking::Lb,
+        files: Arc<RwLock<FileCache>>, core: &lb_rs::blocking::Lb, tablet_or_desktop: bool,
     ) -> Self {
         let entries: Vec<Entry> = Buffer::new(bytes)
             .messages
@@ -152,6 +169,7 @@ impl Chat {
             account,
             seq: 0,
             initialized: false,
+            tablet_or_desktop,
             base: bytes.to_vec(),
             #[cfg(not(target_family = "wasm"))]
             harness: None,
@@ -162,9 +180,13 @@ impl Chat {
             #[cfg(not(target_family = "wasm"))]
             settings_dirty: false,
             #[cfg(not(target_family = "wasm"))]
-            api_key_buf: settings.api_key.clone().unwrap_or_default(),
+            provider_buf: settings.provider(),
             #[cfg(not(target_family = "wasm"))]
-            model_buf: settings.model.clone().unwrap_or_default(),
+            api_key_buf: settings.edit_api_key(),
+            #[cfg(not(target_family = "wasm"))]
+            model_buf: settings.edit_model(),
+            #[cfg(not(target_family = "wasm"))]
+            settings,
             ctx,
         };
         #[cfg(not(target_family = "wasm"))]
@@ -253,11 +275,25 @@ impl Chat {
         self.push_agent_message(summary, Some(record), None);
     }
 
-    /// Settings as currently edited: empty buffers are unset fields.
+    /// Settings as currently edited: the loaded providers with the editor's
+    /// key/model folded into the active one (empty buffers are unset fields).
     #[cfg(not(target_family = "wasm"))]
     fn current_settings(&self) -> settings::ChatSettings {
         let opt = |s: &str| (!s.trim().is_empty()).then(|| s.trim().to_string());
-        settings::ChatSettings { api_key: opt(&self.api_key_buf), model: opt(&self.model_buf) }
+        self.settings.with_active_edits(
+            &self.provider_buf,
+            opt(&self.api_key_buf),
+            opt(&self.model_buf),
+        )
+    }
+
+    /// Reload `/chat.json` into memory and reseed the editor buffers from it.
+    #[cfg(not(target_family = "wasm"))]
+    fn reload_settings(&mut self) {
+        self.settings = settings::ChatSettings::load(&self.core);
+        self.provider_buf = self.settings.provider();
+        self.api_key_buf = self.settings.edit_api_key();
+        self.model_buf = self.settings.edit_model();
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -401,11 +437,17 @@ impl Chat {
 
         // Cmd+A / Cmd+D decide the pending call from the keyboard; consumed
         // before the composer handles input so it never sees the keystroke
-        // (Cmd+A means select-all only while no approval is pending).
+        // (Cmd+A means select-all only while no approval is pending). Offered on
+        // desktop and regular-size-class tablets (iPad), where a hardware
+        // keyboard is plausible; phones have no modifier keys and use the
+        // buttons below.
+        let has_keyboard =
+            !cfg!(any(target_os = "ios", target_os = "android")) || self.tablet_or_desktop;
         let approve_sc = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
         let deny_sc = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::D);
-        let mut approve = approval && ui.input_mut(|i| i.consume_shortcut(&approve_sc));
-        let mut deny = approval && ui.input_mut(|i| i.consume_shortcut(&deny_sc));
+        let mut approve =
+            has_keyboard && approval && ui.input_mut(|i| i.consume_shortcut(&approve_sc));
+        let mut deny = has_keyboard && approval && ui.input_mut(|i| i.consume_shortcut(&deny_sc));
 
         let composer_id = Id::new("chat_composer");
         // Focus the composer when first shown or whenever nothing else has
@@ -608,12 +650,16 @@ impl Chat {
                         y += galley.rect.height() + ROW_GAP;
 
                         let buttons = approval.then(|| {
-                            let approve_galley = button(
-                                ui,
-                                format!("Approve {}", ui.ctx().format_shortcut(&approve_sc)),
-                            );
-                            let deny_galley =
-                                button(ui, format!("Deny {}", ui.ctx().format_shortcut(&deny_sc)));
+                            // Show the shortcut hint only where the shortcut exists.
+                            let hint = |label: &str, sc| {
+                                if has_keyboard {
+                                    format!("{label} {}", ui.ctx().format_shortcut(sc))
+                                } else {
+                                    label.to_string()
+                                }
+                            };
+                            let approve_galley = button(ui, hint("Approve", &approve_sc));
+                            let deny_galley = button(ui, hint("Deny", &deny_sc));
                             let h = approve_galley.rect.height() + 10.0;
                             let mut x = col_left + H_MARGIN;
                             let approve_rect = Rect::from_min_size(
@@ -908,6 +954,11 @@ impl Chat {
             .galley(center - icon.size() / 2.0, icon, gear_color);
         if resp.clicked() {
             self.settings_open = !self.settings_open;
+            // Reload on open so edits merge onto current on-disk state (e.g.
+            // synced from another device) rather than a stale snapshot.
+            if self.settings_open {
+                self.reload_settings();
+            }
         }
 
         if !self.settings_open {
@@ -920,6 +971,11 @@ impl Chat {
 
         let panel_w = 300.0;
         let mut changed = false;
+        let mut provider_names = self.settings.provider_names();
+        // The active provider is always selectable, even mid-add.
+        if !provider_names.contains(&self.provider_buf) {
+            provider_names.push(self.provider_buf.clone());
+        }
         let area_resp = egui::Area::new(Id::new("chat_settings_panel"))
             .order(egui::Order::Foreground)
             .fixed_pos(pos2(full_rect.max.x - panel_w - 8.0, gear_rect.max.y + 4.0))
@@ -927,15 +983,52 @@ impl Chat {
                 egui::Frame::popup(ui.style()).show(ui, |ui| {
                     ui.set_width(panel_w);
 
-                    // Picker over display names once the driver's model fetch
-                    // lands; free-text id field before then (or with no
-                    // harness). `/chat.json` always stores the canonical id —
-                    // older models only exist under dated ids.
-                    let models = self
+                    // Provider picker over the configured providers. Switching
+                    // reseeds the key/model fields and respawns the driver, so
+                    // the new provider's model list is fetched right away.
+                    let mut picked: Option<String> = None;
+                    egui::ComboBox::from_id_salt("chat_settings_provider")
+                        .width(panel_w - 16.0)
+                        .selected_text(self.provider_buf.clone())
+                        .show_ui(ui, |ui| {
+                            for name in &provider_names {
+                                if ui
+                                    .selectable_label(&self.provider_buf == name, name)
+                                    .clicked()
+                                {
+                                    picked = Some(name.clone());
+                                }
+                            }
+                        });
+                    if let Some(name) = picked {
+                        if name != self.provider_buf {
+                            self.api_key_buf = self.settings.stored_api_key(&name);
+                            self.model_buf.clear();
+                            self.provider_buf = name;
+                            self.rebuild_harness();
+                            changed = true;
+                        }
+                    }
+                    ui.add_space(8.0);
+
+                    // Model picker from the driver's live `/models` fetch; until
+                    // that lands (or if listing isn't available), fall back to
+                    // the provider's configured models, then a free-text id.
+                    // `/chat.json` always stores the canonical id.
+                    let live = self
                         .harness
                         .as_ref()
                         .map(|h| h.models.clone())
                         .unwrap_or_default();
+                    let models = if live.is_empty() {
+                        self.settings
+                            .models_for(&self.provider_buf)
+                            .into_iter()
+                            .map(|id| harness::ModelChoice { label: id.clone(), id })
+                            .collect::<Vec<_>>()
+                    } else {
+                        live
+                    };
                     if models.is_empty() {
                         changed |= ui
                             .add(
