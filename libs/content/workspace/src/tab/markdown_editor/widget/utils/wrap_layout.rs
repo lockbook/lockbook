@@ -1791,6 +1791,28 @@ impl MdRender {
 
                 if let FragmentContent::Image { url } = &frag.content {
                     self.embeds.show(ui, url, screen_rect);
+
+                    // The image's opaque fill hides the selection slot behind it,
+                    // so tint it when the selection covers it (a partial overlap
+                    // reveals it to raw text instead). iOS draws this natively.
+                    if ui.ctx().os() != egui::os::OperatingSystem::IOS {
+                        use crate::theme::palette_v2::ThemeExt as _;
+                        let sel = self
+                            .in_progress_selection
+                            .unwrap_or(self.buffer.current.selection);
+                        let sr = frag.source_range;
+                        if !sel.is_empty() && sel.contains_range(&sr, true, true) {
+                            let theme = self.ctx.get_lb_theme();
+                            let accent = theme.bg().get_color(theme.prefs().primary);
+                            let tint = egui::Color32::from_rgba_unmultiplied(
+                                accent.r(),
+                                accent.g(),
+                                accent.b(),
+                                90,
+                            );
+                            ui.painter().rect_filled(screen_rect, 2.0, tint);
+                        }
+                    }
                 }
 
                 // Collected here, painted after the text callback (#4617).
@@ -1921,18 +1943,26 @@ impl MdRender {
     /// `pos_to_range`'s atomic branch). Returns `None` only when
     /// `self.fragments` is empty.
     pub fn closest_fragment_at_pos(&self, pos: Pos2) -> Option<usize> {
+        if self.fragments.is_empty() {
+            return None;
+        }
+
+        // y-distance is to the fragment's *row*, not the fragment: else a tall
+        // image captures clicks across its full height, above its line's short
+        // baseline text. `fragment_row_spans` groups each line into one row.
+        let row_span = self.fragment_row_spans();
+
         let mut closest: Option<usize> = None;
         let mut closest_dist = (f32::INFINITY, f32::INFINITY);
         for (i, f) in self.fragments.iter().enumerate() {
             if f.rect.contains(pos) {
                 return Some(i);
             }
-            let y_dist = if f.rect.y_range().contains(pos.y) {
+            let (rtop, rbottom) = row_span[i];
+            let y_dist = if rtop <= pos.y && pos.y <= rbottom {
                 0.0
             } else {
-                (pos.y - f.rect.top())
-                    .abs()
-                    .min((pos.y - f.rect.bottom()).abs())
+                (pos.y - rtop).abs().min((pos.y - rbottom).abs())
             };
             let x_dist = if f.rect.x_range().contains(pos.x) {
                 0.0
@@ -1951,6 +1981,35 @@ impl MdRender {
             }
         }
         closest
+    }
+
+    /// Each fragment's visual-row `(top, bottom)`: maximal runs of vertically-
+    /// overlapping fragments, so a tall image bridges its row's marker and
+    /// baseline text. Rows never overlap, so an interval-merge over tops finds them.
+    fn fragment_row_spans(&self) -> Vec<(f32, f32)> {
+        let mut order: Vec<usize> = (0..self.fragments.len()).collect();
+        order.sort_by(|&a, &b| {
+            self.fragments[a]
+                .rect
+                .top()
+                .total_cmp(&self.fragments[b].rect.top())
+        });
+        let mut spans = vec![(0.0f32, 0.0f32); self.fragments.len()];
+        let mut i = 0;
+        while i < order.len() {
+            let top = self.fragments[order[i]].rect.top();
+            let mut bottom = self.fragments[order[i]].rect.bottom();
+            let start = i;
+            i += 1;
+            while i < order.len() && self.fragments[order[i]].rect.top() <= bottom {
+                bottom = bottom.max(self.fragments[order[i]].rect.bottom());
+                i += 1;
+            }
+            for &idx in &order[start..i] {
+                spans[idx] = (top, bottom);
+            }
+        }
+        spans
     }
 
     /// Cursor screen x for `offset` within `fragment`. For atomic

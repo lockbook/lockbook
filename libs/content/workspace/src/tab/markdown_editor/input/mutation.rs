@@ -202,6 +202,12 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                // Deleting against a collapsed image selects it (a second
+                // press deletes) rather than erasing a char of its source.
+                if self.delete_at_image(region, operations) {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace

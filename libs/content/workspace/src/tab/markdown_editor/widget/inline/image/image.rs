@@ -1,12 +1,14 @@
 use std::f32;
 
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeValue};
 use egui::{self, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
+use lb_rs::model::text::operation_types::Operation;
 
-use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{ImageSpec, Layout};
+use crate::tab::markdown_editor::{MdEdit, MdRender};
 
 impl MdRender {
     pub fn warm_images<'a>(&self, node: &'a comrak::nodes::AstNode<'a>) {
@@ -100,7 +102,8 @@ impl<'ast> MdRender {
     ) {
         let node_range = self.node_range(node);
         let single_line = range.contains_range(&node_range, true, true);
-        let collapsed_size = (!self.disable_images && !self.node_revealed(node) && single_line)
+        let revealed = self.range_revealed_interior(node_range);
+        let collapsed_size = (!self.disable_images && !revealed && single_line)
             .then(|| self.image_logical_size(node))
             .flatten();
         let Some(size) = collapsed_size else {
@@ -111,6 +114,8 @@ impl<'ast> MdRender {
             comrak::nodes::NodeValue::Image(link) => link.url.clone(),
             _ => return,
         };
+        // Always interactive: a plain tap selects, a cmd/keyboard-hidden tap opens.
+        layout.interaction_open(Self::image_interaction_id_salt(node_range), egui::Sense::click());
         layout.push_image(ImageSpec {
             advance: size.x,
             ascent: size.y,
@@ -118,6 +123,106 @@ impl<'ast> MdRender {
             source_range: node_range,
             url,
         });
+        layout.interaction_close();
+    }
+
+    /// Interaction-response salt for a rendered image; distinct from
+    /// [`Self::link_interaction_id_salt`] so the collapsed-image and
+    /// revealed-link handlers don't collide.
+    pub fn image_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
+        egui::Id::new(("md_image", node_range))
+    }
+
+    /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
+    /// range of every inline image. Empty when images render raw (disabled),
+    /// since then the source is plain editable text. Depends on text only.
+    pub fn calc_image_bounds<'a>(&mut self, root: &'a AstNode<'a>) {
+        let mut images = Vec::new();
+        if !self.disable_images {
+            for node in root.descendants() {
+                if matches!(node.data.borrow().value, NodeValue::Image(_)) {
+                    images.push(self.node_range(node));
+                }
+            }
+        }
+        images.sort_unstable();
+        self.bounds.images = images;
+    }
+}
+
+impl<'ast> MdEdit {
+    /// Open or select an image clicked this frame: a cmd-click (desktop) or
+    /// keyboard-hidden tap (mobile) opens its target, a plain tap selects it.
+    /// Adds the rect to `touch_consuming_rects` so iOS routes the tap here.
+    pub fn handle_image_interactions(
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
+        ops: &mut Vec<Operation>,
+    ) {
+        let open_image = if self.renderer.touch_mode {
+            !keyboard_visible
+        } else {
+            ui.ctx().input(|i| i.modifiers.command)
+        };
+        for node in root.descendants() {
+            let url = match &node.data.borrow().value {
+                NodeValue::Image(link) => link.url.clone(),
+                _ => continue,
+            };
+            let node_range = self.renderer.node_range(node);
+            let salt = MdRender::image_interaction_id_salt(node_range);
+            let response = match self.renderer.interaction_responses.get(&ui.id().with(salt)) {
+                Some(r) => r.clone(), // clone to release the `renderer` borrow
+                None => continue,
+            };
+
+            self.renderer.touch_consuming_rects.push(response.rect);
+
+            if open_image && response.hovered() {
+                ui.ctx()
+                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+            }
+            if response.clicked() {
+                if open_image {
+                    self.renderer.open_resolved_link(&url, ui.ctx());
+                } else {
+                    ui.memory_mut(|m| m.request_focus(id));
+                    let region = Region::BetweenLocations {
+                        start: Location::Grapheme(node_range.start()),
+                        end: Location::Grapheme(node_range.end()),
+                    };
+                    self.calc_operations(ui.ctx(), root, Event::Select { region }, ops);
+                }
+            }
+        }
+    }
+
+    /// Backspace/forward-delete against a collapsed image selects it rather
+    /// than erasing a character of its source; a second press then deletes the
+    /// selection. Mirrors [`Self::delete_at_fold`]'s non-destructive edit. True
+    /// if handled (ops pushed).
+    pub fn delete_at_image(&self, region: Region, operations: &mut Vec<Operation>) -> bool {
+        let Region::SelectionOrAdvance {
+            advance: Advance::Next(Bound::Word) | Advance::By(Increment::Char),
+            backwards,
+        } = region
+        else {
+            return false;
+        };
+        // selection must be empty
+        let Some(offset) = self.renderer.selection_offset() else {
+            return false;
+        };
+        for &img in &self.renderer.bounds.images {
+            if self.renderer.range_revealed_interior(img) {
+                continue;
+            }
+            let against = if backwards { offset == img.end() } else { offset == img.start() };
+            if against {
+                operations.push(Operation::Select(img));
+                return true;
+            }
+        }
+        false
     }
 }
 
