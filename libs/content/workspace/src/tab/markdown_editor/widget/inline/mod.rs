@@ -3,6 +3,7 @@ use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt, RangeExt as _};
 
 use crate::tab::markdown_editor::MdRender;
 
+pub(crate) mod card;
 pub(crate) mod code;
 pub(crate) mod emph;
 pub(crate) mod escaped;
@@ -13,6 +14,7 @@ pub(crate) mod html_inline;
 pub(crate) mod image;
 pub(crate) mod line_break;
 pub(crate) mod link;
+pub(crate) mod link_meta;
 pub(crate) mod math;
 pub(crate) mod short_code;
 pub(crate) mod soft_break;

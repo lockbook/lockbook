@@ -479,8 +479,9 @@ impl MdEdit {
 
         let mut ops = Vec::new();
 
-        // image taps → open (cmd / keyboard-hidden) or select
+        // image / card taps → open (cmd / keyboard-hidden) or select
         self.handle_image_interactions(root, ui, id, keyboard_visible, &mut ops);
+        self.handle_card_interactions(root, ui, id, keyboard_visible, &mut ops);
 
         // --- context menu (desktop only) -------------------------------------
         ui.ctx()

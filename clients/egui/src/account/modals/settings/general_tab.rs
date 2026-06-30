@@ -36,6 +36,26 @@ impl super::SettingsModal {
             ui.add_space(5.0);
 
             ui.horizontal(|ui| {
+                let mut fetch_link_previews = self.ws_persistent_store.get_fetch_link_previews();
+                if switch(ui, &mut fetch_link_previews).changed() {
+                    self.ws_persistent_store
+                        .set_fetch_link_previews(fetch_link_previews);
+                }
+                ui.label("Fetch link previews");
+            });
+
+            ui.add_space(2.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.label(
+                    "Contacts linked websites to show titles and preview cards. \
+                     Off by default — fetching reveals the link to that site.",
+                );
+            });
+
+            ui.add_space(5.0);
+
+            ui.horizontal(|ui| {
                 switch(ui, &mut s.sidebar_usage);
                 ui.label("Show usage in sidebar");
             });

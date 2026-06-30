@@ -1278,6 +1278,11 @@ pub struct WsPresistentData {
     zoom_factor: f32,
     #[serde(default)]
     image_dims: HashMap<String, [f32; 2]>,
+    /// Opt-in: contact linked sites to fetch preview metadata (titles,
+    /// favicons, link cards). Off by default — fetching reaches arbitrary
+    /// third-party servers, which is a privacy concern in an E2EE app.
+    #[serde(default)]
+    fetch_link_previews: bool,
 }
 
 impl Default for WsPresistentData {
@@ -1292,6 +1297,7 @@ impl Default for WsPresistentData {
             landing_page: LandingPage::default(),
             zoom_factor: 1.,
             image_dims: HashMap::default(),
+            fetch_link_previews: false,
         }
     }
 }
@@ -1381,6 +1387,17 @@ impl WsPersistentStore {
     pub fn set_landing_page(&mut self, landing_page: LandingPage) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.landing_page = landing_page;
+        self.write_to_file();
+    }
+
+    pub fn get_fetch_link_previews(&self) -> bool {
+        self.data.read().unwrap().fetch_link_previews
+    }
+
+    pub fn set_fetch_link_previews(&mut self, fetch_link_previews: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        data_lock.fetch_link_previews = fetch_link_previews;
+        drop(data_lock);
         self.write_to_file();
     }
 

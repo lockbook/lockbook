@@ -8,7 +8,7 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{ImageSpec, Layout};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 
 impl MdRender {
@@ -95,7 +95,7 @@ impl<'ast> MdRender {
         (size.x > 0.0 && size.y > 0.0).then_some(size)
     }
 
-    /// Collapsed → emit one `InlineItem::Image` covering the syntax.
+    /// Collapsed → emit one `InlineItem::Embed` covering the syntax.
     /// Revealed / `disable_images` / multi-line / unsizable → fall
     /// through to `layout_link` so the source bytes render for editing.
     pub fn layout_image(
@@ -117,12 +117,13 @@ impl<'ast> MdRender {
         };
         // Always interactive: a plain tap selects, a cmd/keyboard-hidden tap opens.
         layout.interaction_open(Self::image_interaction_id_salt(node_range), egui::Sense::click());
-        layout.push_image(ImageSpec {
+        layout.push_embed(EmbedSpec {
             advance: size.x,
             ascent: size.y,
             descent: 0.0,
             source_range: node_range,
             url,
+            kind: EmbedKind::Image,
         });
         layout.interaction_close();
     }
@@ -152,18 +153,62 @@ impl<'ast> MdRender {
 }
 
 impl<'ast> MdEdit {
-    /// Open or select an image clicked this frame: a cmd-click (desktop) or
-    /// keyboard-hidden tap (mobile) opens its target, a plain tap selects it.
-    /// Adds the rect to `touch_consuming_rects` so iOS routes the tap here.
+    /// The gesture that *opens* an embed rather than selecting it: a cmd-click
+    /// (desktop) or a keyboard-hidden tap (mobile). Shared by every embed kind.
+    pub fn embed_tap_opens(&self, ui: &egui::Ui, keyboard_visible: bool) -> bool {
+        if self.renderer.touch_mode {
+            !keyboard_visible
+        } else {
+            ui.ctx().input(|i| i.modifiers.command)
+        }
+    }
+
+    /// Shared tap handling for one embed fragment (inline image or link card):
+    /// when `open`, a click opens `url`, else it selects `node_range` (and pops
+    /// the touch edit menu). Registers the rect in `touch_consuming_rects` so iOS
+    /// routes the tap here; `salt` identifies the fragment's `Sense::click` scope.
+    /// No-op if the embed wasn't rendered this frame. The image and card handlers
+    /// differ only in node lookup.
+    #[allow(clippy::too_many_arguments)]
+    pub fn handle_embed_tap(
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id,
+        ops: &mut Vec<Operation>, node_range: (Grapheme, Grapheme), url: &str, salt: egui::Id,
+        open: bool,
+    ) {
+        let response = match self.renderer.interaction_responses.get(&ui.id().with(salt)) {
+            Some(r) => r.clone(), // clone to release the `renderer` borrow
+            None => return,
+        };
+
+        self.renderer.touch_consuming_rects.push(response.rect);
+
+        if open && response.hovered() {
+            ui.ctx()
+                .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+        }
+        if response.clicked() {
+            if open {
+                self.renderer.open_resolved_link(url, ui.ctx());
+            } else {
+                ui.memory_mut(|m| m.request_focus(id));
+                let region = Region::BetweenLocations {
+                    start: Location::Grapheme(node_range.start()),
+                    end: Location::Grapheme(node_range.end()),
+                };
+                self.calc_operations(ui.ctx(), root, Event::Select { region }, ops);
+                if self.renderer.touch_mode {
+                    ui.ctx().set_context_menu(response.rect.center_top());
+                }
+            }
+        }
+    }
+
+    /// Open or select an inline image clicked this frame (see [`Self::handle_embed_tap`]).
     pub fn handle_image_interactions(
         &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
         ops: &mut Vec<Operation>,
     ) {
-        let open_image = if self.renderer.touch_mode {
-            !keyboard_visible
-        } else {
-            ui.ctx().input(|i| i.modifiers.command)
-        };
+        let open = self.embed_tap_opens(ui, keyboard_visible);
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Image(link) => link.url.clone(),
@@ -171,33 +216,7 @@ impl<'ast> MdEdit {
             };
             let node_range = self.renderer.node_range(node);
             let salt = MdRender::image_interaction_id_salt(node_range);
-            let response = match self.renderer.interaction_responses.get(&ui.id().with(salt)) {
-                Some(r) => r.clone(), // clone to release the `renderer` borrow
-                None => continue,
-            };
-
-            self.renderer.touch_consuming_rects.push(response.rect);
-
-            if open_image && response.hovered() {
-                ui.ctx()
-                    .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
-            }
-            if response.clicked() {
-                if open_image {
-                    self.renderer.open_resolved_link(&url, ui.ctx());
-                } else {
-                    ui.memory_mut(|m| m.request_focus(id));
-                    let region = Region::BetweenLocations {
-                        start: Location::Grapheme(node_range.start()),
-                        end: Location::Grapheme(node_range.end()),
-                    };
-                    self.calc_operations(ui.ctx(), root, Event::Select { region }, ops);
-                    // Touch: pop the edit menu (copy/paste) above the image.
-                    if self.renderer.touch_mode {
-                        ui.ctx().set_context_menu(response.rect.center_top());
-                    }
-                }
-            }
+            self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
         }
     }
 

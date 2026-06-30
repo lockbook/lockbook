@@ -12,6 +12,7 @@ use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, R
 
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::fold::FOLD_TAG;
+use crate::tab::markdown_editor::widget::inline::link_meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::{Event, MdRender};
 
@@ -669,12 +670,6 @@ fn node_value_to_discriminant_id(value: &NodeValue) -> u8 {
     }
 }
 
-pub enum TitleState {
-    Loading,
-    Loaded(String),
-    Failed,
-}
-
 type LinePrefixKey = (u64, (Grapheme, Grapheme));
 type LinePrefixValue = (Graphemes, bool);
 
@@ -694,8 +689,8 @@ pub struct LayoutCache {
     pub hidden_by_fold: RefCell<HashMap<u64, bool>>,
     pub hidden_by_fold_deps: std::cell::Cell<Option<u64>>,
 
-    // deps: title load state
-    pub link_titles: RefCell<HashMap<String, Arc<Mutex<TitleState>>>>,
+    // deps: link-preview metadata load state
+    pub link_meta: RefCell<HashMap<String, Arc<Mutex<LinkMetaState>>>>,
     pub link_seq: Arc<AtomicU64>,
 
     /// `buffer.seq` this cache was last consistent with. Drives wholesale
@@ -715,7 +710,7 @@ impl LayoutCache {
         self.node_range.borrow_mut().clear();
         self.hidden_by_fold.borrow_mut().clear();
         self.hidden_by_fold_deps.set(None);
-        // link_titles intentionally not cleared: fetched titles persist across layout invalidations
+        // link_meta intentionally not cleared: fetched metadata persists across layout invalidations
     }
 
     /// Wipe and re-stamp if `current` differs from the cache's recorded

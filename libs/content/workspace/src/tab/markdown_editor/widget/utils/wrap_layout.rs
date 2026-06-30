@@ -142,9 +142,9 @@ pub enum InlineItem {
         source_range: (Grapheme, Grapheme),
         visible_byte_range: std::ops::Range<u32>,
     },
-    /// Inline embedded content (currently images). Atomic; breaker
+    /// Inline embedded content (image or link card). Atomic; breaker
     /// treats it like a `Box`.
-    Image(ImageSpec),
+    Embed(EmbedSpec),
     /// Open an inline-box style scope.
     StyleOpen(StyleInfo),
     /// Close the most recent open. AST nesting guarantees LIFO.
@@ -154,16 +154,27 @@ pub enum InlineItem {
     InteractionClose,
 }
 
-/// Inline image's painted box and source span. `advance` is the box
-/// width; the box sits `ascent` above and `descent` below the row's
-/// text baseline. `source_range` covers the full `![alt](url)` syntax.
+/// An embed's painted box and source span. `advance` is the box width; the
+/// box sits `ascent` above and `descent` below the row's text baseline.
+/// `source_range` covers the full source syntax (`![alt](url)` for an image,
+/// the bare URL for a link card).
 #[derive(Clone, Debug)]
-pub struct ImageSpec {
+pub struct EmbedSpec {
     pub advance: f32,
     pub ascent: f32,
     pub descent: f32,
     pub source_range: (Grapheme, Grapheme),
     pub url: String,
+    pub kind: EmbedKind,
+}
+
+/// What an [`EmbedSpec`] box paints: a decoded image texture, or a
+/// metadata-driven link-preview card. Both occupy an atomic inline slot and
+/// reuse the same hit-test / reveal / selection machinery.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum EmbedKind {
+    Image,
+    LinkCard,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -294,8 +305,9 @@ pub enum FragmentContent {
     /// No glyphs; the rect just paints bg from `style_stack`.
     /// Standalone Pad / wrap-break-glue / Break / Anchor fragments.
     Spacer,
-    /// Embedded image; paint via `MdRender::embeds.show(ui, &url, rect)`.
-    Image { url: String },
+    /// Embedded content (image texture or link card), painted by
+    /// `MdRender::show_wrap_layout` keyed on `kind`.
+    Embed { url: String, kind: EmbedKind },
 }
 
 /// Zero-width cursor position for source bytes with no painted
@@ -354,8 +366,8 @@ enum FlowEvent {
     /// Translates to an `InlineItem::Break` at this point in the
     /// shaped stream.
     Break((Grapheme, Grapheme)),
-    /// Embedded image; translates 1:1 to `InlineItem::Image`.
-    Image(ImageSpec),
+    /// Embedded content; translates 1:1 to `InlineItem::Embed`.
+    Embed(EmbedSpec),
     InteractionOpen(egui::Id, egui::Sense),
     InteractionClose,
 }
@@ -434,9 +446,9 @@ impl Layout {
     }
 
     /// Emit a pre-sized inline image at the current position.
-    pub fn push_image(&mut self, spec: ImageSpec) {
+    pub fn push_embed(&mut self, spec: EmbedSpec) {
         self.events
-            .push((self.visible.len(), FlowEvent::Image(spec)));
+            .push((self.visible.len(), FlowEvent::Embed(spec)));
     }
 
     /// Open an interaction scope; fragments emitted before the matching
@@ -628,8 +640,8 @@ fn shape_to_items(
                 }
                 items.push(InlineItem::StyleClose);
             }
-            FlowEvent::Image(spec) => {
-                items.push(InlineItem::Image(spec.clone()));
+            FlowEvent::Embed(spec) => {
+                items.push(InlineItem::Embed(spec.clone()));
             }
             FlowEvent::Break(r) => {
                 items.push(InlineItem::Break { source_range: *r, visible_byte_range: p..p });
@@ -1219,7 +1231,7 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
         let effective_width =
             if bg_open(&scope_bg_stack) { width - 2.0 * inline_pad } else { width };
         match &items[i] {
-            InlineItem::Box { advance, .. } | InlineItem::Image(ImageSpec { advance, .. }) => {
+            InlineItem::Box { advance, .. } | InlineItem::Embed(EmbedSpec { advance, .. }) => {
                 let lg = if cur_width + advance > effective_width {
                     pick_wrap_point(last_whitespace_glue, last_any_glue, i, effective_width)
                 } else {
@@ -1301,7 +1313,7 @@ fn item_advance(item: &InlineItem) -> f32 {
         InlineItem::Box { advance, .. } => *advance,
         InlineItem::Glue { natural, .. } => *natural,
         InlineItem::Pad { advance, .. } => *advance,
-        InlineItem::Image(spec) => spec.advance,
+        InlineItem::Embed(spec) => spec.advance,
         InlineItem::Break { .. }
         | InlineItem::StyleOpen(_)
         | InlineItem::StyleClose
@@ -1314,7 +1326,7 @@ fn item_advance(item: &InlineItem) -> f32 {
 /// `ascent`/`descent` are the max of these and the text default.
 fn item_metrics(item: &InlineItem) -> Option<(f32, f32)> {
     match item {
-        InlineItem::Image(spec) => Some((spec.ascent, spec.descent)),
+        InlineItem::Embed(spec) => Some((spec.ascent, spec.descent)),
         _ => None,
     }
 }
@@ -1532,7 +1544,7 @@ pub fn build_rows(
                     });
                     x += advance;
                 }
-                InlineItem::Image(spec) => {
+                InlineItem::Embed(spec) => {
                     let img_top = baseline - spec.ascent;
                     let img_bottom = baseline + spec.descent;
                     let rect = Rect::from_min_max(
@@ -1546,7 +1558,7 @@ pub fn build_rows(
                         content_inset: FragmentInset::default(),
                         source_range: spec.source_range,
                         style_stack: style_stack.clone(),
-                        content: FragmentContent::Image { url: spec.url.clone() },
+                        content: FragmentContent::Embed { url: spec.url.clone(), kind: spec.kind },
                         atomic: true,
                         interaction: interaction_stack.last().copied(),
                     });
@@ -1789,10 +1801,13 @@ impl MdRender {
                     ));
                 }
 
-                if let FragmentContent::Image { url } = &frag.content {
-                    self.embeds.show(ui, url, screen_rect);
+                if let FragmentContent::Embed { url, kind } = &frag.content {
+                    match kind {
+                        EmbedKind::Image => self.embeds.show(ui, url, screen_rect),
+                        EmbedKind::LinkCard => self.paint_link_card(ui, url, screen_rect),
+                    }
 
-                    // The image's opaque fill hides the selection slot behind it,
+                    // The embed's opaque fill hides the selection slot behind it,
                     // so tint it when the selection covers it (a partial overlap
                     // reveals it to raw text instead). iOS draws this natively.
                     if ui.ctx().os() != egui::os::OperatingSystem::IOS {
