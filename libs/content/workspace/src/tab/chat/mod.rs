@@ -113,14 +113,17 @@ pub struct Chat {
     /// Last server state our local edits sit on top of — the merge base. Held
     /// so `reload` does a real 3-way merge instead of an empty-base union.
     base: Vec<u8>,
+    /// Composer region from the last frame; touches outside it scroll the
+    /// transcript. Queried by the native gesture layer via `will_consume_touch`.
+    composer_rect: Rect,
     /// Agent driver for 1-1 agent chats. `None` when the chat is shared or no
     /// API key is configured.
     #[cfg(not(target_family = "wasm"))]
     harness: Option<harness::Harness>,
     #[cfg(not(target_family = "wasm"))]
     core: lb_rs::blocking::Lb,
-    /// Gear-menu state. The buffers edit `/chat.json` write-through; empty
-    /// buffer = unset field (defaults shown as hint text).
+    /// Gear-menu state. The picker edits this chat's per-user model selection,
+    /// persisted as a config entry in the chat on close.
     #[cfg(not(target_family = "wasm"))]
     settings_open: bool,
     #[cfg(not(target_family = "wasm"))]
@@ -132,14 +135,29 @@ pub struct Chat {
     api_key_buf: String,
     #[cfg(not(target_family = "wasm"))]
     model_buf: String,
-    /// Loaded `/chat.json`, kept so the editor preserves the other configured
-    /// providers when it writes back.
+    /// Loaded `/chat.json` provider registry (keys, base URLs). Global and
+    /// device-local; the per-chat selection references a provider by name.
     #[cfg(not(target_family = "wasm"))]
     settings: settings::ChatSettings,
     ctx: egui::Context,
 }
 
+/// `user`'s latest model selection in this chat — the most recent config entry
+/// they authored. `None` when they haven't chosen one (use the global default).
+#[cfg(not(target_family = "wasm"))]
+fn chat_model_selection(
+    entries: &[Entry], user: &str,
+) -> Option<lb_rs::model::chat::ModelSelection> {
+    entries
+        .iter()
+        .filter(|e| e.msg.from == user)
+        .filter_map(|e| Some((e.msg.ts, e.msg.config.as_ref()?.model.clone()?)))
+        .max_by_key(|(ts, _)| *ts)
+        .map(|(_, m)| m)
+}
+
 impl Chat {
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, account: Account, ctx: egui::Context,
         files: Arc<RwLock<FileCache>>, core: &lb_rs::blocking::Lb, tablet_or_desktop: bool,
@@ -160,6 +178,20 @@ impl Chat {
 
         #[cfg(not(target_family = "wasm"))]
         let settings = settings::ChatSettings::load(core);
+        // This user's per-chat selection (latest config entry they authored),
+        // else the global default from `/chat.json`.
+        #[cfg(not(target_family = "wasm"))]
+        let selection = chat_model_selection(&entries, &account.username);
+        #[cfg(not(target_family = "wasm"))]
+        let provider = selection
+            .as_ref()
+            .map(|s| s.provider.clone())
+            .unwrap_or_else(|| settings.provider());
+        #[cfg(not(target_family = "wasm"))]
+        let model = selection
+            .as_ref()
+            .map(|s| s.model.clone())
+            .unwrap_or_else(|| settings.edit_model());
         #[allow(unused_mut)]
         let mut chat = Self {
             id,
@@ -171,6 +203,7 @@ impl Chat {
             initialized: false,
             tablet_or_desktop,
             base: bytes.to_vec(),
+            composer_rect: Rect::NOTHING,
             #[cfg(not(target_family = "wasm"))]
             harness: None,
             #[cfg(not(target_family = "wasm"))]
@@ -180,11 +213,11 @@ impl Chat {
             #[cfg(not(target_family = "wasm"))]
             settings_dirty: false,
             #[cfg(not(target_family = "wasm"))]
-            provider_buf: settings.provider(),
+            api_key_buf: settings.stored_api_key(&provider),
             #[cfg(not(target_family = "wasm"))]
-            api_key_buf: settings.edit_api_key(),
+            provider_buf: provider,
             #[cfg(not(target_family = "wasm"))]
-            model_buf: settings.edit_model(),
+            model_buf: model,
             #[cfg(not(target_family = "wasm"))]
             settings,
             ctx,
@@ -207,7 +240,7 @@ impl Chat {
             let history = self
                 .entries
                 .iter()
-                .filter(|e| !e.msg.error)
+                .filter(|e| !e.msg.error && e.msg.config.is_none())
                 .map(|e| {
                     if let Some(rec) = &e.msg.tool {
                         harness::SeedMsg::Tool {
@@ -287,13 +320,56 @@ impl Chat {
         )
     }
 
-    /// Reload `/chat.json` into memory and reseed the editor buffers from it.
+    /// Reload `/chat.json` (the provider registry) and reseed the editor
+    /// buffers from this chat's selection, falling back to the global default.
     #[cfg(not(target_family = "wasm"))]
     fn reload_settings(&mut self) {
         self.settings = settings::ChatSettings::load(&self.core);
-        self.provider_buf = self.settings.provider();
-        self.api_key_buf = self.settings.edit_api_key();
-        self.model_buf = self.settings.edit_model();
+        let selection = chat_model_selection(&self.entries, &self.account.username);
+        self.provider_buf = selection
+            .as_ref()
+            .map(|s| s.provider.clone())
+            .unwrap_or_else(|| self.settings.provider());
+        self.model_buf = selection
+            .map(|s| s.model)
+            .unwrap_or_else(|| self.settings.edit_model());
+        self.api_key_buf = self.settings.stored_api_key(&self.provider_buf);
+    }
+
+    /// Append this chat's current model selection as a config entry (this
+    /// user's, per-chat) when it differs from what's already recorded.
+    #[cfg(not(target_family = "wasm"))]
+    fn persist_chat_selection(&mut self) {
+        let provider = self.provider_buf.trim().to_string();
+        if provider.is_empty() {
+            return;
+        }
+        let sel = lb_rs::model::chat::ModelSelection {
+            provider,
+            model: self.model_buf.trim().to_string(),
+        };
+        if chat_model_selection(&self.entries, &self.account.username).as_ref() == Some(&sel) {
+            return;
+        }
+        let msg = Message::config_entry(
+            self.account.username.clone(),
+            Utc::now().timestamp(),
+            lb_rs::model::chat::ChatConfig { model: Some(sel) },
+        );
+        self.entries.push(Entry::new(
+            msg,
+            &self.ctx,
+            Arc::clone(&self.composer.renderer.files),
+            self.id,
+        ));
+        self.seq += 1;
+    }
+
+    /// Whether a touch at `pos` should scroll the transcript rather than reach
+    /// the composer — true everywhere outside the composer region. Called by
+    /// the native (Android/iOS) gesture layer.
+    pub fn will_consume_touch(&self, pos: egui::Pos2) -> bool {
+        !self.composer_rect.contains(pos)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -530,6 +606,20 @@ impl Chat {
                         (e.msg.from.clone(), e.msg.agent, e.msg.tool.is_some() || e.msg.error)
                     };
                     for i in 0..n {
+                        // Config entries carry settings, not chat content — no
+                        // row. Keep `plans` aligned 1:1 with `entries`.
+                        if self.entries[i].msg.config.is_some() {
+                            plans.push(RowPlan {
+                                bubble_rect: Rect::from_min_size(pos2(col_left, y), vec2(0.0, 0.0)),
+                                bubble_color: Color32::TRANSPARENT,
+                                name_galley: None,
+                                name_h: 0.0,
+                                ts_galley: None,
+                                content_h: 0.0,
+                                tool_galley: None,
+                            });
+                            continue;
+                        }
                         let (from, agent, tool) = run_key(&self.entries[i]);
                         let ts = self.entries[i].msg.ts;
 
@@ -684,6 +774,9 @@ impl Chat {
 
                     // pass 2: paint absolute. No egui layout calls.
                     for (i, plan) in plans.into_iter().enumerate() {
+                        if self.entries[i].msg.config.is_some() {
+                            continue;
+                        }
                         // Right-click / long-press menu. Allocated before the
                         // label's link fragments so links stay on top.
                         let row_resp =
@@ -851,6 +944,7 @@ impl Chat {
             pos2(full_rect.min.x, full_rect.max.y - composer_height - composer_bottom_inset),
             full_rect.max,
         );
+        self.composer_rect = composer_rect;
         let col_pad = (available_width - col_width) / 2.0;
         let h_inset = col_pad + SIDE_INSET;
         let bubble_rect = Rect::from_min_max(
@@ -964,6 +1058,7 @@ impl Chat {
         if !self.settings_open {
             if self.settings_dirty {
                 self.settings_dirty = false;
+                self.persist_chat_selection();
                 self.rebuild_harness();
             }
             return;
@@ -1100,8 +1195,9 @@ impl Chat {
             });
 
         if changed {
+            // The selection is persisted to the chat (per-user, per-chat) on
+            // close; `/chat.json` (the provider registry) is edited out-of-band.
             self.settings_dirty = true;
-            self.save_settings();
         }
 
         // Dismiss on a click anywhere outside the panel and gear — unless a
@@ -1116,24 +1212,6 @@ impl Chat {
         });
         if clicked_outside && !popup_open {
             self.settings_open = false;
-        }
-    }
-
-    /// Write the edited settings to `/chat.json`, creating it if needed.
-    #[cfg(not(target_family = "wasm"))]
-    fn save_settings(&self) {
-        let settings = self.current_settings();
-        let bytes = match serde_json::to_vec_pretty(&settings) {
-            Ok(b) => b,
-            Err(e) => return tracing::warn!("chat settings serialize failed: {e}"),
-        };
-        let file = match self.core.get_by_path("/chat.json") {
-            Ok(file) => Ok(file),
-            Err(_) => self.core.create_at_path("/chat.json"),
-        };
-        let result = file.and_then(|f| self.core.write_document(f.id, &bytes));
-        if let Err(e) = result {
-            tracing::warn!("chat settings write failed: {e}");
         }
     }
 }

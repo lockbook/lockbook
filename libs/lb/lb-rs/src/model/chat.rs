@@ -30,10 +30,34 @@ pub struct Message {
     /// model never saw it).
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub error: bool,
+    /// A `from`-authored configuration entry rather than a chat message (no
+    /// `content`). Carries this user's per-chat agent settings; the latest by
+    /// `ts` wins. Excluded from rendering and from agent context.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<ChatConfig>,
     /// Fields this client doesn't know about, preserved verbatim so a merge
     /// performed by an older client can't strip them.
     #[serde(flatten)]
     pub extra: Map<String, Value>,
+}
+
+/// Per-user, per-chat agent configuration, carried as a non-message entry in
+/// the `.chat` log. Each user's latest entry (by `ts`) is their selection for
+/// this chat; provider *credentials* stay device-local, never in the log.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Default)]
+pub struct ChatConfig {
+    /// The model this user drives this chat with; absent → the global default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelSelection>,
+}
+
+/// A provider+model selection. `provider` names an entry in the device's
+/// provider registry (`/chat.json`); `model` may be empty to mean the
+/// provider's default.
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct ModelSelection {
+    pub provider: String,
+    pub model: String,
 }
 
 /// Token usage of the agent turn that produced a message.
@@ -64,8 +88,17 @@ impl Message {
             tool: None,
             usage: None,
             error: false,
+            config: None,
             extra: Map::new(),
         }
+    }
+
+    /// A `from`-authored config entry — carries no chat content, isn't rendered,
+    /// and never enters agent context.
+    pub fn config_entry(from: String, ts: i64, config: ChatConfig) -> Self {
+        let mut m = Self::new(from, String::new(), ts);
+        m.config = Some(config);
+        m
     }
 }
 
