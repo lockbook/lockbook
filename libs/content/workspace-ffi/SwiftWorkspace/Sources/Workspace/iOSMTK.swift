@@ -77,7 +77,8 @@
             addInteraction(textInteraction)
 
             // edit menu, presented from Rust (see `output.has_context_menu`)
-            let menuDelegate = SvgMenuDelegate()
+            let menuDelegate = MdMenuDelegate()
+            menuDelegate.mtkView = mtkView
             let menuInteraction = UIEditMenuInteraction(delegate: menuDelegate)
             addInteraction(menuInteraction)
             self.menuDelegate = menuDelegate
@@ -1317,6 +1318,33 @@
 
     public class SvgMenuDelegate: NSObject, UIEditMenuInteractionDelegate {}
 
+    // MARK: - MdMenuDelegate
+
+    /// Adds an "Open Link" item to the markdown edit menu when the selection
+    /// holds a link or image (e.g. a tapped link-preview card or inline image).
+    public class MdMenuDelegate: NSObject, UIEditMenuInteractionDelegate {
+        weak var mtkView: iOSMTK?
+
+        public func editMenuInteraction(
+            _: UIEditMenuInteraction, menuFor _: UIEditMenuConfiguration,
+            suggestedActions: [UIMenuElement]
+        ) -> UIMenu? {
+            var children = suggestedActions
+            if let wsHandle = mtkView?.wsHandle, let target = selection_open_target(wsHandle) {
+                free_text(target)
+                let open = UIAction(
+                    title: "Open Link", image: UIImage(systemName: "arrow.up.forward.app")
+                ) { [weak self] _ in
+                    if let wsHandle = self?.mtkView?.wsHandle {
+                        open_selection_links(wsHandle)
+                    }
+                }
+                children.insert(open, at: 0)
+            }
+            return UIMenu(children: children)
+        }
+    }
+
     // MARK: - iOSMTKViewDelegate
 
     public class iOSMTKViewDelegate: NSObject, MTKViewDelegate {
@@ -1346,6 +1374,7 @@
             }
 
             dark_mode(wsHandle, mtkView.isDarkMode())
+            set_fetch_link_previews(wsHandle, UserDefaults.standard.bool(forKey: "fetchLinkPreviews"))
             show_hide_tabs(wsHandle, !mtkView.isCompact())
 
             let needsToggleInset =

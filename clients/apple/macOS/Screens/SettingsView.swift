@@ -17,6 +17,11 @@ struct SettingsView: View {
                         Label("Usage", systemImage: "externaldrive")
                     }
 
+                SettingsEditorView()
+                    .tabItem {
+                        Label("Editor", systemImage: "doc.text")
+                    }
+
                 SettingsDebugView(model: model)
                     .tabItem {
                         Label("Debug", systemImage: "hammer")
@@ -224,6 +229,22 @@ struct SettingsUsageView: View {
                         }
                     }
                 }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct SettingsEditorView: View {
+    @AppStorage("fetchLinkPreviews") private var fetchLinkPreviews: Bool = false
+
+    var body: some View {
+        Form {
+            Section("Link Previews") {
+                Toggle("Fetch link previews", isOn: $fetchLinkPreviews)
+                Text("Contacts linked websites to show titles and preview cards. Off by default — fetching reveals the link to that site.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
         .formStyle(.grouped)

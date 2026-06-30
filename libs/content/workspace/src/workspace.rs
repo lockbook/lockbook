@@ -1396,6 +1396,9 @@ impl WsPersistentStore {
 
     pub fn set_fetch_link_previews(&mut self, fetch_link_previews: bool) {
         let mut data_lock = self.data.write().unwrap();
+        if data_lock.fetch_link_previews == fetch_link_previews {
+            return; // no-op guard: mobile pushes this from its per-frame draw
+        }
         data_lock.fetch_link_previews = fetch_link_previews;
         drop(data_lock);
         self.write_to_file();

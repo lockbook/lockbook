@@ -174,6 +174,9 @@
     <string name="background_sync_enabled_key" translatable="false">background_sync_enabled</string>
 
     <string name="open_new_doc_automatically_key" translatable="false">open_new_doc_automatically</string>
+    <string name="fetch_link_previews_key" translatable="false">fetch_link_previews</string>
+    <string name="settings_fetch_link_previews">Fetch link previews</string>
+    <string name="settings_fetch_link_previews_summary">Contacts linked websites to show titles and preview cards. Off by default — fetching reveals the link to that site.</string>
     <string name="cancel_subscription_key" translatable="false">cancel_subscription</string>
 
     <string name="subscription_info_key" translatable="false">subscription_info</string>

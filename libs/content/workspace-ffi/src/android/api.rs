@@ -184,6 +184,22 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
 }
 
 #[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_getFetchLinkPreviews(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.cfg.get_fetch_link_previews() as jboolean
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setFetchLinkPreviews(
+    _env: JNIEnv, _: JClass, obj: jlong, value: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.cfg.set_fetch_link_previews(value == 1);
+}
+
+#[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouches(
     _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
 ) -> jboolean {

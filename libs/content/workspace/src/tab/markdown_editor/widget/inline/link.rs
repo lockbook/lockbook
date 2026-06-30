@@ -1,3 +1,4 @@
+use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::spawn;
@@ -199,6 +200,32 @@ impl<'ast> MdRender {
 
     pub fn link_state_for_wikilink(&self, url: &str) -> LinkState {
         self.link_resolver.wikilink_state(url)
+    }
+
+    /// URL of the first link/image whose source range intersects the current
+    /// selection — what an "Open Link" affordance (the iOS edit menu) acts on.
+    pub fn selection_open_target(&mut self) -> Option<String> {
+        let arena = Arena::new();
+        let root = self.reparse(&arena);
+        let selection = self.buffer.current.selection;
+        for node in root.descendants() {
+            let url = match &node.data.borrow().value {
+                NodeValue::Link(l) | NodeValue::Image(l) => l.url.clone(),
+                _ => continue,
+            };
+            if !url.is_empty() && self.node_range(node).intersects(&selection, true) {
+                return Some(url);
+            }
+        }
+        None
+    }
+
+    /// Open every link/image in the current selection (reparses first); the iOS
+    /// edit-menu "Open Link" action shares this with desktop Cmd+Enter.
+    pub fn open_selection_links(&mut self) {
+        let arena = Arena::new();
+        let root = self.reparse(&arena);
+        self.open_links_in_selection(root, &self.ctx);
     }
 
     pub fn open_links_in_selection(&self, root: &'ast AstNode<'ast>, ctx: &egui::Context) {

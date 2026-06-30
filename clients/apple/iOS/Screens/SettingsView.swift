@@ -12,6 +12,7 @@ struct SettingsView: View {
     @State var navigateToUpgradeAccount = false
 
     @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
+    @AppStorage("fetchLinkPreviews") private var fetchLinkPreviews: Bool = false
 
     var body: some View {
         Form {
@@ -94,6 +95,10 @@ struct SettingsView: View {
                         }
                     }
                 }
+            }
+
+            Section(header: Text("Editor"), footer: Text("Contacts linked websites to show titles and preview cards. Off by default — fetching reveals the link to that site.")) {
+                Toggle("Fetch link previews", isOn: $fetchLinkPreviews)
             }
 
             Section(header: Text("Privacy")) {

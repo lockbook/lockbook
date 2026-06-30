@@ -70,6 +70,13 @@
             android:title="@string/settings_open_new_document_automatically"
             app:iconSpaceReserved="false" />
 
+        <SwitchPreference
+            android:defaultValue="false"
+            android:key="@string/fetch_link_previews_key"
+            android:summary="@string/settings_fetch_link_previews_summary"
+            android:title="@string/settings_fetch_link_previews"
+            app:iconSpaceReserved="false" />
+
     </PreferenceCategory>
 
     <PreferenceCategory
