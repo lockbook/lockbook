@@ -196,11 +196,13 @@ impl Tab {
                 let mut resp = Response::default();
                 match content {
                     TabContent::Chat(chat) => {
-                        let (sent, interaction_rect) = chat.show(ui);
-                        if sent {
+                        let chat_resp = chat.show(ui);
+                        if chat_resp.sent {
                             self.last_changed = Instant::now();
                         }
-                        resp.text_interaction_rect = Some(interaction_rect);
+                        resp.text_interaction_rect = Some(chat_resp.interaction_rect);
+                        resp.text_updated = chat_resp.text_updated;
+                        resp.selection_updated = chat_resp.selection_updated;
                     }
                     TabContent::Markdown(md) => {
                         let initialized = md.initialized;
