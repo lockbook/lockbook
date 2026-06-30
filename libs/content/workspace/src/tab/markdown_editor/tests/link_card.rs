@@ -114,7 +114,7 @@ fn nested_list_url_is_not_a_card() {
 
 #[test]
 fn previews_off_does_not_fetch_autolink_titles() {
-    // Default `fetch_link_previews = false`: a bare autolink must not contact
+    // Default `contact_linked_sites = false`: a bare autolink must not contact
     // the site — no entry is inserted into the title cache (network-free test).
     let mut ws = TestEditor::new("https://example.com\n");
     ws.enter_frame();
@@ -154,8 +154,8 @@ fn url_in_list_renders_no_card_even_when_cached() {
 #[test]
 fn setting_mirrors_onto_renderer_each_frame() {
     let mut ws = TestEditor::new("text\n");
-    assert!(!ws.editor.edit.renderer.fetch_link_previews, "off by default");
-    ws.editor.persistence.set_fetch_link_previews(true);
+    assert!(!ws.editor.edit.renderer.contact_linked_sites, "off by default");
+    ws.editor.persistence.set_contact_linked_sites(true);
     ws.enter_frame();
-    assert!(ws.editor.edit.renderer.fetch_link_previews, "mirrored from persistence");
+    assert!(ws.editor.edit.renderer.contact_linked_sites, "mirrored from persistence");
 }

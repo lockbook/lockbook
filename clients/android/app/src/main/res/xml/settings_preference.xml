@@ -72,9 +72,9 @@
 
         <SwitchPreference
             android:defaultValue="false"
-            android:key="@string/fetch_link_previews_key"
-            android:summary="@string/settings_fetch_link_previews_summary"
-            android:title="@string/settings_fetch_link_previews"
+            android:key="@string/contact_linked_sites_key"
+            android:summary="@string/settings_contact_linked_sites_summary"
+            android:title="@string/settings_contact_linked_sites"
             app:iconSpaceReserved="false" />
 
     </PreferenceCategory>

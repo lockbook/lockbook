@@ -18,7 +18,7 @@ impl MdRender {
                 comrak::nodes::NodeValue::Image(link) => link.url.clone(),
                 _ => continue,
             };
-            self.embeds.warm(&url);
+            self.embeds.prefetch(&url);
         }
     }
 }

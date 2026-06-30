@@ -12,7 +12,7 @@ struct SettingsView: View {
     @State var navigateToUpgradeAccount = false
 
     @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
-    @AppStorage("fetchLinkPreviews") private var fetchLinkPreviews: Bool = false
+    @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
 
     var body: some View {
         Form {
@@ -97,8 +97,8 @@ struct SettingsView: View {
                 }
             }
 
-            Section(header: Text("Editor"), footer: Text("Contacts linked websites to show titles and preview cards. Off by default — fetching reveals the link to that site.")) {
-                Toggle("Fetch link previews", isOn: $fetchLinkPreviews)
+            Section(header: Text("Editor"), footer: Text("Showing titles and preview cards means contacting the linked site, which reveals your IP address and that you opened the note. Off by default.")) {
+                Toggle("Fetch link previews", isOn: $contactLinkedSites)
             }
 
             Section(header: Text("Privacy")) {

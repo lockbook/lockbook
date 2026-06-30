@@ -92,7 +92,7 @@ impl<'ast> MdRender {
         // Warm so the texture (hence real aspect) loads before the first paint.
         let thumb = meta.thumbnail_url.as_deref();
         if let Some(t) = thumb {
-            self.embeds.warm(t);
+            self.embeds.prefetch(t);
         }
 
         // Hero (full-width landscape band) vs. horizontal (square/portrait

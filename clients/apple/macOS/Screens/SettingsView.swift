@@ -236,13 +236,13 @@ struct SettingsUsageView: View {
 }
 
 struct SettingsEditorView: View {
-    @AppStorage("fetchLinkPreviews") private var fetchLinkPreviews: Bool = false
+    @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
 
     var body: some View {
         Form {
             Section("Link Previews") {
-                Toggle("Fetch link previews", isOn: $fetchLinkPreviews)
-                Text("Contacts linked websites to show titles and preview cards. Off by default — fetching reveals the link to that site.")
+                Toggle("Fetch link previews", isOn: $contactLinkedSites)
+                Text("Showing titles and preview cards means contacting the linked site, which reveals your IP address and that you opened the note. Off by default.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             }

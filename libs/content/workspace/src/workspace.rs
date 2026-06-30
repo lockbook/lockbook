@@ -1278,11 +1278,12 @@ pub struct WsPresistentData {
     zoom_factor: f32,
     #[serde(default)]
     image_dims: HashMap<String, [f32; 2]>,
-    /// Opt-in: contact linked sites to fetch preview metadata (titles,
-    /// favicons, link cards). Off by default — fetching reaches arbitrary
-    /// third-party servers, which is a privacy concern in an E2EE app.
+    /// Opt-in: show link previews by contacting each linked site for its
+    /// title/favicon/card. Off by default — contacting a site reveals the
+    /// reader's IP address and that they opened the note (and the URL may have
+    /// arrived via a shared note). Routed through `crate::egress`.
     #[serde(default)]
-    fetch_link_previews: bool,
+    contact_linked_sites: bool,
 }
 
 impl Default for WsPresistentData {
@@ -1297,7 +1298,7 @@ impl Default for WsPresistentData {
             landing_page: LandingPage::default(),
             zoom_factor: 1.,
             image_dims: HashMap::default(),
-            fetch_link_previews: false,
+            contact_linked_sites: false,
         }
     }
 }
@@ -1390,16 +1391,16 @@ impl WsPersistentStore {
         self.write_to_file();
     }
 
-    pub fn get_fetch_link_previews(&self) -> bool {
-        self.data.read().unwrap().fetch_link_previews
+    pub fn get_contact_linked_sites(&self) -> bool {
+        self.data.read().unwrap().contact_linked_sites
     }
 
-    pub fn set_fetch_link_previews(&mut self, fetch_link_previews: bool) {
+    pub fn set_contact_linked_sites(&mut self, contact_linked_sites: bool) {
         let mut data_lock = self.data.write().unwrap();
-        if data_lock.fetch_link_previews == fetch_link_previews {
+        if data_lock.contact_linked_sites == contact_linked_sites {
             return; // no-op guard: mobile pushes this from its per-frame draw
         }
-        data_lock.fetch_link_previews = fetch_link_previews;
+        data_lock.contact_linked_sites = contact_linked_sites;
         drop(data_lock);
         self.write_to_file();
     }

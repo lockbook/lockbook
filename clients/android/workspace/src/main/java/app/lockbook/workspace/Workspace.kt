@@ -99,8 +99,8 @@ object Workspace {
     external fun clipboardSendImage(rustObj: Long, content: ByteArray, isPaste: Boolean)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)
-    external fun getFetchLinkPreviews(rustObj: Long): Boolean
-    external fun setFetchLinkPreviews(rustObj: Long, value: Boolean)
+    external fun getContactLinkedSites(rustObj: Long): Boolean
+    external fun setContactLinkedSites(rustObj: Long, value: Boolean)
 }
 
 data class NativeWorkspaceTab(

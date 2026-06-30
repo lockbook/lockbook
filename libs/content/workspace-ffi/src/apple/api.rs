@@ -79,16 +79,16 @@ pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn get_fetch_link_previews(obj: *mut c_void) -> bool {
+pub unsafe extern "C" fn get_contact_linked_sites(obj: *mut c_void) -> bool {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.workspace.cfg.get_fetch_link_previews()
+    obj.workspace.cfg.get_contact_linked_sites()
 }
 
 /// # Safety
 #[no_mangle]
-pub unsafe extern "C" fn set_fetch_link_previews(obj: *mut c_void, value: bool) {
+pub unsafe extern "C" fn set_contact_linked_sites(obj: *mut c_void, value: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.workspace.cfg.set_fetch_link_previews(value);
+    obj.workspace.cfg.set_contact_linked_sites(value);
 }
 
 /// # Safety

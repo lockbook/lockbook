@@ -1374,7 +1374,7 @@
             }
 
             dark_mode(wsHandle, mtkView.isDarkMode())
-            set_fetch_link_previews(wsHandle, UserDefaults.standard.bool(forKey: "fetchLinkPreviews"))
+            set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             show_hide_tabs(wsHandle, !mtkView.isCompact())
 
             let needsToggleInset =

@@ -54,7 +54,7 @@ impl EmbedResolver for ImageEmbedResolver {
         }
     }
 
-    fn warm(&self, url: &str) {
+    fn prefetch(&self, url: &str) {
         self.images.get_or_load(url, self.file_id, false);
     }
 

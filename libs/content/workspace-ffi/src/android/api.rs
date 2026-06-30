@@ -184,19 +184,19 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_getFetchLinkPreviews(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_getContactLinkedSites(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) -> jboolean {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.cfg.get_fetch_link_previews() as jboolean
+    obj.workspace.cfg.get_contact_linked_sites() as jboolean
 }
 
 #[no_mangle]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_setFetchLinkPreviews(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setContactLinkedSites(
     _env: JNIEnv, _: JClass, obj: jlong, value: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.cfg.set_fetch_link_previews(value == 1);
+    obj.workspace.cfg.set_contact_linked_sites(value == 1);
 }
 
 #[no_mangle]

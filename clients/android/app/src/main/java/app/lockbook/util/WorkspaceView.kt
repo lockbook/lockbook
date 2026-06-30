@@ -60,7 +60,7 @@ class WorkspaceView(
     private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
 
     private val prefs by lazy { PreferenceManager.getDefaultSharedPreferences(context) }
-    private val fetchLinkPreviewsKey by lazy { context.getString(R.string.fetch_link_previews_key) }
+    private val contactLinkedSitesKey by lazy { context.getString(R.string.contact_linked_sites_key) }
 
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -341,7 +341,7 @@ class WorkspaceView(
         pendingFocusX = 0f
         pendingFocusY = 0f
 
-        Workspace.setFetchLinkPreviews(wgpuObj, prefs.getBoolean(fetchLinkPreviewsKey, false))
+        Workspace.setContactLinkedSites(wgpuObj, prefs.getBoolean(contactLinkedSitesKey, false))
 
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
 

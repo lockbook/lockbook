@@ -36,10 +36,10 @@ impl super::SettingsModal {
             ui.add_space(5.0);
 
             ui.horizontal(|ui| {
-                let mut fetch_link_previews = self.ws_persistent_store.get_fetch_link_previews();
-                if switch(ui, &mut fetch_link_previews).changed() {
+                let mut contact_linked_sites = self.ws_persistent_store.get_contact_linked_sites();
+                if switch(ui, &mut contact_linked_sites).changed() {
                     self.ws_persistent_store
-                        .set_fetch_link_previews(fetch_link_previews);
+                        .set_contact_linked_sites(contact_linked_sites);
                 }
                 ui.label("Fetch link previews");
             });
@@ -48,8 +48,8 @@ impl super::SettingsModal {
             ui.horizontal_wrapped(|ui| {
                 ui.spacing_mut().item_spacing.x = 0.0;
                 ui.label(
-                    "Contacts linked websites to show titles and preview cards. \
-                     Off by default — fetching reveals the link to that site.",
+                    "Showing titles and preview cards means contacting the linked site, \
+                     which reveals your IP address and that you opened the note. Off by default.",
                 );
             });
 

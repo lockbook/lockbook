@@ -105,17 +105,11 @@ impl TestEditor {
         self.enter_frame_inner(Vec2::new(SCREEN_SIZE.x, 100_000.0), false);
     }
 
-    /// Run a frame and return egui's paint output (`shapes` are in z-order) so
-    /// tests can inspect what was actually drawn.
-    pub fn enter_frame_output(&mut self) -> egui::FullOutput {
-        self.enter_frame_inner(SCREEN_SIZE, true)
-    }
-
-    fn enter_frame_inner(&mut self, size: Vec2, focused: bool) -> egui::FullOutput {
+    fn enter_frame_inner(&mut self, size: Vec2, focused: bool) {
         let ctx = self.editor.edit.renderer.ctx.clone();
         let pending = std::mem::take(&mut self.pending);
         let screen_rect = Rect::from_min_size(Pos2::ZERO, size);
-        ctx.run(RawInput { screen_rect: Some(screen_rect), ..Default::default() }, |ctx| {
+        let _ = ctx.run(RawInput { screen_rect: Some(screen_rect), ..Default::default() }, |ctx| {
             ctx.set_lb_theme(Theme::default(Mode::Dark));
             crate::register_font_system(ctx);
             if focused {
@@ -129,7 +123,7 @@ impl TestEditor {
             egui::CentralPanel::default().show(ctx, |ui| {
                 self.editor.show(ui);
             });
-        })
+        });
     }
 
     pub fn get_text(&self) -> &str {
@@ -201,7 +195,7 @@ impl EmbedResolver for TestEmbeds {
         self.sizes.lock().unwrap().contains_key(url)
     }
     fn show(&self, _ui: &mut Ui, _url: &str, _rect: Rect, _rounding: egui::CornerRadius) {}
-    fn warm(&self, _url: &str) {}
+    fn prefetch(&self, _url: &str) {}
     fn seq(&self) -> u64 {
         self.seq.load(Ordering::Relaxed)
     }
@@ -217,8 +211,8 @@ impl EmbedResolver for Arc<TestEmbeds> {
     fn show(&self, ui: &mut Ui, url: &str, rect: Rect, rounding: egui::CornerRadius) {
         (**self).show(ui, url, rect, rounding)
     }
-    fn warm(&self, url: &str) {
-        (**self).warm(url)
+    fn prefetch(&self, url: &str) {
+        (**self).prefetch(url)
     }
     fn seq(&self) -> u64 {
         (**self).seq()

@@ -6,6 +6,7 @@ use std::collections::hash_map::Entry;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
+use crate::egress::fetch_html;
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
@@ -216,7 +217,7 @@ impl<'ast> MdRender {
     /// (not gated on load) — reserves the leading em-space slot in the title.
     /// [`Self::show_link_favicons`] paints the icon over that slot once loaded.
     pub(crate) fn capsule_favicon_url(&self, url: &str) -> Option<String> {
-        if !self.fetch_link_previews {
+        if !self.contact_linked_sites {
             return None;
         }
         match self.get_link_meta(url) {
@@ -254,7 +255,7 @@ impl<'ast> MdRender {
 
             // Favicon over the leading em-space slot, once its texture loads.
             if let Some(favicon_url) = self.capsule_favicon_url(&url) {
-                self.embeds.warm(&favicon_url);
+                self.embeds.prefetch(&favicon_url);
                 if self.embeds.is_loaded(&favicon_url) {
                     let chip = chip_rects[0];
                     let size = chip.height() * 0.7;
@@ -470,7 +471,7 @@ impl<'ast> MdRender {
 
     /// Resolve a link's preview metadata. Internal links (lb:// / relative
     /// paths) resolve synchronously to a title from the file cache. External
-    /// http(s) links are fetched asynchronously (gated by `fetch_link_previews`)
+    /// http(s) links are fetched asynchronously (gated by `contact_linked_sites`)
     /// and cached in [`LayoutCache::link_meta`]; `External(None)` until a fetch
     /// completes, the site is uncacheable, or fetching is off.
     pub fn get_link_meta(&self, url: &str) -> LinkMetaLookup {
@@ -505,7 +506,7 @@ impl<'ast> MdRender {
             Entry::Vacant(e) => {
                 // Opt-out: don't contact the site unless preview fetching is on.
                 // (Occupied/cached metadata above still displays — no new request.)
-                if !self.fetch_link_previews {
+                if !self.contact_linked_sites {
                     return LinkMetaLookup::Unavailable;
                 }
                 let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
@@ -595,31 +596,4 @@ fn alone_on_line<'a>(
         sib = next(s);
     }
     true
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn fetch_html(
-    client: &crate::tab::markdown_editor::HttpClient, url: &str, user_agent: &str,
-) -> Result<String, String> {
-    client
-        .get(url)
-        .header("User-Agent", user_agent)
-        .send()
-        .and_then(|r| r.text())
-        .map_err(|e| e.to_string())
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn fetch_html(
-    client: &crate::tab::markdown_editor::HttpClient, url: &str, user_agent: &str,
-) -> Result<String, String> {
-    client
-        .get(url)
-        .header("User-Agent", user_agent)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .text()
-        .await
-        .map_err(|e| e.to_string())
 }

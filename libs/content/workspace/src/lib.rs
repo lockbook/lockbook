@@ -1,3 +1,4 @@
+pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
 pub mod landing;

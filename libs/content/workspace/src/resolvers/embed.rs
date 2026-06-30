@@ -14,8 +14,9 @@ pub trait EmbedResolver {
     fn show(&self, ui: &mut Ui, url: &str, rect: Rect, rounding: CornerRadius);
 
     /// Called per-frame while content may be shown soon so loading can start
-    /// before it's time to show.
-    fn warm(&self, url: &str);
+    /// before it's time to show. **This makes an outbound request for `url`** —
+    /// it's the egress point reached from otherwise pure-looking layout code.
+    fn prefetch(&self, url: &str);
 
     /// Increment this to signal when any return value could change.
     fn seq(&self) -> u64;
@@ -29,7 +30,7 @@ impl EmbedResolver for () {
         false
     }
     fn show(&self, _ui: &mut Ui, _url: &str, _rect: Rect, _rounding: CornerRadius) {}
-    fn warm(&self, _url: &str) {}
+    fn prefetch(&self, _url: &str) {}
     fn seq(&self) -> u64 {
         0
     }
