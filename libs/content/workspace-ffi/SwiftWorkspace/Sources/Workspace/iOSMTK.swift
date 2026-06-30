@@ -59,6 +59,10 @@
         /// range adjustment (selection handles)
         var rangeAdjustmentInProgress = false
 
+        /// edit menu (copy/paste); presented from Rust via `output.has_context_menu`.
+        var menuInteraction: UIEditMenuInteraction?
+        var menuDelegate: UIEditMenuInteractionDelegate?
+
         init(mtkView: iOSMTK, headerSize: Double) {
             self.mtkView = mtkView
             currentHeaderSize = headerSize
@@ -71,6 +75,13 @@
             // text input
             textInteraction.textInput = self
             addInteraction(textInteraction)
+
+            // edit menu, presented from Rust (see `output.has_context_menu`)
+            let menuDelegate = SvgMenuDelegate()
+            let menuInteraction = UIEditMenuInteraction(delegate: menuDelegate)
+            addInteraction(menuInteraction)
+            self.menuDelegate = menuDelegate
+            self.menuInteraction = menuInteraction
 
             for gestureRecognizer in gestureRecognizers ?? [] {
                 // receive touch events immediately even if they are part of any recognized gestures
@@ -1419,6 +1430,17 @@
 
                 if output.selection_updated, !mtkView.ignoreSelectionUpdate {
                     mtkView.onSelectionChanged?()
+                }
+
+                // Edit menu requested by Rust (e.g. tapping a selected image);
+                // point is egui screen space → convert to this view's local space.
+                if output.has_context_menu, let menuInteraction = currentWrapper.menuInteraction {
+                    let point = CGPoint(
+                        x: CGFloat(output.context_menu_x) - currentWrapper.interactionRect.minX,
+                        y: CGFloat(output.context_menu_y) - currentWrapper.interactionRect.minY
+                    )
+                    let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
+                    menuInteraction.presentEditMenu(with: config)
                 }
 
                 // Position the interaction overlay to the rect Rust reports

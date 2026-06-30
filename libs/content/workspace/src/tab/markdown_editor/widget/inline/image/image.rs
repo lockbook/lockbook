@@ -5,6 +5,7 @@ use egui::{self, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
+use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{ImageSpec, Layout};
@@ -191,6 +192,10 @@ impl<'ast> MdEdit {
                         end: Location::Grapheme(node_range.end()),
                     };
                     self.calc_operations(ui.ctx(), root, Event::Select { region }, ops);
+                    // Touch: pop the edit menu (copy/paste) above the image.
+                    if self.renderer.touch_mode {
+                        ui.ctx().set_context_menu(response.rect.center_top());
+                    }
                 }
             }
         }
