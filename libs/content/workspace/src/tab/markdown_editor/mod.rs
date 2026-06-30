@@ -1448,6 +1448,9 @@ impl Editor {
                 // / `range_after` walk that assumes sorted ranges.
                 self.edit.renderer.bounds.wrap_lines.sort_by_key(|r| r.0);
 
+                // Favicon + selection tint, over the opaque capsule pills.
+                self.edit.renderer.show_capsule_overlays(ui, root);
+
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
                 ui.advance_cursor_after_rect(canvas_rect);

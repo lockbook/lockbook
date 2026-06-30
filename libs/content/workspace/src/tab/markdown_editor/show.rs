@@ -189,6 +189,9 @@ impl MdEdit {
         });
         self.renderer.fragments.sort_by_key(|f| f.source_range);
 
+        // Favicon + selection tint, over the opaque capsule pills.
+        self.renderer.show_capsule_overlays(ui, root);
+
         self.handle_block_drag(ui);
         self.post_render(ui, rect, id, pre);
         self.draw_dragged_overlay(ui, root);
@@ -482,6 +485,7 @@ impl MdEdit {
         // image / card taps → open (cmd / keyboard-hidden) or select
         self.handle_image_interactions(root, ui, id, keyboard_visible, &mut ops);
         self.handle_card_interactions(root, ui, id, keyboard_visible, &mut ops);
+        self.handle_link_capsule_interactions(root, ui, id, keyboard_visible, &mut ops);
 
         // --- context menu (desktop only) -------------------------------------
         ui.ctx()

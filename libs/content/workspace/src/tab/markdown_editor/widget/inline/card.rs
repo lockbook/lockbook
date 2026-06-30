@@ -26,8 +26,6 @@ const MAX_WIDTH: f32 = 560.0;
 const PAD: f32 = 12.0;
 const GAP: f32 = 4.0;
 const HERO_MIN_ASPECT: f32 = 1.4; // wider than this → full-width hero, else side thumbnail
-const HERO_MIN_HEIGHT: f32 = 120.0;
-const HERO_MAX_HEIGHT: f32 = 280.0;
 const THUMB: f32 = 80.0; // square side-thumbnail box for the horizontal form
 const GAP_H: f32 = 12.0; // gap between side thumbnail and text
 const SKELETON_HEIGHT: f32 = 84.0;
@@ -41,7 +39,7 @@ const DESC_SIZE: f32 = 13.0;
 /// is the final, aspect-correct draw rect (hero band on top, or side thumbnail).
 struct CardMetrics {
     size: Vec2,
-    image: Option<(Rect, String)>,
+    image: Option<(Rect, String, CornerRadius)>,
     site: Option<(Pos2, Arc<Galley>)>,
     title: Option<(Pos2, Arc<Galley>)>,
     desc: Option<(Pos2, Arc<Galley>)>,
@@ -107,12 +105,16 @@ impl<'ast> MdRender {
         if let Some(t) = thumb {
             let a = self.thumb_aspect(meta, t);
             if a >= HERO_MIN_ASPECT {
-                let band_h = (box_w / a).clamp(HERO_MIN_HEIGHT, HERO_MAX_HEIGHT);
-                image = Some((contain(vec2(box_w, band_h), a), t.to_owned()));
+                // full-width hero at the image's own aspect (fills, no letterbox);
+                // top corners rounded to the card, bottom square since text follows.
+                let band_h = box_w / a;
+                let top = CornerRadius { nw: RADIUS, ne: RADIUS, sw: 0, se: 0 };
+                let rect = Rect::from_min_size(Pos2::ZERO, vec2(box_w, band_h));
+                image = Some((rect, t.to_owned(), top));
                 y = band_h + PAD;
             } else {
                 let rect = contain(Vec2::splat(THUMB), a).translate(vec2(PAD, PAD));
-                image = Some((rect, t.to_owned()));
+                image = Some((rect, t.to_owned(), CornerRadius::same(4)));
                 text_x = PAD + THUMB + GAP_H;
                 text_w = box_w - text_x - PAD;
                 min_h = 2.0 * PAD + THUMB;
@@ -166,13 +168,13 @@ impl<'ast> MdRender {
             return None;
         }
         match self.get_link_meta(url) {
-            LinkMetaLookup::External(Some(meta)) => {
+            LinkMetaLookup::Loaded(meta) => {
                 Some(self.card_metrics(self.width(block_ancestor), &meta).size)
             }
-            LinkMetaLookup::External(None) if self.fetch_link_previews => {
-                Some(vec2(box_w, SKELETON_HEIGHT))
-            }
-            _ => None,
+            // Skeleton only while fetching; failed/unavailable yields `None` so
+            // the link degrades to a plain link rather than a stuck skeleton.
+            LinkMetaLookup::Loading => Some(vec2(box_w, SKELETON_HEIGHT)),
+            LinkMetaLookup::Internal(_) | LinkMetaLookup::Unavailable => None,
         }
     }
 
@@ -211,24 +213,29 @@ impl<'ast> MdRender {
     pub fn paint_link_card(&self, ui: &mut egui::Ui, url: &str, rect: Rect) {
         let vis = ui.style().visuals.clone();
         let cr = CornerRadius::same(RADIUS);
+        ui.painter().rect_filled(rect, cr, vis.faint_bg_color);
+
+        match self.get_link_meta(url) {
+            LinkMetaLookup::Loaded(meta) => {
+                let m = self.card_metrics(rect.width(), &meta);
+                let origin = rect.min.to_vec2();
+                if let Some((img_rect, thumb, rounding)) = &m.image {
+                    self.embeds
+                        .show(ui, thumb, img_rect.translate(origin), *rounding);
+                }
+                for (pos, galley) in [&m.site, &m.title, &m.desc].into_iter().flatten() {
+                    ui.painter()
+                        .galley(*pos + origin, galley.clone(), Color32::PLACEHOLDER);
+                }
+            }
+            _ => paint_skeleton(ui, rect),
+        }
+
+        // Stroke last so the hairline frames the hero image (which is painted
+        // edge-to-edge) rather than being covered by it.
         let border = Stroke::new(1.0, vis.widgets.noninteractive.bg_stroke.color);
         ui.painter()
-            .rect(rect, cr, vis.faint_bg_color, border, StrokeKind::Inside);
-
-        let LinkMetaLookup::External(Some(meta)) = self.get_link_meta(url) else {
-            paint_skeleton(ui, rect);
-            return;
-        };
-
-        let m = self.card_metrics(rect.width(), &meta);
-        let origin = rect.min.to_vec2();
-        if let Some((img_rect, thumb)) = &m.image {
-            self.embeds.show(ui, thumb, img_rect.translate(origin));
-        }
-        for (pos, galley) in [&m.site, &m.title, &m.desc].into_iter().flatten() {
-            ui.painter()
-                .galley(*pos + origin, galley.clone(), Color32::PLACEHOLDER);
-        }
+            .rect_stroke(rect, cr, border, StrokeKind::Inside);
     }
 }
 
@@ -251,6 +258,25 @@ impl<'ast> MdEdit {
             }
             let node_range = self.renderer.node_range(node);
             let salt = MdRender::card_interaction_id_salt(node_range);
+            self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
+        }
+    }
+
+    /// Open or select a link rendered as a capsule preview — the inline-link
+    /// counterpart to [`Self::handle_card_interactions`]. Only links that
+    /// rendered as a capsule have a registered response.
+    pub fn handle_link_capsule_interactions(
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
+        ops: &mut Vec<Operation>,
+    ) {
+        let open = self.embed_tap_opens(ui, keyboard_visible);
+        for node in root.descendants() {
+            let url = match &node.data.borrow().value {
+                NodeValue::Link(link) => link.url.clone(),
+                _ => continue,
+            };
+            let node_range = self.renderer.node_range(node);
+            let salt = MdRender::link_capsule_id_salt(node_range);
             self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
         }
     }

@@ -147,6 +147,18 @@ impl ImageCache {
             .map(|[w, h]| Vec2::new(w, h))
     }
 
+    /// Whether `url`'s texture is decoded and ready to paint this session — the
+    /// real `Loaded` state, not just persisted dims (which outlive the texture).
+    pub fn is_loaded(&self, url: &str) -> bool {
+        let inner = self.inner.lock().unwrap();
+        inner
+            .current
+            .get(url)
+            .or_else(|| inner.previous.get(url))
+            .map(|s| matches!(&*s.lock().unwrap(), ImageState::Loaded(_)))
+            .unwrap_or(false)
+    }
+
     /// Test helper: directly install a `Loaded`/`Failed` state for `url`,
     /// populate dims from texture metadata (when `Ok`), and bump `seq` —
     /// mimicking a worker thread completing a load. The dims insert

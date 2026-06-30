@@ -1740,20 +1740,15 @@ impl MdRender {
                 let chain_right = row.fragments[chain_end - 1].rect.right() + paint_top_left.x;
                 let row_top = row.fragments[chain_start].rect.top() + paint_top_left.y;
                 let row_bottom = row.fragments[chain_start].rect.bottom() + paint_top_left.y;
-                let mut bg_rect = Rect::from_min_max(
+                let bg_rect = Rect::from_min_max(
                     egui::Pos2::new(chain_left, row_top - inline_pad),
                     egui::Pos2::new(chain_right, row_bottom + inline_pad),
                 );
                 let mut radius = 2.0;
                 if chip {
-                    // Capsule spanning exactly the row box — no inline_pad
-                    // extension, so it stays inside the line where full-row
-                    // pills like inline code bleed past it.
-                    bg_rect = Rect::from_min_max(
-                        egui::Pos2::new(chain_left, row_top),
-                        egui::Pos2::new(chain_right, row_bottom),
-                    );
-                    radius = (row_bottom - row_top) / 2.0;
+                    // Fully-rounded capsule at the inline-code pill height
+                    // (bg_rect already includes inline_pad above).
+                    radius = bg_rect.height() / 2.0;
                 }
                 if ui.clip_rect().intersects(bg_rect) {
                     let rounding = corner_rounding(true, true, radius);
@@ -1803,7 +1798,10 @@ impl MdRender {
 
                 if let FragmentContent::Embed { url, kind } = &frag.content {
                     match kind {
-                        EmbedKind::Image => self.embeds.show(ui, url, screen_rect),
+                        EmbedKind::Image => {
+                            self.embeds
+                                .show(ui, url, screen_rect, egui::CornerRadius::same(2))
+                        }
                         EmbedKind::LinkCard => self.paint_link_card(ui, url, screen_rect),
                     }
 
@@ -1910,6 +1908,17 @@ impl MdRender {
     /// at a shared boundary `(a, b)`/`(b, c)`, the *later* fragment
     /// wins (cursor-affinity matches paint).
     pub fn fragment_at_offset(&self, offset: Grapheme) -> Option<&Fragment> {
+        // A caret at a chip's edge sits at the pill edge, not inside its padding
+        // or favicon slot: prefer the chip's boundary anchor (a zero-width Spacer
+        // at exactly `offset`, which `fragment_x` resolves to the pill edge) over
+        // the wider glyph fragments that also span the offset.
+        if let Some(anchor) = self.fragments.iter().find(|f| {
+            f.source_range == (offset, offset)
+                && matches!(f.content, FragmentContent::Spacer)
+                && f.style_stack.last().is_some_and(|s| s.chip)
+        }) {
+            return Some(anchor);
+        }
         self.fragments.iter().rev().find(|f| {
             let (s, e) = f.source_range;
             s <= offset && offset <= e

@@ -1,6 +1,6 @@
 use std::ops::Deref as _;
 
-use egui::{Align2, Color32, FontId, Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
+use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 
@@ -25,7 +25,11 @@ impl EmbedResolver for ImageEmbedResolver {
         self.images.dims(url).unwrap_or(Vec2::splat(200.))
     }
 
-    fn show(&self, ui: &mut Ui, url: &str, rect: Rect) {
+    fn is_loaded(&self, url: &str) -> bool {
+        self.images.is_loaded(url)
+    }
+
+    fn show(&self, ui: &mut Ui, url: &str, rect: Rect, rounding: CornerRadius) {
         let state = self.images.get_or_load(url, self.file_id, false);
         let image_state = state.lock().unwrap().deref().clone();
         match image_state {
@@ -37,7 +41,7 @@ impl EmbedResolver for ImageEmbedResolver {
                 // fragment's `Sense::click` scope via `handle_image_interactions`.
                 ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                     ui.painter().add(
-                        RectShape::filled(rect, 2.0_f32, Color32::WHITE).with_texture(
+                        RectShape::filled(rect, rounding, Color32::WHITE).with_texture(
                             texture_id,
                             Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
                         ),
@@ -61,27 +65,32 @@ impl EmbedResolver for ImageEmbedResolver {
 
 fn show_placeholder(ui: &mut Ui, rect: Rect, icon: Icon, caption: &str) {
     let theme = ui.ctx().get_lb_theme();
-    ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-        let rect = ui.max_rect();
-        ui.painter().text(
-            rect.center(),
-            Align2::CENTER_CENTER,
-            icon.icon,
-            FontId { size: 48.0, family: egui::FontFamily::Monospace },
-            theme.neutral_fg_secondary(),
-        );
-        ui.painter().text(
-            rect.center_bottom() + Vec2 { x: 0.0, y: -50.0 },
+    let color = theme.neutral_fg_secondary();
+    // Clip so a tiny thumbnail's icon/caption can't spill over the card or text.
+    let painter = ui.painter().with_clip_rect(rect);
+
+    let icon_size = (rect.width().min(rect.height()) * 0.6).clamp(10.0, 48.0);
+    painter.text(
+        rect.center(),
+        Align2::CENTER_CENTER,
+        icon.icon,
+        FontId { size: icon_size, family: egui::FontFamily::Monospace },
+        color,
+    );
+    // Caption (e.g. an error message) only where it fits; otherwise the icon alone.
+    if rect.width() >= 160.0 && rect.height() >= 64.0 {
+        painter.text(
+            rect.center_bottom() - Vec2::new(0.0, 8.0),
             Align2::CENTER_BOTTOM,
             caption,
             FontId::default(),
-            theme.neutral_fg_secondary(),
+            color,
         );
-        ui.painter().rect_stroke(
-            rect,
-            2.,
-            Stroke { width: 1., color: theme.neutral_bg_tertiary() },
-            egui::epaint::StrokeKind::Inside,
-        );
-    });
+    }
+    painter.rect_stroke(
+        rect,
+        2.,
+        Stroke { width: 1., color: theme.neutral_bg_tertiary() },
+        egui::epaint::StrokeKind::Inside,
+    );
 }
