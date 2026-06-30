@@ -566,7 +566,7 @@ fn layout_cache_consistent_under_link_title() {
     ws.enter_frame();
 
     {
-        use super::super::widget::inline::link_meta::{LinkMeta, LinkMetaState};
+        use super::super::widget::inline::link::meta::{LinkMeta, LinkMetaState};
         let mut titles = ws.editor.edit.renderer.layout_cache.link_meta.borrow_mut();
         titles.insert(
             url.to_string(),

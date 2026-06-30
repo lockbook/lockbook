@@ -17,7 +17,7 @@ use lb_rs::model::text::offset_types::Grapheme;
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::tab::markdown_editor::widget::inline::link::LinkMetaLookup;
-use crate::tab::markdown_editor::widget::inline::link_meta::LinkMeta;
+use crate::tab::markdown_editor::widget::inline::link::meta::LinkMeta;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};

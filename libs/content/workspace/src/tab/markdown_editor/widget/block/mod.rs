@@ -12,7 +12,7 @@ use lb_rs::model::text::offset_types::{Grapheme, Graphemes, IntoRangeExt as _, R
 
 use crate::tab::markdown_editor::bounds::RangesExt as _;
 use crate::tab::markdown_editor::fold::FOLD_TAG;
-use crate::tab::markdown_editor::widget::inline::link_meta::LinkMetaState;
+use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::{Event, MdRender};
 

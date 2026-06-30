@@ -1,3 +1,6 @@
+pub(crate) mod card;
+pub(crate) mod meta;
+
 use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
@@ -11,7 +14,7 @@ use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::inline::link_meta::{
+use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta,
 };
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;

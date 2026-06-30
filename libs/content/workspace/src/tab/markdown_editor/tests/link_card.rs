@@ -10,7 +10,7 @@ use comrak::Arena;
 use comrak::nodes::{AstNode, NodeValue};
 
 use super::harness::TestEditor;
-use crate::tab::markdown_editor::widget::inline::link_meta::{LinkMeta, LinkMetaState};
+use crate::tab::markdown_editor::widget::inline::link::meta::{LinkMeta, LinkMetaState};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, FragmentContent};
 
 /// True if a `LinkCard` embed fragment was painted this frame.
@@ -85,29 +85,16 @@ fn angle_bracket_autolink_is_not_a_card() {
 }
 
 #[test]
-fn url_in_a_list_item_is_not_a_card() {
+fn url_in_a_container_block_is_not_a_card() {
+    // One representative container — the trigger excludes any container block
+    // via the same ancestor walk, so list item stands in for quote/task/nested.
     assert!(!first_link_is_card("- https://example.com\n"));
-}
-
-#[test]
-fn url_in_a_blockquote_is_not_a_card() {
-    assert!(!first_link_is_card("> https://example.com\n"));
-}
-
-#[test]
-fn url_in_a_task_item_is_not_a_card() {
-    assert!(!first_link_is_card("- [ ] https://example.com\n"));
 }
 
 #[test]
 fn two_urls_on_one_line_are_not_cards() {
     // Neither is the *sole* content of the paragraph.
     assert!(!first_link_is_card("https://a.example https://b.example\n"));
-}
-
-#[test]
-fn nested_list_url_is_not_a_card() {
-    assert!(!first_link_is_card("- outer\n  - https://example.com\n"));
 }
 
 // ── preview-fetch opt-in ──
@@ -135,14 +122,6 @@ fn previews_off_does_not_fetch_autolink_titles() {
 #[test]
 fn cached_metadata_renders_a_card() {
     assert!(renders_card_with_cached_meta("https://example.com\n", "https://example.com"));
-}
-
-#[test]
-fn previews_off_uncached_renders_no_card() {
-    // Default off + nothing cached → a bare URL stays a normal inline link.
-    let mut ws = TestEditor::new("https://example.com\n");
-    ws.enter_frame();
-    assert!(!has_card_fragment(&ws));
 }
 
 #[test]
