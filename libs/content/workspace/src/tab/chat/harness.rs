@@ -84,14 +84,14 @@ pub struct Harness {
 }
 
 impl Harness {
-    /// Spawn the driver thread, or `None` when no API key is configured (in
-    /// `/chat.json` or the provider env var). `history` seeds the conversation
-    /// from the persisted transcript.
+    /// Spawn the driver thread, or `None` when the chat isn't configured enough
+    /// to run (a cloud provider with no key; a local server needs none).
+    /// `history` seeds the conversation from the persisted transcript.
     pub fn new(
         core: BlockingLb, ctx: egui::Context, username: String, history: Vec<SeedMsg>,
         settings: ChatSettings,
     ) -> Option<Self> {
-        let api_key = settings.api_key()?;
+        let api_key = settings.resolved_key()?;
         let base_url = settings.base_url();
         let model = settings.model().to_string();
         let kind = settings.kind();

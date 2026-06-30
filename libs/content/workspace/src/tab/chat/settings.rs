@@ -172,6 +172,15 @@ impl ChatSettings {
             .or_else(|| std::env::var(env_key_var(&p.name)).ok())
     }
 
+    /// The key the agent should start with, or `None` when the chat isn't
+    /// configured enough to run. A configured/env key is used as-is; a local
+    /// (loopback) server needs none, so it runs keyless; a cloud provider with
+    /// no key stays dormant rather than firing doomed unauthenticated requests.
+    pub fn resolved_key(&self) -> Option<String> {
+        self.api_key()
+            .or_else(|| is_loopback(&self.base_url()).then(String::new))
+    }
+
     /// The active model id: `active.model`, else the active provider's first
     /// model, else the built-in default.
     pub fn model(&self) -> String {
@@ -259,4 +268,11 @@ impl ChatSettings {
 /// Env var holding the API key for a provider: `<NAME>_API_KEY`.
 fn env_key_var(provider: &str) -> String {
     format!("{}_API_KEY", provider.to_uppercase())
+}
+
+/// Whether a base URL points at a loopback host — a locally hosted server
+/// (Ollama, llama.cpp, …) that typically needs no API key.
+fn is_loopback(base_url: &str) -> bool {
+    let b = base_url.to_ascii_lowercase();
+    b.contains("localhost") || b.contains("127.0.0.1") || b.contains("[::1]")
 }
