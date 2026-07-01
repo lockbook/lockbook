@@ -26,6 +26,7 @@ data class AndroidResponse(
     val hasEditMenu: Boolean,
     val editMenuX: Float,
     val editMenuY: Float,
+    val editMenuForAtom: Boolean,
     val selectionUpdated: Boolean,
     val textUpdated: Boolean
 )
@@ -99,6 +100,7 @@ object Workspace {
     external fun clipboardSendImage(rustObj: Long, content: ByteArray, isPaste: Boolean)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)
+    external fun enterSelectedAtom(rustObj: Long)
 }
 
 data class NativeWorkspaceTab(

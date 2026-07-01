@@ -114,6 +114,35 @@ fn image_link_no_break_opportunities_wraps() {
     }
 }
 
+/// Mobile edit-menu "Edit": with the selection exactly covering a collapsed
+/// image atom, `Event::EnterAtom` selects the image's URL — endpoints inside
+/// the syntax reveal the raw markdown, and the likeliest edit becomes
+/// type-to-replace. The only touch path in, since mobile has no arrow keys.
+/// A selection that isn't an image is a no-op.
+#[test]
+fn enter_atom_selects_image_url() {
+    let url = "https://example.com/i.png";
+    let mut ws = TestEditor::new(&format!("![alt]({url})\n"));
+    ws.enter_frame();
+    let img = ws.editor.edit.renderer.bounds.images[0];
+
+    // non-image selection: no-op
+    ws.push(Event::EnterAtom);
+    ws.enter_frame();
+    assert!(!ws.editor.edit.renderer.range_revealed_interior(img));
+
+    // tap-select the atom, then enter it
+    ws.push(Event::Select { region: img.into() });
+    ws.enter_frame();
+    assert!(!ws.editor.edit.renderer.range_revealed_interior(img), "selected, not revealed");
+    ws.push(Event::EnterAtom);
+    ws.enter_frame();
+
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    assert_eq!(&ws.editor.edit.renderer.buffer[sel], url, "url selected: {sel:?}");
+    assert!(ws.editor.edit.renderer.range_revealed_interior(img), "source revealed");
+}
+
 #[test]
 fn long_link_stays_inside_render_area() {
     // Long links should wrap at UAX#14 break opportunities (`/`,
