@@ -71,7 +71,7 @@ public class Lb: LbAPI {
     public init(writablePath: String, logs: Bool) {
         print("Starting core at \(writablePath) and logs=\(logs)")
 
-        let res = start(writablePath: writablePath, logs: logs)
+        _ = start(writablePath: writablePath, logs: logs)
 
         subscribe(notify: { event in
             DispatchQueue.main.async {

@@ -17,7 +17,7 @@
                BlueprintIdentifier = "EA5C7D6E2516606000F7F358"
                BuildableName = "Lockbook Purgatory.app"
                BlueprintName = "Lockbook Purgatory (iOS)"
-               ReferencedContainer = "container:Lockbook.xcodeproj">
+               ReferencedContainer = "container:lockbook.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -49,7 +49,7 @@
             BlueprintIdentifier = "EA5C7D6E2516606000F7F358"
             BuildableName = "Lockbook Purgatory.app"
             BlueprintName = "Lockbook Purgatory (iOS)"
-            ReferencedContainer = "container:Lockbook.xcodeproj">
+            ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <EnvironmentVariables>
@@ -93,7 +93,7 @@
             BlueprintIdentifier = "EA5C7D6E2516606000F7F358"
             BuildableName = "Lockbook Purgatory.app"
             BlueprintName = "Lockbook Purgatory (iOS)"
-            ReferencedContainer = "container:Lockbook.xcodeproj">
+            ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

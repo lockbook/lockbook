@@ -17,7 +17,7 @@
                BlueprintIdentifier = "AA00000000000000000000A2"
                BuildableName = "Lockbook.app"
                BlueprintName = "Lockbook"
-               ReferencedContainer = "container:Lockbook.xcodeproj">
+               ReferencedContainer = "container:lockbook.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
       </BuildActionEntries>
@@ -47,7 +47,7 @@
             BlueprintIdentifier = "AA00000000000000000000A2"
             BuildableName = "Lockbook.app"
             BlueprintName = "Lockbook"
-            ReferencedContainer = "container:Lockbook.xcodeproj">
+            ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </LaunchAction>
@@ -64,7 +64,7 @@
             BlueprintIdentifier = "AA00000000000000000000A2"
             BuildableName = "Lockbook.app"
             BlueprintName = "Lockbook"
-            ReferencedContainer = "container:Lockbook.xcodeproj">
+            ReferencedContainer = "container:lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
    </ProfileAction>

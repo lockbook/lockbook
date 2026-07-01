@@ -1,6 +1,15 @@
 {
   "pins" : [
     {
+      "identity" : "codescanner",
+      "kind" : "remoteSourceControl",
+      "location" : "https://github.com/twostraws/CodeScanner",
+      "state" : {
+        "revision" : "5e886430238944c7200fc9e10dbf2d9550dba865",
+        "version" : "2.5.2"
+      }
+    },
+    {
       "identity" : "dsfappearancemanager",
       "kind" : "remoteSourceControl",
       "location" : "https://github.com/dagronf/DSFAppearanceManager",
