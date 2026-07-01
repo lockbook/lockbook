@@ -7,135 +7,27 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
-		47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */ = {isa = PBXBuildFile; productRef = 47159F4529CFA05B00969DDF /* DSFQuickActionBar */; };
-		471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 471C788C2B4910A80022B3B2 /* SwiftWorkspace */; };
-		4726A7892E918D6D0001107F /* Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4726A7882E918D6C0001107F /* Preview.swift */; };
-		4726A78A2E918D6D0001107F /* Preview.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4726A7882E918D6C0001107F /* Preview.swift */; };
-		47323C472CD696710086A934 /* workspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47323C462CD696710086A934 /* workspace */; };
-		473DD14F2DEBA60C00E50ADC /* logo.svg in Resources */ = {isa = PBXBuildFile; fileRef = 473DD14E2DEBA60C00E50ADC /* logo.svg */; };
-		473DD1502DEBA60C00E50ADC /* logo.svg in Resources */ = {isa = PBXBuildFile; fileRef = 473DD14E2DEBA60C00E50ADC /* logo.svg */; };
-		473DD1512DEBA60C00E50ADC /* logo.svg in Resources */ = {isa = PBXBuildFile; fileRef = 473DD14E2DEBA60C00E50ADC /* logo.svg */; };
-		474AFD3F2CD695DB00B1546D /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = 474AFD3E2CD695DB00B1546D /* Bridge */; };
-		47728DB22EC921DD005F9C91 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* AppIcon.icon */; };
-		47728DB32EC921DD005F9C91 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* AppIcon.icon */; };
-		47728DB42EC921DD005F9C91 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* AppIcon.icon */; };
-		47837E292A72EA7500863FA4 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B273394C26C8A4B400303EAE /* Assets.xcassets */; };
-		47BC31CA2D233E3F0020F0E4 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */; };
-		47BC31CB2D233E3F0020F0E4 /* LockbookApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */; };
-		47EA1B022CCEBA1F00A4DAF9 /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47F098392BCDA94800F66CED /* SystemConfiguration.framework */; };
-		47EA1B062CCEBA4A00A4DAF9 /* workspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47EA1B052CCEBA4A00A4DAF9 /* workspace */; };
-		47F013C22CCEB9D00076C22E /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = 47F013C12CCEB9D00076C22E /* SwiftWorkspace */; };
-		47F0983A2BCDA94800F66CED /* SystemConfiguration.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47F098392BCDA94800F66CED /* SystemConfiguration.framework */; };
-		47FCC5B12C1A33A9001AB7ED /* GameController.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 47FCC5B02C1A33A9001AB7ED /* GameController.framework */; };
-		47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 47FF74F42C5AC8E0004F90EC /* ShareViewController.swift */; };
-		47FF74FC2C5AC8E0004F90EC /* ShareExtension.appex in Embed Foundation Extensions */ = {isa = PBXBuildFile; fileRef = 47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */; settings = {ATTRIBUTES = (RemoveHeadersOnCopy, ); }; };
 		AA00000000000000000000B2 /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = AA00000000000000000000B1 /* SwiftWorkspace */; };
 		AA00000000000000000000B3 /* AppIcon.icon in Resources */ = {isa = PBXBuildFile; fileRef = 47728DB12EC921DD005F9C91 /* AppIcon.icon */; };
 		AA0000000000000000000C53 /* CodeScanner in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000C52 /* CodeScanner */; };
-		B273394F26C8B3EF00303EAE /* Media.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = B273394E26C8B3EF00303EAE /* Media.xcassets */; };
-		B2A3AB302B27A1E800C2319E /* Bridge in Frameworks */ = {isa = PBXBuildFile; productRef = B2A3AB2F2B27A1E800C2319E /* Bridge */; };
-		B2A3AB322B27A1E800C2319E /* SwiftWorkspace in Frameworks */ = {isa = PBXBuildFile; productRef = B2A3AB312B27A1E800C2319E /* SwiftWorkspace */; };
-		B2A3AB342B27A1E800C2319E /* workspace in Frameworks */ = {isa = PBXBuildFile; productRef = B2A3AB332B27A1E800C2319E /* workspace */; };
-		B2ADC2492835451000DB8D3D /* Introspect in Frameworks */ = {isa = PBXBuildFile; productRef = B2ADC2482835451000DB8D3D /* Introspect */; };
-		EA82B20C262652F700EE82B9 /* Introspect in Frameworks */ = {isa = PBXBuildFile; productRef = EA82B20B262652F700EE82B9 /* Introspect */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
-		47FF74FA2C5AC8E0004F90EC /* PBXContainerItemProxy */ = {
-			isa = PBXContainerItemProxy;
-			containerPortal = EA5C7D632516605F00F7F358 /* Project object */;
-			proxyType = 1;
-			remoteGlobalIDString = 47FF74F12C5AC8E0004F90EC;
-			remoteInfo = ShareExtension;
-		};
 /* End PBXContainerItemProxy section */
 
 /* Begin PBXCopyFilesBuildPhase section */
-		47DBF25B2A61D5D600F86B3F /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		47FF74FD2C5AC8E0004F90EC /* Embed Foundation Extensions */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 13;
-			files = (
-				47FF74FC2C5AC8E0004F90EC /* ShareExtension.appex in Embed Foundation Extensions */,
-			);
-			name = "Embed Foundation Extensions";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
-		4726A7882E918D6C0001107F /* Preview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Preview.swift; sourceTree = "<group>"; };
-		472F9EDD2A6C468A005F4785 /* Purgatory/Lockbook (iOS).entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Purgatory/Lockbook (iOS).entitlements"; sourceTree = "<group>"; };
-		473DD14E2DEBA60C00E50ADC /* logo.svg */ = {isa = PBXFileReference; lastKnownFileType = text; path = logo.svg; sourceTree = "<group>"; };
-		4741C7902939C9220073F24F /* Products.storekit */ = {isa = PBXFileReference; lastKnownFileType = text; path = Products.storekit; sourceTree = "<group>"; };
 		47728DB12EC921DD005F9C91 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
-		4788D3842C5D71A900507DCE /* ShareExtension.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = ShareExtension.entitlements; sourceTree = "<group>"; };
-		478B1BC32CCEB67300FDCB73 /* LbSwiftTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = LbSwiftTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
-		47B989462F8AC25500DCB014 /* Purgatory/Lockbook (macOS).entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = "Purgatory/Lockbook (macOS).entitlements"; sourceTree = "<group>"; };
-		47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LockbookApp.swift; sourceTree = "<group>"; };
-		47DBF1F32A61CA5000F86B3F /* UIKit.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = UIKit.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS16.4.sdk/System/Library/Frameworks/UIKit.framework; sourceTree = DEVELOPER_DIR; };
-		47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = AuthenticationServices.framework; path = System/Library/Frameworks/AuthenticationServices.framework; sourceTree = SDKROOT; };
-		47F098392BCDA94800F66CED /* SystemConfiguration.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = SystemConfiguration.framework; path = System/Library/Frameworks/SystemConfiguration.framework; sourceTree = SDKROOT; };
-		47FCC5AE2C1A339D001AB7ED /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = System/Library/Frameworks/GameController.framework; sourceTree = SDKROOT; };
-		47FCC5B02C1A33A9001AB7ED /* GameController.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GameController.framework; path = Platforms/iPhoneOS.platform/Developer/SDKs/iPhoneOS17.5.sdk/System/Library/Frameworks/GameController.framework; sourceTree = DEVELOPER_DIR; };
-		47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */ = {isa = PBXFileReference; explicitFileType = "wrapper.app-extension"; includeInIndex = 0; path = ShareExtension.appex; sourceTree = BUILT_PRODUCTS_DIR; };
-		47FF74F42C5AC8E0004F90EC /* ShareViewController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShareViewController.swift; sourceTree = "<group>"; };
-		47FF74F92C5AC8E0004F90EC /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		AA00000000000000000000A6 /* Lockbook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lockbook.app; sourceTree = BUILT_PRODUCTS_DIR; };
-		B2432EE72B27A00B00D9DE62 /* SwiftWorkspace */ = {isa = PBXFileReference; lastKnownFileType = wrapper; name = SwiftWorkspace; path = "../../libs/content/workspace-ffi/SwiftWorkspace"; sourceTree = "<group>"; };
-		B273394C26C8A4B400303EAE /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		B273394E26C8B3EF00303EAE /* Media.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Media.xcassets; sourceTree = "<group>"; };
-		EA5C7D6F2516606000F7F358 /* Lockbook Purgatory.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Lockbook Purgatory.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EA5C7D722516606000F7F358 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		EA5C7D772516606000F7F358 /* Lockbook Purgatory.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Lockbook Purgatory.app"; sourceTree = BUILT_PRODUCTS_DIR; };
-		EA5C7D792516606100F7F358 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
-		EA5C7D7A2516606100F7F358 /* macOS.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = macOS.entitlements; sourceTree = "<group>"; };
-		EAD401DB25E32CD50083A236 /* Notepad */ = {isa = PBXFileReference; lastKnownFileType = folder; name = Notepad; path = "/Users/raayanpillai/Library/Developer/Xcode/DerivedData/Lockbook-asqnugeyohispqhixjzcyqkvmhjn/SourcePackages/checkouts/Notepad"; sourceTree = "<absolute>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFileSystemSynchronizedRootGroup section */
-		47024C512D31F07900E7C2DB /* Screens */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Screens; sourceTree = "<group>"; };
-		471CD9242D249E9600D9320B /* Screens */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Screens; sourceTree = "<group>"; };
-		471CD92B2D249FA200D9320B /* State */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = State; sourceTree = "<group>"; };
-		4729F05C2EED332100C64BDC /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
-		473198002D28916400FBCD5F /* Screens */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Screens; sourceTree = "<group>"; };
-		4731981A2D2AE88E00FBCD5F /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
-		4742CE862D273263002F3BE4 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
-		4742CE992D273B35002F3BE4 /* Widgets */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Widgets; sourceTree = "<group>"; };
-		478B1BC42CCEB67300FDCB73 /* LbSwiftTests */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = LbSwiftTests; sourceTree = "<group>"; };
-		47BC31D42D249E3A0020F0E4 /* Utils */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = Utils; sourceTree = "<group>"; };
 		AA00000000000000000000A1 /* App */ = {isa = PBXFileSystemSynchronizedRootGroup; explicitFileTypes = {}; explicitFolders = (); path = App; sourceTree = "<group>"; };
 /* End PBXFileSystemSynchronizedRootGroup section */
 
 /* Begin PBXFrameworksBuildPhase section */
-		478B1BC02CCEB67300FDCB73 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				47EA1B062CCEBA4A00A4DAF9 /* workspace in Frameworks */,
-				47EA1B022CCEBA1F00A4DAF9 /* SystemConfiguration.framework in Frameworks */,
-				47F013C22CCEB9D00076C22E /* SwiftWorkspace in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		47FF74EF2C5AC8E0004F90EC /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		AA00000000000000000000A4 /* Frameworks */ = {
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
@@ -145,172 +37,29 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		EA5C7D6C2516606000F7F358 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				474AFD3F2CD695DB00B1546D /* Bridge in Frameworks */,
-				EA82B20C262652F700EE82B9 /* Introspect in Frameworks */,
-				47FCC5B12C1A33A9001AB7ED /* GameController.framework in Frameworks */,
-				47323C472CD696710086A934 /* workspace in Frameworks */,
-				471C788D2B4910A80022B3B2 /* SwiftWorkspace in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EA5C7D742516606000F7F358 /* Frameworks */ = {
-			isa = PBXFrameworksBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B2A3AB302B27A1E800C2319E /* Bridge in Frameworks */,
-				B2A3AB342B27A1E800C2319E /* workspace in Frameworks */,
-				B2A3AB322B27A1E800C2319E /* SwiftWorkspace in Frameworks */,
-				B2ADC2492835451000DB8D3D /* Introspect in Frameworks */,
-				47F0983A2BCDA94800F66CED /* SystemConfiguration.framework in Frameworks */,
-				47159F4629CFA05B00969DDF /* DSFQuickActionBar in Frameworks */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
-		47FF74F32C5AC8E0004F90EC /* Purgatory/ShareExtension */ = {
-			isa = PBXGroup;
-			children = (
-				4788D3842C5D71A900507DCE /* ShareExtension.entitlements */,
-				47FF74F42C5AC8E0004F90EC /* ShareViewController.swift */,
-				47FF74F92C5AC8E0004F90EC /* Info.plist */,
-			);
-			path = Purgatory/ShareExtension;
-			sourceTree = "<group>";
-		};
-		EA14E8172516643400B9158C /* Frameworks */ = {
-			isa = PBXGroup;
-			children = (
-				47FCC5AE2C1A339D001AB7ED /* GameController.framework */,
-				47FCC5B02C1A33A9001AB7ED /* GameController.framework */,
-				47F098392BCDA94800F66CED /* SystemConfiguration.framework */,
-				B2432EE72B27A00B00D9DE62 /* SwiftWorkspace */,
-				47DBF1F32A61CA5000F86B3F /* UIKit.framework */,
-				EAD401DB25E32CD50083A236 /* Notepad */,
-				47DBF2212A61D45600F86B3F /* AuthenticationServices.framework */,
-			);
-			name = Frameworks;
-			sourceTree = "<group>";
-		};
 		EA5C7D622516605F00F7F358 = {
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000A1 /* App */,
-				47B989462F8AC25500DCB014 /* Purgatory/Lockbook (macOS).entitlements */,
 				47728DB12EC921DD005F9C91 /* AppIcon.icon */,
-				472F9EDD2A6C468A005F4785 /* Purgatory/Lockbook (iOS).entitlements */,
-				EA5C7D672516605F00F7F358 /* Purgatory/Shared */,
-				EA5C7D712516606000F7F358 /* Purgatory/iOS */,
-				EA5C7D782516606100F7F358 /* Purgatory/macOS */,
-				47FF74F32C5AC8E0004F90EC /* Purgatory/ShareExtension */,
-				478B1BC42CCEB67300FDCB73 /* LbSwiftTests */,
 				EA5C7D702516606000F7F358 /* Products */,
-				EA14E8172516643400B9158C /* Frameworks */,
 			);
-			sourceTree = "<group>";
-		};
-		EA5C7D672516605F00F7F358 /* Purgatory/Shared */ = {
-			isa = PBXGroup;
-			children = (
-				4726A7882E918D6C0001107F /* Preview.swift */,
-				4731981A2D2AE88E00FBCD5F /* Widgets */,
-				471CD92B2D249FA200D9320B /* State */,
-				471CD9242D249E9600D9320B /* Screens */,
-				47BC31D42D249E3A0020F0E4 /* Utils */,
-				47BC31C92D233E3E0020F0E4 /* LockbookApp.swift */,
-				4741C7902939C9220073F24F /* Products.storekit */,
-				473DD14E2DEBA60C00E50ADC /* logo.svg */,
-			);
-			path = Purgatory/Shared;
 			sourceTree = "<group>";
 		};
 		EA5C7D702516606000F7F358 /* Products */ = {
 			isa = PBXGroup;
 			children = (
 				AA00000000000000000000A6 /* Lockbook.app */,
-				EA5C7D6F2516606000F7F358 /* Lockbook Purgatory.app */,
-				EA5C7D772516606000F7F358 /* Lockbook Purgatory.app */,
-				47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */,
-				478B1BC32CCEB67300FDCB73 /* LbSwiftTests.xctest */,
 			);
 			name = Products;
-			sourceTree = "<group>";
-		};
-		EA5C7D712516606000F7F358 /* Purgatory/iOS */ = {
-			isa = PBXGroup;
-			children = (
-				4729F05C2EED332100C64BDC /* Utils */,
-				473198002D28916400FBCD5F /* Screens */,
-				4742CE992D273B35002F3BE4 /* Widgets */,
-				EA5C7D722516606000F7F358 /* Info.plist */,
-				B273394C26C8A4B400303EAE /* Assets.xcassets */,
-			);
-			path = Purgatory/iOS;
-			sourceTree = "<group>";
-		};
-		EA5C7D782516606100F7F358 /* Purgatory/macOS */ = {
-			isa = PBXGroup;
-			children = (
-				47024C512D31F07900E7C2DB /* Screens */,
-				4742CE862D273263002F3BE4 /* Widgets */,
-				EA5C7D792516606100F7F358 /* Info.plist */,
-				EA5C7D7A2516606100F7F358 /* macOS.entitlements */,
-				B273394E26C8B3EF00303EAE /* Media.xcassets */,
-			);
-			path = Purgatory/macOS;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		478B1BC22CCEB67300FDCB73 /* LbSwiftTests */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 478B1BC72CCEB67300FDCB73 /* Build configuration list for PBXNativeTarget "LbSwiftTests" */;
-			buildPhases = (
-				478B1BBF2CCEB67300FDCB73 /* Sources */,
-				478B1BC02CCEB67300FDCB73 /* Frameworks */,
-				478B1BC12CCEB67300FDCB73 /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				478B1BC42CCEB67300FDCB73 /* LbSwiftTests */,
-			);
-			name = LbSwiftTests;
-			packageProductDependencies = (
-				47F013C12CCEB9D00076C22E /* SwiftWorkspace */,
-				47EA1B052CCEBA4A00A4DAF9 /* workspace */,
-			);
-			productName = LbSwiftTests;
-			productReference = 478B1BC32CCEB67300FDCB73 /* LbSwiftTests.xctest */;
-			productType = "com.apple.product-type.bundle.unit-test";
-		};
-		47FF74F12C5AC8E0004F90EC /* ShareExtension */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = 47FF75012C5AC8E0004F90EC /* Build configuration list for PBXNativeTarget "ShareExtension" */;
-			buildPhases = (
-				47FF74EE2C5AC8E0004F90EC /* Sources */,
-				47FF74EF2C5AC8E0004F90EC /* Frameworks */,
-				47FF74F02C5AC8E0004F90EC /* Resources */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			name = ShareExtension;
-			packageProductDependencies = (
-			);
-			productName = ShareExtension;
-			productReference = 47FF74F22C5AC8E0004F90EC /* ShareExtension.appex */;
-			productType = "com.apple.product-type.app-extension";
-		};
 		AA00000000000000000000A2 /* Lockbook */ = {
 			isa = PBXNativeTarget;
 			buildConfigurationList = AA00000000000000000000A7 /* Build configuration list for PBXNativeTarget "Lockbook" */;
@@ -335,73 +84,6 @@
 			productReference = AA00000000000000000000A6 /* Lockbook.app */;
 			productType = "com.apple.product-type.application";
 		};
-		EA5C7D6E2516606000F7F358 /* Lockbook Purgatory (iOS) */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = EA5C7D832516606100F7F358 /* Build configuration list for PBXNativeTarget "Lockbook Purgatory (iOS)" */;
-			buildPhases = (
-				EA5C7D6B2516606000F7F358 /* Sources */,
-				EA5C7D6C2516606000F7F358 /* Frameworks */,
-				EA5C7D6D2516606000F7F358 /* Resources */,
-				47FF74FD2C5AC8E0004F90EC /* Embed Foundation Extensions */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-				47FF74FB2C5AC8E0004F90EC /* PBXTargetDependency */,
-			);
-			fileSystemSynchronizedGroups = (
-				471CD9242D249E9600D9320B /* Screens */,
-				471CD92B2D249FA200D9320B /* State */,
-				4729F05C2EED332100C64BDC /* Utils */,
-				473198002D28916400FBCD5F /* Screens */,
-				4731981A2D2AE88E00FBCD5F /* Widgets */,
-				4742CE992D273B35002F3BE4 /* Widgets */,
-				47BC31D42D249E3A0020F0E4 /* Utils */,
-			);
-			name = "Lockbook Purgatory (iOS)";
-			packageProductDependencies = (
-				EA82B20B262652F700EE82B9 /* Introspect */,
-				471C788C2B4910A80022B3B2 /* SwiftWorkspace */,
-				474AFD3E2CD695DB00B1546D /* Bridge */,
-				47323C462CD696710086A934 /* workspace */,
-			);
-			productName = "Lockbook Purgatory (iOS)";
-			productReference = EA5C7D6F2516606000F7F358 /* Lockbook Purgatory.app */;
-			productType = "com.apple.product-type.application";
-		};
-		EA5C7D762516606000F7F358 /* Lockbook Purgatory (macOS) */ = {
-			isa = PBXNativeTarget;
-			buildConfigurationList = EA5C7D862516606100F7F358 /* Build configuration list for PBXNativeTarget "Lockbook Purgatory (macOS)" */;
-			buildPhases = (
-				EA5C7D732516606000F7F358 /* Sources */,
-				EA5C7D742516606000F7F358 /* Frameworks */,
-				EA5C7D752516606000F7F358 /* Resources */,
-				47DBF25B2A61D5D600F86B3F /* Embed Foundation Extensions */,
-			);
-			buildRules = (
-			);
-			dependencies = (
-			);
-			fileSystemSynchronizedGroups = (
-				47024C512D31F07900E7C2DB /* Screens */,
-				471CD9242D249E9600D9320B /* Screens */,
-				471CD92B2D249FA200D9320B /* State */,
-				4731981A2D2AE88E00FBCD5F /* Widgets */,
-				4742CE862D273263002F3BE4 /* Widgets */,
-				47BC31D42D249E3A0020F0E4 /* Utils */,
-			);
-			name = "Lockbook Purgatory (macOS)";
-			packageProductDependencies = (
-				B2ADC2482835451000DB8D3D /* Introspect */,
-				47159F4529CFA05B00969DDF /* DSFQuickActionBar */,
-				B2A3AB2F2B27A1E800C2319E /* Bridge */,
-				B2A3AB312B27A1E800C2319E /* SwiftWorkspace */,
-				B2A3AB332B27A1E800C2319E /* workspace */,
-			);
-			productName = "Lockbook Purgatory (macOS)";
-			productReference = EA5C7D772516606000F7F358 /* Lockbook Purgatory.app */;
-			productType = "com.apple.product-type.application";
-		};
 /* End PBXNativeTarget section */
 
 /* Begin PBXProject section */
@@ -412,18 +94,6 @@
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 2650;
 				TargetAttributes = {
-					478B1BC22CCEB67300FDCB73 = {
-						CreatedOnToolsVersion = 16.0;
-					};
-					47FF74F12C5AC8E0004F90EC = {
-						CreatedOnToolsVersion = 15.4;
-					};
-					EA5C7D6E2516606000F7F358 = {
-						CreatedOnToolsVersion = 12.2;
-					};
-					EA5C7D762516606000F7F358 = {
-						CreatedOnToolsVersion = 12.2;
-					};
 				};
 			};
 			buildConfigurationList = EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "lockbook" */;
@@ -437,8 +107,6 @@
 			mainGroup = EA5C7D622516605F00F7F358;
 			packageReferences = (
 				AA0000000000000000000C51 /* XCRemoteSwiftPackageReference "CodeScanner" */,
-				EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */,
-				47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */,
 				4701ADB62CFE337300497D36 /* XCLocalSwiftPackageReference "../../libs/content/workspace-ffi/SwiftWorkspace" */,
 			);
 			productRefGroup = EA5C7D702516606000F7F358 /* Products */;
@@ -446,31 +114,11 @@
 			projectRoot = "";
 			targets = (
 				AA00000000000000000000A2 /* Lockbook */,
-				EA5C7D6E2516606000F7F358 /* Lockbook Purgatory (iOS) */,
-				EA5C7D762516606000F7F358 /* Lockbook Purgatory (macOS) */,
-				47FF74F12C5AC8E0004F90EC /* ShareExtension */,
-				478B1BC22CCEB67300FDCB73 /* LbSwiftTests */,
 			);
 		};
 /* End PBXProject section */
 
 /* Begin PBXResourcesBuildPhase section */
-		478B1BC12CCEB67300FDCB73 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		47FF74F02C5AC8E0004F90EC /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				47728DB22EC921DD005F9C91 /* AppIcon.icon in Resources */,
-				473DD1502DEBA60C00E50ADC /* logo.svg in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		AA00000000000000000000A5 /* Resources */ = {
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -479,44 +127,9 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		EA5C7D6D2516606000F7F358 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				47837E292A72EA7500863FA4 /* Assets.xcassets in Resources */,
-				47728DB42EC921DD005F9C91 /* AppIcon.icon in Resources */,
-				473DD1512DEBA60C00E50ADC /* logo.svg in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EA5C7D752516606000F7F358 /* Resources */ = {
-			isa = PBXResourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				B273394F26C8B3EF00303EAE /* Media.xcassets in Resources */,
-				47728DB32EC921DD005F9C91 /* AppIcon.icon in Resources */,
-				473DD14F2DEBA60C00E50ADC /* logo.svg in Resources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXResourcesBuildPhase section */
 
 /* Begin PBXSourcesBuildPhase section */
-		478B1BBF2CCEB67300FDCB73 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		47FF74EE2C5AC8E0004F90EC /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				47FF74F52C5AC8E0004F90EC /* ShareViewController.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 		AA00000000000000000000A3 /* Sources */ = {
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
@@ -524,228 +137,12 @@
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
-		EA5C7D6B2516606000F7F358 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				4726A7892E918D6D0001107F /* Preview.swift in Sources */,
-				47BC31CA2D233E3F0020F0E4 /* LockbookApp.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-		EA5C7D732516606000F7F358 /* Sources */ = {
-			isa = PBXSourcesBuildPhase;
-			buildActionMask = 2147483647;
-			files = (
-				4726A78A2E918D6D0001107F /* Preview.swift in Sources */,
-				47BC31CB2D233E3F0020F0E4 /* LockbookApp.swift in Sources */,
-			);
-			runOnlyForDeploymentPostprocessing = 0;
-		};
 /* End PBXSourcesBuildPhase section */
 
 /* Begin PBXTargetDependency section */
-		47FF74FB2C5AC8E0004F90EC /* PBXTargetDependency */ = {
-			isa = PBXTargetDependency;
-			target = 47FF74F12C5AC8E0004F90EC /* ShareExtension */;
-			targetProxy = 47FF74FA2C5AC8E0004F90EC /* PBXContainerItemProxy */;
-		};
 /* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
-		478B1BC82CCEB67300FDCB73 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = net.lockbook.LbSwiftTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = NO;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		478B1BC92CCEB67300FDCB73 /* Development */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = net.lockbook.LbSwiftTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = NO;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Development;
-		};
-		478B1BCA2CCEB67300FDCB73 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = net.lockbook.LbSwiftTests;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				REGISTER_APP_GROUPS = NO;
-				SDKROOT = iphoneos;
-				SUPPORTED_PLATFORMS = "iphoneos iphonesimulator macosx";
-				SUPPORTS_MACCATALYST = YES;
-				SWIFT_EMIT_LOC_STRINGS = NO;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		47FF74FE2C5AC8E0004F90EC /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CODE_SIGN_ENTITLEMENTS = Purgatory/ShareExtension/ShareExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Purgatory/ShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
-					"${PROJECT_DIR}",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.purgatory.ShareExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		47FF74FF2C5AC8E0004F90EC /* Development */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CODE_SIGN_ENTITLEMENTS = Purgatory/ShareExtension/ShareExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				EXCLUDED_ARCHS = "";
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Purgatory/ShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
-					"${PROJECT_DIR}",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.purgatory.ShareExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SWIFT_ACTIVE_COMPILATION_CONDITIONS = "DEBUG $(inherited)";
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Development;
-		};
-		47FF75002C5AC8E0004F90EC /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_GENERATE_SWIFT_ASSET_SYMBOL_EXTENSIONS = YES;
-				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
-				CODE_SIGN_ENTITLEMENTS = Purgatory/ShareExtension/ShareExtension.entitlements;
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_USER_SCRIPT_SANDBOXING = YES;
-				GCC_C_LANGUAGE_STANDARD = gnu17;
-				GENERATE_INFOPLIST_FILE = YES;
-				INFOPLIST_FILE = Purgatory/ShareExtension/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = ShareExtension;
-				INFOPLIST_KEY_NSHumanReadableCopyright = "";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-					"@executable_path/../../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios",
-					"${PROJECT_DIR}",
-				);
-				"LIBRARY_SEARCH_PATHS[sdk=iphonesimulator*]" = "${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib_ios_sim";
-				LOCALIZATION_PREFERS_STRING_CATALOGS = YES;
-				MARKETING_VERSION = 1.0;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.purgatory.ShareExtension;
-				PRODUCT_NAME = "$(TARGET_NAME)";
-				SDKROOT = iphoneos;
-				SKIP_INSTALL = YES;
-				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
 		AA00000000000000000000A8 /* Debug */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -997,143 +394,6 @@
 			};
 			name = Release;
 		};
-		EA5C7D842516606100F7F358 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				CODE_SIGN_ENTITLEMENTS = "Purgatory/Lockbook (iOS).entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INFOPLIST_FILE = Purgatory/iOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MARKETING_VERSION = 0.5.10;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.purgatory;
-				PRODUCT_NAME = "Lockbook Purgatory";
-				SDKROOT = iphoneos;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Debug;
-		};
-		EA5C7D852516606100F7F358 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				CODE_SIGN_ENTITLEMENTS = "Purgatory/Lockbook (iOS).entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INFOPLIST_FILE = Purgatory/iOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MARKETING_VERSION = 0.5.10;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.purgatory;
-				PRODUCT_NAME = "Lockbook Purgatory";
-				SDKROOT = iphoneos;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-				VALIDATE_PRODUCT = YES;
-			};
-			name = Release;
-		};
-		EA5C7D872516606100F7F358 /* Debug */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD)";
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = Purgatory/macOS/macOS.entitlements;
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
-				DEAD_CODE_STRIPPING = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INFOPLIST_FILE = Purgatory/macOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib",
-					"$(PROJECT_DIR)/Purgatory/macOS",
-					"$(PROJECT_DIR)",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.42;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.purgatory;
-				PRODUCT_NAME = "Lockbook Purgatory";
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				SDKROOT = macosx;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Debug;
-		};
-		EA5C7D882516606100F7F358 /* Release */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD)";
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Purgatory/Lockbook (macOS)Release.entitlements";
-				CODE_SIGN_IDENTITY = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
-				DEAD_CODE_STRIPPING = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INFOPLIST_FILE = Purgatory/macOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib",
-					"$(PROJECT_DIR)/Purgatory/macOS",
-					"$(PROJECT_DIR)",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.42;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.purgatory;
-				PRODUCT_NAME = "Lockbook Purgatory";
-				PROVISIONING_PROFILE_SPECIFIER = "";
-				SDKROOT = macosx;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Release;
-		};
 		EADA115E25336B97005F69DB /* Development */ = {
 			isa = XCBuildConfiguration;
 			buildSettings = {
@@ -1197,97 +457,9 @@
 			};
 			name = Development;
 		};
-		EADA115F25336B97005F69DB /* Development */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				ASSETCATALOG_COMPILER_INCLUDE_ALL_APPICON_ASSETS = NO;
-				CODE_SIGN_ENTITLEMENTS = "Purgatory/Lockbook (iOS).entitlements";
-				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 1;
-				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INFOPLIST_FILE = Purgatory/iOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				IPHONEOS_DEPLOYMENT_TARGET = 26.0;
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = "";
-				MARKETING_VERSION = 0.5.10;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.purgatory;
-				PRODUCT_NAME = "Lockbook Purgatory";
-				SDKROOT = iphoneos;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-				TARGETED_DEVICE_FAMILY = "1,2";
-			};
-			name = Development;
-		};
-		EADA116025336B97005F69DB /* Development */ = {
-			isa = XCBuildConfiguration;
-			buildSettings = {
-				ARCHS = "$(ARCHS_STANDARD)";
-				ASSETCATALOG_COMPILER_APPICON_NAME = AppIcon;
-				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
-				CODE_SIGN_ENTITLEMENTS = "Purgatory/Lockbook (macOS).entitlements";
-				CODE_SIGN_IDENTITY = "-";
-				"CODE_SIGN_IDENTITY[sdk=macosx*]" = "Apple Development";
-				CODE_SIGN_STYLE = Automatic;
-				COMBINE_HIDPI_IMAGES = YES;
-				CURRENT_PROJECT_VERSION = 2;
-				DEAD_CODE_STRIPPING = YES;
-				ENABLE_HARDENED_RUNTIME = YES;
-				ENABLE_PREVIEWS = YES;
-				GCC_OPTIMIZATION_LEVEL = 0;
-				INFOPLIST_FILE = Purgatory/macOS/Info.plist;
-				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
-				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
-				LD_RUNPATH_SEARCH_PATHS = (
-					"$(inherited)",
-					"@executable_path/../Frameworks",
-				);
-				LIBRARY_SEARCH_PATHS = (
-					"${PROJECT_DIR}/CLockbookCore/Sources/CLockbookCore/lib",
-					"$(PROJECT_DIR)/Purgatory/macOS",
-					"$(PROJECT_DIR)",
-				);
-				MACOSX_DEPLOYMENT_TARGET = 26.0;
-				MARKETING_VERSION = 0.8.42;
-				PRODUCT_BUNDLE_IDENTIFIER = app.lockbook.purgatory;
-				PRODUCT_NAME = "Lockbook Purgatory";
-				SDKROOT = macosx;
-				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
-				SWIFT_VERSION = 5.0;
-			};
-			name = Development;
-		};
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		478B1BC72CCEB67300FDCB73 /* Build configuration list for PBXNativeTarget "LbSwiftTests" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				478B1BC82CCEB67300FDCB73 /* Debug */,
-				478B1BC92CCEB67300FDCB73 /* Development */,
-				478B1BCA2CCEB67300FDCB73 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		47FF75012C5AC8E0004F90EC /* Build configuration list for PBXNativeTarget "ShareExtension" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				47FF74FE2C5AC8E0004F90EC /* Debug */,
-				47FF74FF2C5AC8E0004F90EC /* Development */,
-				47FF75002C5AC8E0004F90EC /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 		AA00000000000000000000A7 /* Build configuration list for PBXNativeTarget "Lockbook" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
@@ -1308,26 +480,6 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		EA5C7D832516606100F7F358 /* Build configuration list for PBXNativeTarget "Lockbook Purgatory (iOS)" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				EA5C7D842516606100F7F358 /* Debug */,
-				EADA115F25336B97005F69DB /* Development */,
-				EA5C7D852516606100F7F358 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
-		EA5C7D862516606100F7F358 /* Build configuration list for PBXNativeTarget "Lockbook Purgatory (macOS)" */ = {
-			isa = XCConfigurationList;
-			buildConfigurations = (
-				EA5C7D872516606100F7F358 /* Debug */,
-				EADA116025336B97005F69DB /* Development */,
-				EA5C7D882516606100F7F358 /* Release */,
-			);
-			defaultConfigurationIsVisible = 0;
-			defaultConfigurationName = Release;
-		};
 /* End XCConfigurationList section */
 
 /* Begin XCLocalSwiftPackageReference section */
@@ -1338,14 +490,6 @@
 /* End XCLocalSwiftPackageReference section */
 
 /* Begin XCRemoteSwiftPackageReference section */
-		47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/SmailBarkouch/DSFQuickActionBar";
-			requirement = {
-				branch = main;
-				kind = branch;
-			};
-		};
 		AA0000000000000000000C51 /* XCRemoteSwiftPackageReference "CodeScanner" */ = {
 			isa = XCRemoteSwiftPackageReference;
 			repositoryURL = "https://github.com/twostraws/CodeScanner";
@@ -1354,42 +498,9 @@
 				minimumVersion = 2.5.2;
 			};
 		};
-		EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */ = {
-			isa = XCRemoteSwiftPackageReference;
-			repositoryURL = "https://github.com/siteline/SwiftUI-Introspect.git";
-			requirement = {
-				kind = upToNextMajorVersion;
-				minimumVersion = 0.1.3;
-			};
-		};
 /* End XCRemoteSwiftPackageReference section */
 
 /* Begin XCSwiftPackageProductDependency section */
-		47159F4529CFA05B00969DDF /* DSFQuickActionBar */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = 47159F4429CFA05B00969DDF /* XCRemoteSwiftPackageReference "DSFQuickActionBar" */;
-			productName = DSFQuickActionBar;
-		};
-		471C788C2B4910A80022B3B2 /* SwiftWorkspace */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftWorkspace;
-		};
-		47323C462CD696710086A934 /* workspace */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = workspace;
-		};
-		474AFD3E2CD695DB00B1546D /* Bridge */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Bridge;
-		};
-		47EA1B052CCEBA4A00A4DAF9 /* workspace */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = workspace;
-		};
-		47F013C12CCEB9D00076C22E /* SwiftWorkspace */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftWorkspace;
-		};
 		AA00000000000000000000B1 /* SwiftWorkspace */ = {
 			isa = XCSwiftPackageProductDependency;
 			productName = SwiftWorkspace;
@@ -1398,28 +509,6 @@
 			isa = XCSwiftPackageProductDependency;
 			package = AA0000000000000000000C51 /* XCRemoteSwiftPackageReference "CodeScanner" */;
 			productName = CodeScanner;
-		};
-		B2A3AB2F2B27A1E800C2319E /* Bridge */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = Bridge;
-		};
-		B2A3AB312B27A1E800C2319E /* SwiftWorkspace */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = SwiftWorkspace;
-		};
-		B2A3AB332B27A1E800C2319E /* workspace */ = {
-			isa = XCSwiftPackageProductDependency;
-			productName = workspace;
-		};
-		B2ADC2482835451000DB8D3D /* Introspect */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
-			productName = Introspect;
-		};
-		EA82B20B262652F700EE82B9 /* Introspect */ = {
-			isa = XCSwiftPackageProductDependency;
-			package = EA82B20A262652F600EE82B9 /* XCRemoteSwiftPackageReference "SwiftUI-Introspect" */;
-			productName = Introspect;
 		};
 /* End XCSwiftPackageProductDependency section */
 	};

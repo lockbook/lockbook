@@ -48,6 +48,16 @@ struct OnboardingView: View {
                 .buttonStyle(.bordered)
                 .padding(.bottom)
 
+                #if os(iOS)
+                    Button("Skip to workspace (debug)") {
+                        AppState.shared.isLoggedIn = true
+                    }
+                    .font(.footnote)
+                    .foregroundStyle(.secondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.bottom)
+                #endif
+
                 Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
                     .foregroundColor(.gray)
                     .font(.caption2)
