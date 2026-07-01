@@ -1,32 +1,15 @@
 {
+  "originHash" : "c782a9c80ad3d0a6879a1ba98fb400255cbd851286026b3c0bbec0d8432559c7",
   "pins" : [
     {
-      "identity" : "dsfappearancemanager",
+      "identity" : "codescanner",
       "kind" : "remoteSourceControl",
-      "location" : "https://github.com/dagronf/DSFAppearanceManager",
+      "location" : "https://github.com/twostraws/CodeScanner",
       "state" : {
-        "revision" : "415373c9d11f945bbd26ca2bb02664048c632720",
-        "version" : "3.7.0"
-      }
-    },
-    {
-      "identity" : "dsfquickactionbar",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/SmailBarkouch/DSFQuickActionBar",
-      "state" : {
-        "branch" : "main",
-        "revision" : "c2d75bda34a2c629ee5edd0a0c93618c31b4f6eb"
-      }
-    },
-    {
-      "identity" : "swiftui-introspect",
-      "kind" : "remoteSourceControl",
-      "location" : "https://github.com/siteline/SwiftUI-Introspect.git",
-      "state" : {
-        "revision" : "121c146fe591b1320238d054ae35c81ffa45f45a",
-        "version" : "0.12.0"
+        "revision" : "5e886430238944c7200fc9e10dbf2d9550dba865",
+        "version" : "2.5.2"
       }
     }
   ],
-  "version" : 2
+  "version" : 3
 }
