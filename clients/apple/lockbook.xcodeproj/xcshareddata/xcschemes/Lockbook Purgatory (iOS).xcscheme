@@ -14,9 +14,9 @@
             buildForAnalyzing = "YES">
             <BuildableReference
                BuildableIdentifier = "primary"
-               BlueprintIdentifier = "EA5C7D762516606000F7F358"
-               BuildableName = "Lockbook.app"
-               BlueprintName = "Lockbook (macOS)"
+               BlueprintIdentifier = "EA5C7D6E2516606000F7F358"
+               BuildableName = "Lockbook Purgatory.app"
+               BlueprintName = "Lockbook Purgatory (iOS)"
                ReferencedContainer = "container:Lockbook.xcodeproj">
             </BuildableReference>
          </BuildActionEntry>
@@ -32,8 +32,9 @@
    </TestAction>
    <LaunchAction
       buildConfiguration = "Development"
-      selectedDebuggerIdentifier = "Xcode.DebuggerFoundation.Debugger.LLDB"
-      selectedLauncherIdentifier = "Xcode.DebuggerFoundation.Launcher.LLDB"
+      selectedDebuggerIdentifier = ""
+      selectedLauncherIdentifier = "Xcode.IDEFoundation.Launcher.PosixSpawn"
+      disableMainThreadChecker = "YES"
       launchStyle = "0"
       useCustomWorkingDirectory = "NO"
       ignoresPersistentStateOnLaunch = "NO"
@@ -45,32 +46,37 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EA5C7D762516606000F7F358"
-            BuildableName = "Lockbook.app"
-            BlueprintName = "Lockbook (macOS)"
+            BlueprintIdentifier = "EA5C7D6E2516606000F7F358"
+            BuildableName = "Lockbook Purgatory.app"
+            BlueprintName = "Lockbook Purgatory (iOS)"
             ReferencedContainer = "container:Lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
       <EnvironmentVariables>
+         <EnvironmentVariable
+            key = "LOCKBOOK_NO_COLOR"
+            value = "1"
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "RUST_BACKTRACE=1"
+            value = ""
+            isEnabled = "YES">
+         </EnvironmentVariable>
+         <EnvironmentVariable
+            key = "LOCKBOOK_LOCATION"
+            value = "/tmp/lockbook_ios"
+            isEnabled = "NO">
+         </EnvironmentVariable>
          <EnvironmentVariable
             key = "LOCKBOOK_DEBUG"
             value = "1"
             isEnabled = "YES">
          </EnvironmentVariable>
          <EnvironmentVariable
-            key = "RUST_BACKTRACE"
-            value = "1"
+            key = "LOG_LEVEL"
+            value = "5"
             isEnabled = "NO">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "LOCKBOOK_LOCATION"
-            value = "/tmp/lockbook_macos"
-            isEnabled = "NO">
-         </EnvironmentVariable>
-         <EnvironmentVariable
-            key = "LOCKBOOK_NO_COLOR"
-            value = "1"
-            isEnabled = "YES">
          </EnvironmentVariable>
       </EnvironmentVariables>
    </LaunchAction>
@@ -84,9 +90,9 @@
          runnableDebuggingMode = "0">
          <BuildableReference
             BuildableIdentifier = "primary"
-            BlueprintIdentifier = "EA5C7D762516606000F7F358"
-            BuildableName = "Lockbook.app"
-            BlueprintName = "Lockbook (macOS)"
+            BlueprintIdentifier = "EA5C7D6E2516606000F7F358"
+            BuildableName = "Lockbook Purgatory.app"
+            BlueprintName = "Lockbook Purgatory (iOS)"
             ReferencedContainer = "container:Lockbook.xcodeproj">
          </BuildableReference>
       </BuildableProductRunnable>
