@@ -5,7 +5,7 @@ use egui::{self, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
-use crate::tab::markdown_editor::input::{Event, Location, Region};
+use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{ImageSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -200,6 +200,35 @@ impl<'ast> MdEdit {
                 }
             }
         }
+    }
+
+    /// Backspace/forward-delete against a collapsed image selects it rather
+    /// than erasing a character of its source; a second press then deletes the
+    /// selection. Mirrors [`Self::delete_at_fold`]'s non-destructive edit. True
+    /// if handled (ops pushed).
+    pub fn delete_at_image(&self, region: Region, operations: &mut Vec<Operation>) -> bool {
+        let Region::SelectionOrAdvance {
+            advance: Advance::Next(Bound::Word) | Advance::By(Increment::Char),
+            backwards,
+        } = region
+        else {
+            return false;
+        };
+        // selection must be empty
+        let Some(offset) = self.renderer.selection_offset() else {
+            return false;
+        };
+        for &img in &self.renderer.bounds.images {
+            if self.renderer.range_revealed_interior(img) {
+                continue;
+            }
+            let against = if backwards { offset == img.end() } else { offset == img.start() };
+            if against {
+                operations.push(Operation::Select(img));
+                return true;
+            }
+        }
+        false
     }
 }
 
