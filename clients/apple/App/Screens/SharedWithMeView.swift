@@ -181,7 +181,6 @@ struct PendingShareRowView: View {
 
     func openFile() {
         if file.isFolder {
-            fileTreeModel.suppressNextFolderSelection = true
             workspaceInput.selectFolder(id: file.id)
 
             withAnimation {

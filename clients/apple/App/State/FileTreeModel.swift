@@ -4,8 +4,6 @@ import SwiftWorkspace
 @Observable class FileTreeModel {
     var openFolders: Set<UUID> = []
 
-    @ObservationIgnored var suppressNextFolderSelection = false
-
     private let filesModel: FilesModel
 
     init(filesModel: FilesModel) {
@@ -27,16 +25,13 @@ import SwiftWorkspace
     }
 
     func folderSelected(_ id: UUID) {
-        if suppressNextFolderSelection {
-            suppressNextFolderSelection = false
+        guard let file = filesModel.idsToFiles[id],
+              let parent = filesModel.idsToFiles[file.parent]
+        else {
             return
         }
 
-        guard let file = filesModel.idsToFiles[id] else {
-            return
-        }
-
-        expandToFile(file)
+        expandToFile(parent)
     }
 
     func expandToFile(_ file: File) {
