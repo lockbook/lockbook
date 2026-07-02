@@ -4,10 +4,11 @@
 
     struct SearchTabView: View {
         @Environment(HomeState.self) private var homeState
-        @EnvironmentObject private var workspaceInput: WorkspaceInputState
+        @Environment(WorkspaceInputState.self) private var workspaceInput
 
         @Bindable var model: SearchModel
         @FocusState private var fieldFocused: Bool
+        @State private var scrollPosition = ScrollPosition()
 
         var body: some View {
             VStack(spacing: 0) {
@@ -122,10 +123,10 @@
         }
 
         var contentResultsList: some View {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(model.contentResults.enumerated()), id: \.element.id) { index, result in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(model.contentResults.enumerated()), id: \.element.id) { index, result in
+                        VStack(spacing: 0) {
                             SearchResultRow(
                                 result: result,
                                 systemImage: model.icon(for: result.id, name: result.filename),
@@ -137,23 +138,25 @@
                                 onShowMore: { model.focusedResult = result }
                             )
                             .background(selectionBackground(index))
-                            .id(result.id)
+
                             Divider()
                         }
                     }
                 }
-                .onChange(of: model.selected) {
-                    scroll(proxy, to: model.contentResults[safe: model.selected]?.id)
-                }
+                .scrollTargetLayout()
+            }
+            .scrollPosition($scrollPosition)
+            .onChange(of: model.selected) {
+                scrollToSelection(in: model.contentResults)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
 
         var pathResultsList: some View {
-            ScrollViewReader { proxy in
-                ScrollView {
-                    LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(Array(model.pathResults.enumerated()), id: \.element.id) { index, result in
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 0) {
+                    ForEach(Array(model.pathResults.enumerated()), id: \.element.id) { index, result in
+                        VStack(spacing: 0) {
                             PathSearcherRow(
                                 result: result,
                                 systemImage: model.icon(for: result.id, name: result.filename),
@@ -163,14 +166,16 @@
                                 }
                             )
                             .background(selectionBackground(index))
-                            .id(result.id)
+
                             Divider()
                         }
                     }
                 }
-                .onChange(of: model.selected) {
-                    scroll(proxy, to: model.pathResults[safe: model.selected]?.id)
-                }
+                .scrollTargetLayout()
+            }
+            .scrollPosition($scrollPosition)
+            .onChange(of: model.selected) {
+                scrollToSelection(in: model.pathResults)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -179,15 +184,11 @@
             model.selected == index ? Color.accentColor.opacity(0.15) : Color.clear
         }
 
-        private func scroll(_ proxy: ScrollViewProxy, to id: UUID?) {
-            guard let id else { return }
-            withAnimation { proxy.scrollTo(id, anchor: .center) }
-        }
-    }
-
-    private extension Array {
-        subscript(safe index: Int) -> Element? {
-            indices.contains(index) ? self[index] : nil
+        private func scrollToSelection(in results: [some Identifiable<UUID>]) {
+            guard let id = results.indices.contains(model.selected) ? results[model.selected].id : nil else {
+                return
+            }
+            withAnimation { scrollPosition.scrollTo(id: id, anchor: .center) }
         }
     }
 
@@ -274,7 +275,7 @@
                 let len = String(scalar).utf8.count
                 let matched = result.pathMatches.contains { $0.rangeStart < byte + len && byte < $0.rangeEnd }
                 let part = Text(String(scalar))
-                out = out + (matched ? part.underline() : part)
+                out = Text("\(out)\(matched ? part.underline() : part)")
                 byte += len
             }
             return out
@@ -283,9 +284,7 @@
         @ViewBuilder
         func snippetLine(for match: ContentSearcherMatch) -> some View {
             if let snippet = fetchSnippet(match) {
-                (Text(snippet.prefix).foregroundColor(.secondary)
-                    + Text(snippet.matched).bold().foregroundColor(.primary)
-                    + Text(snippet.suffix).foregroundColor(.secondary))
+                Text("\(Text(snippet.prefix).foregroundColor(.secondary))\(Text(snippet.matched).bold().foregroundColor(.primary))\(Text(snippet.suffix).foregroundColor(.secondary))")
                     .font(.caption)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -343,9 +342,9 @@
             for (i, scalar) in s.unicodeScalars.enumerated() {
                 let part = Text(String(scalar))
                 if indices.contains(i + offset) {
-                    out = out + part.bold().foregroundColor(.primary)
+                    out = Text("\(out)\(part.bold().foregroundColor(.primary))")
                 } else {
-                    out = out + part.foregroundColor(.secondary)
+                    out = Text("\(out)\(part.foregroundColor(.secondary))")
                 }
             }
             return out
@@ -415,9 +414,7 @@
         @ViewBuilder
         func snippetRow(for match: ContentSearcherMatch) -> some View {
             if let snippet = fetchSnippet(match) {
-                (Text(snippet.prefix).foregroundColor(.secondary)
-                    + Text(snippet.matched).bold().foregroundColor(.primary)
-                    + Text(snippet.suffix).foregroundColor(.secondary))
+                Text("\(Text(snippet.prefix).foregroundColor(.secondary))\(Text(snippet.matched).bold().foregroundColor(.primary))\(Text(snippet.suffix).foregroundColor(.secondary))")
                     .font(.caption)
                     .lineLimit(1)
                     .truncationMode(.tail)
@@ -438,6 +435,6 @@
             SearchTabView(model: .preview)
         }
         .environment(HomeState())
-        .environmentObject(WorkspaceInputState.preview)
+        .environment(WorkspaceInputState.preview)
     }
 #endif

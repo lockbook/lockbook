@@ -1,4 +1,3 @@
-import Combine
 import Foundation
 import SwiftUI
 import SwiftWorkspace
@@ -18,20 +17,8 @@ import SwiftWorkspace
     @ObservationIgnored private var statusDotSince: [UUID: Date] = [:]
     @ObservationIgnored private var statusDotTimer: Timer?
 
-    @ObservationIgnored private var cancellables: Set<AnyCancellable> = []
-
     init() {
-        AppState.lb.events.$metadataUpdated.sink { [weak self] _ in
-            self?.loadFiles()
-        }
-        .store(in: &cancellables)
-
-        AppState.lb.events.$status.sink { [weak self] status in
-            DispatchQueue.main.async {
-                self?.recomputeStatusDots(status: status)
-            }
-        }
-        .store(in: &cancellables)
+        loadFiles()
     }
 
     func loadFiles() {
@@ -152,7 +139,7 @@ import SwiftWorkspace
         }
     }
 
-    private func recomputeStatusDots(status: Status) {
+    func recomputeStatusDots(status: Status) {
         candidateStatusDots = computeStatusDots(status: status)
 
         let now = Date()

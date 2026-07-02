@@ -1,52 +1,42 @@
-import Combine
 import Foundation
 import SwiftWorkspace
 
 @Observable class FileTreeModel {
     var openFolders: Set<UUID> = []
-    var openDoc: UUID? = nil
 
     @ObservationIgnored var suppressNextFolderSelection = false
-    @ObservationIgnored private var cancellables: Set<AnyCancellable> = []
 
     private let filesModel: FilesModel
 
-    init(filesModel: FilesModel, workspaceOutput: WorkspaceOutputState) {
+    init(filesModel: FilesModel) {
         self.filesModel = filesModel
-
-        workspaceOutput.$openDoc.sink { [weak self] openDoc in
-            guard let self, let openDoc, let file = filesModel.idsToFiles[openDoc] else {
-                return
-            }
-
-            self.openDoc = openDoc
-            self.expandToFile(file)
-        }
-        .store(in: &cancellables)
-
-        workspaceOutput.$selectedFolder.sink { [weak self] selectedFolder in
-            guard let self else {
-                return
-            }
-
-            if suppressNextFolderSelection {
-                suppressNextFolderSelection = false
-                return
-            }
-
-            guard let selectedFolder, let file = filesModel.idsToFiles[selectedFolder] else {
-                return
-            }
-
-            expandToFile(file)
-        }
-        .store(in: &cancellables)
     }
 
     func toggleFolder(_ id: UUID) {
         if openFolders.remove(id) == nil {
             openFolders.insert(id)
         }
+    }
+
+    func docOpened(_ id: UUID) {
+        guard let file = filesModel.idsToFiles[id] else {
+            return
+        }
+
+        expandToFile(file)
+    }
+
+    func folderSelected(_ id: UUID) {
+        if suppressNextFolderSelection {
+            suppressNextFolderSelection = false
+            return
+        }
+
+        guard let file = filesModel.idsToFiles[id] else {
+            return
+        }
+
+        expandToFile(file)
     }
 
     func expandToFile(_ file: File) {
@@ -64,6 +54,6 @@ import SwiftWorkspace
 
 extension FileTreeModel {
     static var preview: FileTreeModel {
-        FileTreeModel(filesModel: .preview, workspaceOutput: .preview)
+        FileTreeModel(filesModel: .preview)
     }
 }

@@ -1,5 +1,4 @@
 import Bridge
-import Combine
 import Foundation
 import SwiftUI
 
@@ -77,10 +76,8 @@ public class Lb: LbAPI {
             DispatchQueue.main.async {
                 if event.status_updated {
                     self.events.status = self.getStatus()
-                } else if event.metadata_updated {
-                    self.events.metadataUpdated = true
-                } else if event.pending_shares_changed {
-                    self.events.pendingShares = (try? self.getPendingShares().get())?.map(\.id) ?? []
+                } else if event.metadata_updated || event.pending_shares_changed {
+                    self.events.metadataVersion += 1
                 }
             }
         })
@@ -704,11 +701,6 @@ public class Lb: LbAPI {
 }
 
 public class MockLb: LbAPI {
-    @Published public var status: Status = .init()
-    public var statusPublisher: Published<Status>.Publisher {
-        $status
-    }
-
     public var lb: OpaquePointer?
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer?
     public var events: Events = .init()

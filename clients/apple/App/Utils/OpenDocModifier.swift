@@ -3,12 +3,12 @@ import SwiftWorkspace
 
 struct OpenDocModifier: ViewModifier {
     @Environment(\.colorScheme) private var colorScheme
-    @Environment(FileTreeModel.self) private var fileTreeModel
+    @Environment(WorkspaceOutputState.self) private var workspaceOutput
 
     let file: File
 
     func body(content: Content) -> some View {
-        if fileTreeModel.openDoc == file.id {
+        if workspaceOutput.openDoc == file.id {
             content
                 .background(
                     RoundedRectangle(cornerRadius: 5, style: .continuous)

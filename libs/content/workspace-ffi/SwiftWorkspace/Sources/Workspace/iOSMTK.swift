@@ -1337,8 +1337,7 @@
             dark_mode(wsHandle, mtkView.isDarkMode())
             show_hide_tabs(wsHandle, !mtkView.isCompact())
 
-            let needsToggleInset =
-                !mtkView.isCompact() && !(mtkView.workspaceInput?.sidebarVisible ?? false)
+            let needsToggleInset = !mtkView.isCompact()
             set_tab_strip_inset(
                 wsHandle, Float(needsToggleInset ? iOSMTK.SIDEBAR_TOGGLE_INSET : 0)
             )
@@ -1386,6 +1385,7 @@
 
                 DispatchQueue.main.async {
                     mtkView.workspaceOutput!.currentTab = currentTab
+                    mtkView.currentTabChanged?(currentTab, mtkView.workspaceOutput!.tabCount)
                 }
             }
 
@@ -1443,8 +1443,6 @@
             }
 
             if output.tab_title_clicked {
-                mtkView.workspaceOutput?.renameOpenDoc = ()
-
                 if !mtkView.isCompact() {
                     unfocus_title(wsHandle)
                 }
@@ -1470,10 +1468,6 @@
                 }
                 mtkView.workspaceOutput?.urlsOpened = urls
                 free_urls(output.urls_opened)
-            }
-
-            if output.open_camera {
-                mtkView.workspaceOutput?.openCamera = true
             }
 
             if let text = output.copied_text {
@@ -1588,6 +1582,7 @@
         // workspace
         var workspaceOutput: WorkspaceOutputState?
         var workspaceInput: WorkspaceInputState?
+        var currentTabChanged: ((WorkspaceTab, Int) -> Void)?
         var currentOpenDoc: UUID? // TODO: duplicated in ws output
         var currentSelectedFolder: UUID? // duplicated in ws output
 

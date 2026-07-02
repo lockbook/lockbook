@@ -368,6 +368,7 @@
                 currentOpenDoc = selectedFile
                 if selectedFile != workspaceOutput?.openDoc {
                     workspaceOutput?.openDoc = selectedFile
+                    window?.makeFirstResponder(self)
                 }
             }
 

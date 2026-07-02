@@ -3,7 +3,8 @@ import SwiftWorkspace
 
 struct FileTreeView: View {
     @Environment(FilesModel.self) private var filesModel
-    @EnvironmentObject private var workspaceInput: WorkspaceInputState
+    @Environment(WorkspaceInputState.self) private var workspaceInput
+    @Environment(WorkspaceOutputState.self) private var workspaceOutput
 
     let fileTreeModel: FileTreeModel
 
@@ -16,8 +17,8 @@ struct FileTreeView: View {
                     }
                     .padding(.horizontal)
                 }
-                .onChange(of: fileTreeModel.openDoc) {
-                    if let openDoc = fileTreeModel.openDoc {
+                .onChange(of: workspaceOutput.openDoc) {
+                    if let openDoc = workspaceOutput.openDoc {
                         scrollHelper.scrollTo(openDoc)
                     }
                 }
@@ -40,7 +41,7 @@ struct FileRowView: View {
     @Environment(FilesModel.self) private var filesModel
     @Environment(FileTreeModel.self) private var fileTreeModel
     @Environment(HomeState.self) private var homeState
-    @EnvironmentObject private var workspaceInput: WorkspaceInputState
+    @Environment(WorkspaceInputState.self) private var workspaceInput
 
     let file: File
     let level: CGFloat
@@ -132,14 +133,10 @@ struct FileRowView: View {
     let filesModel = FilesModel.preview
 
     NavigationStack {
-        FileTreeView(
-            fileTreeModel: FileTreeModel(
-                filesModel: filesModel,
-                workspaceOutput: .preview
-            )
-        )
+        FileTreeView(fileTreeModel: FileTreeModel(filesModel: filesModel))
     }
     .environment(filesModel)
     .environment(HomeState())
-    .environmentObject(WorkspaceInputState.preview)
+    .environment(WorkspaceInputState.preview)
+    .environment(WorkspaceOutputState.preview)
 }

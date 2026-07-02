@@ -1,35 +1,26 @@
 import Bridge
 import Combine
-import SwiftUI
+import Foundation
+import Observation
 
-public class WorkspaceOutputState: ObservableObject {
-    // Should I be using combine state classes for these? Helps reduce refreshes
-    @Published public var openDoc: UUID? = nil
-    @Published public var selectedFolder: UUID? = nil
-    @Published public var newFolderButtonPressed: () = ()
-    @Published public var currentTab: WorkspaceTab = .Welcome
-    @Published public var renameOpenDoc: () = ()
-    @Published public var urlsOpened: [URL] = []
-    @Published public var openCamera: Bool = false
+@Observable public class WorkspaceOutputState {
+    public var openDoc: UUID? = nil
+    public var selectedFolder: UUID? = nil
+    public var currentTab: WorkspaceTab = .Welcome
+    public var urlsOpened: [URL] = []
 
     // Tab count includes non-files
-    // Tab ids includes only file ids
-    // Ideally want to combine these
-    @Published public var tabCount: Int = 0
-    @Published public var tabIds: [UUID] = []
+    public var tabCount: Int = 0
 
     public init() {}
 }
 
-public class WorkspaceInputState: ObservableObject {
-    public var coreHandle: UnsafeMutableRawPointer?
-    public var wsHandle: UnsafeMutableRawPointer?
+@Observable public class WorkspaceInputState {
+    @ObservationIgnored public var coreHandle: UnsafeMutableRawPointer?
+    @ObservationIgnored public var wsHandle: UnsafeMutableRawPointer?
 
-    public var sidebarVisible: Bool = false
-
-    public var redraw = PassthroughSubject<Void, Never>()
-    public var focus = PassthroughSubject<Void, Never>()
-    //    maybe make unfocus variable
+    @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
+    @ObservationIgnored public var focus = PassthroughSubject<Void, Never>()
 
     public init(coreHandle: UnsafeMutableRawPointer?) {
         self.coreHandle = coreHandle

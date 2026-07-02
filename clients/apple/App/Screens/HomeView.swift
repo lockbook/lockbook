@@ -14,17 +14,15 @@ struct HomeView: View {
         @State private var searchModel: SearchModel
     #endif
 
-    @StateObject private var workspaceInput = WorkspaceInputState(coreHandle: AppState.lb.lbUnsafeRawPtr)
-    @StateObject private var workspaceOutput: WorkspaceOutputState
+    @State private var workspaceInput = WorkspaceInputState(coreHandle: AppState.lb.lbUnsafeRawPtr)
+    @State private var workspaceOutput = WorkspaceOutputState()
 
     init() {
-        let workspaceOutput = WorkspaceOutputState()
         let filesModel = FilesModel()
 
-        _workspaceOutput = StateObject(wrappedValue: workspaceOutput)
         _filesModel = State(initialValue: filesModel)
-        _fileTreeModel = State(initialValue: FileTreeModel(filesModel: filesModel, workspaceOutput: workspaceOutput))
-        _sharedTreeModel = State(initialValue: FileTreeModel(filesModel: filesModel, workspaceOutput: workspaceOutput))
+        _fileTreeModel = State(initialValue: FileTreeModel(filesModel: filesModel))
+        _sharedTreeModel = State(initialValue: FileTreeModel(filesModel: filesModel))
         #if os(iOS)
             _searchModel = State(initialValue: SearchModel(filesModel: filesModel))
         #endif
@@ -46,8 +44,24 @@ struct HomeView: View {
         }
         .environment(homeState)
         .environment(filesModel)
-        .environmentObject(workspaceInput)
-        .environmentObject(workspaceOutput)
+        .environment(workspaceInput)
+        .environment(workspaceOutput)
+        .onChange(of: workspaceOutput.openDoc) {
+            guard let id = workspaceOutput.openDoc else { return }
+            fileTreeModel.docOpened(id)
+            sharedTreeModel.docOpened(id)
+        }
+        .onChange(of: workspaceOutput.selectedFolder) {
+            guard let id = workspaceOutput.selectedFolder else { return }
+            fileTreeModel.folderSelected(id)
+            sharedTreeModel.folderSelected(id)
+        }
+        .onChange(of: AppState.lb.events.metadataVersion) {
+            filesModel.loadFiles()
+        }
+        .onChange(of: AppState.lb.events.status) {
+            filesModel.recomputeStatusDots(status: AppState.lb.events.status)
+        }
     }
 
     private var sidebar: some View {

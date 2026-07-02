@@ -12,12 +12,6 @@
 		AA0000000000000000000C53 /* CodeScanner in Frameworks */ = {isa = PBXBuildFile; productRef = AA0000000000000000000C52 /* CodeScanner */; };
 /* End PBXBuildFile section */
 
-/* Begin PBXContainerItemProxy section */
-/* End PBXContainerItemProxy section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-/* End PBXCopyFilesBuildPhase section */
-
 /* Begin PBXFileReference section */
 		47728DB12EC921DD005F9C91 /* AppIcon.icon */ = {isa = PBXFileReference; lastKnownFileType = folder.iconcomposer.icon; path = AppIcon.icon; sourceTree = "<group>"; };
 		AA00000000000000000000A6 /* Lockbook.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = Lockbook.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -93,8 +87,6 @@
 				BuildIndependentTargetsInParallel = YES;
 				LastSwiftUpdateCheck = 1600;
 				LastUpgradeCheck = 2650;
-				TargetAttributes = {
-				};
 			};
 			buildConfigurationList = EA5C7D662516605F00F7F358 /* Build configuration list for PBXProject "lockbook" */;
 			compatibilityVersion = "Xcode 9.3";
@@ -138,9 +130,6 @@
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 /* End PBXSourcesBuildPhase section */
-
-/* Begin PBXTargetDependency section */
-/* End PBXTargetDependency section */
 
 /* Begin XCBuildConfiguration section */
 		AA00000000000000000000A8 /* Debug */ = {

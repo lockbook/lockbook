@@ -10,8 +10,8 @@ import SwiftUI
     import UIKit
 
     public struct WorkspaceView: UIViewControllerRepresentable {
-        @EnvironmentObject public var workspaceInput: WorkspaceInputState
-        @EnvironmentObject public var workspaceOutput: WorkspaceOutputState
+        @Environment(WorkspaceInputState.self) private var workspaceInput
+        @Environment(WorkspaceOutputState.self) private var workspaceOutput
         @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
         public init() {}
@@ -137,19 +137,12 @@ import SwiftUI
                 }
                 .store(in: &cancellables)
 
-            workspaceOutput
-                .$currentTab
-                .sink { [weak self] _ in
-                    DispatchQueue.main.async {
-                        guard let self else { return }
-
-                        self.inputManager.updateCurrentTab(
-                            newCurrentTab: workspaceOutput.currentTab,
-                            newTabCount: workspaceOutput.tabCount
-                        )
-                    }
-                }
-                .store(in: &cancellables)
+            inputManager.mtkView.currentTabChanged = { [weak self] currentTab, tabCount in
+                self?.inputManager.updateCurrentTab(
+                    newCurrentTab: currentTab,
+                    newTabCount: tabCount
+                )
+            }
 
             view = inputManager
         }
@@ -297,8 +290,8 @@ import SwiftUI
 
 #else
     public struct WorkspaceView: NSViewRepresentable, Equatable {
-        @ObservedObject public var workspaceInput: WorkspaceInputState
-        @ObservedObject public var workspaceOutput: WorkspaceOutputState
+        public let workspaceInput: WorkspaceInputState
+        public let workspaceOutput: WorkspaceOutputState
 
         let coreHandle: UnsafeMutableRawPointer?
 
@@ -335,12 +328,6 @@ import SwiftUI
                     mtkView.setNeedsDisplay(mtkView.frame)
                 }
                 .store(in: &context.coordinator.cancellables)
-
-            workspaceOutput.$openDoc.sink(receiveValue: { _ in
-                guard let window = mtkView.window else { return }
-                window.makeFirstResponder(mtkView)
-            })
-            .store(in: &context.coordinator.cancellables)
 
             workspaceInput.focus.sink(receiveValue: { _ in
                 guard let window = mtkView.window else { return }

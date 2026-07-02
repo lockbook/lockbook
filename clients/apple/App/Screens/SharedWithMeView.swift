@@ -3,6 +3,7 @@ import SwiftWorkspace
 
 struct SharedWithMeView: View {
     @Environment(FilesModel.self) private var filesModel
+    @Environment(WorkspaceOutputState.self) private var workspaceOutput
 
     let fileTreeModel: FileTreeModel
 
@@ -52,8 +53,8 @@ struct SharedWithMeView: View {
                     }
                 }
             }
-            .onChange(of: fileTreeModel.openDoc) {
-                if let openDoc = fileTreeModel.openDoc {
+            .onChange(of: workspaceOutput.openDoc) {
+                if let openDoc = workspaceOutput.openDoc {
                     scrollHelper.scrollTo(openDoc, anchor: .center)
                 }
             }
@@ -80,7 +81,7 @@ struct PendingShareRowView: View {
     @Environment(FilesModel.self) private var filesModel
     @Environment(FileTreeModel.self) private var fileTreeModel
     @Environment(HomeState.self) private var homeState
-    @EnvironmentObject private var workspaceInput: WorkspaceInputState
+    @Environment(WorkspaceInputState.self) private var workspaceInput
 
     @State private var confirmRejection = false
 
@@ -197,14 +198,10 @@ struct PendingShareRowView: View {
     let filesModel = FilesModel.preview
 
     NavigationStack {
-        SharedWithMeView(
-            fileTreeModel: FileTreeModel(
-                filesModel: filesModel,
-                workspaceOutput: .preview
-            )
-        )
+        SharedWithMeView(fileTreeModel: FileTreeModel(filesModel: filesModel))
     }
     .environment(filesModel)
     .environment(HomeState())
-    .environmentObject(WorkspaceInputState.preview)
+    .environment(WorkspaceInputState.preview)
+    .environment(WorkspaceOutputState.preview)
 }
