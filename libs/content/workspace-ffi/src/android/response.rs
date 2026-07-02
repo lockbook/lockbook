@@ -21,6 +21,9 @@ pub struct AndroidResponse {
     pub has_edit_menu: bool,
     pub edit_menu_x: f32,
     pub edit_menu_y: f32,
+    /// The menu is over a selected atom (image, link card/capsule) — offer "Edit"
+    /// (`enterSelectedAtom`) alongside the standard actions.
+    pub edit_menu_for_atom: bool,
 
     pub selection_updated: bool,
     pub text_updated: bool,
@@ -75,6 +78,10 @@ impl From<crate::Response> for AndroidResponse {
             has_edit_menu: context_menu.is_some(),
             edit_menu_x: context_menu.unwrap_or_default().0.x,
             edit_menu_y: context_menu.unwrap_or_default().0.y,
+            edit_menu_for_atom: matches!(
+                context_menu,
+                Some((_, workspace_rs::tab::ContextMenuTarget::Atom))
+            ),
             virtual_keyboard_shown,
         }
     }

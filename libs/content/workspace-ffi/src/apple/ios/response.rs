@@ -31,6 +31,15 @@ pub struct IOSResponse {
     /// should occupy — the editor viewport minus the find widget and toolbar.
     pub has_text_interaction_rect: bool,
     pub text_interaction_rect: CRect,
+
+    /// Present the edit menu (copy/paste) at this point — set on tapping a
+    /// selected image. Egui screen points; `MdView` converts to local space.
+    pub has_context_menu: bool,
+    pub context_menu_x: f64,
+    pub context_menu_y: f64,
+    /// The menu is over a selected atom (image, link card/capsule) — offer "Edit"
+    /// (`enter_selected_atom`) alongside the standard actions.
+    pub context_menu_for_atom: bool,
 }
 
 impl From<crate::Response> for IOSResponse {
@@ -62,7 +71,7 @@ impl From<crate::Response> for IOSResponse {
             virtual_keyboard_shown,
             window_title: _,
             request_paste: _,
-            context_menu: _,
+            context_menu,
         } = value;
 
         let doc_created = match file_created {
@@ -101,6 +110,13 @@ impl From<crate::Response> for IOSResponse {
                     max_y: r.max.y as f64,
                 })
                 .unwrap_or_default(),
+            has_context_menu: context_menu.is_some(),
+            context_menu_x: context_menu.map(|(p, _)| p.x as f64).unwrap_or_default(),
+            context_menu_y: context_menu.map(|(p, _)| p.y as f64).unwrap_or_default(),
+            context_menu_for_atom: matches!(
+                context_menu,
+                Some((_, workspace_rs::tab::ContextMenuTarget::Atom))
+            ),
         }
     }
 }
