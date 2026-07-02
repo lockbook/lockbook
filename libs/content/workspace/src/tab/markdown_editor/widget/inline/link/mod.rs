@@ -9,7 +9,7 @@ use std::collections::hash_map::Entry;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
-use crate::egress::fetch_html;
+use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
@@ -502,13 +502,29 @@ impl<'ast> MdRender {
             ResolvedLink::External(_) => return LinkMetaLookup::Unavailable,
         };
 
+        let now = web_time::Instant::now();
         let arc = match self
             .layout_cache
             .link_meta
             .borrow_mut()
             .entry(resolved_url.clone())
         {
-            Entry::Occupied(e) => e.get().clone(),
+            Entry::Occupied(mut e) => {
+                // A rate-limited failure whose next-retry timestamp has passed
+                // is eligible again (still behind the fetch opt-in).
+                let retry_due = matches!(
+                    *e.get().lock().unwrap(),
+                    LinkMetaState::Failed { retry_at: Some(t) } if t <= now
+                );
+                if retry_due && self.contact_linked_sites {
+                    let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
+                    e.insert(arc.clone());
+                    self.spawn_meta_fetch(resolved_url, arc.clone());
+                    arc
+                } else {
+                    e.get().clone()
+                }
+            }
             Entry::Vacant(e) => {
                 // Opt-out: don't contact the site unless preview fetching is on.
                 // (Occupied/cached metadata above still displays — no new request.)
@@ -517,42 +533,7 @@ impl<'ast> MdRender {
                 }
                 let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
                 e.insert(arc.clone());
-                let client = self.client.clone();
-                let ctx = self.ctx.clone();
-                let meta_state = arc.clone();
-                let link_seq = self.layout_cache.link_seq.clone();
-                let ws_seq = self.ws_seq.clone();
-                spawn!({
-                    const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
-                    const GOOGLEBOT: &str =
-                        "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
-
-                    #[cfg(not(target_arch = "wasm32"))]
-                    let mut html = fetch_html(&client, &resolved_url, CHROME);
-                    #[cfg(target_arch = "wasm32")]
-                    let mut html = fetch_html(&client, &resolved_url, CHROME).await;
-
-                    // some sites (e.g. Twitter/X) only serve static content to known crawlers
-                    let parses = |h: &str| extract_link_meta(h, &resolved_url).is_some();
-                    if !html.as_deref().is_ok_and(parses) {
-                        #[cfg(not(target_arch = "wasm32"))]
-                        {
-                            html = fetch_html(&client, &resolved_url, GOOGLEBOT);
-                        }
-                        #[cfg(target_arch = "wasm32")]
-                        {
-                            html = fetch_html(&client, &resolved_url, GOOGLEBOT).await;
-                        }
-                    }
-
-                    *meta_state.lock().unwrap() = html
-                        .ok()
-                        .and_then(|h| extract_link_meta(&h, &resolved_url))
-                        .map(LinkMetaState::Loaded)
-                        .unwrap_or(LinkMetaState::Failed);
-                    link_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
-                    ctx.request_repaint();
-                });
+                self.spawn_meta_fetch(resolved_url, arc.clone());
                 arc
             }
         };
@@ -561,8 +542,62 @@ impl<'ast> MdRender {
         match &*state {
             LinkMetaState::Loaded(meta) => LinkMetaLookup::Loaded(meta.clone()),
             LinkMetaState::Loading => LinkMetaLookup::Loading,
-            LinkMetaState::Failed => LinkMetaLookup::Unavailable,
+            LinkMetaState::Failed { retry_at: Some(until) } if *until > now => {
+                // Wake a frame when the cooldown lapses — an idle editor never
+                // repaints, so without this the retry waits for user input.
+                self.ctx.request_repaint_after(*until - now);
+                LinkMetaLookup::Unavailable
+            }
+            LinkMetaState::Failed { .. } => LinkMetaLookup::Unavailable,
         }
+    }
+
+    /// Fetch + scrape `resolved_url`'s metadata into `meta_state` off-thread,
+    /// then bump `link_seq` and request a repaint.
+    fn spawn_meta_fetch(&self, resolved_url: String, meta_state: Arc<Mutex<LinkMetaState>>) {
+        let client = self.client.clone();
+        let ctx = self.ctx.clone();
+        let link_seq = self.layout_cache.link_seq.clone();
+        let ws_seq = self.ws_seq.clone();
+        spawn!({
+            const CHROME: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
+            const GOOGLEBOT: &str =
+                "Mozilla/5.0 (compatible; Googlebot/2.1; +http://www.google.com/bot.html)";
+
+            #[cfg(not(target_arch = "wasm32"))]
+            let mut html = fetch_html(&client, &resolved_url, CHROME);
+            #[cfg(target_arch = "wasm32")]
+            let mut html = fetch_html(&client, &resolved_url, CHROME).await;
+
+            // Some sites (e.g. Twitter/X) only serve static content to known
+            // crawlers — but never burn a second request on a host that's
+            // rate-limiting us.
+            let parses = |h: &str| extract_link_meta(h, &resolved_url).is_some();
+            if !matches!(html, Err(FetchError::RateLimited { .. }))
+                && !html.as_deref().is_ok_and(parses)
+            {
+                #[cfg(not(target_arch = "wasm32"))]
+                {
+                    html = fetch_html(&client, &resolved_url, GOOGLEBOT);
+                }
+                #[cfg(target_arch = "wasm32")]
+                {
+                    html = fetch_html(&client, &resolved_url, GOOGLEBOT).await;
+                }
+            }
+
+            *meta_state.lock().unwrap() = match html {
+                Ok(h) => extract_link_meta(&h, &resolved_url)
+                    .map(LinkMetaState::Loaded)
+                    .unwrap_or(LinkMetaState::Failed { retry_at: None }),
+                Err(FetchError::RateLimited { until }) => {
+                    LinkMetaState::Failed { retry_at: Some(until) }
+                }
+                Err(_) => LinkMetaState::Failed { retry_at: None },
+            };
+            link_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
+            ctx.request_repaint();
+        });
     }
 }
 

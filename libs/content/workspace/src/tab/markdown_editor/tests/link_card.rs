@@ -331,3 +331,33 @@ fn enter_atom_reveals_link_card_source() {
     ws.enter_frame();
     assert!(has_card_fragment(&ws), "left: card restored");
 }
+
+/// A rate-limited fetch parks the URL until its next-retry timestamp
+/// (`Failed { retry_at }`): the card degrades to a plain link rather than a
+/// stuck skeleton, and an expired timestamp alone doesn't refetch — the
+/// retry still sits behind the contact-linked-sites opt-in.
+#[test]
+fn rate_limited_meta_degrades_and_gates_refetch() {
+    let url = "https://example.com";
+    let mut ws = TestEditor::new("https://example.com\n");
+    let arc = Arc::new(Mutex::new(LinkMetaState::Failed {
+        retry_at: Some(web_time::Instant::now() + std::time::Duration::from_secs(60)),
+    }));
+    ws.editor
+        .edit
+        .renderer
+        .layout_cache
+        .link_meta
+        .borrow_mut()
+        .insert(url.to_string(), arc.clone());
+    ws.enter_frame();
+    assert!(!has_card_fragment(&ws), "cooling down: plain link, no skeleton");
+
+    // Timestamp lapses, but fetching is off (the default): the entry must be
+    // left untouched — no Loading swap-in, no spawned request.
+    *arc.lock().unwrap() = LinkMetaState::Failed { retry_at: Some(web_time::Instant::now()) };
+    ws.enter_frame();
+    let entry = ws.editor.edit.renderer.layout_cache.link_meta.borrow()[url].clone();
+    assert!(Arc::ptr_eq(&arc, &entry), "fetching off: expired retry_at doesn't refetch");
+    assert!(!has_card_fragment(&ws));
+}

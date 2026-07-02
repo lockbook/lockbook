@@ -34,7 +34,12 @@ pub struct LinkMeta {
 pub enum LinkMetaState {
     Loading,
     Loaded(LinkMeta),
-    Failed,
+    /// `retry_at: Some(t)` — rate-limited; eligible for a refetch once `t`
+    /// (the host's next-retry timestamp from `crate::egress`) passes.
+    /// `None` — deterministic failure, no retry this session.
+    Failed {
+        retry_at: Option<web_time::Instant>,
+    },
 }
 
 /// Scrape `LinkMeta` from a page's HTML. `base_url` is the page's own URL,

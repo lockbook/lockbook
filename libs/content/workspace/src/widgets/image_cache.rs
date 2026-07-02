@@ -356,11 +356,14 @@ const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleW
 #[cfg(not(target_arch = "wasm32"))]
 fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, String> {
     crate::egress::fetch_bytes(client, url, USER_AGENT, crate::egress::MAX_IMAGE_BYTES)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(target_arch = "wasm32")]
 async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, String> {
-    crate::egress::fetch_bytes(client, url, USER_AGENT, crate::egress::MAX_IMAGE_BYTES).await
+    crate::egress::fetch_bytes(client, url, USER_AGENT, crate::egress::MAX_IMAGE_BYTES)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]
