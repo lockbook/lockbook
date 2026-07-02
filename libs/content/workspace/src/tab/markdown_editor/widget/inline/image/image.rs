@@ -202,6 +202,41 @@ impl<'ast> MdEdit {
         }
     }
 
+    /// If the selection exactly covers a collapsed image (i.e. a tap-selected
+    /// atom), select its URL — the selection endpoints inside the syntax
+    /// reveal the source, and the likeliest edit becomes type-to-replace.
+    /// Touch platforms trigger this from the edit menu's "Edit" action — with
+    /// no arrow keys, there's otherwise no way to move the cursor into the
+    /// syntax. True if handled (op pushed).
+    pub fn enter_at_image(
+        &self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>,
+    ) -> bool {
+        let selection = self.renderer.buffer.current.selection;
+        for node in root.descendants() {
+            if !matches!(node.data.borrow().value, NodeValue::Image(_)) {
+                continue;
+            }
+            let img = self.renderer.node_range(node);
+            if selection != img || self.renderer.range_revealed_interior(img) {
+                continue;
+            }
+            // `![alt](url)` — the postfix is `](url)`; without an alt there
+            // are no children (no postfix) and the url starts after `![](`.
+            let url_range = match self.renderer.postfix_range(node) {
+                Some(postfix) => (postfix.start() + 2, postfix.end() - 1),
+                None => (img.start() + 4, img.end() - 1),
+            };
+            let url_range = if url_range.0 <= url_range.1 {
+                url_range
+            } else {
+                (img.start() + 2, img.start() + 2) // degenerate: interior caret
+            };
+            operations.push(Operation::Select(url_range));
+            return true;
+        }
+        false
+    }
+
     /// Backspace/forward-delete against a collapsed image selects it rather
     /// than erasing a character of its source; a second press then deletes the
     /// selection. Mirrors [`Self::delete_at_fold`]'s non-destructive edit. True

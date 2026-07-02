@@ -506,6 +506,9 @@ impl<'ast> MdEdit {
                     }
                 }
             }
+            Event::EnterAtom => {
+                self.enter_at_image(root, operations);
+            }
         }
 
         response

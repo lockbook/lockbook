@@ -171,6 +171,16 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
     }
 }
 
+/// Edit-menu "Edit" over a selected image: select the URL inside the atom, revealing its
+/// source (mobile has no arrow keys to get inside).
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterSelectedAtom(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer.context.push_markdown_event(Event::EnterAtom);
+}
+
 /// Push real IME visibility (from the Android inset listener) into the
 /// editor so touch long-press can pick drag-reorder vs text selection.
 #[no_mangle]

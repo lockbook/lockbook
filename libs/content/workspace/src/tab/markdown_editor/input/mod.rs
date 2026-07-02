@@ -108,6 +108,7 @@ pub enum Event {
     DecrementBaseFontSize,
     Camera, // launch camera on platform
     ToggleFold,
+    EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
 }
 
 impl From<(Grapheme, Grapheme)> for Region {
