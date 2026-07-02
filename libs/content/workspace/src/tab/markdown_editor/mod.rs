@@ -145,10 +145,11 @@ pub struct MdRender {
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
     pub preview_match: Option<(Grapheme, Grapheme)>,
-    pub interactive: bool,    // enables fold buttons
-    pub readonly: bool,       // disables task checkboxes and saving
-    pub plaintext: bool,      // render as source text, not parsed markdown
-    pub disable_images: bool, // skip image rendering (e.g. for the mobile toolbar)
+    pub interactive: bool,          // enables fold buttons
+    pub readonly: bool,             // disables task checkboxes and saving
+    pub plaintext: bool,            // render as source text, not parsed markdown
+    pub disable_images: bool,       // skip image rendering (e.g. for the mobile toolbar)
+    pub contact_linked_sites: bool, // mirror of the persisted pref; gates outbound link fetching
 
     pub reveal_selection: Option<(Grapheme, Grapheme)>,
     pub reveal_seq: u64, // includes selection and find matches
@@ -446,6 +447,7 @@ impl MdRender {
             readonly: true,
             plaintext: false,
             disable_images: false,
+            contact_linked_sites: false,
             reveal_selection: None,
             reveal_seq: 0,
             text_seq: 0,
@@ -511,6 +513,7 @@ impl MdRender {
             reveal_selection: None,
             search_range: None,
             disable_images: false,
+            contact_linked_sites: false,
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
@@ -672,6 +675,7 @@ impl Editor {
             reveal_selection: None,
             search_range: None,
             disable_images: false,
+            contact_linked_sites: false,
 
             embeds,
             link_resolver,
@@ -827,6 +831,9 @@ impl Editor {
             self.edit.renderer.syntax.clear();
             self.edit.renderer.dark_mode = dark_mode;
         }
+
+        // Mirror the opt-in fetch preference onto the renderer each frame.
+        self.edit.renderer.contact_linked_sites = self.persistence.get_contact_linked_sites();
 
         let start = web_time::Instant::now();
 

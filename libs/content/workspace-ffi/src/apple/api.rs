@@ -91,6 +91,13 @@ pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
 
 /// # Safety
 #[no_mangle]
+pub unsafe extern "C" fn set_contact_linked_sites(obj: *mut c_void, value: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.cfg.set_contact_linked_sites(value);
+}
+
+/// # Safety
+#[no_mangle]
 pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let mut theme = obj.renderer.context.get_lb_theme();

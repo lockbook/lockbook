@@ -17,6 +17,11 @@ struct SettingsView: View {
                         Label("Usage", systemImage: "externaldrive")
                     }
 
+                SettingsEditorView()
+                    .tabItem {
+                        Label("Editor", systemImage: "doc.text")
+                    }
+
                 SettingsDebugView(model: model)
                     .tabItem {
                         Label("Debug", systemImage: "hammer")
@@ -224,6 +229,22 @@ struct SettingsUsageView: View {
                         }
                     }
                 }
+            }
+        }
+        .formStyle(.grouped)
+    }
+}
+
+struct SettingsEditorView: View {
+    @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
+
+    var body: some View {
+        Form {
+            Section("Link Previews") {
+                Toggle("Fetch link previews", isOn: $contactLinkedSites)
+                Text("Showing titles and preview cards means contacting the linked site, which reveals your IP address and that you opened the note. Off by default.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
             }
         }
         .formStyle(.grouped)
