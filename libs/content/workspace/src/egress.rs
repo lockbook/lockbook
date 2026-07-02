@@ -1,6 +1,6 @@
-//! Guarded outbound fetch for editor content — remote images today, link
-//! previews to come. Every remote GET goes through here so they share one set
-//! of safety checks.
+//! Guarded outbound fetch for editor content — link-preview metadata and
+//! remote images/favicons. Every remote GET goes through here so they share
+//! one set of safety checks.
 //!
 //! The threat model: notes can be *shared*, so these URLs were written by
 //! someone else, while the request is made by *this* machine — which can reach
@@ -20,6 +20,7 @@
 //! leaves the connection to the browser (no DNS access here) and enforces the
 //! checks it can.
 
+const MAX_HTML_BYTES: u64 = 256 * 1024;
 /// Generous cap for a remote image body.
 pub const MAX_IMAGE_BYTES: u64 = 16 * 1024 * 1024;
 
@@ -31,6 +32,8 @@ mod imp {
     use std::time::Duration;
 
     use url::{Host, Url};
+
+    use super::MAX_HTML_BYTES;
 
     const TIMEOUT: Duration = Duration::from_secs(5);
     const MAX_REDIRECTS: usize = 5;
@@ -132,6 +135,26 @@ mod imp {
             .map_err(|e| e.to_string())
     }
 
+    #[tracing::instrument(level = "debug", name = "egress", skip_all, fields(kind = "html", url = %url))]
+    pub fn fetch_html(
+        _client: &reqwest::blocking::Client, url: &str, user_agent: &str,
+    ) -> Result<String, String> {
+        let resp = open(url, user_agent)?;
+        let is_html = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|ct| ct.contains("html"));
+        if !is_html {
+            return Err("response is not HTML".into());
+        }
+        let mut buf = Vec::new();
+        resp.take(MAX_HTML_BYTES)
+            .read_to_end(&mut buf)
+            .map_err(|e| e.to_string())?;
+        Ok(String::from_utf8_lossy(&buf).into_owned())
+    }
+
     #[tracing::instrument(level = "debug", name = "egress", skip_all, fields(kind = "bytes", url = %url))]
     pub fn fetch_bytes(
         _client: &reqwest::blocking::Client, url: &str, user_agent: &str, max: u64,
@@ -198,6 +221,8 @@ mod imp {
 mod imp {
     use url::Url;
 
+    use super::MAX_HTML_BYTES;
+
     /// The browser performs the connection (no DNS access here for IP filtering),
     /// so CORS / Private Network Access policies stand in; we still enforce HTTPS
     /// and a body cap.
@@ -216,6 +241,23 @@ mod imp {
             .map_err(|e| e.to_string())
     }
 
+    #[tracing::instrument(level = "debug", name = "egress", skip_all, fields(kind = "html", url = %url))]
+    pub async fn fetch_html(
+        client: &reqwest::Client, url: &str, user_agent: &str,
+    ) -> Result<String, String> {
+        let resp = open(client, url, user_agent).await?;
+        let is_html = resp
+            .headers()
+            .get(reqwest::header::CONTENT_TYPE)
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|ct| ct.contains("html"));
+        if !is_html {
+            return Err("response is not HTML".into());
+        }
+        let text = resp.text().await.map_err(|e| e.to_string())?;
+        Ok(text.chars().take(MAX_HTML_BYTES as usize).collect())
+    }
+
     #[tracing::instrument(level = "debug", name = "egress", skip_all, fields(kind = "bytes", url = %url))]
     pub async fn fetch_bytes(
         client: &reqwest::Client, url: &str, user_agent: &str, max: u64,
@@ -230,4 +272,4 @@ mod imp {
     }
 }
 
-pub use imp::fetch_bytes;
+pub use imp::{fetch_bytes, fetch_html};

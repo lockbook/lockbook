@@ -1,16 +1,20 @@
+pub(crate) mod meta;
+
 use comrak::nodes::{AstNode, NodeValue};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::spawn;
-use scraper::{Html, Selector};
 use std::collections::hash_map::Entry;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
+use crate::egress::fetch_html;
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::MdRender;
-use crate::tab::markdown_editor::widget::block::TitleState;
+use crate::tab::markdown_editor::widget::inline::link::meta::{
+    LinkMeta, LinkMetaState, extract_link_meta,
+};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FontFamily, Format, Layout, StyleInfo,
 };
@@ -259,45 +263,61 @@ impl<'ast> MdRender {
         }
     }
 
-    // Resolves the display title an autolink swaps in for its URL.
-    // Internal links (lb:// or relative paths) resolve synchronously from the file cache.
-    // External http/https links are fetched asynchronously; returns Absent until
-    // the fetch completes (caller renders the original URL text in that case).
+    /// The title an autolink swaps in for its URL — a thin view over
+    /// [`Self::get_link_meta`].
     fn get_link_title(&self, url: &str) -> DestinationTitle {
+        match self.get_link_meta(url) {
+            LinkMetaLookup::Internal(title) => DestinationTitle::Ready(title),
+            LinkMetaLookup::Loaded(meta) => DestinationTitle::Ready(meta.title),
+            LinkMetaLookup::Loading | LinkMetaLookup::Unavailable => DestinationTitle::Absent,
+        }
+    }
+
+    /// Resolve a link's preview metadata. Internal links (lb:// / relative
+    /// paths) resolve synchronously to a title from the file cache. External
+    /// http(s) links are fetched asynchronously (gated by `contact_linked_sites`)
+    /// and cached in [`LayoutCache::link_meta`]; `External(None)` until a fetch
+    /// completes, the site is uncacheable, or fetching is off.
+    pub fn get_link_meta(&self, url: &str) -> LinkMetaLookup {
         let Some(resolved) = self.resolve_link(url) else {
-            return DestinationTitle::Absent;
+            return LinkMetaLookup::Unavailable;
         };
 
         let resolved_url = match resolved {
             ResolvedLink::File(id) => {
                 let guard = self.files.read().unwrap();
                 let Some(file) = guard.get_by_id(id) else {
-                    return DestinationTitle::Absent;
+                    return LinkMetaLookup::Unavailable;
                 };
                 let title = DocType::from_name(&file.name).display_name(&file.name);
-                return DestinationTitle::Ready(title.to_string());
+                return LinkMetaLookup::Internal(title.to_string());
             }
             ResolvedLink::External(url)
                 if url.starts_with("http://") || url.starts_with("https://") =>
             {
                 url
             }
-            ResolvedLink::External(_) => return DestinationTitle::Absent,
+            ResolvedLink::External(_) => return LinkMetaLookup::Unavailable,
         };
 
         let arc = match self
             .layout_cache
-            .link_titles
+            .link_meta
             .borrow_mut()
             .entry(resolved_url.clone())
         {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
-                let arc = Arc::new(Mutex::new(TitleState::Loading));
+                // Opt-out: don't contact the site unless preview fetching is on.
+                // (Occupied/cached metadata above still displays — no new request.)
+                if !self.contact_linked_sites {
+                    return LinkMetaLookup::Unavailable;
+                }
+                let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
                 e.insert(arc.clone());
                 let client = self.client.clone();
                 let ctx = self.ctx.clone();
-                let title_state = arc.clone();
+                let meta_state = arc.clone();
                 let link_seq = self.layout_cache.link_seq.clone();
                 let ws_seq = self.ws_seq.clone();
                 spawn!({
@@ -311,7 +331,8 @@ impl<'ast> MdRender {
                     let mut html = fetch_html(&client, &resolved_url, CHROME).await;
 
                     // some sites (e.g. Twitter/X) only serve static content to known crawlers
-                    if html.as_deref().ok().and_then(extract_html_title).is_none() {
+                    let parses = |h: &str| extract_link_meta(h, &resolved_url).is_some();
+                    if !html.as_deref().is_ok_and(parses) {
                         #[cfg(not(target_arch = "wasm32"))]
                         {
                             html = fetch_html(&client, &resolved_url, GOOGLEBOT);
@@ -322,11 +343,11 @@ impl<'ast> MdRender {
                         }
                     }
 
-                    *title_state.lock().unwrap() = html
+                    *meta_state.lock().unwrap() = html
                         .ok()
-                        .and_then(|h| extract_html_title(&h))
-                        .map(TitleState::Loaded)
-                        .unwrap_or(TitleState::Failed);
+                        .and_then(|h| extract_link_meta(&h, &resolved_url))
+                        .map(LinkMetaState::Loaded)
+                        .unwrap_or(LinkMetaState::Failed);
                     link_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
                     ctx.request_repaint();
                 });
@@ -336,10 +357,24 @@ impl<'ast> MdRender {
 
         let state = arc.lock().unwrap();
         match &*state {
-            TitleState::Loaded(t) => DestinationTitle::Ready(t.clone()),
-            TitleState::Loading | TitleState::Failed => DestinationTitle::Absent,
+            LinkMetaState::Loaded(meta) => LinkMetaLookup::Loaded(meta.clone()),
+            LinkMetaState::Loading => LinkMetaLookup::Loading,
+            LinkMetaState::Failed => LinkMetaLookup::Unavailable,
         }
     }
+}
+
+/// Result of a [`MdRender::get_link_meta`] lookup.
+pub enum LinkMetaLookup {
+    /// Internal file link — a title from the file cache (never a card/capsule).
+    Internal(String),
+    /// Fetched external metadata.
+    Loaded(LinkMeta),
+    /// External fetch in progress — a card holds a skeleton until it resolves.
+    Loading,
+    /// No metadata and none coming (fetch failed, fetching off, or
+    /// unresolvable) — degrade to a plain link rather than a stuck skeleton.
+    Unavailable,
 }
 
 fn node_link_url(node: &AstNode<'_>) -> String {
@@ -348,56 +383,4 @@ fn node_link_url(node: &AstNode<'_>) -> String {
         NodeValue::Link(link) | NodeValue::Image(link) => link.url.clone(),
         _ => String::new(),
     }
-}
-
-#[cfg(not(target_arch = "wasm32"))]
-fn fetch_html(
-    client: &crate::tab::markdown_editor::HttpClient, url: &str, user_agent: &str,
-) -> Result<String, String> {
-    client
-        .get(url)
-        .header("User-Agent", user_agent)
-        .send()
-        .and_then(|r| r.text())
-        .map_err(|e| e.to_string())
-}
-
-#[cfg(target_arch = "wasm32")]
-async fn fetch_html(
-    client: &crate::tab::markdown_editor::HttpClient, url: &str, user_agent: &str,
-) -> Result<String, String> {
-    client
-        .get(url)
-        .header("User-Agent", user_agent)
-        .send()
-        .await
-        .map_err(|e| e.to_string())?
-        .text()
-        .await
-        .map_err(|e| e.to_string())
-}
-
-fn extract_html_title(html: &str) -> Option<String> {
-    let doc = Html::parse_document(html);
-
-    let title_sel = Selector::parse("title").ok()?;
-    let title = doc
-        .select(&title_sel)
-        .next()
-        .map(|e| e.text().collect::<String>());
-    if let Some(t) = title
-        .map(|t| t.trim().to_string())
-        .filter(|t| !t.is_empty())
-    {
-        return Some(t);
-    }
-
-    // static / server rendered properties designed to support this use case for JS pages
-    let meta_sel = Selector::parse("meta[property='og:title'], meta[name='twitter:title']").ok()?;
-    let title = doc
-        .select(&meta_sel)
-        .find_map(|e| e.value().attr("content"))
-        .map(|t| t.trim().to_string())
-        .filter(|t| !t.is_empty())?;
-    Some(title)
 }
