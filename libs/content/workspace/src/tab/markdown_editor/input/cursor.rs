@@ -135,13 +135,31 @@ impl MdEdit {
             }
         }
 
-        result.sort_by(|a, b| {
-            a.top()
-                .total_cmp(&b.top())
-                .then(a.left().total_cmp(&b.left()))
-        });
-
-        result
+        // Reading order: group vertically-overlapping rects into rows, then by
+        // x — so the last rect is the selection's geometric end, where iOS reads
+        // the end handle. A raw top-sort would put a low inter-image space rect
+        // last, dropping the handle on the next image's left edge.
+        let mut by_top: Vec<usize> = (0..result.len()).collect();
+        by_top.sort_by(|&a, &b| result[a].top().total_cmp(&result[b].top()));
+        let mut row_of = vec![0usize; result.len()];
+        let mut row = 0;
+        let mut row_bottom = f32::NEG_INFINITY;
+        for (i, &k) in by_top.iter().enumerate() {
+            if i != 0 && result[k].top() > row_bottom + 0.5 {
+                row += 1;
+                row_bottom = result[k].bottom();
+            } else {
+                row_bottom = row_bottom.max(result[k].bottom());
+            }
+            row_of[k] = row;
+        }
+        let mut ordered: Vec<(usize, Rect)> = result
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (row_of[i], *r))
+            .collect();
+        ordered.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.left().total_cmp(&b.1.left())));
+        ordered.into_iter().map(|(_, r)| r).collect()
     }
 
     /// Draws a cursor at the provided offset with the provided accent color.
@@ -298,15 +316,23 @@ impl MdEdit {
         use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
         let frag = self.renderer.fragment_at_offset(offset)?;
         let x = self.renderer.fragment_x(frag, offset);
-        // Image fragments span the image band; `rect.bottom()` is the
-        // row's text baseline. Caret stays text-height around it.
-        let y_range = match &frag.content {
-            FragmentContent::Image { .. } => {
+        let row_h = self.renderer.layout.row_height;
+        // A caret bordering a collapsed image (just before or just after it)
+        // spans the image's height.
+        let border_image = self.renderer.fragments.iter().find(|f| {
+            matches!(f.content, FragmentContent::Image { .. })
+                && (f.source_range.start() == offset || f.source_range.end() == offset)
+        });
+        let y_range = match (border_image, &frag.content) {
+            (Some(image), _) => {
+                egui::Rangef::new(image.rect.top(), image.rect.bottom() + row_h * 0.2)
+            }
+            // interior of an image
+            (None, FragmentContent::Image { .. }) => {
                 let baseline = frag.rect.bottom();
-                let row_h = self.renderer.layout.row_height;
                 egui::Rangef::new(baseline - row_h * 0.8, baseline + row_h * 0.2)
             }
-            _ => frag.rect.y_range(),
+            (None, _) => frag.rect.y_range(),
         };
         let y_range = y_range.expand(self.renderer.layout.row_spacing / 2.);
         Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])

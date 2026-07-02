@@ -494,12 +494,22 @@ impl Workspace {
     }
 }
 
+/// What the mobile context menu was popped over, so the platform can offer
+/// target-specific actions (e.g. "Edit" over an atom — an image or link
+/// preview whose source is only reachable via `EnterAtom` on touch).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ContextMenuTarget {
+    #[default]
+    Text,
+    Atom,
+}
+
 // todo: find a better place for the code that attaches additional things to egui::Context
 pub trait ExtendedOutput {
     fn set_virtual_keyboard_shown(&self, enabled: bool);
     fn pop_virtual_keyboard_shown(&self) -> Option<bool>;
-    fn set_context_menu(&self, pos: egui::Pos2);
-    fn pop_context_menu(&self) -> Option<egui::Pos2>;
+    fn set_context_menu(&self, pos: egui::Pos2, target: ContextMenuTarget);
+    fn pop_context_menu(&self) -> Option<(egui::Pos2, ContextMenuTarget)>;
     fn open_file(&self, id: Uuid, new_tab: bool);
     fn pop_open_files(&self) -> Vec<(Uuid, bool)>;
 }
@@ -516,13 +526,13 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| m.data.remove_temp(Id::new("virtual_keyboard_shown")))
     }
 
-    fn set_context_menu(&self, pos: egui::Pos2) {
+    fn set_context_menu(&self, pos: egui::Pos2, target: ContextMenuTarget) {
         self.memory_mut(|m| {
-            m.data.insert_temp(Id::new("context_menu"), pos);
+            m.data.insert_temp(Id::new("context_menu"), (pos, target));
         })
     }
 
-    fn pop_context_menu(&self) -> Option<egui::Pos2> {
+    fn pop_context_menu(&self) -> Option<(egui::Pos2, ContextMenuTarget)> {
         self.memory_mut(|m| m.data.remove_temp(Id::new("context_menu")))
     }
 

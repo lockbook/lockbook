@@ -1,9 +1,6 @@
 use std::ops::Deref as _;
 
-use egui::{
-    Align2, Color32, CursorIcon, FontId, Id, OpenUrl, Pos2, Rect, Sense, Stroke, Ui, UiBuilder,
-    Vec2,
-};
+use egui::{Align2, Color32, FontId, Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 
@@ -36,15 +33,8 @@ impl EmbedResolver for ImageEmbedResolver {
                 show_placeholder(ui, rect, Icon::IMAGE, "Loading image...");
             }
             ImageState::Loaded(texture_id) => {
-                let resp = ui.interact(rect, Id::new(texture_id), Sense::click());
-                if resp.hovered() {
-                    ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
-                }
-                if resp.clicked() {
-                    ui.ctx()
-                        .open_url(OpenUrl { url: url.into(), new_tab: true });
-                }
-
+                // Paint only — interaction (open vs. select) is driven by the
+                // fragment's `Sense::click` scope via `handle_image_interactions`.
                 ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                     ui.painter().add(
                         RectShape::filled(rect, 2.0_f32, Color32::WHITE).with_texture(

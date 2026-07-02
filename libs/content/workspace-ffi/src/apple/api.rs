@@ -9,6 +9,18 @@ use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
 
 use super::response::*;
 
+/// Edit-menu "Edit" over a selected image: select the URL inside the atom, revealing its
+/// source (mobile has no arrow keys to get inside).
+///
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn enter_selected_atom(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.renderer
+        .context
+        .push_markdown_event(workspace_rs::tab::markdown_editor::input::Event::EnterAtom);
+}
+
 #[no_mangle]
 pub extern "C" fn folder_selected(obj: *mut c_void, id: CUuid) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
