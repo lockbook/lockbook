@@ -127,6 +127,18 @@ impl<'ast> MdRender {
         self.link_resolver.resolve_link(url)
     }
 
+    /// Open `url` in a new tab, navigating in-app for internal file links and
+    /// to the browser otherwise. Shared by link and image interaction handlers.
+    pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context) {
+        match self.resolve_link(url) {
+            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, true),
+            Some(ResolvedLink::External(target)) => {
+                ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
+            }
+            None => ctx.open_url(egui::OpenUrl { url: url.into(), new_tab: true }),
+        }
+    }
+
     pub fn link_state_for_url(&self, url: &str) -> LinkState {
         self.link_resolver.link_state(url)
     }
@@ -240,15 +252,7 @@ impl<'ast> MdRender {
                         ui.ctx().open_file(file_id, true);
                     }
                 } else {
-                    match self.resolve_link(&url) {
-                        Some(ResolvedLink::File(file_id)) => ui.ctx().open_file(file_id, true),
-                        Some(ResolvedLink::External(target)) => ui
-                            .ctx()
-                            .open_url(egui::OpenUrl { url: target, new_tab: true }),
-                        None => ui
-                            .ctx()
-                            .open_url(egui::OpenUrl { url: url.clone(), new_tab: true }),
-                    }
+                    self.open_resolved_link(&url, ui.ctx());
                 }
                 return;
             }
