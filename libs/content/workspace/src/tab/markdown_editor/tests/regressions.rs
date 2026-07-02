@@ -84,7 +84,7 @@ fn inline_image_advance_matches_rendered_width() {
         .renderer
         .fragments
         .iter()
-        .filter(|f| matches!(f.content, FragmentContent::Image { .. }))
+        .filter(|f| matches!(f.content, FragmentContent::Embed { .. }))
         .collect();
     assert_eq!(images.len(), 2);
     for f in &images {

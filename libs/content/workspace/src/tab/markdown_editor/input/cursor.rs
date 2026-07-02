@@ -320,7 +320,7 @@ impl MdEdit {
         // A caret bordering a collapsed image (just before or just after it)
         // spans the image's height.
         let border_image = self.renderer.fragments.iter().find(|f| {
-            matches!(f.content, FragmentContent::Image { .. })
+            matches!(f.content, FragmentContent::Embed { .. })
                 && (f.source_range.start() == offset || f.source_range.end() == offset)
         });
         let y_range = match (border_image, &frag.content) {
@@ -328,7 +328,7 @@ impl MdEdit {
                 egui::Rangef::new(image.rect.top(), image.rect.bottom() + row_h * 0.2)
             }
             // interior of an image
-            (None, FragmentContent::Image { .. }) => {
+            (None, FragmentContent::Embed { .. }) => {
                 let baseline = frag.rect.bottom();
                 egui::Rangef::new(baseline - row_h * 0.8, baseline + row_h * 0.2)
             }
