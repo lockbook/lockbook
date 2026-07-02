@@ -1,3 +1,4 @@
+pub(crate) mod card;
 pub(crate) mod meta;
 
 use comrak::nodes::{AstNode, NodeValue};
@@ -15,6 +16,7 @@ use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta,
 };
+use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FontFamily, Format, Layout, StyleInfo,
 };
@@ -56,6 +58,49 @@ impl<'ast> MdRender {
             .is_some_and(|r| &self.buffer[r] == url)
     }
 
+    /// Whether this link should render as a block **card** (its own row) rather
+    /// than an inline link. The trigger is positional so the source stays clean,
+    /// portable markdown: a **bare autolink** (`https://x.com`, not `[label](url)`
+    /// and not the delimited `<url>` form) that is **alone on its own line**
+    /// (within a paragraph, bounded by line breaks or the paragraph edges) and
+    /// **not inside a container block** (list item / quote / alert / table /
+    /// footnote).
+    pub fn link_renders_as_card(&self, node: &'ast AstNode<'ast>) -> bool {
+        let url = node_link_url(node);
+        if url.is_empty() || !self.link_is_auto(node, &url) {
+            return false; // labeled `[text](url)` and non-links never card
+        }
+        // `<url>` (delimited autolink) opts out — only bare URLs card.
+        if self.buffer[self.node_range(node)].starts_with('<') {
+            return false;
+        }
+
+        let Some(parent) = node.parent() else {
+            return false;
+        };
+        if !matches!(parent.data.borrow().value, NodeValue::Paragraph) {
+            return false;
+        }
+        // must be the only meaningful inline on its line — scan out to a line
+        // break (or the paragraph edge) on each side, allowing only blank text.
+        if !alone_on_line(node.previous_sibling(), |n| n.previous_sibling())
+            || !alone_on_line(node.next_sibling(), |n| n.next_sibling())
+        {
+            return false;
+        }
+
+        // not inside a container block (Document itself doesn't count)
+        let mut ancestor = parent.parent();
+        while let Some(a) = ancestor {
+            let value = &a.data.borrow().value;
+            if !matches!(value, NodeValue::Document) && value.is_container_block() {
+                return false;
+            }
+            ancestor = a.parent();
+        }
+        true
+    }
+
     /// Shared by producer + consumer so `ui.id().with(salt)` resolves
     /// to the same id on both sides.
     pub fn link_interaction_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
@@ -79,6 +124,17 @@ impl<'ast> MdRender {
         let state = self.link_state_for_url(&url);
         let link_fmt = self.text_format_link(parent, state.clone());
         let revealed = self.range_revealed(node_range, is_auto);
+
+        // Block link-preview card on its own row. Interior-only reveal (like an
+        // image): bordering keeps the card; a cursor inside falls through to the
+        // editable inline link.
+        let single_line = range.contains_range(&node_range, true, true);
+        if single_line
+            && !self.range_revealed_interior(node_range)
+            && self.layout_link_card(layout, node, &url)
+        {
+            return;
+        }
 
         let cmd = self.ctx.input(|i| i.modifiers.command);
         let salt = Self::link_interaction_id_salt(node_range);
@@ -383,4 +439,21 @@ fn node_link_url(node: &AstNode<'_>) -> String {
         NodeValue::Link(link) | NodeValue::Image(link) => link.url.clone(),
         _ => String::new(),
     }
+}
+
+/// Walking out from a link's neighbor via `next`, is the link alone on its line?
+/// A line break (or running out of siblings — the paragraph edge) ends the line;
+/// blank text is skipped; anything else means the link shares its line.
+fn alone_on_line<'a>(
+    mut sib: Option<&'a AstNode<'a>>, next: impl Fn(&'a AstNode<'a>) -> Option<&'a AstNode<'a>>,
+) -> bool {
+    while let Some(s) = sib {
+        match &s.data.borrow().value {
+            NodeValue::SoftBreak | NodeValue::LineBreak => return true,
+            NodeValue::Text(t) if t.trim().is_empty() => {}
+            _ => return false,
+        }
+        sib = next(s);
+    }
+    true
 }

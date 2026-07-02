@@ -168,12 +168,13 @@ pub struct EmbedSpec {
     pub kind: EmbedKind,
 }
 
-/// What an [`EmbedSpec`] box paints. One variant today (a decoded image
-/// texture); embeds occupy an atomic inline slot and share hit-test /
-/// reveal / selection machinery, so new kinds only add a paint arm.
+/// What an [`EmbedSpec`] box paints: a decoded image texture, or a
+/// metadata-driven link-preview card. Both occupy an atomic inline slot and
+/// reuse the same hit-test / reveal / selection machinery.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum EmbedKind {
     Image,
+    LinkCard,
 }
 
 /// Style record for one inline-box instance. Snapshotted into each
@@ -1806,6 +1807,7 @@ impl MdRender {
                             self.embeds
                                 .show(ui, url, screen_rect, egui::CornerRadius::same(2))
                         }
+                        EmbedKind::LinkCard => self.paint_link_card(ui, url, screen_rect),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,
