@@ -280,6 +280,31 @@ impl<'ast> MdEdit {
             self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
         }
     }
+
+    /// If the selection exactly covers a link rendered as a preview atom (card
+    /// or capsule), keep the whole URL selected and force-reveal the source via
+    /// `entered_atom` — a bare autolink *is* its URL, so unlike an image there
+    /// is no interior sub-range to select. True if handled.
+    pub fn enter_at_link(
+        &mut self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>,
+    ) -> bool {
+        let selection = self.renderer.buffer.current.selection;
+        for node in root.descendants() {
+            if !matches!(node.data.borrow().value, NodeValue::Link(_)) {
+                continue;
+            }
+            let url = super::node_link_url(node);
+            let node_range = self.renderer.node_range(node);
+            if selection != node_range || url.is_empty() || !self.renderer.link_is_auto(node, &url)
+            {
+                continue;
+            }
+            self.renderer.entered_atom = Some(node_range);
+            operations.push(Operation::Select(node_range));
+            return true;
+        }
+        false
+    }
 }
 
 /// Two faint bars standing in for the title/description while metadata loads.

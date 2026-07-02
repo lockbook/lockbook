@@ -280,3 +280,54 @@ fn capsule_selection_rects_hug_pill() {
     let end_line = ws.editor.edit.cursor_line(range.end()).expect("end caret");
     assert_eq!(rects.last().unwrap().max.x, end_line[0].x, "end handle at the pill edge");
 }
+
+/// Mobile edit-menu "Edit" on a link preview: tap-select keeps the card
+/// (selection alone never reveals — select-all mustn't burst every preview);
+/// `Event::EnterAtom` force-reveals the source with the whole URL selected
+/// (a bare autolink *is* its URL, so there's no interior to caret into);
+/// moving the selection out restores the card.
+#[test]
+fn enter_atom_reveals_link_card_source() {
+    let url = "https://example.com";
+    let mut ws = TestEditor::new("https://example.com\n");
+    ws.editor
+        .edit
+        .renderer
+        .layout_cache
+        .link_meta
+        .borrow_mut()
+        .insert(
+            url.to_string(),
+            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
+                title: "Example Title".into(),
+                ..Default::default()
+            }))),
+        );
+    ws.enter_frame();
+    assert!(has_card_fragment(&ws), "card renders with cached meta");
+
+    let range = {
+        let arena = Arena::new();
+        let root: &AstNode = ws.editor.edit.renderer.reparse(&arena);
+        let node = root
+            .descendants()
+            .find(|n| matches!(n.data.borrow().value, NodeValue::Link(_)))
+            .expect("a link node");
+        ws.editor.edit.renderer.node_range(node)
+    };
+    ws.push(Event::Select { region: range.into() });
+    ws.enter_frame();
+    assert!(has_card_fragment(&ws), "tap-select keeps the card");
+
+    ws.push(Event::EnterAtom);
+    ws.enter_frame();
+    assert!(!has_card_fragment(&ws), "entered: raw source replaces the card");
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    assert_eq!(&ws.editor.edit.renderer.buffer[sel], url, "whole url selected");
+
+    // leaving the atom restores the card
+    let after = (range.end() + 1, range.end() + 1);
+    ws.push(Event::Select { region: after.into() });
+    ws.enter_frame();
+    assert!(has_card_fragment(&ws), "left: card restored");
+}

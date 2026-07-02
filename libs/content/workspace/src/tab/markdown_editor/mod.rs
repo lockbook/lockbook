@@ -152,6 +152,11 @@ pub struct MdRender {
     pub contact_linked_sites: bool, // mirror of the persisted pref; gates outbound link fetching
 
     pub reveal_selection: Option<(Grapheme, Grapheme)>,
+    /// A preview atom entered via `Event::EnterAtom` whose whole range is
+    /// selected (a bare autolink card/capsule — its URL *is* its full source,
+    /// so no selection endpoint can land interior). Force-reveals the source;
+    /// re-resolved each frame and cleared when the selection leaves it.
+    pub entered_atom: Option<(Grapheme, Grapheme)>,
     pub reveal_seq: u64, // includes selection and find matches
 
     pub search_range: Option<(Grapheme, Grapheme)>, // drawn in accent color for completions
@@ -449,6 +454,7 @@ impl MdRender {
             disable_images: false,
             contact_linked_sites: false,
             reveal_selection: None,
+            entered_atom: None,
             reveal_seq: 0,
             text_seq: 0,
             search_range: None,
@@ -511,6 +517,7 @@ impl MdRender {
             interaction_responses: Default::default(),
             revealed_spoilers: Default::default(),
             reveal_selection: None,
+            entered_atom: None,
             search_range: None,
             disable_images: false,
             contact_linked_sites: false,
@@ -673,6 +680,7 @@ impl Editor {
             readonly,
             plaintext,
             reveal_selection: None,
+            entered_atom: None,
             search_range: None,
             disable_images: false,
             contact_linked_sites: false,

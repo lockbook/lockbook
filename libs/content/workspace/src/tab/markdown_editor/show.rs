@@ -54,6 +54,7 @@ impl MdEdit {
     /// `Event::Newline`).
     pub fn handle_input(&mut self, ctx: &Context, id: Id) -> buffer::Response {
         let focused = ctx.memory(|m| m.has_focus(id));
+        let prior_entered_atom = self.renderer.entered_atom;
 
         // Deferred block reorder
         let move_resp = match self.pending_block_move.take() {
@@ -148,14 +149,34 @@ impl MdEdit {
             buf_resp |= self.unfold_at_selection(&arena);
         }
 
+        // An entered atom stays revealed only while the selection remains
+        // within it; the range is re-resolved against the (possibly edited)
+        // AST each frame so it tracks the atom rather than going stale.
+        if let Some(prev) = self.renderer.entered_atom {
+            let root = self.renderer.reparse(&arena);
+            let sel = self.renderer.buffer.current.selection;
+            self.renderer.entered_atom = root.descendants().find_map(|node| {
+                use comrak::nodes::NodeValue;
+                if !matches!(node.data.borrow().value, NodeValue::Link(_)) {
+                    return None;
+                }
+                let range = self.renderer.node_range(node);
+                (range.contains_range(&sel, true, true) && range.intersects(&prev, true))
+                    .then_some(range)
+            });
+        }
+
         let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
             .then_some(self.renderer.buffer.current.selection);
-        if self.renderer.reveal_selection != new_reveal_selection {
+        if self.renderer.reveal_selection != new_reveal_selection
+            || prior_entered_atom != self.renderer.entered_atom
+        {
             self.renderer.reveal_selection = new_reveal_selection;
             self.renderer.reveal_seq = self
                 .renderer
                 .ws_seq
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            ctx.request_repaint();
         }
         self.renderer.search_range = self
             .emoji_completions

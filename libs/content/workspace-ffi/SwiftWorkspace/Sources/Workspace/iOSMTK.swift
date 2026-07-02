@@ -81,6 +81,7 @@
 
             // edit menu, presented from Rust (see `output.has_context_menu`)
             let menuDelegate = MdMenuDelegate()
+            menuDelegate.mtkView = mtkView
             menuDelegate.view = self
             let menuInteraction = UIEditMenuInteraction(delegate: menuDelegate)
             addInteraction(menuInteraction)
@@ -1323,24 +1324,41 @@
 
     // MARK: - MdMenuDelegate
 
-    /// Prepends "Edit" to the edit menu when it's over a selected image atom —
-    /// select the URL inside the atom, revealing its source, since mobile has no arrow keys.
+    /// Augments the markdown edit menu: "Open Link" when the selection holds a
+    /// link or image (e.g. a tapped link-preview card or inline image), and
+    /// "Edit" when it's over a selected image atom — select the URL inside the
+    /// atom, revealing its source, since mobile has no arrow keys.
     public class MdMenuDelegate: NSObject, UIEditMenuInteractionDelegate {
+        weak var mtkView: iOSMTK?
         weak var view: MdView?
 
         public func editMenuInteraction(
-            _ interaction: UIEditMenuInteraction, menuFor configuration: UIEditMenuConfiguration,
+            _: UIEditMenuInteraction, menuFor _: UIEditMenuConfiguration,
             suggestedActions: [UIMenuElement]
         ) -> UIMenu? {
-            guard let view, view.editMenuForAtom else { return nil } // nil → default menu
-            let edit = UIAction(title: "Edit") { [weak view] _ in
-                guard let view else { return }
-                enter_selected_atom(view.wsHandle)
-                // schedule the frame that processes the event, whose selection
-                // update then flows back via `output.selection_updated`
-                view.mtkView.setNeedsDisplay(view.mtkView.frame)
+            var children = suggestedActions
+            if let wsHandle = mtkView?.wsHandle, let target = selection_open_target(wsHandle) {
+                free_text(target)
+                let open = UIAction(
+                    title: "Open Link", image: UIImage(systemName: "arrow.up.forward.app")
+                ) { [weak self] _ in
+                    if let wsHandle = self?.mtkView?.wsHandle {
+                        open_selection_links(wsHandle)
+                    }
+                }
+                children.insert(open, at: 0)
             }
-            return UIMenu(children: [edit] + suggestedActions)
+            if let view, view.editMenuForAtom {
+                let edit = UIAction(title: "Edit") { [weak view] _ in
+                    guard let view else { return }
+                    enter_selected_atom(view.wsHandle)
+                    // schedule the frame that processes the event, whose selection
+                    // update then flows back via `output.selection_updated`
+                    view.mtkView.setNeedsDisplay(view.mtkView.frame)
+                }
+                children.insert(edit, at: 0)
+            }
+            return UIMenu(children: children)
         }
     }
 

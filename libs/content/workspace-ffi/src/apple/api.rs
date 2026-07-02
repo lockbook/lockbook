@@ -197,6 +197,32 @@ pub unsafe extern "C" fn free_text(s: *const c_char) {
     drop(CString::from_raw(s as *mut c_char));
 }
 
+/// The URL of an openable link/image in the current selection, or null. The
+/// returned string must be freed with `free_text`.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn selection_open_target(obj: *mut c_void) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Some(md) = obj.workspace.focused_mdedit_mut() else {
+        return std::ptr::null();
+    };
+    match md.renderer.selection_open_target() {
+        Some(url) => CString::new(url)
+            .map(|s| s.into_raw() as *const c_char)
+            .unwrap_or(std::ptr::null()),
+        None => std::ptr::null(),
+    }
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn open_selection_links(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.renderer.open_selection_links();
+    }
+}
+
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {

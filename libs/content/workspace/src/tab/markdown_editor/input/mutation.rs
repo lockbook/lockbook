@@ -507,7 +507,9 @@ impl<'ast> MdEdit {
                 }
             }
             Event::EnterAtom => {
-                self.enter_at_image(root, operations);
+                if !self.enter_at_image(root, operations) {
+                    self.enter_at_link(root, operations);
+                }
             }
         }
 
