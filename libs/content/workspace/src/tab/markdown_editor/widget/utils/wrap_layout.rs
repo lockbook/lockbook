@@ -1703,7 +1703,8 @@ impl MdRender {
             glyphon::Color::rgba(r, g, b, a)
         };
 
-        for row in &layout.rows {
+        for row_idx in 0..layout.rows.len() {
+            let row = &layout.rows[row_idx];
             let bg_of = |f: &Fragment| -> Option<egui::Color32> {
                 f.style_stack
                     .last()
@@ -1740,23 +1741,42 @@ impl MdRender {
                 let chain_right = row.fragments[chain_end - 1].rect.right() + paint_top_left.x;
                 let row_top = row.fragments[chain_start].rect.top() + paint_top_left.y;
                 let row_bottom = row.fragments[chain_start].rect.bottom() + paint_top_left.y;
-                let mut bg_rect = Rect::from_min_max(
+                let bg_rect = Rect::from_min_max(
                     egui::Pos2::new(chain_left, row_top - inline_pad),
                     egui::Pos2::new(chain_right, row_bottom + inline_pad),
                 );
-                let mut radius = 2.0;
+                let mut left_radius = 2.0;
+                let mut right_radius = 2.0;
                 if chip {
-                    // Capsule spanning exactly the row box — no inline_pad
-                    // extension, so it stays inside the line where full-row
-                    // pills like inline code bleed past it.
-                    bg_rect = Rect::from_min_max(
-                        egui::Pos2::new(chain_left, row_top),
-                        egui::Pos2::new(chain_right, row_bottom),
-                    );
-                    radius = (row_bottom - row_top) / 2.0;
+                    // Fully-rounded capsule at the inline-code pill height
+                    // (bg_rect already includes inline_pad above). A capsule
+                    // wrapped across rows drops its broken edges to the
+                    // inline-code radius — full caps only at the chip's true
+                    // ends, so glyphs at a wrap boundary don't crowd the
+                    // curvature and the segments read as one continued pill.
+                    let capsule = bg_rect.height() / 2.0;
+                    let scope = row.fragments[chain_start]
+                        .style_stack
+                        .last()
+                        .map(|s| s.source_range);
+                    let same_chip = |f: &Fragment| {
+                        f.style_stack
+                            .last()
+                            .is_some_and(|s| s.chip && Some(s.source_range) == scope)
+                    };
+                    let continued_from_prev =
+                        row_idx > 0 && layout.rows[row_idx - 1].fragments.iter().any(same_chip);
+                    let continues_to_next = row_idx + 1 < layout.rows.len()
+                        && layout.rows[row_idx + 1].fragments.iter().any(same_chip);
+                    if !continued_from_prev {
+                        left_radius = capsule;
+                    }
+                    if !continues_to_next {
+                        right_radius = capsule;
+                    }
                 }
                 if ui.clip_rect().intersects(bg_rect) {
-                    let rounding = corner_rounding(true, true, radius);
+                    let rounding = corner_rounding(left_radius, right_radius);
                     ui.painter().rect_filled(bg_rect, rounding, bg);
                     if border != egui::Color32::TRANSPARENT {
                         ui.painter().rect_stroke(
@@ -1890,17 +1910,13 @@ impl MdRender {
 }
 
 /// Per-corner rounding for smart-corner bg painting. Returns a
-/// `CornerRadius` (egui 0.31's per-corner type) with `radius` on
-/// outer corners and `0` on touching corners.
-fn corner_rounding(round_left: bool, round_right: bool, radius: f32) -> egui::CornerRadius {
-    let r = radius as u8;
-    let z = 0u8;
-    egui::CornerRadius {
-        nw: if round_left { r } else { z },
-        sw: if round_left { r } else { z },
-        ne: if round_right { r } else { z },
-        se: if round_right { r } else { z },
-    }
+/// `CornerRadius` (egui 0.31's per-corner type) with a per-side radius —
+/// e.g. a wrapped capsule's full cap on its true end and the subtle
+/// inline-code radius on its broken end.
+fn corner_rounding(left_radius: f32, right_radius: f32) -> egui::CornerRadius {
+    let l = left_radius as u8;
+    let r = right_radius as u8;
+    egui::CornerRadius { nw: l, sw: l, ne: r, se: r }
 }
 
 // ─── cursor + hit-test helpers (read-only over fragments) ────────────
@@ -1913,6 +1929,25 @@ impl MdRender {
     /// at a shared boundary `(a, b)`/`(b, c)`, the *later* fragment
     /// wins (cursor-affinity matches paint).
     pub fn fragment_at_offset(&self, offset: Grapheme) -> Option<&Fragment> {
+        // A caret at a chip's edge sits at the pill edge, not inside its padding
+        // or favicon slot: prefer the chip's boundary anchor (a zero-width Spacer
+        // at exactly `offset`, which `fragment_x` resolves to the pill edge) over
+        // the wider glyph fragments that also span the offset. A wrapped capsule
+        // re-opens its scope per row, giving every row such anchors at the same
+        // source positions — the caret belongs at the capsule's *true* edge:
+        // the first anchor for its start, the last for its end.
+        let mut anchors = self.fragments.iter().filter(|f| {
+            f.source_range == (offset, offset)
+                && matches!(f.content, FragmentContent::Spacer)
+                && f.style_stack.last().is_some_and(|s| s.chip)
+        });
+        if let Some(first) = anchors.next() {
+            let leading = first
+                .style_stack
+                .last()
+                .is_some_and(|s| s.source_range.start() == offset);
+            return Some(if leading { first } else { anchors.next_back().unwrap_or(first) });
+        }
         self.fragments.iter().rev().find(|f| {
             let (s, e) = f.source_range;
             s <= offset && offset <= e

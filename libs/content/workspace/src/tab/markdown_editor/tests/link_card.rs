@@ -140,3 +140,143 @@ fn setting_mirrors_onto_renderer_each_frame() {
     ws.enter_frame();
     assert!(ws.editor.edit.renderer.contact_linked_sites, "mirrored from persistence");
 }
+
+/// A wrapped capsule re-opens its style scope on each row, so chip boundary
+/// anchors exist per row at the same source positions. The edge carets must
+/// resolve to the capsule's *true* edges: start on the first row's pill-left,
+/// end on the last row's pill-right (regression: the end caret rendered at
+/// the end of the first row's segment).
+#[test]
+fn wrapped_capsule_edge_carets() {
+    use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
+    use lb_rs::model::text::offset_types::IntoRangeExt as _;
+    let url = "https://example.com";
+    let mut ws = TestEditor::new("see https://example.com\nnext para\n");
+    ws.editor
+        .edit
+        .renderer
+        .layout_cache
+        .link_meta
+        .borrow_mut()
+        .insert(
+            url.to_string(),
+            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
+                title: "Example Title".into(),
+                favicon_url: Some("https://example.com/favicon.ico".into()),
+                ..Default::default()
+            }))),
+        );
+    // narrow viewport: the capsule wraps across two rows
+    ws.enter_frame_at(egui::Vec2::new(160.0, 600.0));
+
+    let range = {
+        let arena = Arena::new();
+        let root: &AstNode = ws.editor.edit.renderer.reparse(&arena);
+        let node = root
+            .descendants()
+            .find(|n| matches!(n.data.borrow().value, NodeValue::Link(_)))
+            .expect("a link node");
+        ws.editor.edit.renderer.node_range(node)
+    };
+    ws.push(Event::Select { region: range.end().into_range().into() });
+    ws.enter_frame_at(egui::Vec2::new(160.0, 600.0));
+
+    let anchors = |offset| {
+        ws.editor
+            .edit
+            .renderer
+            .fragments
+            .iter()
+            .filter(|f| {
+                f.source_range == (offset, offset)
+                    && matches!(f.content, FragmentContent::Spacer)
+                    && f.style_stack.last().is_some_and(|s| s.chip)
+            })
+            .collect::<Vec<_>>()
+    };
+    let trailing = anchors(range.end());
+    assert!(trailing.len() > 1, "capsule wrapped: an anchor per row, got {}", trailing.len());
+
+    let start_line = ws
+        .editor
+        .edit
+        .cursor_line(range.start())
+        .expect("start caret");
+    let end_line = ws.editor.edit.cursor_line(range.end()).expect("end caret");
+    assert!(
+        end_line[0].y > start_line[0].y,
+        "end caret on a later row: start {start_line:?} end {end_line:?}"
+    );
+    let true_end = trailing.last().unwrap().rect.max.x;
+    assert_eq!(end_line[0].x, true_end, "end caret at the last row's pill edge");
+    let true_start = anchors(range.start()).first().unwrap().rect.min.x;
+    assert_eq!(start_line[0].x, true_start, "start caret at the first row's pill edge");
+}
+
+/// A tap-selected capsule's selection rects hug the pill: one merged rect per
+/// row, spanning the side pads, whose far edge is where iOS drops the end
+/// selection handle. (Regression: every capsule fragment shares the atom's
+/// full source range, and recomputing both rect edges per fragment mangled
+/// the segments — the reading-order sort then put a mid-pill space rect last,
+/// dropping the native end handle in the middle of the capsule.)
+#[test]
+fn capsule_selection_rects_hug_pill() {
+    use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
+    let url = "https://example.com";
+    let mut ws = TestEditor::new("see https://example.com after\n");
+    ws.editor
+        .edit
+        .renderer
+        .layout_cache
+        .link_meta
+        .borrow_mut()
+        .insert(
+            url.to_string(),
+            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
+                title: "Example Title".into(),
+                favicon_url: Some("https://example.com/favicon.ico".into()),
+                ..Default::default()
+            }))),
+        );
+    ws.enter_frame();
+
+    let range = {
+        let arena = Arena::new();
+        let root: &AstNode = ws.editor.edit.renderer.reparse(&arena);
+        let node = root
+            .descendants()
+            .find(|n| matches!(n.data.borrow().value, NodeValue::Link(_)))
+            .expect("a link node");
+        ws.editor.edit.renderer.node_range(node)
+    };
+    // tap-select the capsule
+    ws.push(Event::Select { region: range.into() });
+    ws.enter_frame();
+
+    let pad_edge = |offset, leading: bool| {
+        let pads: Vec<_> = ws
+            .editor
+            .edit
+            .renderer
+            .fragments
+            .iter()
+            .filter(|f| {
+                f.source_range == (offset, offset)
+                    && matches!(f.content, FragmentContent::Spacer)
+                    && f.style_stack.last().is_some_and(|s| s.chip)
+            })
+            .collect();
+        if leading { pads.first().unwrap().rect.min.x } else { pads.last().unwrap().rect.max.x }
+    };
+    let pill_left = pad_edge(range.start(), true);
+    let pill_right = pad_edge(range.end(), false);
+
+    let rects = ws.editor.edit.range_rects(range);
+    assert_eq!(rects.len(), 1, "one merged rect for an unwrapped capsule: {rects:?}");
+    assert_eq!(rects[0].min.x, pill_left, "highlight spans the leading pad");
+    assert_eq!(rects[0].max.x, pill_right, "highlight spans the trailing pad");
+
+    // the native end handle reads the last rect's far edge == the end caret
+    let end_line = ws.editor.edit.cursor_line(range.end()).expect("end caret");
+    assert_eq!(rects.last().unwrap().max.x, end_line[0].x, "end handle at the pill edge");
+}
