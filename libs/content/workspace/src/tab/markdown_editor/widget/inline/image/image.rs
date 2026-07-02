@@ -1,6 +1,6 @@
 use std::f32;
 
-use comrak::nodes::AstNode;
+use comrak::nodes::{AstNode, NodeValue};
 use egui::{self, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
@@ -118,6 +118,22 @@ impl<'ast> MdRender {
             source_range: node_range,
             url,
         });
+    }
+
+    /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
+    /// range of every inline image. Empty when images render raw (disabled),
+    /// since then the source is plain editable text. Depends on text only.
+    pub fn calc_image_bounds<'a>(&mut self, root: &'a AstNode<'a>) {
+        let mut images = Vec::new();
+        if !self.disable_images {
+            for node in root.descendants() {
+                if matches!(node.data.borrow().value, NodeValue::Image(_)) {
+                    images.push(self.node_range(node));
+                }
+            }
+        }
+        images.sort_unstable();
+        self.bounds.images = images;
     }
 }
 
