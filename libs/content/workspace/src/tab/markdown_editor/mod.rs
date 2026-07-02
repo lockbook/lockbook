@@ -1304,7 +1304,13 @@ impl Editor {
                         // the scrollbar (so taps on the bar don't).
                         let begun = self.edit.scroll_area.begin(ui);
 
-                        let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
+                        let pre = self.edit.pre_render(
+                            ui,
+                            canvas_rect,
+                            scroll_id,
+                            root,
+                            self.keyboard_visible,
+                        );
 
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.block_boxes.clear();

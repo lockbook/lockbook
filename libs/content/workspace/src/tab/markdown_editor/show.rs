@@ -172,7 +172,9 @@ impl MdEdit {
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
-        let pre = self.pre_render(ui, rect, id, root);
+        // Composer entry point (chat); no keyboard-state plumbing — image
+        // taps there fall back to desktop/cmd gating via `touch_mode`.
+        let pre = self.pre_render(ui, rect, id, root, false);
 
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
@@ -444,6 +446,7 @@ impl MdEdit {
     /// selection. Returns the focus state for [`MdEdit::post_render`].
     pub fn pre_render<'a>(
         &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
+        keyboard_visible: bool,
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
         self.renderer.viewport_height = ui.clip_rect().height();
@@ -475,6 +478,9 @@ impl MdEdit {
         self.renderer.handle_fold_interactions(ui);
 
         let mut ops = Vec::new();
+
+        // image taps → open (cmd / keyboard-hidden) or select
+        self.handle_image_interactions(root, ui, id, keyboard_visible, &mut ops);
 
         // --- context menu (desktop only) -------------------------------------
         ui.ctx()

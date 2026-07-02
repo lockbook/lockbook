@@ -901,7 +901,9 @@ impl<'ast> MdRender {
             .descendants()
             .filter(|d| matches!(d.data.borrow().value, NodeValue::Image(_)))
             .filter(|d| leaf_node_line.contains_range(&self.node_range(d), true, true))
-            .filter(|d| !self.node_revealed(d))
+            // Same collapse predicate as `layout_image`, else a selected image
+            // stays tall but the row doesn't inflate, shifting the marker.
+            .filter(|d| !self.range_revealed_interior(self.node_range(d)))
             .filter_map(|d| self.image_logical_size(d).map(|s| s.y))
             .fold(0.0_f32, f32::max);
         let leaf_row_height = self.row_height(leaf);
