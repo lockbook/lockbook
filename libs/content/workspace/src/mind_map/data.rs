@@ -262,6 +262,7 @@ pub fn start_extraction_names() {
 
 use reqwest;
 
+#[tracing::instrument(level = "debug", name = "egress", skip_all, fields(kind = "mind_map_title", url = %url))]
 async fn fetch_title(url: &str) -> Result<String, Box<dyn std::error::Error>> {
     // Normalize the URL: if it doesn't start with "http" or "https", add "http://"
     let normalized_url = if url.starts_with("http://") || url.starts_with("https://") {

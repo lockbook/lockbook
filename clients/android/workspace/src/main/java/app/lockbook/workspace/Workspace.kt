@@ -101,6 +101,7 @@ object Workspace {
     external fun isPenOnlyDraw(rustObj: Long) : Boolean
     external fun insertTextAtCursor(rustObj: Long, text: String)
     external fun enterSelectedAtom(rustObj: Long)
+    external fun setContactLinkedSites(rustObj: Long, value: Boolean)
 }
 
 data class NativeWorkspaceTab(

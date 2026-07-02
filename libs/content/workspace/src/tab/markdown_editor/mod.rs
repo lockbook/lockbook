@@ -145,12 +145,18 @@ pub struct MdRender {
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
     pub preview_match: Option<(Grapheme, Grapheme)>,
-    pub interactive: bool,    // enables fold buttons
-    pub readonly: bool,       // disables task checkboxes and saving
-    pub plaintext: bool,      // render as source text, not parsed markdown
-    pub disable_images: bool, // skip image rendering (e.g. for the mobile toolbar)
+    pub interactive: bool,          // enables fold buttons
+    pub readonly: bool,             // disables task checkboxes and saving
+    pub plaintext: bool,            // render as source text, not parsed markdown
+    pub disable_images: bool,       // skip image rendering (e.g. for the mobile toolbar)
+    pub contact_linked_sites: bool, // mirror of the persisted pref; gates outbound link fetching
 
     pub reveal_selection: Option<(Grapheme, Grapheme)>,
+    /// A preview atom entered via `Event::EnterAtom` whose whole range is
+    /// selected (a bare autolink card/capsule — its URL *is* its full source,
+    /// so no selection endpoint can land interior). Force-reveals the source;
+    /// re-resolved each frame and cleared when the selection leaves it.
+    pub entered_atom: Option<(Grapheme, Grapheme)>,
     pub reveal_seq: u64, // includes selection and find matches
 
     pub search_range: Option<(Grapheme, Grapheme)>, // drawn in accent color for completions
@@ -294,6 +300,7 @@ pub struct Editor {
     prev_dimensions: Option<Vec2>,
     prev_virtual_keyboard_shown: bool,
     embeds_seq: u64,
+    link_seq: u64,
 
     // interaction widgets (toolbar + find are Editor-owned; completion
     // widgets moved onto MdEdit so a standalone composer inherits them)
@@ -446,7 +453,9 @@ impl MdRender {
             readonly: true,
             plaintext: false,
             disable_images: false,
+            contact_linked_sites: false,
             reveal_selection: None,
+            entered_atom: None,
             reveal_seq: 0,
             text_seq: 0,
             search_range: None,
@@ -509,8 +518,10 @@ impl MdRender {
             interaction_responses: Default::default(),
             revealed_spoilers: Default::default(),
             reveal_selection: None,
+            entered_atom: None,
             search_range: None,
             disable_images: false,
+            contact_linked_sites: false,
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
@@ -670,8 +681,10 @@ impl Editor {
             readonly,
             plaintext,
             reveal_selection: None,
+            entered_atom: None,
             search_range: None,
             disable_images: false,
+            contact_linked_sites: false,
 
             embeds,
             link_resolver,
@@ -720,6 +733,7 @@ impl Editor {
             hmac,
             initialized: Default::default(),
             embeds_seq: 0,
+            link_seq: 0,
 
             toolbar: Default::default(),
             find: Default::default(),
@@ -828,6 +842,9 @@ impl Editor {
             self.edit.renderer.dark_mode = dark_mode;
         }
 
+        // Mirror the opt-in fetch preference onto the renderer each frame.
+        self.edit.renderer.contact_linked_sites = self.persistence.get_contact_linked_sites();
+
         let start = web_time::Instant::now();
 
         if height_updated {
@@ -838,6 +855,15 @@ impl Editor {
         let embeds_updated = embeds_seq != self.embeds_seq;
         self.embeds_seq = embeds_seq;
 
+        let link_seq = self
+            .edit
+            .renderer
+            .layout_cache
+            .link_seq
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let link_meta_updated = link_seq != self.link_seq;
+        self.link_seq = link_seq;
+
         // --- input phase ------------------------------------------------------
         // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
         // MdEdit's internal event queue, then let MdEdit::handle_input drain
@@ -846,6 +872,7 @@ impl Editor {
         self.edit.event.internal_events.extend(workspace_events);
 
         let prior_selection = self.edit.renderer.buffer.current.selection;
+        let prior_entered_atom = self.edit.renderer.entered_atom;
         let buf_resp = self.edit.handle_input(ui.ctx(), self.id());
         resp.open_camera = buf_resp.open_camera;
 
@@ -860,6 +887,14 @@ impl Editor {
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
+        // Loads completing (embed textures, link-preview metadata) reflow
+        // layout, moving the selection's on-screen rects without a selection
+        // change — signal so iOS re-queries its native selection/caret rects.
+        // Likewise entering/leaving an atom: Edit on a capsule re-selects the
+        // same range, but the reveal swaps the capsule for its raw source.
+        resp.selection_updated |= embeds_updated
+            || link_meta_updated
+            || prior_entered_atom != self.edit.renderer.entered_atom;
 
         let all_selected = self.edit.renderer.buffer.current.selection
             == (0.into(), self.edit.renderer.last_cursor_position());
@@ -1440,6 +1475,9 @@ impl Editor {
                 // order. `Bound::Line` lookup is a linear `range_before`
                 // / `range_after` walk that assumes sorted ranges.
                 self.edit.renderer.bounds.wrap_lines.sort_by_key(|r| r.0);
+
+                // Favicon + selection tint, over the opaque capsule pills.
+                self.edit.renderer.show_capsule_overlays(ui, root);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);

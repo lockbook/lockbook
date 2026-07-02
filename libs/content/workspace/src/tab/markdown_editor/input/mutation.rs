@@ -507,7 +507,9 @@ impl<'ast> MdEdit {
                 }
             }
             Event::EnterAtom => {
-                self.enter_at_image(root, operations);
+                if !self.enter_at_image(root, operations) {
+                    self.enter_at_link(root, operations);
+                }
             }
         }
 
@@ -1138,7 +1140,7 @@ impl<'ast> MdEdit {
         } else if frag.atomic
             && !matches!(
                 frag.content,
-                crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent::Image { .. }
+                crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent::Embed { .. }
             )
         {
             // Atomic fragment (marker, indentation): a click selects the whole

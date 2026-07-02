@@ -26,7 +26,9 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
+import androidx.preference.PreferenceManager
 import app.lockbook.App
+import app.lockbook.R
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -56,6 +58,9 @@ class WorkspaceView(
             invalidate()
         }
     private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
+
+    private val prefs by lazy { PreferenceManager.getDefaultSharedPreferences(context) }
+    private val contactLinkedSitesKey by lazy { context.getString(R.string.contact_linked_sites_key) }
 
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -335,6 +340,8 @@ class WorkspaceView(
         pendingZoom = 1f
         pendingFocusX = 0f
         pendingFocusY = 0f
+
+        Workspace.setContactLinkedSites(wgpuObj, prefs.getBoolean(contactLinkedSitesKey, false))
 
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
 

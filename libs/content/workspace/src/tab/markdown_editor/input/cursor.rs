@@ -58,40 +58,48 @@ impl MdEdit {
     }
 
     pub fn range_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
+        use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
         let mut result: Vec<Rect> = Vec::new();
         for frag in self.renderer.fragments.iter() {
             let frag_range = frag.source_range;
-            // Skip empty-range fragments (anchors) — they contribute
-            // no width, so a selection rect over them would be 0×N
-            // and add noise.
+            // Empty-range fragments contribute no width — except a chip's pad
+            // spacers, which carry the capsule's real side padding. Include
+            // those when their capsule overlaps the selection so the highlight
+            // spans the full pill (and the last rect — where iOS drops the end
+            // handle — reaches the pill's edge).
             if frag_range.start() == frag_range.end() {
-                continue;
+                let pad_scope = frag
+                    .style_stack
+                    .last()
+                    .filter(|s| s.chip && matches!(frag.content, FragmentContent::Spacer))
+                    .map(|s| s.source_range);
+                let overlaps =
+                    pad_scope.is_some_and(|s| s.start() < range.end() && range.start() < s.end());
+                if !overlaps {
+                    continue;
+                }
             }
-            if frag_range.end() <= range.start() || frag_range.start() >= range.end() {
+            // (pads passed their own scope-overlap check above; their empty
+            // range would always fail this one)
+            if frag_range.start() != frag_range.end()
+                && (frag_range.end() <= range.start() || frag_range.start() >= range.end())
+            {
                 continue;
             }
             let mut rect = frag.rect;
-            if frag_range.contains_inclusive(range.start()) {
+            // Recompute an edge only when the selection endpoint falls
+            // *strictly inside* the fragment. At `==` the fragment's own edge
+            // already is the endpoint — and for capsule fragments, which all
+            // share the atom's full source range, recomputing both edges from
+            // global offsets would mangle every segment's rect.
+            if frag_range.start() < range.start() {
                 rect.min.x = self.renderer.fragment_x(frag, range.start());
             }
-            if frag_range.contains_inclusive(range.end()) {
+            if frag_range.end() > range.end() {
                 rect.max.x = self.renderer.fragment_x(frag, range.end());
             }
             if rect.area() <= 0.001 {
                 continue;
-            }
-            // Coalesce contiguous same-row rects so each row's
-            // selection paints as one merged rounded rect (outer
-            // corners rounded, no rounding at internal fragment
-            // seams).
-            if let Some(last) = result.last_mut() {
-                let same_row = (last.top() - rect.top()).abs() < 0.001
-                    && (last.bottom() - rect.bottom()).abs() < 0.001;
-                let contiguous = (last.right() - rect.left()).abs() < 0.001;
-                if same_row && contiguous {
-                    last.max.x = rect.max.x;
-                    continue;
-                }
             }
             result.push(rect);
         }
@@ -159,7 +167,24 @@ impl MdEdit {
             .map(|(i, r)| (row_of[i], *r))
             .collect();
         ordered.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.left().total_cmp(&b.1.left())));
-        ordered.into_iter().map(|(_, r)| r).collect()
+
+        // Coalesce contiguous same-row rects (post-sort — the fragment list
+        // interleaves rows) so each row's selection paints as one merged
+        // rounded rect: outer corners rounded, no seams at fragment edges.
+        let mut merged: Vec<Rect> = Vec::new();
+        for (_, rect) in ordered {
+            if let Some(last) = merged.last_mut() {
+                let same_row = (last.top() - rect.top()).abs() < 0.001
+                    && (last.bottom() - rect.bottom()).abs() < 0.001;
+                let contiguous = (last.right() - rect.left()).abs() < 0.001;
+                if same_row && contiguous {
+                    last.max.x = last.max.x.max(rect.max.x);
+                    continue;
+                }
+            }
+            merged.push(rect);
+        }
+        merged
     }
 
     /// Draws a cursor at the provided offset with the provided accent color.
@@ -320,7 +345,7 @@ impl MdEdit {
         // A caret bordering a collapsed image (just before or just after it)
         // spans the image's height.
         let border_image = self.renderer.fragments.iter().find(|f| {
-            matches!(f.content, FragmentContent::Image { .. })
+            matches!(f.content, FragmentContent::Embed { .. })
                 && (f.source_range.start() == offset || f.source_range.end() == offset)
         });
         let y_range = match (border_image, &frag.content) {
@@ -328,7 +353,7 @@ impl MdEdit {
                 egui::Rangef::new(image.rect.top(), image.rect.bottom() + row_h * 0.2)
             }
             // interior of an image
-            (None, FragmentContent::Image { .. }) => {
+            (None, FragmentContent::Embed { .. }) => {
                 let baseline = frag.rect.bottom();
                 egui::Rangef::new(baseline - row_h * 0.8, baseline + row_h * 0.2)
             }

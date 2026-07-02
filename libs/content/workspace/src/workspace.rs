@@ -1278,6 +1278,12 @@ pub struct WsPresistentData {
     zoom_factor: f32,
     #[serde(default)]
     image_dims: HashMap<String, [f32; 2]>,
+    /// Opt-in: show link previews by contacting each linked site for its
+    /// title/favicon/card. Off by default — contacting a site reveals the
+    /// reader's IP address and that they opened the note (and the URL may have
+    /// arrived via a shared note). Routed through `crate::egress`.
+    #[serde(default)]
+    contact_linked_sites: bool,
 }
 
 impl Default for WsPresistentData {
@@ -1292,6 +1298,7 @@ impl Default for WsPresistentData {
             landing_page: LandingPage::default(),
             zoom_factor: 1.,
             image_dims: HashMap::default(),
+            contact_linked_sites: false,
         }
     }
 }
@@ -1381,6 +1388,20 @@ impl WsPersistentStore {
     pub fn set_landing_page(&mut self, landing_page: LandingPage) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.landing_page = landing_page;
+        self.write_to_file();
+    }
+
+    pub fn get_contact_linked_sites(&self) -> bool {
+        self.data.read().unwrap().contact_linked_sites
+    }
+
+    pub fn set_contact_linked_sites(&mut self, contact_linked_sites: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.contact_linked_sites == contact_linked_sites {
+            return; // no-op guard: mobile pushes this from its per-frame draw
+        }
+        data_lock.contact_linked_sites = contact_linked_sites;
+        drop(data_lock);
         self.write_to_file();
     }
 
