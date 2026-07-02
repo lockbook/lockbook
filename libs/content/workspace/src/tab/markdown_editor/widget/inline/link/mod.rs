@@ -42,6 +42,17 @@ impl<'ast> MdRender {
         Format { color, underline: true, ..parent_text_format }
     }
 
+    /// Capsule "chip" format for a resolved autolink preview: the link colour on
+    /// a subtle surface, no underline (the pill is the affordance). Paired with
+    /// `StyleInfo { chip: true }`, the wrap layout paints the rounded capsule.
+    pub fn text_format_link_pill(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
+        Format {
+            background: self.ctx.get_lb_theme().neutral_bg_secondary(),
+            underline: false,
+            ..self.text_format_link(parent, state)
+        }
+    }
+
     /// `Icon` glyph (no underline) used for the touch-mode "open link"
     /// affordance appended after each link. Coloured to match the link's
     /// state so the button doesn't read as healthy-blue on a warning link.
@@ -107,6 +118,12 @@ impl<'ast> MdRender {
         egui::Id::new(("md_link", node_range))
     }
 
+    /// Click-target id for a link rendered as a capsule preview; distinct from
+    /// the plain-link salt so its embed-style tap handling doesn't collide.
+    pub fn link_capsule_id_salt(node_range: (Grapheme, Grapheme)) -> egui::Id {
+        egui::Id::new(("md_link_capsule", node_range))
+    }
+
     /// Emit a link as a circumfix. For autolinks with a fetched title,
     /// swap the URL bytes for the title via `push_override`. Empty-text
     /// links (`[](url)`) are not autolinks and have nothing to show, so
@@ -123,23 +140,16 @@ impl<'ast> MdRender {
         let parent = node.parent().unwrap();
         let state = self.link_state_for_url(&url);
         let link_fmt = self.text_format_link(parent, state.clone());
-        let revealed = self.range_revealed(node_range, is_auto);
+        // Interior-only: a cursor inside reveals raw markdown, but bordering or
+        // selecting the link keeps its rendered (preview / capsule) form.
+        let revealed = self.range_revealed_interior(node_range);
 
         // Block link-preview card on its own row. Interior-only reveal (like an
         // image): bordering keeps the card; a cursor inside falls through to the
         // editable inline link.
         let single_line = range.contains_range(&node_range, true, true);
-        if single_line
-            && !self.range_revealed_interior(node_range)
-            && self.layout_link_card(layout, node, &url)
-        {
+        if single_line && !revealed && self.layout_link_card(layout, node, &url) {
             return;
-        }
-
-        let cmd = self.ctx.input(|i| i.modifiers.command);
-        let salt = Self::link_interaction_id_salt(node_range);
-        if cmd {
-            layout.interaction_open(salt, egui::Sense::click());
         }
 
         let trimmed = node_range.trim(&range);
@@ -151,23 +161,48 @@ impl<'ast> MdRender {
         } else {
             None
         };
-        match title {
-            Some(t) => {
-                layout.style_open(StyleInfo::new(link_fmt.clone(), node_range));
-                layout.push_override(trimmed, &t, link_fmt.clone());
-                layout.style_close();
-            }
-            None => self.layout_circumfix(layout, node, range, link_fmt.clone()),
+
+        // Resolved autolink preview → a "chip" capsule (favicon + title, no
+        // underline) that behaves like the block card / inline image: tap selects,
+        // cmd/keyboard-tap opens (`handle_link_capsule_interactions`), interior
+        // reveal only.
+        if let Some(t) = title {
+            let pill_fmt = self.text_format_link_pill(parent, state.clone());
+            layout.interaction_open(Self::link_capsule_id_salt(node_range), egui::Sense::click());
+            layout.style_open(StyleInfo {
+                format: pill_fmt.clone(),
+                source_range: node_range,
+                chip: true,
+            });
+            // Leading em-space reserves the favicon slot (painted in
+            // `show_capsule_overlays`); it's in the title's source range, so the
+            // selection covers the favicon like text — no separate embed. The
+            // WORD JOINER removes the break opportunity after the em space
+            // (UAX#14 LB11) so the slot wraps with the title's first word
+            // instead of orphaning at the end of a line.
+            let text = if self.capsule_favicon_url(&url).is_some() {
+                format!("\u{2003}\u{2060}{t}")
+            } else {
+                t
+            };
+            layout.push_override(trimmed, &text, pill_fmt);
+            layout.style_close();
+            layout.interaction_close();
+            return;
         }
 
+        // Plain inline link (labeled, or an autolink whose title hasn't resolved):
+        // cmd-click opens (desktop); touch gets a trailing open affordance.
+        let cmd = self.ctx.input(|i| i.modifiers.command);
+        let salt = Self::link_interaction_id_salt(node_range);
+        if cmd {
+            layout.interaction_open(salt, egui::Sense::click());
+        }
+        self.layout_circumfix(layout, node, range, link_fmt.clone());
         if cmd {
             layout.interaction_close();
         }
 
-        // Touch-mode open-link affordance: tap the trailing icon to open
-        // the link (no cmd modifier on mobile). Only emit on the row that
-        // contains the link's end. Broken links have nothing to open, so
-        // they get no button.
         let broken = matches!(state, LinkState::Broken { .. });
         if self.touch_mode && !broken && range.contains_inclusive(node_range.end()) {
             let anchor = (node_range.end(), node_range.end());
@@ -180,6 +215,90 @@ impl<'ast> MdRender {
                 self.text_format_link_button(parent, state),
             );
             layout.interaction_close();
+        }
+    }
+
+    /// Favicon URL for a capsule preview's external link when previews are on
+    /// (not gated on load) — reserves the leading em-space slot in the title.
+    /// [`Self::show_link_favicons`] paints the icon over that slot once loaded.
+    pub(crate) fn capsule_favicon_url(&self, url: &str) -> Option<String> {
+        if !self.contact_linked_sites {
+            return None;
+        }
+        match self.get_link_meta(url) {
+            LinkMetaLookup::Loaded(meta) => meta.favicon_url,
+            _ => None,
+        }
+    }
+
+    /// Per-capsule overlays painted after content, before the selection/cursor
+    /// pass: the favicon over the title's em-space slot, then a selection tint on
+    /// top of a selected capsule (the opaque pill hides the under-text rect —
+    /// like images/cards).
+    pub fn show_capsule_overlays(&mut self, ui: &mut egui::Ui, root: &'ast AstNode<'ast>) {
+        let sel = self
+            .in_progress_selection
+            .unwrap_or(self.buffer.current.selection);
+        for node in root.descendants() {
+            let url = match &node.data.borrow().value {
+                NodeValue::Link(l) => l.url.clone(),
+                _ => continue,
+            };
+            let node_range = self.node_range(node);
+            let chip_rects: Vec<egui::Rect> = self
+                .fragments
+                .iter()
+                .filter(|f| {
+                    f.source_range.intersects(&node_range, true)
+                        && f.style_stack.last().is_some_and(|s| s.chip)
+                })
+                .map(|f| f.rect)
+                .collect();
+            if chip_rects.is_empty() {
+                continue; // not rendered as a capsule
+            }
+
+            // Favicon over the leading em-space slot, once its texture loads.
+            if let Some(favicon_url) = self.capsule_favicon_url(&url) {
+                self.embeds.prefetch(&favicon_url);
+                if self.embeds.is_loaded(&favicon_url) {
+                    let chip = chip_rects[0];
+                    let size = chip.height() * 0.7;
+                    let inset = chip.height() * 0.3;
+                    let icon_rect = egui::Rect::from_min_size(
+                        egui::Pos2::new(chip.min.x + inset, chip.center().y - size * 0.5),
+                        egui::Vec2::splat(size),
+                    );
+                    // Dark mode: a near-white tile behind the icon so dark
+                    // monochrome marks (e.g. GitHub) read against the dark pill;
+                    // opaque favicons simply hide it.
+                    if self.dark_mode {
+                        ui.painter()
+                            .rect_filled(icon_rect, 3.0, egui::Color32::from_gray(235));
+                    }
+                    self.embeds
+                        .show(ui, &favicon_url, icon_rect, egui::CornerRadius::same(3));
+                }
+            }
+
+            if !sel.is_empty() && sel.contains_range(&node_range, true, true) {
+                let theme = self.ctx.get_lb_theme();
+                let accent = theme.bg().get_color(theme.prefs().primary);
+                let tint =
+                    egui::Color32::from_rgba_unmultiplied(accent.r(), accent.g(), accent.b(), 90);
+                // Merge fragments into one rect per row so the selection reads as
+                // a single area (like a card), not a strip of small rects.
+                let mut rows: Vec<egui::Rect> = Vec::new();
+                for r in &chip_rects {
+                    match rows.iter_mut().find(|q| (q.top() - r.top()).abs() < 0.5) {
+                        Some(q) => *q = q.union(*r),
+                        None => rows.push(*r),
+                    }
+                }
+                for r in &rows {
+                    ui.painter().rect_filled(*r, 2.0, tint);
+                }
+            }
         }
     }
 

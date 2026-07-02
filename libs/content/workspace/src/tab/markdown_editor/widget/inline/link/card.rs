@@ -261,6 +261,25 @@ impl<'ast> MdEdit {
             self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
         }
     }
+
+    /// Open or select a link rendered as a capsule preview — the inline-link
+    /// counterpart to [`Self::handle_card_interactions`]. Only links that
+    /// rendered as a capsule have a registered response.
+    pub fn handle_link_capsule_interactions(
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
+        ops: &mut Vec<Operation>,
+    ) {
+        let open = self.embed_tap_opens(ui, keyboard_visible);
+        for node in root.descendants() {
+            let url = match &node.data.borrow().value {
+                NodeValue::Link(link) => link.url.clone(),
+                _ => continue,
+            };
+            let node_range = self.renderer.node_range(node);
+            let salt = MdRender::link_capsule_id_salt(node_range);
+            self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
+        }
+    }
 }
 
 /// Two faint bars standing in for the title/description while metadata loads.
