@@ -300,6 +300,7 @@ pub struct Editor {
     prev_dimensions: Option<Vec2>,
     prev_virtual_keyboard_shown: bool,
     embeds_seq: u64,
+    link_seq: u64,
 
     // interaction widgets (toolbar + find are Editor-owned; completion
     // widgets moved onto MdEdit so a standalone composer inherits them)
@@ -732,6 +733,7 @@ impl Editor {
             hmac,
             initialized: Default::default(),
             embeds_seq: 0,
+            link_seq: 0,
 
             toolbar: Default::default(),
             find: Default::default(),
@@ -853,6 +855,15 @@ impl Editor {
         let embeds_updated = embeds_seq != self.embeds_seq;
         self.embeds_seq = embeds_seq;
 
+        let link_seq = self
+            .edit
+            .renderer
+            .layout_cache
+            .link_seq
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let link_meta_updated = link_seq != self.link_seq;
+        self.link_seq = link_seq;
+
         // --- input phase ------------------------------------------------------
         // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
         // MdEdit's internal event queue, then let MdEdit::handle_input drain
@@ -861,6 +872,7 @@ impl Editor {
         self.edit.event.internal_events.extend(workspace_events);
 
         let prior_selection = self.edit.renderer.buffer.current.selection;
+        let prior_entered_atom = self.edit.renderer.entered_atom;
         let buf_resp = self.edit.handle_input(ui.ctx(), self.id());
         resp.open_camera = buf_resp.open_camera;
 
@@ -875,6 +887,14 @@ impl Editor {
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
+        // Loads completing (embed textures, link-preview metadata) reflow
+        // layout, moving the selection's on-screen rects without a selection
+        // change — signal so iOS re-queries its native selection/caret rects.
+        // Likewise entering/leaving an atom: Edit on a capsule re-selects the
+        // same range, but the reveal swaps the capsule for its raw source.
+        resp.selection_updated |= embeds_updated
+            || link_meta_updated
+            || prior_entered_atom != self.edit.renderer.entered_atom;
 
         let all_selected = self.edit.renderer.buffer.current.selection
             == (0.into(), self.edit.renderer.last_cursor_position());
