@@ -737,6 +737,10 @@ impl<'ast> MdRender {
             .collect();
         levels.reverse();
         let base_x = content_top_left.x - indent * levels.len() as f32;
+
+        let line_inflated = self.row_height_inflated_at_line(node, line);
+        let line_row_height = line_inflated.unwrap_or(row_height);
+
         for (k, level) in levels.iter().enumerate() {
             let range = self.line_own_prefix(level, line);
             if range.is_empty() {
@@ -758,7 +762,11 @@ impl<'ast> MdRender {
                     afs,
                     self.text_format_syntax(),
                 );
-                let baseline_shift = (row_height - afs) * 0.8;
+                let baseline_shift = if line_inflated.is_some() {
+                    (line_row_height - afs) / 2.0
+                } else {
+                    (row_height - afs) * 0.8
+                };
                 // `result.width` is the available width, not the laid-out
                 // marker width; measure the rightmost glyph edge instead.
                 let marker_width = result
@@ -775,14 +783,14 @@ impl<'ast> MdRender {
                 // (vertical nav round-trips).
                 for frag in &mut self.fragments[first..] {
                     frag.rect.min.y = content_top_left.y;
-                    frag.rect.max.y = content_top_left.y + row_height;
+                    frag.rect.max.y = content_top_left.y + line_row_height;
                 }
                 continue;
             }
 
             let rect = Rect::from_min_max(
                 Pos2::new(left, content_top_left.y),
-                Pos2::new(left + indent, content_top_left.y + row_height),
+                Pos2::new(left + indent, content_top_left.y + line_row_height),
             );
             self.fragments.push(Fragment {
                 rect,
@@ -892,8 +900,19 @@ impl<'ast> MdRender {
         while !leaf.data.borrow().value.contains_inlines() {
             leaf = leaf.children().next()?;
         }
-        let leaf_first_line = self.node_first_line(leaf);
-        let leaf_node_line = self.node_line(leaf, leaf_first_line);
+        self.row_height_inflated_at_line(leaf, self.node_first_line(leaf))
+    }
+
+    /// Visual height of `node`'s row at `line` when an inline image inflates
+    /// it; `None` otherwise.
+    pub fn row_height_inflated_at_line(
+        &self, node: &'ast AstNode<'ast>, line: (Grapheme, Grapheme),
+    ) -> Option<f32> {
+        let mut leaf = node;
+        while !leaf.data.borrow().value.contains_inlines() {
+            leaf = leaf.children().next()?;
+        }
+        let leaf_node_line = self.node_line(leaf, line);
         if leaf_node_line.is_empty() || self.disable_images {
             return None;
         }
