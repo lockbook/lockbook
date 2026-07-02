@@ -202,6 +202,12 @@ impl<'ast> MdEdit {
                     return response;
                 }
 
+                // Deleting against a collapsed image selects it (a second
+                // press deletes) rather than erasing a char of its source.
+                if self.delete_at_image(region, operations) {
+                    return response;
+                }
+
                 // delete container block prefix
                 let mut handled = || {
                     // must be mostly vanilla backspace
@@ -499,6 +505,9 @@ impl<'ast> MdEdit {
                             .apply_fold(node, self.renderer.item_contents(node), unapply);
                     }
                 }
+            }
+            Event::EnterAtom => {
+                self.enter_at_image(root, operations);
             }
         }
 
@@ -1126,11 +1135,16 @@ impl<'ast> MdEdit {
             // Anchor / empty-range fragment: every position maps to
             // its source point.
             frag.source_range.start().into_range()
-        } else if frag.atomic {
-            // Override / atomic fragment: hit-test snaps to the
-            // nearest edge of its source range, returning the full
-            // range so callers that want "select the whole thing"
-            // get that semantics.
+        } else if frag.atomic
+            && !matches!(
+                frag.content,
+                crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent::Image { .. }
+            )
+        {
+            // Atomic fragment (marker, indentation): a click selects the whole
+            // range. Images are excluded — clicking *near* one (resolved as the
+            // nearest fragment) places a cursor at its edge; selecting the image
+            // is reserved for a click on it via `handle_image_interactions`.
             frag.source_range
         } else {
             self.renderer.fragment_offset(frag, pos.x).into_range()

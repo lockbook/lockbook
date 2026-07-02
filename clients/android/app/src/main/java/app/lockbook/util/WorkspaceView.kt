@@ -387,7 +387,7 @@ class WorkspaceView(
 
                 if (response.hasEditMenu && contextMenu == null) {
                     val actionModeCallback =
-                        TextEditorContextMenu(textInputWrapper)
+                        TextEditorContextMenu(textInputWrapper, response.editMenuForAtom)
 
                     contextMenu =
                         this@WorkspaceView.startActionMode(
@@ -559,6 +559,8 @@ class WorkspaceView(
         const val SPEN_ACTION_DOWN = 211
         const val SPEN_ACTION_MOVE = 213
         const val SPEN_ACTION_UP = 212
+
+        const val EDIT_ATOM_MENU_ID = 0x00E0170A // arbitrary; distinct from android.R.id.*
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -606,6 +608,7 @@ class WorkspaceView(
 
     inner class TextEditorContextMenu(
         private val textInputWrapper: WorkspaceTextInputWrapper,
+        private val forAtom: Boolean = false,
     ) : ActionMode.Callback {
         override fun onCreateActionMode(
             mode: ActionMode?,
@@ -625,6 +628,14 @@ class WorkspaceView(
         }
 
         private fun populateMenuWithItems(menu: Menu) {
+            if (forAtom) {
+                // select the URL inside the image atom, revealing its source —
+                // the only touch path in, since mobile has no arrow keys
+                menu
+                    .add(Menu.NONE, EDIT_ATOM_MENU_ID, 0, "Edit")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+
             if (!textInputWrapper.wsInputConnection.wsEditable
                     .getSelection()
                     .isEmpty()
@@ -660,7 +671,14 @@ class WorkspaceView(
             item: MenuItem?,
         ): Boolean {
             if (item != null) {
-                textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
+                if (item.itemId == EDIT_ATOM_MENU_ID) {
+                    Workspace.enterSelectedAtom(wgpuObj)
+                    // schedule the frame that processes the event, whose selection
+                    // update then flows back via `response.selectionUpdated`
+                    invalidate()
+                } else {
+                    textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
+                }
             }
 
             if (contextMenu != null) {

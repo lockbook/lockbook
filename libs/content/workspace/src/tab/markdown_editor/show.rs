@@ -18,9 +18,9 @@ use egui::{Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, V
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
-use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::ScrollTarget;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
+use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::IconButton;
@@ -172,7 +172,9 @@ impl MdEdit {
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
-        let pre = self.pre_render(ui, rect, id, root);
+        // Composer entry point (chat); no keyboard-state plumbing — image
+        // taps there fall back to desktop/cmd gating via `touch_mode`.
+        let pre = self.pre_render(ui, rect, id, root, false);
 
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
@@ -444,6 +446,7 @@ impl MdEdit {
     /// selection. Returns the focus state for [`MdEdit::post_render`].
     pub fn pre_render<'a>(
         &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
+        keyboard_visible: bool,
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
         self.renderer.viewport_height = ui.clip_rect().height();
@@ -475,6 +478,9 @@ impl MdEdit {
         self.renderer.handle_fold_interactions(ui);
 
         let mut ops = Vec::new();
+
+        // image taps → open (cmd / keyboard-hidden) or select
+        self.handle_image_interactions(root, ui, id, keyboard_visible, &mut ops);
 
         // --- context menu (desktop only) -------------------------------------
         ui.ctx()
@@ -555,6 +561,7 @@ impl MdEdit {
                         ctx.set_context_menu(
                             self.context_menu_pos(range, rect.intersect(ui.clip_rect()))
                                 .unwrap_or(pos),
+                            ContextMenuTarget::Text,
                         );
                         Some(Region::BoundAt { bound: Bound::Word, location, backwards: true })
                     } else if self.renderer.buffer.current.selection.is_empty() {
@@ -578,13 +585,14 @@ impl MdEdit {
                         ctx.set_context_menu(
                             self.context_menu_pos(selection, rect.intersect(ui.clip_rect()))
                                 .unwrap_or(pos),
+                            ContextMenuTarget::Text,
                         );
                         None
                     } else {
                         Some(Region::Location(location))
                     }
                 } else if response.secondary_clicked() {
-                    ctx.set_context_menu(pos);
+                    ctx.set_context_menu(pos, ContextMenuTarget::Text);
                     None
                 } else if response.drag_stopped() {
                     std::mem::take(&mut self.in_progress_selection).map(Region::from)
