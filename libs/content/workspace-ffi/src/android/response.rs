@@ -73,8 +73,8 @@ impl From<crate::Response> for AndroidResponse {
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,
             has_edit_menu: context_menu.is_some(),
-            edit_menu_x: context_menu.unwrap_or_default().x,
-            edit_menu_y: context_menu.unwrap_or_default().y,
+            edit_menu_x: context_menu.unwrap_or_default().0.x,
+            edit_menu_y: context_menu.unwrap_or_default().0.y,
             virtual_keyboard_shown,
         }
     }

@@ -2,7 +2,7 @@ use egui::{
     Context, CursorIcon, OutputCommand, PlatformOutput, ViewportCommand, ViewportIdMap,
     ViewportOutput,
 };
-use workspace_rs::tab::ExtendedOutput;
+use workspace_rs::tab::{ContextMenuTarget, ExtendedOutput};
 
 // This general purpose workspace-ffi response captures the workspace widget response and platform response, but each
 // platform translates the workspace response into its own platform-specific response with just those fields that make
@@ -20,7 +20,7 @@ pub struct Response {
     pub virtual_keyboard_shown: Option<bool>,
     pub window_title: Option<String>,
     pub request_paste: bool,
-    pub context_menu: Option<egui::Pos2>,
+    pub context_menu: Option<(egui::Pos2, ContextMenuTarget)>,
 }
 
 impl Response {
