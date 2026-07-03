@@ -189,6 +189,34 @@ mod tests {
         assert_eq!(contents, ["hello", "one", "two"]);
     }
 
+    /// Clear vs. concurrent send: the clear erases exactly what the clearer
+    /// had seen (base-contained messages), while a message written
+    /// concurrently on the other side survives — words are never silently
+    /// destroyed. Both sync orders converge on the same result.
+    #[test]
+    fn clear_vs_concurrent_send_converges() {
+        let base = line("a", "one", 1) + &line("b", "two", 2);
+        let cleared = String::new();
+        let extended = base.clone() + &line("b", "three", 3);
+
+        // The clearer pushed first: the sender merges their send into it.
+        let sender_view =
+            Buffer::merge(base.as_bytes(), extended.as_bytes(), cleared.as_bytes());
+        // The sender pushed first: the clearer merges the send into the clear.
+        let clearer_view =
+            Buffer::merge(base.as_bytes(), cleared.as_bytes(), extended.as_bytes());
+
+        let contents = |bytes: &[u8]| {
+            Buffer::new(bytes)
+                .messages
+                .iter()
+                .map(|m| m.content.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(contents(&sender_view), ["three"]);
+        assert_eq!(contents(&clearer_view), ["three"]);
+    }
+
     /// A client that doesn't know a field must carry it through parse →
     /// merge → serialize untouched, or newer clients' data gets stripped.
     #[test]
