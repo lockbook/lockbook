@@ -33,6 +33,8 @@ mod anthropic;
 #[cfg(not(target_family = "wasm"))]
 mod backend;
 #[cfg(not(target_family = "wasm"))]
+mod glyphs;
+#[cfg(not(target_family = "wasm"))]
 mod harness;
 #[cfg(not(target_family = "wasm"))]
 mod openai;
@@ -343,6 +345,9 @@ pub struct Chat {
     /// provider B's picker.
     #[cfg(not(target_family = "wasm"))]
     models_err: Option<(ModelsKey, String)>,
+    /// Brand glyph textures for the picker, rasterized on first use.
+    #[cfg(not(target_family = "wasm"))]
+    glyphs: glyphs::Glyphs,
 }
 
 #[cfg(not(target_family = "wasm"))]
@@ -457,6 +462,8 @@ impl Chat {
             pending_parent: None,
             #[cfg(not(target_family = "wasm"))]
             models: None,
+            #[cfg(not(target_family = "wasm"))]
+            glyphs: glyphs::Glyphs::default(),
             #[cfg(not(target_family = "wasm"))]
             models_rx: None,
             #[cfg(not(target_family = "wasm"))]
@@ -1758,6 +1765,16 @@ impl Chat {
             let mut add: Option<&'static str> = None;
             let mut open_instructions = false;
             let provider_resp = dropdown(ui, "chat_provider_btn", &current.label());
+            let glyphs = &mut self.glyphs;
+            // A row with the provider's brand mark, tinted like its text —
+            // similar names in this space (Groq vs Grok) make a wordlist
+            // menu genuinely confusable.
+            let mut glyph_row = |ui: &mut egui::Ui, name: &str, label: &str, selected: bool| {
+                let image = egui::Image::from_texture(glyphs.get(ui.ctx(), name))
+                    .fit_to_exact_size(egui::vec2(14.0, 14.0))
+                    .tint(if selected { text_color } else { secondary_color });
+                ui.add(egui::Button::image_and_text(image, row_text(label, selected)))
+            };
             egui::Popup::menu(&provider_resp)
                 .align(egui::RectAlign::TOP_START)
                 .show(|ui| {
@@ -1796,9 +1813,7 @@ impl Chat {
                         }
                         rendered_any = true;
                         for p in group {
-                            if ui
-                                .button(row_text(&p.label(), p.name == current.name))
-                                .clicked()
+                            if glyph_row(ui, &p.name, &p.label(), p.name == current.name).clicked()
                             {
                                 // Sticky per provider: switching back lands
                                 // on the model it last ran with.
@@ -1821,9 +1836,7 @@ impl Chat {
                                 ui.separator();
                             }
                             for (name, json) in group.iter() {
-                                if ui
-                                    .button(row_text(&template_label(name, json), false))
-                                    .clicked()
+                                if glyph_row(ui, name, &template_label(name, json), false).clicked()
                                 {
                                     add = Some(name);
                                     ui.close();
