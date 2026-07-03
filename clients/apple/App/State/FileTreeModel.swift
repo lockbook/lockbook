@@ -3,6 +3,7 @@ import SwiftWorkspace
 
 @Observable class FileTreeModel {
     var openFolders: Set<UUID> = []
+    var dropTarget: File? = nil
 
     private let filesModel: FilesModel
 

@@ -108,6 +108,16 @@ import SwiftWorkspace
         }
     }
 
+    func moveFiles(_ files: [File], into dest: File) -> Bool {
+        let movable = files.filter { canMove($0, into: dest) }
+
+        for file in movable {
+            moveFile(id: file.id, newParent: dest.id)
+        }
+
+        return !movable.isEmpty
+    }
+
     func acceptShare(file: File) {
         guard let root else {
             return

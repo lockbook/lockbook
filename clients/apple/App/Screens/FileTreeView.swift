@@ -9,7 +9,6 @@ struct FileTreeView: View {
     let fileTreeModel: FileTreeModel
 
     @State private var isRootDropTargeted = false
-    @State private var isRowDropTargeted = false
     @State private var topZoneTargeted = false
     @State private var bottomZoneTargeted = false
     @State private var showAutoScrollZones = false
@@ -17,6 +16,7 @@ struct FileTreeView: View {
     @State private var atBottom = false
     @State private var zoneDecayTask: Task<Void, Never>?
     @State private var stickyHeaders: [File] = []
+    @State private var dragScrollTop: CGFloat = 0
     @State private var scrollPosition = ScrollPosition()
     @State private var autoScroll = AutoScrollDriver()
 
@@ -32,8 +32,8 @@ struct FileTreeView: View {
                 .padding(.horizontal)
             }
             .scrollPosition($scrollPosition)
-            .onChange(of: workspaceOutput.openDoc) {
-                guard let openDoc = workspaceOutput.openDoc else { return }
+            .onChange(of: workspaceOutput.openDoc) { _, openDoc in
+                guard let openDoc else { return }
                 Task {
                     withAnimation {
                         scrollPosition.scrollTo(id: openDoc, anchor: .center)
@@ -54,23 +54,36 @@ struct FileTreeView: View {
                     atBottom = top >= maxOffset - 2
                 }
 
-                updateStickyHeaders()
+                if fileTreeModel.dropTarget != nil {
+                    dragScrollTop = top
+                }
             }
-            .onPreferenceChange(DropTargetActiveKey.self) { targeted in
-                isRowDropTargeted = targeted
+            .onScrollTargetVisibilityChange(idType: UUID.self, threshold: 0.3) { visibleIds in
+                updateStickyHeaders(visibleIds: visibleIds)
+            }
+            .onChange(of: fileTreeModel.dropTarget) { _, target in
+                if target != nil, let scroll = autoScroll.scroll {
+                    dragScrollTop = scroll.contentOffset.y + scroll.contentInsets.top
+                }
                 updateDragActivity()
             }
             .onDisappear {
                 stopAutoScroll()
                 zoneDecayTask?.cancel()
+                fileTreeModel.dropTarget = nil
             }
             .dropDestination(for: File.self) { dropped, _ in
-                moveToRoot(dropped, root: root)
+                filesModel.moveFiles(dropped, into: root)
             } isTargeted: { targeted in
                 withAnimation(.easeInOut(duration: 0.12)) {
                     isRootDropTargeted = targeted
                 }
                 updateDragActivity()
+            }
+            .overlay(alignment: .top) {
+                if let target = fileTreeModel.dropTarget, target.isFolder {
+                    dropRegionIndicator(for: target)
+                }
             }
             .overlay {
                 if isRootDropTargeted {
@@ -107,39 +120,63 @@ struct FileTreeView: View {
         }
     }
 
-    private func moveToRoot(_ dropped: [File], root: File) -> Bool {
-        let movable = dropped.filter { filesModel.canMove($0, into: root) }
-        guard !movable.isEmpty else {
-            return false
+    @ViewBuilder
+    private func dropRegionIndicator(for folder: File) -> some View {
+        if let region = dropRegionFrame(for: folder) {
+            RoundedRectangle(cornerRadius: 5, style: .continuous)
+                .fill(Color.accentColor.opacity(0.08))
+                .overlay {
+                    RoundedRectangle(cornerRadius: 5, style: .continuous)
+                        .strokeBorder(Color.accentColor.opacity(0.7), lineWidth: 1.5)
+                }
+                .frame(height: region.height)
+                .padding(.horizontal, 8)
+                .offset(y: region.minY)
+                .allowsHitTesting(false)
         }
-
-        for file in movable {
-            filesModel.moveFile(id: file.id, newParent: root.id)
-        }
-
-        return true
     }
 
-    private func updateStickyHeaders() {
+    private func dropRegionFrame(for folder: File) -> (minY: CGFloat, height: CGFloat)? {
         let rows = fileTreeModel.visibleRows
+        guard let scroll = autoScroll.scroll,
+              let start = rows.firstIndex(where: { $0.id == folder.id })
+        else {
+            return nil
+        }
+
+        var end = start
+        while end + 1 < rows.count, rows[end + 1].level > rows[start].level {
+            end += 1
+        }
+
+        let pitch = max(1, scroll.contentSize.height / CGFloat(rows.count))
+        let minY = max(CGFloat(start) * pitch - dragScrollTop, 0)
+        let maxY = min(
+            CGFloat(end + 1) * pitch - dragScrollTop,
+            scroll.containerSize.height - scroll.contentInsets.top - scroll.contentInsets.bottom
+        )
+
+        guard maxY > minY else {
+            return nil
+        }
+
+        return (minY, maxY - minY)
+    }
+
+    #if os(iOS)
+        private static let minStickyBaseIndex = 2
+    #else
+        private static let minStickyBaseIndex = 1
+    #endif
+
+    private func updateStickyHeaders(visibleIds: [UUID]) {
+        let visible = Set(visibleIds)
+
         var headers: [File] = []
-
-        if let scroll = autoScroll.scroll, !rows.isEmpty {
-            let top = scroll.contentOffset.y + scroll.contentInsets.top
-
-            if top > 2 {
-                let pitch = max(1, scroll.contentSize.height / CGFloat(rows.count))
-                let baseIndex = Int(top / pitch)
-
-                for offset in 0 ..< 32 {
-                    let index = min(max(baseIndex + offset, 0), rows.count - 1)
-                    headers = ancestors(of: rows[index].file)
-
-                    if headers.count <= offset {
-                        break
-                    }
-                }
-            }
+        if let baseIndex = fileTreeModel.visibleRows.firstIndex(where: { visible.contains($0.id) }),
+           baseIndex >= Self.minStickyBaseIndex
+        {
+            headers = stickyChain(fromRowAt: baseIndex)
         }
 
         if stickyHeaders != headers {
@@ -147,6 +184,33 @@ struct FileTreeView: View {
                 stickyHeaders = headers
             }
         }
+    }
+
+    private func stickyChain(fromRowAt baseIndex: Int) -> [File] {
+        let rows = fileTreeModel.visibleRows
+        guard !rows.isEmpty else {
+            return []
+        }
+
+        func row(_ index: Int) -> FileTreeRow {
+            rows[min(max(index, 0), rows.count - 1)]
+        }
+
+        var headers: [File] = []
+
+        for offset in 0 ..< 32 {
+            headers = ancestors(of: row(baseIndex + offset).file)
+
+            if headers.count <= offset {
+                break
+            }
+        }
+
+        if headers.isEmpty {
+            headers = ancestors(of: row(baseIndex).file)
+        }
+
+        return headers
     }
 
     private func ancestors(of file: File) -> [File] {
@@ -164,7 +228,7 @@ struct FileTreeView: View {
     private func stickyHeaderStack(_ files: [File]) -> some View {
         VStack(spacing: 0) {
             ForEach(Array(files.enumerated()), id: \.element.id) { level, file in
-                stickyHeaderRow(file, level: CGFloat(level))
+                stickyHeaderRow(file, level: level)
             }
         }
         .background(.bar)
@@ -174,11 +238,9 @@ struct FileTreeView: View {
         .transition(.opacity)
     }
 
-    private func stickyHeaderRow(_ file: File, level: CGFloat) -> some View {
+    private func stickyHeaderRow(_ file: File, level: Int) -> some View {
         Button {
-            withAnimation {
-                scrollPosition.scrollTo(id: file.id, anchor: .top)
-            }
+            scrollToRevealBelowHeaders(file, headerCount: level)
         } label: {
             HStack {
                 Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
@@ -194,11 +256,27 @@ struct FileTreeView: View {
                 Spacer()
             }
             .padding(.vertical, 9)
-            .padding(.leading, level * 20)
+            .padding(.leading, CGFloat(level) * 20)
             .padding(.horizontal)
             .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
+    }
+
+    private func scrollToRevealBelowHeaders(_ file: File, headerCount: Int) {
+        let rows = fileTreeModel.visibleRows
+        guard let index = rows.firstIndex(where: { $0.id == file.id }) else {
+            return
+        }
+
+        var anchorIndex = max(index - headerCount, 0)
+        while anchorIndex > 0, stickyChain(fromRowAt: anchorIndex).count > index - anchorIndex {
+            anchorIndex -= 1
+        }
+
+        withAnimation {
+            scrollPosition.scrollTo(id: rows[anchorIndex].id, anchor: .top)
+        }
     }
 
     private func autoScrollZone(direction: Int) -> some View {
@@ -221,11 +299,15 @@ struct FileTreeView: View {
         } isTargeted: { targeted in
             setZoneTargeted(direction, targeted)
         }
+        .onDisappear {
+            setZoneTargeted(direction, false)
+        }
         .transition(.opacity)
     }
 
     private func updateDragActivity() {
-        let active = isRootDropTargeted || isRowDropTargeted || topZoneTargeted || bottomZoneTargeted
+        let active = isRootDropTargeted || topZoneTargeted || bottomZoneTargeted
+            || fileTreeModel.dropTarget != nil
 
         zoneDecayTask?.cancel()
         zoneDecayTask = nil
@@ -322,14 +404,6 @@ final class AutoScrollDriver {
     var rowIndex: Int = 0
 }
 
-struct DropTargetActiveKey: PreferenceKey {
-    static let defaultValue = false
-
-    static func reduce(value: inout Bool, nextValue: () -> Bool) {
-        value = value || nextValue()
-    }
-}
-
 struct FileRowView: View {
     @Environment(FilesModel.self) private var filesModel
     @Environment(FileTreeModel.self) private var fileTreeModel
@@ -342,12 +416,8 @@ struct FileRowView: View {
     @State private var isDropTargeted = false
     @State private var springOpenTask: Task<Void, Never>?
 
-    var children: [File] {
-        filesModel.childrenByParent[file.id] ?? []
-    }
-
     var isLeaf: Bool {
-        children.isEmpty
+        (filesModel.childrenByParent[file.id] ?? []).isEmpty
     }
 
     var isOpen: Bool {
@@ -365,7 +435,6 @@ struct FileRowView: View {
             } isTargeted: { targeted in
                 setDropTargeted(targeted)
             }
-            .preference(key: DropTargetActiveKey.self, value: isDropTargeted)
     }
 
     var fileRow: some View {
@@ -404,10 +473,13 @@ struct FileRowView: View {
         .padding(.leading, level * 20 + 5)
         .padding(.trailing, 10)
         .modifier(OpenDocModifier(file: file))
-        .background {
-            if isDropTargeted {
-                RoundedRectangle(cornerRadius: 5, style: .continuous)
-                    .fill(Color.accentColor.opacity(0.35))
+        .overlay(alignment: .bottom) {
+            if isDropTargeted, !file.isFolder {
+                Capsule()
+                    .fill(Color.accentColor)
+                    .frame(height: 2.5)
+                    .padding(.leading, level * 20 + 5)
+                    .padding(.trailing, 10)
             }
         }
     }
@@ -430,6 +502,12 @@ struct FileRowView: View {
             isDropTargeted = targeted
         }
 
+        if targeted {
+            fileTreeModel.dropTarget = file
+        } else if fileTreeModel.dropTarget == file {
+            fileTreeModel.dropTarget = nil
+        }
+
         springOpenTask?.cancel()
         springOpenTask = nil
 
@@ -450,17 +528,8 @@ struct FileRowView: View {
     }
 
     private func drop(_ dropped: [File]) -> Bool {
-        guard let dest = dropDestinationFolder else {
+        guard let dest = dropDestinationFolder, filesModel.moveFiles(dropped, into: dest) else {
             return false
-        }
-
-        let movable = dropped.filter { filesModel.canMove($0, into: dest) }
-        guard !movable.isEmpty else {
-            return false
-        }
-
-        for dragged in movable {
-            filesModel.moveFile(id: dragged.id, newParent: dest.id)
         }
 
         withAnimation {

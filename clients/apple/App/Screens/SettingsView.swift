@@ -6,11 +6,8 @@ import SwiftWorkspace
         @State private var model = SettingsModel()
 
         @State private var confirmLogout = false
-        @State private var confirmCancelSubscription = false
         @State private var confirmDeleteAccount = false
         @State private var showAccountKeys = false
-
-        @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
 
         var body: some View {
             Form {
@@ -46,57 +43,7 @@ import SwiftWorkspace
                 }
 
                 Section("Usage") {
-                    if let isPremium = model.isPremium {
-                        HStack {
-                            Text("Current Tier:")
-                            Spacer()
-                            Text(isPremium ? "Premium" : "Free")
-                        }
-
-                        if !isPremium {
-                            NavigationLink("Upgrade now") {
-                                UpgradeAccountView(settingsModel: model)
-                            }
-                        }
-                    }
-
-                    if let usage = model.usage {
-                        VStack {
-                            HStack {
-                                Text("Server Utilization:")
-                                Spacer()
-                                Text("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
-                            }
-
-                            ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
-                                .padding(.top, 10)
-                                .padding(.bottom, 8)
-                        }
-                    } else {
-                        ProgressView()
-                    }
-
-                    Picker("Display Mode", selection: $usageBarMode) {
-                        ForEach(UsageBarDisplayMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    if model.isPremium == true {
-                        Button("Cancel Subscription", role: .destructive) {
-                            confirmCancelSubscription = true
-                        }
-                        .confirmationDialog(
-                            "Are you sure you want to cancel your subscription?",
-                            isPresented: $confirmCancelSubscription,
-                            titleVisibility: .visible
-                        ) {
-                            Button("Confirm", role: .destructive) {
-                                model.cancelSubscription()
-                            }
-                        }
-                    }
+                    UsageSettingsRows(model: model)
                 }
 
                 Section("Privacy") {
@@ -273,68 +220,10 @@ import SwiftWorkspace
     struct SettingsUsageView: View {
         let model: SettingsModel
 
-        @State private var confirmCancelSubscription = false
-
-        @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
-
         var body: some View {
             Form {
                 Section("Usage") {
-                    if let isPremium = model.isPremium {
-                        HStack {
-                            Text("Current Tier:")
-                            Spacer()
-                            Text(isPremium ? "Premium" : "Free")
-                        }
-
-                        if !isPremium {
-                            NavigationLink("Upgrade Now") {
-                                UpgradeAccountView(settingsModel: model)
-                            }
-                        }
-                    }
-
-                    if let usage = model.usage {
-                        VStack {
-                            HStack {
-                                Text("Server Utilization:")
-                                Spacer()
-                                Text("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
-                            }
-
-                            ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
-                                .padding(.top, 10)
-                                .padding(.bottom, 8)
-                        }
-                    } else {
-                        ProgressView()
-                    }
-
-                    Picker("Display Mode", selection: $usageBarMode) {
-                        ForEach(UsageBarDisplayMode.allCases) { mode in
-                            Text(mode.label).tag(mode)
-                        }
-                    }
-                    .pickerStyle(.menu)
-
-                    if model.isPremium == true {
-                        HStack {
-                            Text("Cancel Subscription")
-                            Spacer()
-                            Button("Cancel Subscription", role: .destructive) {
-                                confirmCancelSubscription = true
-                            }
-                        }
-                        .confirmationDialog(
-                            "Are you sure you want to cancel your subscription?",
-                            isPresented: $confirmCancelSubscription,
-                            titleVisibility: .visible
-                        ) {
-                            Button("Confirm", role: .destructive) {
-                                model.cancelSubscription()
-                            }
-                        }
-                    }
+                    UsageSettingsRows(model: model)
                 }
             }
             .formStyle(.grouped)
@@ -367,6 +256,68 @@ import SwiftWorkspace
         }
     }
 #endif
+
+struct UsageSettingsRows: View {
+    let model: SettingsModel
+
+    @State private var confirmCancelSubscription = false
+
+    @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
+
+    var body: some View {
+        if let isPremium = model.isPremium {
+            HStack {
+                Text("Current Tier:")
+                Spacer()
+                Text(isPremium ? "Premium" : "Free")
+            }
+
+            if !isPremium {
+                NavigationLink("Upgrade now") {
+                    UpgradeAccountView(settingsModel: model)
+                }
+            }
+        }
+
+        if let usage = model.usage {
+            VStack {
+                HStack {
+                    Text("Server Utilization:")
+                    Spacer()
+                    Text("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
+                }
+
+                ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
+                    .padding(.top, 10)
+                    .padding(.bottom, 8)
+            }
+        } else {
+            ProgressView()
+        }
+
+        Picker("Display Mode", selection: $usageBarMode) {
+            ForEach(UsageBarDisplayMode.allCases) { mode in
+                Text(mode.label).tag(mode)
+            }
+        }
+        .pickerStyle(.menu)
+
+        if model.isPremium == true {
+            Button("Cancel Subscription", role: .destructive) {
+                confirmCancelSubscription = true
+            }
+            .confirmationDialog(
+                "Are you sure you want to cancel your subscription?",
+                isPresented: $confirmCancelSubscription,
+                titleVisibility: .visible
+            ) {
+                Button("Confirm", role: .destructive) {
+                    model.cancelSubscription()
+                }
+            }
+        }
+    }
+}
 
 struct AccountKeysView: View {
     let accountKey = (try? AppState.lb.exportAccountPrivateKey().get()) ?? "ERROR"
