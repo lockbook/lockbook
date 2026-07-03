@@ -200,11 +200,9 @@ mod tests {
         let extended = base.clone() + &line("b", "three", 3);
 
         // The clearer pushed first: the sender merges their send into it.
-        let sender_view =
-            Buffer::merge(base.as_bytes(), extended.as_bytes(), cleared.as_bytes());
+        let sender_view = Buffer::merge(base.as_bytes(), extended.as_bytes(), cleared.as_bytes());
         // The sender pushed first: the clearer merges the send into the clear.
-        let clearer_view =
-            Buffer::merge(base.as_bytes(), cleared.as_bytes(), extended.as_bytes());
+        let clearer_view = Buffer::merge(base.as_bytes(), cleared.as_bytes(), extended.as_bytes());
 
         let contents = |bytes: &[u8]| {
             Buffer::new(bytes)
