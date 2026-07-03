@@ -30,6 +30,7 @@ use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::search::{Search, SearchType};
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
+#[cfg(not(target_family = "wasm"))]
 use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{
@@ -317,6 +318,18 @@ impl Workspace {
         self.out.selected_file = self.current_tab_id();
     }
 
+    /// Reload every open chat's provider config off-thread. Called when an
+    /// `/.agent` file changes (edited, deleted from the tree, or synced) so a
+    /// chat reflects the change without needing a tab switch.
+    #[cfg(not(target_family = "wasm"))]
+    fn reload_chat_configs(&mut self) {
+        for tab in self.tabs.values_mut() {
+            if let Some(chat) = tab.chat_mut() {
+                chat.kick_config_load();
+            }
+        }
+    }
+
     pub fn current_tab_title(&self) -> Option<String> {
         self.current_tab().map(|tab| self.tab_title(tab))
     }
@@ -348,7 +361,17 @@ impl Workspace {
         if tab.markdown().is_some() {
             tab.markdown_mut().map(|md| &mut md.edit)
         } else {
-            tab.chat_mut().map(|chat| &mut chat.composer)
+            #[cfg(not(target_family = "wasm"))]
+            {
+                // While the connect step is open, the key field is the focused
+                // editor so the native keyboard/caret target it, not the
+                // composer.
+                tab.chat_mut().map(|chat| chat.focused_field())
+            }
+            #[cfg(target_family = "wasm")]
+            {
+                None
+            }
         }
     }
 
@@ -653,22 +676,40 @@ impl Workspace {
         loop {
             match self.lb_rx.try_recv() {
                 Ok(evt) => {
-                    if let Event::DocumentWritten(id, actor) = evt {
-                        if actor == Actor::Sync {
-                            self.core.app_foregrounded();
-                            let has_open_tab = self
-                                .tab_strip
-                                .iter()
-                                .any(|s| s.dest.id() == id && self.tabs.contains_key(&s.dest));
-                            if has_open_tab {
-                                self.tasks.queue_load(LoadRequest {
-                                    id,
-                                    tab_created: false,
-                                    make_current: false,
-                                    is_preview: false,
-                                });
+                    match evt {
+                        Event::DocumentWritten(id, actor) => {
+                            if actor == Actor::Sync {
+                                self.core.app_foregrounded();
+                                let has_open_tab = self
+                                    .tab_strip
+                                    .iter()
+                                    .any(|s| s.dest.id() == id && self.tabs.contains_key(&s.dest));
+                                if has_open_tab {
+                                    self.tasks.queue_load(LoadRequest {
+                                        id,
+                                        tab_created: false,
+                                        make_current: false,
+                                        is_preview: false,
+                                    });
+                                }
+                            }
+                            // A provider/prompt file's contents changed (edited
+                            // here or synced) — refresh the chats that read it.
+                            #[cfg(not(target_family = "wasm"))]
+                            {
+                                let is_agent_config =
+                                    self.files.read().unwrap().path(id).starts_with("/.agent/");
+                                if is_agent_config {
+                                    self.reload_chat_configs();
+                                }
                             }
                         }
+                        // Create/delete/move/rename carries no id, so a deleted
+                        // provider file (e.g. from the file-tree menu) can't be
+                        // matched — refresh every chat's config unconditionally.
+                        #[cfg(not(target_family = "wasm"))]
+                        Event::MetadataChanged(_) => self.reload_chat_configs(),
+                        _ => {}
                     }
                 }
                 #[cfg(not(target_family = "wasm"))]
@@ -863,6 +904,7 @@ impl Workspace {
                                 svg.open_file_hmac = maybe_hmac;
                             }
                         }
+                        #[cfg(not(target_family = "wasm"))]
                         DocType::Chat => {
                             let reload = tab.chat().is_some() && !tab_created;
                             if !reload {
@@ -977,9 +1019,12 @@ impl Workspace {
                                         svg.open_file_hmac = Some(hmac);
                                         svg.opened_content = *content;
                                     }
-                                } else if let Some(chat) = tab.chat_mut() {
-                                    if let TabSaveContent::Bytes(content) = content {
-                                        chat.saved(hmac, content);
+                                } else {
+                                    #[cfg(not(target_family = "wasm"))]
+                                    if let Some(chat) = tab.chat_mut() {
+                                        if let TabSaveContent::Bytes(content) = content {
+                                            chat.saved(hmac, content);
+                                        }
                                     }
                                 }
                             }

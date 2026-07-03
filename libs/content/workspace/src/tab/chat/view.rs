@@ -1,9 +1,93 @@
 //! Rendering and hit-testing for the chat tab: the transcript's two-pass
-//! measure→paint layout, the composer and toolbar, first-run guidance, and
-//! touch geometry. All pixel-pushing, no data logic — the reviewable state
-//! lives in the parent module and `config`.
+//! measure→paint layout, the composer and toolbar, the onboarding / connect /
+//! empty-state canvas, and touch geometry. All pixel-pushing, no data logic —
+//! the reviewable state lives in the parent module and `config`.
 
 use super::*;
+
+/// A vertically-stacked, horizontally-centered column painted as one block in
+/// a rect — the shared skeleton of the onboarding chooser, connect step,
+/// status line, and empty-state marker, which otherwise centered themselves by
+/// hand. The total height is *derived* from the pushed items rather than summed
+/// per site; getting that sum wrong (a stray or missing gap term) was a
+/// recurring spacing bug.
+#[derive(Default)]
+struct CenteredColumn {
+    /// (gap above the item, item), top to bottom.
+    items: Vec<(f32, ColItem)>,
+}
+
+enum ColItem {
+    /// A pre-colored galley. `halign_center` (a wrapped paragraph laid out with
+    /// `Align::Center`) anchors at the column center; otherwise it centers by
+    /// its own width.
+    Galley {
+        galley: Arc<Galley>,
+        halign_center: bool,
+    },
+    Glyph {
+        tex: egui::TextureId,
+        size: f32,
+        tint: egui::Color32,
+    },
+    /// Space for the caller to fill after layout (an interactive widget); its
+    /// centered rect comes back from `show` in push order.
+    Reserved {
+        size: egui::Vec2,
+    },
+}
+
+impl ColItem {
+    fn height(&self) -> f32 {
+        match self {
+            ColItem::Galley { galley, .. } => galley.size().y,
+            ColItem::Glyph { size, .. } => *size,
+            ColItem::Reserved { size } => size.y,
+        }
+    }
+}
+
+impl CenteredColumn {
+    fn galley(&mut self, gap: f32, galley: Arc<Galley>, halign_center: bool) {
+        self.items
+            .push((gap, ColItem::Galley { galley, halign_center }));
+    }
+    fn glyph(&mut self, gap: f32, tex: egui::TextureId, size: f32, tint: egui::Color32) {
+        self.items.push((gap, ColItem::Glyph { tex, size, tint }));
+    }
+    fn reserve(&mut self, gap: f32, size: egui::Vec2) {
+        self.items.push((gap, ColItem::Reserved { size }));
+    }
+    /// Center the column vertically in `area`, paint its galleys and glyphs,
+    /// and return the reserved rects (push order) for the caller to place
+    /// widgets into.
+    fn show(self, ui: &Ui, area: Rect, center_x: f32) -> Vec<Rect> {
+        let total: f32 = self.items.iter().map(|(gap, it)| gap + it.height()).sum();
+        let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+        let mut y = area.min.y + ((area.height() - total) / 2.0).max(TOP_MARGIN);
+        let mut reserved = Vec::new();
+        for (gap, it) in self.items {
+            y += gap;
+            let h = it.height();
+            match it {
+                ColItem::Galley { galley, halign_center } => {
+                    let x = if halign_center { center_x } else { center_x - galley.size().x / 2.0 };
+                    ui.painter()
+                        .galley(pos2(x, y), galley, egui::Color32::WHITE);
+                }
+                ColItem::Glyph { tex, size, tint } => {
+                    let r = Rect::from_min_size(pos2(center_x - size / 2.0, y), vec2(size, size));
+                    ui.painter().image(tex, r, uv, tint);
+                }
+                ColItem::Reserved { size } => {
+                    reserved.push(Rect::from_min_size(pos2(center_x - size.x / 2.0, y), size));
+                }
+            }
+            y += h;
+        }
+        reserved
+    }
+}
 
 impl Chat {
     /// True for transcript touches (which scroll), so Android doesn't treat a
@@ -17,38 +101,55 @@ impl Chat {
     /// and the composer's text rect (egui points) used to position the native
     /// iOS text-interaction overlay.
     pub fn show(&mut self, ui: &mut Ui) -> (bool, Rect) {
-        #[cfg(not(target_family = "wasm"))]
-        self.refresh_provider_on_return();
-        #[cfg(not(target_family = "wasm"))]
+        self.kick_initial_config_load();
         self.pump_models();
-        #[cfg(not(target_family = "wasm"))]
         self.pump_config();
-        #[cfg(not(target_family = "wasm"))]
+        self.poll_key_connection();
+        self.maybe_prompt_key();
         let agent_changed = self.pump_agent();
-        #[cfg(target_family = "wasm")]
-        let agent_changed = false;
 
         // Live agent state for this frame's rendering.
-        #[cfg(not(target_family = "wasm"))]
         let (agent_busy, agent_streaming) = match &self.harness {
             Some(h) => (h.busy, h.streaming.clone()),
             None => (false, String::new()),
         };
-        #[cfg(target_family = "wasm")]
-        let (agent_busy, agent_streaming) = (false, String::new());
-        #[cfg(not(target_family = "wasm"))]
-        // Only once config has actually loaded — otherwise the hint flashes
-        // for the frames before the background load lands.
-        let show_agent_hint = self.unshared && self.config_loaded && self.provider.is_none();
-        #[cfg(target_family = "wasm")]
-        let show_agent_hint = false;
+        // A connect step or summoned chooser can't coexist; the step wins.
+        if self.key_entry.is_some() {
+            self.chooser_open = false;
+        }
+        // Esc backs out of a summoned chooser (picking or cancelling are the
+        // other exits).
+        if self.chooser_open && ui.input(|i| i.key_pressed(Key::Escape)) {
+            self.chooser_open = false;
+        }
         // The one timeline to display, resolved fresh each frame from the
-        // flat log + branch choices.
-        let visible = self.visible();
+        // flat log + branch choices. While the connect step or a summoned
+        // provider chooser is open it takes over the canvas — rows step aside
+        // (and with them their hover strips and menus) instead of being
+        // painted under the form.
+        let connect_open = self.key_entry.is_some();
+        let takeover = connect_open || self.chooser_open;
+        let visible = if takeover { Vec::new() } else { self.visible() };
+        // First-run guidance, only in an empty chat and once config has
+        // loaded (else it flashes before the background load lands). A
+        // summoned chooser reuses the same surface over an existing chat.
+        let onboard = if self.chooser_open {
+            Some(Onboard::Choose)
+        } else {
+            (self.unshared && self.config_loaded && visible.is_empty())
+                .then(|| self.onboard_stage())
+                .flatten()
+        };
+        let show_agent_hint = onboard.is_some();
+
+        // No usable key yet → hide the composer, so there's ever at most one
+        // text field for the native iOS text bridge to own. Everything past a
+        // valid key (Connecting/Unreachable/PickModel) keeps the composer —
+        // PickModel picks its model from the composer's toolbar.
+        let hide_composer = connect_open || matches!(onboard, Some(Onboard::Choose));
 
         // Retry the last turn when it errored and the agent is idle.
-        let can_retry = cfg!(not(target_family = "wasm"))
-            && !agent_busy
+        let can_retry = !agent_busy
             && !show_agent_hint
             && visible
                 .last()
@@ -91,8 +192,15 @@ impl Chat {
             self.initialized = true;
         }
 
+        // The connect step closes itself (validation lands in the background),
+        // so no click refocuses anything — hand focus back to the composer.
+        // Harmless when the composer is hidden: an unrendered widget drops it.
+        if self.connect_was_open && !connect_open {
+            ui.memory_mut(|m| m.request_focus(composer_id));
+        }
+        self.connect_was_open = connect_open;
+
         // Esc cancels an in-progress edit and restores the stashed draft.
-        #[cfg(not(target_family = "wasm"))]
         if self.editing.is_some()
             && ui
                 .ctx()
@@ -120,12 +228,22 @@ impl Chat {
                     || (!completions_open && i.consume_key(Modifiers::NONE, Key::Enter))
             });
 
-        // Composer input phase — drain workspace-origin events (native iOS
-        // text input arrives this way: Newline / Indent / Replace pushed by the
-        // FFI), then keyboard / completions / internal events.
-        let workspace_events = self.composer.drain_workspace_events(ui.ctx());
-        self.composer.event.internal_events.extend(workspace_events);
-        let _ = self.composer.handle_input(ui.ctx(), composer_id);
+        // Text-input phase — drain workspace-origin events (native iOS text
+        // arrives this way: Newline / Indent / Replace pushed by the FFI), then
+        // keyboard / completions / internal events. Routes to *one* editor:
+        // the connect step's key field while it's open, else the composer.
+        if self.key_entry.is_some() {
+            let key_field_id = Id::new("chat_key_field");
+            // No per-frame request_focus: the render block's one-shot focuses
+            // the field, and its interaction + focus lock hold it after that.
+            let ws = self.key_field.drain_workspace_events(ui.ctx());
+            self.key_field.event.internal_events.extend(ws);
+            let _ = self.key_field.handle_input(ui.ctx(), key_field_id);
+        } else {
+            let workspace_events = self.composer.drain_workspace_events(ui.ctx());
+            self.composer.event.internal_events.extend(workspace_events);
+            let _ = self.composer.handle_input(ui.ctx(), composer_id);
+        }
 
         // Measure at the exact render width so the composer bubble grows
         // same-frame. The re-parse inside `show` below hits the layout cache.
@@ -138,7 +256,6 @@ impl Chat {
         let composer_height = (measured_h + V_PAD * 2.0).min(COMPOSER_MAX_HEIGHT);
         // The composer bubble carries a toolbar row at its bottom; the model
         // dropdowns appear there for agent chats.
-        #[cfg(not(target_family = "wasm"))]
         let indicator = if self.unshared { self.provider.clone() } else { None };
         let transcript_rect = Rect::from_min_max(
             full_rect.min,
@@ -149,17 +266,20 @@ impl Chat {
         );
         let mut text_areas = Vec::new();
         let mut retry_clicked = false;
-        let mut setup_clicked = false;
+        let mut onboard_pick: Option<&'static str> = None;
+        let mut chooser_cancel = false;
+        // Inline "connect a provider" step actions, applied after the scroll
+        // closure releases its borrow of `self`.
+        let mut key_connect = false;
+        let mut key_cancel = false;
+        let mut key_edit = false;
         // Row actions (hover pill + context menu). Copy always works;
         // everything that mutates the transcript or timeline is gated on no
         // turn being in flight, and the agent-rerunning actions additionally
         // on this being an agent chat.
         let mut action: Option<RowAction> = None;
         let can_mutate = !agent_busy;
-        #[cfg(not(target_family = "wasm"))]
         let agent_actions = self.harness.is_some();
-        #[cfg(target_family = "wasm")]
-        let agent_actions = false;
 
         // A branch switch suspends stick-to-bottom for the frame — the view
         // holds still while the timeline below the fork is swapped out.
@@ -323,8 +443,7 @@ impl Chat {
                     // configured agent.
                     #[allow(unused_mut, unused_variables)]
                     let mut streaming_plan: Option<(Pos2, Arc<Galley>)> = None;
-                    #[cfg(not(target_family = "wasm"))]
-                    if agent_busy && !agent_streaming.is_empty() {
+                    if agent_busy && !agent_streaming.is_empty() && !takeover {
                         let name = ui.fonts(|f| {
                             f.layout_no_wrap(
                                 "agent".into(),
@@ -338,28 +457,21 @@ impl Chat {
                         streaming_plan = Some((pos2(note_x, y), name));
                         y += name_h + content_h + ROW_GAP + V_PAD;
                     }
-                    // The setup hint doubles as the first-run flow: clicking
-                    // it creates a template provider file and opens it —
-                    // config is files, so setup is filling one in.
-                    let mut note = None;
-                    if agent_busy && agent_streaming.is_empty() {
-                        note = Some(("thinking…".to_string(), secondary_color, false));
-                    } else if show_agent_hint {
-                        note = Some((
-                            format!("agent is off — click to create {SETUP_PATH} and paste in an API key"),
-                            theme.fg().get_color(Palette::Blue),
-                            true,
-                        ));
-                    }
-                    let note_plan = note.map(|(text, color, link)| {
-                        let galley = ui.fonts(|f| {
-                            f.layout(text, egui::FontId::proportional(NOTE_FONT), color, note_wrap_w)
+                    let note_plan =
+                        (agent_busy && agent_streaming.is_empty() && !takeover).then(|| {
+                            let galley = ui.fonts(|f| {
+                                f.layout(
+                                    "thinking…".into(),
+                                    egui::FontId::proportional(NOTE_FONT),
+                                    secondary_color,
+                                    note_wrap_w,
+                                )
+                            });
+                            let h = galley.rect.height();
+                            let pos = pos2(note_x, y);
+                            y += h + ROW_GAP;
+                            (galley, pos)
                         });
-                        let h = galley.rect.height();
-                        let pos = pos2(note_x, y);
-                        y += h + ROW_GAP;
-                        (galley, pos, link)
-                    });
 
                     // Keep the clicked arrows where they were: correct for
                     // any height change of the swapped fork row (content
@@ -387,10 +499,7 @@ impl Chat {
                     }
 
                     // pass 2: paint absolute. No egui layout calls.
-                    #[cfg(not(target_family = "wasm"))]
                     let editing_id = self.editing;
-                    #[cfg(target_family = "wasm")]
-                    let editing_id: Option<Uuid> = None;
                     for (vi, plan) in plans.into_iter().enumerate() {
                         let i = visible[vi].idx;
                         match plan {
@@ -406,7 +515,10 @@ impl Chat {
                                     ui.painter().rect_stroke(
                                         bubble_rect,
                                         CornerRadius::same(CORNER),
-                                        Stroke::new(1.0, theme.fg().get_color(theme.prefs().primary)),
+                                        Stroke::new(
+                                            1.0,
+                                            theme.fg().get_color(theme.prefs().primary),
+                                        ),
                                         StrokeKind::Inside,
                                     );
                                 }
@@ -454,10 +566,12 @@ impl Chat {
                                 let mut text_y = pos.y;
                                 if let Some(header) = header {
                                     let h = header.size().y;
-                                    ui.painter().galley(pos2(pos.x, text_y), header, error_color);
+                                    ui.painter()
+                                        .galley(pos2(pos.x, text_y), header, error_color);
                                     text_y += h + NAME_GAP;
                                 }
-                                ui.painter().galley(pos2(pos.x, text_y), galley, error_color);
+                                ui.painter()
+                                    .galley(pos2(pos.x, text_y), galley, error_color);
                             }
                         }
                     }
@@ -514,8 +628,8 @@ impl Chat {
                         if let Some(fork) = &visible[vi].fork {
                             let font = egui::FontId::proportional(NOTE_FONT);
                             let label = format!("{}/{}", fork.pos + 1, fork.siblings.len());
-                            let lg =
-                                ui.fonts(|f| f.layout_no_wrap(label, font.clone(), secondary_color));
+                            let lg = ui
+                                .fonts(|f| f.layout_no_wrap(label, font.clone(), secondary_color));
                             // Near-edge-first placement; flip on right-laid
                             // strips so it always reads ‹ n/m › on screen.
                             let mut parts = [
@@ -536,8 +650,7 @@ impl Chat {
                                     );
                                     continue;
                                 }
-                                let target =
-                                    target_pos.and_then(|p| fork.siblings.get(p)).copied();
+                                let target = target_pos.and_then(|p| fork.siblings.get(p)).copied();
                                 let active = target.is_some() && can_mutate;
                                 let color = if active { text_color } else { secondary_color };
                                 let r = place(STRIP_H * 0.7);
@@ -633,7 +746,6 @@ impl Chat {
                     }
 
                     // Trailing agent rows paint after the transcript.
-                    #[cfg(not(target_family = "wasm"))]
                     if let Some((pos, name)) = streaming_plan {
                         let name_h = name.rect.height() + NAME_GAP;
                         ui.painter().galley(pos, name, secondary_color);
@@ -645,15 +757,485 @@ impl Chat {
                         );
                         text_areas.extend(areas);
                     }
-                    if let Some((galley, pos, link)) = note_plan {
-                        let rect = Rect::from_min_size(pos, galley.size());
+                    if let Some((galley, pos)) = note_plan {
                         ui.painter().galley(pos, galley, secondary_color);
-                        if link {
-                            let resp = ui
-                                .interact(rect, Id::new("chat_setup_link"), Sense::click())
-                                .on_hover_cursor(egui::CursorIcon::PointingHand);
-                            setup_clicked = resp.clicked();
+                    }
+
+                    // First-run: a minimal centered card. The Choose stage
+                    // offers the provider roster as a two-column icon grid;
+                    // the later stages track validation with one centered
+                    // line. Fonts run larger than the transcript's note size,
+                    // which is hard to read for standalone UI.
+                    // The inline "connect a provider" step: a masked key field
+                    // in the same centered canvas, in place of the status card,
+                    // when a key-requiring provider was just picked or a saved
+                    // one is missing its key. Modeled on a bank-connect flow —
+                    // focused and in-context, with connecting/rejected feedback,
+                    // rather than a floating dialog.
+                    if self.key_entry.is_some() {
+                        let ctx = ui.ctx().clone();
+                        let center_x = note_x + note_wrap_w / 2.0;
+                        let card_w = note_wrap_w.min(340.0);
+                        let field_w = card_w.min(300.0);
+                        let accent = theme.fg().get_color(theme.prefs().primary);
+                        let body_font = egui::FontId::proportional(13.5);
+
+                        let entry_ref = self.key_entry.as_ref().unwrap();
+                        let (label, connecting, attempted) =
+                            (entry_ref.label.clone(), entry_ref.connecting, entry_ref.attempted);
+                        let provider_glyph = entry_ref.name.clone();
+                        // Validation results count only when the resolved
+                        // provider is the one this entry is connecting — a
+                        // reloading provider list can briefly resolve elsewhere.
+                        let provider_key = self
+                            .provider
+                            .as_ref()
+                            .filter(|p| p.name == entry_ref.name)
+                            .map(|p| (p.name.clone(), p.base_url.clone()));
+                        // After a submit: Some(true) = auth error (bad key),
+                        // Some(false) = couldn't reach the server, None = no
+                        // error yet. Distinguishes "check your key" from
+                        // "check your connection".
+                        let err_auth = provider_key.as_ref().and_then(|key| {
+                            self.models_err
+                                .as_ref()
+                                .filter(|(k, _)| k == key)
+                                .map(|(_, e)| is_auth_error(e))
+                        });
+
+                        let head = ui.fonts(|f| {
+                            f.layout_no_wrap(
+                                format!("Connect {label}"),
+                                egui::FontId::proportional(19.0),
+                                text_color,
+                            )
+                        });
+                        let status = if connecting {
+                            Some((format!("Connecting to {label}…"), secondary_color))
+                        } else if attempted {
+                            match err_auth {
+                                Some(true) => Some((
+                                    "That key didn't work. Check it and try again.".to_string(),
+                                    error_color,
+                                )),
+                                Some(false) => Some((
+                                    format!("Can't reach {label}. Check your connection."),
+                                    error_color,
+                                )),
+                                None => None,
+                            }
+                        } else {
+                            None
+                        };
+                        let status_galley = status.as_ref().map(|(t, c)| {
+                            let mut job = egui::text::LayoutJob::simple(
+                                t.clone(),
+                                body_font.clone(),
+                                *c,
+                                card_w,
+                            );
+                            job.halign = egui::Align::Center;
+                            ui.fonts(|f| f.layout_job(job))
+                        });
+                        let link = ui.fonts(|f| {
+                            f.layout_no_wrap(
+                                "Edit the provider file instead".into(),
+                                body_font.clone(),
+                                secondary_color,
+                            )
+                        });
+
+                        let (glyph_sz, field_h, btn_h) = (24.0, 30.0, 28.0);
+
+                        // Connect button width, sized to its widest label so
+                        // the text never wraps and the pair doesn't shift when
+                        // it flips to "Connecting…".
+                        let btn_font = egui::TextStyle::Button.resolve(ui.style());
+                        let connect_w = ["Connect", "Connecting…"]
+                            .iter()
+                            .map(|s| {
+                                ui.fonts(|f| {
+                                    f.layout_no_wrap((*s).into(), btn_font.clone(), text_color)
+                                        .size()
+                                        .x
+                                })
+                            })
+                            .fold(0.0_f32, f32::max)
+                            + 28.0;
+                        let btn_gap = 8.0;
+                        let cancel_w = 80.0;
+                        let pair_w = connect_w + btn_gap + cancel_w;
+
+                        // Lay the whole column in one place — the vertical
+                        // spacing follows from the pushed gaps, no hand-summed
+                        // total to drift.
+                        let tex = self.glyphs.get(&ctx, &provider_glyph, glyph_sz);
+                        let mut col = CenteredColumn::default();
+                        col.glyph(0.0, tex.id, glyph_sz, text_color);
+                        col.galley(14.0, head, false);
+                        col.reserve(18.0, vec2(field_w, field_h));
+                        let buttons_gap = match status_galley {
+                            Some(g) => {
+                                col.galley(10.0, g, true);
+                                8.0
+                            }
+                            None => 10.0,
+                        };
+                        col.reserve(buttons_gap, vec2(pair_w, btn_h));
+                        col.reserve(14.0, link.size());
+                        let rects = col.show(ui, transcript_rect, center_x);
+                        let (field_rect, buttons_rect, link_rect) = (rects[0], rects[1], rects[2]);
+
+                        // Masked field on its own raised surface so the input
+                        // is visible before it's focused or hovered.
+                        ui.painter()
+                            .rect_filled(field_rect, CornerRadius::same(6), bubble_surface);
+                        ui.painter().rect_stroke(
+                            field_rect,
+                            CornerRadius::same(6),
+                            Stroke::new(1.0, theme.neutral_bg().lerp_to_gamma(text_color, 0.16)),
+                            StrokeKind::Inside,
+                        );
+                        // The MdEdit renders in the top-level ui (after the
+                        // scroll closure) — the native iOS text bridge only
+                        // binds to a top-level editor, never one nested in a
+                        // scroll area. Recorded here: the text's inner rect
+                        // (one row vertically centered, h-padded like the
+                        // placeholder); the box itself paints at `field_rect`.
+                        let row_h = self.key_field.row_height();
+                        self.key_field_rect = Rect::from_min_max(
+                            pos2(field_rect.min.x + 8.0, field_rect.center().y - row_h / 2.0),
+                            pos2(field_rect.max.x - 8.0, field_rect.center().y + row_h / 2.0),
+                        );
+                        if self.key_field.renderer.buffer.current.text.is_empty() {
+                            let hint = ui.fonts(|f| {
+                                f.layout_no_wrap(
+                                    "Paste your API key".into(),
+                                    egui::FontId::proportional(13.5),
+                                    secondary_color,
+                                )
+                            });
+                            let y = field_rect.center().y - hint.size().y / 2.0;
+                            ui.painter().galley(
+                                pos2(field_rect.min.x + 8.0, y),
+                                hint,
+                                secondary_color,
+                            );
                         }
+                        // Connect / Cancel buttons, filling the reserved pair.
+                        let connect_label = if connecting { "Connecting…" } else { "Connect" };
+                        let connect_rect =
+                            Rect::from_min_size(buttons_rect.min, vec2(connect_w, btn_h));
+                        let cancel_rect = Rect::from_min_size(
+                            pos2(buttons_rect.min.x + connect_w + btn_gap, buttons_rect.min.y),
+                            vec2(cancel_w, btn_h),
+                        );
+                        let connect_btn = ui.put(
+                            connect_rect,
+                            egui::Button::new(
+                                egui::RichText::new(connect_label).color(theme.neutral_bg()),
+                            )
+                            .fill(accent)
+                            .corner_radius(CornerRadius::same(6)),
+                        );
+                        if connect_btn.clicked() && !connecting {
+                            key_connect = true;
+                        }
+                        let cancel_btn = ui.put(
+                            cancel_rect,
+                            egui::Button::new(egui::RichText::new("Cancel").color(text_color))
+                                .fill(bubble_surface)
+                                .corner_radius(CornerRadius::same(6)),
+                        );
+                        if cancel_btn.clicked() {
+                            key_cancel = true;
+                        }
+
+                        // Quiet escape hatch to the raw file, filling the
+                        // reserved link rect.
+                        let link_resp = ui
+                            .interact(link_rect, Id::new("chat_key_edit_file"), Sense::click())
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        let link_color =
+                            if link_resp.hovered() { text_color } else { secondary_color };
+                        ui.painter().galley(link_rect.min, link, link_color);
+                        if link_resp.clicked() {
+                            key_edit = true;
+                        }
+                    } else if let Some(stage) = &onboard {
+                        let ctx = ui.ctx().clone();
+                        let center_x = note_x + note_wrap_w / 2.0;
+                        let card_w = note_wrap_w.min(420.0);
+                        let body_font = egui::FontId::proportional(13.5);
+                        let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+
+                        // A wrapped, centered paragraph.
+                        let para = |ui: &Ui, text: String, color| {
+                            let mut job = egui::text::LayoutJob::simple(
+                                text,
+                                body_font.clone(),
+                                color,
+                                card_w,
+                            );
+                            job.halign = egui::Align::Center;
+                            ui.fonts(|f| f.layout_job(job))
+                        };
+
+                        match stage {
+                            Onboard::Choose => {
+                                // The same surface serves first-run and the
+                                // toolbar's "add provider"; only the headline
+                                // and the cancel escape differ.
+                                let summoned = self.chooser_open;
+                                let headline = if summoned {
+                                    "Add a provider"
+                                } else {
+                                    "Chat with an AI agent"
+                                };
+                                let head = ui.fonts(|f| {
+                                    f.layout_no_wrap(
+                                        headline.into(),
+                                        egui::FontId::proportional(19.0),
+                                        text_color,
+                                    )
+                                });
+                                // First-run gets the privacy framing; the
+                                // summoned "add provider" doesn't — the empty
+                                // chat behind it already carries that line.
+                                let body = (!summoned).then(|| {
+                                    para(
+                                        ui,
+                                        "Messages you send go to the AI provider you choose. Pick \
+                                         a local model to keep them on your device."
+                                            .into(),
+                                        secondary_color,
+                                    )
+                                });
+
+                                // Two meaningful columns: the household-name
+                                // model makers (+ `custom`, the hand-rolled
+                                // escape hatch) on the left, third-party hosts
+                                // serving others' models (+ local `ollama`) on
+                                // the right. `TEMPLATES` already groups makers
+                                // [0] and hosts [1]; the local group [2] holds
+                                // ollama + custom.
+                                let by_name = |n: &str| -> (&'static str, &'static str) {
+                                    TEMPLATES
+                                        .iter()
+                                        .flat_map(|g| g.iter())
+                                        .copied()
+                                        .find(|(name, _)| *name == n)
+                                        .unwrap()
+                                };
+                                let mut left: Vec<(&'static str, &'static str)> =
+                                    TEMPLATES[0].to_vec();
+                                left.push(by_name("custom"));
+                                let mut right: Vec<(&'static str, &'static str)> =
+                                    TEMPLATES[1].to_vec();
+                                // Ollama's template points at localhost, which on
+                                // a phone is the phone — nothing runs there, so
+                                // it's a guaranteed dead end. Reaching an Ollama
+                                // box on the LAN is a `custom` file with that
+                                // machine's address, not localhost.
+                                let mobile = cfg!(target_os = "ios") || cfg!(target_os = "android");
+                                if !mobile {
+                                    right.push(by_name("ollama"));
+                                }
+                                let columns = [left, right];
+
+                                // Size cells to their widest label so the grid
+                                // is a tight, centered block — wide fixed cells
+                                // left the glyph+label hugging the left edge.
+                                // Labels are flattened column-major (all of the
+                                // left column, then the right), matching the
+                                // render loop's iteration so indices line up.
+                                let labels: Vec<Arc<Galley>> = columns
+                                    .iter()
+                                    .flatten()
+                                    .map(|&(name, json)| {
+                                        ui.fonts(|f| {
+                                            f.layout_no_wrap(
+                                                template_label(name, json),
+                                                body_font.clone(),
+                                                text_color,
+                                            )
+                                        })
+                                    })
+                                    .collect();
+                                let (row_gap, button_h, glyph_sz, pad, glyph_gap, col_gap) =
+                                    (8.0, 34.0, 16.0, 10.0, 10.0, 20.0);
+                                let max_label =
+                                    labels.iter().map(|g| g.size().x).fold(0.0, f32::max);
+                                let cell_w = pad * 2.0 + glyph_sz + glyph_gap + max_label;
+                                let grid_w = cell_w * 2.0 + col_gap;
+                                let rows = columns.iter().map(|c| c.len()).max().unwrap_or(0);
+                                let grid_h = rows as f32 * button_h
+                                    + rows.saturating_sub(1) as f32 * row_gap;
+
+                                let cancel = summoned.then(|| {
+                                    ui.fonts(|f| {
+                                        f.layout_no_wrap(
+                                            "Cancel".into(),
+                                            body_font.clone(),
+                                            secondary_color,
+                                        )
+                                    })
+                                });
+
+                                // headline, optional privacy line, the grid,
+                                // and (when summoned) a cancel — as one column.
+                                let mut col = CenteredColumn::default();
+                                col.galley(0.0, head, false);
+                                if let Some(body) = body {
+                                    col.galley(12.0, body, true);
+                                }
+                                col.reserve(22.0, vec2(grid_w, grid_h));
+                                if let Some(c) = &cancel {
+                                    col.reserve(20.0, c.size());
+                                }
+                                let rects = col.show(ui, transcript_rect, center_x);
+                                let grid_rect = rects[0];
+
+                                let mut li = 0;
+                                for (c, column) in columns.iter().enumerate() {
+                                    for (r, &(name, _json)) in column.iter().enumerate() {
+                                        let x = grid_rect.min.x + c as f32 * (cell_w + col_gap);
+                                        let yb = grid_rect.min.y + r as f32 * (button_h + row_gap);
+                                        let cell = Rect::from_min_size(
+                                            pos2(x, yb),
+                                            vec2(cell_w, button_h),
+                                        );
+                                        let resp = ui
+                                            .interact(
+                                                cell,
+                                                Id::new(("chat_onboard", name)),
+                                                Sense::click(),
+                                            )
+                                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                        if resp.hovered() {
+                                            ui.painter().rect_filled(
+                                                cell,
+                                                CornerRadius::same(6),
+                                                bubble_surface,
+                                            );
+                                        }
+                                        let grect = Rect::from_min_size(
+                                            pos2(x + pad, yb + (button_h - glyph_sz) / 2.0),
+                                            vec2(glyph_sz, glyph_sz),
+                                        );
+                                        let tex = self.glyphs.get(&ctx, name, glyph_sz);
+                                        ui.painter().image(tex.id, grect, uv, text_color);
+                                        let label = labels[li].clone();
+                                        ui.painter().galley(
+                                            pos2(
+                                                grect.max.x + glyph_gap,
+                                                yb + (button_h - label.size().y) / 2.0,
+                                            ),
+                                            label,
+                                            text_color,
+                                        );
+                                        if resp.clicked() {
+                                            onboard_pick = Some(name);
+                                        }
+                                        li += 1;
+                                    }
+                                }
+
+                                if let Some(cancel) = cancel {
+                                    let rect = rects[1];
+                                    let resp = ui
+                                        .interact(
+                                            rect,
+                                            Id::new("chat_chooser_cancel"),
+                                            Sense::click(),
+                                        )
+                                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                    let color =
+                                        if resp.hovered() { text_color } else { secondary_color };
+                                    ui.painter().galley(rect.min, cancel, color);
+                                    if resp.clicked() {
+                                        chooser_cancel = true;
+                                    }
+                                }
+                            }
+                            Onboard::Connecting(l)
+                            | Onboard::Unreachable { label: l, .. }
+                            | Onboard::PickModel(l) => {
+                                let text = match stage {
+                                    Onboard::Unreachable { auth: true, .. } => format!(
+                                        "Couldn't reach {l}. Check the API key in its provider \
+                                         file, then come back."
+                                    ),
+                                    Onboard::Unreachable { local: true, .. } => {
+                                        format!("Can't reach {l}. Is the server running?")
+                                    }
+                                    Onboard::Unreachable { .. } => format!(
+                                        "Can't reach {l}. Check your internet connection, then \
+                                         come back."
+                                    ),
+                                    Onboard::PickModel(_) => {
+                                        format!("Connected to {l}. Pick a model below to start.")
+                                    }
+                                    _ => format!("Connecting to {l}…"),
+                                };
+                                let mut col = CenteredColumn::default();
+                                col.galley(0.0, para(ui, text, secondary_color), true);
+                                col.show(ui, transcript_rect, center_x);
+                            }
+                        }
+                    } else if visible.is_empty()
+                        && self.unshared
+                        && self.config_loaded
+                        && self.provider.is_some()
+                    {
+                        // Empty chat, provider ready: an ambient marker of who
+                        // you're about to talk to — the provider's mark, the
+                        // model, and where messages go — instead of a blank
+                        // canvas.
+                        let ctx = ui.ctx().clone();
+                        let center_x = note_x + note_wrap_w / 2.0;
+                        let card_w = note_wrap_w.min(340.0);
+
+                        let p = self.provider.as_ref().unwrap();
+                        let (name, label) = (p.name.clone(), p.label());
+                        let local =
+                            p.base_url.contains("localhost") || p.base_url.contains("127.0.0.1");
+                        // The model's display name once the listing lands;
+                        // its id until then — same fallback as the toolbar.
+                        let model = self
+                            .models
+                            .as_ref()
+                            .filter(|((n, u), _)| *n == p.name && *u == p.base_url)
+                            .and_then(|(_, list)| list.iter().find(|m| m.id == p.model))
+                            .map(|m| m.label().to_string())
+                            .unwrap_or_else(|| p.model.clone());
+
+                        let head = ui.fonts(|f| {
+                            f.layout_no_wrap(model, egui::FontId::proportional(16.0), text_color)
+                        });
+                        let sub_text = if local {
+                            "Messages stay on this device.".to_string()
+                        } else {
+                            format!("Messages you send go to {label}.")
+                        };
+                        let sub = {
+                            let mut job = egui::text::LayoutJob::simple(
+                                sub_text,
+                                egui::FontId::proportional(13.5),
+                                secondary_color,
+                                card_w,
+                            );
+                            job.halign = egui::Align::Center;
+                            ui.fonts(|f| f.layout_job(job))
+                        };
+
+                        let glyph_sz = 28.0;
+                        let tex = self.glyphs.get(&ctx, &name, glyph_sz);
+                        let mut col = CenteredColumn::default();
+                        col.glyph(0.0, tex.id, glyph_sz, text_color);
+                        col.galley(14.0, head, false);
+                        col.galley(8.0, sub, true);
+                        col.show(ui, transcript_rect, center_x);
                     }
                 });
         });
@@ -677,7 +1259,6 @@ impl Chat {
                 self.entries.remove(i);
                 self.seq += 1;
                 changed = true;
-                #[cfg(not(target_family = "wasm"))]
                 {
                     let seed = self.visible_seed();
                     if let Some(harness) = &mut self.harness {
@@ -689,7 +1270,6 @@ impl Chat {
                 if let Some(id) = self.entries[target].msg.id {
                     self.branch_choice.insert(parent, id);
                     self.branch_anchor = Some((vi, anchor_y));
-                    #[cfg(not(target_family = "wasm"))]
                     {
                         let seed = self.visible_seed();
                         if let Some(harness) = &mut self.harness {
@@ -698,20 +1278,16 @@ impl Chat {
                     }
                 }
             }
-            #[cfg(not(target_family = "wasm"))]
             Some(RowAction::Edit(i)) => self.enter_edit(i, ui, composer_id),
-            #[cfg(not(target_family = "wasm"))]
             Some(RowAction::ResendFrom(i)) => {
                 self.resend_as_sibling(i);
                 changed = true;
             }
-            #[cfg(not(target_family = "wasm"))]
             Some(RowAction::Regenerate(i)) => self.regenerate(i),
             Some(RowAction::RetryLast) => retry_clicked = true,
             _ => {}
         }
 
-        #[cfg(not(target_family = "wasm"))]
         {
             if retry_clicked {
                 // The rerun's reply is a sibling of the error row: same parent.
@@ -726,15 +1302,107 @@ impl Chat {
                     harness.retry(provider, system);
                 }
             }
-            if setup_clicked {
-                self.create_provider_file("cerebras");
+            if let Some(name) = onboard_pick {
+                self.chooser_open = false;
+                self.begin_add_provider(name);
                 // The selection config entry must reach a save, same as the
                 // add-provider path.
                 changed = true;
             }
+            if chooser_cancel {
+                self.chooser_open = false;
+            }
+            if key_connect {
+                self.connect_provider_key();
+            } else if key_cancel || key_edit {
+                // Both back out of the connect step. The file still holds the
+                // template placeholder (no real key), so `onboard_stage` shows
+                // the chooser — and it does so on reopen too, since that's read
+                // from the file, not remembered here.
+                let file_id = self.key_entry.as_ref().map(|e| e.file_id);
+                self.key_prompt_dismissed = self.key_entry.as_ref().map(|e| e.name.clone());
+                self.key_entry = None;
+                if key_edit {
+                    if let Some(file_id) = file_id {
+                        self.open_provider_file(file_id);
+                    }
+                }
+            }
         }
-        #[cfg(target_family = "wasm")]
-        let _ = (retry_clicked, setup_clicked);
+
+        // The connect step's key field, rendered here in the top-level ui (not
+        // in the transcript scroll area where its card is painted) so the
+        // native iOS text bridge binds a caret and delivers keystrokes — a
+        // scroll-nested editor gets a positioned keyboard but no working text.
+        // `focused_mdedit_mut` + the text-interaction rect already point here.
+        use crate::tab::ExtendedOutput as _;
+        if self.key_entry.is_some() && self.key_field_rect.is_finite() {
+            let key_field_id = Id::new("chat_key_field");
+            // Focus + keyboard modeled on the find bar (the other text field
+            // that appears without a tap): one-shot on open, edge-triggered
+            // re-summon — never per-frame, which fights UIKit's own
+            // first-responder state. The block waits for a laid-out (finite)
+            // rect: on the step's first frame the native text view isn't
+            // positioned on the field yet.
+            if self.key_entry.as_ref().is_some_and(|e| e.needs_focus) {
+                ui.memory_mut(|m| m.request_focus(key_field_id));
+                ui.ctx().set_virtual_keyboard_shown(true);
+                if let Some(e) = self.key_entry.as_mut() {
+                    e.needs_focus = false;
+                }
+            }
+            // The focus lock that keeps Tab / arrows (and so focus) in the
+            // field is `post_render`'s, set every focused frame.
+            self.key_field.show(ui, self.key_field_rect, key_field_id);
+            let focused = ui.memory(|m| m.has_focus(key_field_id));
+            // Re-summon the keyboard when focus returns after a dismissal
+            // (swipe-down, then a tap back into the field) — edge-triggered on
+            // the focused-with-keyboard-up latch, exactly like find.
+            if focused && !self.key_entry.as_ref().is_some_and(|e| e.was_focused) {
+                ui.ctx().set_virtual_keyboard_shown(true);
+            }
+            if let Some(e) = self.key_entry.as_mut() {
+                e.was_focused = focused && keyboard_up;
+            }
+            // Newline (desktop Enter / the iOS return key, inserted as "\n")
+            // submits rather than splitting the single-line field.
+            if self.key_field.renderer.buffer.current.text.contains('\n') {
+                let cleaned = self
+                    .key_field
+                    .renderer
+                    .buffer
+                    .current
+                    .text
+                    .replace('\n', "");
+                self.key_field.set_text(&cleaned);
+                self.connect_provider_key();
+            }
+            // Pasting a key is the whole gesture — submit on paste so there's
+            // nothing left to click. Desktop-shaped: iOS paste arrives via the
+            // FFI as a Replace, and the return key submits there.
+            let pasted = ui
+                .ctx()
+                .input(|i| i.events.iter().any(|e| matches!(e, egui::Event::Paste(_))));
+            let connecting = self.key_entry.as_ref().is_some_and(|e| e.connecting);
+            if pasted
+                && !connecting
+                && !self
+                    .key_field
+                    .renderer
+                    .buffer
+                    .current
+                    .text
+                    .trim()
+                    .is_empty()
+            {
+                self.connect_provider_key();
+            }
+        } else if hide_composer && self.key_entry.is_none() {
+            // The chooser has no text input — keyboard away (also the connect
+            // step's dismissal path). Not while the step awaits first layout:
+            // that would race the one-shot summon right behind it.
+            ui.ctx().set_virtual_keyboard_shown(false);
+        }
 
         // Composer bubble: text on top, a Zed-style toolbar row at the
         // bottom (model dropdowns left, send/stop right).
@@ -745,31 +1413,57 @@ impl Chat {
             ),
             full_rect.max,
         );
-        self.composer_rect = composer_rect;
+        self.composer_rect = if hide_composer { Rect::NOTHING } else { composer_rect };
         let col_pad = (available_width - col_width) / 2.0;
         let h_inset = col_pad + SIDE_INSET;
         let bubble_rect = Rect::from_min_max(
             pos2(composer_rect.min.x + h_inset, composer_rect.min.y),
             pos2(composer_rect.max.x - h_inset, composer_rect.max.y - composer_bottom_inset),
         );
-        ui.painter()
-            .rect_filled(bubble_rect, CornerRadius::same(CORNER), bubble_surface);
+        if !hide_composer {
+            ui.painter()
+                .rect_filled(bubble_rect, CornerRadius::same(CORNER), bubble_surface);
+        }
 
         // Composer draw (text area above the toolbar). Submits its own text
-        // callback internally.
+        // callback internally. Skipped with no usable key so the connect
+        // step's field is the sole text input the iOS bridge sees.
         let text_rect = Rect::from_min_max(
             bubble_rect.min,
             pos2(bubble_rect.max.x, bubble_rect.max.y - TOOLBAR_H),
         );
         let inner_rect = text_rect.shrink2(vec2(H_PAD, V_PAD));
-        self.composer.show(ui, inner_rect, composer_id);
+        if !hide_composer {
+            self.composer.show(ui, inner_rect, composer_id);
+        }
+
+        // A send that can't produce a reply is blocked rather than silently
+        // swallowed: no provider resolves (deleted file, dangling selection),
+        // the provider was never given a key, or no model is picked. The
+        // reason doubles as the composer hint. Transient states (listing
+        // loading, server unreachable) don't block — those sends fail loudly
+        // as error rows with a retry.
+        let send_block: Option<String> =
+            if self.unshared && self.harness.is_some() && self.config_loaded {
+                match &self.provider {
+                    None => Some("pick an AI provider to start".into()),
+                    Some(p) if p.api_key.as_deref() == Some(KEY_PLACEHOLDER) => {
+                        Some(format!("add your {} API key to start", p.label()))
+                    }
+                    Some(p) if p.model.trim().is_empty() => Some("pick a model to start".into()),
+                    _ => None,
+                }
+            } else {
+                None
+            };
 
         // Ghosted placeholder over the empty composer.
-        if self.composer.renderer.buffer.current.text.is_empty() {
+        if !hide_composer && self.composer.renderer.buffer.current.text.is_empty() {
             let row_h = self.composer.row_height();
+            let hint_text = send_block.as_deref().unwrap_or("Type a message");
             let hint = ui.fonts(|f| {
                 f.layout_no_wrap(
-                    "Type a message".into(),
+                    hint_text.into(),
                     egui::FontId::proportional(row_h * 0.85),
                     theme.neutral(),
                 )
@@ -786,27 +1480,37 @@ impl Chat {
 
         // Provider and model dropdowns, Zed-style: label ⌄ buttons opening
         // menus. Picking appends a config entry — selection syncs across
-        // this user's devices; credentials never do.
-        #[cfg(not(target_family = "wasm"))]
-        if let Some(current) = &indicator {
+        // this user's devices; credentials never do. The provider dropdown
+        // renders even with nothing resolved ("select provider") — a deleted
+        // provider must leave a recovery path in a chat that has messages,
+        // where the onboarding chooser can't show.
+        if self.unshared && self.config_loaded && !hide_composer {
+            let current = indicator.as_ref();
             let mut cursor_x = toolbar_rect.min.x;
 
             // The listing feeds the ring, the model button's display name,
             // and the picker — fetch as soon as the toolbar shows, not on
             // first picker open. The cache makes this a per-frame no-op.
-            self.fetch_models(current);
+            // Fetch off the *live* provider, not the frame-start `indicator`
+            // clone: a key the connect step applied this frame must reach the
+            // request now, or validation runs against the stale key.
+            if let Some(live) = self.provider.clone() {
+                self.fetch_models(&live);
+            }
 
             // Context usage ring, Zed-style: the last turn's tokens against
             // the model's window, when the /models listing reports one — no
             // data means no ring, never a guess.
-            let window = self.models.as_ref().and_then(|((name, url), list)| {
-                (name == &current.name && url == &current.base_url)
-                    .then(|| {
-                        list.iter()
-                            .find(|m| m.id == current.model)
-                            .and_then(|m| m.window)
-                    })
-                    .flatten()
+            let window = current.and_then(|current| {
+                self.models.as_ref().and_then(|((name, url), list)| {
+                    (name == &current.name && url == &current.base_url)
+                        .then(|| {
+                            list.iter()
+                                .find(|m| m.id == current.model)
+                                .and_then(|m| m.window)
+                        })
+                        .flatten()
+                })
             });
             let last_usage = self.visible().iter().rev().find_map(|row| {
                 let m = &self.entries[row.idx].msg;
@@ -888,15 +1592,19 @@ impl Chat {
 
             // The toolbar hugs the bottom of the window, so menus open
             // upward — downward they'd clamp to a couple of rows.
-            let mut add: Option<&'static str> = None;
+            let mut open_chooser = false;
             let mut open_prompt = false;
-            let provider_resp = dropdown(ui, "chat_provider_btn", &current.label());
+            let mut clear_chat = false;
+            let provider_label = current
+                .map(|c| c.label())
+                .unwrap_or_else(|| "select provider".to_string());
+            let provider_resp = dropdown(ui, "chat_provider_btn", &provider_label);
             let glyphs = &mut self.glyphs;
             // A row with the provider's brand mark, tinted like its text —
             // similar names in this space (Groq vs Grok) make a wordlist
             // menu genuinely confusable.
             let mut glyph_row = |ui: &mut egui::Ui, name: &str, label: &str, selected: bool| {
-                let image = egui::Image::from_texture(glyphs.get(ui.ctx(), name))
+                let image = egui::Image::from_texture(glyphs.get(ui.ctx(), name, 14.0))
                     .fit_to_exact_size(egui::vec2(14.0, 14.0))
                     .tint(if selected { text_color } else { secondary_color });
                 ui.add(egui::Button::image_and_text(image, row_text(label, selected)))
@@ -939,8 +1647,8 @@ impl Chat {
                         }
                         rendered_any = true;
                         for p in group {
-                            if glyph_row(ui, &p.name, &p.label(), p.name == current.name).clicked()
-                            {
+                            let selected = current.is_some_and(|c| c.name == p.name);
+                            if glyph_row(ui, &p.name, &p.label(), selected).clicked() {
                                 // Sticky per provider: switching back lands
                                 // on the model it last ran with.
                                 let model =
@@ -951,145 +1659,209 @@ impl Chat {
                         }
                     }
                     ui.separator();
-                    // Templates pre-fill an ordinary provider file, which
-                    // opens for the key paste and becomes this chat's
-                    // selection.
-                    ui.menu_button(row_text("add provider", false), |ui| {
-                        ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
-                        ui.set_min_width(140.0);
-                        for (i, group) in TEMPLATES.iter().enumerate() {
-                            if i > 0 {
-                                ui.separator();
-                            }
-                            for (name, json) in group.iter() {
-                                if glyph_row(ui, name, &template_label(name, json), false).clicked()
-                                {
-                                    add = Some(name);
-                                    ui.close();
-                                }
-                            }
-                        }
-                    });
-                    // The system prompt, as an editable file. "system
-                    // prompt" is the real term and reads unambiguously to
-                    // anyone who's used an agent; the tooltip covers the
-                    // rest and names the file it opens.
-                    let resp = ui.button(row_text("system prompt", false)).on_hover_text(
-                        "what the agent is told before every chat — opens prompt.md to edit",
-                    );
-                    if resp.clicked() {
-                        open_prompt = true;
+                    // Opens the onboarding chooser over the transcript — one
+                    // canonical add-provider surface (glyph grid) instead of
+                    // a cramped nested wordlist.
+                    if ui.button(row_text("add provider", false)).clicked() {
+                        open_chooser = true;
                         ui.close();
                     }
                 });
 
-            // The button shows the selected model's display name when the
-            // listing has landed; the id (what's actually configured) until
-            // then, or when the endpoint doesn't offer names. An empty model
-            // is an unselected provider (a local server whose installed
-            // models we can't guess) — prompt a pick from the listing.
-            let model_label = if current.model.is_empty() {
-                "select model".to_string()
-            } else {
-                self.models
-                    .as_ref()
-                    .filter(|((name, url), _)| name == &current.name && url == &current.base_url)
-                    .and_then(|(_, list)| list.iter().find(|m| m.id == current.model))
-                    .map(|m| m.label().to_string())
-                    .unwrap_or_else(|| current.model.clone())
-            };
-            let model_resp = dropdown(ui, "chat_model_btn", &model_label);
-            egui::Popup::menu(&model_resp)
-                .align(egui::RectAlign::TOP_START)
-                .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-                .show(|ui| {
-                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
-                    ui.set_min_width(180.0);
-                    match &self.models {
-                        Some(((name, url), list))
-                            if *name == current.name && *url == current.base_url =>
-                        {
-                            if list.is_empty() {
-                                ui.weak("no model listing — set \"model\" in the provider file");
-                            }
-                            egui::ScrollArea::vertical()
-                                .id_salt("chat_model_list")
-                                // The popup's Ui extends toward the screen
-                                // bottom even when the menu opens upward, so
-                                // available_height is a sliver; this floors
-                                // the viewport regardless.
-                                .min_scrolled_height(400.0)
-                                .max_height(400.0)
-                                .show(ui, |ui| {
-                                    for m in list {
-                                        let selected = m.id == current.model;
-                                        if ui.button(row_text(m.label(), selected)).clicked() {
-                                            pick = Some((current.name.clone(), m.id.clone()));
-                                            ui.close();
-                                        }
-                                    }
-                                });
-                        }
-                        _ => match &self.models_err {
-                            Some(((name, url), err))
-                                if *name == current.name && *url == current.base_url =>
-                            {
-                                ui.weak(format!("couldn't list models: {err}"));
-                            }
-                            _ => {
-                                ui.weak("loading models…");
-                            }
-                        },
-                    }
-                });
-
-            // Reasoning-effort dropdown, only where the model reasons. The
-            // button shows the effective level (file default or per-chat
-            // pick), "effort" when none.
+            // Model and effort need a resolved provider; the picker above is
+            // the whole toolbar until one resolves.
             let mut effort_pick: Option<String> = None;
-            if effort_available(current) {
-                // Self-labeling ("effort: high"): the level alone wouldn't
-                // read as an effort control next to provider/model names.
-                let label = format!("effort: {}", current.effort.as_deref().unwrap_or(EFFORT_AUTO));
-                let effort_resp = dropdown(ui, "chat_effort_btn", &label).on_hover_text(
-                    "how hard the model reasons before replying — auto uses its own default",
-                );
-                egui::Popup::menu(&effort_resp)
+            if let Some(current) = current {
+                // The button shows the selected model's display name when the
+                // listing has landed; the id (what's actually configured) until
+                // then, or when the endpoint doesn't offer names. An empty model
+                // is an unselected provider (a local server whose installed
+                // models we can't guess) — prompt a pick from the listing.
+                let model_label = if current.model.is_empty() {
+                    "select model".to_string()
+                } else {
+                    self.models
+                        .as_ref()
+                        .filter(|((name, url), _)| {
+                            name == &current.name && url == &current.base_url
+                        })
+                        .and_then(|(_, list)| list.iter().find(|m| m.id == current.model))
+                        .map(|m| m.label().to_string())
+                        .unwrap_or_else(|| current.model.clone())
+                };
+                let model_resp = dropdown(ui, "chat_model_btn", &model_label);
+                egui::Popup::menu(&model_resp)
                     .align(egui::RectAlign::TOP_START)
+                    .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                     .show(|ui| {
                         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
-                        ui.set_min_width(100.0);
-                        if ui
-                            .button(row_text(EFFORT_AUTO, current.effort.is_none()))
-                            .clicked()
-                        {
-                            effort_pick = Some(EFFORT_AUTO.into());
-                            ui.close();
+                        ui.set_min_width(180.0);
+                        match &self.models {
+                            Some(((name, url), list))
+                                if *name == current.name && *url == current.base_url =>
+                            {
+                                if list.is_empty() {
+                                    ui.weak(
+                                        "no model listing — set \"model\" in the provider file",
+                                    );
+                                }
+                                egui::ScrollArea::vertical()
+                                    .id_salt("chat_model_list")
+                                    // The popup's Ui extends toward the screen
+                                    // bottom even when the menu opens upward, so
+                                    // available_height is a sliver; this floors
+                                    // the viewport regardless.
+                                    .min_scrolled_height(400.0)
+                                    .max_height(400.0)
+                                    .show(ui, |ui| {
+                                        for m in list {
+                                            let selected = m.id == current.model;
+                                            if ui.button(row_text(m.label(), selected)).clicked() {
+                                                pick = Some((current.name.clone(), m.id.clone()));
+                                                ui.close();
+                                            }
+                                        }
+                                    });
+                            }
+                            _ => match &self.models_err {
+                                Some(((name, url), err))
+                                    if *name == current.name && *url == current.base_url =>
+                                {
+                                    ui.weak(format!("couldn't list models: {err}"));
+                                }
+                                _ => {
+                                    ui.weak("loading models…");
+                                }
+                            },
                         }
-                        for level in EFFORT_LEVELS {
-                            let selected = current.effort.as_deref() == Some(*level);
-                            if ui.button(row_text(level, selected)).clicked() {
-                                effort_pick = Some((*level).into());
+                    });
+
+                // Reasoning-effort dropdown, only where the model reasons. The
+                // button shows the effective level (file default or per-chat
+                // pick), "effort" when none.
+                if effort_available(current) {
+                    // Self-labeling ("effort: high"): the level alone wouldn't
+                    // read as an effort control next to provider/model names.
+                    let label =
+                        format!("effort: {}", current.effort.as_deref().unwrap_or(EFFORT_AUTO));
+                    let effort_resp = dropdown(ui, "chat_effort_btn", &label).on_hover_text(
+                        "how hard the model reasons before replying — auto uses its own default",
+                    );
+                    egui::Popup::menu(&effort_resp)
+                        .align(egui::RectAlign::TOP_START)
+                        .show(|ui| {
+                            ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                            ui.set_min_width(100.0);
+                            if ui
+                                .button(row_text(EFFORT_AUTO, current.effort.is_none()))
+                                .clicked()
+                            {
+                                effort_pick = Some(EFFORT_AUTO.into());
                                 ui.close();
                             }
+                            for level in EFFORT_LEVELS {
+                                let selected = current.effort.as_deref() == Some(*level);
+                                if ui.button(row_text(level, selected)).clicked() {
+                                    effort_pick = Some((*level).into());
+                                    ui.close();
+                                }
+                            }
+                        });
+                }
+            }
+
+            // Conversation-scoped actions live in a ⋯ overflow at the
+            // toolbar's right, beside send — not in the provider picker,
+            // which stays a pure provider list. Right-aligned so the rare
+            // actions sit away from the per-message controls.
+            {
+                let d = TOOLBAR_H - 8.0;
+                let center =
+                    pos2(toolbar_rect.max.x - d - STRIP_GAP - d / 2.0, toolbar_rect.center().y);
+                let more_rect = Rect::from_center_size(center, vec2(d, d));
+                let more_resp = ui
+                    .interact(more_rect, Id::new("chat_more_btn"), Sense::click())
+                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                let color = if more_resp.hovered() { text_color } else { secondary_color };
+                let glyph = ui.fonts(|f| {
+                    f.layout_no_wrap(
+                        Icon::DOTS_HORIZONTAL.icon.to_string(),
+                        egui::FontId::monospace(15.0),
+                        color,
+                    )
+                });
+                ui.painter()
+                    .galley(more_rect.center() - glyph.size() / 2.0, glyph, color);
+                egui::Popup::menu(&more_resp)
+                    .align(egui::RectAlign::TOP_END)
+                    .show(|ui| {
+                        ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                        ui.set_min_width(140.0);
+                        // The system prompt, as an editable file. "system
+                        // prompt" is the real term and reads unambiguously to
+                        // anyone who's used an agent; the tooltip covers the
+                        // rest and names the file it opens.
+                        let resp = ui.button(row_text("system prompt", false)).on_hover_text(
+                            "what the agent is told before every chat — opens prompt.md to edit",
+                        );
+                        if resp.clicked() {
+                            open_prompt = true;
+                            ui.close();
+                        }
+                        // Reset-in-place: the file is the deliberate artifact,
+                        // the conversation just its current contents. The
+                        // confirm is a submenu so one stray click can't clear
+                        // anything. Hidden mid-turn (like every other
+                        // transcript mutation) and when there's nothing to
+                        // clear.
+                        if !self.entries.is_empty() && !agent_busy {
+                            ui.menu_button(row_text("clear chat", false), |ui| {
+                                ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                let confirm =
+                                    egui::RichText::new("delete all messages").color(error_color);
+                                if ui.button(confirm).clicked() {
+                                    clear_chat = true;
+                                    ui.close();
+                                }
+                            });
                         }
                     });
             }
 
             if let Some((provider, model)) = pick {
-                self.write_selection(provider, model);
+                // A picked provider whose file still holds the template
+                // placeholder was never configured — route through the
+                // connect step instead of landing on a dead credential.
+                let placeholder = self
+                    .providers
+                    .iter()
+                    .find(|p| p.name == provider)
+                    .filter(|p| p.api_key.as_deref() == Some(KEY_PLACEHOLDER))
+                    .map(|p| p.label());
+                self.write_selection(provider.clone(), model);
+                if let Some(label) = placeholder {
+                    if let Ok(file) = self
+                        .core
+                        .get_by_path(&format!("/.agent/providers/{provider}.json"))
+                    {
+                        self.open_key_entry(&provider, label, file.id);
+                    }
+                }
                 changed = true;
             }
             if let Some(effort) = effort_pick {
                 self.write_effort(effort);
                 changed = true;
             }
-            if let Some(name) = add {
-                self.create_provider_file(name);
-                changed = true;
+            if open_chooser {
+                self.chooser_open = true;
             }
             if open_prompt {
                 self.create_prompt_file();
+            }
+            if clear_chat {
+                self.clear_chat();
+                changed = true;
             }
         }
 
@@ -1098,13 +1870,13 @@ impl Chat {
         let non_empty = !self.composer.renderer.buffer.current.text.trim().is_empty();
         let mut send_clicked = false;
         let mut stop_clicked = false;
-        {
+        if !hide_composer {
             let d = TOOLBAR_H - 8.0;
             let center = pos2(toolbar_rect.max.x - d / 2.0, toolbar_rect.center().y);
             let button_rect = Rect::from_center_size(center, vec2(d, d));
             let resp = ui.interact(button_rect, Id::new("chat_send"), Sense::click());
 
-            let active = non_empty || agent_busy;
+            let active = (non_empty && send_block.is_none()) || agent_busy;
             let fill = if active {
                 theme.bg().get_color(theme.prefs().primary)
             } else {
@@ -1133,20 +1905,30 @@ impl Chat {
             }
         }
 
-        #[cfg(not(target_family = "wasm"))]
         if stop_clicked {
             if let Some(harness) = &mut self.harness {
                 harness.stop();
             }
         }
-        #[cfg(target_family = "wasm")]
-        let _ = stop_clicked;
 
-        let sent = (send_requested || send_clicked) && !agent_busy && self.submit(ui, composer_id);
+        let sent = (send_requested || send_clicked)
+            && !agent_busy
+            && send_block.is_none()
+            && self.submit(ui, composer_id);
 
         // Popups land last so they composite over composer + transcript.
         self.composer.show_completions(ui);
 
-        (sent || agent_changed || changed, inner_rect)
+        // The one text field's rect, for the native text overlay: the connect
+        // step's key field, else the composer, else nothing (the chooser has
+        // no text input, so the keyboard should stay down).
+        let interaction_rect = if self.key_entry.is_some() {
+            self.key_field_rect
+        } else if hide_composer {
+            Rect::NOTHING
+        } else {
+            inner_rect
+        };
+        (sent || agent_changed || changed, interaction_rect)
     }
 }

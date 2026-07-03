@@ -7,6 +7,11 @@
 //! stream live onto the canvas and are appended to the transcript (as the
 //! user, flagged `agent`) when the turn ends. The agent runs on the device
 //! that composed the invoking message; shared chats get no agent.
+//!
+//! Split three ways so the review-worthy logic isn't buried in geometry:
+//! this file owns the `Chat` state, transcript merge/persistence, and agent
+//! folding; [`config`] the provider/model/key state machine; [`view`] all
+//! rendering and hit-testing.
 
 use std::collections::HashMap;
 use std::sync::{Arc, RwLock};
@@ -28,18 +33,12 @@ use crate::tab::markdown_editor::{MdEdit, MdLabel};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
 
-#[cfg(not(target_family = "wasm"))]
 mod anthropic;
-#[cfg(not(target_family = "wasm"))]
 mod backend;
 mod config;
-#[cfg(not(target_family = "wasm"))]
 mod glyphs;
-#[cfg(not(target_family = "wasm"))]
 mod harness;
-#[cfg(not(target_family = "wasm"))]
 mod openai;
-#[cfg(not(target_family = "wasm"))]
 mod settings;
 mod view;
 
@@ -72,10 +71,6 @@ const STRIP_H: f32 = 18.0;
 const TOOLBAR_H: f32 = 32.0;
 /// Horizontal gap between strip items.
 const STRIP_GAP: f32 = 10.0;
-/// Where click-to-set-up creates the first provider file. One suggested
-/// provider is enough for the empty state — the folder is the real
-/// interface, and any other file placed there works the same.
-const SETUP_PATH: &str = "/.agent/providers/cerebras.json";
 
 /// Templates for the "add provider" menu: UI affordances that pre-fill an
 /// ordinary provider file. The file is the source of truth — the template
@@ -85,7 +80,11 @@ const SETUP_PATH: &str = "/.agent/providers/cerebras.json";
 /// Groups render separator-divided, unlabeled: model makers, then hosts
 /// serving others' models, then local + the blank escape hatch. The brands
 /// carry the distinction; anything not listed is one `custom` file away.
-#[cfg(not(target_family = "wasm"))]
+/// The `api_key` value in a fresh key-requiring template — an obvious
+/// placeholder so "edit file" can drop the selection right on it, and so an
+/// opened file reads as unconfigured rather than blank.
+const KEY_PLACEHOLDER: &str = "YOUR API KEY HERE";
+
 const TEMPLATES: &[&[(&str, &str)]] = &[
     &[
         (
@@ -94,7 +93,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
   "display_name": "OpenAI",
   "base_url": "https://api.openai.com/v1",
   "model": "gpt-5.5",
-  "api_key": ""
+  "api_key": "YOUR API KEY HERE"
 }
 "#,
         ),
@@ -105,7 +104,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
   "kind": "anthropic",
   "base_url": "https://api.anthropic.com/v1",
   "model": "claude-opus-4-8",
-  "api_key": ""
+  "api_key": "YOUR API KEY HERE"
 }
 "#,
         ),
@@ -115,7 +114,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
   "display_name": "Google",
   "base_url": "https://generativelanguage.googleapis.com/v1beta/openai",
   "model": "gemini-3.5-flash",
-  "api_key": ""
+  "api_key": "YOUR API KEY HERE"
 }
 "#,
         ),
@@ -125,7 +124,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
   "display_name": "xAI",
   "base_url": "https://api.x.ai/v1",
   "model": "grok-4.3",
-  "api_key": ""
+  "api_key": "YOUR API KEY HERE"
 }
 "#,
         ),
@@ -137,7 +136,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
   "display_name": "OpenRouter",
   "base_url": "https://openrouter.ai/api/v1",
   "model": "openrouter/auto",
-  "api_key": ""
+  "api_key": "YOUR API KEY HERE"
 }
 "#,
         ),
@@ -147,7 +146,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
   "display_name": "Groq",
   "base_url": "https://api.groq.com/openai/v1",
   "model": "openai/gpt-oss-120b",
-  "api_key": ""
+  "api_key": "YOUR API KEY HERE"
 }
 "#,
         ),
@@ -157,7 +156,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
   "display_name": "Cerebras",
   "base_url": "https://api.cerebras.ai/v1",
   "model": "gemma-4-31b",
-  "api_key": ""
+  "api_key": "YOUR API KEY HERE"
 }
 "#,
         ),
@@ -167,7 +166,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
   "display_name": "Together",
   "base_url": "https://api.together.xyz/v1",
   "model": "deepseek-ai/DeepSeek-V4-Pro",
-  "api_key": ""
+  "api_key": "YOUR API KEY HERE"
 }
 "#,
         ),
@@ -187,7 +186,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
             r#"{
   "base_url": "https://api.example.com/v1",
   "model": "model-id",
-  "api_key": ""
+  "api_key": "YOUR API KEY HERE"
 }
 "#,
         ),
@@ -196,7 +195,6 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
 
 /// What the add-provider menu shows for a template: the JSON's
 /// `display_name`, through the same fallback a hand-made file gets.
-#[cfg(not(target_family = "wasm"))]
 fn template_label(name: &str, json: &str) -> String {
     settings::parse(name, json.as_bytes())
         .map(|p| p.label())
@@ -277,6 +275,14 @@ pub struct Chat {
     pub hmac: Option<DocumentHmac>,
     pub entries: Vec<Entry>,
     pub composer: MdEdit,
+    /// The connect step's masked API-key input. A real `MdEdit` (not an egui
+    /// `TextEdit`) so the native iOS keyboard/caret reach it through the same
+    /// bridge the composer uses — `focused_mdedit_mut` points here while the
+    /// connect step is open. Plaintext + `mask` so it renders as `*`.
+    pub key_field: MdEdit,
+    /// The key field's rect last frame, surfaced as the text-interaction rect
+    /// so the native text view positions over it.
+    key_field_rect: Rect,
     pub account: Account,
     pub seq: usize,
     pub initialized: bool,
@@ -301,16 +307,12 @@ pub struct Chat {
     ctx: egui::Context,
 
     /// Agent driver for 1-1 agent chats. `None` when the chat is shared.
-    #[cfg(not(target_family = "wasm"))]
     harness: Option<harness::Harness>,
     /// Renders the in-flight streaming reply.
-    #[cfg(not(target_family = "wasm"))]
     streaming_label: MdLabel,
     /// Unshared at open — eligible for an agent (setup guidance is shown if
     /// none could be built).
-    #[cfg(not(target_family = "wasm"))]
     unshared: bool,
-    #[cfg(not(target_family = "wasm"))]
     core: lb_rs::blocking::Lb,
     /// Config loaded off the UI thread — decrypting provider files (and the
     /// prompt) is too slow for the render frame in debug. `provider` is the
@@ -318,74 +320,117 @@ pub struct Chat {
     /// backs the picker; `system_prompt` is the prompt file's contents.
     /// A background reload refreshes all three on tab re-activation and
     /// after set-up, so nothing reads files on the UI thread.
-    #[cfg(not(target_family = "wasm"))]
     provider: Option<settings::Provider>,
-    #[cfg(not(target_family = "wasm"))]
     providers: Vec<settings::Provider>,
-    #[cfg(not(target_family = "wasm"))]
     system_prompt: Option<String>,
     /// False until the first background load lands — distinguishes "no
     /// providers yet" (don't flash the setup hint) from "genuinely none".
-    #[cfg(not(target_family = "wasm"))]
     config_loaded: bool,
-    #[cfg(not(target_family = "wasm"))]
     config_rx: Option<std::sync::mpsc::Receiver<LoadedConfig>>,
-    #[cfg(not(target_family = "wasm"))]
+    /// The API-key entry form, shown after picking a key-requiring provider
+    /// or when a provider's key is missing/rejected.
+    key_entry: Option<KeyEntry>,
+    /// Whether the connect step was open last frame. The step closes *itself*
+    /// (validation lands in the background), so the closing frame hands focus
+    /// back to the composer — no click is involved to do it naturally.
+    connect_was_open: bool,
+    /// Provider whose auto key-prompt was dismissed, so it isn't re-shown
+    /// every frame after Cancel. Cleared on a new key so a rejected one
+    /// re-prompts.
+    key_prompt_dismissed: Option<String>,
+    /// The provider chooser opened over an existing transcript (toolbar →
+    /// "add provider") — same canvas as first-run onboarding, but explicitly
+    /// summoned, so it gets a cancel. Cleared by picking or cancelling.
+    chooser_open: bool,
     last_frame: Option<std::time::Instant>,
     /// Message being edited via composer-prefill (its id). Sending appends a
     /// sibling — the original and its subtree stay reachable via arrows.
-    #[cfg(not(target_family = "wasm"))]
     editing: Option<Uuid>,
     /// The composer draft stashed when editing began, restored on cancel or
     /// after the edit is sent.
-    #[cfg(not(target_family = "wasm"))]
     draft_stash: Option<String>,
     /// Parent for the reply of the turn in flight — the message it answers.
     /// Stamped as `reply_to` on the pushed reply/error row.
-    #[cfg(not(target_family = "wasm"))]
     pending_parent: Option<Uuid>,
     /// Live `/models` listing for the picker, keyed by (provider name,
     /// base_url) so editing the file's url invalidates it. Runtime data,
     /// never persisted. Only successes cache; failures set `models_err`
     /// and retry on a cooldown, so pasting a key in doesn't strand the
     /// picker on an old failure.
-    #[cfg(not(target_family = "wasm"))]
     models: Option<(ModelsKey, ModelListing)>,
-    #[cfg(not(target_family = "wasm"))]
     models_rx: Option<std::sync::mpsc::Receiver<(ModelsKey, Result<ModelListing, String>)>>,
-    #[cfg(not(target_family = "wasm"))]
     models_attempt: Option<(ModelsKey, std::time::Instant)>,
     /// Keyed like the cache so provider A's failure never displays under
     /// provider B's picker.
-    #[cfg(not(target_family = "wasm"))]
     models_err: Option<(ModelsKey, String)>,
     /// Brand glyph textures for the picker, rasterized on first use.
-    #[cfg(not(target_family = "wasm"))]
     glyphs: glyphs::Glyphs,
 }
 
-#[cfg(not(target_family = "wasm"))]
 type ModelListing = Vec<backend::ModelInfo>;
 
 /// The result of a background config load — everything that lives in files
 /// under `/.agent`, decrypted off the UI thread.
-#[cfg(not(target_family = "wasm"))]
 struct LoadedConfig {
     providers: Vec<settings::Provider>,
     system_prompt: Option<String>,
 }
 
+/// The inline "connect a provider" step — a masked key field in the
+/// onboarding canvas, with connecting/rejected feedback, in place of
+/// hand-editing the JSON.
+struct KeyEntry {
+    label: String,
+    /// The provider file's name — what the glyph and validation results match
+    /// against. Not read from `self.provider`, which can briefly resolve
+    /// elsewhere (or to nothing) while the provider list reloads.
+    name: String,
+    file_id: Uuid,
+    /// One-shot: request egui focus + summon the keyboard on the next render.
+    /// Set on open and on a rejected key. After firing, the field's own
+    /// interaction + focus lock retain focus — never re-requested per frame.
+    needs_focus: bool,
+    /// Focused-with-keyboard-up last frame — the keyboard re-summons only on
+    /// a focus *regain* (edge-triggered), never per frame.
+    was_focused: bool,
+    /// The provider-file key this form session accounts for: the key at open,
+    /// replaced by each submitted key. A reload landing a *different* real key
+    /// (synced or hand-edited elsewhere) means the form's job was done —
+    /// [`Chat::poll_key_connection`] closes it.
+    seen_key: Option<String>,
+    /// The key was submitted and we're awaiting `/models` validation.
+    connecting: bool,
+    /// A key has been submitted at least once from this entry — gates the
+    /// "rejected" message so a fresh, never-submitted form shows no error even
+    /// when the provider's saved key is what triggered the auto-prompt.
+    attempted: bool,
+}
+
 /// (provider name, base_url) — what a cached listing is valid for.
-#[cfg(not(target_family = "wasm"))]
 type ModelsKey = (String, String);
 
 /// How long a failed `/models` fetch waits before retrying.
-#[cfg(not(target_family = "wasm"))]
 const MODELS_RETRY: std::time::Duration = std::time::Duration::from_secs(15);
+
+/// First-run guidance shown in an empty, agent-eligible chat. Each stage
+/// advances on its own as the config validates in the background — no
+/// confirmation step: pick a provider, paste a key, and the chat notices.
+enum Onboard {
+    /// No provider file yet — offer the roster to pick from.
+    Choose,
+    /// A provider is set; its `/models` listing hasn't come back yet.
+    Connecting(String),
+    /// The listing failed. `auth` is whether it looked like an auth error
+    /// (bad/missing key) versus a connectivity failure, and `local` whether
+    /// the endpoint is this machine — each needs different advice ("check
+    /// your key" / "check your connection" / "is the server running?").
+    Unreachable { label: String, auth: bool, local: bool },
+    /// Reachable, but no model chosen (a local server we can't guess for).
+    PickModel(String),
+}
 
 /// This user's latest per-chat model selection (config entries are ts-sorted
 /// with the rest of the log; last wins).
-#[cfg(not(target_family = "wasm"))]
 fn latest_selection(
     entries: &[Entry], username: &str,
 ) -> Option<lb_rs::model::chat::ModelSelection> {
@@ -400,17 +445,14 @@ fn latest_selection(
 /// The toolbar effort control's "let the model decide" value — clears any
 /// per-chat override back to the provider's own default (it does not force
 /// reasoning off; a true off is model-specific).
-#[cfg(not(target_family = "wasm"))]
 const EFFORT_AUTO: &str = "auto";
 
 /// The effort levels the toolbar offers, portable across OpenAI-compat and
 /// Anthropic. Exotic values (xhigh, max, none) stay a provider-file affair.
-#[cfg(not(target_family = "wasm"))]
 const EFFORT_LEVELS: &[&str] = &["low", "medium", "high"];
 
 /// This user's latest per-chat reasoning-effort pick (config entries are
 /// ts-sorted with the log; last wins). `EFFORT_AUTO` clears the override.
-#[cfg(not(target_family = "wasm"))]
 fn latest_effort(entries: &[Entry], username: &str) -> Option<String> {
     entries
         .iter()
@@ -425,12 +467,10 @@ fn latest_effort(entries: &[Entry], username: &str) -> Option<String> {
 /// take `reasoning_effort`. The compat case is a best-effort id heuristic
 /// (like `is_chat_id`) — a miss only hides the control, since the provider
 /// file's `effort` field still applies.
-#[cfg(not(target_family = "wasm"))]
 fn effort_available(provider: &settings::Provider) -> bool {
     provider.kind == "anthropic" || is_reasoning_model(&provider.model)
 }
 
-#[cfg(not(target_family = "wasm"))]
 fn is_reasoning_model(id: &str) -> bool {
     let id = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
     id.starts_with("gpt-5")
@@ -449,10 +489,21 @@ fn is_reasoning_model(id: &str) -> bool {
         || id.contains("qwq")
 }
 
+/// Whether a `/models` error reads like an auth failure (a missing or wrong
+/// key) rather than an unreachable server — the case the key form fixes.
+fn is_auth_error(msg: &str) -> bool {
+    let m = msg.to_ascii_lowercase();
+    m.contains("401")
+        || m.contains("403")
+        || m.contains("unauthor")
+        || m.contains("api key")
+        || m.contains("api-key")
+        || m.contains("api_key")
+}
+
 /// The model this user last ran `provider` with, mined from the append-only
 /// config history — what makes switching back to a provider land on the
 /// model you left it on, not the file default.
-#[cfg(not(target_family = "wasm"))]
 fn last_model_for(entries: &[Entry], username: &str, provider: &str) -> Option<String> {
     entries
         .iter()
@@ -480,11 +531,22 @@ impl Chat {
             Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
         composer.file_id = id;
 
-        #[cfg(target_family = "wasm")]
-        let _ = core;
-        #[cfg(not(target_family = "wasm"))]
+        // The connect step's key input, set up like the composer (files, link
+        // resolver, file id) so the native iOS text bridge reaches it the same
+        // way. `plaintext + mask` renders every byte as `*` — byte-length
+        // preserving, so cursor/selection and the iOS text rects stay aligned
+        // with the real (unmasked) buffer.
+        let mut key_field = MdEdit::empty(ctx.clone());
+        key_field.renderer.files = Arc::clone(&files);
+        key_field.renderer.link_resolver =
+            Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
+        key_field.renderer.plaintext = true;
+        key_field.renderer.mask = true;
+        // API keys are long; a wrapped key doesn't fit the fixed-height field.
+        key_field.renderer.single_line = true;
+        key_field.file_id = id;
+
         let unshared = !is_shared(&files.read().unwrap(), id);
-        #[cfg(not(target_family = "wasm"))]
         let harness = unshared.then(|| {
             let visible = resolve_visible(&entries, &HashMap::new(), None);
             harness::Harness::new(ctx.clone(), seed_history(&entries, &visible))
@@ -498,55 +560,43 @@ impl Chat {
             seq: 0,
             initialized: false,
             base: bytes.to_vec(),
+            key_field,
+            key_field_rect: Rect::NOTHING,
             composer_rect: Rect::NOTHING,
             scroll_to_bottom: false,
             branch_choice: HashMap::new(),
             branch_anchor: None,
             hide_children_of: None,
-            #[cfg(not(target_family = "wasm"))]
             harness,
-            #[cfg(not(target_family = "wasm"))]
             streaming_label: {
                 let mut label = MdLabel::new(ctx.clone());
                 label.renderer.files = Arc::clone(&files);
                 label.renderer.link_resolver = Box::new(FileCacheLinkResolver::new(files, id));
                 label
             },
-            #[cfg(not(target_family = "wasm"))]
             unshared,
-            #[cfg(not(target_family = "wasm"))]
             core: core.clone(),
             // Providers/prompt load on a background thread; the first show()
             // kicks it. Files are never read on the UI thread.
-            #[cfg(not(target_family = "wasm"))]
             provider: None,
-            #[cfg(not(target_family = "wasm"))]
             providers: Vec::new(),
-            #[cfg(not(target_family = "wasm"))]
             system_prompt: None,
-            #[cfg(not(target_family = "wasm"))]
             config_loaded: false,
-            #[cfg(not(target_family = "wasm"))]
             config_rx: None,
+            key_entry: None,
+            connect_was_open: false,
+            key_prompt_dismissed: None,
+            chooser_open: false,
             // Left None so the first frame kicks the initial background load
             // (a cheap thread spawn, not the file read that blew the budget).
-            #[cfg(not(target_family = "wasm"))]
             last_frame: None,
-            #[cfg(not(target_family = "wasm"))]
             editing: None,
-            #[cfg(not(target_family = "wasm"))]
             draft_stash: None,
-            #[cfg(not(target_family = "wasm"))]
             pending_parent: None,
-            #[cfg(not(target_family = "wasm"))]
             models: None,
-            #[cfg(not(target_family = "wasm"))]
             glyphs: glyphs::Glyphs::default(),
-            #[cfg(not(target_family = "wasm"))]
             models_rx: None,
-            #[cfg(not(target_family = "wasm"))]
             models_attempt: None,
-            #[cfg(not(target_family = "wasm"))]
             models_err: None,
             ctx,
         }
@@ -558,7 +608,6 @@ impl Chat {
     }
 
     /// Model context for the visible timeline.
-    #[cfg(not(target_family = "wasm"))]
     fn visible_seed(&self) -> Vec<backend::ChatMsg> {
         seed_history(&self.entries, &self.visible())
     }
@@ -566,7 +615,6 @@ impl Chat {
     /// Begin editing a message: stash the in-progress draft, prefill the
     /// composer with the target's content. Send commits it as a sibling;
     /// Esc cancels and restores the draft.
-    #[cfg(not(target_family = "wasm"))]
     fn enter_edit(&mut self, idx: usize, ui: &Ui, composer_id: Id) {
         let Some(id) = self.entries[idx].msg.id else { return };
         let draft = self.composer.renderer.buffer.current.text.clone();
@@ -581,7 +629,6 @@ impl Chat {
 
     /// Re-run a user message as-is: append a sibling with the same content
     /// and run its turn. The old subtree stays behind the arrows.
-    #[cfg(not(target_family = "wasm"))]
     fn resend_as_sibling(&mut self, idx: usize) {
         let Some(parent) = parent_for_sibling(&self.entries, idx) else { return };
         let content = self.entries[idx].msg.content.clone();
@@ -614,7 +661,6 @@ impl Chat {
     /// Re-roll an agent reply: hide it for the duration of the turn and run
     /// a retry against the timeline ending at its invoking message. The new
     /// reply lands as the old one's sibling.
-    #[cfg(not(target_family = "wasm"))]
     fn regenerate(&mut self, idx: usize) {
         let Some(parent) = parent_for_sibling(&self.entries, idx) else { return };
         self.hide_children_of = Some(parent);
@@ -627,6 +673,12 @@ impl Chat {
             harness.retry(provider, system);
         }
         self.scroll_to_bottom = true;
+    }
+
+    /// The editor the native (iOS) text bridge should target: the masked key
+    /// field while the connect step is open, otherwise the composer.
+    pub fn focused_field(&mut self) -> &mut MdEdit {
+        if self.key_entry.is_some() { &mut self.key_field } else { &mut self.composer }
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -663,7 +715,6 @@ impl Chat {
         // device's messages); refresh its context while idle. Mid-turn the
         // reseed contract forbids it — the send-time reseed in `submit`
         // repairs the divergence at the next turn instead.
-        #[cfg(not(target_family = "wasm"))]
         {
             let seed = self.visible_seed();
             if let Some(harness) = self.harness.as_mut().filter(|h| !h.busy) {
@@ -682,11 +733,45 @@ impl Chat {
         self.base = content;
     }
 
+    /// Reset the chat to its at-creation state: every entry goes — messages,
+    /// forks, and error rows. The deletion propagates to this user's other
+    /// devices through the merge (cleared entries are all in `base`, so
+    /// nothing re-adds them). Unshared chats only — a multi-user clear wants
+    /// a clear *event* in the log, not a mass deletion.
+    ///
+    /// The provider/model/effort picks live in the same log as config
+    /// entries; clearing re-records the latest ones, so a clear doesn't
+    /// silently reset the chat to the first provider file (alphabetical).
+    fn clear_chat(&mut self) {
+        let selection = latest_selection(&self.entries, &self.account.username);
+        let effort = latest_effort(&self.entries, &self.account.username);
+        if let Some(h) = &mut self.harness {
+            h.reseed(Vec::new());
+        }
+        self.entries.clear();
+        self.branch_choice.clear();
+        self.branch_anchor = None;
+        self.hide_children_of = None;
+        self.editing = None;
+        self.draft_stash = None;
+        self.pending_parent = None;
+        if let Some(sel) = selection {
+            self.write_selection(sel.provider, sel.model);
+        }
+        if let Some(eff) = effort {
+            self.write_effort(eff);
+        }
+        // With no re-recorded selection this falls back to the default
+        // provider (or none) — same resolution as a brand-new chat.
+        self.provider = self.resolve_provider();
+        self.key_prompt_dismissed = None;
+        self.seq += 1;
+    }
+
     /// Append an agent-authored row: a reply, or (with `error`) a dim red
     /// note excluded from agent context. Attached to the message the turn
     /// answered, and the branch choice follows it — a regenerated reply
     /// supersedes its sibling on screen without deleting it.
-    #[cfg(not(target_family = "wasm"))]
     fn push_agent_message(
         &mut self, content: String, usage: Option<lb_rs::model::chat::Usage>, error: bool,
     ) {
@@ -710,7 +795,6 @@ impl Chat {
 
     /// Fold agent events into the transcript. Returns whether anything was
     /// appended (and so needs saving).
-    #[cfg(not(target_family = "wasm"))]
     fn pump_agent(&mut self) -> bool {
         let updates = self.harness.as_mut().map(|h| h.pump()).unwrap_or_default();
         let changed = !updates.is_empty();
@@ -749,10 +833,7 @@ impl Chat {
             return false;
         }
 
-        #[cfg(not(target_family = "wasm"))]
         let editing = self.editing.take();
-        #[cfg(target_family = "wasm")]
-        let editing: Option<Uuid> = None;
         let reply_to = match editing {
             Some(target) => {
                 let idx = self.entries.iter().position(|e| e.msg.id == Some(target));
@@ -780,7 +861,6 @@ impl Chat {
         ));
         // Config is resolved here, at send — never watched. A provider-file
         // edit simply applies to the next turn.
-        #[cfg(not(target_family = "wasm"))]
         {
             self.pending_parent = msg_id;
             self.provider = self.resolve_provider();
@@ -798,7 +878,6 @@ impl Chat {
             }
         }
         self.composer.clear();
-        #[cfg(not(target_family = "wasm"))]
         if let Some(stash) = self.draft_stash.take() {
             self.composer.set_text(&stash);
         }
@@ -986,7 +1065,6 @@ fn row_menu(
 
 /// The visible timeline as model context: agent replies as assistant turns,
 /// everything else as user turns; errors carry nothing the model saw.
-#[cfg(not(target_family = "wasm"))]
 fn seed_history(entries: &[Entry], visible: &[VisibleRow]) -> Vec<backend::ChatMsg> {
     visible
         .iter()
@@ -1004,7 +1082,6 @@ fn seed_history(entries: &[Entry], visible: &[VisibleRow]) -> Vec<backend::ChatM
 
 /// Whether a file (or any ancestor) is shared — a shared chat is a group
 /// conversation, which gets no agent.
-#[cfg(not(target_family = "wasm"))]
 fn is_shared(files: &FileCache, mut id: Uuid) -> bool {
     while let Some(f) = files.files.get(&id) {
         if !f.shares.is_empty() {

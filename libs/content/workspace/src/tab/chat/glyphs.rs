@@ -8,9 +8,6 @@ use std::collections::HashMap;
 use egui::load::SizedTexture;
 use egui::{Color32, ColorImage, TextureHandle, TextureOptions};
 
-/// Rasterization size — comfortably above the ~14pt draw size on 2x displays.
-const GLYPH_PX: u32 = 32;
-
 /// Keyed by provider name (= template name). `generic` is the fallback mark
 /// for names we don't recognize: hand-made files and `custom`.
 const GLYPHS: &[(&str, &[u8])] = &[
@@ -26,37 +23,45 @@ const GLYPHS: &[(&str, &[u8])] = &[
     ("generic", include_bytes!("icons/generic.svg")),
 ];
 
-/// Lazily-rasterized glyph textures. Held for the tab's lifetime — handles
-/// keep their textures alive.
+/// Lazily-rasterized glyph textures, one per (glyph, physical size) actually
+/// drawn — pixel-exact at every size and DPI, since a mask stretched past its
+/// raster size goes visibly soft. Held for the tab's lifetime — handles keep
+/// their textures alive; the size set is tiny (a few draw sizes × DPI).
 #[derive(Default)]
 pub struct Glyphs {
-    textures: HashMap<&'static str, TextureHandle>,
+    textures: HashMap<(&'static str, u32), TextureHandle>,
 }
 
 impl Glyphs {
-    /// The glyph for a provider name, else the generic mark. Draw tinted
+    /// The glyph for a provider name, else the generic mark, rasterized for
+    /// a `logical_px` draw size at the context's current DPI. Draw tinted
     /// (the mask is white) at the row's text color.
-    pub fn get(&mut self, ctx: &egui::Context, name: &str) -> SizedTexture {
+    pub fn get(&mut self, ctx: &egui::Context, name: &str, logical_px: f32) -> SizedTexture {
         let (key, bytes) = GLYPHS
             .iter()
             .find(|(n, _)| *n == name)
             .or_else(|| GLYPHS.iter().find(|(n, _)| *n == "generic"))
             .expect("generic glyph is bundled");
-        let handle = self.textures.entry(key).or_insert_with(|| {
-            ctx.load_texture(format!("chat_glyph_{key}"), rasterize(bytes), TextureOptions::LINEAR)
+        let physical = (logical_px * ctx.pixels_per_point()).ceil().max(1.0) as u32;
+        let handle = self.textures.entry((key, physical)).or_insert_with(|| {
+            ctx.load_texture(
+                format!("chat_glyph_{key}_{physical}"),
+                rasterize(bytes, physical),
+                TextureOptions::LINEAR,
+            )
         });
         SizedTexture::from_handle(handle)
     }
 }
 
 /// White-with-alpha mask from the SVG's coverage; color comes from the tint.
-fn rasterize(bytes: &[u8]) -> ColorImage {
+fn rasterize(bytes: &[u8], px: u32) -> ColorImage {
     let fallible = || -> Option<ColorImage> {
         let tree =
             resvg::usvg::Tree::from_data(bytes, &Default::default(), &Default::default()).ok()?;
         let size = tree.size();
-        let scale = GLYPH_PX as f32 / size.width().max(size.height());
-        let mut pixmap = resvg::tiny_skia::Pixmap::new(GLYPH_PX, GLYPH_PX)?;
+        let scale = px as f32 / size.width().max(size.height());
+        let mut pixmap = resvg::tiny_skia::Pixmap::new(px, px)?;
         let transform = resvg::tiny_skia::Transform::from_scale(scale, scale);
         resvg::render(&tree, transform, &mut pixmap.as_mut());
         let pixels = pixmap
@@ -64,11 +69,11 @@ fn rasterize(bytes: &[u8]) -> ColorImage {
             .iter()
             .map(|px| Color32::from_white_alpha(px.alpha()))
             .collect();
-        Some(ColorImage::new([GLYPH_PX as usize; 2], pixels))
+        Some(ColorImage::new([px as usize; 2], pixels))
     };
     // A bundled asset that doesn't rasterize is a build bug; render blank
     // rather than panicking a release build over an icon.
-    fallible().unwrap_or_else(|| ColorImage::filled([GLYPH_PX as usize; 2], Color32::TRANSPARENT))
+    fallible().unwrap_or_else(|| ColorImage::filled([px as usize; 2], Color32::TRANSPARENT))
 }
 
 #[cfg(test)]
@@ -79,7 +84,7 @@ mod tests {
     #[test]
     fn all_glyphs_rasterize() {
         for (name, bytes) in GLYPHS {
-            let image = rasterize(bytes);
+            let image = rasterize(bytes, 32);
             let coverage = image.pixels.iter().filter(|px| px.a() > 0).count();
             assert!(coverage > 0, "glyph '{name}' rasterized to nothing");
         }

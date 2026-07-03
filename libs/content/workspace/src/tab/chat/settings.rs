@@ -125,23 +125,21 @@ pub fn load(core: &Lb) -> Vec<Provider> {
 }
 
 /// The provider a turn runs with: the user's per-chat selection resolved
-/// against the provider files, else the alphabetically-first provider. Read
-/// at send time — config is resolved when it's used, never watched.
+/// against the provider files; with no selection ever recorded, the
+/// alphabetically-first provider. Read at send time — config is resolved
+/// when it's used, never watched.
 ///
 /// A selection naming a missing provider (file deleted, not yet synced)
-/// falls back to the first provider rather than going dormant; an empty
-/// selection model means the named provider's file default.
+/// resolves to None rather than substituting another provider — silently
+/// rerouting messages to a provider the user never picked is worse than
+/// pausing until they pick again. An empty selection model means the named
+/// provider's file default.
 pub fn resolve(
     providers: Vec<Provider>, selection: Option<&lb_rs::model::chat::ModelSelection>,
 ) -> Option<Provider> {
-    let named = selection.and_then(|sel| {
-        providers
-            .iter()
-            .position(|p| p.name == sel.provider)
-            .map(|i| (i, sel))
-    });
-    match named {
-        Some((i, sel)) => {
+    match selection {
+        Some(sel) => {
+            let i = providers.iter().position(|p| p.name == sel.provider)?;
             let mut p = providers.into_iter().nth(i).expect("position is in range");
             if !sel.model.trim().is_empty() {
                 p.model = sel.model.clone();
@@ -205,9 +203,9 @@ mod tests {
         let p = resolve(files(), Some(&sel("cerebras", ""))).unwrap();
         assert_eq!((p.name.as_str(), p.model.as_str()), ("cerebras", "gemma"));
 
-        // Selection naming a deleted provider falls back to first.
-        let p = resolve(files(), Some(&sel("gone", "x"))).unwrap();
-        assert_eq!(p.name.as_str(), "anthropic");
+        // Selection naming a deleted provider resolves to none — never a
+        // silent substitution of a provider the user didn't pick.
+        assert!(resolve(files(), Some(&sel("gone", "x"))).is_none());
 
         assert!(resolve(Vec::new(), None).is_none());
     }
