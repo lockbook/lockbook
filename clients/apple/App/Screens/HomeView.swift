@@ -88,6 +88,18 @@ struct HomeView: View {
                 .pickerStyle(.segmented)
                 .fixedSize()
             }
+
+            #if os(iOS)
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
+                        homeState.splitViewVisibility = .detailOnly
+                        homeState.compactColumn = .detail
+                    } label: {
+                        Image(systemName: "sidebar.left")
+                            .imageScale(.large)
+                    }
+                }
+            #endif
         }
     }
 

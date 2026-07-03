@@ -16,6 +16,7 @@ struct FileTreeView: View {
     @State private var atTop = true
     @State private var atBottom = false
     @State private var zoneDecayTask: Task<Void, Never>?
+    @State private var stickyHeaders: [File] = []
     @State private var scrollPosition = ScrollPosition()
     @State private var autoScroll = AutoScrollDriver()
 
@@ -52,6 +53,8 @@ struct FileTreeView: View {
                     atTop = top <= 2
                     atBottom = top >= maxOffset - 2
                 }
+
+                updateStickyHeaders()
             }
             .onPreferenceChange(DropTargetActiveKey.self) { targeted in
                 isRowDropTargeted = targeted
@@ -74,6 +77,11 @@ struct FileTreeView: View {
                     RoundedRectangle(cornerRadius: 8, style: .continuous)
                         .strokeBorder(Color.accentColor, lineWidth: 2)
                         .padding(4)
+                }
+            }
+            .overlay(alignment: .top) {
+                if !stickyHeaders.isEmpty, !showAutoScrollZones {
+                    stickyHeaderStack(stickyHeaders)
                 }
             }
             .overlay(alignment: .top) {
@@ -110,6 +118,87 @@ struct FileTreeView: View {
         }
 
         return true
+    }
+
+    private func updateStickyHeaders() {
+        let rows = fileTreeModel.visibleRows
+        var headers: [File] = []
+
+        if let scroll = autoScroll.scroll, !rows.isEmpty {
+            let top = scroll.contentOffset.y + scroll.contentInsets.top
+
+            if top > 2 {
+                let pitch = max(1, scroll.contentSize.height / CGFloat(rows.count))
+                let baseIndex = Int(top / pitch)
+
+                for offset in 0 ..< 32 {
+                    let index = min(max(baseIndex + offset, 0), rows.count - 1)
+                    headers = ancestors(of: rows[index].file)
+
+                    if headers.count <= offset {
+                        break
+                    }
+                }
+            }
+        }
+
+        if stickyHeaders != headers {
+            withAnimation(.easeInOut(duration: 0.15)) {
+                stickyHeaders = headers
+            }
+        }
+    }
+
+    private func ancestors(of file: File) -> [File] {
+        var chain: [File] = []
+        var current = file
+
+        while let parent = filesModel.idsToFiles[current.parent], !parent.isRoot, parent.id != current.id {
+            chain.append(parent)
+            current = parent
+        }
+
+        return chain.reversed()
+    }
+
+    private func stickyHeaderStack(_ files: [File]) -> some View {
+        VStack(spacing: 0) {
+            ForEach(Array(files.enumerated()), id: \.element.id) { level, file in
+                stickyHeaderRow(file, level: CGFloat(level))
+            }
+        }
+        .background(.bar)
+        .overlay(alignment: .bottom) {
+            Divider()
+        }
+        .transition(.opacity)
+    }
+
+    private func stickyHeaderRow(_ file: File, level: CGFloat) -> some View {
+        Button {
+            withAnimation {
+                scrollPosition.scrollTo(id: file.id, anchor: .top)
+            }
+        } label: {
+            HStack {
+                Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
+                    .font(.system(size: 16))
+                    .frame(width: 16)
+                    .foregroundColor(.accentColor)
+
+                Text(file.name)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .foregroundColor(.primary)
+
+                Spacer()
+            }
+            .padding(.vertical, 9)
+            .padding(.leading, level * 20)
+            .padding(.horizontal)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func autoScrollZone(direction: Int) -> some View {
