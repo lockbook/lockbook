@@ -815,7 +815,13 @@ impl MdEdit {
     /// capturing outgoing text in response to `handle_input` returning
     /// `true`.
     pub fn clear(&mut self) {
-        self.renderer.buffer = Buffer::from("");
+        self.set_text("");
+    }
+
+    /// Replace the buffer contents wholesale. The chat composer uses this to
+    /// prefill for message editing.
+    pub fn set_text(&mut self, text: &str) {
+        self.renderer.buffer = Buffer::from(text);
         self.renderer.bump_text_seq();
         self.in_progress_selection = None;
         self.in_progress_handle = None;
