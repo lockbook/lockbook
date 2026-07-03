@@ -145,10 +145,20 @@ pub struct MdRender {
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
     pub preview_match: Option<(Grapheme, Grapheme)>,
-    pub interactive: bool,          // enables fold buttons
-    pub readonly: bool,             // disables task checkboxes and saving
-    pub plaintext: bool,            // render as source text, not parsed markdown
-    pub disable_images: bool,       // skip image rendering (e.g. for the mobile toolbar)
+    pub interactive: bool, // enables fold buttons
+    pub readonly: bool,    // disables task checkboxes and saving
+    pub plaintext: bool,   // render as source text, not parsed markdown
+    /// Password mode: render every source byte as `*` while the buffer keeps
+    /// the real text. Only meaningful with `plaintext` — masking a parsed
+    /// markdown tree isn't defined. Byte-length preserving, so
+    /// cursor/selection mapping is unchanged.
+    pub mask: bool,
+    /// Single-line field mode: lay out on one unbounded line instead of
+    /// wrapping at the shown rect's width. [`MdEdit::show`] pairs this with a
+    /// cursor-following horizontal scroll (the `GlyphonTextEdit`
+    /// `singleline_offset` pattern); the caller's rect clips the overflow.
+    pub single_line: bool,
+    pub disable_images: bool, // skip image rendering (e.g. for the mobile toolbar)
     pub contact_linked_sites: bool, // mirror of the persisted pref; gates outbound link fetching
 
     pub reveal_selection: Option<(Grapheme, Grapheme)>,
@@ -234,6 +244,11 @@ pub struct MdEdit {
     /// scroll area callback.
     pub pending_scroll: Option<ScrollTarget>,
 
+    /// Horizontal scroll (px) of a [`MdRender::single_line`] field — how far
+    /// the one-line layout is shifted left so the cursor stays inside the
+    /// shown rect. Maintained by [`MdEdit::show`]; 0 outside single-line mode.
+    pub single_line_scroll: f32,
+
     /// Momentum from the last scroll-area frame; used by `will_consume_touch`
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
@@ -274,6 +289,7 @@ impl MdEdit {
             touch_reorder: Default::default(),
             pending_block_move: None,
             pending_scroll: None,
+            single_line_scroll: 0.0,
             scroll_area_velocity: Default::default(),
             file_id,
             emoji_completions: Default::default(),
@@ -452,6 +468,8 @@ impl MdRender {
             interactive: false,
             readonly: true,
             plaintext: false,
+            mask: false,
+            single_line: false,
             disable_images: false,
             contact_linked_sites: false,
             reveal_selection: None,
@@ -529,6 +547,8 @@ impl MdRender {
             interactive: false,
             readonly: true,
             plaintext: false,
+            mask: false,
+            single_line: false,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -680,6 +700,8 @@ impl Editor {
             interactive: true,
             readonly,
             plaintext,
+            mask: false,
+            single_line: false,
             reveal_selection: None,
             entered_atom: None,
             search_range: None,
@@ -719,6 +741,7 @@ impl Editor {
                 touch_reorder: Default::default(),
                 pending_block_move: None,
                 pending_scroll: None,
+                single_line_scroll: 0.0,
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),

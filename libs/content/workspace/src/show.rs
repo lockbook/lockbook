@@ -217,6 +217,9 @@ impl Workspace {
                 for (id, new_tab) in ui.ctx().pop_open_files() {
                     self.open_file(id, true, new_tab);
                 }
+                for (id, range, new_tab) in ui.ctx().pop_open_ranges() {
+                    self.open_file_at_range(id, range, new_tab);
+                }
             });
         });
     }
