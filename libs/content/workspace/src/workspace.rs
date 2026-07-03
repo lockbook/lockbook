@@ -873,6 +873,7 @@ impl Workspace {
                                     self.account.clone(),
                                     self.ctx.clone(),
                                     Arc::clone(&self.files),
+                                    &self.core,
                                 )));
                             } else {
                                 let chat = tab.chat_mut().unwrap();
@@ -975,6 +976,10 @@ impl Workspace {
                                     if let TabSaveContent::Svg(content) = content {
                                         svg.open_file_hmac = Some(hmac);
                                         svg.opened_content = *content;
+                                    }
+                                } else if let Some(chat) = tab.chat_mut() {
+                                    if let TabSaveContent::Bytes(content) = content {
+                                        chat.saved(hmac, content);
                                     }
                                 }
                             }
