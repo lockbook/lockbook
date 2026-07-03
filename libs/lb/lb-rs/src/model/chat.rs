@@ -57,6 +57,10 @@ pub struct ChatConfig {
     /// The model this user drives this chat with; absent → the global default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub model: Option<ModelSelection>,
+    /// Reasoning effort for this chat, overriding the provider file's
+    /// default where the model supports it; absent → the file default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
 }
 
 /// A provider+model selection. `provider` names a provider config file
