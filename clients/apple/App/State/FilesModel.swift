@@ -4,9 +4,8 @@ import SwiftWorkspace
 
 @Observable class FilesModel {
     var root: File? = nil
-    var files: [File] = []
     var idsToFiles: [UUID: File] = [:]
-    var childrens: [UUID: [File]] = [:]
+    var childrenByParent: [UUID: [File]] = [:]
 
     var pendingSharesByUsername: [String: [File]]? = nil
 
@@ -23,51 +22,30 @@ import SwiftWorkspace
 
     func loadFiles() {
         DispatchQueue.global(qos: .userInitiated).async {
-            let metas: [File]
-            switch AppState.lb.listMetadatas() {
-            case let .success(files):
-                metas = files
-            case let .failure(err):
-                DispatchQueue.main.async { AppState.shared.error = .lb(error: err) }
-                return
-            }
-
-            let pendingShareFiles: [File]
-            switch AppState.lb.getPendingShareFiles() {
-            case let .success(files):
-                pendingShareFiles = files
-            case let .failure(err):
-                DispatchQueue.main.async { AppState.shared.error = .lb(error: err) }
-                return
-            }
-
-            let pendingShares: [File]
-            switch AppState.lb.getPendingShares() {
-            case let .success(files):
-                pendingShares = files
-            case let .failure(err):
-                DispatchQueue.main.async { AppState.shared.error = .lb(error: err) }
+            guard let metas = self.value(of: AppState.lb.listMetadatas()),
+                  let pendingShareFiles = self.value(of: AppState.lb.getPendingShareFiles()),
+                  let pendingShares = self.value(of: AppState.lb.getPendingShares())
+            else {
                 return
             }
 
             var root: File? = nil
             var idsToFiles: [UUID: File] = [:]
-            var childrens: [UUID: [File]] = [:]
+            var childrenByParent: [UUID: [File]] = [:]
 
             func insert(_ file: File) {
                 idsToFiles[file.id] = file
 
-                if childrens[file.parent] == nil {
-                    childrens[file.parent] = []
+                if file.isRoot {
+                    if root == nil {
+                        root = file
+                    }
+                    return
                 }
 
-                if !file.isRoot {
-                    if !childrens[file.parent]!.contains(file) {
-                        childrens[file.parent]!.append(file)
-                        childrens[file.parent]!.sort()
-                    }
-                } else if root == nil {
-                    root = file
+                if !childrenByParent[file.parent, default: []].contains(file) {
+                    childrenByParent[file.parent, default: []].append(file)
+                    childrenByParent[file.parent]?.sort()
                 }
             }
 
@@ -96,12 +74,37 @@ import SwiftWorkspace
 
             DispatchQueue.main.async {
                 self.root = root
-                self.files = metas
                 self.idsToFiles = idsToFiles
-                self.childrens = childrens
+                self.childrenByParent = childrenByParent
                 self.pendingSharesByUsername = pendingSharesByUsername
                 self.recomputeStatusDots(status: AppState.lb.events.status)
             }
+        }
+    }
+
+    func canMove(_ file: File, into dest: File) -> Bool {
+        guard dest.isFolder, dest.id != file.id, dest.id != file.parent else {
+            return false
+        }
+
+        var current = dest
+        while !current.isRoot {
+            if current.id == file.id {
+                return false
+            }
+
+            guard let parent = idsToFiles[current.parent] else {
+                break
+            }
+            current = parent
+        }
+
+        return true
+    }
+
+    func moveFile(id: UUID, newParent: UUID) {
+        mutateAndReload {
+            AppState.lb.moveFile(id: id, newParent: newParent)
         }
     }
 
@@ -110,8 +113,20 @@ import SwiftWorkspace
             return
         }
 
+        mutateAndReload {
+            AppState.lb.createLink(name: file.name, parent: root.id, target: file.id).map { _ in () }
+        }
+    }
+
+    func rejectShare(id: UUID) {
+        mutateAndReload {
+            AppState.lb.deletePendingShare(id: id)
+        }
+    }
+
+    private func mutateAndReload(_ operation: @escaping () -> Result<Void, LbError>) {
         DispatchQueue.global(qos: .userInitiated).async {
-            let res = AppState.lb.createLink(name: file.name, parent: root.id, target: file.id)
+            let res = operation()
 
             DispatchQueue.main.async {
                 switch res {
@@ -124,18 +139,13 @@ import SwiftWorkspace
         }
     }
 
-    func rejectShare(id: UUID) {
-        DispatchQueue.global(qos: .userInitiated).async {
-            let res = AppState.lb.deletePendingShare(id: id)
-
-            DispatchQueue.main.async {
-                switch res {
-                case .success:
-                    self.loadFiles()
-                case let .failure(err):
-                    AppState.shared.error = .lb(error: err)
-                }
-            }
+    private func value<T>(of result: Result<T, LbError>) -> T? {
+        switch result {
+        case let .success(value):
+            return value
+        case let .failure(err):
+            DispatchQueue.main.async { AppState.shared.error = .lb(error: err) }
+            return nil
         }
     }
 

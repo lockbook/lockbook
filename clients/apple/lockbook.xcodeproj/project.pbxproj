@@ -143,6 +143,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan your account key QR code.";
@@ -187,6 +188,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan your account key QR code.";
@@ -231,6 +233,7 @@
 				DEVELOPMENT_TEAM = 39ZS78S25U;
 				ENABLE_PREVIEWS = YES;
 				GENERATE_INFOPLIST_FILE = YES;
+				INFOPLIST_FILE = Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = Lockbook;
 				INFOPLIST_KEY_LSApplicationCategoryType = "public.app-category.productivity";
 				INFOPLIST_KEY_NSCameraUsageDescription = "Scan your account key QR code.";

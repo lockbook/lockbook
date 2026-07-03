@@ -10,6 +10,27 @@ import SwiftWorkspace
         self.filesModel = filesModel
     }
 
+    var visibleRows: [FileTreeRow] {
+        guard let root = filesModel.root else {
+            return []
+        }
+
+        var rows: [FileTreeRow] = []
+
+        func walk(_ parent: UUID, level: CGFloat) {
+            for child in filesModel.childrenByParent[parent] ?? [] {
+                rows.append(FileTreeRow(file: child, level: level))
+
+                if openFolders.contains(child.id) {
+                    walk(child.id, level: level + 1)
+                }
+            }
+        }
+
+        walk(root.id, level: 0)
+        return rows
+    }
+
     func toggleFolder(_ id: UUID) {
         if openFolders.remove(id) == nil {
             openFolders.insert(id)
@@ -44,6 +65,15 @@ import SwiftWorkspace
         }
 
         openFolders.insert(file.id)
+    }
+}
+
+struct FileTreeRow: Identifiable {
+    let file: File
+    let level: CGFloat
+
+    var id: UUID {
+        file.id
     }
 }
 

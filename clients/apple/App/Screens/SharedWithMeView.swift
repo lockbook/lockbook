@@ -89,7 +89,7 @@ struct PendingShareRowView: View {
     var level: CGFloat = 1
 
     var children: [File] {
-        filesModel.childrens[file.id] ?? []
+        filesModel.childrenByParent[file.id] ?? []
     }
 
     var isRootShare: Bool {

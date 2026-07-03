@@ -32,7 +32,7 @@ struct HomeView: View {
         @Bindable var homeState = homeState
 
         NavigationSplitView(
-            columnVisibility: homeState.splitViewVisibility,
+            columnVisibility: $homeState.splitViewVisibility,
             preferredCompactColumn: $homeState.compactColumn
         ) {
             sidebar
@@ -46,21 +46,21 @@ struct HomeView: View {
         .environment(filesModel)
         .environment(workspaceInput)
         .environment(workspaceOutput)
-        .onChange(of: workspaceOutput.openDoc) {
-            guard let id = workspaceOutput.openDoc else { return }
-            fileTreeModel.docOpened(id)
-            sharedTreeModel.docOpened(id)
+        .onChange(of: workspaceOutput.openDoc) { _, openDoc in
+            guard let openDoc else { return }
+            fileTreeModel.docOpened(openDoc)
+            sharedTreeModel.docOpened(openDoc)
         }
-        .onChange(of: workspaceOutput.selectedFolder) {
-            guard let id = workspaceOutput.selectedFolder else { return }
-            fileTreeModel.folderSelected(id)
-            sharedTreeModel.folderSelected(id)
+        .onChange(of: workspaceOutput.selectedFolder) { _, selectedFolder in
+            guard let selectedFolder else { return }
+            fileTreeModel.folderSelected(selectedFolder)
+            sharedTreeModel.folderSelected(selectedFolder)
         }
         .onChange(of: AppState.lb.events.metadataVersion) {
             filesModel.loadFiles()
         }
-        .onChange(of: AppState.lb.events.status) {
-            filesModel.recomputeStatusDots(status: AppState.lb.events.status)
+        .onChange(of: AppState.lb.events.status) { _, status in
+            filesModel.recomputeStatusDots(status: status)
         }
     }
 

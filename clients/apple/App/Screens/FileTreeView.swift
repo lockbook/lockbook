@@ -8,19 +8,82 @@ struct FileTreeView: View {
 
     let fileTreeModel: FileTreeModel
 
+    @State private var isRootDropTargeted = false
+    @State private var isRowDropTargeted = false
+    @State private var topZoneTargeted = false
+    @State private var bottomZoneTargeted = false
+    @State private var showAutoScrollZones = false
+    @State private var atTop = true
+    @State private var atBottom = false
+    @State private var zoneDecayTask: Task<Void, Never>?
+    @State private var scrollPosition = ScrollPosition()
+    @State private var autoScroll = AutoScrollDriver()
+
     var body: some View {
         if let root = filesModel.root {
-            ScrollViewReader { scrollHelper in
-                ScrollView {
-                    VStack(alignment: .leading, spacing: 2) {
-                        FileRowView(file: root, level: -1)
+            ScrollView {
+                LazyVStack(alignment: .leading, spacing: 2) {
+                    ForEach(fileTreeModel.visibleRows) { row in
+                        FileRowView(file: row.file, level: row.level)
                     }
-                    .padding(.horizontal)
                 }
-                .onChange(of: workspaceOutput.openDoc) {
-                    if let openDoc = workspaceOutput.openDoc {
-                        scrollHelper.scrollTo(openDoc)
+                .scrollTargetLayout()
+                .padding(.horizontal)
+            }
+            .scrollPosition($scrollPosition)
+            .onChange(of: workspaceOutput.openDoc) {
+                guard let openDoc = workspaceOutput.openDoc else { return }
+                Task {
+                    withAnimation {
+                        scrollPosition.scrollTo(id: openDoc, anchor: .center)
                     }
+                }
+            }
+            .onScrollGeometryChange(for: ScrollGeometry.self, of: { $0 }) { _, newValue in
+                autoScroll.scroll = newValue
+
+                let top = newValue.contentOffset.y + newValue.contentInsets.top
+                let maxOffset = max(
+                    0,
+                    newValue.contentSize.height + newValue.contentInsets.top + newValue.contentInsets.bottom
+                        - newValue.containerSize.height
+                )
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    atTop = top <= 2
+                    atBottom = top >= maxOffset - 2
+                }
+            }
+            .onPreferenceChange(DropTargetActiveKey.self) { targeted in
+                isRowDropTargeted = targeted
+                updateDragActivity()
+            }
+            .onDisappear {
+                stopAutoScroll()
+                zoneDecayTask?.cancel()
+            }
+            .dropDestination(for: File.self) { dropped, _ in
+                moveToRoot(dropped, root: root)
+            } isTargeted: { targeted in
+                withAnimation(.easeInOut(duration: 0.12)) {
+                    isRootDropTargeted = targeted
+                }
+                updateDragActivity()
+            }
+            .overlay {
+                if isRootDropTargeted {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.accentColor, lineWidth: 2)
+                        .padding(4)
+                }
+            }
+            .overlay(alignment: .top) {
+                if showAutoScrollZones, !atTop {
+                    autoScrollZone(direction: -1)
+                }
+            }
+            .overlay(alignment: .bottom) {
+                if showAutoScrollZones, !atBottom {
+                    autoScrollZone(direction: 1)
                 }
             }
             .refreshable {
@@ -35,6 +98,147 @@ struct FileTreeView: View {
             ProgressView()
         }
     }
+
+    private func moveToRoot(_ dropped: [File], root: File) -> Bool {
+        let movable = dropped.filter { filesModel.canMove($0, into: root) }
+        guard !movable.isEmpty else {
+            return false
+        }
+
+        for file in movable {
+            filesModel.moveFile(id: file.id, newParent: root.id)
+        }
+
+        return true
+    }
+
+    private func autoScrollZone(direction: Int) -> some View {
+        ZStack {
+            LinearGradient(
+                colors: [Color.accentColor.opacity(0.15), Color.accentColor.opacity(0)],
+                startPoint: direction < 0 ? .top : .bottom,
+                endPoint: direction < 0 ? .bottom : .top
+            )
+
+            Image(systemName: direction < 0 ? "chevron.compact.up" : "chevron.compact.down")
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(Color.accentColor.opacity(0.8))
+        }
+        .frame(height: 40)
+        .frame(maxWidth: .infinity)
+        .contentShape(Rectangle())
+        .dropDestination(for: File.self) { _, _ in
+            false
+        } isTargeted: { targeted in
+            setZoneTargeted(direction, targeted)
+        }
+        .transition(.opacity)
+    }
+
+    private func updateDragActivity() {
+        let active = isRootDropTargeted || isRowDropTargeted || topZoneTargeted || bottomZoneTargeted
+
+        zoneDecayTask?.cancel()
+        zoneDecayTask = nil
+
+        if active {
+            if !showAutoScrollZones {
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    showAutoScrollZones = true
+                }
+            }
+        } else {
+            zoneDecayTask = Task {
+                try? await Task.sleep(for: .milliseconds(300))
+                guard !Task.isCancelled else { return }
+
+                withAnimation(.easeInOut(duration: 0.15)) {
+                    showAutoScrollZones = false
+                }
+            }
+        }
+    }
+
+    private func setZoneTargeted(_ direction: Int, _ targeted: Bool) {
+        if direction < 0 {
+            topZoneTargeted = targeted
+        } else {
+            bottomZoneTargeted = targeted
+        }
+        updateDragActivity()
+
+        if targeted {
+            autoScroll.direction = direction
+            startAutoScroll()
+        } else if direction == autoScroll.direction {
+            stopAutoScroll()
+        }
+    }
+
+    private func startAutoScroll() {
+        stopAutoScroll()
+
+        autoScroll.rowIndex = estimatedEdgeRowIndex(autoScroll.direction)
+
+        let timer = Timer(timeInterval: 0.12, repeats: true) { _ in
+            stepScroll()
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        autoScroll.timer = timer
+    }
+
+    private func stopAutoScroll() {
+        autoScroll.timer?.invalidate()
+        autoScroll.timer = nil
+    }
+
+    private func estimatedEdgeRowIndex(_ direction: Int) -> Int {
+        let rows = fileTreeModel.visibleRows
+        guard let scroll = autoScroll.scroll, !rows.isEmpty else {
+            return 0
+        }
+
+        let pitch = max(1, scroll.contentSize.height / CGFloat(rows.count))
+        let top = scroll.contentOffset.y + scroll.contentInsets.top
+        let visibleHeight = scroll.containerSize.height - scroll.contentInsets.top - scroll.contentInsets.bottom
+        let edgeY = direction > 0 ? top + visibleHeight : top
+        let index = Int(edgeY / pitch)
+
+        return min(max(index, 0), rows.count - 1)
+    }
+
+    private func stepScroll() {
+        let direction = autoScroll.direction
+        let zoneActive = direction < 0 ? topZoneTargeted : bottomZoneTargeted
+        let rows = fileTreeModel.visibleRows
+
+        guard zoneActive, !rows.isEmpty else {
+            stopAutoScroll()
+            return
+        }
+
+        autoScroll.rowIndex = min(max(autoScroll.rowIndex + direction, 0), rows.count - 1)
+        let row = rows[autoScroll.rowIndex]
+
+        withAnimation(.linear(duration: 0.12)) {
+            scrollPosition.scrollTo(id: row.id, anchor: direction > 0 ? .bottom : .top)
+        }
+    }
+}
+
+final class AutoScrollDriver {
+    var scroll: ScrollGeometry?
+    var timer: Timer?
+    var direction: Int = 1
+    var rowIndex: Int = 0
+}
+
+struct DropTargetActiveKey: PreferenceKey {
+    static let defaultValue = false
+
+    static func reduce(value: inout Bool, nextValue: () -> Bool) {
+        value = value || nextValue()
+    }
 }
 
 struct FileRowView: View {
@@ -46,8 +250,11 @@ struct FileRowView: View {
     let file: File
     let level: CGFloat
 
+    @State private var isDropTargeted = false
+    @State private var springOpenTask: Task<Void, Never>?
+
     var children: [File] {
-        filesModel.childrens[file.id] ?? []
+        filesModel.childrenByParent[file.id] ?? []
     }
 
     var isLeaf: Bool {
@@ -59,21 +266,17 @@ struct FileRowView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            if level != -1 {
-                fileRow
-                    .onTapGesture {
-                        openFile()
-                    }
+        fileRow
+            .onTapGesture {
+                openFile()
             }
-
-            if !isLeaf, isOpen || level == -1 {
-                ForEach(children, id: \.id) { child in
-                    FileRowView(file: child, level: level + 1)
-                }
+            .draggable(file)
+            .dropDestination(for: File.self) { dropped, _ in
+                drop(dropped)
+            } isTargeted: { targeted in
+                setDropTargeted(targeted)
             }
-        }
-        .id(file.id)
+            .preference(key: DropTargetActiveKey.self, value: isDropTargeted)
     }
 
     var fileRow: some View {
@@ -112,6 +315,12 @@ struct FileRowView: View {
         .padding(.leading, level * 20 + 5)
         .padding(.trailing, 10)
         .modifier(OpenDocModifier(file: file))
+        .background {
+            if isDropTargeted {
+                RoundedRectangle(cornerRadius: 5, style: .continuous)
+                    .fill(Color.accentColor.opacity(0.35))
+            }
+        }
     }
 
     func openFile() {
@@ -125,6 +334,51 @@ struct FileRowView: View {
             workspaceInput.openFile(id: file.id)
             homeState.compactColumn = .detail
         }
+    }
+
+    private func setDropTargeted(_ targeted: Bool) {
+        withAnimation(.easeInOut(duration: 0.12)) {
+            isDropTargeted = targeted
+        }
+
+        springOpenTask?.cancel()
+        springOpenTask = nil
+
+        if targeted, file.isFolder, !isOpen {
+            springOpenTask = Task {
+                try? await Task.sleep(for: .milliseconds(650))
+                guard !Task.isCancelled else { return }
+
+                withAnimation {
+                    fileTreeModel.openFolders.insert(file.id)
+                }
+            }
+        }
+    }
+
+    private var dropDestinationFolder: File? {
+        file.isFolder ? file : filesModel.idsToFiles[file.parent]
+    }
+
+    private func drop(_ dropped: [File]) -> Bool {
+        guard let dest = dropDestinationFolder else {
+            return false
+        }
+
+        let movable = dropped.filter { filesModel.canMove($0, into: dest) }
+        guard !movable.isEmpty else {
+            return false
+        }
+
+        for dragged in movable {
+            filesModel.moveFile(id: dragged.id, newParent: dest.id)
+        }
+
+        withAnimation {
+            fileTreeModel.openFolders.insert(dest.id)
+        }
+
+        return true
     }
 }
 
