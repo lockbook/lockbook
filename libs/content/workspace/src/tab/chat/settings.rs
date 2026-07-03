@@ -26,14 +26,14 @@ use lb_rs::blocking::Lb;
 use serde::Deserialize;
 
 const PROVIDERS_DIR: &str = "/.agent/providers";
-const INSTRUCTIONS_PATH: &str = "/.agent/instructions.md";
+pub const PROMPT_PATH: &str = "/.agent/prompt.md";
 
-/// Custom system prompt: the whole of `/.agent/instructions.md` whenever
-/// the file exists — an empty file means no system prompt, not the default;
-/// deleting the file restores the built-in preamble. Read at send time like
+/// Custom system prompt: the whole of `/.agent/prompt.md` whenever the file
+/// exists — an empty file means no system prompt, not the default; deleting
+/// the file restores the built-in preamble. Read at send time like
 /// everything else here — edit, then just send.
-pub fn instructions(core: &Lb) -> Option<String> {
-    let file = core.get_by_path(INSTRUCTIONS_PATH).ok()?;
+pub fn system_prompt(core: &Lb) -> Option<String> {
+    let file = core.get_by_path(PROMPT_PATH).ok()?;
     let bytes = core.read_document(file.id, false).ok()?;
     Some(String::from_utf8_lossy(&bytes).trim().to_string())
 }
@@ -54,6 +54,11 @@ pub struct Provider {
     pub model: String,
     /// Absent: authenticate with nothing (e.g. a locally hosted server).
     pub api_key: Option<String>,
+    /// Reasoning effort ("low"/"medium"/"high", plus provider-specific
+    /// extras), sent only when set — where the model doesn't reason it's
+    /// ignored or errors. Backends map it: OpenAI-compat `reasoning_effort`,
+    /// Anthropic `output_config.effort` with adaptive thinking.
+    pub effort: Option<String>,
 }
 
 /// The on-disk shape. `base_url` and `model` are required; a file missing
@@ -68,6 +73,8 @@ struct ProviderFile {
     model: String,
     #[serde(default)]
     api_key: Option<String>,
+    #[serde(default)]
+    effort: Option<String>,
 }
 
 impl Provider {
@@ -156,6 +163,7 @@ pub fn parse(name: &str, bytes: &[u8]) -> Option<Provider> {
         // An empty key (the setup template before the paste) means keyless,
         // not "Bearer <nothing>".
         api_key: file.api_key.filter(|k| !k.trim().is_empty()),
+        effort: file.effort.filter(|e| !e.trim().is_empty()),
     })
 }
 
@@ -173,6 +181,7 @@ mod tests {
             base_url: "https://api.example.com".into(),
             model: model.into(),
             api_key: None,
+            effort: None,
         }
     }
 

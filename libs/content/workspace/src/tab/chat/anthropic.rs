@@ -23,6 +23,7 @@ pub struct AnthropicBackend {
     base_url: String,
     api_key: String,
     model: String,
+    effort: Option<String>,
 }
 
 pub fn anthropic(provider: &Provider) -> AnthropicBackend {
@@ -35,6 +36,7 @@ pub fn anthropic(provider: &Provider) -> AnthropicBackend {
         base_url: provider.base_url.trim_end_matches('/').to_string(),
         api_key: provider.api_key.clone().unwrap_or_default(),
         model: provider.model.clone(),
+        effort: provider.effort.clone(),
     }
 }
 
@@ -108,6 +110,13 @@ impl AnthropicBackend {
         });
         if !req.system.is_empty() {
             body["system"] = json!(req.system);
+        }
+        // Anthropic controls reasoning depth through effort on adaptive
+        // thinking (Opus 4.6+), not `reasoning_effort`. Values: low / medium
+        // / high / xhigh / max.
+        if let Some(effort) = &self.effort {
+            body["thinking"] = json!({ "type": "adaptive" });
+            body["output_config"] = json!({ "effort": effort });
         }
 
         // Rate limits (429) and transient server errors (5xx) back off and
@@ -286,6 +295,7 @@ mod tests {
             base_url: base_url.into(),
             model: "claude-opus-4-8".into(),
             api_key: Some("test-key".into()),
+            effort: None,
         });
         let req = CompletionReq {
             system: "system".into(),
@@ -328,6 +338,37 @@ mod tests {
             .map(|m| m.id)
             .collect();
         assert_eq!(kept, ["claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5-20251001"]);
+    }
+
+    /// Effort maps to adaptive thinking + `output_config.effort`, not the
+    /// OpenAI-compat `reasoning_effort` key.
+    #[test]
+    fn effort_maps_to_output_config() {
+        let (base, rx) = super::super::openai::mock::serve_capturing(SSE_ANTHROPIC);
+        let backend = anthropic(&Provider {
+            name: "anthropic".into(),
+            display_name: None,
+            kind: "anthropic".into(),
+            base_url: base,
+            model: "claude-opus-4-8".into(),
+            api_key: Some("k".into()),
+            effort: Some("high".into()),
+        });
+        let req = CompletionReq {
+            system: "s".into(),
+            messages: vec![ChatMsg::User("hi".into())],
+            max_tokens: 100,
+        };
+        let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+        tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap()
+            .block_on(backend.complete(req, tx))
+            .unwrap();
+        let body = rx.recv().unwrap();
+        assert!(body.contains("\"output_config\":{\"effort\":\"high\"}"), "{body}");
+        assert!(body.contains("\"thinking\":{\"type\":\"adaptive\"}"), "{body}");
     }
 
     #[test]

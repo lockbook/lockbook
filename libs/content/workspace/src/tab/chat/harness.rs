@@ -30,7 +30,7 @@ const MAX_TOKENS: u32 = 16_000;
 enum Cmd {
     /// A user message to respond to; the caller already appended it to the
     /// transcript. `system` overrides the built-in preamble when the user
-    /// has an instructions file.
+    /// has a prompt file.
     Say { text: String, provider: Provider, system: Option<String> },
     /// Cancel the turn in flight, keeping the text streamed so far.
     Stop,
@@ -261,7 +261,7 @@ async fn run(
     }
 }
 
-/// The prompt's editable substance — also the instructions-file template,
+/// The prompt's editable substance — also the prompt-file template,
 /// so customizing starts from what's actually sent. Tool guidance joins in
 /// the tools increment. Privacy claims deliberately absent: the transcript
 /// is sent to whatever provider the user configured, and a model told "this
@@ -298,6 +298,7 @@ mod tests {
             base_url: serve_once(SSE_HELLO),
             model: "test-model".into(),
             api_key: Some("test-key".into()),
+            effort: None,
         };
         let mut harness = Harness::new(egui::Context::default(), Vec::new());
 

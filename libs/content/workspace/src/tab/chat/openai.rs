@@ -63,6 +63,8 @@ pub struct OpenAiBackend {
     /// Absent: no Authorization header (a keyless local server).
     api_key: Option<String>,
     model: String,
+    /// Reasoning effort, sent as `reasoning_effort` when set.
+    effort: Option<String>,
 }
 
 pub fn openai_compat(provider: &Provider) -> OpenAiBackend {
@@ -75,6 +77,7 @@ pub fn openai_compat(provider: &Provider) -> OpenAiBackend {
         base_url: provider.base_url.trim_end_matches('/').to_string(),
         api_key: provider.api_key.clone(),
         model: provider.model.clone(),
+        effort: provider.effort.clone(),
     }
 }
 
@@ -141,6 +144,11 @@ impl OpenAiBackend {
             "stream_options": { "include_usage": true },
         });
         body[cap_key] = json!(cap);
+        // The de-facto reasoning knob across OpenAI-compatible endpoints
+        // (OpenAI, Google's compat layer, xAI, Groq, OpenRouter, Together).
+        if let Some(effort) = &self.effort {
+            body["reasoning_effort"] = json!(effort);
+        }
 
         // Rate limits (429) and transient server errors (5xx) back off and
         // retry a couple of times before surfacing. Always pre-stream, so a
@@ -541,6 +549,35 @@ pub(super) mod mock {
         });
         format!("http://{addr}")
     }
+
+    /// Serve `response` and hand the request's JSON body back on the
+    /// channel, for asserting what the backend actually sent on the wire.
+    pub fn serve_capturing(response: &'static str) -> (String, std::sync::mpsc::Receiver<String>) {
+        let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+        let addr = listener.local_addr().unwrap();
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let (mut sock, _) = listener.accept().unwrap();
+            let mut buf = Vec::new();
+            let mut tmp = [0u8; 4096];
+            let body = loop {
+                let n = sock.read(&mut tmp).unwrap();
+                buf.extend_from_slice(&tmp[..n]);
+                let Some(end) = buf.windows(4).position(|w| w == b"\r\n\r\n") else { continue };
+                let headers = String::from_utf8_lossy(&buf[..end]).to_lowercase();
+                let len = headers
+                    .lines()
+                    .find_map(|l| l.strip_prefix("content-length:"))
+                    .map_or(0, |v| v.trim().parse::<usize>().unwrap());
+                if buf.len() >= end + 4 + len {
+                    break String::from_utf8_lossy(&buf[end + 4..end + 4 + len]).into_owned();
+                }
+            };
+            let _ = tx.send(body);
+            sock.write_all(response.as_bytes()).unwrap();
+        });
+        (format!("http://{addr}"), rx)
+    }
 }
 
 #[cfg(test)]
@@ -560,6 +597,7 @@ mod tests {
             base_url: base_url.into(),
             model: "test-model".into(),
             api_key: Some("test-key".into()),
+            effort: None,
         });
         let req = CompletionReq {
             system: "system".into(),
@@ -577,6 +615,42 @@ mod tests {
             deltas.push(d);
         }
         (result, deltas)
+    }
+
+    /// A configured effort rides the wire as `reasoning_effort`; an absent
+    /// one sends nothing (so non-reasoning providers are untouched).
+    #[test]
+    fn effort_maps_to_reasoning_effort() {
+        let provider = |effort: Option<&str>| Provider {
+            name: "mock".into(),
+            display_name: None,
+            kind: "openai".into(),
+            base_url: String::new(),
+            model: "test-model".into(),
+            api_key: Some("test-key".into()),
+            effort: effort.map(str::to_string),
+        };
+        let run = |p: &Provider| {
+            let (base, rx) = super::mock::serve_capturing(SSE_HELLO);
+            let mut p = p.clone();
+            p.base_url = base;
+            let backend = openai_compat(&p);
+            let req = CompletionReq {
+                system: "s".into(),
+                messages: vec![ChatMsg::User("hi".into())],
+                max_tokens: 100,
+            };
+            let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
+            tokio::runtime::Builder::new_current_thread()
+                .enable_all()
+                .build()
+                .unwrap()
+                .block_on(backend.complete(req, tx))
+                .unwrap();
+            rx.recv().unwrap()
+        };
+        assert!(run(&provider(Some("high"))).contains("\"reasoning_effort\":\"high\""));
+        assert!(!run(&provider(None)).contains("reasoning_effort"));
     }
 
     /// A 400 naming `max_completion_tokens` re-sends with the renamed cap

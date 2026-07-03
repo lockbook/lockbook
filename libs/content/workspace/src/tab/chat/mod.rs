@@ -176,7 +176,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
             r#"{
   "display_name": "Local (Ollama)",
   "base_url": "http://localhost:11434/v1",
-  "model": "gemma3"
+  "model": ""
 }
 "#,
         ),
@@ -310,12 +310,24 @@ pub struct Chat {
     unshared: bool,
     #[cfg(not(target_family = "wasm"))]
     core: lb_rs::blocking::Lb,
-    /// Cached provider, for the setup hint only — turns resolve their
-    /// provider fresh at send time, so this is display state, not config.
-    /// Refreshed on tab re-activation (a frame after a gap) and after
-    /// click-to-set-up.
+    /// Config loaded off the UI thread — decrypting provider files (and the
+    /// prompt) is too slow for the render frame in debug. `provider` is the
+    /// resolved current one (setup hint + the turn's backend); `providers`
+    /// backs the picker; `system_prompt` is the prompt file's contents.
+    /// A background reload refreshes all three on tab re-activation and
+    /// after set-up, so nothing reads files on the UI thread.
     #[cfg(not(target_family = "wasm"))]
     provider: Option<settings::Provider>,
+    #[cfg(not(target_family = "wasm"))]
+    providers: Vec<settings::Provider>,
+    #[cfg(not(target_family = "wasm"))]
+    system_prompt: Option<String>,
+    /// False until the first background load lands — distinguishes "no
+    /// providers yet" (don't flash the setup hint) from "genuinely none".
+    #[cfg(not(target_family = "wasm"))]
+    config_loaded: bool,
+    #[cfg(not(target_family = "wasm"))]
+    config_rx: Option<std::sync::mpsc::Receiver<LoadedConfig>>,
     #[cfg(not(target_family = "wasm"))]
     last_frame: Option<std::time::Instant>,
     /// Message being edited via composer-prefill (its id). Sending appends a
@@ -353,6 +365,14 @@ pub struct Chat {
 #[cfg(not(target_family = "wasm"))]
 type ModelListing = Vec<backend::ModelInfo>;
 
+/// The result of a background config load — everything that lives in files
+/// under `/.agent`, decrypted off the UI thread.
+#[cfg(not(target_family = "wasm"))]
+struct LoadedConfig {
+    providers: Vec<settings::Provider>,
+    system_prompt: Option<String>,
+}
+
 /// (provider name, base_url) — what a cached listing is valid for.
 #[cfg(not(target_family = "wasm"))]
 type ModelsKey = (String, String);
@@ -373,6 +393,58 @@ fn latest_selection(
         .filter_map(|e| e.msg.config.as_ref())
         .filter_map(|c| c.model.clone())
         .next_back()
+}
+
+/// The toolbar effort control's "let the model decide" value — clears any
+/// per-chat override back to the provider's own default (it does not force
+/// reasoning off; a true off is model-specific).
+#[cfg(not(target_family = "wasm"))]
+const EFFORT_AUTO: &str = "auto";
+
+/// The effort levels the toolbar offers, portable across OpenAI-compat and
+/// Anthropic. Exotic values (xhigh, max, none) stay a provider-file affair.
+#[cfg(not(target_family = "wasm"))]
+const EFFORT_LEVELS: &[&str] = &["low", "medium", "high"];
+
+/// This user's latest per-chat reasoning-effort pick (config entries are
+/// ts-sorted with the log; last wins). `EFFORT_AUTO` clears the override.
+#[cfg(not(target_family = "wasm"))]
+fn latest_effort(entries: &[Entry], username: &str) -> Option<String> {
+    entries
+        .iter()
+        .filter(|e| e.msg.from == username)
+        .filter_map(|e| e.msg.config.as_ref())
+        .filter_map(|c| c.effort.clone())
+        .next_back()
+}
+
+/// The toolbar effort control shows only where the model reasons: Anthropic
+/// drives adaptive thinking natively, and OpenAI-compat reasoning models
+/// take `reasoning_effort`. The compat case is a best-effort id heuristic
+/// (like `is_chat_id`) — a miss only hides the control, since the provider
+/// file's `effort` field still applies.
+#[cfg(not(target_family = "wasm"))]
+fn effort_available(provider: &settings::Provider) -> bool {
+    provider.kind == "anthropic" || is_reasoning_model(&provider.model)
+}
+
+#[cfg(not(target_family = "wasm"))]
+fn is_reasoning_model(id: &str) -> bool {
+    let id = id.rsplit('/').next().unwrap_or(id).to_ascii_lowercase();
+    id.starts_with("gpt-5")
+        || id.starts_with("o1")
+        || id.starts_with("o3")
+        || id.starts_with("o4")
+        || id.starts_with("gemini-2.5")
+        || id.starts_with("gemini-3")
+        // Dotted Grok (4.1, 4.3) takes reasoning_effort; bare/dated grok-4
+        // errors on it, so it's deliberately excluded.
+        || id.starts_with("grok-4.")
+        || id.starts_with("grok-3-mini")
+        || id.contains("reasoner")
+        || id.contains("reasoning")
+        || id.contains("thinking")
+        || id.contains("qwq")
 }
 
 /// The model this user last ran `provider` with, mined from the append-only
@@ -415,14 +487,6 @@ impl Chat {
             let visible = resolve_visible(&entries, &HashMap::new(), None);
             harness::Harness::new(ctx.clone(), seed_history(&entries, &visible))
         });
-        #[cfg(not(target_family = "wasm"))]
-        let provider = if unshared {
-            let selection = latest_selection(&entries, &account.username);
-            settings::resolve(settings::load(core), selection.as_ref())
-        } else {
-            None
-        };
-
         Self {
             id,
             hmac,
@@ -450,8 +514,20 @@ impl Chat {
             unshared,
             #[cfg(not(target_family = "wasm"))]
             core: core.clone(),
+            // Providers/prompt load on a background thread; the first show()
+            // kicks it. Files are never read on the UI thread.
             #[cfg(not(target_family = "wasm"))]
-            provider,
+            provider: None,
+            #[cfg(not(target_family = "wasm"))]
+            providers: Vec::new(),
+            #[cfg(not(target_family = "wasm"))]
+            system_prompt: None,
+            #[cfg(not(target_family = "wasm"))]
+            config_loaded: false,
+            #[cfg(not(target_family = "wasm"))]
+            config_rx: None,
+            // Left None so the first frame kicks the initial background load
+            // (a cheap thread spawn, not the file read that blew the budget).
             #[cfg(not(target_family = "wasm"))]
             last_frame: None,
             #[cfg(not(target_family = "wasm"))]
@@ -486,11 +562,58 @@ impl Chat {
     }
 
     /// The provider the next turn runs with: this user's per-chat selection
-    /// (latest config entry) resolved against the provider files.
+    /// (latest config entry) resolved against the *cached* provider list.
+    /// Pure — no file I/O, so it's safe on the UI thread every time config
+    /// changes. The list is refreshed by the background loader.
     #[cfg(not(target_family = "wasm"))]
     fn resolve_provider(&self) -> Option<settings::Provider> {
         let selection = latest_selection(&self.entries, &self.account.username);
-        settings::resolve(settings::load(&self.core), selection.as_ref())
+        let mut provider = settings::resolve(self.providers.clone(), selection.as_ref())?;
+        // Per-chat effort overrides the file default, but only where effort
+        // applies — a stored pick shouldn't leak onto a non-reasoning model
+        // the chat later switched to. `EFFORT_AUTO` clears it.
+        if effort_available(&provider) {
+            if let Some(eff) = latest_effort(&self.entries, &self.account.username) {
+                provider.effort = (eff != EFFORT_AUTO).then_some(eff);
+            }
+        }
+        Some(provider)
+    }
+
+    /// Spawn a background load of the provider files and prompt — decrypting
+    /// them is too slow for a render frame in debug. No-op while one is in
+    /// flight. The result lands in `pump_config` and re-resolves the cache.
+    #[cfg(not(target_family = "wasm"))]
+    fn kick_config_load(&mut self) {
+        if self.config_rx.is_some() {
+            return;
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        self.config_rx = Some(rx);
+        let core = self.core.clone();
+        let ctx = self.ctx.clone();
+        std::thread::spawn(move || {
+            let loaded = LoadedConfig {
+                providers: settings::load(&core),
+                system_prompt: settings::system_prompt(&core),
+            };
+            let _ = tx.send(loaded);
+            ctx.request_repaint();
+        });
+    }
+
+    /// Fold a completed background config load into the caches.
+    #[cfg(not(target_family = "wasm"))]
+    fn pump_config(&mut self) {
+        if let Some(rx) = &self.config_rx {
+            if let Ok(loaded) = rx.try_recv() {
+                self.config_rx = None;
+                self.providers = loaded.providers;
+                self.system_prompt = loaded.system_prompt;
+                self.config_loaded = true;
+                self.provider = self.resolve_provider();
+            }
+        }
     }
 
     /// Record a provider/model pick as a config entry in the transcript —
@@ -498,9 +621,24 @@ impl Chat {
     /// empty `model` means the provider's file default.
     #[cfg(not(target_family = "wasm"))]
     fn write_selection(&mut self, provider: String, model: String) {
-        let config = lb_rs::model::chat::ChatConfig {
+        self.write_config(lb_rs::model::chat::ChatConfig {
             model: Some(lb_rs::model::chat::ModelSelection { provider, model }),
-        };
+            ..Default::default()
+        });
+    }
+
+    /// Record a reasoning-effort pick (`EFFORT_AUTO` to clear).
+    #[cfg(not(target_family = "wasm"))]
+    fn write_effort(&mut self, effort: String) {
+        self.write_config(lb_rs::model::chat::ChatConfig {
+            effort: Some(effort),
+            ..Default::default()
+        });
+    }
+
+    /// Append a config entry and re-resolve the provider display cache.
+    #[cfg(not(target_family = "wasm"))]
+    fn write_config(&mut self, config: lb_rs::model::chat::ChatConfig) {
         let msg =
             Message::config_entry(self.account.username.clone(), Utc::now().timestamp(), config);
         self.entries.push(Entry::new(
@@ -558,10 +696,10 @@ impl Chat {
         }
     }
 
-    /// Refresh the cached provider on tab re-activation: a frame after a
-    /// gap means the user was away (editing the provider file, say). Turns
-    /// don't depend on this — they resolve config at send — it only keeps
-    /// the setup hint honest.
+    /// Kick a background config reload on first frame and on tab
+    /// re-activation (a frame after a gap means the user was away, maybe
+    /// editing a provider file). Cheap (a thread spawn); the file reads
+    /// happen off-thread and land in `pump_config`.
     #[cfg(not(target_family = "wasm"))]
     fn refresh_provider_on_return(&mut self) {
         let now = std::time::Instant::now();
@@ -570,7 +708,7 @@ impl Chat {
             .is_none_or(|t| now - t > std::time::Duration::from_millis(300));
         self.last_frame = Some(now);
         if away && self.unshared {
-            self.provider = self.resolve_provider();
+            self.kick_config_load();
         }
     }
 
@@ -607,19 +745,22 @@ impl Chat {
             let _ = self.core.write_document(file.id, template.as_bytes());
         }
         self.write_selection(name.to_string(), String::new());
+        // The new file isn't in the cached list yet; reload so it resolves
+        // and appears in the picker.
+        self.kick_config_load();
         self.ctx.open_file(file.id, true);
     }
 
-    /// Create (or reuse) the instructions file and open it in a tab. Only a
-    /// freshly created file gets the preamble template (so customizing
+    /// Create (or reuse) the system-prompt file and open it in a tab. Only
+    /// a freshly created file gets the preamble template (so customizing
     /// starts from what's actually sent) — an existing file opens untouched
-    /// even when empty, because an empty instructions file is a meaningful
-    /// state: no system prompt. The date sentence stays out of the template
-    /// — it would freeze today into the file.
+    /// even when empty, because an empty prompt file is a meaningful state:
+    /// no system prompt. The date sentence stays out of the template — it
+    /// would freeze today into the file.
     #[cfg(not(target_family = "wasm"))]
-    fn create_instructions_file(&mut self) {
+    fn create_prompt_file(&mut self) {
         use crate::tab::ExtendedOutput as _;
-        let path = "/.agent/instructions.md";
+        let path = settings::PROMPT_PATH;
         let file = match self.core.get_by_path(path) {
             Ok(file) => file,
             Err(_) => match self.core.create_at_path(path) {
@@ -682,7 +823,7 @@ impl Chat {
         self.seq += 1;
         self.pending_parent = msg_id;
         self.provider = self.resolve_provider();
-        let system = settings::instructions(&self.core);
+        let system = self.system_prompt.clone();
         let mut seed = self.visible_seed();
         seed.pop(); // `say` pushes the new message itself
         if let (Some(harness), Some(provider)) = (&mut self.harness, self.provider.clone()) {
@@ -701,7 +842,7 @@ impl Chat {
         self.hide_children_of = Some(parent);
         self.pending_parent = Some(parent);
         self.provider = self.resolve_provider();
-        let system = settings::instructions(&self.core);
+        let system = self.system_prompt.clone();
         let seed = self.visible_seed();
         if let (Some(harness), Some(provider)) = (&mut self.harness, self.provider.clone()) {
             harness.reseed(seed);
@@ -872,7 +1013,7 @@ impl Chat {
             // add entries the driver never saw.
             let mut seed = self.visible_seed();
             seed.pop(); // `say` pushes the new message itself
-            let system = settings::instructions(&self.core);
+            let system = self.system_prompt.clone();
             if let (Some(harness), Some(provider)) = (&mut self.harness, self.provider.clone()) {
                 harness.reseed(seed);
                 harness.say(content, provider, system);
@@ -909,6 +1050,8 @@ impl Chat {
         #[cfg(not(target_family = "wasm"))]
         self.pump_models();
         #[cfg(not(target_family = "wasm"))]
+        self.pump_config();
+        #[cfg(not(target_family = "wasm"))]
         let agent_changed = self.pump_agent();
         #[cfg(target_family = "wasm")]
         let agent_changed = false;
@@ -922,7 +1065,9 @@ impl Chat {
         #[cfg(target_family = "wasm")]
         let (agent_busy, agent_streaming) = (false, String::new());
         #[cfg(not(target_family = "wasm"))]
-        let show_agent_hint = self.unshared && self.provider.is_none();
+        // Only once config has actually loaded — otherwise the hint flashes
+        // for the frames before the background load lands.
+        let show_agent_hint = self.unshared && self.config_loaded && self.provider.is_none();
         #[cfg(target_family = "wasm")]
         let show_agent_hint = false;
         // The one timeline to display, resolved fresh each frame from the
@@ -1377,7 +1522,11 @@ impl Chat {
                             hovered || (is_tail && kind == RowKind::AgentReply) || retryable;
 
                         // Items lay out from the row's aligned edge inward:
-                        // action icons, then arrows, then the timestamp.
+                        // arrows, then timestamp, then action icons. The
+                        // always-visible arrows and timestamp anchor the
+                        // outer edge; hover-revealed icons sit innermost, so
+                        // revealing them never shifts an element the cursor
+                        // is reaching for.
                         let dir: f32 = if strip.right { -1.0 } else { 1.0 };
                         let mut x = if strip.right { strip.rect.max.x } else { strip.rect.min.x };
                         let mut place = |w: f32| {
@@ -1389,45 +1538,6 @@ impl Chat {
                             x += dir * (w + STRIP_GAP);
                             r
                         };
-
-                        if show_icons {
-                            let mut icons: Vec<(&Icon, Option<RowAction>)> = Vec::new();
-                            if editable && kind == RowKind::OwnUser {
-                                icons.push((&Icon::PENCIL, Some(RowAction::Edit(i))));
-                            }
-                            icons.push((&Icon::CONTENT_COPY, None));
-                            if regen {
-                                icons.push((&Icon::SYNC, Some(RowAction::Regenerate(i))));
-                            }
-                            if retryable {
-                                icons.push((&Icon::SYNC, Some(RowAction::RetryLast)));
-                            }
-                            for (bi, (icon, act)) in icons.iter().enumerate() {
-                                let r = place(STRIP_H);
-                                let resp = ui
-                                    .interact(r, Id::new(("chat_strip", i, bi)), Sense::click())
-                                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                                let color =
-                                    if resp.hovered() { text_color } else { secondary_color };
-                                let g = ui.fonts(|f| {
-                                    f.layout_no_wrap(
-                                        icon.icon.to_string(),
-                                        egui::FontId::monospace(13.0),
-                                        color,
-                                    )
-                                });
-                                ui.painter().galley(r.center() - g.size() / 2.0, g, color);
-                                if resp.clicked() {
-                                    match act {
-                                        None => {
-                                            let content = self.entries[i].msg.content.clone();
-                                            ui.ctx().copy_text(content);
-                                        }
-                                        Some(a) => action = Some(*a),
-                                    }
-                                }
-                            }
-                        }
 
                         if let Some(fork) = &visible[vi].fork {
                             let font = egui::FontId::proportional(NOTE_FONT);
@@ -1489,6 +1599,49 @@ impl Chat {
                                 ts.clone(),
                                 secondary_color,
                             );
+                        }
+
+                        // Action icons, innermost so a hover reveal shifts
+                        // nothing beyond them. Only a pointer over the row
+                        // can reach them, so hover-gated visibility never
+                        // hides a reachable target.
+                        if show_icons {
+                            let mut icons: Vec<(&Icon, Option<RowAction>)> = Vec::new();
+                            if editable && kind == RowKind::OwnUser {
+                                icons.push((&Icon::PENCIL, Some(RowAction::Edit(i))));
+                            }
+                            icons.push((&Icon::CONTENT_COPY, None));
+                            if regen {
+                                icons.push((&Icon::SYNC, Some(RowAction::Regenerate(i))));
+                            }
+                            if retryable {
+                                icons.push((&Icon::SYNC, Some(RowAction::RetryLast)));
+                            }
+                            for (bi, (icon, act)) in icons.iter().enumerate() {
+                                let r = place(STRIP_H);
+                                let resp = ui
+                                    .interact(r, Id::new(("chat_strip", i, bi)), Sense::click())
+                                    .on_hover_cursor(egui::CursorIcon::PointingHand);
+                                let color =
+                                    if resp.hovered() { text_color } else { secondary_color };
+                                let g = ui.fonts(|f| {
+                                    f.layout_no_wrap(
+                                        icon.icon.to_string(),
+                                        egui::FontId::monospace(13.0),
+                                        color,
+                                    )
+                                });
+                                ui.painter().galley(r.center() - g.size() / 2.0, g, color);
+                                if resp.clicked() {
+                                    match act {
+                                        None => {
+                                            let content = self.entries[i].msg.content.clone();
+                                            ui.ctx().copy_text(content);
+                                        }
+                                        Some(a) => action = Some(*a),
+                                    }
+                                }
+                            }
                         }
 
                         // Context menu over the message row (secondary path
@@ -1595,7 +1748,7 @@ impl Chat {
                     .last()
                     .and_then(|row| parent_for_sibling(&self.entries, row.idx));
                 self.provider = self.resolve_provider();
-                let system = settings::instructions(&self.core);
+                let system = self.system_prompt.clone();
                 if let (Some(harness), Some(provider)) = (&mut self.harness, self.provider.clone())
                 {
                     harness.retry(provider, system);
@@ -1724,14 +1877,14 @@ impl Chat {
                     f.layout_no_wrap(
                         text.to_string(),
                         egui::FontId::proportional(NOTE_FONT),
-                        secondary_color,
+                        text_color,
                     )
                 });
                 let chevron = ui.fonts(|f| {
                     f.layout_no_wrap(
                         Icon::CHEVRON_DOWN.icon.to_string(),
                         egui::FontId::monospace(12.0),
-                        secondary_color,
+                        text_color,
                     )
                 });
                 let w = galley.size().x + chevron.size().x + 6.0;
@@ -1743,27 +1896,28 @@ impl Chat {
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
                 let text_top = rect.min.y + (TOOLBAR_H - galley.size().y) / 2.0;
                 ui.painter()
-                    .galley(pos2(rect.min.x, text_top), galley, secondary_color);
+                    .galley(pos2(rect.min.x, text_top), galley, text_color);
                 ui.painter().galley(
                     pos2(rect.max.x - chevron.size().x, text_top),
                     chevron,
-                    secondary_color,
+                    text_color,
                 );
                 resp
             };
 
             let mut pick: Option<(String, String)> = None;
 
-            // The selected row is marked by foreground text color rather
-            // than egui's selection fill.
+            // Menu rows in the main foreground color; the current row in the
+            // accent so selection still reads without dimming the rest.
+            let accent = theme.fg().get_color(theme.prefs().primary);
             let row_text = |text: &str, selected: bool| {
-                egui::RichText::new(text).color(if selected { text_color } else { secondary_color })
+                egui::RichText::new(text).color(if selected { accent } else { text_color })
             };
 
             // The toolbar hugs the bottom of the window, so menus open
             // upward — downward they'd clamp to a couple of rows.
             let mut add: Option<&'static str> = None;
-            let mut open_instructions = false;
+            let mut open_prompt = false;
             let provider_resp = dropdown(ui, "chat_provider_btn", &current.label());
             let glyphs = &mut self.glyphs;
             // A row with the provider's brand mark, tinted like its text —
@@ -1782,7 +1936,7 @@ impl Chat {
                     ui.set_min_width(140.0);
                     // Same grouping and order as the add-provider menu;
                     // names it doesn't know trail in their own group.
-                    let providers = settings::load(&self.core);
+                    let providers = &self.providers;
                     let mut groups: Vec<Vec<&settings::Provider>> = TEMPLATES
                         .iter()
                         .map(|group| {
@@ -1844,24 +1998,34 @@ impl Chat {
                             }
                         }
                     });
-                    // The system prompt, as a file: created pre-filled with
-                    // the default so edits start from what's sent today.
-                    if ui.button(row_text("instructions", false)).clicked() {
-                        open_instructions = true;
+                    // The system prompt, as an editable file. "system
+                    // prompt" is the real term and reads unambiguously to
+                    // anyone who's used an agent; the tooltip covers the
+                    // rest and names the file it opens.
+                    let resp = ui.button(row_text("system prompt", false)).on_hover_text(
+                        "what the agent is told before every chat — opens prompt.md to edit",
+                    );
+                    if resp.clicked() {
+                        open_prompt = true;
                         ui.close();
                     }
                 });
 
             // The button shows the selected model's display name when the
             // listing has landed; the id (what's actually configured) until
-            // then, or when the endpoint doesn't offer names.
-            let model_label = self
-                .models
-                .as_ref()
-                .filter(|((name, url), _)| name == &current.name && url == &current.base_url)
-                .and_then(|(_, list)| list.iter().find(|m| m.id == current.model))
-                .map(|m| m.label().to_string())
-                .unwrap_or_else(|| current.model.clone());
+            // then, or when the endpoint doesn't offer names. An empty model
+            // is an unselected provider (a local server whose installed
+            // models we can't guess) — prompt a pick from the listing.
+            let model_label = if current.model.is_empty() {
+                "select model".to_string()
+            } else {
+                self.models
+                    .as_ref()
+                    .filter(|((name, url), _)| name == &current.name && url == &current.base_url)
+                    .and_then(|(_, list)| list.iter().find(|m| m.id == current.model))
+                    .map(|m| m.label().to_string())
+                    .unwrap_or_else(|| current.model.clone())
+            };
             let model_resp = dropdown(ui, "chat_model_btn", &model_label);
             egui::Popup::menu(&model_resp)
                 .align(egui::RectAlign::TOP_START)
@@ -1907,16 +2071,53 @@ impl Chat {
                     }
                 });
 
+            // Reasoning-effort dropdown, only where the model reasons. The
+            // button shows the effective level (file default or per-chat
+            // pick), "effort" when none.
+            let mut effort_pick: Option<String> = None;
+            if effort_available(current) {
+                // Self-labeling ("effort: high"): the level alone wouldn't
+                // read as an effort control next to provider/model names.
+                let label = format!("effort: {}", current.effort.as_deref().unwrap_or(EFFORT_AUTO));
+                let effort_resp = dropdown(ui, "chat_effort_btn", &label).on_hover_text(
+                    "how hard the model reasons before replying — auto uses its own default",
+                );
+                egui::Popup::menu(&effort_resp)
+                    .align(egui::RectAlign::TOP_START)
+                    .show(|ui| {
+                        ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                        ui.set_min_width(100.0);
+                        if ui
+                            .button(row_text(EFFORT_AUTO, current.effort.is_none()))
+                            .clicked()
+                        {
+                            effort_pick = Some(EFFORT_AUTO.into());
+                            ui.close();
+                        }
+                        for level in EFFORT_LEVELS {
+                            let selected = current.effort.as_deref() == Some(*level);
+                            if ui.button(row_text(level, selected)).clicked() {
+                                effort_pick = Some((*level).into());
+                                ui.close();
+                            }
+                        }
+                    });
+            }
+
             if let Some((provider, model)) = pick {
                 self.write_selection(provider, model);
+                changed = true;
+            }
+            if let Some(effort) = effort_pick {
+                self.write_effort(effort);
                 changed = true;
             }
             if let Some(name) = add {
                 self.create_provider_file(name);
                 changed = true;
             }
-            if open_instructions {
-                self.create_instructions_file();
+            if open_prompt {
+                self.create_prompt_file();
             }
         }
 
@@ -2309,6 +2510,7 @@ mod tests {
                 ts,
                 ChatConfig {
                     model: Some(ModelSelection { provider: provider.into(), model: model.into() }),
+                    ..Default::default()
                 },
             ))
         };
@@ -2322,5 +2524,36 @@ mod tests {
         assert_eq!(last_model_for(&entries, "me", "openai").as_deref(), Some("gpt-b"));
         assert_eq!(last_model_for(&entries, "me", "anthropic").as_deref(), Some("claude-x"));
         assert_eq!(last_model_for(&entries, "me", "groq"), None);
+    }
+
+    /// The effort control shows only for reasoning models. Bare/dated grok-4
+    /// (rejects reasoning_effort) and plain chat models stay hidden.
+    #[test]
+    fn reasoning_models_detected() {
+        for id in [
+            "gpt-5.5",
+            "gpt-5.1",
+            "o3-mini",
+            "o4-mini",
+            "gemini-2.5-pro",
+            "gemini-3.5-flash",
+            "grok-4.3",
+            "grok-3-mini",
+            "deepseek-reasoner",
+            "qwen3-max-thinking",
+            "openai/gpt-5.1",
+        ] {
+            assert!(is_reasoning_model(id), "{id} should be a reasoning model");
+        }
+        for id in [
+            "gpt-4o",
+            "grok-4",
+            "grok-4-0709",
+            "gemini-2.0-flash",
+            "llama-3.3-70b-versatile",
+            "gemma-4-31b",
+        ] {
+            assert!(!is_reasoning_model(id), "{id} should not be a reasoning model");
+        }
     }
 }
