@@ -1,0 +1,442 @@
+import SwiftUI
+import SwiftWorkspace
+
+#if os(iOS)
+    struct SettingsView: View {
+        @State private var model = SettingsModel()
+
+        @State private var confirmLogout = false
+        @State private var confirmCancelSubscription = false
+        @State private var confirmDeleteAccount = false
+        @State private var showAccountKeys = false
+
+        @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
+
+        var body: some View {
+            Form {
+                Section("Account") {
+                    if let account = model.account {
+                        HStack {
+                            Text("Username:")
+                            Spacer()
+                            Text(account.username)
+                        }
+                    } else {
+                        ProgressView()
+                    }
+
+                    Button("Reveal Account Keys") {
+                        AuthHelper.authenticateWithBiometricsOrPasscode { success in
+                            showAccountKeys = success
+                        }
+                    }
+
+                    Button("Logout", role: .destructive) {
+                        confirmLogout = true
+                    }
+                    .confirmationDialog(
+                        "Are you sure? Please make sure your key is backed up.",
+                        isPresented: $confirmLogout,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Logout", role: .destructive) {
+                            AppState.lb.logoutAndExit()
+                        }
+                    }
+                }
+
+                Section("Usage") {
+                    if let isPremium = model.isPremium {
+                        HStack {
+                            Text("Current Tier:")
+                            Spacer()
+                            Text(isPremium ? "Premium" : "Free")
+                        }
+
+                        if !isPremium {
+                            NavigationLink("Upgrade now") {
+                                UpgradeAccountView(settingsModel: model)
+                            }
+                        }
+                    }
+
+                    if let usage = model.usage {
+                        VStack {
+                            HStack {
+                                Text("Server Utilization:")
+                                Spacer()
+                                Text("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
+                            }
+
+                            ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
+                                .padding(.top, 10)
+                                .padding(.bottom, 8)
+                        }
+                    } else {
+                        ProgressView()
+                    }
+
+                    Picker("Display Mode", selection: $usageBarMode) {
+                        ForEach(UsageBarDisplayMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    if model.isPremium == true {
+                        Button("Cancel Subscription", role: .destructive) {
+                            confirmCancelSubscription = true
+                        }
+                        .confirmationDialog(
+                            "Are you sure you want to cancel your subscription?",
+                            isPresented: $confirmCancelSubscription,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Confirm", role: .destructive) {
+                                model.cancelSubscription()
+                            }
+                        }
+                    }
+                }
+
+                Section("Privacy") {
+                    Text("[Privacy Policy](https://lockbook.net/privacy-policy)")
+                        .foregroundColor(.accentColor)
+
+                    Text("[Terms of Service](https://lockbook.net/tos)")
+                        .foregroundColor(.accentColor)
+
+                    Button("Delete Account", role: .destructive) {
+                        confirmDeleteAccount = true
+                    }
+                    .confirmationDialog(
+                        "Are you sure you want to delete your account?",
+                        isPresented: $confirmDeleteAccount,
+                        titleVisibility: .visible
+                    ) {
+                        Button("Delete account", role: .destructive) {
+                            model.deleteAccountAndExit()
+                        }
+                    }
+                }
+
+                Section("Debug") {
+                    if let account = model.account {
+                        HStack {
+                            Text("Server:")
+                                .padding(.trailing, 10)
+                            Text(account.apiUrl)
+                                .lineLimit(1)
+                                .truncationMode(.head)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    } else {
+                        ProgressView()
+                    }
+
+                    NavigationLink("Debug Info") {
+                        DebugView()
+                    }
+                }
+            }
+            .navigationDestination(isPresented: $showAccountKeys) {
+                AccountKeysView()
+            }
+            .navigationTitle("Settings")
+            .navigationBarTitleDisplayMode(.large)
+        }
+    }
+
+#else
+    struct SettingsView: View {
+        @State private var model = SettingsModel()
+
+        var body: some View {
+            NavigationStack {
+                TabView {
+                    SettingsAccountView(model: model)
+                        .tabItem {
+                            Label("Account", systemImage: "person")
+                        }
+
+                    SettingsUsageView(model: model)
+                        .tabItem {
+                            Label("Usage", systemImage: "externaldrive")
+                        }
+
+                    SettingsDebugView(model: model)
+                        .tabItem {
+                            Label("Debug", systemImage: "hammer")
+                        }
+                }
+                .navigationTitle("Settings")
+            }
+            .frame(width: 500, height: 400)
+        }
+    }
+
+    struct SettingsAccountView: View {
+        let model: SettingsModel
+
+        @State private var confirmLogout = false
+        @State private var confirmDeleteAccount = false
+        @State private var showAccountKeys = false
+
+        var body: some View {
+            Form {
+                Section("Account") {
+                    if let account = model.account {
+                        HStack {
+                            Text("Username:")
+                            Spacer()
+                            Text(account.username)
+                        }
+                    } else {
+                        ProgressView()
+                    }
+
+                    Button(action: {
+                        AuthHelper.authenticateWithBiometricsOrPasscode { success in
+                            showAccountKeys = success
+                        }
+                    }, label: {
+                        Text("Reveal Account Keys")
+                            .foregroundStyle(.foreground)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .imageScale(.small)
+                            .foregroundStyle(.gray)
+                    })
+                    .buttonStyle(.borderless)
+
+                    HStack {
+                        Text("Logout")
+                        Spacer()
+                        Button("Logout", role: .destructive) {
+                            confirmLogout = true
+                        }
+                        .confirmationDialog(
+                            "Are you sure? Please make sure your key is backed up.",
+                            isPresented: $confirmLogout,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Logout", role: .destructive) {
+                                AppState.lb.logoutAndExit()
+                            }
+                        }
+                    }
+                }
+
+                Section("Privacy") {
+                    HStack {
+                        Text("Privacy Policy")
+                        Spacer()
+                        Link("Open in browser", destination: URL(string: "https://lockbook.net/privacy-policy")!)
+                    }
+
+                    HStack {
+                        Text("Terms of Service")
+                        Spacer()
+                        Link("Open in browser", destination: URL(string: "https://lockbook.net/tos")!)
+                    }
+
+                    HStack {
+                        Text("Delete Account")
+                        Spacer()
+                        Button("Delete Account", role: .destructive) {
+                            confirmDeleteAccount = true
+                        }
+                        .confirmationDialog(
+                            "Are you sure you want to delete your account?",
+                            isPresented: $confirmDeleteAccount,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Delete account", role: .destructive) {
+                                model.deleteAccountAndExit()
+                            }
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+            .navigationDestination(isPresented: $showAccountKeys) {
+                AccountKeysView()
+                    .toolbar {
+                        ToolbarItem(placement: .principal) {
+                            Text("Account Keys").font(.headline)
+                        }
+                    }
+            }
+        }
+    }
+
+    struct SettingsUsageView: View {
+        let model: SettingsModel
+
+        @State private var confirmCancelSubscription = false
+
+        @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
+
+        var body: some View {
+            Form {
+                Section("Usage") {
+                    if let isPremium = model.isPremium {
+                        HStack {
+                            Text("Current Tier:")
+                            Spacer()
+                            Text(isPremium ? "Premium" : "Free")
+                        }
+
+                        if !isPremium {
+                            NavigationLink("Upgrade Now") {
+                                UpgradeAccountView(settingsModel: model)
+                            }
+                        }
+                    }
+
+                    if let usage = model.usage {
+                        VStack {
+                            HStack {
+                                Text("Server Utilization:")
+                                Spacer()
+                                Text("\(usage.serverUsedHuman) / \(usage.serverCapHuman)")
+                            }
+
+                            ProgressView(value: Double(usage.serverUsedExact), total: Double(usage.serverCapExact))
+                                .padding(.top, 10)
+                                .padding(.bottom, 8)
+                        }
+                    } else {
+                        ProgressView()
+                    }
+
+                    Picker("Display Mode", selection: $usageBarMode) {
+                        ForEach(UsageBarDisplayMode.allCases) { mode in
+                            Text(mode.label).tag(mode)
+                        }
+                    }
+                    .pickerStyle(.menu)
+
+                    if model.isPremium == true {
+                        HStack {
+                            Text("Cancel Subscription")
+                            Spacer()
+                            Button("Cancel Subscription", role: .destructive) {
+                                confirmCancelSubscription = true
+                            }
+                        }
+                        .confirmationDialog(
+                            "Are you sure you want to cancel your subscription?",
+                            isPresented: $confirmCancelSubscription,
+                            titleVisibility: .visible
+                        ) {
+                            Button("Confirm", role: .destructive) {
+                                model.cancelSubscription()
+                            }
+                        }
+                    }
+                }
+            }
+            .formStyle(.grouped)
+        }
+    }
+
+    struct SettingsDebugView: View {
+        let model: SettingsModel
+
+        var body: some View {
+            Form {
+                Section("Debug") {
+                    if let account = model.account {
+                        HStack {
+                            Text("Server:")
+                                .padding(.trailing, 10)
+                            Text(account.apiUrl)
+                                .lineLimit(1)
+                                .truncationMode(.head)
+                                .frame(maxWidth: .infinity, alignment: .trailing)
+                        }
+                    } else {
+                        ProgressView()
+                    }
+
+                    DebugView()
+                }
+            }
+            .formStyle(.grouped)
+        }
+    }
+#endif
+
+struct AccountKeysView: View {
+    let accountKey = (try? AppState.lb.exportAccountPrivateKey().get()) ?? "ERROR"
+
+    var body: some View {
+        Form {
+            Section("Phrase") {
+                AccountPhraseView(includeBackground: false)
+            }
+
+            Section("Compact") {
+                VStack {
+                    HStack {
+                        Text(accountKey)
+                            .font(.system(.body, design: .monospaced))
+                            .lineLimit(1)
+                            .truncationMode(.middle)
+                            .padding(10)
+
+                        Spacer()
+
+                        Button(action: {
+                            ClipboardHelper.copyToClipboard(accountKey)
+                        }) {
+                            Image(systemName: "doc.on.doc")
+                                .foregroundColor(.accentColor)
+                                .padding(8)
+                        }
+                    }
+
+                    HStack {
+                        Spacer()
+                        QRView(text: accountKey)
+                        Spacer()
+                    }
+                    .padding(.top, 5)
+                }
+                .padding(.vertical, 5)
+            }
+        }
+        #if os(iOS)
+            .navigationTitle("Account Keys")
+            .navigationBarTitleDisplayMode(.large)
+        #else
+            .formStyle(.grouped)
+        #endif
+    }
+}
+
+enum UsageBarDisplayMode: String, Codable, CaseIterable, Identifiable {
+    case always
+    case never
+    case whenHalf
+
+    var id: Self {
+        self
+    }
+
+    var label: String {
+        switch self {
+        case .always: "Always show"
+        case .never: "Never show"
+        case .whenHalf: "Show above 50%"
+        }
+    }
+}
+
+#Preview {
+    NavigationStack {
+        SettingsView()
+    }
+    .environment(BillingState.preview)
+}

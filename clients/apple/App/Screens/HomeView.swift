@@ -6,6 +6,9 @@ struct HomeView: View {
 
     @State private var homeState = HomeState()
     @State private var selectedTab: SidebarTab = .files
+    #if os(iOS)
+        @State private var showSettings = false
+    #endif
 
     @State private var filesModel: FilesModel
     @State private var fileTreeModel: FileTreeModel
@@ -92,6 +95,14 @@ struct HomeView: View {
             #if os(iOS)
                 ToolbarItem(placement: .topBarTrailing) {
                     Button {
+                        showSettings = true
+                    } label: {
+                        Image(systemName: "gearshape")
+                    }
+                }
+
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button {
                         homeState.splitViewVisibility = .detailOnly
                         homeState.compactColumn = .detail
                     } label: {
@@ -101,6 +112,13 @@ struct HomeView: View {
                 }
             #endif
         }
+        #if os(iOS)
+            .sheet(isPresented: $showSettings) {
+                NavigationStack {
+                    SettingsView()
+                }
+            }
+        #endif
     }
 
     private var tabstripPlacement: ToolbarItemPlacement {

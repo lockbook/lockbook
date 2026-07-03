@@ -3,10 +3,20 @@ import SwiftWorkspace
 
 @main
 struct LockbookApp: App {
+    @State private var billingState = BillingState()
+
     var body: some Scene {
         WindowGroup {
             ContentView()
+                .environment(billingState)
         }
+
+        #if os(macOS)
+            Settings {
+                SettingsView()
+                    .environment(billingState)
+            }
+        #endif
     }
 }
 
