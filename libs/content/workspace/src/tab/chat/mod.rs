@@ -29,6 +29,8 @@ use crate::theme::icons::Icon;
 use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
 
 #[cfg(not(target_family = "wasm"))]
+mod anthropic;
+#[cfg(not(target_family = "wasm"))]
 mod backend;
 #[cfg(not(target_family = "wasm"))]
 mod harness;
@@ -96,6 +98,7 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
             "anthropic",
             r#"{
   "display_name": "Anthropic",
+  "kind": "anthropic",
   "base_url": "https://api.anthropic.com/v1",
   "model": "claude-opus-4-8",
   "api_key": ""
@@ -523,7 +526,10 @@ impl Chat {
         let ctx = self.ctx.clone();
         let provider = provider.clone();
         std::thread::spawn(move || {
-            let result = openai::list_models_blocking(&provider);
+            let result = match provider.kind.as_str() {
+                "anthropic" => anthropic::list_models_blocking(&provider),
+                _ => openai::list_models_blocking(&provider),
+            };
             let _ = tx.send((key, result));
             ctx.request_repaint();
         });

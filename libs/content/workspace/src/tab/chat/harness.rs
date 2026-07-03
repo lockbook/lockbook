@@ -16,6 +16,7 @@
 use lb_rs::model::chat::Usage;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
+use super::anthropic;
 use super::backend::{Backend, ChatMsg, CompletionReq};
 use super::openai;
 use super::settings::Provider;
@@ -196,6 +197,7 @@ async fn run(
         // The turn's backend, from the provider resolved at send time.
         let backend = match provider.kind.as_str() {
             "openai" => Backend::OpenAi(openai::openai_compat(&provider)),
+            "anthropic" => Backend::Anthropic(anthropic::anthropic(&provider)),
             other => {
                 send(AgentEvent::Error(format!("provider kind '{other}' is not supported yet")));
                 send(AgentEvent::TurnEnded);

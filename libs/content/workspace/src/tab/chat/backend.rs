@@ -7,6 +7,7 @@
 use lb_rs::model::chat::Usage;
 use tokio::sync::mpsc::UnboundedSender;
 
+use super::anthropic::AnthropicBackend;
 use super::openai::OpenAiBackend;
 
 /// One completion request: the whole conversation so far.
@@ -45,6 +46,7 @@ impl ModelInfo {
 /// concrete enum rather than `Box<dyn>` so `complete` is a native `async fn`;
 /// the provider set is closed and chosen by `provider.kind` at the call site.
 pub enum Backend {
+    Anthropic(AnthropicBackend),
     OpenAi(OpenAiBackend),
 }
 
@@ -57,6 +59,7 @@ impl Backend {
         &self, req: CompletionReq, deltas: UnboundedSender<String>,
     ) -> Result<Usage, String> {
         match self {
+            Backend::Anthropic(b) => b.complete(req, deltas).await,
             Backend::OpenAi(b) => b.complete(req, deltas).await,
         }
     }
