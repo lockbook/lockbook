@@ -191,6 +191,15 @@ impl MdEdit {
     /// selection / IME / scroll-to-cursor / text callback via
     /// [`MdEdit::post_render`].
     pub fn show(&mut self, ui: &mut Ui, rect: Rect, id: Id) {
+        // The renderer lays out at `self.width`, not the passed rect — set it
+        // here so a bare `MdEdit` renders the rect it's given. (At width 0
+        // every block is skipped as too-narrow: no glyphs, and no fragments
+        // for the cursor to resolve against.) A single-line field lays out on
+        // one effectively unbounded line; the rect clips the overflow and
+        // `single_line_scroll` shifts the layout to keep the cursor in view.
+        let layout_width = if self.renderer.single_line { 100_000.0 } else { rect.width() };
+        self.renderer.set_width(layout_width);
+        let origin = rect.min - egui::vec2(self.single_line_scroll, 0.0);
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
         // Composer entry point (chat); no keyboard-state plumbing — image
@@ -206,7 +215,11 @@ impl MdEdit {
         let height = self.renderer.height(root);
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
-            self.renderer.show_block(ui, root, rect.min);
+            // Clip the (possibly overflowing) one-line layout to the field.
+            if self.renderer.single_line {
+                ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+            }
+            self.renderer.show_block(ui, root, origin);
         });
         self.renderer.fragments.sort_by_key(|f| f.source_range);
 
@@ -216,6 +229,31 @@ impl MdEdit {
         self.handle_block_drag(ui);
         self.post_render(ui, rect, id, pre);
         self.draw_dragged_overlay(ui, root);
+
+        // Keep the cursor inside the rect: fragments (and so `cursor_line`)
+        // are in shifted screen coords, so edge overshoot maps 1:1 onto a
+        // scroll correction. Converges within a frame or two — hence repaint.
+        if self.renderer.single_line {
+            let sel_end = self
+                .in_progress_selection
+                .unwrap_or(self.renderer.buffer.current.selection)
+                .1;
+            let pad = 8.0;
+            let mut scroll = self.single_line_scroll;
+            if let Some([top, _]) = self.cursor_line(sel_end) {
+                let (left, right) = (rect.left() + pad, (rect.right() - pad).max(rect.left()));
+                if top.x > right {
+                    scroll += top.x - right;
+                } else if top.x < left {
+                    scroll -= left - top.x;
+                }
+            }
+            let scroll = scroll.max(0.0);
+            if scroll != self.single_line_scroll {
+                self.single_line_scroll = scroll;
+                ui.ctx().request_repaint();
+            }
+        }
     }
 
     /// Consume the marker's [`BlockDragAction`] for the frame and, on

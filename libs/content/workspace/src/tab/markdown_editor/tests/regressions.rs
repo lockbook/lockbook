@@ -1719,3 +1719,70 @@ fn find_esc_closes_widget() {
         "esc should close find (search field focused before esc = {focused})",
     );
 }
+
+/// The chat connect step's masked key field: a standalone `MdEdit` with
+/// `plaintext + mask + single_line` must produce glyph fragments (the `*`s)
+/// on one unwrapped row, scrolled so a cursor at the end of an overlong key
+/// stays inside the rect.
+#[test]
+fn masked_plaintext_mdedit_renders_glyphs() {
+    use crate::tab::markdown_editor::MdEdit;
+    use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
+
+    let ctx = egui::Context::default();
+    let mut edit = MdEdit::empty(ctx.clone());
+    edit.renderer.plaintext = true;
+    edit.renderer.mask = true;
+    edit.renderer.single_line = true;
+    // Long enough that a 300px field must overflow (~8px/char mono).
+    let key = "sk-test-".repeat(16);
+    edit.set_text(&key);
+
+    let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(300., 30.));
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
+    let frame = |edit: &mut MdEdit| {
+        let _ =
+            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+                ctx.set_lb_theme(Theme::default(Mode::Dark));
+                crate::register_font_system(ctx);
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    edit.show(ui, rect, egui::Id::new("key_field"));
+                });
+            });
+    };
+    frame(&mut edit);
+
+    let glyph_frags: Vec<_> = edit
+        .renderer
+        .fragments
+        .iter()
+        .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
+        .collect();
+    assert!(!glyph_frags.is_empty(), "masked field produced no glyph fragments (invisible key)");
+    // The caret must resolve against the masked layout — this is what iOS's
+    // caretRect(for:) reads; None here is an invisible native cursor.
+    assert!(
+        edit.cursor_line(5.into()).is_some(),
+        "masked field has no caret line (invisible cursor)"
+    );
+    // Single line: every glyph fragment on one row, none wrapped below.
+    let tops: Vec<i32> = glyph_frags.iter().map(|f| f.rect.top() as i32).collect();
+    assert!(tops.windows(2).all(|w| w[0] == w[1]), "single-line field wrapped: {tops:?}");
+
+    // Cursor at the end of the overlong key → the layout scrolls left to
+    // keep it in view (converges over a couple frames), and the caret lands
+    // inside the rect.
+    let end = edit.renderer.buffer.current.segs.last_cursor_position();
+    edit.renderer.buffer.current.selection = (end, end);
+    for _ in 0..3 {
+        frame(&mut edit);
+    }
+    assert!(edit.single_line_scroll > 0.0, "overlong key did not scroll");
+    let [top, _] = edit.cursor_line(end).unwrap();
+    assert!(
+        top.x >= rect.left() && top.x <= rect.right(),
+        "caret ({}) outside field {rect:?} at scroll {}",
+        top.x,
+        edit.single_line_scroll
+    );
+}
