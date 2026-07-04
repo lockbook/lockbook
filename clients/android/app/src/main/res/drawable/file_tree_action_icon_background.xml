@@ -2,12 +2,12 @@
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
     <item android:state_checked="true">
         <shape android:shape="oval">
-            <solid android:color="?attr/colorPrimary" />
+            <solid android:color="?attr/colorOnPrimaryContainer" />
         </shape>
     </item>
     <item>
         <shape android:shape="oval">
-            <solid android:color="?attr/colorSecondaryContainer" />
+            <solid android:color="?attr/colorSurfaceContainerHighest" />
         </shape>
     </item>
 </selector>

@@ -11,12 +11,14 @@
         android:id="@+id/fragment_list_files"
         android:layout_width="match_parent"
         android:layout_height="match_parent"
+        android:background="?attr/colorSurfaceContainerLow"
         >
 
         <com.google.android.material.appbar.AppBarLayout
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
             android:animateLayoutChanges="true"
+            android:background="?attr/colorSurfaceContainerLow"
             android:fitsSystemWindows="true"
             app:liftOnScroll="false"
             >
@@ -25,6 +27,7 @@
                 android:id="@+id/files_toolbar"
                 android:layout_width="match_parent"
                 android:layout_height="?android:actionBarSize"
+                android:background="?attr/colorSurfaceContainerLow"
                 app:menu="@menu/menu_files_list"
                 app:navigationIcon="@drawable/ic_outline_menu_24"
                 app:title="@string/lockbook_title" />
@@ -33,6 +36,7 @@
                 android:id="@+id/files_breadcrumb_bar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:background="?attr/colorSurfaceContainerLow"
                 app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
                 android:minHeight="20dp"
                 />
