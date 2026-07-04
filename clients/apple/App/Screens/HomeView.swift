@@ -13,6 +13,7 @@ struct HomeView: View {
     @State private var filesModel: FilesModel
     @State private var fileTreeModel: FileTreeModel
     @State private var sharedTreeModel: FileTreeModel
+    @State private var recentsModel = RecentsModel()
     #if os(iOS)
         @State private var searchModel: SearchModel
     #endif
@@ -68,10 +69,22 @@ struct HomeView: View {
     }
 
     private var sidebar: some View {
+        VStack(spacing: 0) {
+            #if os(macOS)
+                sidebarActions
+            #endif
+
+            sidebarContent
+        }
+    }
+
+    private var sidebarContent: some View {
         Group {
             switch selectedTab {
             case .files:
                 FileTreeView(fileTreeModel: fileTreeModel)
+            case .recents:
+                RecentsView(model: recentsModel)
             case .sharedWithMe:
                 SharedWithMeView(fileTreeModel: sharedTreeModel)
             #if os(iOS)
@@ -83,7 +96,7 @@ struct HomeView: View {
         .toolbar {
             ToolbarItem(placement: tabstripPlacement) {
                 Picker("Tabs", selection: $selectedTab) {
-                    ForEach(SidebarTab.allCases) { tab in
+                    ForEach([SidebarTab.files, .recents, .sharedWithMe]) { tab in
                         Label(tab.title, systemImage: tab.systemImage)
                             .tag(tab)
                     }
@@ -110,6 +123,24 @@ struct HomeView: View {
                             .imageScale(.large)
                     }
                 }
+
+                ToolbarItem(placement: .bottomBar) {
+                    Button {
+                        selectedTab = .search
+                    } label: {
+                        Image(systemName: "magnifyingglass")
+                    }
+                }
+
+                ToolbarSpacer(.flexible, placement: .bottomBar)
+
+                ToolbarItem(placement: .bottomBar) {
+                    Button {
+                        createDocInRoot()
+                    } label: {
+                        Image(systemName: "square.and.pencil")
+                    }
+                }
             #endif
         }
         #if os(iOS)
@@ -119,6 +150,43 @@ struct HomeView: View {
                 }
             }
         #endif
+    }
+
+    #if os(macOS)
+        private var sidebarActions: some View {
+            HStack(spacing: 8) {
+                actionChip("New", systemImage: "square.and.pencil") {
+                    createDocInRoot()
+                }
+
+                actionChip("Search", systemImage: "magnifyingglass") {
+                    workspaceInput.showSearch()
+                }
+            }
+            .padding(.horizontal, 10)
+            .padding(.vertical, 8)
+        }
+
+        private func actionChip(
+            _ title: String, systemImage: String, action: @escaping () -> Void
+        ) -> some View {
+            Button(action: action) {
+                Label(title, systemImage: systemImage)
+                    .font(.callout)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 6)
+                    .background(.quaternary.opacity(0.6), in: RoundedRectangle(cornerRadius: 7))
+                    .contentShape(RoundedRectangle(cornerRadius: 7))
+            }
+            .buttonStyle(.plain)
+        }
+    #endif
+
+    private func createDocInRoot() {
+        guard let root = filesModel.root else { return }
+
+        workspaceInput.createDocAt(parent: root.id, drawing: false)
+        homeState.compactColumn = .detail
     }
 
     private var tabstripPlacement: ToolbarItemPlacement {
@@ -146,6 +214,7 @@ struct HomeView: View {
 
 enum SidebarTab: CaseIterable, Identifiable {
     case files
+    case recents
     case sharedWithMe
     #if os(iOS)
         case search
@@ -158,6 +227,7 @@ enum SidebarTab: CaseIterable, Identifiable {
     var title: String {
         switch self {
         case .files: "Files"
+        case .recents: "Recents"
         case .sharedWithMe: "Shared"
         #if os(iOS)
             case .search: "Search"
@@ -168,6 +238,7 @@ enum SidebarTab: CaseIterable, Identifiable {
     var systemImage: String {
         switch self {
         case .files: "folder.fill"
+        case .recents: "clock.fill"
         case .sharedWithMe: "person.2.fill"
         #if os(iOS)
             case .search: "magnifyingglass"
