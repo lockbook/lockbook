@@ -8,12 +8,22 @@ use super::*;
 
 impl Chat {
     /// The provider the next turn runs with: this user's per-chat selection
-    /// (latest config entry) resolved against the *cached* provider list.
-    /// Pure — no file I/O, so it's safe on the UI thread every time config
-    /// changes. The list is refreshed by the background loader.
+    /// (latest config entry), or — for a chat with none — the sticky last-used
+    /// default, resolved against the *cached* provider list. Pure — no file
+    /// I/O (both the list and the default are cached by the background loader),
+    /// so it's safe on the UI thread every time config changes.
     pub(super) fn resolve_provider(&self) -> Option<settings::Provider> {
         let selection = latest_selection(&self.entries, &self.account.username);
-        let mut provider = settings::resolve(self.providers.clone(), selection.as_ref())?;
+        let mut provider = match &selection {
+            // An explicit per-chat pick resolves strictly — a selection naming
+            // a missing provider yields None rather than silently rerouting.
+            Some(sel) => settings::resolve(self.providers.clone(), Some(sel))?,
+            // A new chat inherits the sticky last-used default; if that names a
+            // provider that's since gone, degrade to the alphabetically-first
+            // one rather than leaving the fresh chat with nothing.
+            None => settings::resolve(self.providers.clone(), self.default_selection.as_ref())
+                .or_else(|| settings::resolve(self.providers.clone(), None))?,
+        };
         // Per-chat effort overrides the file default, but only where effort
         // applies — a stored pick shouldn't leak onto a non-reasoning model
         // the chat later switched to. `EFFORT_AUTO` clears it.
@@ -71,6 +81,7 @@ impl Chat {
             let loaded = LoadedConfig {
                 providers: settings::load(&core),
                 system_prompt: settings::system_prompt(&core),
+                default_selection: settings::load_default(&core),
             };
             let _ = tx.send(loaded);
             ctx.request_repaint();
@@ -90,6 +101,7 @@ impl Chat {
                 let before = self.provider.clone();
                 self.providers = loaded.providers;
                 self.system_prompt = loaded.system_prompt;
+                self.default_selection = loaded.default_selection;
                 self.config_loaded = true;
                 self.provider = self.resolve_provider();
                 if self.provider != before {
@@ -105,8 +117,14 @@ impl Chat {
     /// selection syncs across this user's devices; credentials never do. An
     /// empty `model` means the provider's file default.
     pub(super) fn write_selection(&mut self, provider: String, model: String) {
+        let selection = lb_rs::model::chat::ModelSelection { provider, model };
+        // Sticky last-used: mirror the pick to the synced global default so the
+        // next new chat starts here. Also updated in memory so a new chat
+        // opened before the next config reload already sees it.
+        settings::write_default(&self.core, &selection);
+        self.default_selection = Some(selection.clone());
         self.write_config(lb_rs::model::chat::ChatConfig {
-            model: Some(lb_rs::model::chat::ModelSelection { provider, model }),
+            model: Some(selection),
             ..Default::default()
         });
     }

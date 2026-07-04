@@ -27,6 +27,32 @@ use serde::Deserialize;
 
 const PROVIDERS_DIR: &str = "/.agent/providers";
 pub const PROMPT_PATH: &str = "/.agent/prompt.md";
+/// The sticky default provider/model for new chats: the most recent pick in
+/// any chat, mirrored here so a fresh chat starts where the last one left off.
+/// Synced like everything under `/.agent`; absent until a first pick, and a
+/// new chat then falls back to the alphabetically-first provider.
+const DEFAULT_PATH: &str = "/.agent/default.json";
+
+/// Read the sticky default selection, if one has been recorded.
+pub fn load_default(core: &Lb) -> Option<lb_rs::model::chat::ModelSelection> {
+    let file = core.get_by_path(DEFAULT_PATH).ok()?;
+    let bytes = core.read_document(file.id, false).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// Record the sticky default selection. Best-effort — a convenience, not
+/// load-bearing — so I/O failures are swallowed.
+pub fn write_default(core: &Lb, selection: &lb_rs::model::chat::ModelSelection) {
+    let Ok(bytes) = serde_json::to_vec_pretty(selection) else { return };
+    let id = match core.get_by_path(DEFAULT_PATH) {
+        Ok(f) => f.id,
+        Err(_) => match core.create_at_path(DEFAULT_PATH) {
+            Ok(f) => f.id,
+            Err(_) => return,
+        },
+    };
+    let _ = core.write_document(id, &bytes);
+}
 
 /// Custom system prompt: the whole of `/.agent/prompt.md` whenever the file
 /// exists — an empty file means no system prompt, not the default; deleting

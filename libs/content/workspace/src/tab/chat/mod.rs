@@ -409,6 +409,10 @@ pub struct Chat {
     provider: Option<settings::Provider>,
     providers: Vec<settings::Provider>,
     system_prompt: Option<String>,
+    /// The user's sticky default selection for new chats: the most recent pick
+    /// in any chat, loaded from `/.agent/default.json`. Used only when this
+    /// chat has no per-chat selection of its own.
+    default_selection: Option<lb_rs::model::chat::ModelSelection>,
     /// False until the first background load lands — distinguishes "no
     /// providers yet" (don't flash the setup hint) from "genuinely none".
     config_loaded: bool,
@@ -468,6 +472,7 @@ type ModelListing = Vec<backend::ModelInfo>;
 struct LoadedConfig {
     providers: Vec<settings::Provider>,
     system_prompt: Option<String>,
+    default_selection: Option<lb_rs::model::chat::ModelSelection>,
 }
 
 /// The inline "connect a provider" step — a masked key field in the
@@ -693,6 +698,7 @@ impl Chat {
             provider: None,
             providers: Vec::new(),
             system_prompt: None,
+            default_selection: None,
             config_loaded: false,
             config_rx: None,
             key_entry: None,
@@ -1757,6 +1763,59 @@ mod tests {
             .map(|e| e.msg.content.as_str())
             .collect();
         assert_eq!(left, ["q"], "only the upstream question remains");
+    }
+
+    /// A chat with no per-chat selection resolves to the sticky last-used
+    /// default rather than the alphabetically-first provider; a stale default
+    /// (naming a since-removed provider) degrades to alphabetically-first.
+    #[test]
+    fn new_chat_uses_sticky_default() {
+        use lb_rs::model::chat::ModelSelection;
+        use lb_rs::model::core_config::{ClientType, Config};
+        let core = lb_rs::blocking::Lb::init(Config {
+            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+            logs: false,
+            stdout_logs: false,
+            colored_logs: false,
+            background_work: false,
+            client_type: ClientType::Unknown,
+        })
+        .unwrap();
+        let files = Arc::new(RwLock::new(FileCache::empty()));
+        let mut chat = Chat::new(
+            b"",
+            Uuid::new_v4(),
+            None,
+            Account::new("me".into(), "url".into()),
+            egui::Context::default(),
+            files,
+            &core,
+        );
+        // `load` sorts by name, so "first in the list" is alphabetical.
+        let prov = |name: &str| settings::Provider {
+            name: name.into(),
+            display_name: None,
+            kind: "openai".into(),
+            base_url: "https://x/v1".into(),
+            model: "m".into(),
+            api_key: Some("k".into()),
+            effort: None,
+        };
+        chat.providers = vec![prov("anthropic"), prov("cerebras")];
+
+        // No default, no per-chat selection → alphabetically-first.
+        chat.default_selection = None;
+        assert_eq!(chat.resolve_provider().unwrap().name, "anthropic");
+
+        // Sticky default wins over the alphabetical fallback.
+        chat.default_selection =
+            Some(ModelSelection { provider: "cerebras".into(), model: String::new() });
+        assert_eq!(chat.resolve_provider().unwrap().name, "cerebras");
+
+        // A default naming a removed provider degrades, doesn't strand the chat.
+        chat.default_selection =
+            Some(ModelSelection { provider: "ghost".into(), model: String::new() });
+        assert_eq!(chat.resolve_provider().unwrap().name, "anthropic");
     }
 
     /// Legacy rows (no ids, no reply_to) resolve as one linear chain.
