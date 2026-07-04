@@ -92,6 +92,15 @@ impl Provider {
             }
         }
     }
+
+    /// Whether this provider runs on this machine (a loopback host). Local
+    /// models egress nothing, so reads skip the approval gate.
+    pub fn is_local(&self) -> bool {
+        url::Url::parse(&self.base_url)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_string))
+            .is_some_and(|h| matches!(h.as_str(), "localhost" | "127.0.0.1" | "[::1]" | "::1"))
+    }
 }
 
 pub const DEFAULT_KIND: &str = "openai";
@@ -101,7 +110,10 @@ fn default_kind() -> String {
 }
 
 /// Read every provider file, sorted by name. Unparseable files are logged
-/// and skipped.
+/// and skipped. A file still carrying the template key placeholder is a
+/// half-created provider — skipped too, so an unconfigured provider is, in
+/// every respect (picker, resolution, onboarding), as if its file didn't
+/// exist; the roster's "add provider" flow is where it gets set up.
 pub fn load(core: &Lb) -> Vec<Provider> {
     let Ok(dir) = core.get_by_path(PROVIDERS_DIR) else { return Vec::new() };
     let Ok(children) = core.get_children(&dir.id) else { return Vec::new() };
@@ -112,6 +124,7 @@ pub fn load(core: &Lb) -> Vec<Provider> {
             let name = f.name.trim_end_matches(".json").to_string();
             let bytes = core.read_document(f.id, false).ok()?;
             match parse(&name, &bytes) {
+                Some(p) if p.api_key.as_deref() == Some(super::KEY_PLACEHOLDER) => None,
                 Some(p) => Some(p),
                 None => {
                     tracing::warn!("chat: invalid provider file {PROVIDERS_DIR}/{}", f.name);
@@ -185,6 +198,24 @@ mod tests {
 
     fn sel(provider: &str, model: &str) -> ModelSelection {
         ModelSelection { provider: provider.into(), model: model.into() }
+    }
+
+    /// Loopback hosts are local (reads skip the approval gate); everything
+    /// else — including lookalike domains — egresses.
+    #[test]
+    fn is_local_is_loopback_only() {
+        let at = |url: &str| Provider { base_url: url.into(), ..provider("p", "m") };
+        for url in ["http://localhost:11434/v1", "http://127.0.0.1:8080/v1", "http://[::1]:1/v1"] {
+            assert!(at(url).is_local(), "{url}");
+        }
+        for url in [
+            "https://api.openai.com/v1",
+            "https://mylocalhost.evil.com/v1",
+            "http://192.168.1.10:11434/v1",
+            "not a url",
+        ] {
+            assert!(!at(url).is_local(), "{url}");
+        }
     }
 
     #[test]
