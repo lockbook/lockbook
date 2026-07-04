@@ -262,8 +262,6 @@ struct UsageSettingsRows: View {
 
     @State private var confirmCancelSubscription = false
 
-    @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
-
     var body: some View {
         if let isPremium = model.isPremium {
             HStack {
@@ -294,13 +292,6 @@ struct UsageSettingsRows: View {
         } else {
             ProgressView()
         }
-
-        Picker("Display Mode", selection: $usageBarMode) {
-            ForEach(UsageBarDisplayMode.allCases) { mode in
-                Text(mode.label).tag(mode)
-            }
-        }
-        .pickerStyle(.menu)
 
         if model.isPremium == true {
             Button("Cancel Subscription", role: .destructive) {
@@ -364,24 +355,6 @@ struct AccountKeysView: View {
         #else
             .formStyle(.grouped)
         #endif
-    }
-}
-
-enum UsageBarDisplayMode: String, Codable, CaseIterable, Identifiable {
-    case always
-    case never
-    case whenHalf
-
-    var id: Self {
-        self
-    }
-
-    var label: String {
-        switch self {
-        case .always: "Always show"
-        case .never: "Never show"
-        case .whenHalf: "Show above 50%"
-        }
     }
 }
 

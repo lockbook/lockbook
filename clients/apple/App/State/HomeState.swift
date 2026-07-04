@@ -2,11 +2,9 @@ import Observation
 import SwiftUI
 
 @Observable class HomeState {
-    #if os(iOS)
-        var splitViewVisibility: NavigationSplitViewVisibility = .detailOnly
-    #else
-        var splitViewVisibility: NavigationSplitViewVisibility = .all
-    #endif
+    var splitViewVisibility: NavigationSplitViewVisibility = .all
 
     var compactColumn: NavigationSplitViewColumn = .detail
+
+    var openingLink = false
 }

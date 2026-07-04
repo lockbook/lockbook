@@ -5,6 +5,8 @@ import SwiftWorkspace
     var openFolders: Set<UUID> = []
     var dropTarget: File? = nil
 
+    let selection = SelectionModel()
+
     private let filesModel: FilesModel
 
     init(filesModel: FilesModel) {

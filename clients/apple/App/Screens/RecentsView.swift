@@ -5,6 +5,7 @@ struct RecentsView: View {
     @Environment(FilesModel.self) private var filesModel
 
     let model: RecentsModel
+    let fileTreeModel: FileTreeModel
 
     var recentDocs: [File] {
         filesModel.idsToFiles.values
@@ -19,15 +20,22 @@ struct RecentsView: View {
     }
 
     var body: some View {
+        let docs = recentDocs
+
         Group {
-            if recentDocs.isEmpty {
+            if docs.isEmpty {
                 noDocs
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(recentDocs) { file in
+                        ForEach(docs) { file in
                             VStack(spacing: 0) {
-                                RecentDocRow(file: file, model: model)
+                                RecentDocRow(
+                                    file: file,
+                                    model: model,
+                                    fileTreeModel: fileTreeModel,
+                                    orderedIds: docs.map(\.id)
+                                )
                                 Divider()
                             }
                         }
@@ -35,6 +43,14 @@ struct RecentsView: View {
                 }
             }
         }
+        .fileDropTarget { items in
+            guard let root = filesModel.root else {
+                return false
+            }
+
+            return filesModel.drop(items, into: root)
+        }
+        .selectionCommands(model.selection, fileTreeModel: fileTreeModel)
         .navigationTitle("Recents")
         #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
@@ -63,9 +79,14 @@ struct RecentDocRow: View {
 
     let file: File
     let model: RecentsModel
+    let fileTreeModel: FileTreeModel
+    let orderedIds: [UUID]
 
     var body: some View {
         HStack(alignment: .top, spacing: 12) {
+            SelectionIndicator(selection: model.selection, id: file.id)
+                .padding(.top, 1)
+
             Image(systemName: FileIconHelper.docNameToSystemImageName(name: file.name))
                 .font(.title3)
                 .foregroundColor(.accentColor)
@@ -79,6 +100,12 @@ struct RecentDocRow: View {
                         .lineLimit(1)
                         .truncationMode(.tail)
 
+                    if filesModel.pinnedIds.contains(file.id) {
+                        Image(systemName: "pin.fill")
+                            .font(.system(size: 10))
+                            .foregroundStyle(.orange)
+                    }
+
                     Spacer(minLength: 8)
 
                     Text(min(modifiedDate, .now), format: .relative(presentation: .named))
@@ -86,7 +113,7 @@ struct RecentDocRow: View {
                         .foregroundStyle(.secondary)
                 }
 
-                breadcrumb
+                FileBreadcrumb(file: file)
 
                 if let preview = model.preview(for: file), !preview.characters.isEmpty {
                     Text(preview)
@@ -110,10 +137,16 @@ struct RecentDocRow: View {
         .padding(.horizontal, 12)
         .padding(.vertical, 10)
         .contentShape(Rectangle())
-        .onTapGesture {
-            workspaceInput.openFile(id: file.id)
-            homeState.compactColumn = .detail
-        }
+        .selectableRow(
+            model.selection,
+            id: file.id,
+            fileTreeModel: fileTreeModel,
+            orderedIds: { orderedIds },
+            open: {
+                workspaceInput.openFile(id: file.id)
+                homeState.compactColumn = .detail
+            }
+        )
         .onAppear {
             model.loadPreviewIfNeeded(file)
         }
@@ -123,38 +156,11 @@ struct RecentDocRow: View {
         Date(timeIntervalSince1970: TimeInterval(file.lastModified) / 1000)
     }
 
-    private var breadcrumbSegments: [String] {
-        var segments: [String] = []
-        var currentId = file.parent
-
-        while let folder = filesModel.idsToFiles[currentId], !folder.isRoot {
-            segments.append(folder.name)
-            currentId = folder.parent
-        }
-
-        return segments.reversed()
-    }
-
-    @ViewBuilder
-    private var breadcrumb: some View {
-        let segments = breadcrumbSegments
-
-        if !segments.isEmpty {
-            segments.dropFirst()
-                .reduce(Text("\(Image(systemName: "folder.fill")) \(segments[0])")) { crumb, name in
-                    crumb + Text(" \(Image(systemName: "chevron.compact.right")) \(name)")
-                }
-                .font(.caption)
-                .foregroundStyle(.secondary)
-                .lineLimit(1)
-                .truncationMode(.middle)
-        }
-    }
 }
 
 #Preview {
     NavigationStack {
-        RecentsView(model: RecentsModel())
+        RecentsView(model: RecentsModel(), fileTreeModel: .preview)
     }
     .environment(FilesModel.preview)
     .environment(HomeState())

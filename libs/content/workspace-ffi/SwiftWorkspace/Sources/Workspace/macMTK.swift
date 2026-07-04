@@ -347,12 +347,17 @@
             dark_mode(wsHandle, isDarkMode())
             set_scale(wsHandle, scale)
 
+            show_hide_tabs(wsHandle, false)
             set_tab_strip_inset(wsHandle, Float(tabStripInset()))
             set_tab_strip_height(wsHandle, Float(tabStripMinHeight()))
 
             let output = macos_frame(wsHandle)
 
             syncWindowBackground()
+
+            if output.tabs_changed {
+                workspaceOutput?.tabCount = Int(tab_count(wsHandle))
+            }
 
             if output.selected_folder_changed {
                 let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)

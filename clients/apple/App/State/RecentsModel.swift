@@ -5,6 +5,8 @@ import SwiftWorkspace
     var username: String? = nil
     var previews: [UUID: DocPreview] = [:]
 
+    let selection = SelectionModel()
+
     @ObservationIgnored private var loading: Set<UUID> = []
 
     init() {

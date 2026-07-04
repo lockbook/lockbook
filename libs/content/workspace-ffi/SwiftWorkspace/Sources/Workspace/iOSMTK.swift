@@ -1335,12 +1335,8 @@
             }
 
             dark_mode(wsHandle, mtkView.isDarkMode())
-            show_hide_tabs(wsHandle, !mtkView.isCompact())
-
-            let needsToggleInset = !mtkView.isCompact()
-            set_tab_strip_inset(
-                wsHandle, Float(needsToggleInset ? iOSMTK.SIDEBAR_TOGGLE_INSET : 0)
-            )
+            show_hide_tabs(wsHandle, false)
+            set_tab_strip_inset(wsHandle, 0)
 
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
@@ -1593,7 +1589,7 @@
         var ignoreSelectionUpdate = false // don't invoke corresponding handler when drawing immediately
         var ignoreTextUpdate = false // also don't invoke corresponding handler when drawing immediately
         var docHeaderSize: Double {
-            !isCompact() ? iOSMTK.TAB_BAR_HEIGHT : 0
+            0
         }
 
         // kinetic scroll

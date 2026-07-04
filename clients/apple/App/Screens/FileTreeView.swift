@@ -16,6 +16,7 @@ struct FileTreeView: View {
     @State private var atBottom = false
     @State private var zoneDecayTask: Task<Void, Never>?
     @State private var stickyHeaders: [File] = []
+    @State private var showRootCreate = false
     @State private var dragScrollTop: CGFloat = 0
     @State private var scrollPosition = ScrollPosition()
     @State private var autoScroll = AutoScrollDriver()
@@ -30,6 +31,14 @@ struct FileTreeView: View {
                 }
                 .scrollTargetLayout()
                 .padding(.horizontal)
+            }
+            .contextMenu {
+                contextMenuItem("New File", systemImage: "square.and.pencil") {
+                    showRootCreate = true
+                }
+            }
+            .sheet(isPresented: $showRootCreate) {
+                CreateFileSheet(fileTreeModel: fileTreeModel)
             }
             .scrollPosition($scrollPosition)
             .onChange(of: workspaceOutput.openDoc) { _, openDoc in
@@ -72,14 +81,14 @@ struct FileTreeView: View {
                 zoneDecayTask?.cancel()
                 fileTreeModel.dropTarget = nil
             }
-            .dropDestination(for: File.self) { dropped, _ in
-                filesModel.moveFiles(dropped, into: root)
-            } isTargeted: { targeted in
+            .fileDropTarget(isTargeted: { targeted in
                 withAnimation(.easeInOut(duration: 0.12)) {
                     isRootDropTargeted = targeted
                 }
                 updateDragActivity()
-            }
+            }, action: { dropped in
+                filesModel.drop(dropped, into: root)
+            })
             .overlay(alignment: .top) {
                 if let target = fileTreeModel.dropTarget, target.isFolder {
                     dropRegionIndicator(for: target)
@@ -110,6 +119,7 @@ struct FileTreeView: View {
             .refreshable {
                 workspaceInput.requestSync()
             }
+            .selectionCommands(fileTreeModel.selection, fileTreeModel: fileTreeModel)
             .environment(fileTreeModel)
             .navigationTitle(root.name)
             #if os(iOS)
@@ -294,11 +304,11 @@ struct FileTreeView: View {
         .frame(height: 40)
         .frame(maxWidth: .infinity)
         .contentShape(Rectangle())
-        .dropDestination(for: File.self) { _, _ in
-            false
-        } isTargeted: { targeted in
+        .fileDropTarget(isTargeted: { targeted in
             setZoneTargeted(direction, targeted)
-        }
+        }, action: { _ in
+            false
+        })
         .onDisappear {
             setZoneTargeted(direction, false)
         }
@@ -426,19 +436,27 @@ struct FileRowView: View {
 
     var body: some View {
         fileRow
-            .onTapGesture {
-                openFile()
-            }
-            .draggable(file)
-            .dropDestination(for: File.self) { dropped, _ in
-                drop(dropped)
-            } isTargeted: { targeted in
+            .selectableRow(
+                fileTreeModel.selection,
+                id: file.id,
+                fileTreeModel: fileTreeModel,
+                orderedIds: { fileTreeModel.visibleRows.map(\.id) },
+                open: openFile
+            )
+            #if os(iOS)
+                .draggable(DraggedFile(file: file, filesModel: filesModel))
+            #endif
+            .fileDropTarget(isTargeted: { targeted in
                 setDropTargeted(targeted)
-            }
+            }, action: { dropped in
+                drop(dropped)
+            })
     }
 
     var fileRow: some View {
         HStack {
+            SelectionIndicator(selection: fileTreeModel.selection, id: file.id)
+
             Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
                 .font(.system(size: 16))
                 .frame(width: 16)
@@ -454,6 +472,12 @@ struct FileRowView: View {
                 Circle()
                     .fill(dot.color)
                     .frame(width: 8, height: 8)
+            }
+
+            if filesModel.pinnedIds.contains(file.id) {
+                Image(systemName: "pin.fill")
+                    .font(.system(size: 10))
+                    .foregroundStyle(.orange)
             }
 
             Spacer()
@@ -527,8 +551,8 @@ struct FileRowView: View {
         file.isFolder ? file : filesModel.idsToFiles[file.parent]
     }
 
-    private func drop(_ dropped: [File]) -> Bool {
-        guard let dest = dropDestinationFolder, filesModel.moveFiles(dropped, into: dest) else {
+    private func drop(_ dropped: [FileDropItem]) -> Bool {
+        guard let dest = dropDestinationFolder, filesModel.drop(dropped, into: dest) else {
             return false
         }
 

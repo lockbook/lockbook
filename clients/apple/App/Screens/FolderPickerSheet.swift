@@ -1,0 +1,233 @@
+import SwiftUI
+import SwiftWorkspace
+
+struct FolderPickerSheet: View {
+    @Environment(\.dismiss) private var dismiss
+    @Environment(FilesModel.self) private var filesModel
+
+    let fileTreeModel: FileTreeModel
+    let onPick: (File) -> Void
+
+    @State private var selected: File?
+    @State private var query = ""
+
+    init(fileTreeModel: FileTreeModel, selection: File?, onPick: @escaping (File) -> Void) {
+        self.fileTreeModel = fileTreeModel
+        self.onPick = onPick
+        _selected = State(initialValue: selection)
+    }
+
+    private var selectedFolder: File? {
+        selected ?? filesModel.root
+    }
+
+    private var searchResults: [File] {
+        Array(
+            filesModel.idsToFiles.values
+                .filter { !$0.isRoot && $0.name.localizedCaseInsensitiveContains(query) }
+                .sorted()
+                .prefix(50)
+        )
+    }
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            searchField
+            Divider()
+            list
+            Divider()
+            footer
+        }
+        #if os(macOS)
+            .frame(width: 420, height: 480)
+        #endif
+    }
+
+    private var header: some View {
+        HStack {
+            Text("Choose Location")
+                .font(.headline)
+
+            Spacer()
+
+            Button("Cancel") {
+                dismiss()
+            }
+            .keyboardShortcut(.cancelAction)
+        }
+        .padding(.horizontal)
+        .padding(.top, 14)
+        .padding(.bottom, 4)
+    }
+
+    private var searchField: some View {
+        HStack(spacing: 8) {
+            Image(systemName: "magnifyingglass")
+                .foregroundColor(.secondary)
+
+            TextField("Search folders", text: $query)
+                .textFieldStyle(.plain)
+                .autocorrectionDisabled()
+                #if os(iOS)
+                    .textInputAutocapitalization(.never)
+                #endif
+
+            if !query.isEmpty {
+                Button(action: { query = "" }) {
+                    Image(systemName: "xmark.circle.fill")
+                        .foregroundColor(.secondary)
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.15)))
+        .padding(.horizontal)
+        .padding(.vertical, 8)
+    }
+
+    private var list: some View {
+        ScrollView {
+            LazyVStack(spacing: 2) {
+                if query.isEmpty {
+                    if let root = filesModel.root {
+                        FolderPickerRow(
+                            file: root,
+                            level: 0,
+                            isOpen: true,
+                            isSelected: selectedFolder?.id == root.id,
+                            showsPath: false
+                        ) {
+                            selected = root
+                        }
+                    }
+
+                    ForEach(fileTreeModel.visibleRows) { row in
+                        FolderPickerRow(
+                            file: row.file,
+                            level: row.level + 1,
+                            isOpen: fileTreeModel.openFolders.contains(row.id),
+                            isSelected: selectedFolder?.id == row.id,
+                            showsPath: false
+                        ) {
+                            selected = row.file
+
+                            withAnimation {
+                                fileTreeModel.toggleFolder(row.id)
+                            }
+                        }
+                    }
+                } else {
+                    ForEach(searchResults) { file in
+                        FolderPickerRow(
+                            file: file,
+                            level: 0,
+                            isOpen: false,
+                            isSelected: selectedFolder?.id == file.id,
+                            showsPath: true
+                        ) {
+                            selected = file
+                            fileTreeModel.expandToFile(file)
+                            query = ""
+                        }
+                    }
+                }
+            }
+            .padding(.horizontal)
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var footer: some View {
+        Button(action: confirm) {
+            Text("Select \"\(selectedFolder.map { $0.isRoot ? "Home" : $0.name } ?? "")\"")
+                .lineLimit(1)
+                .frame(maxWidth: .infinity)
+        }
+        .buttonStyle(.borderedProminent)
+        .disabled(selectedFolder == nil)
+        .padding()
+    }
+
+    private func confirm() {
+        guard let folder = selectedFolder else {
+            return
+        }
+
+        onPick(folder)
+        dismiss()
+    }
+}
+
+struct FolderPickerRow: View {
+    @Environment(FilesModel.self) private var filesModel
+
+    let file: File
+    let level: CGFloat
+    let isOpen: Bool
+    let isSelected: Bool
+    let showsPath: Bool
+    let onTap: () -> Void
+
+    var isLeaf: Bool {
+        (filesModel.childrenByParent[file.id] ?? []).isEmpty
+    }
+
+    var body: some View {
+        HStack {
+            Image(
+                systemName: file.isRoot ? "house.fill" : FileIconHelper.fileToSystemImageName(file: file)
+            )
+            .font(.system(size: 16))
+            .frame(width: 16)
+            .foregroundColor(file.isFolder ? .accentColor : .secondary)
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(file.isRoot ? "Home" : file.name)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
+                    .allowsTightening(true)
+                    .foregroundColor(.primary)
+
+                if showsPath {
+                    FileBreadcrumb(file: file, includeHome: true)
+                }
+            }
+
+            Spacer()
+
+            if !showsPath, file.isFolder, !isLeaf, !file.isRoot {
+                Image(systemName: "chevron.forward")
+                    .renderingMode(.template)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 10, height: 10)
+                    .rotationEffect(Angle.degrees(isOpen ? 90 : 0))
+                    .foregroundColor(.accentColor)
+            }
+        }
+        .padding(.vertical, 9)
+        .padding(.leading, level * 20 + 5)
+        .padding(.trailing, 10)
+        .background(
+            RoundedRectangle(cornerRadius: 6)
+                .fill(isSelected ? Color.accentColor.opacity(0.15) : Color.clear)
+        )
+        .contentShape(Rectangle())
+        .opacity(file.isFolder ? 1 : 0.4)
+        .onTapGesture {
+            if file.isFolder {
+                onTap()
+            }
+        }
+    }
+}
+
+#Preview {
+    Color.clear
+        .sheet(isPresented: .constant(true)) {
+            FolderPickerSheet(fileTreeModel: .preview, selection: nil) { _ in }
+        }
+        .environment(FilesModel.preview)
+}

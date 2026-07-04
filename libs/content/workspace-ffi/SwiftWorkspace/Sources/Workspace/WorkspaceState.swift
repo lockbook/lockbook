@@ -69,6 +69,13 @@ import Observation
         focus.send(())
     }
 
+    public func showFindInDoc() {
+        guard let wsHandle else { return }
+
+        show_find(wsHandle)
+        redraw.send(())
+    }
+
     public func createDocAt(parent: UUID, drawing: Bool) {
         guard let wsHandle else { return }
 

@@ -2,6 +2,19 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CFBundleURLTypes</key>
+	<array>
+		<dict>
+			<key>CFBundleTypeRole</key>
+			<string>Editor</string>
+			<key>CFBundleURLName</key>
+			<string>app.lockbook</string>
+			<key>CFBundleURLSchemes</key>
+			<array>
+				<string>lb</string>
+			</array>
+		</dict>
+	</array>
 	<key>NSFaceIDUsageDescription</key>
 	<string>Lockbook uses Face ID to protect access to your account keys.</string>
 	<key>UTExportedTypeDeclarations</key>
@@ -13,7 +26,7 @@
 			<string>Lockbook file metadata</string>
 			<key>UTTypeConformsTo</key>
 			<array>
-				<string>public.data</string>
+				<string>public.item</string>
 			</array>
 		</dict>
 	</array>

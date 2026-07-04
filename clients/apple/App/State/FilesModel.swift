@@ -11,6 +11,16 @@ import SwiftWorkspace
 
     var statusDots: [UUID: SyncDot] = [:]
 
+    var moveResult: MoveResult? = nil
+
+    var importResult: ImportResult? = nil
+    var importsInProgress = 0
+    var exportsInProgress = 0
+
+    var pinnedIds: Set<UUID> = Set(
+        (UserDefaults.standard.stringArray(forKey: "pinnedFiles") ?? []).compactMap(UUID.init)
+    )
+
     @ObservationIgnored private let statusDotDelay: TimeInterval = 2
     @ObservationIgnored private var candidateStatusDots: [UUID: SyncDot] = [:]
     @ObservationIgnored private var statusDotSince: [UUID: Date] = [:]
@@ -102,20 +112,112 @@ import SwiftWorkspace
         return true
     }
 
-    func moveFile(id: UUID, newParent: UUID) {
-        mutateAndReload {
-            AppState.lb.moveFile(id: id, newParent: newParent)
-        }
-    }
-
     func moveFiles(_ files: [File], into dest: File) -> Bool {
         let movable = files.filter { canMove($0, into: dest) }
 
-        for file in movable {
-            moveFile(id: file.id, newParent: dest.id)
+        guard !movable.isEmpty else {
+            return false
         }
 
-        return !movable.isEmpty
+        let requested = files.count
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            var moved = 0
+
+            for file in movable {
+                if case .success = AppState.lb.moveFile(id: file.id, newParent: dest.id) {
+                    moved += 1
+                }
+            }
+
+            DispatchQueue.main.async {
+                self.loadFiles()
+                self.moveResult = MoveResult(moved: moved, requested: requested)
+            }
+        }
+
+        return true
+    }
+
+    func drop(_ items: [FileDropItem], into dest: File) -> Bool {
+        guard dest.isFolder else {
+            return false
+        }
+
+        var moves: [File] = []
+        var imports: [URL] = []
+
+        for item in items {
+            switch item {
+            case let .file(file):
+                moves.append(file)
+            case let .url(url):
+                if url.isFileURL {
+                    imports.append(url)
+                }
+            }
+        }
+
+        var handled = false
+
+        if !moves.isEmpty {
+            handled = moveFiles(moves, into: dest)
+        }
+
+        if !imports.isEmpty {
+            importFiles(urls: imports, into: dest)
+            handled = true
+        }
+
+        return handled
+    }
+
+    func importFiles(urls: [URL], into dest: File) {
+        importsInProgress += 1
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let accessing = urls.filter { $0.startAccessingSecurityScopedResource() }
+
+            let res = AppState.lb.importFiles(
+                sources: urls.map { $0.path(percentEncoded: false) }, dest: dest.id
+            )
+
+            for url in accessing {
+                url.stopAccessingSecurityScopedResource()
+            }
+
+            DispatchQueue.main.async {
+                self.importsInProgress -= 1
+
+                switch res {
+                case .success:
+                    self.importResult = ImportResult(count: urls.count)
+                    self.loadFiles()
+                case let .failure(err):
+                    AppState.shared.error = .lb(error: err)
+                }
+            }
+        }
+    }
+
+    func togglePin(_ id: UUID) {
+        if pinnedIds.remove(id) == nil {
+            pinnedIds.insert(id)
+        }
+
+        UserDefaults.standard.set(pinnedIds.map(\.uuidString), forKey: "pinnedFiles")
+    }
+
+    func deleteFiles(_ files: [File]) {
+        mutateAndReload {
+            for file in files {
+                if case let .failure(err) = AppState.lb.deleteFile(id: file.id) {
+                    return .failure(err)
+                }
+            }
+
+            return .success(())
+        }
     }
 
     func acceptShare(file: File) {
@@ -237,6 +339,15 @@ import SwiftWorkspace
 
         return dots
     }
+}
+
+struct MoveResult: Equatable {
+    let moved: Int
+    let requested: Int
+}
+
+struct ImportResult: Equatable {
+    let count: Int
 }
 
 enum SyncDot: Equatable {
