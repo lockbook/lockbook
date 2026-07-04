@@ -95,16 +95,16 @@ object WorkspaceThemeHelper {
                 },
             )
 
-        val preferenceAccentSlots =
+        val renderedAccentSlots =
             if (darkMode) {
-                defaultTheme.bright.accentColors()
+                harmonizedBright.accentColors()
             } else {
-                defaultTheme.dim.accentColors()
+                harmonizedDim.accentColors()
             }
         val prefs =
             pickWorkspacePreferences(
                 intArrayOf(materialPrimary, materialSecondary, materialTertiary),
-                preferenceAccentSlots,
+                renderedAccentSlots,
             )
         val fgAccentColors =
             mapOf(
@@ -177,16 +177,16 @@ object WorkspaceThemeHelper {
 
     private fun pickWorkspacePreferences(
         materialRoles: IntArray,
-        preferenceAccentSlots: List<Int>,
+        renderedAccentSlots: List<Int>,
     ): WorkspaceThemePreferences {
         val paletteSlots =
             mutableListOf(
-                PALETTE_RED to preferenceAccentSlots[0],
-                PALETTE_GREEN to preferenceAccentSlots[1],
-                PALETTE_YELLOW to preferenceAccentSlots[2],
-                PALETTE_BLUE to preferenceAccentSlots[3],
-                PALETTE_MAGENTA to preferenceAccentSlots[4],
-                PALETTE_CYAN to preferenceAccentSlots[5],
+                PALETTE_RED to renderedAccentSlots[0],
+                PALETTE_GREEN to renderedAccentSlots[1],
+                PALETTE_YELLOW to renderedAccentSlots[2],
+                PALETTE_BLUE to renderedAccentSlots[3],
+                PALETTE_MAGENTA to renderedAccentSlots[4],
+                PALETTE_CYAN to renderedAccentSlots[5],
             )
 
         val picked =
