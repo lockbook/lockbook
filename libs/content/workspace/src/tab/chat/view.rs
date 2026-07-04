@@ -1673,19 +1673,6 @@ impl Chat {
                                         text_color,
                                     )
                                 });
-                                // First-run gets the privacy framing; the
-                                // summoned "add provider" doesn't — the empty
-                                // chat behind it already carries that line.
-                                let body = (!summoned).then(|| {
-                                    para(
-                                        ui,
-                                        "Messages you send go to the AI provider you choose. Pick \
-                                         a local model to keep them on your device."
-                                            .into(),
-                                        secondary_color,
-                                    )
-                                });
-
                                 // Two meaningful columns: the household-name
                                 // model makers (+ `custom`, the hand-rolled
                                 // escape hatch) on the left, third-party hosts
@@ -1767,13 +1754,10 @@ impl Chat {
                                     })
                                 });
 
-                                // headline, optional privacy line, the grid,
-                                // and (when summoned) a cancel — as one column.
+                                // headline, the grid, and (when summoned) a
+                                // cancel — as one column.
                                 let mut col = CenteredColumn::default();
                                 col.galley(0.0, head, false);
-                                if let Some(body) = body {
-                                    col.galley(12.0, body, true);
-                                }
                                 col.reserve(22.0, vec2(grid_w, grid_h));
                                 if let Some(c) = &cancel {
                                     col.reserve(20.0, c.size());
