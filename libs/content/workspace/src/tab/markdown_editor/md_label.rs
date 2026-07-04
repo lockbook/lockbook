@@ -68,8 +68,13 @@ impl MdLabel {
         self.renderer.text_areas.clear();
 
         // Scoped ui for clipping; the scope's cursor side-effects stay local.
+        // Links resolve inside the same scope: `interact_fragments` registers
+        // their widgets keyed to this ui's id, and read-only labels open
+        // them on plain click.
         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
             self.renderer.show_block(ui, root, top_left);
+            self.renderer.interact_fragments(ui);
+            self.renderer.handle_link_interactions(root, ui);
         });
 
         (std::mem::take(&mut self.renderer.text_areas), rect)

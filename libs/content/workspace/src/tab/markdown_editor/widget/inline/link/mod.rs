@@ -192,15 +192,17 @@ impl<'ast> MdRender {
             return;
         }
 
-        // Plain inline link (labeled, or an autolink whose title hasn't resolved):
-        // cmd-click opens (desktop); touch gets a trailing open affordance.
-        let cmd = self.ctx.input(|i| i.modifiers.command);
+        // Plain inline link (labeled, or an autolink whose title hasn't
+        // resolved): cmd-click opens (desktop editor); read-only views have
+        // no cursor to place, so a plain click opens; touch gets a trailing
+        // open affordance.
+        let clickable = self.readonly || self.ctx.input(|i| i.modifiers.command);
         let salt = Self::link_interaction_id_salt(node_range);
-        if cmd {
+        if clickable {
             layout.interaction_open(salt, egui::Sense::click());
         }
         self.layout_circumfix(layout, node, range, link_fmt.clone());
-        if cmd {
+        if clickable {
             layout.interaction_close();
         }
 

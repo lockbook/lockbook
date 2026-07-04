@@ -23,13 +23,15 @@ impl<'ast> MdRender {
         let node_range = self.node_range(node);
         let state = self.link_state_for_wikilink(&url);
         let fmt = self.text_format_link(parent, state.clone());
-        let cmd = self.ctx.input(|i| i.modifiers.command);
+        // Read-only views have no cursor to place, so a plain click follows
+        // the link; the editor reserves that for the cursor and requires cmd.
+        let clickable = self.readonly || self.ctx.input(|i| i.modifiers.command);
         let salt = Self::link_interaction_id_salt(node_range);
-        if cmd {
+        if clickable {
             layout.interaction_open(salt, egui::Sense::click());
         }
         self.layout_circumfix(layout, node, range, fmt);
-        if cmd {
+        if clickable {
             layout.interaction_close();
         }
 
