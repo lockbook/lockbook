@@ -49,9 +49,12 @@ impl<'ast> MdRender {
         let annotation_size = Vec2 { x: self.layout.indent, y: annotation_row_height };
         let annotation_space = Rect::from_min_size(top_left, annotation_size);
 
-        // Marker doubles as drag handle (bullet/number is non-interactive).
+        // Desktop drag handle (bullet/number is non-interactive). On touch
+        // the body must own the press instead, so a pan scrolls and a hold
+        // arms a reorder (see `MdEdit::detect_touch_reorder`).
         let drag_id = ui.id().with(("item_drag", self.node_range(node)));
-        let drag_resp = ui.interact(annotation_space, drag_id, egui::Sense::drag());
+        let sense = if self.touch_mode { egui::Sense::hover() } else { egui::Sense::drag() };
+        let drag_resp = ui.interact(annotation_space, drag_id, sense);
         self.handle_item_drag_resp(ui, node, &drag_resp);
 
         let annotation_color = self.ctx.get_lb_theme().neutral_fg_secondary();
@@ -149,6 +152,7 @@ impl<'ast> MdRender {
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
+            && !self.painting_drag_float // chrome shouldn't travel with the drag card
             && !self.reveal_line(node, first_line) // the revealed marker occupies the gutter
             && (self.touch_mode
                 || hovered

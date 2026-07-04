@@ -28,29 +28,32 @@ impl MdEdit {
     /// [`MdRender::plan_block_move`]. The post-move selection is
     /// applied in a separate batch so it isn't transformed against the
     /// edit and lands on the moved item.
-    pub fn move_block(&mut self, section_range: (Grapheme, Grapheme), insert_offset: Grapheme) {
+    pub fn move_block(
+        &mut self, section_range: (Grapheme, Grapheme), insert_offset: Grapheme,
+    ) -> buffer::Response {
         let arena = comrak::Arena::new();
         let root = self.renderer.reparse(&arena);
         let Some(plan) = self
             .renderer
             .plan_block_move(root, section_range, insert_offset)
         else {
-            return;
+            return Default::default();
         };
 
         self.renderer
             .buffer
             .queue(vec![Operation::Replace(Replace { range: plan.run_range, text: plan.new_run })]);
-        let resp = self.renderer.buffer.update();
+        let mut resp = self.renderer.buffer.update();
         if !resp.text_updated {
-            return;
+            return resp;
         }
         self.renderer.bump_text_seq();
 
         self.renderer
             .buffer
             .queue(vec![Operation::Select(plan.moved_range)]);
-        self.renderer.buffer.update();
+        resp |= self.renderer.buffer.update();
+        resp
     }
 }
 

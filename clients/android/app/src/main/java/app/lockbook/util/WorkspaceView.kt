@@ -370,7 +370,9 @@ class WorkspaceView(
             model._currentTab.value = currentTab
         }
 
-        if (model.currentTab.value?.type == WorkspaceTabType.Markdown) {
+        if (model.currentTab.value?.type == WorkspaceTabType.Markdown ||
+            model.currentTab.value?.type == WorkspaceTabType.Chat
+        ) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
 
                 if (response.textUpdated && contextMenu != null) {
@@ -441,6 +443,14 @@ class WorkspaceView(
         }
 
         return Workspace.willConsumeTouches(wgpuObj, x, y)
+    }
+
+    fun setKeyboardShown(shown: Boolean) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.setKeyboardShown(wgpuObj, shown)
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {

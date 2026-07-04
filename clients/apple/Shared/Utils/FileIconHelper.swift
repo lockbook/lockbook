@@ -24,6 +24,7 @@ class FileIconHelper {
         "md": "doc.richtext",
         "svg": "doc.text.image",
         "pdf": "doc.on.doc",
+        "chat": "bubble.left",
 
         "txt": "doc.plaintext",
         "rtf": "doc.plaintext",

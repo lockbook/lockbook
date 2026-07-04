@@ -3,7 +3,7 @@ use std::ops::Range;
 use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::search::{ContentMatch, ContentSearcher, SearchResult};
+use lb_rs::search::{ContentMatch, ContentSearcher, SearchFilter, SearchResult};
 
 use crate::{
     search::{SearchExecutor, SearchType},
@@ -125,12 +125,20 @@ impl SearchExecutor for ContentSearch {
         self.focused_file = None;
     }
 
+    fn update_filter(&mut self, filter: Option<SearchFilter>) {
+        self.searcher.update_filter(filter);
+        self.selected = 0;
+        self.focused_file = None;
+    }
+
     fn set_kb_mode(&mut self, kb_mode: bool) {
         self.kb_mode = kb_mode;
     }
 
-    fn show_result_picker(&mut self, ui: &mut egui::Ui) -> super::PickerResponse {
-        self.process_keys(ui.ctx());
+    fn show_result_picker(
+        &mut self, ui: &mut egui::Ui, allow_kb_nav: bool,
+    ) -> super::PickerResponse {
+        self.process_keys(ui.ctx(), allow_kb_nav);
 
         let results = self.searcher.results();
 
@@ -398,7 +406,7 @@ impl SearchExecutor for ContentSearch {
 }
 
 impl ContentSearch {
-    fn process_keys(&mut self, ctx: &Context) {
+    fn process_keys(&mut self, ctx: &Context, allow_kb_nav: bool) {
         const NUM_KEYS: [Key; 9] = [
             Key::Num1,
             Key::Num2,
@@ -411,30 +419,33 @@ impl ContentSearch {
             Key::Num9,
         ];
 
-        ctx.input_mut(|i| {
-            if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) {
-                self.selected = self.selected.saturating_add(1);
-                self.kb_mode = true;
-            }
-            if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
-                self.selected = self.selected.saturating_sub(1);
-                self.kb_mode = true;
-            }
-            if i.consume_key_exact(Modifiers::NONE, Key::Enter) {
-                self.activate = true;
-            }
-            if self.focused_file.is_some() && i.consume_key_exact(Modifiers::NONE, Key::Escape) {
-                self.focused_file = None;
-                self.selected = 0;
-                self.kb_mode = true;
-            }
-            for (idx, &k) in NUM_KEYS.iter().enumerate() {
-                if i.consume_key_exact(Modifiers::COMMAND, k) {
-                    self.activate_nth = Some(idx);
+        if allow_kb_nav {
+            ctx.input_mut(|i| {
+                if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) {
+                    self.selected = self.selected.saturating_add(1);
                     self.kb_mode = true;
                 }
-            }
-        });
+                if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
+                    self.selected = self.selected.saturating_sub(1);
+                    self.kb_mode = true;
+                }
+                if i.consume_key_exact(Modifiers::NONE, Key::Enter) {
+                    self.activate = true;
+                }
+                if self.focused_file.is_some() && i.consume_key_exact(Modifiers::NONE, Key::Escape)
+                {
+                    self.focused_file = None;
+                    self.selected = 0;
+                    self.kb_mode = true;
+                }
+                for (idx, &k) in NUM_KEYS.iter().enumerate() {
+                    if i.consume_key_exact(Modifiers::COMMAND, k) {
+                        self.activate_nth = Some(idx);
+                        self.kb_mode = true;
+                    }
+                }
+            });
+        }
 
         if ctx.input(|i| i.pointer.delta().length_sq() > 0.0) {
             self.kb_mode = false;

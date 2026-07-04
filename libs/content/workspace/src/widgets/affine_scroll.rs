@@ -32,10 +32,12 @@
 //! - Touch fling momentum: after release, content coasts with
 //!   exponential decay; cancelled by tap, drag-start on body or
 //!   scrollbar, programmatic scroll, or hitting a scroll boundary.
-//! - A tap that cancels momentum is consumed by the scroll area; it
-//!   doesn't also place the cursor or toggle interactive elements
-//!   (fold buttons, task-list checkboxes). Embedders gate other touch
-//!   handlers on [`AffineScrollArea::velocity`].
+//! - A tap that cancels momentum is a stop gesture, not a content tap.
+//!   The scroll area latches it (see
+//!   [`AffineScrollArea::momentum_cancel_press`]); embedders gate cursor
+//!   placement and keyboard summon on that latch, since
+//!   [`AffineScrollArea::velocity`] is already zero by the time the tap's
+//!   click resolves.
 //! - Scrollbar thumb drag: 1 px of mouse-pointer motion ≈ 1 px of
 //!   thumb motion. The drag rate is in approx units, so it drifts
 //!   gracefully when per-row `approx`/`precise` is off.
@@ -1042,20 +1044,41 @@ pub struct AffineScrollArea<Id: Clone + Eq + std::fmt::Debug> {
     /// When true, drag on the body (not just the scrollbar) scrolls
     /// the content with momentum. Intended for touch input.
     pub touch_scroll: bool,
+    /// When true, body-drag scrolling is suppressed for the frame — the
+    /// embedder has claimed the touch for something else (e.g. an armed
+    /// list-item drag-reorder). Momentum and the scrollbar are unaffected.
+    pub suppress_body_drag: bool,
     /// Salt for the scrollbar's interact rect — must be stable across
     /// frames and unique among visible scroll areas.
     id_salt: egui::Id,
+    /// Latched while a momentum-cancelling stop-tap is in progress (press
+    /// to release). See [`momentum_cancel_press`](Self::momentum_cancel_press).
+    momentum_cancel_press: bool,
 }
 
 impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
     pub fn new(id_salt: impl Hash) -> Self {
-        Self { state: ScrollArea::default(), touch_scroll: false, id_salt: egui::Id::new(id_salt) }
+        Self {
+            state: ScrollArea::default(),
+            touch_scroll: false,
+            suppress_body_drag: false,
+            id_salt: egui::Id::new(id_salt),
+            momentum_cancel_press: false,
+        }
     }
 
     /// Touch-scroll velocity (precise px/sec). y is vertical; x is
     /// always 0. Non-zero while momentum is in flight.
     pub fn velocity(&self) -> Vec2 {
         self.state.velocity()
+    }
+
+    /// Whether the live touch gesture began as a tap that cancelled scroll
+    /// momentum. Held from press to release so the click it resolves to can
+    /// be suppressed (cursor placement, keyboard) — [`velocity`](Self::velocity)
+    /// is already zero by then, so it can't be gated on instead.
+    pub fn momentum_cancel_press(&self) -> bool {
+        self.momentum_cancel_press
     }
 
     /// Raw persisted offset for change-detection (no row projection).
@@ -1151,6 +1174,9 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
 
         // Touch body drag → scroll + velocity tracking.
         let dt = ui.input(|i| i.stable_dt).max(0.0001);
+        // Read before the kills below: a press on the drag-only body fires
+        // `drag_started`, which zeroes velocity in `kill_momentum`.
+        let momentum_in_flight = self.state.velocity_precise.abs() > 1.0;
         if scrollable && self.touch_scroll && response.drag_started() {
             self.state.kill_momentum();
         }
@@ -1164,7 +1190,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         if self.touch_scroll && touch_cancelled {
             self.state.kill_momentum();
         }
-        if scrollable && self.touch_scroll && response.dragged() {
+        if scrollable && self.touch_scroll && !self.suppress_body_drag && response.dragged() {
             let drag_y = ui.input(|i| i.pointer.delta().y);
             let precise_delta = -drag_y;
             self.state
@@ -1186,12 +1212,22 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         } else {
             self.state.velocity_precise = 0.0;
         }
-        // Tap kills momentum without claiming the click.
+        // Tap kills momentum without claiming the click; if it cancelled a
+        // fling, latch that so the embedder can suppress the click (see
+        // `momentum_cancel_press`).
         let pressed_in_rect = ui.input(|i| {
             i.pointer.any_pressed() && i.pointer.press_origin().is_some_and(|p| rect.contains(p))
         });
         if self.touch_scroll && pressed_in_rect {
+            if momentum_in_flight {
+                self.momentum_cancel_press = true;
+            }
             self.state.velocity_precise = 0.0;
+        }
+        // Clear the latch once the gesture ends, after the embedder has read
+        // it this frame (pre_render runs before finish).
+        if ui.input(|i| i.pointer.any_released() || !i.pointer.any_down()) {
+            self.momentum_cancel_press = false;
         }
 
         // Scrollbar drag/click. Drag deltas use the pre-input geometry

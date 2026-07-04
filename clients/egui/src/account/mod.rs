@@ -417,6 +417,10 @@ impl AccountScreen {
                 .start_space_inspector(self.core.clone(), resp.space_inspector_root);
         }
 
+        if let Some(id) = resp.search_here {
+            self.workspace.search_in_folder(id);
+        }
+
         if let Some(file) = resp.new_folder_modal {
             self.update_tx
                 .send(OpenModal::NewFolder(Some(file)).into())

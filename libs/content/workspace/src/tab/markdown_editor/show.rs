@@ -28,6 +28,7 @@ use crate::widgets::IconButton;
 use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
+use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
 pub struct PreRenderState {
@@ -53,6 +54,12 @@ impl MdEdit {
     /// `Event::Newline`).
     pub fn handle_input(&mut self, ctx: &Context, id: Id) -> buffer::Response {
         let focused = ctx.memory(|m| m.has_focus(id));
+
+        // Deferred block reorder
+        let move_resp = match self.pending_block_move.take() {
+            Some((section_range, insert_offset)) => self.move_block(section_range, insert_offset),
+            None => buffer::Response::default(),
+        };
 
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
@@ -123,6 +130,7 @@ impl MdEdit {
         self.renderer.buffer.queue(ops);
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();
+        buf_resp |= move_resp; // a deferred reorder reports its text/selection edit
 
         if buf_resp.text_updated {
             self.renderer.bump_text_seq();
@@ -187,33 +195,39 @@ impl MdEdit {
     /// Consume the marker's [`BlockDragAction`] for the frame and, on
     /// release, commit the reorder via [`MdEdit::move_block`].
     pub(crate) fn handle_block_drag(&mut self, ui: &mut Ui) {
-        use crate::tab::markdown_editor::widget::block::drag::BlockDragAction;
-
         match self.renderer.block_drag_action.take() {
             Some(BlockDragAction::Started(drag)) => {
                 self.in_progress_block_drag = Some(drag);
-                // Select what's being dragged so the selection follows
-                // the move. Shift extends the existing selection — works
-                // through a click-that-becomes-a-tiny-drag, so a bare
-                // shift+click respects the modifier too.
-                let shift = ui.input(|i| i.modifiers.shift);
-                let region = if shift {
-                    let sel = self.renderer.buffer.current.selection;
-                    let lo = sel.start().min(drag.section_range.start());
-                    let hi = sel.end().max(drag.section_range.end());
-                    (lo, hi)
-                } else {
-                    drag.section_range
-                };
-                self.renderer
-                    .render_events
-                    .push(Event::Select { region: region.into() });
+                // Highlight the dragged section during a desktop drag. Skipped
+                // on touch: the highlight sits under the float's cutout (so
+                // it's invisible anyway), and on iOS UIKit would draw it
+                // natively *over* the cutout — messy rects at the source. The
+                // post-move selection comes from `move_block` regardless.
+                // Shift extends the existing selection — works through a
+                // click-that-becomes-a-tiny-drag, so a bare shift+click
+                // respects the modifier too.
+                if !self.renderer.touch_mode {
+                    let shift = ui.input(|i| i.modifiers.shift);
+                    let region = if shift {
+                        let sel = self.renderer.buffer.current.selection;
+                        let lo = sel.start().min(drag.section_range.start());
+                        let hi = sel.end().max(drag.section_range.end());
+                        (lo, hi)
+                    } else {
+                        drag.section_range
+                    };
+                    self.renderer
+                        .render_events
+                        .push(Event::Select { region: region.into() });
+                }
             }
             Some(BlockDragAction::Dragged(_)) => {}
             Some(BlockDragAction::Released(pointer)) => {
                 if let Some(drag) = self.in_progress_block_drag.take() {
                     if let Some(gap) = self.renderer.drop_gap_for(&drag, pointer) {
-                        self.move_block(drag.section_range, gap.insert_offset);
+                        // deferred move (applied next frame in `handle_input`)
+                        self.pending_block_move = Some((drag.section_range, gap.insert_offset));
+                        ui.ctx().request_repaint();
                     }
                 }
             }
@@ -376,7 +390,7 @@ impl MdEdit {
         let box_len = self.renderer.block_boxes.len();
         let section = drag.section_range;
         // Top-most items in the span; descendants paint via `show_block`.
-        let in_span: Vec<crate::tab::markdown_editor::widget::block::drag::BlockBox> = self
+        let in_span: Vec<BlockBox> = self
             .renderer
             .block_boxes
             .iter()
@@ -396,6 +410,7 @@ impl MdEdit {
             })
             .map(|b| (b.rect, b.node_range))
             .collect();
+        self.renderer.painting_drag_float = true;
         ui.push_id("md_block_drag_float", |ui| {
             for (rect, nr) in &constituents {
                 if let Some(node) = root
@@ -406,6 +421,7 @@ impl MdEdit {
                 }
             }
         });
+        self.renderer.painting_drag_float = false;
         let floating_text = std::mem::take(&mut self.renderer.text_areas);
         let floating_deco = std::mem::take(&mut self.renderer.deco_lines);
         self.renderer.fragments.truncate(frag_len);
@@ -548,6 +564,14 @@ impl MdEdit {
                     }
                 } else if response.clicked() && modifiers.shift && !cfg!(target_os = "android") {
                     Some(Region::ToLocation(location))
+                } else if response.clicked() && self.scroll_area.momentum_cancel_press() {
+                    None
+                } else if response.clicked()
+                    && matches!(self.touch_reorder, TouchReorder::Armed { .. })
+                {
+                    // Long-press that armed a reorder also lands as a click on
+                    // release — consume it so it doesn't place the cursor.
+                    None
                 } else if response.clicked() {
                     if cfg!(target_os = "android") && self.selection_tap(pos) {
                         let selection = self.renderer.buffer.current.selection;
@@ -621,9 +645,12 @@ impl MdEdit {
     pub fn post_render(&mut self, ui: &mut Ui, rect: Rect, id: Id, pre: PreRenderState) {
         let focused = pre.focused;
 
-        // Clip subsequent overlay paints (selection, cursor) to the
-        // editor rect so they don't bleed over toolbars or sidebars.
-        ui.set_clip_rect(rect.intersect(ui.clip_rect()));
+        // Clip subsequent overlay paints (selection, cursor) to the editor rect
+        // so they don't bleed over toolbars or sidebars. Restored before
+        // returning so a caller passing its own `ui` (e.g. the chat composer)
+        // isn't left with a narrowed clip that swallows its later paints.
+        let entry_clip = ui.clip_rect();
+        ui.set_clip_rect(rect.intersect(entry_clip));
 
         // cursor / selection — iOS draws natively
         if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
@@ -699,9 +726,15 @@ impl MdEdit {
                 .hline(deco.x, deco.y, Stroke::new(1.0, deco.color));
         }
 
-        let has_selection_handles = !self.renderer.buffer.current.selection.is_empty()
-            || self.in_progress_selection.is_some();
+        // A reorder selects the dragged section; its handles would clutter
+        // the floating card, so suppress them while a drag is in flight.
+        let has_selection_handles = (!self.renderer.buffer.current.selection.is_empty()
+            || self.in_progress_selection.is_some())
+            && self.in_progress_block_drag.is_none();
         if ui.ctx().os() == OperatingSystem::Android && has_selection_handles {
+            // Handles hang past the editor `rect`; draw under the entry clip so
+            // a tight surface (the chat composer) doesn't clip them off.
+            ui.set_clip_rect(entry_clip);
             self.show_selection_handles(ui);
         }
 
@@ -709,6 +742,14 @@ impl MdEdit {
         self.event
             .internal_events
             .append(&mut self.renderer.render_events);
+
+        ui.set_clip_rect(entry_clip);
+    }
+
+    /// Height of one line of body text — the composer's single-line (starting)
+    /// content height, before any vertical padding the caller wraps it in.
+    pub fn row_height(&self) -> f32 {
+        self.renderer.layout.row_height
     }
 
     /// Measure the rendered height at the given `width` without drawing.
@@ -743,6 +784,7 @@ impl MdEdit {
         self.renderer.buffer = Buffer::from("");
         self.renderer.bump_text_seq();
         self.in_progress_selection = None;
+        self.in_progress_handle = None;
         self.event.internal_events.clear();
     }
 

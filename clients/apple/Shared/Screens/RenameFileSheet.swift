@@ -145,7 +145,6 @@ class RenameFileViewModel: ObservableObject {
 }
 
 #if os(iOS)
-    @available(iOS 17.0, *)
     #Preview {
         @Previewable @State var file: File? = (AppState.lb as! MockLb).file1
 

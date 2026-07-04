@@ -1493,6 +1493,14 @@ impl FileTree {
                 ui.close();
             }
 
+            if file.is_folder() {
+                ui.separator();
+                if ui.button("Search Here").clicked() {
+                    resp.search_here = Some(file.id);
+                    ui.close();
+                }
+            }
+
             if self.descends_from_root(file.id) && file.is_folder() {
                 ui.separator();
                 if ui.button("Space Inspector").clicked() {
@@ -1868,6 +1876,7 @@ pub struct Response {
     pub delete_requests: HashSet<Uuid>,
     pub dropped_on: Option<Uuid>,
     pub space_inspector_root: Option<File>,
+    pub search_here: Option<Uuid>,
     pub clear_suggested: bool,
     pub clear_suggested_id: Option<Uuid>,
     pub accepted_share: Option<File>,
@@ -1905,6 +1914,7 @@ impl Response {
         this.delete_requests.extend(other.delete_requests);
         this.dropped_on = this.dropped_on.or(other.dropped_on);
         this.space_inspector_root = this.space_inspector_root.or(other.space_inspector_root);
+        this.search_here = this.search_here.or(other.search_here);
         this.clear_suggested = this.clear_suggested || other.clear_suggested;
         this.clear_suggested_id = this.clear_suggested_id.or(other.clear_suggested_id);
         this.accepted_share = this.accepted_share.or(other.accepted_share);

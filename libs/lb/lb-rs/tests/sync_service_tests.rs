@@ -362,3 +362,44 @@ async fn test_unmergable_conflict_progress_closure() {
     cores[0].sync().await.unwrap();
     cores[1].sync().await.unwrap();
 }
+
+#[tokio::test]
+async fn concurrent_chat_appends_union_cleanly() {
+    let c1 = test_core_with_account().await;
+    let doc = c1.create_at_path("convo.chat").await.unwrap();
+
+    let base = "{\"from\":\"a\",\"content\":\"hello\",\"ts\":1}\n";
+    c1.write_document(doc.id, base.as_bytes()).await.unwrap();
+    c1.sync().await.unwrap();
+
+    let c2 = test_core_from(&c1).await;
+
+    // each device appends its own turn on top of the shared base
+    let turn1 = format!("{base}{{\"from\":\"a\",\"content\":\"one\",\"ts\":2}}\n");
+    let turn2 = format!("{base}{{\"from\":\"b\",\"content\":\"two\",\"ts\":3}}\n");
+    c1.write_document(doc.id, turn1.as_bytes()).await.unwrap();
+    c2.write_document(doc.id, turn2.as_bytes()).await.unwrap();
+
+    c1.sync().await.unwrap();
+    c2.sync().await.unwrap();
+    c1.sync().await.unwrap();
+    c2.sync().await.unwrap();
+
+    // no conflict copy: the single .chat is still the only document
+    for c in [&c1, &c2] {
+        let chats = c
+            .list_metadatas()
+            .await
+            .unwrap()
+            .into_iter()
+            .filter(|f| f.name.ends_with(".chat"))
+            .count();
+        assert_eq!(chats, 1, "expected line-union, found a conflict copy");
+
+        let merged = String::from_utf8(c.read_document(doc.id, false).await.unwrap()).unwrap();
+        assert_eq!(merged.matches("\"content\":\"one\"").count(), 1);
+        assert_eq!(merged.matches("\"content\":\"two\"").count(), 1);
+        assert_eq!(merged.matches("\"content\":\"hello\"").count(), 1);
+    }
+    assert::cores_equal(&c1, &c2).await;
+}

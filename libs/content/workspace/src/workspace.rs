@@ -33,7 +33,7 @@ use crate::space_inspector::show::SpaceInspector;
 use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{
-    Editor as Markdown, HttpClient, MdConfig, MdPersistence, MdResources,
+    Editor as Markdown, HttpClient, MdConfig, MdEdit, MdPersistence, MdResources,
 };
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
@@ -82,7 +82,9 @@ pub struct Workspace {
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
 
-    pub show_tabs: bool,              // set on mobile to hide the tab strip
+    pub show_tabs: bool, // set on mobile to hide the tab strip
+    pub tab_strip_left_inset: f32,
+    pub tab_strip_min_height: f32,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
     // Transient state (consider removing)
@@ -144,6 +146,8 @@ impl Workspace {
             core: core.clone(),
 
             show_tabs,
+            tab_strip_left_inset: 0.0,
+            tab_strip_min_height: 0.0,
             focused_parent: Default::default(),
 
             landing_page_first_frame: true,
@@ -212,11 +216,9 @@ impl Workspace {
                     self.ctx.clone(),
                 )))
             }
-            Destination::Search => ContentState::Open(TabContent::Search(Search::new(
-                &self.core,
-                &self.ctx,
-                self.files.clone(),
-            ))),
+            Destination::Search => {
+                ContentState::Open(TabContent::Search(Search::new(&self.core, &self.ctx)))
+            }
         };
         let now = Instant::now();
         self.tabs.insert(
@@ -335,6 +337,19 @@ impl Workspace {
     }
     pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
         self.current_tab_mut()?.svg_mut()
+    }
+
+    /// The active editable text widget for native (iOS) text input — the
+    /// markdown document's editor or the chat tab's composer. Lets the
+    /// `UITextInput` FFI bridge target whichever editor is current without
+    /// caring which kind of tab owns it.
+    pub fn focused_mdedit_mut(&mut self) -> Option<&mut MdEdit> {
+        let tab = self.current_tab_mut()?;
+        if tab.markdown().is_some() {
+            tab.markdown_mut().map(|md| &mut md.edit)
+        } else {
+            tab.chat_mut().map(|chat| &mut chat.composer)
+        }
     }
 
     pub fn make_current(&mut self, i: usize) -> bool {
@@ -1146,6 +1161,18 @@ impl Workspace {
                 search.initialized = false;
             }
         }
+    }
+
+    pub fn search_in_folder(&mut self, folder_id: Uuid) {
+        self.upsert_search(Some(SearchType::Content));
+        let path = self.files.read().unwrap().path(folder_id);
+        if let Some(tab) = self.tabs.get_mut(&Destination::Search) {
+            if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                search.scope_path = path;
+                search.filters_open = true;
+            }
+        }
+        self.out.selected_file = Some(folder_id);
     }
 
     pub fn start_space_inspector(&mut self, _core: Lb, folder: Option<File>) {

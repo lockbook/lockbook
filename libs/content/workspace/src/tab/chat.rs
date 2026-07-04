@@ -7,7 +7,8 @@ use std::sync::{Arc, RwLock};
 
 use chrono::{DateTime, Local, Utc};
 use egui::{
-    Color32, CornerRadius, Galley, Id, Key, Modifiers, Rect, ScrollArea, Sense, Ui, pos2, vec2,
+    Color32, CornerRadius, Galley, Id, Key, Modifiers, Rect, ScrollArea, Sense, Stroke, StrokeKind,
+    Ui, pos2, vec2,
 };
 use lb_rs::Uuid;
 use lb_rs::model::account::Account;
@@ -18,7 +19,8 @@ use crate::GlyphonRendererCallback;
 use crate::file_cache::FileCache;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
-use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
+use crate::theme::icons::Icon;
+use crate::theme::palette_v2::{ThemeExt, username_color};
 
 const MAX_WIDTH: f32 = 800.0;
 const H_PAD: f32 = 12.0;
@@ -26,10 +28,16 @@ const V_PAD: f32 = 10.0;
 const H_MARGIN: f32 = 12.0;
 const ROW_GAP: f32 = 4.0;
 const CORNER: u8 = 10;
-const TOP_MARGIN: f32 = 15.0;
+/// Bigger on Android to clear the status bar / safe area.
+const TOP_MARGIN: f32 = if cfg!(target_os = "android") { 60.0 } else { 15.0 };
 const BOTTOM_PAD: f32 = 15.0;
 const COMPOSER_MAX_HEIGHT: f32 = 160.0;
-const COMPOSER_BOTTOM_INSET: f32 = 16.0;
+const COMPOSER_BOTTOM_GAP: f32 = 16.0;
+/// Android nav-bar clearance, used while the keyboard is down.
+const COMPOSER_NAV_CLEARANCE: f32 = 60.0;
+/// Horizontal inset on each side of the composer bubble within its column. The
+/// send button lives in the right inset, outside the bubble.
+const SIDE_INSET: f32 = 48.0;
 
 /// A message paired with the label that renders its markdown body. Labels
 /// are per-message so each one's `LayoutCache` can actually memoize across
@@ -44,7 +52,9 @@ pub struct Entry {
 /// paints with no egui layout involvement.
 struct RowPlan {
     bubble_rect: Rect,
+    /// Fill for others' bubbles; outline stroke for the user's own.
     bubble_color: Color32,
+    is_mine: bool,
     name_galley: Option<Arc<Galley>>,
     name_h: f32,
     ts_galley: Option<Arc<Galley>>,
@@ -70,6 +80,11 @@ pub struct Chat {
     pub account: Account,
     pub seq: usize,
     pub initialized: bool,
+    /// Last server state our local edits sit on top of — the merge base. Held
+    /// so `reload` does a real 3-way merge instead of an empty-base union.
+    base: Vec<u8>,
+    /// Composer region from the last frame, for `will_consume_touch`.
+    composer_rect: Rect,
     ctx: egui::Context,
 }
 
@@ -88,7 +103,25 @@ impl Chat {
         composer.renderer.link_resolver =
             Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
         composer.file_id = id;
-        Self { id, hmac, entries, composer, account, seq: 0, initialized: false, ctx }
+        Self {
+            id,
+            hmac,
+            entries,
+            composer,
+            account,
+            seq: 0,
+            initialized: false,
+            base: bytes.to_vec(),
+            composer_rect: Rect::NOTHING,
+            ctx,
+        }
+    }
+
+    /// True for transcript touches (which scroll), so Android doesn't treat a
+    /// short transcript scroll as a keyboard-summoning tap. Composer touches
+    /// fall through so they still raise the keyboard.
+    pub fn will_consume_touch(&self, pos: egui::Pos2) -> bool {
+        !self.composer_rect.contains(pos)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {
@@ -96,15 +129,16 @@ impl Chat {
     }
 
     /// Merge in a freshly-synced version. `bytes` is the remote; the local
-    /// state is `self`. An empty base is sound because deletions aren't a
-    /// thing today — symmetric union over timestamps.
+    /// state is `self`; `self.base` is the last server state our local edits
+    /// sit on top of — a real 3-way merge, matching the sync engine.
     ///
     /// Unchanged entries keep their existing label (and therefore its layout
     /// cache); new entries get a fresh label.
     pub fn reload(&mut self, bytes: &[u8], hmac: Option<DocumentHmac>) {
         let local = self.to_bytes();
-        let merged = Buffer::merge(&[], &local, bytes);
+        let merged = Buffer::merge(&self.base, &local, bytes);
         let merged_msgs = Buffer::new(&merged).messages;
+        self.base = bytes.to_vec();
 
         let mut old: Vec<Entry> = std::mem::take(&mut self.entries);
         self.entries = merged_msgs
@@ -127,18 +161,67 @@ impl Chat {
         self.hmac = Some(hmac);
     }
 
-    /// Returns true if the user sent a message this frame.
-    pub fn show(&mut self, ui: &mut Ui) -> bool {
-        let mut sent = false;
+    /// Append the trimmed composer text as a message and clear the composer.
+    /// Returns whether a (non-empty) message was sent.
+    fn submit(&mut self, ui: &Ui, composer_id: Id) -> bool {
+        let content = self
+            .composer
+            .renderer
+            .buffer
+            .current
+            .text
+            .trim()
+            .to_string();
+        if content.is_empty() {
+            return false;
+        }
+        let msg =
+            Message { from: self.account.username.clone(), content, ts: Utc::now().timestamp() };
+        self.entries.push(Entry::new(
+            msg,
+            &self.ctx,
+            Arc::clone(&self.composer.renderer.files),
+            self.id,
+        ));
+        self.composer.clear();
+        self.seq += 1;
+        ui.memory_mut(|m| m.request_focus(composer_id));
+        true
+    }
+
+    /// Renders the transcript + composer. Returns whether the user sent a
+    /// message this frame, and the composer's text rect (egui points) used to
+    /// position the native iOS text-interaction overlay.
+    pub fn show(&mut self, ui: &mut Ui) -> (bool, Rect) {
         let theme = ui.ctx().get_lb_theme();
         let available_width = ui.available_width();
         let col_width = available_width.min(MAX_WIDTH);
         let max_bubble_content_w = (col_width * 0.72 - H_PAD * 2.0).max(120.0);
         let text_color = theme.neutral_fg();
-        let secondary_color = theme.neutral_fg_secondary();
+        let secondary_color = theme
+            .neutral_fg_secondary()
+            .lerp_to_gamma(theme.neutral_fg(), 0.5); // fg secondary hard to read on colored bg
+
+        // Surface for the composer and others' bubbles — a slight lift off
+        // `neutral_bg`. Derived from `neutral_bg`/`neutral_fg` (the reliable
+        // poles) rather than `neutral_bg_secondary`, which Android Material You
+        // maps to a foreground tone (near-white in dark mode).
+        let bubble_surface = theme.neutral_bg().lerp_to_gamma(theme.neutral_fg(), 0.06);
 
         ui.spacing_mut().item_spacing = egui::Vec2::ZERO;
         let full_rect = ui.available_rect_before_wrap();
+
+        // The panel is inset past the keyboard but not the nav bar, so on
+        // Android clear the nav bar only while the keyboard is down.
+        let keyboard_up = ui
+            .memory(|m| m.data.get_temp::<f32>(Id::new("ws_keyboard_height")))
+            .unwrap_or(0.0)
+            > 0.0;
+        let composer_bottom_inset = if cfg!(target_os = "android") && !keyboard_up {
+            COMPOSER_NAV_CLEARANCE
+        } else {
+            COMPOSER_BOTTOM_GAP
+        };
 
         let composer_id = Id::new("chat_composer");
         if !self.initialized {
@@ -154,13 +237,17 @@ impl Chat {
                 .ctx()
                 .input_mut(|i| i.consume_key(Modifiers::COMMAND, Key::Enter));
 
-        // Composer input phase — keyboard / completions / internal events.
+        // Composer input phase — drain workspace-origin events (native iOS
+        // text input arrives this way: Newline / Indent / Replace pushed by the
+        // FFI), then keyboard / completions / internal events.
+        let workspace_events = self.composer.drain_workspace_events(ui.ctx());
+        self.composer.event.internal_events.extend(workspace_events);
         let _ = self.composer.handle_input(ui.ctx(), composer_id);
 
         // Measure at the exact render width so the composer bubble grows
         // same-frame. The re-parse inside `show` below hits the layout cache.
-        // `48.0` and `H_PAD` mirror the h_inset / shrink geometry below.
-        let composer_inner_w = (col_width - 2.0 * 48.0 - 2.0 * H_PAD).max(0.0);
+        // `SIDE_INSET` and `H_PAD` mirror the h_inset / shrink geometry below.
+        let composer_inner_w = (col_width - 2.0 * SIDE_INSET - 2.0 * H_PAD).max(0.0);
         let measured_h = self.composer.measure_height(composer_inner_w);
 
         // Autogrow with a max cap, no lower floor — a lower floor makes a
@@ -168,7 +255,7 @@ impl Chat {
         let composer_height = (measured_h + V_PAD * 2.0).min(COMPOSER_MAX_HEIGHT);
         let transcript_rect = Rect::from_min_max(
             full_rect.min,
-            pos2(full_rect.max.x, full_rect.max.y - composer_height - COMPOSER_BOTTOM_INSET),
+            pos2(full_rect.max.x, full_rect.max.y - composer_height - composer_bottom_inset),
         );
         let mut text_areas = Vec::new();
 
@@ -238,18 +325,18 @@ impl Chat {
                         let bubble_rect =
                             Rect::from_min_size(pos2(bubble_x, y), vec2(bubble_w, bubble_h));
 
+                        // Own bubbles are outlined in the primary accent (reads
+                        // on the dark transcript); others' are filled.
                         let bubble_color = if is_mine {
-                            theme
-                                .bg()
-                                .get_color(Palette::Blue)
-                                .lerp_to_gamma(theme.neutral_bg(), 0.5)
+                            theme.fg().get_color(theme.prefs().primary)
                         } else {
-                            theme.neutral_bg_secondary()
+                            bubble_surface
                         };
 
                         plans.push(RowPlan {
                             bubble_rect,
                             bubble_color,
+                            is_mine,
                             name_galley,
                             name_h,
                             ts_galley,
@@ -265,11 +352,20 @@ impl Chat {
 
                     // pass 2: paint absolute. No egui layout calls.
                     for (i, plan) in plans.into_iter().enumerate() {
-                        ui.painter().rect_filled(
-                            plan.bubble_rect,
-                            CornerRadius::same(CORNER),
-                            plan.bubble_color,
-                        );
+                        if plan.is_mine {
+                            ui.painter().rect_stroke(
+                                plan.bubble_rect,
+                                CornerRadius::same(CORNER),
+                                Stroke::new(0.5, plan.bubble_color),
+                                StrokeKind::Inside,
+                            );
+                        } else {
+                            ui.painter().rect_filled(
+                                plan.bubble_rect,
+                                CornerRadius::same(CORNER),
+                                plan.bubble_color,
+                            );
+                        }
 
                         let mut text_y = plan.bubble_rect.min.y + V_PAD;
                         if let Some(ng) = plan.name_galley {
@@ -317,58 +413,68 @@ impl Chat {
 
         // Composer bubble + body.
         let composer_rect = Rect::from_min_max(
-            pos2(full_rect.min.x, full_rect.max.y - composer_height - COMPOSER_BOTTOM_INSET),
+            pos2(full_rect.min.x, full_rect.max.y - composer_height - composer_bottom_inset),
             full_rect.max,
         );
+        self.composer_rect = composer_rect;
         let col_pad = (available_width - col_width) / 2.0;
-        let h_inset = col_pad + 48.0;
+        let h_inset = col_pad + SIDE_INSET;
         let bubble_rect = Rect::from_min_max(
             pos2(composer_rect.min.x + h_inset, composer_rect.min.y),
-            pos2(composer_rect.max.x - h_inset, composer_rect.max.y - COMPOSER_BOTTOM_INSET),
+            pos2(composer_rect.max.x - h_inset, composer_rect.max.y - composer_bottom_inset),
         );
-        ui.painter().rect_filled(
-            bubble_rect,
-            CornerRadius::same(CORNER),
-            theme.neutral_bg_secondary(),
-        );
-
-        let inner_rect = bubble_rect.shrink2(vec2(H_PAD, V_PAD));
+        ui.painter()
+            .rect_filled(bubble_rect, CornerRadius::same(CORNER), bubble_surface);
 
         // Composer draw. Submits its own text callback internally.
+        let inner_rect = bubble_rect.shrink2(vec2(H_PAD, V_PAD));
         self.composer.show(ui, inner_rect, composer_id);
 
-        if send_requested {
-            let content = self
-                .composer
-                .renderer
-                .buffer
-                .current
-                .text
-                .trim()
-                .to_string();
-            if !content.is_empty() {
-                let msg = Message {
-                    from: self.account.username.clone(),
-                    content,
-                    ts: Utc::now().timestamp(),
-                };
-                self.entries.push(Entry::new(
-                    msg,
-                    &self.ctx,
-                    Arc::clone(&self.composer.renderer.files),
-                    self.id,
-                ));
-                self.composer.clear();
-                self.seq += 1;
-                ui.memory_mut(|m| m.request_focus(composer_id));
-                sent = true;
-            }
+        // Ghosted placeholder over the empty composer.
+        if self.composer.renderer.buffer.current.text.is_empty() {
+            let row_h = self.composer.row_height();
+            let hint = ui.fonts(|f| {
+                f.layout_no_wrap(
+                    "Type a message".into(),
+                    egui::FontId::proportional(row_h * 0.85),
+                    theme.neutral(),
+                )
+            });
+            let y = inner_rect.min.y + (row_h - hint.size().y) / 2.0;
+            ui.painter()
+                .galley(pos2(inner_rect.min.x, y), hint, theme.neutral());
         }
+
+        // Send button — shown when there's text. It lives in the right inset
+        // OUTSIDE the bubble, so `composer.show` can't occlude it. Sized to the
+        // composer's single-line starting height, bottom-aligned.
+        let non_empty = !self.composer.renderer.buffer.current.text.trim().is_empty();
+        let mut send_clicked = false;
+        if non_empty {
+            let d = (self.composer.row_height() + 2.0 * V_PAD).min(SIDE_INSET);
+            let center = pos2(bubble_rect.max.x + SIDE_INSET / 2.0, bubble_rect.max.y - d / 2.0);
+            let send_rect = Rect::from_center_size(center, vec2(d, d));
+            let resp = ui.interact(send_rect, Id::new("chat_send"), Sense::click());
+
+            let painter = ui.painter();
+            painter.circle_filled(center, d / 2.0, theme.bg().get_color(theme.prefs().primary));
+            let icon = ui.fonts(|f| {
+                f.layout_no_wrap(
+                    Icon::SEND.icon.to_string(),
+                    egui::FontId::monospace(d * 0.55),
+                    theme.neutral_fg(),
+                )
+            });
+            painter.galley(center - icon.size() / 2.0, icon, theme.neutral_fg());
+            send_clicked = resp.clicked();
+        }
+
+        let sent = (send_requested || send_clicked) && self.submit(ui, composer_id);
 
         // Popups land last so they composite over composer + transcript.
         self.composer.show_completions(ui);
 
-        sent
+        (sent, inner_rect)
     }
 }
 

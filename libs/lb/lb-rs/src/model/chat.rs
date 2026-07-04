@@ -54,3 +54,29 @@ impl Buffer {
         out.into_bytes()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn line(from: &str, content: &str, ts: i64) -> String {
+        serde_json::to_string(&Message { from: from.into(), content: content.into(), ts }).unwrap()
+            + "\n"
+    }
+
+    /// Concurrent appends on a shared base union to all turns, each once,
+    /// ordered by ts — the case the sync engine's `Chat` arm relies on.
+    #[test]
+    fn merge_unions_concurrent_appends() {
+        let base = line("a", "hello", 1);
+        let local = base.clone() + &line("a", "one", 2);
+        let remote = base.clone() + &line("b", "two", 3);
+
+        let merged =
+            Buffer::new(&Buffer::merge(base.as_bytes(), local.as_bytes(), remote.as_bytes()))
+                .messages;
+
+        let contents: Vec<_> = merged.iter().map(|m| m.content.as_str()).collect();
+        assert_eq!(contents, ["hello", "one", "two"]);
+    }
+}

@@ -194,20 +194,7 @@ class ShareFileViewModel: ObservableObject {
     }
 }
 
-struct ShareFileTextField: ViewModifier {
-    func body(content: Content) -> some View {
-        #if os(iOS)
-            content
-                .textFieldStyle(.roundedBorder)
-        #else
-            content
-                .textFieldStyle(.plain)
-        #endif
-    }
-}
-
 #if os(iOS)
-    @available(iOS 17.0, *)
     #Preview {
         @Previewable @State var file: File? = (AppState.lb as! MockLb).file1
         @Previewable @State var sheetHeight: CGFloat = 0

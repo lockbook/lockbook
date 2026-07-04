@@ -8,13 +8,29 @@ use comrak::nodes::{AstNode, NodeValue};
 use egui::{CursorIcon, Pos2, Rect, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
 
-use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::{MdEdit, MdRender};
 
 #[derive(Clone, Copy, Debug)]
 pub enum BlockDragAction {
     Started(BlockDrag),
     Dragged(Pos2),
     Released(Pos2),
+}
+
+/// Touch long-press → drag-reorder gesture state. Desktop reorders
+/// immediately from the marker handle; touch requires a stationary hold
+/// so a pan still scrolls. Driven by `MdEdit::detect_touch_reorder`.
+#[derive(Clone, Copy, Debug, Default)]
+pub enum TouchReorder {
+    #[default]
+    Idle,
+    /// Finger down on a reorderable item, disambiguating long-press
+    /// (arm) from pan (cancel).
+    Pending { origin: Pos2, started: f64 },
+    /// Long-press fired; the reorder runs via `in_progress_block_drag`.
+    /// `last` is the most recent live pointer — the drop position on
+    /// release, since touch-up nulls `latest_pos` (`PointerGone`).
+    Armed { last: Pos2 },
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -141,6 +157,32 @@ impl<'ast> MdRender {
                 self.block_drag_action = Some(BlockDragAction::Dragged(p));
             }
         }
+    }
+
+    /// Single-item drag for the reorderable list item under `pos` — the
+    /// touch long-press path. `None` if `pos` isn't over an item that has
+    /// a reorder sibling. The innermost (smallest) box wins, so a press on
+    /// a nested item reorders it among its own siblings. Multi-select drag
+    /// stays desktop-only.
+    pub fn touch_reorder_target(&self, pos: Pos2) -> Option<BlockDrag> {
+        let area = |b: &BlockBox| b.rect.width() * b.rect.height();
+        let b = self
+            .block_boxes
+            .iter()
+            .filter(|b| b.rect.contains(pos))
+            .min_by(|a, c| area(a).total_cmp(&area(c)))?;
+        let has_sibling = self
+            .block_boxes
+            .iter()
+            .filter(|x| x.parent_start == b.parent_start)
+            .nth(1)
+            .is_some();
+        has_sibling.then(|| BlockDrag {
+            section_range: b.node_range,
+            grabbed: b.node_range,
+            parent_start: b.parent_start,
+            grab_offset: pos - b.rect.left_top(),
+        })
     }
 
     /// Union of indexed item rects within `span`.
@@ -348,5 +390,81 @@ impl<'ast> MdRender {
             }
         }
         self.line_idx_for_offset(end)
+    }
+}
+
+impl MdEdit {
+    /// Touch long-press → drag-reorder. The body owns the press so a pan
+    /// still scrolls; a stationary hold past `LONG_PRESS` arms the reorder.
+    /// No-op unless touch, editable, and the keyboard is hidden (keyboard up
+    /// → long-press is text selection). Emits into `block_drag_action`,
+    /// consumed by `handle_block_drag`.
+    pub(crate) fn detect_touch_reorder(&mut self, ui: &mut Ui, keyboard_visible: bool) {
+        // Structural conditions don't change mid-gesture.
+        if !self.renderer.touch_mode || self.renderer.readonly || !self.renderer.interactive {
+            self.touch_reorder = TouchReorder::Idle;
+            return;
+        }
+
+        const LONG_PRESS: f64 = 0.4;
+        const SLOP: f32 = 12.0;
+
+        let (any_down, any_pressed, origin, latest, time, t0) = ui.input(|i| {
+            (
+                i.pointer.any_down(),
+                i.pointer.any_pressed(),
+                i.pointer.press_origin(),
+                i.pointer.latest_pos(),
+                i.time,
+                i.pointer.press_start_time(),
+            )
+        });
+        // Reliable "finger up": on iOS a touch-up over a click-sense widget
+        // (e.g. the task checkbox) can arrive as a bare `PointerGone`, leaving
+        // egui's button state stuck `down` — but it always nulls the live
+        // pointer, so `latest.is_none()` is the dependable lift signal.
+        let lifted = !any_down || latest.is_none();
+
+        match self.touch_reorder {
+            TouchReorder::Idle => {
+                // Keyboard up → long-press is text selection, not reorder.
+                if let (true, false, Some(origin), Some(started)) =
+                    (any_pressed, keyboard_visible, origin, t0)
+                {
+                    if self.renderer.touch_reorder_target(origin).is_some() {
+                        self.touch_reorder = TouchReorder::Pending { origin, started };
+                    }
+                }
+            }
+            TouchReorder::Pending { origin, started } => {
+                let moved = latest.map(|p| (p - origin).length()).unwrap_or(0.0);
+                if keyboard_visible || lifted {
+                    self.touch_reorder = TouchReorder::Idle; // tapped, or keyboard rose
+                } else if moved > SLOP {
+                    self.touch_reorder = TouchReorder::Idle; // pan → leave it to scroll
+                } else if time - started >= LONG_PRESS {
+                    match self.renderer.touch_reorder_target(origin) {
+                        Some(drag) => {
+                            self.renderer.block_drag_action = Some(BlockDragAction::Started(drag));
+                            self.touch_reorder =
+                                TouchReorder::Armed { last: latest.unwrap_or(origin) };
+                        }
+                        None => self.touch_reorder = TouchReorder::Idle,
+                    }
+                } else {
+                    ui.ctx().request_repaint(); // tick toward the threshold
+                }
+            }
+            TouchReorder::Armed { last } => {
+                // Drop where the pointer last lived (touch-up nulls `latest`).
+                let pointer = latest.unwrap_or(last);
+                if lifted {
+                    self.renderer.block_drag_action = Some(BlockDragAction::Released(pointer));
+                    self.touch_reorder = TouchReorder::Idle;
+                } else {
+                    self.touch_reorder = TouchReorder::Armed { last: pointer };
+                }
+            }
+        }
     }
 }

@@ -104,6 +104,12 @@ class WorkspaceFragment : Fragment() {
             activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
         }
 
+        // Forward real IME visibility into the editor so touch long-press
+        // can pick drag-reorder (keyboard down) vs text selection (up).
+        model.keyboardVisible.observe(viewLifecycleOwner) { visible ->
+            workspaceWrapper.workspaceView.setKeyboardShown(visible)
+        }
+
         model.createDocAt.observe(viewLifecycleOwner) { it ->
             workspaceWrapper.workspaceView.createDocAt(it)
         }
@@ -368,7 +374,7 @@ class WorkspaceFragment : Fragment() {
                 model._keyboardVisible.postValue(false)
             }
 
-            model._bottomInset.value = (-systemBars.bottom + ime.bottom).coerceAtLeast(0)
+            model._bottomInset.value = (ime.bottom - systemBars.bottom).coerceAtLeast(0)
 
             val filteredInsets =
                 WindowInsetsCompat
@@ -459,6 +465,7 @@ class WorkspaceFragment : Fragment() {
             WorkspaceTabType.Pdf,
             WorkspaceTabType.Markdown,
             WorkspaceTabType.PlainText,
+            WorkspaceTabType.Chat,
             -> {
                 binding.workspaceToolbar.menu
                     .findItem(R.id.menu_text_editor_share)

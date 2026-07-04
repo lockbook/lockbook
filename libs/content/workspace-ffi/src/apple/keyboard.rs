@@ -688,6 +688,7 @@ impl UIKeys {
             DeleteOrBackspace => egui::Key::Delete,
             Escape => egui::Key::Escape,
             Return => egui::Key::Enter,
+            ReturnOrEnter => egui::Key::Enter,
             Tab => egui::Key::Tab,
             LeftArrow => egui::Key::ArrowLeft,
             RightArrow => egui::Key::ArrowRight,

@@ -106,7 +106,6 @@ struct TabsSheet: View {
 }
 
 #if os(iOS)
-    @available(iOS 17.0, *)
     #Preview {
         @Previewable @State var sheetInfo: TabSheetInfo? = TabSheetInfo(info: [
             (name: "Cookie", id: UUID()),

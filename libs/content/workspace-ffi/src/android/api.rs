@@ -171,6 +171,18 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
     }
 }
 
+/// Push real IME visibility (from the Android inset listener) into the
+/// editor so touch long-press can pick drag-reorder vs text selection.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
+    _env: JNIEnv, _: JClass, obj: jlong, shown: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+        md.keyboard_visible = shown == 1;
+    }
+}
+
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouches(
     _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
@@ -183,6 +195,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_willConsumeTouches(
             ContentState::Open(TabContent::Svg(svg)) => svg.detect_islands_interaction(pos),
             ContentState::Open(TabContent::Image(image)) => image.detect_islands_interaction(pos),
             ContentState::Open(TabContent::Markdown(md)) => md.will_consume_touch(pos),
+            ContentState::Open(TabContent::Chat(chat)) => chat.will_consume_touch(pos),
             _ => false,
         }
     } else {
@@ -537,7 +550,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => {
             return env
@@ -547,7 +560,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getAllText(
         }
     };
 
-    env.new_string(&markdown.edit.renderer.buffer.current.text)
+    env.new_string(&markdown.renderer.buffer.current.text)
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -558,9 +571,9 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getSelection(
 ) -> jobject {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let (none, start, end) = match obj.workspace.current_tab_markdown_mut() {
+    let (none, start, end) = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => {
-            let (start, end) = markdown.edit.renderer.buffer.current.selection;
+            let (start, end) = markdown.renderer.buffer.current.selection;
             (false, start.0, end.0)
         }
         None => (true, 0, 0),
@@ -598,13 +611,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextLength(
 ) -> jint {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return -1,
     };
 
     markdown
-        .edit
         .renderer
         .buffer
         .current
@@ -619,7 +631,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -627,15 +639,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clear(
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations {
             start: Location::Grapheme(Grapheme(0)),
-            end: Location::Grapheme(
-                markdown
-                    .edit
-                    .renderer
-                    .buffer
-                    .current
-                    .segs
-                    .last_cursor_position(),
-            ),
+            end: Location::Grapheme(markdown.renderer.buffer.current.segs.last_cursor_position()),
         },
         text: "".to_string(),
         advance_cursor: false,
@@ -689,7 +693,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return,
     };
@@ -699,15 +703,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_append(
         Err(err) => format!("error: {err:?}"),
     };
 
-    let loc = Location::Grapheme(
-        markdown
-            .edit
-            .renderer
-            .buffer
-            .current
-            .segs
-            .last_cursor_position(),
-    );
+    let loc = Location::Grapheme(markdown.renderer.buffer.current.segs.last_cursor_position());
 
     obj.renderer.context.push_markdown_event(Event::Replace {
         region: Region::BetweenLocations { start: loc, end: loc },
@@ -722,7 +718,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
 ) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => {
             return env
@@ -733,7 +729,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTextInRange(
     };
 
     let selection = (Grapheme(start as usize), Grapheme(end as usize));
-    env.new_string(&markdown.edit.renderer.buffer[selection])
+    env.new_string(&markdown.renderer.buffer[selection])
         .expect("Couldn't create JString from rust string!")
         .into_raw()
 }
@@ -744,12 +740,12 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectAll(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let markdown = match obj.workspace.current_tab_markdown_mut() {
+    let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return,
     };
 
-    let segs = &markdown.edit.renderer.buffer.current.segs;
+    let segs = &markdown.renderer.buffer.current.segs;
 
     obj.renderer.context.push_markdown_event(Event::Select {
         region: Region::BetweenLocations {

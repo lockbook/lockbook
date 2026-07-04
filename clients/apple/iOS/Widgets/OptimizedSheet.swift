@@ -184,26 +184,6 @@ struct FormSheet<Content: View>: UIViewControllerRepresentable {
     func updateUIViewController(_: FormSheetViewController<Content>, context _: UIViewControllerRepresentableContext<FormSheet<Content>>) {}
 }
 
-struct FormSheetViewModifier<ViewContent: View>: ViewModifier {
-    @Binding var show: Bool
-
-    let sheetContent: () -> ViewContent
-
-    func body(content: Content) -> some View {
-        if show {
-            content
-                .background(FormSheet(content: {
-                    sheetContent()
-                        .onDisappear {
-                            show = false
-                        }
-                }))
-        } else {
-            content
-        }
-    }
-}
-
 struct HeightPreferenceKey: PreferenceKey {
     static var defaultValue: CGFloat?
 

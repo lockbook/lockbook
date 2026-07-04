@@ -36,17 +36,10 @@ struct HomeView: View {
                 NavigationStack {
                     DetailView()
                         .modifier(OutOfSpaceAlert())
+                        .ignoresSafeArea(.container, edges: .top)
                 }
             }
         )
-        .toolbar {
-            ToolbarItem(placement: .primaryAction) {
-                Button(action: { workspaceInput.showSearch() }) {
-                    Image(systemName: "magnifyingglass")
-                }
-                .help("Search")
-            }
-        }
         .confirmationDialog(
             "Are you sure? This action cannot be undone.",
             isPresented: Binding(

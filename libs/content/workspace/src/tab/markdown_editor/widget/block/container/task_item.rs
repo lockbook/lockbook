@@ -46,7 +46,15 @@ impl<'ast> MdRender {
             let extra_height = self.layout.row_spacing / 2.;
             let clickable_space = checkbox_space.expand(extra_width.min(extra_height));
 
-            let sense = if self.readonly { Sense::hover() } else { Sense::click_and_drag() };
+            // On touch the checkbox still toggles (click) but doesn't drag —
+            // reorder is the body's long-press (see `detect_touch_reorder`).
+            let sense = if self.readonly {
+                Sense::hover()
+            } else if self.touch_mode {
+                Sense::click()
+            } else {
+                Sense::click_and_drag()
+            };
             let checkbox_response =
             // ui.id().with() instead of Id::new() so two views of the same document
             // get distinct checkbox IDs
@@ -152,6 +160,7 @@ impl<'ast> MdRender {
         let (fold_button_size, fold_button_icon_size, fold_button_space) =
             Self::fold_button_size_icon_size_space(top_left, row_height, self.layout.indent);
         let show_fold_button = self.interactive
+            && !self.painting_drag_float // chrome shouldn't travel with the drag card
             && !self.reveal_line(node, first_line) // the revealed marker occupies the gutter
             && (self.touch_mode
                 || hovered

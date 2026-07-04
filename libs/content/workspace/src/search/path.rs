@@ -1,10 +1,8 @@
-use std::sync::{Arc, RwLock};
-
 use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
 use lb_rs::blocking::Lb;
+use lb_rs::search::SearchFilter;
 
 use crate::{
-    file_cache::{FileCache, FilesExt},
     search::{SearchExecutor, SearchType},
     show::{DocType, InputStateExt},
     theme::{
@@ -21,19 +19,13 @@ pub struct PathSearch {
     activate: bool,
     kb_mode: bool,
     selected_id: Option<lb_rs::Uuid>,
-    /// Whether the user has engaged the list (hover/arrow) since the last query
-    /// change. Suggested docs start un-engaged so nothing is preselected.
-    interacted: bool,
-    files: Arc<RwLock<FileCache>>,
 }
 
-/// A single row in the picker. Sourced from search results, or from suggested
-/// documents when no query has been typed.
 struct Row {
     id: lb_rs::Uuid,
     filename: String,
     parent_path: String,
-    /// Char indices (into the full path) to bold; empty for suggested docs.
+    is_folder: bool,
     path_indices: Vec<u32>,
 }
 
@@ -47,20 +39,21 @@ impl SearchExecutor for PathSearch {
         self.searcher.query(query);
         self.selected = 0;
         self.kb_mode = true;
-        self.interacted = false;
+    }
+
+    fn update_filter(&mut self, filter: Option<SearchFilter>) {
+        self.searcher.update_filter(filter);
+        self.selected = 0;
     }
 
     fn set_kb_mode(&mut self, kb_mode: bool) {
         self.kb_mode = kb_mode;
     }
 
-    fn show_result_picker(&mut self, ui: &mut egui::Ui) -> super::PickerResponse {
-        self.process_keys(ui.ctx());
-
-        // Suggested docs (shown before a query is typed) don't auto-select the
-        // first row the way query results do — there's no selection (and so no
-        // preview) until the user hovers or arrows into the list.
-        let showing_suggested = self.submitted_query.is_empty();
+    fn show_result_picker(
+        &mut self, ui: &mut egui::Ui, allow_kb_nav: bool,
+    ) -> super::PickerResponse {
+        self.process_keys(ui.ctx(), allow_kb_nav);
 
         let rows = self.rows();
         let n = rows.len();
@@ -71,10 +64,7 @@ impl SearchExecutor for PathSearch {
 
         if self.activate {
             self.activate = false;
-            // Enter with no active selection (un-engaged suggestions) opens nothing.
-            let has_selection = !showing_suggested || self.interacted;
-            let activated =
-                if has_selection { rows.get(self.selected).map(|r| r.id) } else { None };
+            let activated = rows.get(self.selected).map(|r| r.id);
             return super::PickerResponse {
                 activated,
                 activated_in_new_tab: false,
@@ -106,9 +96,7 @@ impl SearchExecutor for PathSearch {
         ui.spacing_mut().scroll.floating_width = 12.0;
         ui.spacing_mut().scroll.dormant_handle_opacity = 0.5;
 
-        // Only highlight a row if there's an active selection.
-        let highlight =
-            if !showing_suggested || self.interacted { Some(self.selected) } else { None };
+        let highlight = Some(self.selected);
 
         egui::ScrollArea::vertical()
             .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
@@ -137,11 +125,6 @@ impl SearchExecutor for PathSearch {
                 }
             });
 
-        // Hovering or clicking the list counts as engaging it.
-        if hovered.is_some() || clicked.is_some() {
-            self.interacted = true;
-        }
-
         if let Some(i) = clicked {
             self.selected = i;
         } else if !self.kb_mode {
@@ -150,8 +133,7 @@ impl SearchExecutor for PathSearch {
             }
         }
 
-        let has_selection = !showing_suggested || self.interacted;
-        let new_id = if has_selection { rows.get(self.selected).map(|r| r.id) } else { None };
+        let new_id = rows.get(self.selected).map(|r| r.id);
         if new_id != self.selected_id {
             self.selected_id = new_id;
         }
@@ -166,7 +148,7 @@ impl SearchExecutor for PathSearch {
 }
 
 impl PathSearch {
-    pub fn new(lb: &Lb, files: Arc<RwLock<FileCache>>) -> Self {
+    pub fn new(lb: &Lb) -> Self {
         Self {
             searcher: lb.path_searcher(),
             submitted_query: String::new(),
@@ -174,47 +156,24 @@ impl PathSearch {
             activate: false,
             kb_mode: true,
             selected_id: None,
-            interacted: false,
-            files,
         }
     }
 
-    /// The rows to display: live search results, or suggested documents before
-    /// any query is typed.
     fn rows(&self) -> Vec<Row> {
-        if self.submitted_query.is_empty() {
-            let files = self.files.read().unwrap();
-            files
-                .suggested
-                .iter()
-                .filter_map(|id| {
-                    let f = files.get_by_id(*id)?;
-                    if !f.is_document() {
-                        return None;
-                    }
-                    Some(Row {
-                        id: *id,
-                        filename: f.name.clone(),
-                        parent_path: files.path(f.parent),
-                        path_indices: Vec::new(),
-                    })
-                })
-                .collect()
-        } else {
-            self.searcher
-                .results()
-                .iter()
-                .map(|r| Row {
-                    id: r.id,
-                    filename: r.filename.clone(),
-                    parent_path: r.parent_path.clone(),
-                    path_indices: r.path_indices.clone(),
-                })
-                .collect()
-        }
+        self.searcher
+            .results()
+            .iter()
+            .map(|r| Row {
+                id: r.id,
+                filename: r.filename.clone(),
+                parent_path: r.parent_path.clone(),
+                is_folder: r.is_folder,
+                path_indices: r.path_indices.clone(),
+            })
+            .collect()
     }
 
-    fn process_keys(&mut self, ctx: &Context) {
+    fn process_keys(&mut self, ctx: &Context, allow_kb_nav: bool) {
         const NUM_KEYS: [Key; 9] = [
             Key::Num1,
             Key::Num2,
@@ -227,32 +186,27 @@ impl PathSearch {
             Key::Num9,
         ];
 
-        // In suggested mode there's no selection until the user engages, so the
-        // first arrow press lands on the first row rather than stepping past it.
-        let has_selection = !self.submitted_query.is_empty() || self.interacted;
-
-        ctx.input_mut(|i| {
-            if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) {
-                self.selected = if has_selection { self.selected.saturating_add(1) } else { 0 };
-                self.interacted = true;
-                self.kb_mode = true;
-            }
-            if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
-                self.selected = if has_selection { self.selected.saturating_sub(1) } else { 0 };
-                self.interacted = true;
-                self.kb_mode = true;
-            }
-            if i.consume_key_exact(Modifiers::NONE, Key::Enter) {
-                self.activate = true;
-            }
-            for (idx, &k) in NUM_KEYS.iter().enumerate() {
-                if i.consume_key_exact(Modifiers::COMMAND, k) {
-                    self.selected = idx;
-                    self.activate = true;
-                    self.interacted = true;
+        if allow_kb_nav {
+            ctx.input_mut(|i| {
+                if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) {
+                    self.selected = self.selected.saturating_add(1);
+                    self.kb_mode = true;
                 }
-            }
-        });
+                if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
+                    self.selected = self.selected.saturating_sub(1);
+                    self.kb_mode = true;
+                }
+                if i.consume_key_exact(Modifiers::NONE, Key::Enter) {
+                    self.activate = true;
+                }
+                for (idx, &k) in NUM_KEYS.iter().enumerate() {
+                    if i.consume_key_exact(Modifiers::COMMAND, k) {
+                        self.selected = idx;
+                        self.activate = true;
+                    }
+                }
+            });
+        }
 
         if ctx.input(|i| i.pointer.delta().length_sq() > 0.0) {
             self.kb_mode = false;
@@ -317,9 +271,8 @@ impl PathSearch {
                 ui.set_min_height(16.0 * 1.3 + 13.0 * 1.3);
 
                 let icon_size = 19.;
-                let is_folder = row.filename.is_empty() || !row.filename.contains('.');
 
-                let (icon, icon_color) = if !is_folder {
+                let (icon, icon_color) = if !row.is_folder {
                     (
                         DocType::from_name(&row.filename).to_icon().size(icon_size),
                         theme.neutral_fg_secondary(),
@@ -341,6 +294,11 @@ impl PathSearch {
                         for glyph in [number.as_str(), modifier] {
                             ui.add(GlyphonLabel::new(glyph, parent_color).font_size(12.0));
                         }
+                    }
+
+                    if row.is_folder {
+                        ui.add_space(6.0);
+                        Icon::FILTER.size(14.0).color(parent_color).show(ui);
                     }
 
                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {

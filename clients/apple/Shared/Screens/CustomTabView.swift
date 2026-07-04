@@ -1,6 +1,8 @@
 import SwiftUI
 
 struct CustomTabView<TabContent: View>: View {
+    @EnvironmentObject var homeState: HomeState
+
     @Binding var selectedTab: TabType
     @ViewBuilder var tabContent: (TabType) -> TabContent
 
@@ -20,9 +22,11 @@ struct CustomTabView<TabContent: View>: View {
             ToolbarItem(
                 placement: toolbarItemPlacement,
                 content: {
-                    TabPicker(
-                        selectedTab: $selectedTab
-                    )
+                    if homeState.sidebarState == .open {
+                        TabPicker(
+                            selectedTab: $selectedTab
+                        )
+                    }
                 }
             )
         }

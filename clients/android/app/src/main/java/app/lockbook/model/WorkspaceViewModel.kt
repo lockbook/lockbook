@@ -109,13 +109,14 @@ enum class WorkspaceTabType(
     Pdf(5),
     Svg(6),
     Graph(7),
+    Chat(9),
     ;
 
     companion object {
         fun fromInt(value: Int): WorkspaceTabType? = WorkspaceTabType.entries.find { it.value == value }
     }
 
-    fun isTextEdit(): Boolean = this == Markdown || this == PlainText
+    fun isTextEdit(): Boolean = this == Markdown || this == PlainText || this == Chat
 }
 
 sealed class FinishedAction {

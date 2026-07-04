@@ -1,14 +1,16 @@
 use crate::tab::{ExtendedInput as _, markdown_editor};
 use egui::Context;
-use markdown_editor::Editor;
+use markdown_editor::MdEdit;
 use markdown_editor::input::Event;
 
-impl Editor {
+impl MdEdit {
     /// Drain `Markdown` / `Undo` / `Redo` events from the egui context. Drop
     /// and Paste are left for the workspace's image-import pass;
-    /// `PredictedTouch` / `MultiTouchGesture` are left for other tabs.
+    /// `PredictedTouch` / `MultiTouchGesture` are left for other tabs. Lives on
+    /// `MdEdit` so a standalone composer (chat) drains the same events the
+    /// markdown editor does.
     pub(crate) fn drain_workspace_events(&self, ctx: &Context) -> Vec<Event> {
-        if self.edit.renderer.readonly {
+        if self.renderer.readonly {
             return Vec::new();
         }
         ctx.pop_events_where(&mut |e| {

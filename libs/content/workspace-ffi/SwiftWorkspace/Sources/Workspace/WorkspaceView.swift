@@ -262,7 +262,7 @@ import SwiftUI
                     ])
 
                     mtkView.becomeFirstResponder()
-                case .PlainText, .Markdown:
+                case .PlainText, .Markdown, .Chat:
                     if let currentWrapper = currentWrapper
                         as? MdView,
                         currentWrapper.currentHeaderSize

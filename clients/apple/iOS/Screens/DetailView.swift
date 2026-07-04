@@ -22,6 +22,28 @@ struct DetailView: View {
                     .ignoresSafeArea(.keyboard)
             }
         }
+        .overlay(alignment: .topLeading) {
+            if horizontalSizeClass == .regular, homeState.sidebarState == .closed {
+                Button {
+                    withAnimation {
+                        homeState.sidebarState = .open
+                    }
+                } label: {
+                    Image(systemName: "sidebar.left")
+                        .imageScale(.large)
+                        .foregroundStyle(.primary)
+                }
+                .buttonStyle(.borderless)
+                .frame(
+                    width: iOSMTK.SIDEBAR_TOGGLE_INSET,
+                    height: iOSMTK.TAB_BAR_HEIGHT
+                )
+            }
+        }
+        .toolbar(
+            horizontalSizeClass == .regular ? .hidden : .automatic,
+            for: .navigationBar
+        )
         .toolbar {
             if horizontalSizeClass == .compact, workspaceOutput.tabCount > 0 {
                 ToolbarItem(placement: .topBarTrailing) {
@@ -48,6 +70,13 @@ struct DetailView: View {
         }
         .fileOpSheets(compactSheetHeight: $sheetHeight)
         .modifier(CompactTitle())
+        .onAppear {
+            workspaceInput.sidebarVisible = homeState.sidebarState == .open
+        }
+        .onChange(of: homeState.sidebarState) { newValue in
+            workspaceInput.sidebarVisible = newValue == .open
+            workspaceInput.redraw.send(())
+        }
     }
 
     func showTabsSheet() {
@@ -60,16 +89,6 @@ struct DetailView: View {
                 return (name: file.name, id: file.id)
             }.compactMap { $0 }
         )
-    }
-
-    func runOnOpenDoc(f: @escaping (File) -> Void) {
-        guard let id = workspaceOutput.openDoc else {
-            return
-        }
-
-        if let file = filesModel.idsToFiles[id] {
-            f(file)
-        }
     }
 }
 
@@ -90,9 +109,7 @@ struct CompactTitle: ViewModifier {
             content
                 .toolbar {
                     if workspaceOutput.openDoc != nil {
-                        if #available(iOS 26.0, *) {
-                            ToolbarSpacer(.fixed, placement: .topBarLeading)
-                        }
+                        ToolbarSpacer(.fixed, placement: .topBarLeading)
 
                         ToolbarItem(placement: .topBarLeading) {
                             Button(
