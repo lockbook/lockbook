@@ -1,6 +1,7 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-use std::{io::Cursor, ops::DerefMut};
+use std::io::Cursor;
+use std::ops::DerefMut;
 
 use egui::ViewportCommand;
 use image::ImageDecoder as _;
@@ -9,24 +10,14 @@ use lockbook_egui::Lockbook;
 fn main() {
     env_logger::init();
 
-    // We explicity use x11 on posix systems because using Wayland (at least on GNOME) has the
-    // following issues:
-    //  1. window decorations are non-native.
-    //  2. dragging & dropping from the system doesn't work.
-    // if std::env::var_os("WINIT_UNIX_BACKEND").is_none() {
-    //     std::env::set_var("WINIT_UNIX_BACKEND", "x11");
-    // }
-
     let icon_bytes = {
         let png_bytes = include_bytes!("../lockbook.png");
-
         let decoder = image::codecs::png::PngDecoder::new(Cursor::new(png_bytes))
             .expect("Failed to create PNG decoder");
         let mut rgba8_bytes = vec![0; decoder.total_bytes() as usize];
         decoder
             .read_image(&mut rgba8_bytes)
             .expect("Failed to read PNG image");
-
         rgba8_bytes
     };
 
@@ -54,7 +45,7 @@ fn main() {
 
             Ok(Box::new(EframeLockbook {
                 lb: Lockbook::new(&cc.egui_ctx),
-                deferred_init_completed: false,
+                deferred_init_done: false,
             }))
         }),
     )
@@ -63,21 +54,19 @@ fn main() {
 
 struct EframeLockbook {
     lb: Lockbook,
-    deferred_init_completed: bool,
+    deferred_init_done: bool,
 }
 
 impl eframe::App for EframeLockbook {
     fn update(&mut self, ctx: &egui::Context, _frame: &mut eframe::Frame) {
-        if !self.deferred_init_completed {
+        if !self.deferred_init_done {
             self.lb.deferred_init(ctx);
-            self.deferred_init_completed = true;
+            self.deferred_init_done = true;
         }
 
         let output = self.lb.update(ctx);
 
-        // While the app is shutting down (or hasn't started shutting down despite
-        // close_requested), veto eframe's default close-on-X behavior so it can run
-        // to completion. Once `output.close` flips true, we let the close proceed.
+        // Veto eframe's close-on-X until the app itself asks to close.
         if !output.close && ctx.input(|i| i.viewport().close_requested()) {
             ctx.send_viewport_cmd(ViewportCommand::CancelClose);
         }

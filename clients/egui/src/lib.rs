@@ -1,149 +1,62 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod account;
-mod model;
-mod onboard;
 mod settings;
-mod splash;
-mod theme;
 mod util;
 
 pub use crate::settings::Settings;
-pub use workspace_rs::Event;
 
 #[cfg(feature = "egui_wgpu_renderer")]
 pub use lb_wgpu::*;
 
-use crate::account::AccountScreen;
-use crate::onboard::{OnboardHandOff, OnboardScreen};
-use crate::splash::{SplashHandOff, SplashScreen};
-use std::sync::{Arc, RwLock};
+use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
+use workspace_rs::theme::visuals;
 
-#[allow(clippy::large_enum_variant)]
-pub enum Lockbook {
-    /// The first screen a user sees everytime while the application is initializing. If there's a
-    /// major error, it's shown here. If all goes well, we move on to either the Onboard screen or
-    /// the Account screen, depending on whether there's a Lockbook account.
-    Splash(SplashScreen),
-
-    /// The screen that presents the user with the option to create or import a Lockbook account.
-    Onboard(OnboardScreen),
-
-    /// The user's primary Lockbook interface once they have an account.
-    Account(AccountScreen),
-}
+/// The 2026 rewrite starts here. For now this is a placeholder shell that will
+/// grow, from the entry point up, into the Design System page and beyond.
+pub struct Lockbook {}
 
 #[derive(Debug, Default)]
 pub struct Response {
     pub close: bool,
 }
 
-pub const DEV_USERS: &[&str] = &["parth", "adam", "travis", "at"];
-
 impl Lockbook {
-    pub fn new(ctx: &egui::Context) -> Self {
-        let (settings, maybe_settings_err) = match Settings::read_from_file() {
-            Ok(s) => (s, None),
-            Err(err) => (Default::default(), Some(err.to_string())),
-        };
-        let settings = Arc::new(RwLock::new(settings));
-
-        let splash = SplashScreen::new(settings, maybe_settings_err);
-        splash.start_loading_core(ctx);
-        Lockbook::Splash(splash)
+    pub fn new(_ctx: &egui::Context) -> Self {
+        Lockbook {}
     }
 
-    // Since updating from egui 0.28 to 0.30, visuals are for some reason reset
-    // between init and first frame. This fn is called during first update for
-    // deferred initialization.
+    /// Deferred one-time setup: fonts, image loaders, and the color theme. egui
+    /// resets visuals between init and the first frame, so this runs on frame one.
     pub fn deferred_init(&self, ctx: &egui::Context) {
         let mut fonts = egui::FontDefinitions::default();
         workspace_rs::register_fonts(&mut fonts);
         ctx.set_fonts(fonts);
         egui_extras::install_image_loaders(ctx);
 
-        theme::init(&self.settings(), ctx);
+        let mode = if ctx.style().visuals.dark_mode { Mode::Dark } else { Mode::Light };
+        ctx.set_lb_theme(Theme::default(mode));
+        visuals::init(ctx);
     }
 
-    fn settings(&self) -> Arc<RwLock<Settings>> {
-        match self {
-            Lockbook::Splash(screen) => screen.settings.clone(),
-            Lockbook::Onboard(screen) => screen.settings.clone(),
-            Lockbook::Account(screen) => screen.settings.clone(),
-        }
-    }
-
-    /// True only once the user is logged in and their username matches a dev
-    /// in `DEV_USERS`. Pre-login screens always return false.
     pub fn is_dev(&self) -> bool {
-        match self {
-            Lockbook::Account(screen) => screen.is_dev,
-            _ => false,
-        }
+        false
     }
 
     pub fn update(&mut self, ctx: &egui::Context) -> Response {
-        let mut output = Response::default();
-        match self {
-            // If we're on the Splash screen, we're waiting for the handoff to transition to the
-            // Account or Onboard screen. Once we get it, we adjust the application state and
-            // request a new frame.
-            Self::Splash(screen) => {
-                if let Some(handoff) = screen.update(ctx) {
-                    let SplashHandOff { settings, core, maybe_files: maybe_acct_data } = handoff;
+        egui::CentralPanel::default().show(ctx, |ui| {
+            ui.vertical_centered(|ui| {
+                ui.add_space(ui.available_height() / 3.0);
+                ui.heading("Lockbook Desktop — 2026 Edition");
+                ui.label("Fresh crate. Design System page lands here next.");
+            });
+        });
 
-                    *self = match maybe_acct_data {
-                        Some(files) => {
-                            let is_new_user = false;
-                            let acct_scr =
-                                AccountScreen::new(settings, &core, files, ctx, is_new_user);
-                            Self::Account(acct_scr)
-                        }
-                        None => Self::Onboard(OnboardScreen::new(settings, core)),
-                    };
-
-                    ctx.request_repaint();
-                };
-            }
-            // If we're on the Onboard screen, we're waiting for the handoff to transition to the
-            // Account screen.
-            Self::Onboard(screen) => {
-                if let Some(handoff) = screen.update(ctx) {
-                    let OnboardHandOff { settings, core, acct_data, is_new_user } = handoff;
-
-                    let acct_scr = AccountScreen::new(settings, &core, acct_data, ctx, is_new_user);
-                    *self = Self::Account(acct_scr);
-
-                    ctx.request_repaint();
-                }
-            }
-            // On the account screen, we're just waiting for it to gracefully shutdown or for the user to log out.
-            Self::Account(screen) => {
-                screen.update(ctx);
-
-                // React to the user requesting close (e.g. clicking the window's X button).
-                // Priority: close an open modal first; otherwise begin graceful shutdown.
-                // begin_shutdown is idempotent so it's safe to call repeatedly while the
-                // platform integration keeps signaling close_requested.
-                if ctx.input(|i| i.viewport().close_requested())
-                    && !screen.is_shutdown()
-                    && !screen.close_something()
-                {
-                    screen.begin_shutdown(ctx);
-                }
-
-                if screen.is_shutdown() {
-                    output.close = true;
-                }
-            }
-        }
-        output
+        Response { close: ctx.input(|i| i.viewport().close_requested()) }
     }
 }
 
 #[cfg(feature = "egui_wgpu_renderer")]
 mod lb_wgpu {
-
     use egui::{PlatformOutput, ViewportIdMap, ViewportOutput};
     use egui_wgpu_renderer::RendererState;
 
