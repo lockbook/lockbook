@@ -155,11 +155,23 @@ impl Theme {
 
     /// Returns the secondary foreground neutral color i.e. off-black in light
     /// mode, off-white in dark mode. Used for de-emphasized foreground elements
-    /// like markdown list markers and file tree icons.
+    /// like markdown list markers and file tree icons. This is the *faint* tier
+    /// of the text ramp (fg → muted → faint); prefer `neutral_fg_muted` for
+    /// secondary text that still needs to read easily.
     pub fn neutral_fg_secondary(&self) -> Color32 {
         match self.current {
             Mode::Light => self.bright.grey.lerp_to_gamma(self.bright.black, 0.5),
             Mode::Dark => self.dim.grey.lerp_to_gamma(self.dim.white, 0.5),
+        }
+    }
+
+    /// Returns the *muted* tier of the text ramp: secondary text that stays
+    /// legible (roughly #505050 light / #D0D0D0 dark). Sits between `neutral_fg`
+    /// (primary ink) and `neutral_fg_secondary` (faint markers/captions).
+    pub fn neutral_fg_muted(&self) -> Color32 {
+        match self.current {
+            Mode::Light => self.bright.grey.lerp_to_gamma(self.bright.black, 0.72),
+            Mode::Dark => self.dim.grey.lerp_to_gamma(self.dim.white, 0.78),
         }
     }
 
@@ -374,7 +386,7 @@ impl Theme {
                 magenta: hex_color!("#7855AA"),
                 cyan: hex_color!("#00BBCC"),
                 white: hex_color!("#FFFFFF"),
-                grey: hex_color!("#1D1D1D"),
+                grey: hex_color!("#2A2A2A"),
             },
             light_prefs: Preferences {
                 primary: Palette::Blue,
@@ -661,8 +673,13 @@ impl Theme {
             window_fill: self.neutral_bg_secondary(),
             extreme_bg_color: self.neutral_bg(),
             selection: style::Selection {
-                bg_fill: self.bg().get_color(self.prefs().primary),
-                ..Default::default()
+                // Translucent accent tint, no outline — selected text stays crisp
+                // instead of sitting under an opaque slab with egui's default edge.
+                bg_fill: self
+                    .fg()
+                    .get_color(self.prefs().primary)
+                    .gamma_multiply(0.3),
+                stroke: egui::Stroke::NONE,
             },
             hyperlink_color: self.fg().get_color(self.prefs().secondary),
             faint_bg_color: self.neutral_bg_secondary(),

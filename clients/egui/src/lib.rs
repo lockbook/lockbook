@@ -1,7 +1,10 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod design_system;
 mod settings;
+mod theme;
 mod util;
+mod widgets;
 
 pub use crate::settings::Settings;
 
@@ -11,9 +14,9 @@ pub use lb_wgpu::*;
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 use workspace_rs::theme::visuals;
 
-/// The 2026 rewrite starts here. For now this is a placeholder shell that will
-/// grow, from the entry point up, into the Design System page and beyond.
-pub struct Lockbook {}
+pub struct Lockbook {
+    mode: Mode,
+}
 
 #[derive(Debug, Default)]
 pub struct Response {
@@ -21,8 +24,9 @@ pub struct Response {
 }
 
 impl Lockbook {
-    pub fn new(_ctx: &egui::Context) -> Self {
-        Lockbook {}
+    pub fn new(ctx: &egui::Context) -> Self {
+        let mode = if ctx.style().visuals.dark_mode { Mode::Dark } else { Mode::Light };
+        Lockbook { mode }
     }
 
     /// Deferred one-time setup: fonts, image loaders, and the color theme. egui
@@ -43,13 +47,18 @@ impl Lockbook {
     }
 
     pub fn update(&mut self, ctx: &egui::Context) -> Response {
-        egui::CentralPanel::default().show(ctx, |ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(ui.available_height() / 3.0);
-                ui.heading("Lockbook Desktop — 2026 Edition");
-                ui.label("Fresh crate. Design System page lands here next.");
+        let tokens = theme::tokens::Tokens::new(ctx);
+        egui::CentralPanel::default()
+            .frame(egui::Frame::default().fill(tokens.canvas()))
+            .show(ctx, |ui| {
+                // Clearance for the macOS traffic lights (no title bar).
+                ui.add_space(20.0);
+                egui::Frame::default()
+                    .inner_margin(egui::Margin::symmetric(60, 12))
+                    .show(ui, |ui| {
+                        design_system::show(ctx, ui, &tokens, &mut self.mode);
+                    });
             });
-        });
 
         Response { close: ctx.input(|i| i.viewport().close_requested()) }
     }

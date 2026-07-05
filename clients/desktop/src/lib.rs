@@ -32,6 +32,18 @@ impl ApplicationHandler<UserEvent> for App {
             .with_inner_size(LogicalSize::new(1300, 800))
             .with_window_icon(window_icon);
 
+        // macOS: drop the title bar but keep the traffic lights — content runs
+        // full-height with the lights floating over the top-left. Reserve ~28px
+        // top-left inset in the UI so content doesn't collide with them.
+        #[cfg(target_os = "macos")]
+        let window_attrs = {
+            use winit::platform::macos::WindowAttributesExtMacOS as _;
+            window_attrs
+                .with_titlebar_transparent(true)
+                .with_fullsize_content_view(true)
+                .with_title_hidden(true)
+        };
+
         let window = Arc::new(
             event_loop
                 .create_window(window_attrs)

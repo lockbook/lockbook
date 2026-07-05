@@ -27,7 +27,10 @@ fn main() {
             viewport: egui::ViewportBuilder::default()
                 .with_drag_and_drop(true)
                 .with_inner_size([1300.0, 800.0])
-                .with_icon(egui::IconData { rgba: icon_bytes, width: 128, height: 128 }),
+                .with_icon(egui::IconData { rgba: icon_bytes, width: 128, height: 128 })
+                .with_titlebar_shown(false)
+                .with_title_shown(false)
+                .with_fullsize_content_view(true),
             ..Default::default()
         },
         Box::new(|cc: &eframe::CreationContext| {

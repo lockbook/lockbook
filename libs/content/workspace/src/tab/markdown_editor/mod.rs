@@ -1838,7 +1838,7 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             lb_fonts::SF_MONO_REGULAR,
             lb_fonts::SF_PRO_TEXT_BOLD,
             lb_fonts::SF_PRO_TEXT_ITALIC,
-            0.9,
+            1.0,
         )
     } else {
         (
