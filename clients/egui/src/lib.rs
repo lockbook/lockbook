@@ -366,11 +366,20 @@ impl Lockbook {
     /// model mutations here become `Workspace` calls.
     fn apply(&mut self, action: Action) {
         match action {
-            Action::Tree(file_tree::Op::Open { id, new_tab }) => {
-                if let Session::Ready(r) = &mut self.session {
-                    r.workspace.open_file(id, true, new_tab);
-                } else {
-                    log::info!("open file {id} (new_tab={new_tab})");
+            Action::Tree(op) => {
+                let Session::Ready(r) = &mut self.session else {
+                    log::info!("tree op with no workspace: {op:?}");
+                    return;
+                };
+                match op {
+                    file_tree::Op::Open { id, new_tab } => r.workspace.open_file(id, true, new_tab),
+                    file_tree::Op::CreateDoc { parent } => r.workspace.create_doc_at(false, parent),
+                    file_tree::Op::CreateFolder { parent } => r.workspace.create_folder_at(parent),
+                    file_tree::Op::Delete { ids } => {
+                        for id in ids {
+                            r.workspace.delete_file(id);
+                        }
+                    }
                 }
             }
             Action::ToggleSidebar => self.sidebar_open = !self.sidebar_open,

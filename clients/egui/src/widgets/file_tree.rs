@@ -14,8 +14,9 @@
 //! Wired so far: multi-select (plain / Cmd-toggle / Shift-range) with a cursor,
 //! keyboard nav (cursor arrows + Shift-extend, Enter to open), expand/collapse,
 //! open (same/new-tab, middle-click), virtualized scroll, sticky ancestor
-//! headers. Deferred (each a future `Action`/`Op` pair): rename, move/drag,
-//! cut/paste, delete, duplicate, pin, virtual folders, sort/view modes.
+//! headers, right-click context menu, create doc/folder, delete (menu + key).
+//! Deferred (each a future `Action`/`Op` pair): rename, move/drag, cut/paste,
+//! duplicate, pin, virtual folders, sort/view modes.
 
 use std::collections::HashSet;
 
@@ -47,13 +48,28 @@ pub enum Action {
     SelectRange(Uuid),
     /// Move the cursor to the previous/next visible row (arrow keys). `extend`
     /// (Shift) grows the selection from the anchor; otherwise it single-selects.
-    CursorMove { down: bool, extend: bool },
+    CursorMove {
+        down: bool,
+        extend: bool,
+    },
     /// Open the cursor's document if it is one (Enter).
     OpenCursor,
+    /// Create a new document / folder under `parent` — escapes to the shell.
+    CreateDoc {
+        parent: Uuid,
+    },
+    CreateFolder {
+        parent: Uuid,
+    },
+    /// Delete the current selection — escapes to the shell.
+    DeleteSelected,
     /// Flip a folder's expansion.
     Toggle(Uuid),
     /// Open a document — escapes to the shell.
-    Open { id: Uuid, new_tab: bool },
+    Open {
+        id: Uuid,
+        new_tab: bool,
+    },
     /// Set the scroll offset. Scroll is view state like selection, so it's part
     /// of the surface — scriptable, observable, fuzzable — not a side channel.
     ScrollTo(f32),
@@ -64,6 +80,9 @@ pub enum Action {
 #[derive(Clone, Debug)]
 pub enum Op {
     Open { id: Uuid, new_tab: bool },
+    CreateDoc { parent: Uuid },
+    CreateFolder { parent: Uuid },
+    Delete { ids: Vec<Uuid> },
 }
 
 /// One entry in the flattened visible-row list: which file, how deep, and
@@ -179,6 +198,13 @@ impl FileTree {
                     if files.get_by_id(id).is_some_and(|f| f.is_document()) {
                         return Some(Op::Open { id, new_tab: false });
                     }
+                }
+            }
+            Action::CreateDoc { parent } => return Some(Op::CreateDoc { parent }),
+            Action::CreateFolder { parent } => return Some(Op::CreateFolder { parent }),
+            Action::DeleteSelected => {
+                if !self.selected.is_empty() {
+                    return Some(Op::Delete { ids: self.selected.iter().copied().collect() });
                 }
             }
             Action::Toggle(id) => {
@@ -307,6 +333,15 @@ impl FileTree {
                         escaped = Some(op);
                     }
                 }
+                // Delete / Backspace remove the selection (non-short-circuit `|`
+                // so both keys are consumed).
+                let del = ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Delete))
+                    | ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Backspace));
+                if del {
+                    if let Some(op) = self.apply(Action::DeleteSelected, files) {
+                        escaped = Some(op);
+                    }
+                }
                 // Scroll the cursor back into view after a keyboard move.
                 if moved {
                     if let Some(ci) = self
@@ -423,8 +458,54 @@ impl FileTree {
         painter.galley(pos2(x, cy - g.size().y / 2.0), g, ink);
 
         // Any click on the tree grants it keyboard focus.
-        if resp.clicked() || resp.clicked_by(egui::PointerButton::Middle) {
+        if resp.clicked()
+            || resp.clicked_by(egui::PointerButton::Middle)
+            || resp.secondary_clicked()
+        {
             ui.memory_mut(|m| m.request_focus(kbd_focus_id()));
+        }
+
+        // Right-click selects the row (unless already selected, to keep a
+        // multi-selection) and opens the context menu. Menu choices become the
+        // same `Action`s a click or key would — applied after the closure so it
+        // borrows no `self`.
+        if resp.secondary_clicked() && !self.selected.contains(&row.id) {
+            self.apply(Action::Select(row.id), files);
+        }
+        let row_selected = self.selected.contains(&row.id);
+        let parent = if row.is_folder { row.id } else { file.parent };
+        let mut chosen: Option<Action> = None;
+        resp.context_menu(|ui| {
+            if !row.is_folder {
+                if ui.button("Open").clicked() {
+                    chosen = Some(Action::Open { id: row.id, new_tab: false });
+                    ui.close();
+                }
+                if ui.button("Open in new tab").clicked() {
+                    chosen = Some(Action::Open { id: row.id, new_tab: true });
+                    ui.close();
+                }
+                ui.separator();
+            }
+            if ui.button("New document").clicked() {
+                chosen = Some(Action::CreateDoc { parent });
+                ui.close();
+            }
+            if ui.button("New folder").clicked() {
+                chosen = Some(Action::CreateFolder { parent });
+                ui.close();
+            }
+            ui.separator();
+            if ui.button("Delete").clicked() {
+                chosen = Some(Action::DeleteSelected);
+                ui.close();
+            }
+        });
+        if let Some(a) = chosen {
+            if matches!(a, Action::DeleteSelected) && !row_selected {
+                self.apply(Action::Select(row.id), files);
+            }
+            return self.apply(a, files);
         }
 
         // Middle-click opens a document in a new tab (folders ignore it).
@@ -787,6 +868,34 @@ mod tests {
         // Enter on a document escapes as an Open op.
         let op = tree.apply(Action::OpenCursor, &files);
         assert!(matches!(op, Some(Op::Open { new_tab: false, .. })));
+    }
+
+    // Create/delete escape as Ops carrying the resolved parent / selection.
+    #[test]
+    fn crud_ops() {
+        let files = vec![mk(0, 0, "root", true), mk(1, 0, "a", false), mk(2, 0, "b", false)];
+        let id = Uuid::from_u128;
+        let mut tree = FileTree::default();
+
+        assert!(matches!(
+            tree.apply(Action::CreateDoc { parent: id(0) }, &files),
+            Some(Op::CreateDoc { parent }) if parent == id(0)
+        ));
+        assert!(matches!(
+            tree.apply(Action::CreateFolder { parent: id(0) }, &files),
+            Some(Op::CreateFolder { parent }) if parent == id(0)
+        ));
+
+        // Delete is a no-op with nothing selected, else escapes the selection.
+        assert!(tree.apply(Action::DeleteSelected, &files).is_none());
+        tree.apply(Action::Select(id(1)), &files);
+        tree.apply(Action::SelectAdd(id(2)), &files);
+        match tree.apply(Action::DeleteSelected, &files) {
+            Some(Op::Delete { ids }) => {
+                assert_eq!(ids.into_iter().collect::<HashSet<_>>(), HashSet::from([id(1), id(2)]));
+            }
+            other => panic!("expected Delete op, got {other:?}"),
+        }
     }
 
     // note a / folder(> note b): dump each element's effective on-screen vy at
