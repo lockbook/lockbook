@@ -32,9 +32,8 @@ impl ApplicationHandler<UserEvent> for App {
             .with_inner_size(LogicalSize::new(1300, 800))
             .with_window_icon(window_icon);
 
-        // macOS: drop the title bar but keep the traffic lights — content runs
-        // full-height with the lights floating over the top-left. Reserve ~28px
-        // top-left inset in the UI so content doesn't collide with them.
+        // macOS (dev): drop the title bar but keep the native traffic lights —
+        // content runs full-height with the lights floating over the top-left.
         #[cfg(target_os = "macos")]
         let window_attrs = {
             use winit::platform::macos::WindowAttributesExtMacOS as _;
@@ -43,6 +42,11 @@ impl ApplicationHandler<UserEvent> for App {
                 .with_fullsize_content_view(true)
                 .with_title_hidden(true)
         };
+
+        // Windows/Linux (product): borderless, so the app draws its own title
+        // bar and window controls.
+        #[cfg(not(target_os = "macos"))]
+        let window_attrs = window_attrs.with_decorations(false);
 
         let window = Arc::new(
             event_loop
@@ -279,6 +283,26 @@ impl AppState {
                     ViewportCommand::CancelClose => {
                         self.close_requested = false;
                     }
+                    // Custom client-side chrome (Windows/Linux, where native
+                    // decorations are off): the title bar emits these to move,
+                    // resize, and control the borderless window.
+                    ViewportCommand::StartDrag => {
+                        let _ = self.window.drag_window();
+                    }
+                    ViewportCommand::BeginResize(direction) => {
+                        let _ = self.window.drag_resize_window(to_winit_resize(*direction));
+                    }
+                    ViewportCommand::Minimized(minimized) => {
+                        self.window.set_minimized(*minimized);
+                    }
+                    ViewportCommand::Maximized(maximized) => {
+                        self.window.set_maximized(*maximized);
+                    }
+                    // Route through the same graceful path as the native close.
+                    ViewportCommand::Close => {
+                        self.close_requested = true;
+                        self.window.request_redraw();
+                    }
                     _ => {}
                 }
             }
@@ -345,6 +369,21 @@ impl AppState {
                 .events
                 .push(egui::Event::Paste(text));
         }
+    }
+}
+
+/// egui and winit each define their own `ResizeDirection`; map between them.
+fn to_winit_resize(direction: egui::ResizeDirection) -> ResizeDirection {
+    use egui::ResizeDirection as E;
+    match direction {
+        E::North => ResizeDirection::North,
+        E::South => ResizeDirection::South,
+        E::East => ResizeDirection::East,
+        E::West => ResizeDirection::West,
+        E::NorthEast => ResizeDirection::NorthEast,
+        E::SouthEast => ResizeDirection::SouthEast,
+        E::NorthWest => ResizeDirection::NorthWest,
+        E::SouthWest => ResizeDirection::SouthWest,
     }
 }
 
@@ -539,6 +578,6 @@ use winit::application::ApplicationHandler;
 use winit::dpi::LogicalSize;
 use winit::event::{ElementState, WindowEvent};
 use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
-use winit::window::{Icon, Window, WindowId};
+use winit::window::{Icon, ResizeDirection, Window, WindowId};
 use workspace_rs::tab::{ClipContent, ExtendedInput};
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
