@@ -68,11 +68,11 @@ jobs:
       package: lockbook-windows
       artifact-name: lockbook-windows
 
-  build-windows-egui:
+  build-windows-desktop:
     uses: ./.github/workflows/windows-build.yml
     with:
-      package: lockbook-egui
-      artifact-name: lockbook-egui-windows
+      package: lockbook-desktop
+      artifact-name: lockbook-desktop-windows
 
   build-windows-cli-arm:
     uses: ./.github/workflows/windows-build.yml
@@ -88,11 +88,11 @@ jobs:
       artifact-name: lockbook-windows-arm
       runner: windows-11-arm
 
-  build-windows-egui-arm:
+  build-windows-desktop-arm:
     uses: ./.github/workflows/windows-build.yml
     with:
-      package: lockbook-egui
-      artifact-name: lockbook-egui-windows-arm
+      package: lockbook-desktop
+      artifact-name: lockbook-desktop-windows-arm
       runner: windows-11-arm
 
   build-windows-installer:
