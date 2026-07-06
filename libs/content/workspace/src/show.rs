@@ -228,7 +228,15 @@ impl Workspace {
                         if self.tab_strip_left_inset > 0.0 {
                             ui.add_space(self.tab_strip_left_inset);
                         }
-                        if IconButton::new(Icon::ARROW_LEFT)
+                        // Fit the nav buttons within a short strip so they don't
+                        // force it taller than `tab_strip_min_height`; a larger
+                        // band (e.g. macOS) keeps them at the default 37.
+                        let nav_size = if self.tab_strip_min_height > 0.0 {
+                            self.tab_strip_min_height.min(37.0)
+                        } else {
+                            37.0
+                        };
+                        if IconButton::new(Icon::ARROW_LEFT.size(15.0))
                             .disabled(
                                 self.current_tab
                                     .as_ref()
@@ -236,14 +244,14 @@ impl Workspace {
                                     .map(|s| s.back.is_empty())
                                     .unwrap_or(true),
                             )
-                            .size(37.)
+                            .size(nav_size)
                             .tooltip("Go Back")
                             .show(ui)
                             .clicked()
                         {
                             back = true;
                         }
-                        if IconButton::new(Icon::ARROW_RIGHT)
+                        if IconButton::new(Icon::ARROW_RIGHT.size(15.0))
                             .disabled(
                                 self.current_tab
                                     .as_ref()
@@ -251,7 +259,7 @@ impl Workspace {
                                     .map(|s| s.forward.is_empty())
                                     .unwrap_or(true),
                             )
-                            .size(37.)
+                            .size(nav_size)
                             .tooltip("Go Forward")
                             .show(ui)
                             .clicked()
@@ -609,7 +617,7 @@ impl Workspace {
         };
 
         let tab_text_height = 20.0;
-        let tab_padding = if self.tab_strip_min_height > tab_text_height + 20.0 {
+        let tab_padding = if self.tab_strip_min_height > tab_text_height {
             let v = ((self.tab_strip_min_height - tab_text_height) / 2.0).round() as i8;
             egui::Margin { left: 10, right: 10, top: v, bottom: v }
         } else {

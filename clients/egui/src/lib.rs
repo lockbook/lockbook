@@ -183,8 +183,12 @@ impl Lockbook {
                     match file_cache {
                         Some(fc) => {
                             let file_cache = Arc::new(RwLock::new(fc));
-                            let workspace =
+                            let mut workspace =
                                 Workspace::new(&core, ctx, true, Some(file_cache.clone()));
+                            // Match the tab strip to the traffic-light band so the
+                            // top reads as one bar: its height is top-to-light-
+                            // center (our ruler-measured `HEADER_CENTER`) doubled.
+                            workspace.tab_strip_min_height = HEADER_CENTER * 2.0;
                             Session::Ready(Box::new(Ready { file_cache, workspace }))
                         }
                         None => Session::SignedOut,
