@@ -69,7 +69,7 @@
 
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(layer!).toOpaque())
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), true)
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false)
             workspaceInput?.wsHandle = wsHandle
 
             modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
@@ -347,7 +347,6 @@
             dark_mode(wsHandle, isDarkMode())
             set_scale(wsHandle, scale)
 
-            show_hide_tabs(wsHandle, false)
             set_tab_strip_inset(wsHandle, Float(tabStripInset()))
             set_tab_strip_height(wsHandle, Float(tabStripMinHeight()))
 

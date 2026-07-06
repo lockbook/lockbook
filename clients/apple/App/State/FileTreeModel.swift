@@ -1,4 +1,5 @@
 import Foundation
+import SwiftUI
 import SwiftWorkspace
 
 @Observable class FileTreeModel {
@@ -37,6 +38,31 @@ import SwiftWorkspace
     func toggleFolder(_ id: UUID) {
         if openFolders.remove(id) == nil {
             openFolders.insert(id)
+        }
+    }
+
+    func moveAndReveal(_ files: [File], into folder: File) -> Bool {
+        guard filesModel.moveFiles(files, into: folder) else {
+            return false
+        }
+
+        withAnimation {
+            _ = openFolders.insert(folder.id)
+        }
+
+        return true
+    }
+
+    func open(_ file: File, workspaceInput: WorkspaceInputState, homeState: HomeState) {
+        if file.isFolder {
+            workspaceInput.selectFolder(id: file.id)
+
+            withAnimation {
+                toggleFolder(file.id)
+            }
+        } else {
+            workspaceInput.openFile(id: file.id)
+            homeState.compactColumn = .detail
         }
     }
 

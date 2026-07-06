@@ -1,9 +1,75 @@
+import CoreTransferable
+import Foundation
+import SwiftUI
+import SwiftWorkspace
+import UniformTypeIdentifiers
+
 #if os(macOS)
     import AppKit
-    import SwiftUI
-    import SwiftWorkspace
-    import UniformTypeIdentifiers
+#endif
 
+enum FileExporter {
+    static func exportToTemp(_ file: File, edit: Bool, filesModel: FilesModel?) throws -> URL {
+        DispatchQueue.main.async { filesModel?.exportsInProgress += 1 }
+
+        defer {
+            DispatchQueue.main.async { filesModel?.exportsInProgress -= 1 }
+        }
+
+        do {
+            let dir = URL(fileURLWithPath: NSTemporaryDirectory())
+                .appendingPathComponent("lb-export")
+                .appendingPathComponent(UUID().uuidString)
+
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+
+            if case let .failure(err) = AppState.lb.exportFile(
+                sourceId: file.id, dest: dir.path(percentEncoded: false), edit: edit
+            ) {
+                throw err
+            }
+
+            return dir.appendingPathComponent(file.name)
+        } catch {
+            report(error)
+            throw error
+        }
+    }
+
+    static func report(_ error: Error) {
+        DispatchQueue.main.async {
+            if let lbError = error as? LbError {
+                AppState.shared.error = .lb(error: lbError)
+            } else {
+                AppState.shared.error = .custom(
+                    title: "Export failed", msg: error.localizedDescription
+                )
+            }
+        }
+    }
+}
+
+#if os(iOS)
+    struct DraggedFile: Transferable {
+        let file: File
+        let filesModel: FilesModel
+
+        static var transferRepresentation: some TransferRepresentation {
+            FileRepresentation(exportedContentType: .item) { dragged in
+                SentTransferredFile(
+                    try FileExporter.exportToTemp(
+                        dragged.file, edit: false, filesModel: dragged.filesModel
+                    ),
+                    allowAccessingOriginalFile: false
+                )
+            }
+
+            ProxyRepresentation(exporting: \.file)
+        }
+    }
+#endif
+
+#if os(macOS)
     struct MacFileDragSource: NSViewRepresentable {
         let file: File
         let filesModel: FilesModel
@@ -116,49 +182,20 @@
                 return
             }
 
-            let filesModel = filesModel
-            DispatchQueue.main.async { filesModel?.exportsInProgress += 1 }
-
-            let error = Self.export(file, to: url)
-
-            DispatchQueue.main.async {
-                filesModel?.exportsInProgress -= 1
-
-                if let error {
-                    if let lbError = error as? LbError {
-                        AppState.shared.error = .lb(error: lbError)
-                    } else {
-                        AppState.shared.error = .custom(
-                            title: "Export failed", msg: error.localizedDescription
-                        )
-                    }
-                }
+            let exported: URL
+            do {
+                exported = try FileExporter.exportToTemp(file, edit: true, filesModel: filesModel)
+            } catch {
+                completionHandler(error)
+                return
             }
 
-            completionHandler(error)
-        }
-
-        private static func export(_ file: File, to url: URL) -> Error? {
-            let scratch = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("lb-export")
-                .appendingPathComponent(UUID().uuidString)
-
             do {
-                try FileManager.default.createDirectory(at: scratch, withIntermediateDirectories: true)
-
-                if case let .failure(err) = AppState.lb.exportFile(
-                    sourceId: file.id, dest: scratch.path(percentEncoded: false), edit: true
-                ) {
-                    return err
-                }
-
-                try FileManager.default.moveItem(
-                    at: scratch.appendingPathComponent(file.name), to: url
-                )
-
-                return nil
+                try FileManager.default.moveItem(at: exported, to: url)
+                completionHandler(nil)
             } catch {
-                return error
+                FileExporter.report(error)
+                completionHandler(error)
             }
         }
 

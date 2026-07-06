@@ -2,24 +2,11 @@ import Foundation
 import SwiftWorkspace
 
 @Observable class RecentsModel {
-    var username: String? = nil
     var previews: [UUID: DocPreview] = [:]
 
     let selection = SelectionModel()
 
     @ObservationIgnored private var loading: Set<UUID> = []
-
-    init() {
-        DispatchQueue.global(qos: .userInitiated).async {
-            guard case let .success(account) = AppState.lb.getAccount() else {
-                return
-            }
-
-            DispatchQueue.main.async {
-                self.username = account.username
-            }
-        }
-    }
 
     func preview(for file: File) -> AttributedString? {
         guard let preview = previews[file.id], preview.lastModified == file.lastModified else {

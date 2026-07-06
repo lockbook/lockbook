@@ -29,10 +29,7 @@ struct OnboardingView: View {
                 NavigationLink(destination: {
                     OnboardingTwoView()
                 }, label: {
-                    Text("Get started")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 30)
+                    OnboardingButtonLabel(title: "Get started")
                 })
                 .buttonStyle(.borderedProminent)
                 .padding(.bottom, 6)
@@ -40,15 +37,12 @@ struct OnboardingView: View {
                 NavigationLink(destination: {
                     ImportAccountView()
                 }, label: {
-                    Text("I have an account")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 30)
+                    OnboardingButtonLabel(title: "I have an account")
                 })
                 .buttonStyle(.bordered)
                 .padding(.bottom)
 
-                #if os(iOS)
+                #if os(iOS) && DEBUG
                     Button("Skip to workspace (debug)") {
                         AppState.shared.isLoggedIn = true
                     }
@@ -106,16 +100,47 @@ struct OnboardingOneHorizontalPadding: ViewModifier {
     OnboardingView()
 }
 
+private struct OnboardingButtonLabel: View {
+    let title: String
+
+    var body: some View {
+        Text(title)
+            .fontWeight(.semibold)
+            .frame(maxWidth: .infinity)
+            .frame(height: 30)
+    }
+}
+
+private struct AdvancedAPIURLButton: View {
+    @Binding var apiURL: String
+
+    @State private var showSheet = false
+
+    var body: some View {
+        Button(action: {
+            showSheet = true
+        }, label: {
+            Text("Advanced")
+                .font(.body)
+                .foregroundStyle(.gray)
+        })
+        .padding(.trailing)
+        .sheet(isPresented: $showSheet) {
+            SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
+                .frame(minWidth: 320)
+                .presentationSizing(.fitted)
+        }
+    }
+}
+
 private struct OnboardingTwoView: View {
     @State var username: String = ""
     @State var createdAccount = false
-    @State var showAccountInformation: String? = nil
 
     @State var error: String? = nil
     @State var working: Bool = false
 
     @State var apiURL: String = ""
-    @State var showAPIURLSheet: Bool = false
 
     var body: some View {
         VStack(alignment: .leading) {
@@ -147,10 +172,7 @@ private struct OnboardingTwoView: View {
             Button(action: {
                 createAccount()
             }, label: {
-                Text("Next")
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
+                OnboardingButtonLabel(title: "Next")
             })
             .buttonStyle(.borderedProminent)
             .disabled(username.isEmpty || working)
@@ -161,15 +183,7 @@ private struct OnboardingTwoView: View {
             HStack {
                 Spacer()
 
-                Button(action: {
-                    showAPIURLSheet = true
-                }, label: {
-                    Text("Advanced")
-                        .font(.body)
-                        .foregroundStyle(.gray)
-                })
-                .padding(.trailing)
-                .background(apiURLSheet)
+                AdvancedAPIURLButton(apiURL: $apiURL)
             }
         }
         .padding(.top, 35)
@@ -180,19 +194,10 @@ private struct OnboardingTwoView: View {
         })
     }
 
-    var apiURLSheet: some View {
-        EmptyView()
-            .sheet(isPresented: $showAPIURLSheet) {
-                SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
-                    .frame(minWidth: 320)
-                    .presentationSizing(.fitted)
-            }
-    }
-
     func createAccount() {
         working = true
         error = nil
-        let apiUrl = apiURL.isEmpty ? (AppState.LB_API_URL ?? "https://app.lockbook.net") : apiURL
+        let apiUrl = apiURL.isEmpty ? AppState.defaultApiUrl : apiURL
 
         DispatchQueue.global(qos: .userInitiated).async {
             let operation = AppState.lb.createAccount(username: username, apiUrl: apiUrl, welcomeDoc: true)
@@ -246,10 +251,7 @@ private struct OnboardingThreeView: View {
                     Button {
                         copyCompactKey()
                     } label: {
-                        Text("Copy compact key")
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 30)
+                        OnboardingButtonLabel(title: "Copy compact key")
                     }
                     .buttonStyle(.bordered)
                     .padding(.bottom, 6)
@@ -257,10 +259,7 @@ private struct OnboardingThreeView: View {
                     Button {
                         goToMainScreen()
                     } label: {
-                        Text("Next")
-                            .fontWeight(.semibold)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: 30)
+                        OnboardingButtonLabel(title: "Next")
                     }
                     .buttonStyle(.borderedProminent)
                     .disabled(!storedSecurely || working)
@@ -282,7 +281,7 @@ private struct OnboardingThreeView: View {
 
     func goToMainScreen() {
         working = true
-        AppState.shared.isLoggedIn = true
+        AppState.shared.checkIfLoggedIn()
     }
 }
 
@@ -309,11 +308,9 @@ private struct ImportAccountView: View {
     @State var working = false
     @State var error: String? = nil
 
-    @State var unsavedAPIURL: String = ""
     @State var apiURL: String = ""
     @State var importedAccount: Bool = false
 
-    @State var showAPIURLSheet: Bool = false
     @State var showQRScanner: Bool = false
 
     var body: some View {
@@ -357,10 +354,7 @@ private struct ImportAccountView: View {
             Button {
                 importAccount(isAutoImporting: false)
             } label: {
-                Text("Next")
-                    .fontWeight(.semibold)
-                    .frame(maxWidth: .infinity)
-                    .frame(height: 30)
+                OnboardingButtonLabel(title: "Next")
             }
             .buttonStyle(.borderedProminent)
             .padding(.top)
@@ -371,17 +365,7 @@ private struct ImportAccountView: View {
             HStack {
                 Spacer()
 
-                Button(action: {
-                    showAPIURLSheet = true
-                }, label: {
-                    Text("Advanced")
-                        .font(.body)
-                        .foregroundStyle(.gray)
-                })
-                .padding(.trailing)
-                .sheet(isPresented: $showAPIURLSheet) {
-                    SetAPIURLView(apiURL: $apiURL, unsavedAPIURL: apiURL)
-                }
+                AdvancedAPIURLButton(apiURL: $apiURL)
             }
         }
         .padding(.top, 35)
@@ -424,7 +408,6 @@ private struct ImportAccountView: View {
 
                 switch res {
                 case .success:
-                    working = false
                     importedAccount = true
                 case let .failure(err):
                     if !isAutoImporting {
@@ -453,7 +436,7 @@ struct SetAPIURLView: View {
 
     @State var unsavedAPIURL = ""
     @FocusState var focused: Bool
-    let defaultAPIURL: String = AppState.LB_API_URL ?? "https://app.lockbook.net"
+    let defaultAPIURL: String = AppState.defaultApiUrl
 
     @Environment(\.dismiss) private var dismiss
 
@@ -518,10 +501,7 @@ struct ImportAccountSyncView: View {
                 Button {
                     model.sync()
                 } label: {
-                    Text("Retry")
-                        .fontWeight(.semibold)
-                        .frame(maxWidth: .infinity)
-                        .frame(height: 30)
+                    OnboardingButtonLabel(title: "Retry")
                 }
                 .buttonStyle(.bordered)
             } else {
@@ -551,7 +531,7 @@ struct ImportAccountSyncView: View {
             DispatchQueue.main.async {
                 switch result {
                 case .success:
-                    AppState.shared.isLoggedIn = true
+                    AppState.shared.checkIfLoggedIn()
                 case let .failure(err):
                     self.error = err.msg
                 }

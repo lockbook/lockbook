@@ -6,13 +6,11 @@ import SwiftWorkspace
     static let MONTHLY_SUBSCRIPTION_PRODUCT_ID = "basic.premium"
     static let PREMIUM_DATA_CAP: Double = 30_000_000_000
 
-    @ObservationIgnored var processPending: Task<Void, Error>?
-
     var subProduct: Product?
     var purchaseState: PurchaseState = .uninitiated
 
     init() {
-        processPending = Task.detached { [self] in
+        Task.detached { [self] in
             await listenToTransactions()
         }
     }

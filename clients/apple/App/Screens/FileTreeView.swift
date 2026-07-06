@@ -41,18 +41,16 @@ struct FileTreeView: View {
                 CreateFileSheet(fileTreeModel: fileTreeModel)
             }
             .scrollPosition($scrollPosition)
-            .onChange(of: workspaceOutput.openDoc) { _, openDoc in
-                guard let openDoc else { return }
-                Task {
-                    withAnimation {
-                        scrollPosition.scrollTo(id: openDoc, anchor: .center)
-                    }
-                }
+            .onAppear {
+                scrollToOpenDoc()
+            }
+            .onChange(of: workspaceOutput.openDoc) {
+                scrollToOpenDoc()
             }
             .onScrollGeometryChange(for: ScrollGeometry.self, of: { $0 }) { _, newValue in
                 autoScroll.scroll = newValue
 
-                let top = newValue.contentOffset.y + newValue.contentInsets.top
+                let top = newValue.topOffset
                 let maxOffset = max(
                     0,
                     newValue.contentSize.height + newValue.contentInsets.top + newValue.contentInsets.bottom
@@ -72,7 +70,7 @@ struct FileTreeView: View {
             }
             .onChange(of: fileTreeModel.dropTarget) { _, target in
                 if target != nil, let scroll = autoScroll.scroll {
-                    dragScrollTop = scroll.contentOffset.y + scroll.contentInsets.top
+                    dragScrollTop = scroll.topOffset
                 }
                 updateDragActivity()
             }
@@ -119,7 +117,7 @@ struct FileTreeView: View {
             .refreshable {
                 workspaceInput.requestSync()
             }
-            .selectionCommands(fileTreeModel.selection, fileTreeModel: fileTreeModel)
+            .selectionCommands(fileTreeModel.selection)
             .environment(fileTreeModel)
             .navigationTitle(root.name)
             #if os(iOS)
@@ -127,6 +125,15 @@ struct FileTreeView: View {
             #endif
         } else {
             ProgressView()
+        }
+    }
+
+    private func scrollToOpenDoc() {
+        guard let openDoc = workspaceOutput.openDoc else { return }
+        Task {
+            withAnimation {
+                scrollPosition.scrollTo(id: openDoc, anchor: .center)
+            }
         }
     }
 
@@ -159,12 +166,9 @@ struct FileTreeView: View {
             end += 1
         }
 
-        let pitch = max(1, scroll.contentSize.height / CGFloat(rows.count))
+        let pitch = scroll.rowPitch(rowCount: rows.count)
         let minY = max(CGFloat(start) * pitch - dragScrollTop, 0)
-        let maxY = min(
-            CGFloat(end + 1) * pitch - dragScrollTop,
-            scroll.containerSize.height - scroll.contentInsets.top - scroll.contentInsets.bottom
-        )
+        let maxY = min(CGFloat(end + 1) * pitch - dragScrollTop, scroll.visibleHeight)
 
         guard maxY > minY else {
             return nil
@@ -379,10 +383,9 @@ struct FileTreeView: View {
             return 0
         }
 
-        let pitch = max(1, scroll.contentSize.height / CGFloat(rows.count))
-        let top = scroll.contentOffset.y + scroll.contentInsets.top
-        let visibleHeight = scroll.containerSize.height - scroll.contentInsets.top - scroll.contentInsets.bottom
-        let edgeY = direction > 0 ? top + visibleHeight : top
+        let pitch = scroll.rowPitch(rowCount: rows.count)
+        let top = scroll.topOffset
+        let edgeY = direction > 0 ? top + scroll.visibleHeight : top
         let index = Int(edgeY / pitch)
 
         return min(max(index, 0), rows.count - 1)
@@ -414,153 +417,17 @@ final class AutoScrollDriver {
     var rowIndex: Int = 0
 }
 
-struct FileRowView: View {
-    @Environment(FilesModel.self) private var filesModel
-    @Environment(FileTreeModel.self) private var fileTreeModel
-    @Environment(HomeState.self) private var homeState
-    @Environment(WorkspaceInputState.self) private var workspaceInput
-
-    let file: File
-    let level: CGFloat
-
-    @State private var isDropTargeted = false
-    @State private var springOpenTask: Task<Void, Never>?
-
-    var isLeaf: Bool {
-        (filesModel.childrenByParent[file.id] ?? []).isEmpty
+private extension ScrollGeometry {
+    var topOffset: CGFloat {
+        contentOffset.y + contentInsets.top
     }
 
-    var isOpen: Bool {
-        fileTreeModel.openFolders.contains(file.id)
+    var visibleHeight: CGFloat {
+        containerSize.height - contentInsets.top - contentInsets.bottom
     }
 
-    var body: some View {
-        fileRow
-            .selectableRow(
-                fileTreeModel.selection,
-                id: file.id,
-                fileTreeModel: fileTreeModel,
-                orderedIds: { fileTreeModel.visibleRows.map(\.id) },
-                open: openFile
-            )
-            #if os(iOS)
-                .draggable(DraggedFile(file: file, filesModel: filesModel))
-            #endif
-            .fileDropTarget(isTargeted: { targeted in
-                setDropTargeted(targeted)
-            }, action: { dropped in
-                drop(dropped)
-            })
-    }
-
-    var fileRow: some View {
-        HStack {
-            SelectionIndicator(selection: fileTreeModel.selection, id: file.id)
-
-            Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
-                .font(.system(size: 16))
-                .frame(width: 16)
-                .foregroundColor(file.isFolder ? .accentColor : .secondary)
-
-            Text(file.name)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .allowsTightening(true)
-                .foregroundColor(.primary)
-
-            if let dot = filesModel.statusDots[file.id] {
-                Circle()
-                    .fill(dot.color)
-                    .frame(width: 8, height: 8)
-            }
-
-            if filesModel.pinnedIds.contains(file.id) {
-                Image(systemName: "pin.fill")
-                    .font(.system(size: 10))
-                    .foregroundStyle(.orange)
-            }
-
-            Spacer()
-
-            if !isLeaf {
-                Image(systemName: "chevron.forward")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 10, height: 10)
-                    .rotationEffect(Angle.degrees(isOpen ? 90 : 0))
-                    .foregroundColor(.accentColor)
-            }
-        }
-        .padding(.vertical, 9)
-        .contentShape(Rectangle())
-        .padding(.leading, level * 20 + 5)
-        .padding(.trailing, 10)
-        .modifier(OpenDocModifier(file: file))
-        .overlay(alignment: .bottom) {
-            if isDropTargeted, !file.isFolder {
-                Capsule()
-                    .fill(Color.accentColor)
-                    .frame(height: 2.5)
-                    .padding(.leading, level * 20 + 5)
-                    .padding(.trailing, 10)
-            }
-        }
-    }
-
-    func openFile() {
-        if file.isFolder {
-            workspaceInput.selectFolder(id: file.id)
-
-            withAnimation {
-                fileTreeModel.toggleFolder(file.id)
-            }
-        } else {
-            workspaceInput.openFile(id: file.id)
-            homeState.compactColumn = .detail
-        }
-    }
-
-    private func setDropTargeted(_ targeted: Bool) {
-        withAnimation(.easeInOut(duration: 0.12)) {
-            isDropTargeted = targeted
-        }
-
-        if targeted {
-            fileTreeModel.dropTarget = file
-        } else if fileTreeModel.dropTarget == file {
-            fileTreeModel.dropTarget = nil
-        }
-
-        springOpenTask?.cancel()
-        springOpenTask = nil
-
-        if targeted, file.isFolder, !isOpen {
-            springOpenTask = Task {
-                try? await Task.sleep(for: .milliseconds(650))
-                guard !Task.isCancelled else { return }
-
-                withAnimation {
-                    fileTreeModel.openFolders.insert(file.id)
-                }
-            }
-        }
-    }
-
-    private var dropDestinationFolder: File? {
-        file.isFolder ? file : filesModel.idsToFiles[file.parent]
-    }
-
-    private func drop(_ dropped: [FileDropItem]) -> Bool {
-        guard let dest = dropDestinationFolder, filesModel.drop(dropped, into: dest) else {
-            return false
-        }
-
-        withAnimation {
-            fileTreeModel.openFolders.insert(dest.id)
-        }
-
-        return true
+    func rowPitch(rowCount: Int) -> CGFloat {
+        max(1, contentSize.height / CGFloat(rowCount))
     }
 }
 

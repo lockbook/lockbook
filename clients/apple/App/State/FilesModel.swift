@@ -1,5 +1,5 @@
 import Foundation
-import SwiftUI
+import Observation
 import SwiftWorkspace
 
 @Observable class FilesModel {
@@ -17,9 +17,7 @@ import SwiftWorkspace
     var importsInProgress = 0
     var exportsInProgress = 0
 
-    var pinnedIds: Set<UUID> = Set(
-        (UserDefaults.standard.stringArray(forKey: "pinnedFiles") ?? []).compactMap(UUID.init)
-    )
+    var pinnedIds: Set<UUID> = []
 
     @ObservationIgnored private let statusDotDelay: TimeInterval = 2
     @ObservationIgnored private var candidateStatusDots: [UUID: SyncDot] = [:]
@@ -44,6 +42,10 @@ import SwiftWorkspace
             var childrenByParent: [UUID: [File]] = [:]
 
             func insert(_ file: File) {
+                guard idsToFiles[file.id] == nil else {
+                    return
+                }
+
                 idsToFiles[file.id] = file
 
                 if file.isRoot {
@@ -53,10 +55,7 @@ import SwiftWorkspace
                     return
                 }
 
-                if !childrenByParent[file.parent, default: []].contains(file) {
-                    childrenByParent[file.parent, default: []].append(file)
-                    childrenByParent[file.parent]?.sort()
-                }
+                childrenByParent[file.parent, default: []].append(file)
             }
 
             for file in metas {
@@ -64,6 +63,10 @@ import SwiftWorkspace
             }
             for file in pendingShareFiles {
                 insert(file)
+            }
+
+            for parent in childrenByParent.keys {
+                childrenByParent[parent]?.sort()
             }
 
             guard let root else {
@@ -82,11 +85,18 @@ import SwiftWorkspace
                 pendingSharesByUsername[sharedBy, default: []].append(file)
             }
 
+            let pinnedIds = try? AppState.lb.listPinned().get()
+
             DispatchQueue.main.async {
                 self.root = root
                 self.idsToFiles = idsToFiles
                 self.childrenByParent = childrenByParent
                 self.pendingSharesByUsername = pendingSharesByUsername
+
+                if let pinnedIds {
+                    self.pinnedIds = Set(pinnedIds)
+                }
+
                 self.recomputeStatusDots(status: AppState.lb.events.status)
             }
         }
@@ -121,7 +131,7 @@ import SwiftWorkspace
 
         let requested = files.count
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        mutateAndReload { () -> Result<Int, LbError> in
             var moved = 0
 
             for file in movable {
@@ -130,8 +140,9 @@ import SwiftWorkspace
                 }
             }
 
-            DispatchQueue.main.async {
-                self.loadFiles()
+            return .success(moved)
+        } then: { moved in
+            if let moved {
                 self.moveResult = MoveResult(moved: moved, requested: requested)
             }
         }
@@ -175,41 +186,55 @@ import SwiftWorkspace
     func importFiles(urls: [URL], into dest: File) {
         importsInProgress += 1
 
-        DispatchQueue.global(qos: .userInitiated).async {
+        mutateAndReload { () -> Result<Int, LbError> in
             let accessing = urls.filter { $0.startAccessingSecurityScopedResource() }
 
-            let res = AppState.lb.importFiles(
-                sources: urls.map { $0.path(percentEncoded: false) }, dest: dest.id
-            )
-
-            for url in accessing {
-                url.stopAccessingSecurityScopedResource()
+            defer {
+                for url in accessing {
+                    url.stopAccessingSecurityScopedResource()
+                }
             }
 
-            DispatchQueue.main.async {
-                self.importsInProgress -= 1
+            return AppState.lb.importFiles(
+                sources: urls.map { $0.path(percentEncoded: false) }, dest: dest.id
+            ).map { urls.count }
+        } then: { imported in
+            self.importsInProgress -= 1
 
-                switch res {
-                case .success:
-                    self.importResult = ImportResult(count: urls.count)
-                    self.loadFiles()
-                case let .failure(err):
+            if let imported {
+                self.importResult = ImportResult(count: imported)
+            }
+        }
+    }
+
+    func togglePin(_ id: UUID) {
+        let pinning = !pinnedIds.contains(id)
+
+        if pinning {
+            pinnedIds.insert(id)
+        } else {
+            pinnedIds.remove(id)
+        }
+
+        DispatchQueue.global(qos: .userInitiated).async {
+            let res = pinning ? AppState.lb.pinFile(id: id) : AppState.lb.unpinFile(id: id)
+
+            DispatchQueue.main.async {
+                if case let .failure(err) = res {
+                    if pinning {
+                        self.pinnedIds.remove(id)
+                    } else {
+                        self.pinnedIds.insert(id)
+                    }
+
                     AppState.shared.error = .lb(error: err)
                 }
             }
         }
     }
 
-    func togglePin(_ id: UUID) {
-        if pinnedIds.remove(id) == nil {
-            pinnedIds.insert(id)
-        }
-
-        UserDefaults.standard.set(pinnedIds.map(\.uuidString), forKey: "pinnedFiles")
-    }
-
-    func deleteFiles(_ files: [File]) {
-        mutateAndReload {
+    func deleteFiles(_ files: [File], notifying workspaceInput: WorkspaceInputState) {
+        mutateAndReload { () -> Result<Void, LbError> in
             for file in files {
                 if case let .failure(err) = AppState.lb.deleteFile(id: file.id) {
                     return .failure(err)
@@ -217,6 +242,14 @@ import SwiftWorkspace
             }
 
             return .success(())
+        } then: { deleted in
+            guard deleted != nil else {
+                return
+            }
+
+            for file in files where !file.isFolder {
+                workspaceInput.fileOpCompleted(fileOp: .Delete(id: file.id))
+            }
         }
     }
 
@@ -236,16 +269,21 @@ import SwiftWorkspace
         }
     }
 
-    private func mutateAndReload(_ operation: @escaping () -> Result<Void, LbError>) {
+    private func mutateAndReload<T>(
+        _ operation: @escaping () -> Result<T, LbError>,
+        then completion: @escaping (T?) -> Void = { _ in }
+    ) {
         DispatchQueue.global(qos: .userInitiated).async {
             let res = operation()
 
             DispatchQueue.main.async {
                 switch res {
-                case .success:
+                case let .success(value):
                     self.loadFiles()
+                    completion(value)
                 case let .failure(err):
                     AppState.shared.error = .lb(error: err)
+                    completion(nil)
                 }
             }
         }
@@ -341,15 +379,6 @@ import SwiftWorkspace
     }
 }
 
-struct MoveResult: Equatable {
-    let moved: Int
-    let requested: Int
-}
-
-struct ImportResult: Equatable {
-    let count: Int
-}
-
 enum SyncDot: Equatable {
     case pushing
     case dirty
@@ -360,14 +389,6 @@ enum SyncDot: Equatable {
         case .pushing: 0
         case .dirty: 1
         case .pulling: 2
-        }
-    }
-
-    var color: Color {
-        switch self {
-        case .pushing: .green
-        case .dirty: .yellow
-        case .pulling: .blue
         }
     }
 }

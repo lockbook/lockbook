@@ -123,49 +123,42 @@
         }
 
         var contentResultsList: some View {
-            ScrollView {
-                LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(model.contentResults.enumerated()), id: \.element.id) { index, result in
-                        VStack(spacing: 0) {
-                            SearchResultRow(
-                                result: result,
-                                systemImage: model.icon(for: result.id, name: result.filename),
-                                fetchSnippet: { match in model.snippet(id: result.id, match: match) },
-                                onTap: {
-                                    model.selected = index
-                                    open(result.id, match: result.matches.first)
-                                },
-                                onShowMore: { model.focusedResult = result }
-                            )
-                            .background(selectionBackground(index))
-
-                            Divider()
-                        }
-                    }
-                }
-                .scrollTargetLayout()
+            resultsList(model.contentResults) { index, result in
+                SearchResultRow(
+                    result: result,
+                    systemImage: model.icon(for: result.id, name: result.filename),
+                    fetchSnippet: { match in model.snippet(id: result.id, match: match) },
+                    onTap: {
+                        model.selected = index
+                        open(result.id, match: result.matches.first)
+                    },
+                    onShowMore: { model.focusedResult = result }
+                )
             }
-            .scrollPosition($scrollPosition)
-            .onChange(of: model.selected) {
-                scrollToSelection(in: model.contentResults)
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
 
         var pathResultsList: some View {
+            resultsList(model.pathResults) { index, result in
+                PathSearcherRow(
+                    result: result,
+                    systemImage: model.icon(for: result.id, name: result.filename),
+                    onTap: {
+                        model.selected = index
+                        open(result.id)
+                    }
+                )
+            }
+        }
+
+        private func resultsList<R: Identifiable, Row: View>(
+            _ results: [R], @ViewBuilder row: @escaping (Int, R) -> Row
+        ) -> some View where R.ID == UUID {
             ScrollView {
                 LazyVStack(alignment: .leading, spacing: 0) {
-                    ForEach(Array(model.pathResults.enumerated()), id: \.element.id) { index, result in
+                    ForEach(Array(results.enumerated()), id: \.element.id) { index, result in
                         VStack(spacing: 0) {
-                            PathSearcherRow(
-                                result: result,
-                                systemImage: model.icon(for: result.id, name: result.filename),
-                                onTap: {
-                                    model.selected = index
-                                    open(result.id)
-                                }
-                            )
-                            .background(selectionBackground(index))
+                            row(index, result)
+                                .background(selectionBackground(index))
 
                             Divider()
                         }
@@ -175,7 +168,7 @@
             }
             .scrollPosition($scrollPosition)
             .onChange(of: model.selected) {
-                scrollToSelection(in: model.pathResults)
+                scrollToSelection(in: results)
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
         }
@@ -284,13 +277,17 @@
         @ViewBuilder
         func snippetLine(for match: ContentSearcherMatch) -> some View {
             if let snippet = fetchSnippet(match) {
-                Text("\(Text(snippet.prefix).foregroundColor(.secondary))\(Text(snippet.matched).bold().foregroundColor(.primary))\(Text(snippet.suffix).foregroundColor(.secondary))")
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                snippetText(snippet)
             }
         }
+    }
+
+    private func snippetText(_ snippet: SearcherSnippet) -> some View {
+        Text("\(Text(snippet.prefix).foregroundColor(.secondary))\(Text(snippet.matched).bold().foregroundColor(.primary))\(Text(snippet.suffix).foregroundColor(.secondary))")
+            .font(.caption)
+            .lineLimit(1)
+            .truncationMode(.tail)
+            .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     struct PathSearcherRow: View {
@@ -414,11 +411,7 @@
         @ViewBuilder
         func snippetRow(for match: ContentSearcherMatch) -> some View {
             if let snippet = fetchSnippet(match) {
-                Text("\(Text(snippet.prefix).foregroundColor(.secondary))\(Text(snippet.matched).bold().foregroundColor(.primary))\(Text(snippet.suffix).foregroundColor(.secondary))")
-                    .font(.caption)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+                snippetText(snippet)
                     .padding(.horizontal, 10)
                     .padding(.vertical, 8)
                     .background(

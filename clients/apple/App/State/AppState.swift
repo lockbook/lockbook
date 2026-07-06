@@ -67,6 +67,8 @@ import SwiftWorkspace
 
     static let LB_API_URL: String? = ProcessInfo.processInfo.environment["API_LOCATION"]
 
+    static let defaultApiUrl: String = LB_API_URL ?? "https://app.lockbook.net"
+
     static let lb: LbAPI = {
         if isPreviewEnvironmentKey.defaultValue {
             return MockLb()

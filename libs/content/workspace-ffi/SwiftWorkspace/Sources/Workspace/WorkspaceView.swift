@@ -86,8 +86,7 @@ import SwiftUI
                 workspaceController.didMove(toParent: self)
 
                 workspaceController.inputManager.updateCurrentTab(
-                    newCurrentTab: workspaceOutput.currentTab,
-                    newTabCount: workspaceOutput.tabCount
+                    newCurrentTab: workspaceOutput.currentTab
                 )
             }
         }
@@ -137,11 +136,8 @@ import SwiftUI
                 }
                 .store(in: &cancellables)
 
-            inputManager.mtkView.currentTabChanged = { [weak self] currentTab, tabCount in
-                self?.inputManager.updateCurrentTab(
-                    newCurrentTab: currentTab,
-                    newTabCount: tabCount
-                )
+            inputManager.mtkView.currentTabChanged = { [weak self] currentTab in
+                self?.inputManager.updateCurrentTab(newCurrentTab: currentTab)
             }
 
             view = inputManager
@@ -157,7 +153,6 @@ import SwiftUI
         public var mtkView: iOSMTK
 
         var currentWrapper: UIView?
-        var tabCount: Int = 0
 
         init(
             _ workspaceInput: WorkspaceInputState,
@@ -188,10 +183,7 @@ import SwiftUI
             fatalError("init(coder:) has not been implemented")
         }
 
-        public func updateCurrentTab(
-            newCurrentTab: WorkspaceTab,
-            newTabCount: Int
-        ) {
+        public func updateCurrentTab(newCurrentTab: WorkspaceTab) {
             mtkView.tabSwitchTask = { [weak self] in
                 guard let self else {
                     return
@@ -199,10 +191,6 @@ import SwiftUI
 
                 mtkView.onSelectionChanged = nil
                 mtkView.onTextChanged = nil
-
-                tabCount = newTabCount
-
-                let headerSize = mtkView.docHeaderSize
 
                 switch newCurrentTab {
                 case .Welcome, .Pdf, .Loading, .SpaceInspector:
@@ -217,21 +205,14 @@ import SwiftUI
 
                     mtkView.becomeFirstResponder()
                 case .Svg, .Image, .Graph:
-                    if let currentWrapper = currentWrapper
-                        as? SvgView,
-                        currentWrapper.currentHeaderSize
-                        == headerSize
-                    {
+                    if currentWrapper is SvgView {
                         mtkView.onTextChanged?()
                         return
                     }
 
                     currentWrapper?.removeFromSuperview()
 
-                    let drawingWrapper = SvgView(
-                        mtkView: mtkView,
-                        headerSize: headerSize
-                    )
+                    let drawingWrapper = SvgView(mtkView: mtkView)
                     currentWrapper = drawingWrapper
                     mtkView.currentWrapper = drawingWrapper
 
@@ -240,8 +221,7 @@ import SwiftUI
                     addSubview(drawingWrapper)
                     NSLayoutConstraint.activate([
                         drawingWrapper.topAnchor.constraint(
-                            equalTo: topAnchor,
-                            constant: headerSize
+                            equalTo: topAnchor
                         ),
                         drawingWrapper.leftAnchor.constraint(
                             equalTo: leftAnchor
@@ -256,20 +236,13 @@ import SwiftUI
 
                     mtkView.becomeFirstResponder()
                 case .PlainText, .Markdown, .Chat:
-                    if let currentWrapper = currentWrapper
-                        as? MdView,
-                        currentWrapper.currentHeaderSize
-                        == headerSize
-                    {
+                    if currentWrapper is MdView {
                         return
                     }
 
                     currentWrapper?.removeFromSuperview()
 
-                    let textWrapper = MdView(
-                        mtkView: mtkView,
-                        headerSize: headerSize
-                    )
+                    let textWrapper = MdView(mtkView: mtkView)
                     currentWrapper = textWrapper
                     mtkView.currentWrapper = textWrapper
 

@@ -69,9 +69,7 @@ struct FolderPickerSheet: View {
             TextField("Search folders", text: $query)
                 .textFieldStyle(.plain)
                 .autocorrectionDisabled()
-                #if os(iOS)
-                    .textInputAutocapitalization(.never)
-                #endif
+                .autocapitalizationDisabled()
 
             if !query.isEmpty {
                 Button(action: { query = "" }) {
@@ -176,12 +174,7 @@ struct FolderPickerRow: View {
 
     var body: some View {
         HStack {
-            Image(
-                systemName: file.isRoot ? "house.fill" : FileIconHelper.fileToSystemImageName(file: file)
-            )
-            .font(.system(size: 16))
-            .frame(width: 16)
-            .foregroundColor(file.isFolder ? .accentColor : .secondary)
+            FileIcon(file: file, systemName: file.isRoot ? "house.fill" : nil)
 
             VStack(alignment: .leading, spacing: 2) {
                 Text(file.isRoot ? "Home" : file.name)
@@ -198,13 +191,7 @@ struct FolderPickerRow: View {
             Spacer()
 
             if !showsPath, file.isFolder, !isLeaf, !file.isRoot {
-                Image(systemName: "chevron.forward")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 10, height: 10)
-                    .rotationEffect(Angle.degrees(isOpen ? 90 : 0))
-                    .foregroundColor(.accentColor)
+                DisclosureChevron(isOpen: isOpen)
             }
         }
         .padding(.vertical, 9)

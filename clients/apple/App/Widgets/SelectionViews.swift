@@ -34,11 +34,11 @@ struct SelectionIndicator: View {
 
 struct SelectableRowModifier: ViewModifier {
     @Environment(FilesModel.self) private var filesModel
+    @Environment(FileTreeModel.self) private var fileTreeModel
     @Environment(WorkspaceInputState.self) private var workspaceInput
 
     let selection: SelectionModel
     let id: UUID
-    let fileTreeModel: FileTreeModel
     let orderedIds: () -> [UUID]
     let open: () -> Void
 
@@ -131,11 +131,14 @@ struct SelectableRowModifier: ViewModifier {
             }
         }
         .sheet(isPresented: $showCreateFile) {
-            CreateFileSheet(fileTreeModel: fileTreeModel, location: file)
+            CreateFileSheet(
+                fileTreeModel: fileTreeModel,
+                mode: .create(location: file.map(LocationChoice.init) ?? .root)
+            )
         }
         .sheet(isPresented: $showRename) {
             if let file {
-                CreateFileSheet(fileTreeModel: fileTreeModel, rename: file)
+                CreateFileSheet(fileTreeModel: fileTreeModel, mode: .rename(file))
             }
         }
         .sheet(isPresented: $showShare) {
@@ -143,13 +146,11 @@ struct SelectableRowModifier: ViewModifier {
         }
         .sheet(isPresented: $showMovePicker) {
             FolderPickerSheet(fileTreeModel: fileTreeModel, selection: nil) { folder in
-                guard let file, filesModel.moveFiles([file], into: folder) else {
+                guard let file else {
                     return
                 }
 
-                withAnimation {
-                    fileTreeModel.openFolders.insert(folder.id)
-                }
+                _ = fileTreeModel.moveAndReveal([file], into: folder)
             }
         }
         .confirmationDialog(
@@ -304,12 +305,7 @@ struct SelectableRowModifier: ViewModifier {
             return
         }
 
-        filesModel.deleteFiles([file])
-
-        if !file.isFolder {
-            workspaceInput.fileOpCompleted(fileOp: .Delete(id: file.id))
-        }
-
+        filesModel.deleteFiles([file], notifying: workspaceInput)
         closeActions()
     }
 
@@ -323,12 +319,83 @@ struct SelectableRowModifier: ViewModifier {
     }
 }
 
+struct SelectSwipeModifier: ViewModifier {
+    let selection: SelectionModel
+    let id: UUID
+
+    @State private var swipeOffset: CGFloat = 0
+    @State private var swipeHorizontal: Bool? = nil
+    @State private var swipePastThreshold = false
+
+    private static let swipeThreshold: CGFloat = 60
+
+    func body(content: Content) -> some View {
+        #if os(iOS)
+            content
+                .offset(x: swipeOffset)
+                .background(alignment: .leading) {
+                    if swipeOffset > 0 {
+                        Image(systemName: "checkmark.circle")
+                            .font(.system(size: 20))
+                            .foregroundStyle(Color.accentColor)
+                            .scaleEffect(min(swipeOffset / Self.swipeThreshold, 1))
+                            .opacity(min(swipeOffset / Self.swipeThreshold, 1))
+                            .frame(width: swipeOffset)
+                    }
+                }
+                .sensoryFeedback(.selection, trigger: swipePastThreshold)
+                .simultaneousGesture(swipeGesture)
+        #else
+            content
+        #endif
+    }
+
+    private var swipeGesture: some Gesture {
+        DragGesture(minimumDistance: 20)
+            .onChanged { value in
+                if swipeHorizontal == nil {
+                    swipeHorizontal =
+                        abs(value.translation.width) > abs(value.translation.height)
+                }
+
+                guard swipeHorizontal == true else { return }
+
+                let width = max(value.translation.width, 0)
+                swipeOffset =
+                    width < Self.swipeThreshold
+                        ? width
+                        : Self.swipeThreshold + (width - Self.swipeThreshold) * 0.2
+                swipePastThreshold = swipeOffset >= Self.swipeThreshold
+            }
+            .onEnded { _ in
+                defer { swipeHorizontal = nil }
+                guard swipeHorizontal == true else { return }
+
+                if swipePastThreshold {
+                    withAnimation {
+                        selection.toggle(id)
+
+                        if selection.selectedIds.isEmpty {
+                            selection.end()
+                        }
+                    }
+                }
+
+                swipePastThreshold = false
+
+                withAnimation(.spring(response: 0.3, dampingFraction: 0.8)) {
+                    swipeOffset = 0
+                }
+            }
+    }
+}
+
 struct SelectionCommandsModifier: ViewModifier {
     @Environment(FilesModel.self) private var filesModel
+    @Environment(FileTreeModel.self) private var fileTreeModel
     @Environment(WorkspaceInputState.self) private var workspaceInput
 
     let selection: SelectionModel
-    let fileTreeModel: FileTreeModel
 
     @State private var confirmDelete = false
     @State private var showMovePicker = false
@@ -380,12 +447,11 @@ struct SelectionCommandsModifier: ViewModifier {
 
     private func moveSelectedFiles(into folder: File) {
         let files = selectedFiles
-        guard !files.isEmpty, filesModel.moveFiles(files, into: folder) else {
+        guard !files.isEmpty, fileTreeModel.moveAndReveal(files, into: folder) else {
             return
         }
 
         withAnimation {
-            fileTreeModel.openFolders.insert(folder.id)
             selection.end()
         }
     }
@@ -434,11 +500,7 @@ struct SelectionCommandsModifier: ViewModifier {
             return
         }
 
-        filesModel.deleteFiles(files)
-
-        for file in files where !file.isFolder {
-            workspaceInput.fileOpCompleted(fileOp: .Delete(id: file.id))
-        }
+        filesModel.deleteFiles(files, notifying: workspaceInput)
 
         withAnimation {
             selection.end()
@@ -450,7 +512,6 @@ extension View {
     func selectableRow(
         _ selection: SelectionModel,
         id: UUID,
-        fileTreeModel: FileTreeModel,
         orderedIds: @escaping () -> [UUID],
         open: @escaping () -> Void
     ) -> some View {
@@ -458,14 +519,17 @@ extension View {
             SelectableRowModifier(
                 selection: selection,
                 id: id,
-                fileTreeModel: fileTreeModel,
                 orderedIds: orderedIds,
                 open: open
             )
         )
     }
 
-    func selectionCommands(_ selection: SelectionModel, fileTreeModel: FileTreeModel) -> some View {
-        modifier(SelectionCommandsModifier(selection: selection, fileTreeModel: fileTreeModel))
+    func selectSwipe(_ selection: SelectionModel, id: UUID) -> some View {
+        modifier(SelectSwipeModifier(selection: selection, id: id))
+    }
+
+    func selectionCommands(_ selection: SelectionModel) -> some View {
+        modifier(SelectionCommandsModifier(selection: selection))
     }
 }

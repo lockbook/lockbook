@@ -9,14 +9,19 @@ struct HomeView: View {
 
     @State private var homeState = HomeState()
     @AppStorage("sidebarTab") private var selectedTab: SidebarTab = .files
+    @AppStorage("hideOutOfSpaceAlert") private var hideOutOfSpaceAlert = false
     @State private var showCreateFile = false
     @State private var quickCreateCount = 0
     @State private var shareTarget: File? = nil
+    @State private var renameTarget: File? = nil
     @State private var showTabsSidebar = false
+    @State private var showOutOfSpaceAlert = false
     #if os(iOS)
         @State private var showSettings = false
         @State private var keyboardVisible = false
         @State private var showCreateAlongside = false
+    #else
+        @State private var showImporter = false
     #endif
 
     @State private var filesModel: FilesModel
@@ -52,11 +57,45 @@ struct HomeView: View {
                 .navigationSplitViewColumnWidth(min: 250, ideal: 300)
         } detail: {
             workspace
-                .navigationTitle(openDocFile?.name ?? "Lockbook")
+                .navigationTitle(detailTitle)
                 #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
                 #endif
                 .toolbar {
+                    if let file = openDocFile {
+                        ToolbarItem(placement: .principal) {
+                            Button {
+                                renameTarget = file
+                            } label: {
+                                let segments = breadcrumbSegments(for: file).map(\.name)
+
+                                ViewThatFits(in: .horizontal) {
+                                    titleCrumb(file, leading: segments)
+
+                                    if segments.count > 1, let parent = segments.last {
+                                        titleCrumb(file, leading: ["…", parent])
+                                    }
+
+                                    if !segments.isEmpty {
+                                        titleCrumb(file, leading: ["…"])
+                                    }
+
+                                    titleCrumb(file, leading: [])
+                                }
+                                .font(.subheadline)
+                                .padding(.horizontal, 16)
+                                .padding(.vertical, 8)
+                                .background {
+                                    Capsule()
+                                        .fill(titleCapsuleColor)
+                                        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+                                }
+                                .contentShape(Capsule())
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+
                     #if os(iOS)
                         if horizontalSizeClass == .regular,
                            homeState.splitViewVisibility != .all
@@ -89,28 +128,27 @@ struct HomeView: View {
                             Button {
                                 showTabsSidebar.toggle()
                             } label: {
-                                ZStack(alignment: .center) {
-                                    RoundedRectangle(cornerSize: .init(width: 4, height: 4))
-                                        .stroke(lineWidth: 2)
-                                        .frame(width: 18, height: 18)
-
-                                    Text(workspaceOutput.tabCount < 100 ? String(workspaceOutput.tabCount) : ":D")
-                                        .font(.footnote)
-                                }
+                                Image(systemName: "sidebar.right")
                             }
                         }
                     }
                 }
                 .inspector(isPresented: inspectorPresented) {
-                    WorkspaceTabsList()
+                    WorkspaceTabsList(fileTreeModel: fileTreeModel)
                         .inspectorColumnWidth(min: 220, ideal: 260, max: 320)
                 }
                 .sheet(item: $shareTarget) { file in
                     ShareFileSheet(id: file.id)
                 }
+                .sheet(item: $renameTarget) { file in
+                    CreateFileSheet(fileTreeModel: fileTreeModel, mode: .rename(file))
+                }
                 #if os(iOS)
                     .sheet(isPresented: $showCreateAlongside) {
-                        CreateFileSheet(fileTreeModel: fileTreeModel, alongside: openDocFile != nil)
+                        CreateFileSheet(
+                            fileTreeModel: fileTreeModel,
+                            mode: .create(location: openDocFile != nil ? .alongside : .root)
+                        )
                     }
                     .overlay(alignment: .bottom) {
                         if !keyboardVisible {
@@ -129,31 +167,22 @@ struct HomeView: View {
                 #endif
         }
         .overlay {
-            if homeState.openingLink {
-                StatusHUD(message: "Opening link")
-                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
-            } else if filesModel.importsInProgress > 0 {
-                StatusHUD(message: "Importing files")
-                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
-            } else if filesModel.exportsInProgress > 0 {
-                StatusHUD(message: "Exporting files")
-                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
-            } else if let result = filesModel.importResult {
-                ImportResultHUD(result: result)
-                    .transition(.opacity.combined(with: .scale(scale: 0.94)))
-            } else if let result = filesModel.moveResult {
-                MoveResultHUD(result: result)
+            if let hudState {
+                hud(for: hudState)
                     .transition(.opacity.combined(with: .scale(scale: 0.94)))
             }
         }
-        .animation(.easeInOut(duration: 0.2), value: filesModel.moveResult)
-        .animation(.easeInOut(duration: 0.2), value: homeState.openingLink)
-        .animation(.easeInOut(duration: 0.2), value: filesModel.importsInProgress)
-        .animation(.easeInOut(duration: 0.2), value: filesModel.exportsInProgress)
-        .animation(.easeInOut(duration: 0.2), value: filesModel.importResult)
+        .animation(.easeInOut(duration: 0.2), value: hudState)
         #if os(iOS)
             .overlay {
                 tabsDrawer
+            }
+            .sheet(isPresented: Binding(
+                get: { workspaceOutput.openCamera },
+                set: { workspaceOutput.openCamera = $0 }
+            )) {
+                CameraView()
+                    .ignoresSafeArea()
             }
         #endif
         .modifier(OpenLbLinkModifier())
@@ -176,6 +205,19 @@ struct HomeView: View {
         }
         .onChange(of: AppState.lb.events.status) { _, status in
             filesModel.recomputeStatusDots(status: status)
+
+            if status.outOfSpace, !hideOutOfSpaceAlert {
+                showOutOfSpaceAlert = true
+            }
+        }
+        .alert("You're out of space", isPresented: $showOutOfSpaceAlert) {
+            Button("Don't show again") {
+                hideOutOfSpaceAlert = true
+            }
+
+            Button("Dismiss", role: .cancel) {}
+        } message: {
+            Text("Your changes will stop syncing until you free up space or upgrade your account in Settings.")
         }
         .onChange(of: workspaceOutput.tabCount) { _, count in
             if count == 0 {
@@ -190,6 +232,50 @@ struct HomeView: View {
                 keyboardVisible = false
             }
         #endif
+    }
+
+    private enum HUDState: Equatable {
+        case openingLink
+        case importing
+        case exporting
+        case imported(ImportResult)
+        case moved(MoveResult)
+    }
+
+    private var hudState: HUDState? {
+        if homeState.openingLink {
+            .openingLink
+        } else if filesModel.importsInProgress > 0 {
+            .importing
+        } else if filesModel.exportsInProgress > 0 {
+            .exporting
+        } else if let result = filesModel.importResult {
+            .imported(result)
+        } else if let result = filesModel.moveResult {
+            .moved(result)
+        } else {
+            nil
+        }
+    }
+
+    @ViewBuilder
+    private func hud(for state: HUDState) -> some View {
+        switch state {
+        case .openingLink:
+            StatusHUD(message: "Opening link")
+        case .importing:
+            StatusHUD(message: "Importing files")
+        case .exporting:
+            StatusHUD(message: "Exporting files")
+        case let .imported(result):
+            ResultHUD(id: result, message: result.message, systemImage: result.systemImage) {
+                filesModel.importResult = nil
+            }
+        case let .moved(result):
+            ResultHUD(id: result, message: result.message, systemImage: result.systemImage) {
+                filesModel.moveResult = nil
+            }
+        }
     }
 
     private var inspectorPresented: Binding<Bool> {
@@ -246,9 +332,7 @@ struct HomeView: View {
                 .padding(9)
                 .glassEffect(.regular.interactive(), in: Circle())
                 .contentShape(Circle())
-                .onTapGesture { showCreateAlongside = true }
-                .onLongPressGesture { quickCreateAlongside() }
-                .sensoryFeedback(.impact(weight: .medium), trigger: quickCreateCount)
+                .createGestures(trigger: quickCreateCount, tap: { showCreateAlongside = true }, longPress: quickCreateAlongside)
         }
 
         private func quickCreateAlongside() {
@@ -277,7 +361,7 @@ struct HomeView: View {
                         }
                         .transition(.opacity)
 
-                    WorkspaceTabsList()
+                    WorkspaceTabsList(fileTreeModel: fileTreeModel)
                         .scrollContentBackground(.hidden)
                         .frame(width: 310)
                         .background(.regularMaterial, ignoresSafeAreaEdges: .all)
@@ -300,6 +384,12 @@ struct HomeView: View {
             #if os(macOS)
                 sidebarActions
             #endif
+
+            if selectedTab == .files || selectedTab == .recents {
+                PinnedFilesSection(fileTreeModel: fileTreeModel) {
+                    selectedTab = .files
+                }
+            }
 
             sidebarContent
         }
@@ -364,9 +454,7 @@ struct HomeView: View {
 
                     ToolbarItem(placement: .bottomBar) {
                         Image(systemName: "square.and.pencil")
-                            .onTapGesture { showCreateFile = true }
-                            .onLongPressGesture { quickCreateDoc() }
-                            .sensoryFeedback(.impact(weight: .medium), trigger: quickCreateCount)
+                            .createGestures(trigger: quickCreateCount, tap: { showCreateFile = true }, longPress: quickCreateDoc)
                     }
                 }
             #endif
@@ -387,15 +475,25 @@ struct HomeView: View {
         private var sidebarActions: some View {
             HStack(spacing: 8) {
                 actionChip("New", systemImage: "square.and.pencil")
-                    .onTapGesture { showCreateFile = true }
-                    .onLongPressGesture { quickCreateDoc() }
-                    .sensoryFeedback(.impact(weight: .medium), trigger: quickCreateCount)
+                    .createGestures(trigger: quickCreateCount, tap: { showCreateFile = true }, longPress: quickCreateDoc)
+
+                actionChip("Import", systemImage: "square.and.arrow.down")
+                    .onTapGesture { showImporter = true }
 
                 actionChip("Search", systemImage: "magnifyingglass")
                     .onTapGesture { workspaceInput.showSearch() }
             }
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
+            .fileImporter(
+                isPresented: $showImporter, allowedContentTypes: [.item], allowsMultipleSelection: true
+            ) { result in
+                guard let root = filesModel.root, case let .success(urls) = result, !urls.isEmpty else {
+                    return
+                }
+
+                filesModel.importFiles(urls: urls, into: root)
+            }
         }
 
         private func actionChip(_ title: String, systemImage: String) -> some View {
@@ -440,6 +538,66 @@ struct HomeView: View {
         return filesModel.idsToFiles[id]
     }
 
+    private var titleCapsuleColor: Color {
+        #if os(macOS)
+            Color(nsColor: .controlBackgroundColor)
+        #else
+            Color(.systemBackground)
+        #endif
+    }
+
+    private func titleCrumb(_ file: File, leading: [String]) -> some View {
+        HStack(spacing: 8) {
+            Image(systemName: FileIconHelper.docNameToSystemImageName(name: file.name))
+                .font(.system(size: 13))
+                .foregroundStyle(Color.accentColor)
+
+            ForEach(Array(leading.enumerated()), id: \.offset) { _, segment in
+                Text(segment)
+                    .foregroundStyle(.secondary)
+                    .lineLimit(1)
+
+                Image(systemName: "chevron.compact.right")
+                    .font(.system(size: 12))
+                    .foregroundStyle(.tertiary)
+            }
+
+            Text(file.name)
+                .fontWeight(.semibold)
+                .foregroundStyle(.primary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+                .layoutPriority(1)
+
+            Image(systemName: "pencil")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.secondary)
+                .padding(.leading, 4)
+        }
+    }
+
+    private func breadcrumbSegments(for file: File) -> [File] {
+        var segments: [File] = []
+        var current = file
+
+        while let parent = filesModel.idsToFiles[current.parent],
+              !parent.isRoot, parent.id != current.id
+        {
+            segments.append(parent)
+            current = parent
+        }
+
+        return segments.reversed()
+    }
+
+    private var detailTitle: String {
+        #if os(macOS)
+            openDocFile == nil ? "Lockbook" : ""
+        #else
+            openDocFile?.name ?? "Lockbook"
+        #endif
+    }
+
     @ViewBuilder
     private var workspace: some View {
         if isPreview {
@@ -455,7 +613,17 @@ struct HomeView: View {
     }
 }
 
-enum SidebarTab: String, CaseIterable, Identifiable {
+private extension View {
+    func createGestures(
+        trigger: Int, tap: @escaping () -> Void, longPress: @escaping () -> Void
+    ) -> some View {
+        onTapGesture(perform: tap)
+            .onLongPressGesture(perform: longPress)
+            .sensoryFeedback(.impact(weight: .medium), trigger: trigger)
+    }
+}
+
+enum SidebarTab: String, Identifiable {
     case files
     case recents
     case sharedWithMe

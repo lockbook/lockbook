@@ -34,8 +34,6 @@
         /// drop
         var dropDelegate: UIDropInteractionDelegate?
 
-        /// ?
-        let currentHeaderSize: Double
         /// Interaction region in container coords (egui points) — Rust's single
         /// source of truth, set each frame from `output.text_interaction_rect`.
         /// Drives both this view's frame and cursor coordinate conversion.
@@ -59,9 +57,8 @@
         /// range adjustment (selection handles)
         var rangeAdjustmentInProgress = false
 
-        init(mtkView: iOSMTK, headerSize: Double) {
+        init(mtkView: iOSMTK) {
             self.mtkView = mtkView
-            currentHeaderSize = headerSize
 
             super.init(frame: .infinite)
 
@@ -1028,12 +1025,8 @@
         var menuDelegate: SvgMenuDelegate?
         var menuInteraction: UIEditMenuInteraction?
 
-        /// ?
-        let currentHeaderSize: Double
-
-        init(mtkView: iOSMTK, headerSize: Double) {
+        init(mtkView: iOSMTK) {
             self.mtkView = mtkView
-            currentHeaderSize = headerSize
 
             super.init(frame: .infinite)
 
@@ -1335,8 +1328,6 @@
             }
 
             dark_mode(wsHandle, mtkView.isDarkMode())
-            show_hide_tabs(wsHandle, false)
-            set_tab_strip_inset(wsHandle, 0)
 
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
@@ -1347,6 +1338,10 @@
 
             if output.tabs_changed {
                 mtkView.workspaceOutput?.tabCount = Int(tab_count(wsHandle))
+            }
+
+            if output.open_camera {
+                mtkView.workspaceOutput?.openCamera = true
             }
 
             if output.selected_folder_changed {
@@ -1381,7 +1376,7 @@
 
                 DispatchQueue.main.async {
                     mtkView.workspaceOutput!.currentTab = currentTab
-                    mtkView.currentTabChanged?(currentTab, mtkView.workspaceOutput!.tabCount)
+                    mtkView.currentTabChanged?(currentTab)
                 }
             }
 
@@ -1436,12 +1431,6 @@
 
                 let keyboard_shown = currentWrapper.isFirstResponder && GCKeyboard.coalesced == nil
                 update_virtual_keyboard(wsHandle, keyboard_shown)
-            }
-
-            if output.tab_title_clicked {
-                if !mtkView.isCompact() {
-                    unfocus_title(wsHandle)
-                }
             }
 
             //      FIXME: Can we just do this in rust?
@@ -1514,14 +1503,7 @@
             guard let mtkView else { return defaultRegion }
             let wsHandle = mtkView.wsHandle
 
-            let offsetY: CGFloat =
-                if let mdView = interaction.view as? MdView {
-                    mdView.yOffset
-                } else if interaction.view is SvgView {
-                    mtkView.docHeaderSize
-                } else {
-                    0
-                }
+            let offsetY = (interaction.view as? MdView)?.yOffset ?? 0
 
             mouse_moved(wsHandle, Float(request.location.x), Float(request.location.y + offsetY))
             return defaultRegion
@@ -1550,9 +1532,6 @@
     // MARK: - iOSMTK
 
     public class iOSMTK: MTKView {
-        public static let TAB_BAR_HEIGHT: CGFloat = 40
-        public static let TITLE_BAR_HEIGHT: CGFloat = 33
-        public static let SIDEBAR_TOGGLE_INSET: CGFloat = 52
         public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
         public var wsHandle: UnsafeMutableRawPointer?
@@ -1578,9 +1557,8 @@
         // workspace
         var workspaceOutput: WorkspaceOutputState?
         var workspaceInput: WorkspaceInputState?
-        var currentTabChanged: ((WorkspaceTab, Int) -> Void)?
+        var currentTabChanged: ((WorkspaceTab) -> Void)?
         var currentOpenDoc: UUID? // TODO: duplicated in ws output
-        var currentSelectedFolder: UUID? // duplicated in ws output
 
         // view hierarchy management
         var tabSwitchTask: (() -> Void)? // facilitates switching wrapper views in response to tab change
@@ -1588,9 +1566,6 @@
         var onTextChanged: (() -> Void)? // also only populated when wrapper is markdown
         var ignoreSelectionUpdate = false // don't invoke corresponding handler when drawing immediately
         var ignoreTextUpdate = false // also don't invoke corresponding handler when drawing immediately
-        var docHeaderSize: Double {
-            0
-        }
 
         // kinetic scroll
         var cursorTracked = false
@@ -1797,7 +1772,7 @@
             let metalLayer = UnsafeMutableRawPointer(
                 Unmanaged.passUnretained(layer).toOpaque()
             )
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), !isCompact())
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false)
             workspaceInput?.wsHandle = wsHandle
         }
 
@@ -2040,10 +2015,6 @@
 
         func isDarkMode() -> Bool {
             traitCollection.userInterfaceStyle != .light
-        }
-
-        func isCompact() -> Bool {
-            traitCollection.horizontalSizeClass == .compact
         }
 
         deinit {

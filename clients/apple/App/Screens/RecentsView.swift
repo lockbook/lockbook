@@ -15,27 +15,26 @@ struct RecentsView: View {
                     return $0.lastModified > $1.lastModified
                 }
 
-                return $0.id.uuidString < $1.id.uuidString
+                return $0.id < $1.id
             }
     }
 
     var body: some View {
         let docs = recentDocs
+        let orderedIds = docs.map(\.id)
 
         Group {
             if docs.isEmpty {
-                noDocs
+                EmptyStateView(
+                    title: "No documents yet",
+                    subtitle: "Documents you edit will appear here."
+                )
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
                         ForEach(docs) { file in
                             VStack(spacing: 0) {
-                                RecentDocRow(
-                                    file: file,
-                                    model: model,
-                                    fileTreeModel: fileTreeModel,
-                                    orderedIds: docs.map(\.id)
-                                )
+                                RecentDocRow(file: file, model: model, orderedIds: orderedIds)
                                 Divider()
                             }
                         }
@@ -50,26 +49,14 @@ struct RecentsView: View {
 
             return filesModel.drop(items, into: root)
         }
-        .selectionCommands(model.selection, fileTreeModel: fileTreeModel)
+        .selectionCommands(model.selection)
+        .environment(fileTreeModel)
         .navigationTitle("Recents")
         #if os(iOS)
             .navigationBarTitleDisplayMode(.large)
         #endif
     }
 
-    var noDocs: some View {
-        VStack(spacing: 6) {
-            Text("No documents yet")
-                .font(.title3)
-                .fontWeight(.semibold)
-
-            Text("Documents you edit will appear here.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-        }
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
 }
 
 struct RecentDocRow: View {
@@ -79,7 +66,6 @@ struct RecentDocRow: View {
 
     let file: File
     let model: RecentsModel
-    let fileTreeModel: FileTreeModel
     let orderedIds: [UUID]
 
     var body: some View {
@@ -122,7 +108,7 @@ struct RecentDocRow: View {
                         .lineLimit(2)
                 }
 
-                if let username = model.username, file.lastModifiedBy != username {
+                if let username = AppState.shared.account?.username, file.lastModifiedBy != username {
                     Label(file.lastModifiedBy, systemImage: "person.fill")
                         .font(.caption.weight(.medium))
                         .foregroundStyle(Color.accentColor)
@@ -140,7 +126,6 @@ struct RecentDocRow: View {
         .selectableRow(
             model.selection,
             id: file.id,
-            fileTreeModel: fileTreeModel,
             orderedIds: { orderedIds },
             open: {
                 workspaceInput.openFile(id: file.id)

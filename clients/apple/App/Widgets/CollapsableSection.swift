@@ -5,16 +5,13 @@ struct CollapsableSection<Label: View, Content: View>: View {
     @ViewBuilder var label: Label
     @ViewBuilder var content: Content
 
-    @AppStorage var storedIsOpen: Bool
-    @State private var isOpen: Bool
+    @AppStorage var isOpen: Bool
 
     init(id: String, @ViewBuilder label: @escaping () -> Label, @ViewBuilder content: @escaping () -> Content) {
         self.id = id
         self.label = label()
         self.content = content()
-        let savedIsOpen = AppStorage(wrappedValue: true, "CollapsableSection_\(id)")
-        _storedIsOpen = savedIsOpen
-        _isOpen = State(initialValue: savedIsOpen.wrappedValue)
+        _isOpen = AppStorage(wrappedValue: true, "CollapsableSection_\(id)")
     }
 
     var body: some View {
@@ -46,8 +43,5 @@ struct CollapsableSection<Label: View, Content: View>: View {
         })
         .buttonStyle(.plain)
         .padding(.horizontal)
-        .onChange(of: isOpen) {
-            storedIsOpen = isOpen
-        }
     }
 }

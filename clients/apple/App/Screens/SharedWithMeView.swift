@@ -11,7 +11,10 @@ struct SharedWithMeView: View {
         Group {
             if let pendingShares = filesModel.pendingSharesByUsername {
                 if pendingShares.isEmpty {
-                    noShares
+                    EmptyStateView(
+                        title: "Nothing shared yet",
+                        subtitle: "Files shared with you will appear here."
+                    )
                 } else {
                     sharedByUsers(pendingShares: pendingShares)
                 }
@@ -62,19 +65,6 @@ struct SharedWithMeView: View {
         .environment(fileTreeModel)
     }
 
-    var noShares: some View {
-        VStack(spacing: 6) {
-            Text("Nothing shared yet")
-                .font(.title3)
-                .fontWeight(.semibold)
-
-            Text("Files shared with you will appear here.")
-                .font(.body)
-                .foregroundStyle(.secondary)
-        }
-        .multilineTextAlignment(.center)
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
 }
 
 struct PendingShareRowView: View {
@@ -129,10 +119,7 @@ struct PendingShareRowView: View {
 
     var fileRow: some View {
         HStack {
-            Image(systemName: FileIconHelper.fileToSystemImageName(file: file))
-                .font(.system(size: 16))
-                .frame(width: 16)
-                .foregroundColor(file.isFolder ? .accentColor : .secondary)
+            FileIcon(file: file)
 
             Text(file.name)
                 .lineLimit(1)
@@ -143,13 +130,7 @@ struct PendingShareRowView: View {
             Spacer()
 
             if !isLeaf {
-                Image(systemName: "chevron.forward")
-                    .renderingMode(.template)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 10, height: 10)
-                    .rotationEffect(Angle.degrees(isOpen ? 90 : 0))
-                    .foregroundColor(.accentColor)
+                DisclosureChevron(isOpen: isOpen)
             }
 
             if isRootShare {
@@ -180,16 +161,7 @@ struct PendingShareRowView: View {
     }
 
     func openFile() {
-        if file.isFolder {
-            workspaceInput.selectFolder(id: file.id)
-
-            withAnimation {
-                fileTreeModel.toggleFolder(file.id)
-            }
-        } else {
-            workspaceInput.openFile(id: file.id)
-            homeState.compactColumn = .detail
-        }
+        fileTreeModel.open(file, workspaceInput: workspaceInput, homeState: homeState)
     }
 }
 

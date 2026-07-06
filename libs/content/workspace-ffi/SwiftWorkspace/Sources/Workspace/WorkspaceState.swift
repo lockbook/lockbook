@@ -12,6 +12,8 @@ import Observation
     // Tab count includes non-files
     public var tabCount: Int = 0
 
+    public var openCamera: Bool = false
+
     public init() {}
 }
 
@@ -134,7 +136,23 @@ import Observation
     public func getTabsIds() -> [UUID] {
         guard let wsHandle else { return [] }
 
-        let result = get_tabs_ids(wsHandle)
+        return tabIds(from: get_tabs_ids(wsHandle))
+    }
+
+    public func getRecentlyClosedTabs() -> [UUID] {
+        guard let wsHandle else { return [] }
+
+        return tabIds(from: get_recently_closed_tabs(wsHandle))
+    }
+
+    public func moveTab(from: Int, to: Int) {
+        guard let wsHandle else { return }
+
+        reorder_tab(wsHandle, UInt(from), UInt(to))
+        redraw.send(())
+    }
+
+    private func tabIds(from result: TabsIds) -> [UUID] {
         let buffer: [CUuid] = Array(
             UnsafeBufferPointer(start: result.ids, count: Int(result.size))
         )
@@ -152,26 +170,6 @@ import Observation
 public enum WSFileOpCompleted {
     case Rename(id: UUID, newName: String)
     case Delete(id: UUID)
-}
-
-func createTempDir() -> URL? {
-    let fileManager = FileManager.default
-    let tempTempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-        .appendingPathComponent("editor-tmp").appendingPathComponent(
-            UUID().uuidString
-        )
-
-    do {
-        try fileManager.createDirectory(
-            at: tempTempURL,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-    } catch {
-        return nil
-    }
-
-    return tempTempURL
 }
 
 public extension WorkspaceInputState {

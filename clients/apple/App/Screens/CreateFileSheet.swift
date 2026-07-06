@@ -8,23 +8,27 @@ struct CreateFileSheet: View {
     @Environment(WorkspaceInputState.self) private var workspaceInput
     @Environment(WorkspaceOutputState.self) private var workspaceOutput
 
+    enum Mode {
+        case create(location: LocationChoice)
+        case rename(File)
+    }
+
     let fileTreeModel: FileTreeModel
     let renameTarget: File?
 
-    init(fileTreeModel: FileTreeModel, location: File? = nil, alongside: Bool = false, rename: File? = nil) {
+    init(fileTreeModel: FileTreeModel, mode: Mode = .create(location: .root)) {
         self.fileTreeModel = fileTreeModel
-        renameTarget = rename
 
-        if let rename {
-            let (base, ext) = Self.splitName(rename)
+        switch mode {
+        case let .create(location):
+            renameTarget = nil
+            _location = State(initialValue: location)
+        case let .rename(file):
+            renameTarget = file
+
+            let (base, ext) = Self.splitName(file)
             _name = State(initialValue: base)
             _renameExt = State(initialValue: ext)
-        }
-
-        if alongside {
-            _location = State(initialValue: .alongside)
-        } else if let location {
-            _location = State(initialValue: location.isRoot ? .root : .custom(location))
         }
     }
 
@@ -233,7 +237,11 @@ struct CreateFileSheet: View {
         }
 
         if dest.id != file.parent {
-            _ = filesModel.moveFiles([file], into: dest)
+            guard filesModel.moveFiles([file], into: dest) else {
+                error = "Cannot move \"\(fullName)\" into \"\(dest.isRoot ? "Home" : dest.name)\""
+                filesModel.loadFiles()
+                return
+            }
         } else {
             filesModel.loadFiles()
         }
@@ -269,6 +277,10 @@ enum LocationChoice: Equatable {
     case root
     case alongside
     case custom(File)
+
+    init(folder: File) {
+        self = folder.isRoot ? .root : .custom(folder)
+    }
 }
 
 enum NewFileType: CaseIterable, Identifiable {

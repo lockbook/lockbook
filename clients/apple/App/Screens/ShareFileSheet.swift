@@ -183,23 +183,15 @@ struct ShareFileSheet: View {
             return
         }
 
-        DispatchQueue.global(qos: .userInitiated).async {
-            let dir = URL(fileURLWithPath: NSTemporaryDirectory())
-                .appendingPathComponent("lb-share")
-                .appendingPathComponent(UUID().uuidString)
+        let filesModel = filesModel
 
-            do {
-                try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-            } catch {
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard let url = try? FileExporter.exportToTemp(file, edit: true, filesModel: filesModel) else {
                 return
             }
 
-            let res = AppState.lb.exportFile(sourceId: file.id, dest: dir.path(), edit: true)
-
             DispatchQueue.main.async {
-                if case .success = res {
-                    exportedURL = dir.appendingPathComponent(file.name)
-                }
+                exportedURL = url
             }
         }
     }

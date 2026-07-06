@@ -5,22 +5,12 @@ import SwiftWorkspace
     struct SettingsView: View {
         @State private var model = SettingsModel()
 
-        @State private var confirmLogout = false
-        @State private var confirmDeleteAccount = false
         @State private var showAccountKeys = false
 
         var body: some View {
             Form {
                 Section("Account") {
-                    if let account = model.account {
-                        HStack {
-                            Text("Username:")
-                            Spacer()
-                            Text(account.username)
-                        }
-                    } else {
-                        ProgressView()
-                    }
+                    UsernameRow(model: model)
 
                     Button("Reveal Account Keys") {
                         AuthHelper.authenticateWithBiometricsOrPasscode { success in
@@ -28,18 +18,7 @@ import SwiftWorkspace
                         }
                     }
 
-                    Button("Logout", role: .destructive) {
-                        confirmLogout = true
-                    }
-                    .confirmationDialog(
-                        "Are you sure? Please make sure your key is backed up.",
-                        isPresented: $confirmLogout,
-                        titleVisibility: .visible
-                    ) {
-                        Button("Logout", role: .destructive) {
-                            AppState.lb.logoutAndExit()
-                        }
-                    }
+                    LogoutButton()
                 }
 
                 Section("Usage") {
@@ -53,33 +32,11 @@ import SwiftWorkspace
                     Text("[Terms of Service](https://lockbook.net/tos)")
                         .foregroundColor(.accentColor)
 
-                    Button("Delete Account", role: .destructive) {
-                        confirmDeleteAccount = true
-                    }
-                    .confirmationDialog(
-                        "Are you sure you want to delete your account?",
-                        isPresented: $confirmDeleteAccount,
-                        titleVisibility: .visible
-                    ) {
-                        Button("Delete account", role: .destructive) {
-                            model.deleteAccountAndExit()
-                        }
-                    }
+                    DeleteAccountButton(model: model)
                 }
 
                 Section("Debug") {
-                    if let account = model.account {
-                        HStack {
-                            Text("Server:")
-                                .padding(.trailing, 10)
-                            Text(account.apiUrl)
-                                .lineLimit(1)
-                                .truncationMode(.head)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    } else {
-                        ProgressView()
-                    }
+                    ServerRow(model: model)
 
                     NavigationLink("Debug Info") {
                         DebugView()
@@ -125,22 +82,12 @@ import SwiftWorkspace
     struct SettingsAccountView: View {
         let model: SettingsModel
 
-        @State private var confirmLogout = false
-        @State private var confirmDeleteAccount = false
         @State private var showAccountKeys = false
 
         var body: some View {
             Form {
                 Section("Account") {
-                    if let account = model.account {
-                        HStack {
-                            Text("Username:")
-                            Spacer()
-                            Text(account.username)
-                        }
-                    } else {
-                        ProgressView()
-                    }
+                    UsernameRow(model: model)
 
                     Button(action: {
                         AuthHelper.authenticateWithBiometricsOrPasscode { success in
@@ -159,18 +106,7 @@ import SwiftWorkspace
                     HStack {
                         Text("Logout")
                         Spacer()
-                        Button("Logout", role: .destructive) {
-                            confirmLogout = true
-                        }
-                        .confirmationDialog(
-                            "Are you sure? Please make sure your key is backed up.",
-                            isPresented: $confirmLogout,
-                            titleVisibility: .visible
-                        ) {
-                            Button("Logout", role: .destructive) {
-                                AppState.lb.logoutAndExit()
-                            }
-                        }
+                        LogoutButton()
                     }
                 }
 
@@ -190,18 +126,7 @@ import SwiftWorkspace
                     HStack {
                         Text("Delete Account")
                         Spacer()
-                        Button("Delete Account", role: .destructive) {
-                            confirmDeleteAccount = true
-                        }
-                        .confirmationDialog(
-                            "Are you sure you want to delete your account?",
-                            isPresented: $confirmDeleteAccount,
-                            titleVisibility: .visible
-                        ) {
-                            Button("Delete account", role: .destructive) {
-                                model.deleteAccountAndExit()
-                            }
-                        }
+                        DeleteAccountButton(model: model)
                     }
                 }
             }
@@ -236,18 +161,7 @@ import SwiftWorkspace
         var body: some View {
             Form {
                 Section("Debug") {
-                    if let account = model.account {
-                        HStack {
-                            Text("Server:")
-                                .padding(.trailing, 10)
-                            Text(account.apiUrl)
-                                .lineLimit(1)
-                                .truncationMode(.head)
-                                .frame(maxWidth: .infinity, alignment: .trailing)
-                        }
-                    } else {
-                        ProgressView()
-                    }
+                    ServerRow(model: model)
 
                     DebugView()
                 }
@@ -256,6 +170,81 @@ import SwiftWorkspace
         }
     }
 #endif
+
+struct UsernameRow: View {
+    let model: SettingsModel
+
+    var body: some View {
+        if let account = model.account {
+            HStack {
+                Text("Username:")
+                Spacer()
+                Text(account.username)
+            }
+        } else {
+            ProgressView()
+        }
+    }
+}
+
+struct ServerRow: View {
+    let model: SettingsModel
+
+    var body: some View {
+        if let account = model.account {
+            HStack {
+                Text("Server:")
+                    .padding(.trailing, 10)
+                Text(account.apiUrl)
+                    .lineLimit(1)
+                    .truncationMode(.head)
+                    .frame(maxWidth: .infinity, alignment: .trailing)
+            }
+        } else {
+            ProgressView()
+        }
+    }
+}
+
+struct LogoutButton: View {
+    @State private var confirmLogout = false
+
+    var body: some View {
+        Button("Logout", role: .destructive) {
+            confirmLogout = true
+        }
+        .confirmationDialog(
+            "Are you sure? Please make sure your key is backed up.",
+            isPresented: $confirmLogout,
+            titleVisibility: .visible
+        ) {
+            Button("Logout", role: .destructive) {
+                AppState.lb.logoutAndExit()
+            }
+        }
+    }
+}
+
+struct DeleteAccountButton: View {
+    let model: SettingsModel
+
+    @State private var confirmDeleteAccount = false
+
+    var body: some View {
+        Button("Delete Account", role: .destructive) {
+            confirmDeleteAccount = true
+        }
+        .confirmationDialog(
+            "Are you sure you want to delete your account?",
+            isPresented: $confirmDeleteAccount,
+            titleVisibility: .visible
+        ) {
+            Button("Delete account", role: .destructive) {
+                model.deleteAccountAndExit()
+            }
+        }
+    }
+}
 
 struct UsageSettingsRows: View {
     let model: SettingsModel

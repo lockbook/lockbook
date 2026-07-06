@@ -45,7 +45,7 @@ struct FileBreadcrumb: View {
         }
 
         for name in names {
-            crumb = crumb + Text(" \(Image(systemName: "chevron.compact.right")) \(name)")
+            crumb = Text("\(crumb) \(Image(systemName: "chevron.compact.right")) \(name)")
         }
 
         return crumb
