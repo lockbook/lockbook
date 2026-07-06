@@ -12,9 +12,10 @@
 //! the tree's geometry lives in the list, not in the recursion.
 //!
 //! Wired so far: multi-select (plain / Cmd-toggle / Shift-range) with a cursor,
-//! expand/collapse, open (same/new-tab, middle-click), virtualized scroll,
-//! sticky ancestor headers. Deferred (each a future `Action`/`Op` pair): rename,
-//! move/drag, cut/paste, delete, duplicate, pin, virtual folders, keyboard nav.
+//! keyboard nav (cursor arrows + Shift-extend, Enter to open), expand/collapse,
+//! open (same/new-tab, middle-click), virtualized scroll, sticky ancestor
+//! headers. Deferred (each a future `Action`/`Op` pair): rename, move/drag,
+//! cut/paste, delete, duplicate, pin, virtual folders, sort/view modes.
 
 use std::collections::HashSet;
 
@@ -44,6 +45,11 @@ pub enum Action {
     /// Select the visible range from the anchor to `id` (Shift-click); moves the
     /// cursor, keeps the anchor.
     SelectRange(Uuid),
+    /// Move the cursor to the previous/next visible row (arrow keys). `extend`
+    /// (Shift) grows the selection from the anchor; otherwise it single-selects.
+    CursorMove { down: bool, extend: bool },
+    /// Open the cursor's document if it is one (Enter).
+    OpenCursor,
     /// Flip a folder's expansion.
     Toggle(Uuid),
     /// Open a document — escapes to the shell.
@@ -145,6 +151,36 @@ impl FileTree {
                 self.select_range(files, id);
                 self.cursor = Some(id);
             }
+            Action::CursorMove { down, extend } => {
+                let rows = self.flatten(files);
+                if rows.is_empty() {
+                    return None;
+                }
+                let here = self
+                    .cursor
+                    .and_then(|c| rows.iter().position(|r| r.id == c));
+                let next = match here {
+                    Some(i) if down => (i + 1).min(rows.len() - 1),
+                    Some(i) => i.saturating_sub(1),
+                    None if down => 0,
+                    None => rows.len() - 1,
+                };
+                let id = rows[next].id;
+                if extend {
+                    self.select_range(files, id); // pivots on the held anchor
+                } else {
+                    self.selected = HashSet::from([id]);
+                    self.anchor = Some(id);
+                }
+                self.cursor = Some(id);
+            }
+            Action::OpenCursor => {
+                if let Some(id) = self.cursor {
+                    if files.get_by_id(id).is_some_and(|f| f.is_document()) {
+                        return Some(Op::Open { id, new_tab: false });
+                    }
+                }
+            }
             Action::Toggle(id) => {
                 if !self.expanded.remove(&id) {
                     self.expanded.insert(id);
@@ -213,6 +249,10 @@ impl FileTree {
             let offset = viewport.min.y;
             // Reserve the full scroll extent (for the scrollbar).
             ui.allocate_exact_size(vec2(width, total_h), Sense::hover());
+            // A focus sink so keyboard nav only fires when the tree "has focus"
+            // (granted by a row click) — not while typing in the editor. Kept
+            // registered each frame; non-interactive so it never steals a click.
+            let kbd = ui.interact(clip, kbd_focus_id(), Sense::focusable_noninteractive());
             // Anchor in-flow rows *and* stuck headers to the true viewport top
             // with the exact (unrounded) offset — `origin` is the screen y of
             // content-y 0. egui's own content origin is rounded to a whole pixel,
@@ -242,6 +282,46 @@ impl FileTree {
             // The stuck ancestor stack over the top.
             if let Some(op) = self.sticky(ui, t, files, &rows, view, &layout) {
                 escaped = Some(op);
+            }
+
+            // Keyboard nav, only when the tree holds focus. Consume the keys so
+            // neither the scroll area nor the editor also acts on them.
+            if kbd.has_focus() {
+                use egui::{Key, Modifiers};
+                let mut moved = false;
+                for (key, down) in [(Key::ArrowDown, true), (Key::ArrowUp, false)] {
+                    let extend = if ui.input_mut(|i| i.consume_key(Modifiers::NONE, key)) {
+                        Some(false)
+                    } else if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, key)) {
+                        Some(true)
+                    } else {
+                        None
+                    };
+                    if let Some(extend) = extend {
+                        self.apply(Action::CursorMove { down, extend }, files);
+                        moved = true;
+                    }
+                }
+                if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
+                    if let Some(op) = self.apply(Action::OpenCursor, files) {
+                        escaped = Some(op);
+                    }
+                }
+                // Scroll the cursor back into view after a keyboard move.
+                if moved {
+                    if let Some(ci) = self
+                        .cursor
+                        .and_then(|c| rows.iter().position(|r| r.id == c))
+                    {
+                        let cy = ci as f32 * ROW_H;
+                        let view_h = clip.height();
+                        if cy < offset {
+                            self.forced_offset = Some(cy);
+                        } else if cy + ROW_H > offset + view_h {
+                            self.forced_offset = Some(cy + ROW_H - view_h);
+                        }
+                    }
+                }
             }
         });
         escaped
@@ -313,6 +393,16 @@ impl FileTree {
         if fill.a() > 0 {
             painter.rect_filled(rect, 5.0, fill);
         }
+        // In a multi-selection, ring the active row (cursor) so keyboard focus
+        // reads distinctly from the filled selection.
+        if self.cursor == Some(row.id) && self.selected.len() > 1 {
+            painter.rect_stroke(
+                rect.shrink(1.0),
+                5.0,
+                egui::Stroke::new(1.0, t.fg().gamma_multiply(0.30)),
+                egui::StrokeKind::Inside,
+            );
+        }
 
         let cy = rect.center().y;
         let mut x = rect.left() + INDENT_BASE + row.depth as f32 * INDENT_STEP;
@@ -331,6 +421,11 @@ impl FileTree {
 
         let g = painter.layout_no_wrap(file.name.clone(), FontId::proportional(14.0), ink);
         painter.galley(pos2(x, cy - g.size().y / 2.0), g, ink);
+
+        // Any click on the tree grants it keyboard focus.
+        if resp.clicked() || resp.clicked_by(egui::PointerButton::Middle) {
+            ui.memory_mut(|m| m.request_focus(kbd_focus_id()));
+        }
 
         // Middle-click opens a document in a new tab (folders ignore it).
         if resp.clicked_by(egui::PointerButton::Middle) {
@@ -417,6 +512,11 @@ impl FileTree {
             .filter(|&(_, vy)| vy > -ROW_H && vy < viewport)
             .collect()
     }
+}
+
+/// The focus id the tree parks keyboard focus on (see the focus sink in `show`).
+fn kbd_focus_id() -> Id {
+    Id::new("file_tree_kbd_focus")
 }
 
 /// Sorted child ids, materialized so the `files` borrow doesn't straddle the
@@ -646,6 +746,47 @@ mod tests {
         // Plain select resets to a single item.
         tree.apply(Action::Select(id(3)), &files);
         assert_eq!(tree.selected, HashSet::from([id(3)]));
+    }
+
+    // Keyboard cursor over the flat order a,b,c,d: Down/Up move + clamp, Shift
+    // extends from the anchor, Enter on a doc escapes as Open.
+    #[test]
+    fn keyboard_cursor() {
+        let files = vec![
+            mk(0, 0, "root", true),
+            mk(1, 0, "a", false),
+            mk(2, 0, "b", false),
+            mk(3, 0, "c", false),
+            mk(4, 0, "d", false),
+        ];
+        let id = Uuid::from_u128;
+        let mut tree = FileTree::default();
+        let down = Action::CursorMove { down: true, extend: false };
+        let up = Action::CursorMove { down: false, extend: false };
+
+        // From no cursor, Down lands on the first row and single-selects it.
+        tree.apply(down.clone(), &files);
+        assert_eq!(tree.cursor, Some(id(1)));
+        assert_eq!(tree.selected, HashSet::from([id(1)]));
+
+        // Walks down and clamps at the last row.
+        for _ in 0..5 {
+            tree.apply(down.clone(), &files);
+        }
+        assert_eq!(tree.cursor, Some(id(4)));
+        tree.apply(up, &files);
+        assert_eq!(tree.cursor, Some(id(3)));
+
+        // Shift+Down extends the selection from the anchor.
+        tree.apply(Action::Select(id(2)), &files);
+        tree.apply(Action::CursorMove { down: true, extend: true }, &files);
+        assert_eq!(tree.cursor, Some(id(3)));
+        assert_eq!(tree.selected, HashSet::from([id(2), id(3)]));
+        assert_eq!(tree.anchor, Some(id(2)));
+
+        // Enter on a document escapes as an Open op.
+        let op = tree.apply(Action::OpenCursor, &files);
+        assert!(matches!(op, Some(Op::Open { new_tab: false, .. })));
     }
 
     // note a / folder(> note b): dump each element's effective on-screen vy at
