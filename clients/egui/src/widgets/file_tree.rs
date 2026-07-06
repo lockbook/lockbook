@@ -345,6 +345,7 @@ impl FileTree {
             // Keyboard nav, only when the tree holds focus. Consume the keys so
             // neither the scroll area nor the editor also acts on them.
             if kbd.has_focus() {
+                ui.memory_mut(|m| m.set_focus_lock_filter(kbd_focus_id(), tree_focus_filter()));
                 use egui::{Key, Modifiers};
                 let mut moved = false;
                 for (key, down) in [(Key::ArrowDown, true), (Key::ArrowUp, false)] {
@@ -501,12 +502,16 @@ impl FileTree {
         let g = painter.layout_no_wrap(file.name.clone(), FontId::proportional(14.0), ink);
         painter.galley(pos2(x, cy - g.size().y / 2.0), g, ink);
 
-        // Any click on the tree grants it keyboard focus.
+        // Any click on the tree grants it keyboard focus (and locks the arrows,
+        // in place before the first arrow press).
         if resp.clicked()
             || resp.clicked_by(egui::PointerButton::Middle)
             || resp.secondary_clicked()
         {
-            ui.memory_mut(|m| m.request_focus(kbd_focus_id()));
+            ui.memory_mut(|m| {
+                m.request_focus(kbd_focus_id());
+                m.set_focus_lock_filter(kbd_focus_id(), tree_focus_filter());
+            });
         }
 
         // Right-click selects the row (unless already selected, to keep a
@@ -696,6 +701,13 @@ impl FileTree {
 /// The focus id the tree parks keyboard focus on (see the focus sink in `show`).
 fn kbd_focus_id() -> Id {
     Id::new("file_tree_kbd_focus")
+}
+
+/// Lock the vertical arrows to the tree while it has focus. Without this, egui
+/// spends arrow keys on its own spatial focus navigation — moving focus off the
+/// tree after the first press — instead of letting the tree move its cursor.
+fn tree_focus_filter() -> egui::EventFilter {
+    egui::EventFilter { horizontal_arrows: false, vertical_arrows: true, tab: false, escape: false }
 }
 
 /// Byte length of the name's stem — everything before the last dot (for
