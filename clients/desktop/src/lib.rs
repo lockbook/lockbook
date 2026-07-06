@@ -417,8 +417,9 @@ fn init_with_renderer(
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     renderer.context.set_lb_theme(Theme::default(mode));
 
-    let app = lbeguiapp::Lockbook::new(&renderer.context);
+    let mut app = lbeguiapp::Lockbook::new(&renderer.context);
     app.deferred_init(&renderer.context);
+    app.start_core(&renderer.context);
 
     let mut lb = WgpuLockbook {
         renderer,

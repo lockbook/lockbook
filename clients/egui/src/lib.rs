@@ -16,9 +16,16 @@ pub use lb::Uuid;
 #[cfg(feature = "egui_wgpu_renderer")]
 pub use lb_wgpu::*;
 
+use std::sync::mpsc::Receiver;
+use std::sync::{Arc, RwLock};
+
+use lb::blocking::Lb;
+use lb::model::core_config::Config;
 use lb::model::file::File;
+use workspace_rs::file_cache::FileCache;
 use workspace_rs::theme::palette_v2::{Mode, Theme, ThemeExt};
 use workspace_rs::theme::visuals;
+use workspace_rs::workspace::Workspace;
 
 use crate::theme::icons;
 use crate::theme::tokens::Tokens;
@@ -43,6 +50,52 @@ pub struct Lockbook {
     tree: FileTree,
     files: Vec<File>,
     sidebar_open: bool,
+    session: Session,
+}
+
+/// The account lifecycle. `Demo` is the headless/observe default and the state
+/// before `start_core` runs; `Loading` awaits the off-thread `lb` init; `Ready`
+/// holds the live workspace and file cache once signed in. Signed-out (no
+/// account) falls back to `Demo`'s placeholder until onboarding is built.
+enum Session {
+    Demo,
+    Loading(Receiver<CoreLoad>),
+    SignedOut,
+    // Boxed: the live `Workspace` dwarfs the other variants.
+    Ready(Box<Ready>),
+}
+
+struct Ready {
+    /// Shared with the `Workspace` so the tree and editor see one file cache.
+    file_cache: Arc<RwLock<FileCache>>,
+    workspace: Workspace,
+}
+
+/// Handoff from the core-loading thread (boxed — `Lb`/`FileCache` dwarf the
+/// error variant). `file_cache` is `Some` only when signed in (building it, like
+/// the workspace, requires an account).
+enum CoreLoad {
+    Ready(Box<CoreReady>),
+    Failed(String),
+}
+
+struct CoreReady {
+    core: Lb,
+    file_cache: Option<FileCache>,
+}
+
+/// Blocking `lb` init + file-cache load, run on a worker thread by `start_core`.
+fn load_core() -> CoreLoad {
+    let core = match Lb::init(Config::ui_config("egui")) {
+        Ok(core) => core,
+        Err(e) => return CoreLoad::Failed(format!("{e:?}")),
+    };
+    let file_cache = core
+        .get_account()
+        .is_ok()
+        .then(|| FileCache::new(&core).ok())
+        .flatten();
+    CoreLoad::Ready(Box::new(CoreReady { core, file_cache }))
 }
 
 /// The shell's action vocabulary — composed from its feature widgets' escapes
@@ -75,7 +128,24 @@ impl Lockbook {
             tree: FileTree::default(),
             files: file_tree::demo_files(),
             sidebar_open: true,
+            session: Session::Demo,
         }
+    }
+
+    /// Kick off the `lb` core load on a worker thread (init is blocking). The
+    /// host calls this once; the headless harness never does, so it stays in
+    /// `Demo`. `update` polls the result and transitions to `Ready`/`SignedOut`.
+    pub fn start_core(&mut self, ctx: &egui::Context) {
+        if !matches!(self.session, Session::Demo) {
+            return;
+        }
+        let (tx, rx) = std::sync::mpsc::channel();
+        let ctx = ctx.clone();
+        std::thread::spawn(move || {
+            let _ = tx.send(load_core());
+            ctx.request_repaint();
+        });
+        self.session = Session::Loading(rx);
     }
 
     /// Deferred one-time setup: fonts, image loaders, and the color theme. egui
@@ -99,6 +169,33 @@ impl Lockbook {
     pub fn update(&mut self, ctx: &egui::Context) -> Response {
         let t = theme::tokens::Tokens::new(ctx);
         let mut actions: Vec<Action> = Vec::new();
+
+        // Core-load handoff: when the worker thread delivers, build the live
+        // workspace (once, on this thread — it needs the render `ctx`).
+        let loaded = match &self.session {
+            Session::Loading(rx) => rx.try_recv().ok(),
+            _ => None,
+        };
+        if let Some(load) = loaded {
+            self.session = match load {
+                CoreLoad::Ready(cr) => {
+                    let CoreReady { core, file_cache } = *cr;
+                    match file_cache {
+                        Some(fc) => {
+                            let file_cache = Arc::new(RwLock::new(fc));
+                            let workspace =
+                                Workspace::new(&core, ctx, true, Some(file_cache.clone()));
+                            Session::Ready(Box::new(Ready { file_cache, workspace }))
+                        }
+                        None => Session::SignedOut,
+                    }
+                }
+                CoreLoad::Failed(e) => {
+                    log::error!("lb core init failed: {e}");
+                    Session::SignedOut
+                }
+            };
+        }
 
         // egui draws the sidebar resize handle with the "highly visible"
         // hovered/active foreground strokes; soften both to a faint hairline,
@@ -189,15 +286,25 @@ impl Lockbook {
                 });
             });
 
-        // Center: the design system, in place of the workspace for now.
-        egui::CentralPanel::default()
-            .frame(egui::Frame::default().fill(t.canvas()))
-            .show(ctx, |ui| {
-                ui.add_space(20.0);
-                egui::Frame::default()
-                    .inner_margin(egui::Margin::symmetric(60, 12))
-                    .show(ui, |ui| design_system::show(ctx, ui, &t, &mut self.mode));
-            });
+        // Center: the live workspace once signed in; otherwise the design system
+        // placeholder (also shown while loading and — until onboarding exists —
+        // when signed out).
+        if let Session::Ready(r) = &mut self.session {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::default().fill(t.canvas()))
+                .show(ctx, |ui| {
+                    r.workspace.show(ui);
+                });
+        } else {
+            egui::CentralPanel::default()
+                .frame(egui::Frame::default().fill(t.canvas()))
+                .show(ctx, |ui| {
+                    ui.add_space(20.0);
+                    egui::Frame::default()
+                        .inner_margin(egui::Margin::symmetric(60, 12))
+                        .show(ui, |ui| design_system::show(ctx, ui, &t, &mut self.mode));
+                });
+        }
 
         for action in actions {
             self.apply(action);
@@ -211,7 +318,8 @@ impl Lockbook {
     /// what's left, and why it must draw last.
     fn sidebar(&mut self, ctx: &egui::Context, t: &Tokens, actions: &mut Vec<Action>) {
         let tree = &mut self.tree;
-        let files = &self.files;
+        let session = &self.session;
+        let demo = &self.files;
         egui::SidePanel::left("sidebar")
             .resizable(true)
             // Convergent desktop defaults (see reference_file_tree_sidebar_metrics):
@@ -239,7 +347,15 @@ impl Lockbook {
                 egui::CentralPanel::default()
                     .frame(egui::Frame::default())
                     .show_inside(ui, |ui| {
-                        if let Some(op) = tree.show(ui, t, files) {
+                        // Live file cache when signed in; demo files otherwise.
+                        let op = match session {
+                            Session::Ready(r) => {
+                                let files = r.file_cache.read().unwrap();
+                                tree.show(ui, t, &*files)
+                            }
+                            _ => tree.show(ui, t, demo),
+                        };
+                        if let Some(op) = op {
                             actions.push(op.into());
                         }
                     });
@@ -251,7 +367,11 @@ impl Lockbook {
     fn apply(&mut self, action: Action) {
         match action {
             Action::Tree(file_tree::Op::Open { id, new_tab }) => {
-                log::info!("open file {id} (new_tab={new_tab})");
+                if let Session::Ready(r) = &mut self.session {
+                    r.workspace.open_file(id, true, new_tab);
+                } else {
+                    log::info!("open file {id} (new_tab={new_tab})");
+                }
             }
             Action::ToggleSidebar => self.sidebar_open = !self.sidebar_open,
             Action::OpenSettings => log::info!("open settings"),
