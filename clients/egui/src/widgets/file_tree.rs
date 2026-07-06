@@ -11,10 +11,10 @@
 //! virtualization, sticky headers, keyboard nav, and reveal-to-selection alike;
 //! the tree's geometry lives in the list, not in the recursion.
 //!
-//! Wired so far: select, expand/collapse, open, virtualized scroll, sticky
-//! ancestor headers. Deferred (each a future `Action`/`Op` pair): rename,
-//! move/drag, cut/paste, multiselect, delete, duplicate, pin, sync dots,
-//! virtual folders, keyboard nav.
+//! Wired so far: multi-select (plain / Cmd-toggle / Shift-range) with a cursor,
+//! expand/collapse, open (same/new-tab, middle-click), virtualized scroll,
+//! sticky ancestor headers. Deferred (each a future `Action`/`Op` pair): rename,
+//! move/drag, cut/paste, delete, duplicate, pin, virtual folders, keyboard nav.
 
 use std::collections::HashSet;
 
@@ -37,8 +37,13 @@ const INDENT_STEP: f32 = 16.0;
 /// produce `Action`s; nothing mutates tree state except `apply`.
 #[derive(Clone, Debug)]
 pub enum Action {
-    /// Make `id` the single selection.
+    /// Replace the selection with `id` (plain click); moves cursor and anchor.
     Select(Uuid),
+    /// Toggle `id` in the selection (Cmd/Ctrl-click); moves cursor and anchor.
+    SelectAdd(Uuid),
+    /// Select the visible range from the anchor to `id` (Shift-click); moves the
+    /// cursor, keeps the anchor.
+    SelectRange(Uuid),
     /// Flip a folder's expansion.
     Toggle(Uuid),
     /// Open a document — escapes to the shell.
@@ -103,7 +108,14 @@ impl Placement {
 #[derive(Default)]
 pub struct FileTree {
     expanded: HashSet<Uuid>,
-    selected: Option<Uuid>,
+    /// The selection set. Multi-select via Cmd (toggle) and Shift (range).
+    selected: HashSet<Uuid>,
+    /// The active row — the keyboard cursor, and the moving end of a Shift-range.
+    /// Usually in `selected`, but kept separate so it can lead independently.
+    cursor: Option<Uuid>,
+    /// The fixed end a Shift-range grows from — set on plain/Cmd click, held
+    /// across Shift clicks so successive range-extends pivot on one point.
+    anchor: Option<Uuid>,
     /// Set by `Action::ScrollTo`, forces the scroll offset for the next frame
     /// then clears. `None` leaves egui in charge (user wheel/drag). The one-shot
     /// jump both scripts scroll for observation and, later, backs reveal-to-file.
@@ -112,10 +124,27 @@ pub struct FileTree {
 
 impl FileTree {
     /// The one chokepoint. Navigation folds into view state and returns `None`;
-    /// model mutations return the `Op` for the shell to run.
-    pub fn apply(&mut self, action: Action) -> Option<Op> {
+    /// model mutations return the `Op` for the shell to run. Takes `files` because
+    /// selection (range) and — later — keyboard nav and reveal are defined over
+    /// the flattened visible order, not raw ids.
+    pub fn apply(&mut self, action: Action, files: &impl FilesExt) -> Option<Op> {
         match action {
-            Action::Select(id) => self.selected = Some(id),
+            Action::Select(id) => {
+                self.selected = HashSet::from([id]);
+                self.cursor = Some(id);
+                self.anchor = Some(id);
+            }
+            Action::SelectAdd(id) => {
+                if !self.selected.remove(&id) {
+                    self.selected.insert(id);
+                }
+                self.cursor = Some(id);
+                self.anchor = Some(id);
+            }
+            Action::SelectRange(id) => {
+                self.select_range(files, id);
+                self.cursor = Some(id);
+            }
             Action::Toggle(id) => {
                 if !self.expanded.remove(&id) {
                     self.expanded.insert(id);
@@ -125,6 +154,22 @@ impl FileTree {
             Action::Open { id, new_tab } => return Some(Op::Open { id, new_tab }),
         }
         None
+    }
+
+    /// Select every visible row between the anchor (falling back to the cursor,
+    /// then `id` itself) and `id`, inclusive. Undefined ids collapse to a single
+    /// selection.
+    fn select_range(&mut self, files: &impl FilesExt, id: Uuid) {
+        let rows = self.flatten(files);
+        let pos = |target: Uuid| rows.iter().position(|r| r.id == target);
+        let anchor = self.anchor.or(self.cursor).unwrap_or(id);
+        match (pos(anchor), pos(id)) {
+            (Some(a), Some(b)) => {
+                let (lo, hi) = (a.min(b), a.max(b));
+                self.selected = rows[lo..=hi].iter().map(|r| r.id).collect();
+            }
+            _ => self.selected = HashSet::from([id]),
+        }
     }
 
     /// Pre-order walk of expanded nodes into the positioned row list. Pure over
@@ -243,7 +288,7 @@ impl FileTree {
     ) -> Option<Op> {
         let file = files.get_by_id(row.id)?;
         let expanded = self.expanded.contains(&row.id);
-        let selected = self.selected == Some(row.id);
+        let selected = self.selected.contains(&row.id);
 
         // A stuck header draws through a clipped painter so its pushed-up portion
         // slides behind its parent; interaction follows the visible region.
@@ -287,22 +332,33 @@ impl FileTree {
         let g = painter.layout_no_wrap(file.name.clone(), FontId::proportional(14.0), ink);
         painter.galley(pos2(x, cy - g.size().y / 2.0), g, ink);
 
-        // Selection first, then the type-specific act; both go through the
-        // chokepoint so a driver sees identical effects.
+        // Middle-click opens a document in a new tab (folders ignore it).
+        if resp.clicked_by(egui::PointerButton::Middle) {
+            if !row.is_folder {
+                self.apply(Action::Select(row.id), files);
+                return self.apply(Action::Open { id: row.id, new_tab: true }, files);
+            }
+            return None;
+        }
+
+        // Primary click. Cmd/Shift are pure selection gestures; a plain click
+        // selects and then acts (open a doc / toggle a folder). All routed through
+        // the chokepoint so a driver sees identical effects.
         if resp.clicked() {
-            let new_tab = ui.input(|i| i.modifiers.command);
+            let mods = ui.input(|i| i.modifiers);
+            if mods.command {
+                return self.apply(Action::SelectAdd(row.id), files);
+            }
+            if mods.shift {
+                return self.apply(Action::SelectRange(row.id), files);
+            }
+            self.apply(Action::Select(row.id), files);
             let act = if row.is_folder {
                 Action::Toggle(row.id)
             } else {
-                Action::Open { id: row.id, new_tab }
+                Action::Open { id: row.id, new_tab: false }
             };
-            let mut op = None;
-            for a in [Action::Select(row.id), act] {
-                if let Some(o) = self.apply(a) {
-                    op = Some(o);
-                }
-            }
-            return op;
+            return self.apply(act, files);
         }
         None
     }
@@ -321,7 +377,7 @@ impl FileTree {
             } else {
                 "  "
             };
-            let sel = if self.selected == Some(row.id) { "  ◂ selected" } else { "" };
+            let sel = if self.selected.contains(&row.id) { "  ◂ selected" } else { "" };
             out.push_str(&format!("{indent}{marker}{}{sel}\n", file.name));
         }
         out
@@ -550,6 +606,48 @@ mod tests {
         }
     }
 
+    // Selection semantics over a flat visible order a,b,c,d — plain replace,
+    // Shift-range (pivots on the held anchor), Cmd-toggle (re-anchors).
+    #[test]
+    fn selection_model() {
+        let files = vec![
+            mk(0, 0, "root", true),
+            mk(1, 0, "a", false),
+            mk(2, 0, "b", false),
+            mk(3, 0, "c", false),
+            mk(4, 0, "d", false),
+        ];
+        let id = Uuid::from_u128;
+        let mut tree = FileTree::default();
+
+        tree.apply(Action::Select(id(2)), &files);
+        assert_eq!(tree.selected, HashSet::from([id(2)]));
+        assert_eq!(tree.cursor, Some(id(2)));
+        assert_eq!(tree.anchor, Some(id(2)));
+
+        // Shift-range anchor(b)..d = b,c,d; anchor held, cursor leads.
+        tree.apply(Action::SelectRange(id(4)), &files);
+        assert_eq!(tree.selected, HashSet::from([id(2), id(3), id(4)]));
+        assert_eq!(tree.cursor, Some(id(4)));
+        assert_eq!(tree.anchor, Some(id(2)));
+
+        // Re-extend from the same anchor upward: a,b.
+        tree.apply(Action::SelectRange(id(1)), &files);
+        assert_eq!(tree.selected, HashSet::from([id(1), id(2)]));
+        assert_eq!(tree.anchor, Some(id(2)));
+
+        // Cmd-toggle adds and re-anchors; toggling again removes.
+        tree.apply(Action::SelectAdd(id(4)), &files);
+        assert_eq!(tree.selected, HashSet::from([id(1), id(2), id(4)]));
+        assert_eq!(tree.anchor, Some(id(4)));
+        tree.apply(Action::SelectAdd(id(2)), &files);
+        assert_eq!(tree.selected, HashSet::from([id(1), id(4)]));
+
+        // Plain select resets to a single item.
+        tree.apply(Action::Select(id(3)), &files);
+        assert_eq!(tree.selected, HashSet::from([id(3)]));
+    }
+
     // note a / folder(> note b): dump each element's effective on-screen vy at
     // each pixel of scroll, flag any per-pixel jump > 1.5px. A diagnostic — run
     // on demand with `--ignored --nocapture`.
@@ -563,7 +661,7 @@ mod tests {
             mk(3, 2, "note b", false),
         ];
         let mut tree = FileTree::default();
-        tree.apply(Action::Toggle(Uuid::from_u128(2)));
+        tree.apply(Action::Toggle(Uuid::from_u128(2)), &files);
 
         let rows = tree.flatten(&files);
         let names: Vec<String> = rows

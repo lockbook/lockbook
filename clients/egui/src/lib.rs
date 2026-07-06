@@ -384,7 +384,7 @@ impl Lockbook {
     /// headless observation. Routes through the same `apply` chokepoints a click
     /// would, so a scripted state is reachable-by-hand and vice versa.
     pub fn drive(&mut self, action: file_tree::Action) {
-        if let Some(op) = self.tree.apply(action) {
+        if let Some(op) = self.tree.apply(action, &self.files) {
             self.apply(op.into());
         }
     }

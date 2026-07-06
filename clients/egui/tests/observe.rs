@@ -80,11 +80,12 @@ fn sidebar_crop(img: &RgbaImage) -> RgbaImage {
 
 fn observe(name: &str, script: Vec<Action>) {
     // Projection 1 — the pure readout, no GPU.
+    let files = demo_files();
     let mut tree = FileTree::default();
     for a in &script {
-        let _ = tree.apply(a.clone());
+        let _ = tree.apply(a.clone(), &files);
     }
-    let readout = tree.readout(&demo_files());
+    let readout = tree.readout(&files);
 
     // Projection 2 — the screencap.
     let path = out_dir().join(format!("{name}.png"));
@@ -126,11 +127,11 @@ fn filmstrip(name: &str, script: Vec<Action>, offsets: &[f32]) {
 fn sticky_continuity() {
     use std::collections::BTreeMap;
 
+    let files = demo_files();
     let mut tree = FileTree::default();
     for n in [1u128, 2, 3, 4, 5, 12] {
-        tree.apply(Action::Toggle(id(n)));
+        tree.apply(Action::Toggle(id(n)), &files);
     }
-    let files = demo_files();
 
     let (step, viewport) = (2.0f32, 700.0);
     let tol = step + 0.6; // a smoothly-scrolling row moves ~`step` px per step
@@ -254,11 +255,11 @@ fn micro_filmstrip() {
 /// `cargo test sticky_dump -- --nocapture`.
 #[test]
 fn sticky_dump() {
+    let files = demo_files();
     let mut tree = FileTree::default();
     for n in [1u128, 2, 3, 4, 5, 12] {
-        tree.apply(Action::Toggle(id(n)));
+        tree.apply(Action::Toggle(id(n)), &files);
     }
-    let files = demo_files();
     for off in [52.0, 130.0, 182.0, 234.0, 286.0, 338.0] {
         let stack: Vec<String> = tree
             .sticky_debug(&files, off)
