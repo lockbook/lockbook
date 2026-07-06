@@ -238,7 +238,15 @@ impl<'ast> MdRender {
     /// pass: the favicon over the title's em-space slot, then a selection tint on
     /// top of a selected capsule (the opaque pill hides the under-text rect —
     /// like images/cards).
-    pub fn show_capsule_overlays(&mut self, ui: &mut egui::Ui, root: &'ast AstNode<'ast>) {
+    pub fn show_capsule_overlays(
+        &mut self, ui: &mut egui::Ui, root: &'ast AstNode<'ast>, viewport: egui::Rect,
+    ) {
+        // Clip favicon + tint to the editor viewport: this runs before
+        // `post_render` installs its overlay clip, so a chip scrolled past the
+        // top edge would otherwise bleed the favicon over the tab bar/toolbar.
+        let entry_clip = ui.clip_rect();
+        ui.set_clip_rect(viewport.intersect(entry_clip));
+
         let sel = self
             .in_progress_selection
             .unwrap_or(self.buffer.current.selection);
@@ -303,6 +311,8 @@ impl<'ast> MdRender {
                 }
             }
         }
+
+        ui.set_clip_rect(entry_clip);
     }
 
     pub fn resolve_link(&self, url: &str) -> Option<ResolvedLink> {

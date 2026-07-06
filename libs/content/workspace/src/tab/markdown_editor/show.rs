@@ -224,7 +224,7 @@ impl MdEdit {
         self.renderer.fragments.sort_by_key(|f| f.source_range);
 
         // Favicon + selection tint, over the opaque capsule pills.
-        self.renderer.show_capsule_overlays(ui, root);
+        self.renderer.show_capsule_overlays(ui, root, rect);
 
         self.handle_block_drag(ui);
         self.post_render(ui, rect, id, pre);

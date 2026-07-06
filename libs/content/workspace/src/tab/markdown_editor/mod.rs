@@ -1317,6 +1317,12 @@ impl Editor {
         Frame::canvas(ui.style())
             .inner_margin(Margin::ZERO)
             .stroke(Stroke::NONE)
+            // Frame's own fill sizes to the content min_rect, which the
+            // off-screen neighbor rows (and their interactive allocations)
+            // inflate above the viewport — painting the background over the
+            // toolbar and tab strip during scroll. Paint it ourselves,
+            // clipped to the viewport, below.
+            .fill(egui::Color32::TRANSPARENT)
             .show(ui, |ui| {
                 // Claim full available width with 0 vertical space so the
                 // Frame stretches horizontally regardless of how narrow the
@@ -1348,6 +1354,11 @@ impl Editor {
                 let pre = ui
                     .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
                         ui.set_clip_rect(canvas_rect);
+                        // Editor background, bounded to the viewport (see the
+                        // `fill(TRANSPARENT)` note on the Frame). First shape in
+                        // the scope, so it sits behind all content.
+                        ui.painter()
+                            .rect_filled(canvas_rect, 0.0, ui.visuals().extreme_bg_color);
                         self.edit.scroll_area.touch_scroll = touch_scroll;
                         // An armed touch reorder owns the gesture — don't
                         // scroll the body under the dragged item.
@@ -1500,7 +1511,9 @@ impl Editor {
                 self.edit.renderer.bounds.wrap_lines.sort_by_key(|r| r.0);
 
                 // Favicon + selection tint, over the opaque capsule pills.
-                self.edit.renderer.show_capsule_overlays(ui, root);
+                self.edit
+                    .renderer
+                    .show_capsule_overlays(ui, root, canvas_rect);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
