@@ -28,6 +28,28 @@ pub fn icon_button(ui: &mut Ui, t: &Tokens, icon: &str) -> Response {
     resp
 }
 
+/// A window-control button (minimize / maximize / close) — frameless like
+/// `icon_button` but with a smaller mark. `danger` tints the hover state layer
+/// and glyph toward red, for the close button. Windows/Linux only.
+#[cfg(not(target_os = "macos"))]
+pub fn window_button(ui: &mut Ui, t: &Tokens, icon: &str, danger: bool) -> Response {
+    let (rect, resp) =
+        ui.allocate_exact_size(vec2(ICON_BUTTON_SIZE, ICON_BUTTON_SIZE), Sense::click());
+    let hover = ui.ctx().animate_bool(resp.id, resp.hovered());
+    let accent = if danger { t.danger() } else { t.fg() };
+    let fill = accent.gamma_multiply(0.10 * hover);
+    if fill.a() > 0 {
+        ui.painter().rect_filled(rect, 6.0, fill);
+    }
+    let color = t.text_muted().lerp_to_gamma(accent, hover);
+    let g = ui
+        .painter()
+        .layout_no_wrap(icon.into(), icons::font(15.0), color);
+    ui.painter()
+        .galley(rect.center() - g.size() / 2.0, g, color);
+    resp
+}
+
 /// A full-width row styled like a file-tree row — phosphor icon + label with the
 /// same neutral state layer. For sidebar quick actions.
 pub fn nav_row(ui: &mut Ui, t: &Tokens, icon: &str, label: &str) -> Response {

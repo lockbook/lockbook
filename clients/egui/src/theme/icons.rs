@@ -17,6 +17,15 @@ pub const GEAR: &str = "\u{E270}";
 pub const NOTE_PENCIL: &str = "\u{E34C}";
 pub const SEARCH: &str = "\u{E30C}"; // magnifying-glass
 pub const CLOUD_CHECK: &str = "\u{E1B0}";
+// Window controls — Windows/Linux only (macOS keeps native chrome).
+#[cfg(not(target_os = "macos"))]
+pub const MINUS: &str = "\u{E32A}"; // minimize
+#[cfg(not(target_os = "macos"))]
+pub const SQUARE: &str = "\u{E45E}"; // maximize
+#[cfg(not(target_os = "macos"))]
+pub const COPY: &str = "\u{E1CA}"; // restore
+#[cfg(not(target_os = "macos"))]
+pub const X: &str = "\u{E4F6}"; // close
 
 /// Register the embedded Phosphor font. It gets its own family for deliberate
 /// icon rendering, and is appended as a fallback to the text families so an icon

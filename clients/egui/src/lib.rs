@@ -119,9 +119,34 @@ impl Lockbook {
             (s.visuals.widgets.hovered.fg_stroke, s.visuals.widgets.active.fg_stroke) = saved;
         });
 
-        // The toggle and settings buttons float as a fixed top-left cluster so
-        // they stay put whether the sidebar is open or closed.
+        // Windows/Linux: the window is borderless, so a drag strip across the
+        // top stands in for the native title bar — drag to move, double-click to
+        // toggle maximize. The toolbar cluster layers above it (Foreground) so
+        // its buttons still take clicks.
+        #[cfg(not(target_os = "macos"))]
+        egui::Area::new("window_drag".into())
+            .fixed_pos(ctx.screen_rect().min)
+            .show(ctx, |ui| {
+                let size = egui::vec2(ctx.screen_rect().width(), HEADER_CENTER * 2.0);
+                let resp = ui.allocate_response(size, egui::Sense::click_and_drag());
+                if resp.drag_started_by(egui::PointerButton::Primary) {
+                    ui.ctx().send_viewport_cmd(egui::ViewportCommand::StartDrag);
+                }
+                if resp.double_clicked_by(egui::PointerButton::Primary) {
+                    let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                }
+            });
+
+        #[cfg(not(target_os = "macos"))]
+        window_resize_edges(ctx);
+
+        // The toggle and settings buttons float as a fixed top-left cluster.
+        // Foreground order (drawn after the drag strip and resize zones) keeps
+        // their clicks from being swallowed by the title-bar drag region beneath.
         egui::Area::new("sidebar_toolbar".into())
+            .order(egui::Order::Foreground)
             .fixed_pos(egui::pos2(TOGGLE_X, HEADER_CENTER - nav::ICON_BUTTON_SIZE / 2.0))
             .show(ctx, |ui| {
                 ui.horizontal(|ui| {
@@ -131,6 +156,35 @@ impl Lockbook {
                     }
                     if nav::icon_button(ui, &t, icons::GEAR).clicked() {
                         actions.push(Action::OpenSettings);
+                    }
+                });
+            });
+
+        // Windows/Linux: minimize / maximize / close, anchored top-right. Ghost
+        // buttons like the toolbar cluster; close firms red. Foreground so they
+        // layer above the drag strip beneath.
+        #[cfg(not(target_os = "macos"))]
+        egui::Area::new("window_controls".into())
+            .order(egui::Order::Foreground)
+            .anchor(
+                egui::Align2::RIGHT_TOP,
+                egui::vec2(-6.0, HEADER_CENTER - nav::ICON_BUTTON_SIZE / 2.0),
+            )
+            .show(ctx, |ui| {
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing.x = 2.0;
+                    if nav::window_button(ui, &t, icons::MINUS, false).clicked() {
+                        ui.ctx()
+                            .send_viewport_cmd(egui::ViewportCommand::Minimized(true));
+                    }
+                    let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+                    let max_icon = if maximized { icons::COPY } else { icons::SQUARE };
+                    if nav::window_button(ui, &t, max_icon, false).clicked() {
+                        ui.ctx()
+                            .send_viewport_cmd(egui::ViewportCommand::Maximized(!maximized));
+                    }
+                    if nav::window_button(ui, &t, icons::X, true).clicked() {
+                        ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
                     }
                 });
             });
@@ -305,6 +359,93 @@ fn usage_bar(ui: &mut egui::Ui, t: &Tokens, frac: f32, label: &str) {
         egui::Rect::from_min_size(track.min, egui::vec2(track.width() * frac.clamp(0.0, 1.0), 5.0));
     ui.painter()
         .rect_filled(fill, 2.5, t.fg().gamma_multiply(0.40));
+}
+
+/// Windows/Linux borderless resize: thin hit-zones on the window's edges and
+/// corners emit `BeginResize` so the host drives a system resize. Foreground
+/// order so they sit above the panels at the very border.
+#[cfg(not(target_os = "macos"))]
+fn window_resize_edges(ctx: &egui::Context) {
+    use egui::{CursorIcon as C, PointerButton, ResizeDirection as D, Sense, pos2};
+
+    let r = ctx.screen_rect();
+    let b = 6.0; // hit-zone thickness
+    let zones = [
+        (
+            "rz_n",
+            egui::Rect::from_min_max(pos2(r.left() + b, r.top()), pos2(r.right() - b, r.top() + b)),
+            D::North,
+            C::ResizeNorth,
+        ),
+        (
+            "rz_s",
+            egui::Rect::from_min_max(
+                pos2(r.left() + b, r.bottom() - b),
+                pos2(r.right() - b, r.bottom()),
+            ),
+            D::South,
+            C::ResizeSouth,
+        ),
+        (
+            "rz_w",
+            egui::Rect::from_min_max(
+                pos2(r.left(), r.top() + b),
+                pos2(r.left() + b, r.bottom() - b),
+            ),
+            D::West,
+            C::ResizeWest,
+        ),
+        (
+            "rz_e",
+            egui::Rect::from_min_max(
+                pos2(r.right() - b, r.top() + b),
+                pos2(r.right(), r.bottom() - b),
+            ),
+            D::East,
+            C::ResizeEast,
+        ),
+        (
+            "rz_nw",
+            egui::Rect::from_min_max(r.min, pos2(r.left() + b, r.top() + b)),
+            D::NorthWest,
+            C::ResizeNwSe,
+        ),
+        (
+            "rz_ne",
+            egui::Rect::from_min_max(pos2(r.right() - b, r.top()), pos2(r.right(), r.top() + b)),
+            D::NorthEast,
+            C::ResizeNeSw,
+        ),
+        (
+            "rz_sw",
+            egui::Rect::from_min_max(
+                pos2(r.left(), r.bottom() - b),
+                pos2(r.left() + b, r.bottom()),
+            ),
+            D::SouthWest,
+            C::ResizeNeSw,
+        ),
+        (
+            "rz_se",
+            egui::Rect::from_min_max(pos2(r.right() - b, r.bottom() - b), r.max),
+            D::SouthEast,
+            C::ResizeNwSe,
+        ),
+    ];
+    for (id, rect, dir, cursor) in zones {
+        egui::Area::new(egui::Id::new(id))
+            .order(egui::Order::Foreground)
+            .fixed_pos(rect.min)
+            .show(ctx, |ui| {
+                let resp = ui
+                    .allocate_response(rect.size(), Sense::drag())
+                    .on_hover_cursor(cursor);
+                if resp.drag_started_by(PointerButton::Primary) {
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::BeginResize(dir));
+                }
+            });
+    }
 }
 
 #[cfg(feature = "egui_wgpu_renderer")]
