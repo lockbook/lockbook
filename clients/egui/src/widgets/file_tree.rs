@@ -14,9 +14,10 @@
 //! Wired so far: multi-select (plain / Cmd-toggle / Shift-range) with a cursor,
 //! keyboard nav (cursor arrows + Shift-extend, Enter to open), expand/collapse,
 //! open (same/new-tab, middle-click), virtualized scroll, sticky ancestor
-//! headers, right-click context menu, create doc/folder, delete (menu + key).
-//! Deferred (each a future `Action`/`Op` pair): rename, move/drag, cut/paste,
-//! duplicate, pin, virtual folders, sort/view modes.
+//! headers, right-click context menu, create doc/folder, delete (menu + key),
+//! inline rename (glyphon field, emoji-safe; menu + F2). Deferred (each a future
+//! `Action`/`Op` pair): move/drag, cut/paste, duplicate, pin, virtual folders,
+//! sort/view modes; and migrating row *labels* to glyphon for emoji display.
 
 use std::collections::HashSet;
 
@@ -63,6 +64,12 @@ pub enum Action {
     },
     /// Delete the current selection — escapes to the shell.
     DeleteSelected,
+    /// Enter inline-rename on `id`, seeding the buffer with its current name.
+    BeginRename(Uuid),
+    /// Commit the in-progress rename (Enter / click-away) — escapes if changed.
+    CommitRename,
+    /// Discard the in-progress rename (Escape).
+    CancelRename,
     /// Flip a folder's expansion.
     Toggle(Uuid),
     /// Open a document — escapes to the shell.
@@ -82,7 +89,16 @@ pub enum Op {
     Open { id: Uuid, new_tab: bool },
     CreateDoc { parent: Uuid },
     CreateFolder { parent: Uuid },
+    Rename { id: Uuid, name: String },
     Delete { ids: Vec<Uuid> },
+}
+
+/// In-progress inline rename. `fresh` triggers a one-time focus grab so the
+/// glyphon field takes over and applies its stem selection.
+struct Rename {
+    id: Uuid,
+    buf: String,
+    fresh: bool,
 }
 
 /// One entry in the flattened visible-row list: which file, how deep, and
@@ -141,6 +157,8 @@ pub struct FileTree {
     /// The fixed end a Shift-range grows from — set on plain/Cmd click, held
     /// across Shift clicks so successive range-extends pivot on one point.
     anchor: Option<Uuid>,
+    /// Inline-rename mode: the row being renamed and its edit buffer.
+    renaming: Option<Rename>,
     /// Set by `Action::ScrollTo`, forces the scroll offset for the next frame
     /// then clears. `None` leaves egui in charge (user wheel/drag). The one-shot
     /// jump both scripts scroll for observation and, later, backs reveal-to-file.
@@ -207,6 +225,20 @@ impl FileTree {
                     return Some(Op::Delete { ids: self.selected.iter().copied().collect() });
                 }
             }
+            Action::BeginRename(id) => {
+                if let Some(f) = files.get_by_id(id) {
+                    self.renaming = Some(Rename { id, buf: f.name.clone(), fresh: true });
+                }
+            }
+            Action::CommitRename => {
+                if let Some(rn) = self.renaming.take() {
+                    let name = rn.buf.trim().to_string();
+                    if !name.is_empty() {
+                        return Some(Op::Rename { id: rn.id, name });
+                    }
+                }
+            }
+            Action::CancelRename => self.renaming = None,
             Action::Toggle(id) => {
                 if !self.expanded.remove(&id) {
                     self.expanded.insert(id);
@@ -342,6 +374,12 @@ impl FileTree {
                         escaped = Some(op);
                     }
                 }
+                // F2 renames the cursor row.
+                if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::F2)) {
+                    if let Some(id) = self.cursor {
+                        self.apply(Action::BeginRename(id), files);
+                    }
+                }
                 // Scroll the cursor back into view after a keyboard move.
                 if moved {
                     if let Some(ci) = self
@@ -402,6 +440,12 @@ impl FileTree {
         place: Placement,
     ) -> Option<Op> {
         let file = files.get_by_id(row.id)?;
+
+        // This row is being renamed: hand off to the inline glyphon field.
+        if self.renaming.as_ref().is_some_and(|r| r.id == row.id) {
+            return self.rename_row(ui, t, row, rect, files);
+        }
+
         let expanded = self.expanded.contains(&row.id);
         let selected = self.selected.contains(&row.id);
 
@@ -496,6 +540,10 @@ impl FileTree {
                 ui.close();
             }
             ui.separator();
+            if ui.button("Rename").clicked() {
+                chosen = Some(Action::BeginRename(row.id));
+                ui.close();
+            }
             if ui.button("Delete").clicked() {
                 chosen = Some(Action::DeleteSelected);
                 ui.close();
@@ -535,6 +583,56 @@ impl FileTree {
                 Action::Open { id: row.id, new_tab: false }
             };
             return self.apply(act, files);
+        }
+        None
+    }
+
+    /// Draw the inline rename field for `row` — the emoji-safe glyphon editor, so
+    /// names with emoji shape correctly. Commits on Enter / click-away, cancels on
+    /// Escape (both surface as focus loss; Escape is checked first).
+    fn rename_row(
+        &mut self, ui: &mut Ui, t: &Tokens, row: Row, rect: Rect, files: &impl FilesExt,
+    ) -> Option<Op> {
+        use workspace_rs::widgets::GlyphonTextEdit;
+
+        // Selected-style background and the type icon, matching a normal row.
+        ui.painter()
+            .rect_filled(rect, 5.0, t.fg().gamma_multiply(0.10));
+        let cy = rect.center().y;
+        let x = rect.left() + INDENT_BASE + row.depth as f32 * INDENT_STEP;
+        let icon = if row.is_folder { icons::FOLDER } else { icons::FILE };
+        let g = ui
+            .painter()
+            .layout_no_wrap(icon.into(), icons::font(16.0), t.fg());
+        ui.painter()
+            .galley(pos2(x, cy - g.size().y / 2.0), g, t.fg());
+
+        let te_id = Id::new(("rename", row.id));
+        let field =
+            Rect::from_min_max(pos2(x + 24.0, cy - 9.0), pos2(rect.right() - 8.0, cy + 9.0));
+
+        let rn = self.renaming.as_mut()?;
+        if rn.fresh {
+            ui.memory_mut(|m| m.request_focus(te_id));
+            rn.fresh = false;
+        }
+        // Select the name stem (up to the last dot) so the extension is preserved.
+        let stem = stem_len(&rn.buf, row.is_folder);
+        let escape = ui.input(|i| i.key_pressed(egui::Key::Escape));
+        let resp = ui.put(
+            field,
+            GlyphonTextEdit::new(&mut rn.buf)
+                .id(te_id)
+                .font_size(14.0)
+                .line_height(18.0)
+                .select_on_focus(0, stem),
+        );
+
+        if escape {
+            return self.apply(Action::CancelRename, files);
+        }
+        if resp.lost_focus() {
+            return self.apply(Action::CommitRename, files);
         }
         None
     }
@@ -598,6 +696,18 @@ impl FileTree {
 /// The focus id the tree parks keyboard focus on (see the focus sink in `show`).
 fn kbd_focus_id() -> Id {
     Id::new("file_tree_kbd_focus")
+}
+
+/// Byte length of the name's stem — everything before the last dot (for
+/// documents), so inline rename preselects the name and preserves the extension.
+fn stem_len(name: &str, is_folder: bool) -> usize {
+    if is_folder {
+        return name.len();
+    }
+    match name.rfind('.') {
+        Some(i) if i > 0 => i,
+        _ => name.len(),
+    }
 }
 
 /// Sorted child ids, materialized so the `files` borrow doesn't straddle the
@@ -896,6 +1006,41 @@ mod tests {
             }
             other => panic!("expected Delete op, got {other:?}"),
         }
+    }
+
+    // Inline-rename lifecycle: Begin seeds the buffer, Commit escapes the edited
+    // name (nothing if empty), Cancel discards. Stem selection preserves the ext.
+    #[test]
+    fn rename_ops() {
+        let files = vec![mk(0, 0, "root", true), mk(1, 0, "note.md", false)];
+        let id = Uuid::from_u128;
+        let mut tree = FileTree::default();
+
+        tree.apply(Action::BeginRename(id(1)), &files);
+        assert_eq!(tree.renaming.as_ref().unwrap().buf, "note.md");
+
+        tree.renaming.as_mut().unwrap().buf = "renamed.md".into();
+        match tree.apply(Action::CommitRename, &files) {
+            Some(Op::Rename { id: rid, name }) => {
+                assert_eq!(rid, id(1));
+                assert_eq!(name, "renamed.md");
+            }
+            other => panic!("expected Rename op, got {other:?}"),
+        }
+        assert!(tree.renaming.is_none());
+
+        // Cancel discards; an empty commit is a no-op.
+        tree.apply(Action::BeginRename(id(1)), &files);
+        tree.apply(Action::CancelRename, &files);
+        assert!(tree.renaming.is_none());
+        tree.apply(Action::BeginRename(id(1)), &files);
+        tree.renaming.as_mut().unwrap().buf = "   ".into();
+        assert!(tree.apply(Action::CommitRename, &files).is_none());
+
+        assert_eq!(stem_len("note.md", false), 4);
+        assert_eq!(stem_len("folder", true), 6);
+        assert_eq!(stem_len("noext", false), 5);
+        assert_eq!(stem_len(".hidden", false), 7);
     }
 
     // note a / folder(> note b): dump each element's effective on-screen vy at

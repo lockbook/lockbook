@@ -375,6 +375,7 @@ impl Lockbook {
                     file_tree::Op::Open { id, new_tab } => r.workspace.open_file(id, true, new_tab),
                     file_tree::Op::CreateDoc { parent } => r.workspace.create_doc_at(false, parent),
                     file_tree::Op::CreateFolder { parent } => r.workspace.create_folder_at(parent),
+                    file_tree::Op::Rename { id, name } => r.workspace.rename_file((id, name), true),
                     file_tree::Op::Delete { ids } => {
                         for id in ids {
                             r.workspace.delete_file(id);
