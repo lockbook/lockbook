@@ -16,7 +16,6 @@
         var pathResults: [PathSearcherResult] = []
         var focusedResult: ContentSearcherResult? = nil
         var isQuerying: Bool = false
-        /// Index of the keyboard-highlighted row within the current mode's result list.
         var selected: Int = 0
 
         @ObservationIgnored private var contentSearcher: ContentSearching?
@@ -31,7 +30,6 @@
             self.filesModel = filesModel
         }
 
-        /// Rebuild the indexes (picking up new/edited files) and re-run the current query.
         func refresh() {
             contentSearcher = AppState.lb.contentSearcher()
             pathSearcher = AppState.lb.pathSearcher()
@@ -67,12 +65,10 @@
             }
         }
 
-        /// Number of rows in the list currently shown (depends on the active mode).
         var resultCount: Int {
             mode == .content ? contentResults.count : pathResults.count
         }
 
-        /// Move the keyboard highlight, clamped to the result list.
         func moveSelection(_ delta: Int) {
             guard resultCount > 0 else {
                 selected = 0

@@ -1,16 +1,11 @@
 import SwiftUI
 
-public extension EnvironmentValues {
+extension EnvironmentValues {
     var isPreview: Bool {
-        get { self[isPreviewEnvironmentKey.self] }
-        set {}
+        self[isPreviewEnvironmentKey.self]
     }
 }
 
 struct isPreviewEnvironmentKey: EnvironmentKey {
-    #if RELEASE
-        static var defaultValue: Bool = false
-    #else
-        static var defaultValue: Bool = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
-    #endif
+    static var defaultValue: Bool = ProcessInfo.processInfo.environment["XCODE_RUNNING_FOR_PREVIEWS"] == "1"
 }

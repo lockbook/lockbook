@@ -10,7 +10,7 @@ import SwiftWorkspace
         var body: some View {
             Form {
                 Section("Account") {
-                    UsernameRow(model: model)
+                    UsernameRow()
 
                     Button("Reveal Account Keys") {
                         AuthHelper.authenticateWithBiometricsOrPasscode { success in
@@ -36,7 +36,7 @@ import SwiftWorkspace
                 }
 
                 Section("Debug") {
-                    ServerRow(model: model)
+                    ServerRow()
 
                     NavigationLink("Debug Info") {
                         DebugView()
@@ -87,7 +87,7 @@ import SwiftWorkspace
         var body: some View {
             Form {
                 Section("Account") {
-                    UsernameRow(model: model)
+                    UsernameRow()
 
                     Button(action: {
                         AuthHelper.authenticateWithBiometricsOrPasscode { success in
@@ -161,7 +161,7 @@ import SwiftWorkspace
         var body: some View {
             Form {
                 Section("Debug") {
-                    ServerRow(model: model)
+                    ServerRow()
 
                     DebugView()
                 }
@@ -172,10 +172,8 @@ import SwiftWorkspace
 #endif
 
 struct UsernameRow: View {
-    let model: SettingsModel
-
     var body: some View {
-        if let account = model.account {
+        if let account = AppState.shared.account {
             HStack {
                 Text("Username:")
                 Spacer()
@@ -188,10 +186,8 @@ struct UsernameRow: View {
 }
 
 struct ServerRow: View {
-    let model: SettingsModel
-
     var body: some View {
-        if let account = model.account {
+        if let account = AppState.shared.account {
             HStack {
                 Text("Server:")
                     .padding(.trailing, 10)

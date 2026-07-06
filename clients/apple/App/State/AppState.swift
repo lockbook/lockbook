@@ -1,6 +1,5 @@
 import Foundation
 import Observation
-import SwiftUI
 import SwiftWorkspace
 
 @Observable class AppState {
@@ -23,7 +22,6 @@ import SwiftWorkspace
     }()
 
     #if !os(macOS)
-    // migration from 26.4.11 to app directory
     private static func resolveIOSWritablePath() -> String {
         let fm = FileManager.default
         let legacyURL = fm.urls(for: .documentDirectory, in: .userDomainMask).last!
@@ -65,9 +63,8 @@ import SwiftWorkspace
     }
     #endif
 
-    static let LB_API_URL: String? = ProcessInfo.processInfo.environment["API_LOCATION"]
-
-    static let defaultApiUrl: String = LB_API_URL ?? "https://app.lockbook.net"
+    static let defaultApiUrl: String =
+        ProcessInfo.processInfo.environment["API_LOCATION"] ?? "https://app.lockbook.net"
 
     static let lb: LbAPI = {
         if isPreviewEnvironmentKey.defaultValue {

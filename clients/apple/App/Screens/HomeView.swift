@@ -67,7 +67,7 @@ struct HomeView: View {
                             Button {
                                 renameTarget = file
                             } label: {
-                                let segments = breadcrumbSegments(for: file).map(\.name)
+                                let segments = filesModel.ancestors(of: file).map(\.name)
 
                                 ViewThatFits(in: .horizontal) {
                                     titleCrumb(file, leading: segments)
@@ -576,20 +576,6 @@ struct HomeView: View {
         }
     }
 
-    private func breadcrumbSegments(for file: File) -> [File] {
-        var segments: [File] = []
-        var current = file
-
-        while let parent = filesModel.idsToFiles[current.parent],
-              !parent.isRoot, parent.id != current.id
-        {
-            segments.append(parent)
-            current = parent
-        }
-
-        return segments.reversed()
-    }
-
     private var detailTitle: String {
         #if os(macOS)
             openDocFile == nil ? "Lockbook" : ""
@@ -604,11 +590,7 @@ struct HomeView: View {
             Text("Workspace")
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
-            #if os(iOS)
-                WorkspaceView()
-            #else
-                WorkspaceView(workspaceInput, workspaceOutput, AppState.lb.lbUnsafeRawPtr)
-            #endif
+            WorkspaceView()
         }
     }
 }

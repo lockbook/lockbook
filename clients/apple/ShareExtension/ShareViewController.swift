@@ -1,5 +1,3 @@
-import MobileCoreServices
-import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
@@ -19,10 +17,6 @@ class ShareViewController: UIViewController {
                 try! FileManager.default.createDirectory(at: sharedFolder, withIntermediateDirectories: true)
 
                 self.processEContext(sharedFolder: sharedFolder, eContext: self.extensionContext!)
-
-                if self.processed.isEmpty {
-                    self.failed = true
-                }
 
                 if !self.failed {
                     let filePathsQuery = self.processed.joined(separator: ",")

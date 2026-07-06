@@ -12,7 +12,12 @@
 
         var body: some View {
             VStack(spacing: 0) {
-                searchField
+                SearchField(
+                    placeholder: "Search",
+                    text: $model.input,
+                    focus: $fieldFocused,
+                    onSubmit: { fieldFocused = false }
+                )
                 modePicker
                 Divider()
                 results
@@ -35,7 +40,6 @@
             homeState.compactColumn = .detail
         }
 
-        /// Arrow-key handler: only steals the key when a result list is showing.
         private func moveSelection(_ delta: Int) -> KeyPress.Result {
             guard model.focusedResult == nil, model.resultCount > 0 else {
                 return .ignored
@@ -52,7 +56,6 @@
             return .handled
         }
 
-        /// Open the keyboard-highlighted result (Return key / tap).
         private func openSelected() {
             switch model.mode {
             case .content:
@@ -63,31 +66,6 @@
                 guard model.pathResults.indices.contains(model.selected) else { return }
                 open(model.pathResults[model.selected].id)
             }
-        }
-
-        var searchField: some View {
-            HStack(spacing: 8) {
-                Image(systemName: "magnifyingglass")
-                    .foregroundColor(.secondary)
-                TextField("Search", text: $model.input)
-                    .textFieldStyle(.plain)
-                    .focused($fieldFocused)
-                    .submitLabel(.search)
-                    .onSubmit { fieldFocused = false }
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                if !model.input.isEmpty {
-                    Button(action: { model.input = "" }) {
-                        Image(systemName: "xmark.circle.fill")
-                            .foregroundColor(.secondary)
-                    }
-                    .buttonStyle(.plain)
-                }
-            }
-            .padding(8)
-            .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.15)))
-            .padding(.horizontal)
-            .padding(.vertical, 8)
         }
 
         var modePicker: some View {
@@ -320,13 +298,10 @@
         }
 
         private var parentOffset: Int {
-            // leading "/" consumes index 0, so parent text starts at 1 for nested paths
             result.parentPath == "/" ? 0 : 1
         }
 
         private var filenameOffset: Int {
-            // root: "/" + filename → filename starts at 1
-            // nested: "/" + parent + "/" + filename → starts at parent.count + 2
             if result.parentPath.isEmpty || result.parentPath == "/" {
                 return 1
             }

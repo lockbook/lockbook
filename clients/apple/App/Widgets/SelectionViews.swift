@@ -1,6 +1,21 @@
 import SwiftUI
 import SwiftWorkspace
 
+private let swipeThreshold: CGFloat = 60
+
+private func rubberBand(_ value: CGFloat, threshold: CGFloat) -> CGFloat {
+    value < threshold ? value : threshold + (value - threshold) * 0.2
+}
+
+private func selectRevealIndicator(offset: CGFloat) -> some View {
+    Image(systemName: "checkmark.circle")
+        .font(.system(size: 20))
+        .foregroundStyle(Color.accentColor)
+        .scaleEffect(min(offset / swipeThreshold, 1))
+        .opacity(min(offset / swipeThreshold, 1))
+        .frame(width: offset)
+}
+
 func contextMenuItem(
     _ title: String,
     systemImage: String,
@@ -52,7 +67,6 @@ struct SelectableRowModifier: ViewModifier {
     @State private var showShare = false
     @State private var showRename = false
 
-    private static let swipeThreshold: CGFloat = 60
     private static let actionsWidth: CGFloat = 168
 
     var isSelected: Bool {
@@ -119,7 +133,7 @@ struct SelectableRowModifier: ViewModifier {
 
                 contextMenuItem("Select", systemImage: "checkmark.circle") {
                     withAnimation {
-                        selection.begin(with: id)
+                        selection.toggle(id)
                     }
                 }
 
@@ -186,12 +200,7 @@ struct SelectableRowModifier: ViewModifier {
                 .offset(x: swipeOffset)
                 .background(alignment: .leading) {
                     if swipeOffset > 0 {
-                        Image(systemName: "checkmark.circle")
-                            .font(.system(size: 20))
-                            .foregroundStyle(Color.accentColor)
-                            .scaleEffect(min(swipeOffset / Self.swipeThreshold, 1))
-                            .opacity(min(swipeOffset / Self.swipeThreshold, 1))
-                            .frame(width: swipeOffset)
+                        selectRevealIndicator(offset: swipeOffset)
                     }
                 }
                 .background(alignment: .trailing) {
@@ -255,11 +264,8 @@ struct SelectableRowModifier: ViewModifier {
                 let raw = base + value.translation.width
 
                 if raw >= 0 {
-                    swipeOffset =
-                        raw < Self.swipeThreshold
-                            ? raw
-                            : Self.swipeThreshold + (raw - Self.swipeThreshold) * 0.2
-                    swipePastThreshold = swipeOffset >= Self.swipeThreshold
+                    swipeOffset = rubberBand(raw, threshold: swipeThreshold)
+                    swipePastThreshold = swipeOffset >= swipeThreshold
                 } else {
                     swipeOffset =
                         raw > -Self.actionsWidth
@@ -273,13 +279,7 @@ struct SelectableRowModifier: ViewModifier {
                 guard swipeHorizontal == true else { return }
 
                 if swipePastThreshold {
-                    withAnimation {
-                        selection.toggle(id)
-
-                        if selection.selectedIds.isEmpty {
-                            selection.end()
-                        }
-                    }
+                    selection.toggleAndCollapse(id)
                     swipePastThreshold = false
                     closeActions()
                 } else if swipeOffset < -Self.actionsWidth / 2 {
@@ -327,20 +327,13 @@ struct SelectSwipeModifier: ViewModifier {
     @State private var swipeHorizontal: Bool? = nil
     @State private var swipePastThreshold = false
 
-    private static let swipeThreshold: CGFloat = 60
-
     func body(content: Content) -> some View {
         #if os(iOS)
             content
                 .offset(x: swipeOffset)
                 .background(alignment: .leading) {
                     if swipeOffset > 0 {
-                        Image(systemName: "checkmark.circle")
-                            .font(.system(size: 20))
-                            .foregroundStyle(Color.accentColor)
-                            .scaleEffect(min(swipeOffset / Self.swipeThreshold, 1))
-                            .opacity(min(swipeOffset / Self.swipeThreshold, 1))
-                            .frame(width: swipeOffset)
+                        selectRevealIndicator(offset: swipeOffset)
                     }
                 }
                 .sensoryFeedback(.selection, trigger: swipePastThreshold)
@@ -361,24 +354,15 @@ struct SelectSwipeModifier: ViewModifier {
                 guard swipeHorizontal == true else { return }
 
                 let width = max(value.translation.width, 0)
-                swipeOffset =
-                    width < Self.swipeThreshold
-                        ? width
-                        : Self.swipeThreshold + (width - Self.swipeThreshold) * 0.2
-                swipePastThreshold = swipeOffset >= Self.swipeThreshold
+                swipeOffset = rubberBand(width, threshold: swipeThreshold)
+                swipePastThreshold = swipeOffset >= swipeThreshold
             }
             .onEnded { _ in
                 defer { swipeHorizontal = nil }
                 guard swipeHorizontal == true else { return }
 
                 if swipePastThreshold {
-                    withAnimation {
-                        selection.toggle(id)
-
-                        if selection.selectedIds.isEmpty {
-                            selection.end()
-                        }
-                    }
+                    selection.toggleAndCollapse(id)
                 }
 
                 swipePastThreshold = false

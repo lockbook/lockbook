@@ -1,5 +1,4 @@
 import SwiftUI
-import SwiftWorkspace
 
 @main
 struct LockbookApp: App {

@@ -120,9 +120,7 @@ struct FileTreeView: View {
             .selectionCommands(fileTreeModel.selection)
             .environment(fileTreeModel)
             .navigationTitle(root.name)
-            #if os(iOS)
-                .navigationBarTitleDisplayMode(.large)
-            #endif
+            .largeNavigationTitle()
         } else {
             ProgressView()
         }
@@ -213,7 +211,7 @@ struct FileTreeView: View {
         var headers: [File] = []
 
         for offset in 0 ..< 32 {
-            headers = ancestors(of: row(baseIndex + offset).file)
+            headers = filesModel.ancestors(of: row(baseIndex + offset).file)
 
             if headers.count <= offset {
                 break
@@ -221,22 +219,10 @@ struct FileTreeView: View {
         }
 
         if headers.isEmpty {
-            headers = ancestors(of: row(baseIndex).file)
+            headers = filesModel.ancestors(of: row(baseIndex).file)
         }
 
         return headers
-    }
-
-    private func ancestors(of file: File) -> [File] {
-        var chain: [File] = []
-        var current = file
-
-        while let parent = filesModel.idsToFiles[current.parent], !parent.isRoot, parent.id != current.id {
-            chain.append(parent)
-            current = parent
-        }
-
-        return chain.reversed()
     }
 
     private func stickyHeaderStack(_ files: [File]) -> some View {

@@ -67,9 +67,7 @@ struct UpgradeAccountView: View {
                 .frame(maxWidth: .infinity, alignment: .center)
         }
         .navigationTitle("Upgrade Account")
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-        #endif
+        .largeNavigationTitle()
         .padding(.vertical, 10)
         .padding(.horizontal, 20)
     }

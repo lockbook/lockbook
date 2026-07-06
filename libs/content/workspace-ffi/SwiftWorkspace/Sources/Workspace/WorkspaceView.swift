@@ -12,7 +12,6 @@ import SwiftUI
     public struct WorkspaceView: UIViewControllerRepresentable {
         @Environment(WorkspaceInputState.self) private var workspaceInput
         @Environment(WorkspaceOutputState.self) private var workspaceOutput
-        @Environment(\.horizontalSizeClass) var horizontalSizeClass
 
         public init() {}
 
@@ -263,20 +262,10 @@ import SwiftUI
 
 #else
     public struct WorkspaceView: NSViewRepresentable, Equatable {
-        public let workspaceInput: WorkspaceInputState
-        public let workspaceOutput: WorkspaceOutputState
+        @Environment(WorkspaceInputState.self) private var workspaceInput
+        @Environment(WorkspaceOutputState.self) private var workspaceOutput
 
-        let coreHandle: UnsafeMutableRawPointer?
-
-        public init(
-            _ workspaceInput: WorkspaceInputState,
-            _ workspaceOutput: WorkspaceOutputState,
-            _ coreHandle: UnsafeMutableRawPointer?
-        ) {
-            self.workspaceInput = workspaceInput
-            self.workspaceOutput = workspaceOutput
-            self.coreHandle = coreHandle
-        }
+        public init() {}
 
         public class Coordinator: NSObject {
             var cancellables: Set<AnyCancellable> = []
@@ -294,7 +283,7 @@ import SwiftUI
             let mtkView = MacMTK()
             mtkView.workspaceInput = workspaceInput
             mtkView.workspaceOutput = workspaceOutput
-            mtkView.setInitialContent(coreHandle)
+            mtkView.setInitialContent(workspaceInput.coreHandle)
 
             workspaceInput.redraw
                 .sink { _ in

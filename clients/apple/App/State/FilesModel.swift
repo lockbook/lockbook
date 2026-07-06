@@ -102,6 +102,18 @@ import SwiftWorkspace
         }
     }
 
+    func ancestors(of file: File) -> [File] {
+        var chain: [File] = []
+        var current = file
+
+        while let parent = idsToFiles[current.parent], !parent.isRoot, parent.id != current.id {
+            chain.append(parent)
+            current = parent
+        }
+
+        return chain.reversed()
+    }
+
     func canMove(_ file: File, into dest: File) -> Bool {
         guard dest.isFolder, dest.id != file.id, dest.id != file.parent else {
             return false

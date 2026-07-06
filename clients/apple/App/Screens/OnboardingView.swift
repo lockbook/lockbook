@@ -63,18 +63,14 @@ struct OnboardingView: View {
     }
 
     var subText: some View {
+        Text("The perfect place to record, sync, and share your thoughts.")
+            .font(.body)
+            .frame(maxWidth: 270)
+            .padding(.top)
         #if os(iOS)
-            Text("The perfect place to record, sync, and share your thoughts.")
-                .font(.body)
-                .frame(maxWidth: 270)
-                .padding(.top)
-                .padding(.leading, 12)
+            .padding(.leading, 12)
         #else
-            Text("The perfect place to record, sync, and share your thoughts.")
-                .font(.body)
-                .frame(maxWidth: 270)
-                .padding(.top)
-                .padding(.leading)
+            .padding(.leading)
         #endif
     }
 }
@@ -190,7 +186,7 @@ private struct OnboardingTwoView: View {
         .padding(.bottom)
         .padding(.horizontal, 25)
         .navigationDestination(isPresented: $createdAccount, destination: {
-            OnboardingThreeView(username: username)
+            OnboardingThreeView()
         })
     }
 
@@ -219,8 +215,6 @@ private struct OnboardingTwoView: View {
 }
 
 private struct OnboardingThreeView: View {
-    let username: String
-
     @State var storedSecurely = false
     @State var working = false
 
@@ -286,7 +280,7 @@ private struct OnboardingThreeView: View {
 }
 
 #Preview("Onboarding 3") {
-    OnboardingThreeView(username: "smail")
+    OnboardingThreeView()
 }
 
 struct iOSCheckboxToggleStyle: ToggleStyle {
@@ -475,9 +469,6 @@ struct SetAPIURLView: View {
         .padding(.horizontal)
         .padding(.vertical)
         .frame(maxHeight: .infinity, alignment: .top)
-        .onDisappear {
-            unsavedAPIURL = ""
-        }
     }
 }
 
@@ -526,7 +517,7 @@ struct ImportAccountSyncView: View {
     }
 
     func sync() {
-        DispatchQueue.global(qos: .userInteractive).async {
+        DispatchQueue.global(qos: .userInitiated).async {
             let result = AppState.lb.sync()
             DispatchQueue.main.async {
                 switch result {

@@ -33,7 +33,7 @@ struct FolderPickerSheet: View {
     var body: some View {
         VStack(spacing: 0) {
             header
-            searchField
+            SearchField(placeholder: "Search folders", text: $query)
             Divider()
             list
             Divider()
@@ -59,30 +59,6 @@ struct FolderPickerSheet: View {
         .padding(.horizontal)
         .padding(.top, 14)
         .padding(.bottom, 4)
-    }
-
-    private var searchField: some View {
-        HStack(spacing: 8) {
-            Image(systemName: "magnifyingglass")
-                .foregroundColor(.secondary)
-
-            TextField("Search folders", text: $query)
-                .textFieldStyle(.plain)
-                .autocorrectionDisabled()
-                .autocapitalizationDisabled()
-
-            if !query.isEmpty {
-                Button(action: { query = "" }) {
-                    Image(systemName: "xmark.circle.fill")
-                        .foregroundColor(.secondary)
-                }
-                .buttonStyle(.plain)
-            }
-        }
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.15)))
-        .padding(.horizontal)
-        .padding(.vertical, 8)
     }
 
     private var list: some View {

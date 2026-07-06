@@ -18,15 +18,7 @@ struct FileBreadcrumb: View {
     }
 
     private var segments: [String] {
-        var segments: [String] = []
-        var currentId = file.parent
-
-        while let folder = filesModel.idsToFiles[currentId], !folder.isRoot {
-            segments.append(folder.name)
-            currentId = folder.parent
-        }
-
-        return segments.reversed()
+        filesModel.ancestors(of: file).map(\.name)
     }
 
     private var crumbText: Text? {

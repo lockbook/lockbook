@@ -34,7 +34,6 @@ struct WorkspaceTabsList: View {
 
                     ForEach(recentlyClosed, id: \.self) { id in
                         recentlyClosedRow(id)
-                            .id("recently-closed-\(id.uuidString)")
                     }
                 }
             }
@@ -117,8 +116,6 @@ struct WorkspaceTabsList: View {
                 .foregroundStyle(.tertiary)
                 .padding(.vertical, 8)
                 .padding(.trailing, 2)
-                .contentShape(Rectangle())
-                .draggable(id.uuidString)
 
             Image(systemName: FileIconHelper.docNameToSystemImageName(name: name))
                 .foregroundStyle(isCurrent ? Color.accentColor : Color.secondary)
@@ -248,7 +245,7 @@ struct WorkspaceTabsList: View {
 
             contextMenuItem("Select", systemImage: "checkmark.circle") {
                 withAnimation {
-                    selection.begin(with: id)
+                    selection.toggle(id)
                 }
             }
         }

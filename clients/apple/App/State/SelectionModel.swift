@@ -12,18 +12,22 @@ import SwiftWorkspace
 
     @ObservationIgnored private var anchor: UUID? = nil
 
-    func begin(with id: UUID) {
-        selecting = true
-        selectedIds.insert(id)
-        anchor = id
-    }
-
     func toggle(_ id: UUID) {
         selecting = true
 
         if selectedIds.remove(id) == nil {
             selectedIds.insert(id)
             anchor = id
+        }
+    }
+
+    func toggleAndCollapse(_ id: UUID) {
+        withAnimation {
+            toggle(id)
+
+            if selectedIds.isEmpty {
+                end()
+            }
         }
     }
 
@@ -81,18 +85,7 @@ import SwiftWorkspace
     func selectedFiles(in filesModel: FilesModel) -> [File] {
         selectedIds.compactMap { filesModel.idsToFiles[$0] }
             .filter { file in
-                var current = file
-
-                while let parent = filesModel.idsToFiles[current.parent],
-                      !parent.isRoot, parent.id != current.id
-                {
-                    if selectedIds.contains(parent.id) {
-                        return false
-                    }
-                    current = parent
-                }
-
-                return true
+                !filesModel.ancestors(of: file).contains { selectedIds.contains($0.id) }
             }
     }
 }

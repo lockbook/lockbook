@@ -2,23 +2,12 @@ import Foundation
 import SwiftWorkspace
 
 @Observable class SettingsModel {
-    var account: Account? = nil
     var usage: UsageMetrics? = nil
     var isPremium: Bool? = nil
 
     init() {
-        loadAccount()
         loadTier()
         loadUsages()
-    }
-
-    func loadAccount() {
-        switch AppState.lb.getAccount() {
-        case let .success(account):
-            self.account = account
-        case let .failure(err):
-            report(err)
-        }
     }
 
     func loadTier() {

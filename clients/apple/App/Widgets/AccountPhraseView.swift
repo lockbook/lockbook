@@ -3,7 +3,6 @@ import SwiftUI
 struct AccountPhraseView: View {
     let accountPhrasePart1: [String]
     let accountPhrasePart2: [String]
-    let error: String?
     let includeBackground: Bool
 
     init(includeBackground: Bool = true) {
@@ -12,19 +11,13 @@ struct AccountPhraseView: View {
         switch AppState.lb.exportAccountPhrase() {
         case let .success(accountPhrase):
             let accountPhrase = accountPhrase.split(separator: " ")
-            let first12 = Array(accountPhrase.prefix(12)).enumerated().map { index, item in
+            accountPhrasePart1 = accountPhrase.prefix(12).enumerated().map { index, item in
                 "\(index + 1). \(item)"
-            }.joined(separator: "\n")
-
-            let last12 = Array(accountPhrase.suffix(12)).enumerated().map { index, item in
+            }
+            accountPhrasePart2 = accountPhrase.suffix(12).enumerated().map { index, item in
                 "\(index + 13). \(item)"
-            }.joined(separator: "\n")
-
-            accountPhrasePart1 = first12.components(separatedBy: "\n")
-            accountPhrasePart2 = last12.components(separatedBy: "\n")
-            error = nil
-        case let .failure(err):
-            error = err.msg
+            }
+        case .failure:
             accountPhrasePart1 = []
             accountPhrasePart2 = []
         }

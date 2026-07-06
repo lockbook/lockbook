@@ -1,14 +1,12 @@
 import SwiftUI
 
 struct CollapsableSection<Label: View, Content: View>: View {
-    let id: String
     @ViewBuilder var label: Label
     @ViewBuilder var content: Content
 
     @AppStorage var isOpen: Bool
 
     init(id: String, @ViewBuilder label: @escaping () -> Label, @ViewBuilder content: @escaping () -> Content) {
-        self.id = id
         self.label = label()
         self.content = content()
         _isOpen = AppStorage(wrappedValue: true, "CollapsableSection_\(id)")

@@ -52,9 +52,7 @@ struct RecentsView: View {
         .selectionCommands(model.selection)
         .environment(fileTreeModel)
         .navigationTitle("Recents")
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-        #endif
+        .largeNavigationTitle()
     }
 
 }

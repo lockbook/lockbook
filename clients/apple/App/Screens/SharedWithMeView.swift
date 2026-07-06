@@ -23,9 +23,7 @@ struct SharedWithMeView: View {
             }
         }
         .navigationTitle("Shared with me")
-        #if os(iOS)
-            .navigationBarTitleDisplayMode(.large)
-        #endif
+        .largeNavigationTitle()
     }
 
     func sharedByUsers(pendingShares: [String: [File]]) -> some View {
