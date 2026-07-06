@@ -7,7 +7,9 @@ use serde::Deserialize;
 use serde_json::json;
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::backend::{ChatMsg, CompletionReq, ModelInfo};
+use super::backend::{
+    ChatMsg, Completion, CompletionReq, ModelInfo, ToolCall, ToolSchema, parse_tool_args,
+};
 use super::settings::Provider;
 
 /// Total request attempts (initial + backoff retries on 429/5xx).
@@ -26,6 +28,9 @@ struct HostQuirks {
     /// Output cap that fit the host's per-minute token budget (Groq's free
     /// tier admission-checks prompt + cap against 8k TPM).
     cap: Option<u32>,
+    /// Rejected OpenAI's newer tool fields (`strict`,
+    /// `parallel_tool_calls`) — send the universal core only.
+    plain_tools: bool,
 }
 
 fn quirks(base_url: &str) -> HostQuirks {
@@ -99,6 +104,78 @@ struct Choice {
 struct Delta {
     #[serde(default)]
     content: Option<String>,
+    #[serde(default)]
+    tool_calls: Vec<ToolCallDelta>,
+}
+
+/// One streamed fragment of a tool call. The id and name arrive on the first
+/// fragment; `arguments` arrives as JSON split across fragments, keyed to its
+/// call by `index`.
+#[derive(Deserialize)]
+struct ToolCallDelta {
+    #[serde(default)]
+    index: usize,
+    #[serde(default)]
+    id: Option<String>,
+    #[serde(default)]
+    function: Option<FunctionDelta>,
+}
+
+#[derive(Deserialize)]
+struct FunctionDelta {
+    #[serde(default)]
+    name: Option<String>,
+    #[serde(default)]
+    arguments: Option<String>,
+}
+
+/// A tool call mid-accumulation.
+#[derive(Default)]
+struct PartialCall {
+    id: String,
+    name: String,
+    args: String,
+}
+
+/// Write `tools` (and the one-call-at-a-time preference) into the request
+/// body. `plain` sends only the universal core — no `strict`, no
+/// `parallel_tool_calls` — for hosts that reject the newer fields.
+fn set_tools(body: &mut serde_json::Value, tools: &[ToolSchema], plain: bool) {
+    body["tools"] = tools
+        .iter()
+        .map(|t| {
+            let mut f = json!({
+                "name": t.name,
+                "description": t.description,
+                "parameters": t.parameters,
+            });
+            if !plain {
+                f["strict"] = json!(true);
+            }
+            json!({ "type": "function", "function": f })
+        })
+        .collect();
+    let obj = body.as_object_mut().expect("body is an object");
+    if plain {
+        obj.remove("parallel_tool_calls");
+    } else {
+        obj.insert("parallel_tool_calls".into(), json!(false));
+    }
+}
+
+/// Assemble accumulated fragments into calls: parse each argument string
+/// (empty = no args; malformed = wrapped raw so dispatch can steer), and
+/// synthesize ids for providers that omit them.
+fn finish_calls(parts: Vec<PartialCall>) -> Vec<ToolCall> {
+    parts
+        .into_iter()
+        .enumerate()
+        .filter(|(_, p)| !p.name.is_empty())
+        .map(|(i, p)| {
+            let id = if p.id.is_empty() { format!("call_{i}") } else { p.id };
+            ToolCall { id, name: p.name, args: parse_tool_args(&p.args) }
+        })
+        .collect()
 }
 
 #[derive(Deserialize)]
@@ -120,7 +197,7 @@ struct PromptTokensDetails {
 impl OpenAiBackend {
     pub(super) async fn complete(
         &self, req: CompletionReq, deltas: UnboundedSender<String>,
-    ) -> Result<Usage, String> {
+    ) -> Result<Completion, String> {
         let mut messages = Vec::new();
         if !req.system.is_empty() {
             messages.push(json!({ "role": "system", "content": req.system }));
@@ -128,7 +205,34 @@ impl OpenAiBackend {
         for msg in &req.messages {
             messages.push(match msg {
                 ChatMsg::User(text) => json!({ "role": "user", "content": text }),
-                ChatMsg::Assistant(text) => json!({ "role": "assistant", "content": text }),
+                ChatMsg::Assistant { text, tool_calls } => {
+                    let mut m = json!({ "role": "assistant" });
+                    // Text is null (not "") alongside calls, per the wire's
+                    // own responses.
+                    m["content"] = if text.is_empty() && !tool_calls.is_empty() {
+                        serde_json::Value::Null
+                    } else {
+                        json!(text)
+                    };
+                    if !tool_calls.is_empty() {
+                        // `arguments` is a JSON *string* on this wire.
+                        m["tool_calls"] = tool_calls
+                            .iter()
+                            .map(|c| {
+                                json!({
+                                    "id": c.id,
+                                    "type": "function",
+                                    "function": { "name": c.name, "arguments": c.args.to_string() },
+                                })
+                            })
+                            .collect();
+                    }
+                    m
+                }
+                // No error flag on this wire — the result text carries it.
+                ChatMsg::ToolResult { id, content, .. } => {
+                    json!({ "role": "tool", "tool_call_id": id, "content": content })
+                }
             });
         }
 
@@ -148,6 +252,10 @@ impl OpenAiBackend {
         // (OpenAI, Google's compat layer, xAI, Groq, OpenRouter, Together).
         if let Some(effort) = &self.effort {
             body["reasoning_effort"] = json!(effort);
+        }
+        let mut plain_tools = known.plain_tools;
+        if !req.tools.is_empty() {
+            set_tools(&mut body, &req.tools, plain_tools);
         }
 
         // Rate limits (429) and transient server errors (5xx) back off and
@@ -220,6 +328,18 @@ impl OpenAiBackend {
                     }
                 }
             }
+            // Some compat hosts reject OpenAI's newer tool fields by name.
+            // Strip to the universal tool core and re-send.
+            if !plain_tools
+                && !req.tools.is_empty()
+                && status.as_u16() == 400
+                && (error_body.contains("parallel_tool_calls") || error_body.contains("strict"))
+            {
+                plain_tools = true;
+                learn_quirk(&self.base_url, |q| q.plain_tools = true);
+                set_tools(&mut body, &req.tools, true);
+                continue;
+            }
             return Err(format!("{status}: {}", error_body.chars().take(500).collect::<String>()));
         };
 
@@ -229,6 +349,7 @@ impl OpenAiBackend {
         // chunks split mid-character, and decoding a chunk at a time would
         // corrupt multi-byte glyphs into � (and persist them).
         let mut usage = Usage::default();
+        let mut calls: Vec<PartialCall> = Vec::new();
         let mut stream = resp.bytes_stream();
         let mut buf: Vec<u8> = Vec::new();
         loop {
@@ -246,7 +367,7 @@ impl OpenAiBackend {
                 let line = line.trim();
                 let Some(payload) = line.strip_prefix("data:").map(str::trim) else { continue };
                 if payload == "[DONE]" {
-                    return Ok(usage);
+                    return Ok(Completion { tool_calls: finish_calls(calls), usage });
                 }
                 let Ok(chunk) = serde_json::from_str::<Chunk>(payload) else { continue };
                 if let Some(u) = chunk.usage {
@@ -258,14 +379,36 @@ impl OpenAiBackend {
                     usage.output = u.completion_tokens;
                     usage.cache_read = cached;
                 }
-                if let Some(text) = chunk.choices.first().and_then(|c| c.delta.content.clone()) {
-                    if !text.is_empty() {
-                        let _ = deltas.send(text);
+                if let Some(choice) = chunk.choices.into_iter().next() {
+                    if let Some(text) = choice.delta.content {
+                        if !text.is_empty() {
+                            let _ = deltas.send(text);
+                        }
+                    }
+                    // Fragments accumulate per index: id/name land on the
+                    // first fragment (assigned, in case a host re-sends
+                    // them), arguments concatenate across fragments.
+                    for frag in choice.delta.tool_calls {
+                        if calls.len() <= frag.index {
+                            calls.resize_with(frag.index + 1, Default::default);
+                        }
+                        let call = &mut calls[frag.index];
+                        if let Some(id) = frag.id {
+                            call.id = id;
+                        }
+                        if let Some(f) = frag.function {
+                            if let Some(name) = f.name {
+                                call.name = name;
+                            }
+                            if let Some(args) = f.arguments {
+                                call.args.push_str(&args);
+                            }
+                        }
                     }
                 }
             }
         }
-        Ok(usage)
+        Ok(Completion { tool_calls: finish_calls(calls), usage })
     }
 }
 
@@ -585,11 +728,23 @@ mod tests {
     use super::mock::{SSE_HELLO, serve_once};
     use super::*;
 
-    fn complete(base_url: &str) -> (Result<Usage, String>, Vec<String>) {
+    fn complete(base_url: &str) -> (Result<Completion, String>, Vec<String>) {
         complete_with(base_url, 100)
     }
 
-    fn complete_with(base_url: &str, max_tokens: u32) -> (Result<Usage, String>, Vec<String>) {
+    fn complete_with(base_url: &str, max_tokens: u32) -> (Result<Completion, String>, Vec<String>) {
+        let req = CompletionReq {
+            system: "system".into(),
+            messages: vec![ChatMsg::User("hi".into())],
+            max_tokens,
+            tools: vec![],
+        };
+        complete_req(base_url, req)
+    }
+
+    fn complete_req(
+        base_url: &str, req: CompletionReq,
+    ) -> (Result<Completion, String>, Vec<String>) {
         let backend = openai_compat(&Provider {
             name: "mock".into(),
             display_name: None,
@@ -599,11 +754,6 @@ mod tests {
             api_key: Some("test-key".into()),
             effort: None,
         });
-        let req = CompletionReq {
-            system: "system".into(),
-            messages: vec![ChatMsg::User("hi".into())],
-            max_tokens,
-        };
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -615,6 +765,20 @@ mod tests {
             deltas.push(d);
         }
         (result, deltas)
+    }
+
+    /// A schema for wire tests: one required string param, strict-compatible.
+    fn tool() -> ToolSchema {
+        ToolSchema {
+            name: "read_note",
+            description: "Read a note.",
+            parameters: serde_json::json!({
+                "type": "object",
+                "properties": { "path": { "type": "string" } },
+                "required": ["path"],
+                "additionalProperties": false,
+            }),
+        }
     }
 
     /// A configured effort rides the wire as `reasoning_effort`; an absent
@@ -639,6 +803,7 @@ mod tests {
                 system: "s".into(),
                 messages: vec![ChatMsg::User("hi".into())],
                 max_tokens: 100,
+                tools: vec![],
             };
             let (tx, _rx) = tokio::sync::mpsc::unbounded_channel();
             tokio::runtime::Builder::new_current_thread()
@@ -651,6 +816,118 @@ mod tests {
         };
         assert!(run(&provider(Some("high"))).contains("\"reasoning_effort\":\"high\""));
         assert!(!run(&provider(None)).contains("reasoning_effort"));
+    }
+
+    /// Tools ride the wire in OpenAI's function shape with `strict` and the
+    /// one-call-at-a-time flag; a tool-less request sends neither key. Call
+    /// turns re-serialize with `arguments` as a JSON *string*, and results go
+    /// back as `role:"tool"` under the call id.
+    #[test]
+    fn tools_and_call_turns_ride_the_wire() {
+        let (base, body_rx) = super::mock::serve_capturing(SSE_HELLO);
+        let req = CompletionReq {
+            system: "s".into(),
+            messages: vec![
+                ChatMsg::User("add milk".into()),
+                ChatMsg::Assistant {
+                    text: String::new(),
+                    tool_calls: vec![ToolCall {
+                        id: "call_1".into(),
+                        name: "read_note".into(),
+                        args: serde_json::json!({ "path": "/todo.md" }),
+                    }],
+                },
+                ChatMsg::ToolResult {
+                    id: "call_1".into(),
+                    content: "- eggs".into(),
+                    is_error: false,
+                },
+            ],
+            max_tokens: 100,
+            tools: vec![tool()],
+        };
+        let (result, _) = complete_req(&base, req);
+        assert!(result.is_ok(), "{result:?}");
+        let body: serde_json::Value = serde_json::from_str(&body_rx.recv().unwrap()).unwrap();
+        assert_eq!(body["tools"][0]["type"], "function");
+        assert_eq!(body["tools"][0]["function"]["name"], "read_note");
+        assert_eq!(body["tools"][0]["function"]["strict"], true);
+        assert_eq!(body["parallel_tool_calls"], false);
+        // messages: [system, user, assistant call turn, tool result]
+        let call_turn = &body["messages"][2];
+        assert_eq!(call_turn["content"], serde_json::Value::Null);
+        assert_eq!(call_turn["tool_calls"][0]["id"], "call_1");
+        assert_eq!(
+            call_turn["tool_calls"][0]["function"]["arguments"], "{\"path\":\"/todo.md\"}",
+            "arguments must be a JSON string"
+        );
+        let result_turn = &body["messages"][3];
+        assert_eq!(result_turn["role"], "tool");
+        assert_eq!(result_turn["tool_call_id"], "call_1");
+        assert_eq!(result_turn["content"], "- eggs");
+
+        let (base, body_rx) = super::mock::serve_capturing(SSE_HELLO);
+        let (_, _) = complete_with(&base, 100);
+        let body: serde_json::Value = serde_json::from_str(&body_rx.recv().unwrap()).unwrap();
+        assert!(body.get("tools").is_none(), "tool-less request must omit tools");
+        assert!(body.get("parallel_tool_calls").is_none());
+    }
+
+    /// Tool-call fragments accumulate by index across chunks — id and name on
+    /// the first fragment, arguments split across the rest (and across a
+    /// network chunk boundary mid-fragment).
+    #[test]
+    fn tool_calls_accumulate_across_chunks() {
+        const SSE_CALL: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+             data: {\"choices\":[{\"delta\":{\"content\":\"Let me check.\"}}]}\n\n\
+             data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_9\",\"type\":\"function\",\"function\":{\"name\":\"read_note\",\"arguments\":\"\"}}]}}]}\n\n\
+             data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"{\\\"path\\\":\\\"/to\"}}]}}]}\n\n\
+             data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arguments\":\"do.md\\\"}\"}}]}}]}\n\n\
+             data: {\"choices\":[],\"usage\":{\"prompt_tokens\":10,\"completion_tokens\":2}}\n\n\
+             data: [DONE]\n\n";
+        // Split inside the second arguments fragment.
+        let split_at = SSE_CALL.find("do.md").unwrap() + 2;
+        let base = super::mock::serve_split(SSE_CALL, split_at);
+        let req = CompletionReq {
+            system: "s".into(),
+            messages: vec![ChatMsg::User("hi".into())],
+            max_tokens: 100,
+            tools: vec![tool()],
+        };
+        let (result, deltas) = complete_req(&base, req);
+        let completion = result.unwrap();
+        assert_eq!(deltas.join(""), "Let me check.");
+        assert_eq!(
+            completion.tool_calls,
+            vec![ToolCall {
+                id: "call_9".into(),
+                name: "read_note".into(),
+                args: serde_json::json!({ "path": "/todo.md" }),
+            }]
+        );
+    }
+
+    /// A 400 naming a newer tool field re-sends with the universal tool core
+    /// (no strict, no parallel flag) instead of surfacing.
+    #[test]
+    fn strips_tool_fields_when_rejected() {
+        let body = r#"{"error":{"message":"Unknown parameter: 'parallel_tool_calls'."}}"#;
+        let resp = format!(
+            "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\n\
+             Content-Length: {}\r\nConnection: close\r\n\r\n{}",
+            body.len(),
+            body
+        );
+        let base = super::mock::serve_seq(vec![Box::leak(resp.into_boxed_str()), SSE_HELLO]);
+        let req = CompletionReq {
+            system: "s".into(),
+            messages: vec![ChatMsg::User("hi".into())],
+            max_tokens: 100,
+            tools: vec![tool()],
+        };
+        let (result, deltas) = complete_req(&base, req);
+        assert!(result.is_ok(), "{result:?}");
+        assert_eq!(deltas.join(""), "Hello");
     }
 
     /// A 400 naming `max_completion_tokens` re-sends with the renamed cap
@@ -776,8 +1053,10 @@ mod tests {
     fn streams_deltas_and_usage() {
         let base = serve_once(SSE_HELLO);
         let (result, deltas) = complete(&base);
-        let usage = result.unwrap();
+        let completion = result.unwrap();
         assert_eq!(deltas.join(""), "Hello");
+        assert!(completion.tool_calls.is_empty());
+        let usage = completion.usage;
         // input excludes the cached subset: 10 prompt − 3 cached.
         assert_eq!((usage.input, usage.output, usage.cache_read), (7, 2, 3));
     }

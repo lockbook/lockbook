@@ -27,6 +27,32 @@ use serde::Deserialize;
 
 const PROVIDERS_DIR: &str = "/.agent/providers";
 pub const PROMPT_PATH: &str = "/.agent/prompt.md";
+/// The sticky default provider/model for new chats: the most recent pick in
+/// any chat, mirrored here so a fresh chat starts where the last one left off.
+/// Synced like everything under `/.agent`; absent until a first pick, and a
+/// new chat then falls back to the alphabetically-first provider.
+const DEFAULT_PATH: &str = "/.agent/default.json";
+
+/// Read the sticky default selection, if one has been recorded.
+pub fn load_default(core: &Lb) -> Option<lb_rs::model::chat::ModelSelection> {
+    let file = core.get_by_path(DEFAULT_PATH).ok()?;
+    let bytes = core.read_document(file.id, false).ok()?;
+    serde_json::from_slice(&bytes).ok()
+}
+
+/// Record the sticky default selection. Best-effort — a convenience, not
+/// load-bearing — so I/O failures are swallowed.
+pub fn write_default(core: &Lb, selection: &lb_rs::model::chat::ModelSelection) {
+    let Ok(bytes) = serde_json::to_vec_pretty(selection) else { return };
+    let id = match core.get_by_path(DEFAULT_PATH) {
+        Ok(f) => f.id,
+        Err(_) => match core.create_at_path(DEFAULT_PATH) {
+            Ok(f) => f.id,
+            Err(_) => return,
+        },
+    };
+    let _ = core.write_document(id, &bytes);
+}
 
 /// Custom system prompt: the whole of `/.agent/prompt.md` whenever the file
 /// exists — an empty file means no system prompt, not the default; deleting
@@ -92,6 +118,15 @@ impl Provider {
             }
         }
     }
+
+    /// Whether this provider runs on this machine (a loopback host). Local
+    /// models egress nothing, so reads skip the approval gate.
+    pub fn is_local(&self) -> bool {
+        url::Url::parse(&self.base_url)
+            .ok()
+            .and_then(|u| u.host_str().map(str::to_string))
+            .is_some_and(|h| matches!(h.as_str(), "localhost" | "127.0.0.1" | "[::1]" | "::1"))
+    }
 }
 
 pub const DEFAULT_KIND: &str = "openai";
@@ -101,7 +136,10 @@ fn default_kind() -> String {
 }
 
 /// Read every provider file, sorted by name. Unparseable files are logged
-/// and skipped.
+/// and skipped. A file still carrying the template key placeholder is a
+/// half-created provider — skipped too, so an unconfigured provider is, in
+/// every respect (picker, resolution, onboarding), as if its file didn't
+/// exist; the roster's "add provider" flow is where it gets set up.
 pub fn load(core: &Lb) -> Vec<Provider> {
     let Ok(dir) = core.get_by_path(PROVIDERS_DIR) else { return Vec::new() };
     let Ok(children) = core.get_children(&dir.id) else { return Vec::new() };
@@ -112,6 +150,7 @@ pub fn load(core: &Lb) -> Vec<Provider> {
             let name = f.name.trim_end_matches(".json").to_string();
             let bytes = core.read_document(f.id, false).ok()?;
             match parse(&name, &bytes) {
+                Some(p) if p.api_key.as_deref() == Some(super::KEY_PLACEHOLDER) => None,
                 Some(p) => Some(p),
                 None => {
                     tracing::warn!("chat: invalid provider file {PROVIDERS_DIR}/{}", f.name);
@@ -185,6 +224,24 @@ mod tests {
 
     fn sel(provider: &str, model: &str) -> ModelSelection {
         ModelSelection { provider: provider.into(), model: model.into() }
+    }
+
+    /// Loopback hosts are local (reads skip the approval gate); everything
+    /// else — including lookalike domains — egresses.
+    #[test]
+    fn is_local_is_loopback_only() {
+        let at = |url: &str| Provider { base_url: url.into(), ..provider("p", "m") };
+        for url in ["http://localhost:11434/v1", "http://127.0.0.1:8080/v1", "http://[::1]:1/v1"] {
+            assert!(at(url).is_local(), "{url}");
+        }
+        for url in [
+            "https://api.openai.com/v1",
+            "https://mylocalhost.evil.com/v1",
+            "http://192.168.1.10:11434/v1",
+            "not a url",
+        ] {
+            assert!(!at(url).is_local(), "{url}");
+        }
     }
 
     #[test]

@@ -8,12 +8,22 @@ use super::*;
 
 impl Chat {
     /// The provider the next turn runs with: this user's per-chat selection
-    /// (latest config entry) resolved against the *cached* provider list.
-    /// Pure — no file I/O, so it's safe on the UI thread every time config
-    /// changes. The list is refreshed by the background loader.
+    /// (latest config entry), or — for a chat with none — the sticky last-used
+    /// default, resolved against the *cached* provider list. Pure — no file
+    /// I/O (both the list and the default are cached by the background loader),
+    /// so it's safe on the UI thread every time config changes.
     pub(super) fn resolve_provider(&self) -> Option<settings::Provider> {
         let selection = latest_selection(&self.entries, &self.account.username);
-        let mut provider = settings::resolve(self.providers.clone(), selection.as_ref())?;
+        let mut provider = match &selection {
+            // An explicit per-chat pick resolves strictly — a selection naming
+            // a missing provider yields None rather than silently rerouting.
+            Some(sel) => settings::resolve(self.providers.clone(), Some(sel))?,
+            // A new chat inherits the sticky last-used default; if that names a
+            // provider that's since gone, degrade to the alphabetically-first
+            // one rather than leaving the fresh chat with nothing.
+            None => settings::resolve(self.providers.clone(), self.default_selection.as_ref())
+                .or_else(|| settings::resolve(self.providers.clone(), None))?,
+        };
         // Per-chat effort overrides the file default, but only where effort
         // applies — a stored pick shouldn't leak onto a non-reasoning model
         // the chat later switched to. `EFFORT_AUTO` clears it.
@@ -30,15 +40,21 @@ impl Chat {
     /// signal): a listing means reachable and authenticated.
     pub(super) fn onboard_stage(&self) -> Option<Onboard> {
         let Some(p) = &self.provider else { return Some(Onboard::Choose) };
-        // A provider still carrying the template placeholder was never set up:
-        // treat it as unconfigured and offer the chooser, not a dead-end status.
-        if p.api_key.as_deref() == Some(KEY_PLACEHOLDER) {
-            return Some(Onboard::Choose);
-        }
         let key = (p.name.clone(), p.base_url.clone());
-        if let Some((_, e)) = self.models_err.as_ref().filter(|(k, _)| *k == key) {
+        let err = self
+            .models_err
+            .as_ref()
+            .filter(|(k, _)| *k == key)
+            .map(|(_, e)| e);
+        // A real key the server rejected — the composer's "fix key" button.
+        // (An unconfigured provider never resolves here: it's filtered at
+        // load, so it shows the roster, exactly like a missing file.)
+        if err.is_some_and(|e| is_auth_error(e)) {
+            return Some(Onboard::NeedKey { name: p.name.clone(), label: p.label() });
+        }
+        if err.is_some() {
             let local = p.base_url.contains("localhost") || p.base_url.contains("127.0.0.1");
-            return Some(Onboard::Unreachable { label: p.label(), auth: is_auth_error(e), local });
+            return Some(Onboard::Unreachable { label: p.label(), local });
         }
         if self.models.as_ref().is_none_or(|(k, _)| *k != key) {
             return Some(Onboard::Connecting(p.label()));
@@ -65,6 +81,7 @@ impl Chat {
             let loaded = LoadedConfig {
                 providers: settings::load(&core),
                 system_prompt: settings::system_prompt(&core),
+                default_selection: settings::load_default(&core),
             };
             let _ = tx.send(loaded);
             ctx.request_repaint();
@@ -84,6 +101,7 @@ impl Chat {
                 let before = self.provider.clone();
                 self.providers = loaded.providers;
                 self.system_prompt = loaded.system_prompt;
+                self.default_selection = loaded.default_selection;
                 self.config_loaded = true;
                 self.provider = self.resolve_provider();
                 if self.provider != before {
@@ -99,8 +117,14 @@ impl Chat {
     /// selection syncs across this user's devices; credentials never do. An
     /// empty `model` means the provider's file default.
     pub(super) fn write_selection(&mut self, provider: String, model: String) {
+        let selection = lb_rs::model::chat::ModelSelection { provider, model };
+        // Sticky last-used: mirror the pick to the synced global default so the
+        // next new chat starts here. Also updated in memory so a new chat
+        // opened before the next config reload already sees it.
+        settings::write_default(&self.core, &selection);
+        self.default_selection = Some(selection.clone());
         self.write_config(lb_rs::model::chat::ChatConfig {
-            model: Some(lb_rs::model::chat::ModelSelection { provider, model }),
+            model: Some(selection),
             ..Default::default()
         });
     }
@@ -226,9 +250,8 @@ impl Chat {
         match name {
             "ollama" => {}
             "custom" => {
-                // Suppress the placeholder auto-prompt (as the form's "edit
-                // the file" link does) — hand-editing is the flow here.
-                self.key_prompt_dismissed = Some(name.to_string());
+                // Hand-editing is the flow for a blank custom file; the
+                // "add key" button still reaches the masked field otherwise.
                 self.open_provider_file(file_id);
             }
             _ if self.file_has_real_key(file_id) => {}
@@ -332,9 +355,6 @@ impl Chat {
         {
             p.api_key = Some(key);
         }
-        // Keep the auto-prompt suppressed while we validate — the entry is
-        // already open, so an auth error must not open a second one.
-        self.key_prompt_dismissed = name;
         // Drop the stale pre-submit validation so `poll_key_connection` waits
         // for the fresh fetch rather than reading the old error as a rejection.
         self.models = None;
@@ -420,48 +440,6 @@ impl Chat {
         match range {
             Some(r) => self.ctx.open_file_at_range(file_id, r, true),
             None => self.ctx.open_file(file_id, true),
-        }
-    }
-
-    /// Open the key form on its own when the resolved provider can't run a
-    /// turn without one. Fires once per provider until dismissed, so it
-    /// doesn't nag after Cancel.
-    ///
-    /// - Placeholder key (unconfigured): established chats only — no chooser
-    ///   can show there and every send is blocked, so the connect step is the
-    ///   only fix. (Recovers a pick whose connect step never finished; a tab
-    ///   rebuild also clears the dismissal.) Empty chats have the chooser.
-    /// - Auth error on a real key: empty chats only — an established chat
-    ///   surfaces this as error rows and the toolbar picker.
-    pub(super) fn maybe_prompt_key(&mut self) {
-        if self.key_entry.is_some() {
-            return;
-        }
-        let Some(p) = &self.provider else { return };
-        let empty = self.visible().is_empty();
-        let fire = if p.api_key.as_deref() == Some(KEY_PLACEHOLDER) {
-            !empty
-        } else {
-            let key = (p.name.clone(), p.base_url.clone());
-            empty
-                && self
-                    .models_err
-                    .as_ref()
-                    .is_some_and(|(k, e)| *k == key && is_auth_error(e))
-        };
-        if !fire || self.key_prompt_dismissed.as_deref() == Some(p.name.as_str()) {
-            return;
-        }
-        let (name, label) = (p.name.clone(), p.label());
-        // Mark handled before the lookup so it runs at most once per
-        // provider — never every frame, even if the path lookup fails.
-        // Saving a key re-arms it (clears this) so a rejected key re-prompts.
-        self.key_prompt_dismissed = Some(name.clone());
-        if let Ok(file) = self
-            .core
-            .get_by_path(&format!("/.agent/providers/{name}.json"))
-        {
-            self.open_key_entry(&name, label, file.id);
         }
     }
 

@@ -89,6 +89,78 @@ impl CenteredColumn {
     }
 }
 
+/// Tool-container header padding (the table-header-bar look).
+const TOOL_PAD_X: f32 = 10.0;
+const TOOL_PAD_Y: f32 = 6.0;
+
+/// Inter-block spacing for rendered diffs. Band vertical padding is half of
+/// this (the drag-card rule), so adjacent old/new bands sit flush — a
+/// changed pair reads as one card with a color boundary.
+const DIFF_BLOCK_SPACING: f32 = 8.0;
+
+/// Lay out plain tool-result text as one dim mono galley. Notes and diffs
+/// render as markdown via an `MdLabel` instead.
+fn body_galley(ui: &Ui, text: &str, wrap_w: f32, dim: egui::Color32) -> Arc<Galley> {
+    ui.fonts(|f| f.layout(text.into(), egui::FontId::monospace(TOOL_FONT), dim, wrap_w))
+}
+
+/// Total height of stacked diff segments at `width`.
+fn segments_height(label: &mut MdLabel, segs: &[diff::Segment], width: f32) -> f32 {
+    let mut h = 0.0;
+    for (k, seg) in segs.iter().enumerate() {
+        if k > 0 {
+            h += DIFF_BLOCK_SPACING;
+        }
+        h += label.height(&seg.text, width);
+    }
+    h
+}
+
+/// Paint stacked diff segments through `label`; changed ones get a
+/// full-width wash band (the drag-card shape: the segment's own rect padded
+/// by half the stacking gap, so adjacent del/add bands sit flush). Returns
+/// the glyphon areas for the caller's text callback.
+#[allow(clippy::too_many_arguments)]
+fn paint_segments(
+    ui: &mut Ui, label: &mut MdLabel, salt: Id, segs: &[diff::Segment], pos: Pos2, width: f32,
+    band_x: (f32, f32), add_wash: egui::Color32, del_wash: egui::Color32,
+) -> Vec<crate::TextBufferArea> {
+    let mut areas = Vec::new();
+    let mut y = pos.y;
+    for (k, seg) in segs.iter().enumerate() {
+        if k > 0 {
+            y += DIFF_BLOCK_SPACING;
+        }
+        // Wash first: egui-painted content (task checkboxes, rules, code
+        // fills) then paints above it, and glyphon text rides a later layer
+        // regardless — the tint reads as behind everything.
+        let h = label.height(&seg.text, width);
+        let wash = match seg.kind {
+            diff::SegKind::Add => Some(add_wash),
+            diff::SegKind::Del => Some(del_wash),
+            diff::SegKind::Context => None,
+        };
+        if let Some(wash) = wash {
+            let pad = DIFF_BLOCK_SPACING / 2.0;
+            ui.painter().rect_filled(
+                Rect::from_min_max(pos2(band_x.0, y - pad), pos2(band_x.1, y + h + pad)),
+                CornerRadius::same(2),
+                wash,
+            );
+        }
+        // Distinct id scope per segment: the old and new snippets are
+        // near-identical, so their widgets' `ui.id().with(node_range)` ids
+        // would otherwise collide and cross-wire checkbox animations
+        // (a checked and an unchecked box fighting over one lerp).
+        let a = ui
+            .push_id(salt.with(k), |ui| label.paint_at(ui, &seg.text, pos2(pos.x, y), width).0)
+            .inner;
+        areas.extend(a);
+        y += h;
+    }
+    areas
+}
+
 impl Chat {
     /// True for transcript touches (which scroll), so Android doesn't treat a
     /// short transcript scroll as a keyboard-summoning tap. Composer touches
@@ -100,13 +172,15 @@ impl Chat {
     /// changed this frame (user sent or the agent replied — triggers a save),
     /// and the composer's text rect (egui points) used to position the native
     /// iOS text-interaction overlay.
-    pub fn show(&mut self, ui: &mut Ui) -> (bool, Rect) {
+    pub fn show(&mut self, ui: &mut Ui) -> (bool, Rect, bool) {
         self.kick_initial_config_load();
         self.pump_models();
         self.pump_config();
         self.poll_key_connection();
-        self.maybe_prompt_key();
         let agent_changed = self.pump_agent();
+        // Tool-row metrics/bodies derive from a fold of the visible records;
+        // rebuilt only when the timeline fingerprint misses.
+        self.ensure_tool_viz();
 
         // Live agent state for this frame's rendering.
         let (agent_busy, agent_streaming) = match &self.harness {
@@ -129,7 +203,11 @@ impl Chat {
         // painted under the form.
         let connect_open = self.key_entry.is_some();
         let takeover = connect_open || self.chooser_open;
-        let visible = if takeover { Vec::new() } else { self.visible() };
+        let mut visible = if takeover { Vec::new() } else { self.visible() };
+        // Write-back receipts stay in the *data* timeline (they fold and
+        // persist) but not the rendered one — the seed/fold paths call
+        // `self.visible()` themselves and still see them.
+        visible.retain(|row| !user_actioned(&self.entries[row.idx].msg));
         // First-run guidance, only in an empty chat and once config has
         // loaded (else it flashes before the background load lands). A
         // summoned chooser reuses the same surface over an existing chat.
@@ -142,10 +220,22 @@ impl Chat {
         };
         let show_agent_hint = onboard.is_some();
 
+        // A broken key turns the composer's text field into an "add key"
+        // button — the fix always sits where you'd type. Computed regardless
+        // of chat emptiness (an established chat keeps its history above) and
+        // suppressed while the masked field or the roster is up.
+        let need_key = (self.unshared && self.config_loaded && !connect_open && !self.chooser_open)
+            .then(|| match self.onboard_stage() {
+                Some(Onboard::NeedKey { name, label }) => Some((name, label)),
+                _ => None,
+            })
+            .flatten();
+
         // No usable key yet → hide the composer, so there's ever at most one
-        // text field for the native iOS text bridge to own. Everything past a
-        // valid key (Connecting/Unreachable/PickModel) keeps the composer —
-        // PickModel picks its model from the composer's toolbar.
+        // text field for the native iOS text bridge to own. `NeedKey` keeps
+        // the composer surface (its text field becomes the "add key" button);
+        // everything past a valid key (Connecting/Unreachable/PickModel) keeps
+        // the composer too — PickModel picks its model from the toolbar.
         let hide_composer = connect_open || matches!(onboard, Some(Onboard::Choose));
 
         // Retry the last turn when it errored and the agent is idle.
@@ -228,6 +318,35 @@ impl Chat {
                     || (!completions_open && i.consume_key(Modifiers::NONE, Key::Enter))
             });
 
+        // ⌘A approve / ⌘D deny while a call awaits a decision. Consumed
+        // before the composer's input phase so ⌘A can't fall through to
+        // select-all while the card is up.
+        let approve_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
+        let deny_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::D);
+        let mut approve_clicked = false;
+        let mut deny_clicked = false;
+        if self
+            .harness
+            .as_ref()
+            .is_some_and(|h| h.pending_tool.is_some())
+        {
+            ui.ctx().input_mut(|i| {
+                approve_clicked = i.consume_shortcut(&approve_shortcut);
+                deny_clicked = !approve_clicked && i.consume_shortcut(&deny_shortcut);
+            });
+        }
+        let touch_os = matches!(
+            ui.ctx().os(),
+            egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS
+        );
+        // Hint labels show where a hardware keyboard is plausible: desktop,
+        // and tablet-width touch screens (iPad); not phones.
+        let show_key_hints = !touch_os || available_width >= 600.0;
+        let approve_hint = ui.ctx().format_shortcut(&approve_shortcut);
+        let deny_hint = ui.ctx().format_shortcut(&deny_shortcut);
+
+        // Return submits the key — the connect step has no Connect button.
+        let mut key_submit = false;
         // Text-input phase — drain workspace-origin events (native iOS text
         // arrives this way: Newline / Indent / Replace pushed by the FFI), then
         // keyboard / completions / internal events. Routes to *one* editor:
@@ -236,9 +355,31 @@ impl Chat {
             let key_field_id = Id::new("chat_key_field");
             // No per-frame request_focus: the render block's one-shot focuses
             // the field, and its interaction + focus lock hold it after that.
+            // Consume Return before handle_input so it submits rather than
+            // reaching the field as a newline (desktop).
+            if ui.memory(|m| m.has_focus(key_field_id))
+                && ui
+                    .ctx()
+                    .input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter))
+            {
+                key_submit = true;
+            }
             let ws = self.key_field.drain_workspace_events(ui.ctx());
             self.key_field.event.internal_events.extend(ws);
             let _ = self.key_field.handle_input(ui.ctx(), key_field_id);
+            // A single-line key never holds a newline; one that landed came
+            // from the native keyboard's return (iOS) — submit and strip it.
+            if self.key_field.renderer.buffer.current.text.contains('\n') {
+                let cleaned = self
+                    .key_field
+                    .renderer
+                    .buffer
+                    .current
+                    .text
+                    .replace('\n', "");
+                self.key_field.set_text(&cleaned);
+                key_submit = true;
+            }
         } else {
             let workspace_events = self.composer.drain_workspace_events(ui.ctx());
             self.composer.event.internal_events.extend(workspace_events);
@@ -247,8 +388,8 @@ impl Chat {
 
         // Measure at the exact render width so the composer bubble grows
         // same-frame. The re-parse inside `show` below hits the layout cache.
-        // `SIDE_INSET` and `H_PAD` mirror the h_inset / shrink geometry below.
-        let composer_inner_w = (col_width - 2.0 * SIDE_INSET - 2.0 * H_PAD).max(0.0);
+        // `H_MARGIN` and `H_PAD` mirror the h_inset / shrink geometry below.
+        let composer_inner_w = (col_width - 2.0 * H_MARGIN - 2.0 * H_PAD).max(0.0);
         let measured_h = self.composer.measure_height(composer_inner_w);
 
         // Autogrow with a max cap, no lower floor — a lower floor makes a
@@ -270,9 +411,7 @@ impl Chat {
         let mut chooser_cancel = false;
         // Inline "connect a provider" step actions, applied after the scroll
         // closure releases its borrow of `self`.
-        let mut key_connect = false;
         let mut key_cancel = false;
-        let mut key_edit = false;
         // Row actions (hover pill + context menu). Copy always works;
         // everything that mutates the transcript or timeline is gated on no
         // turn being in flight, and the agent-rerunning actions additionally
@@ -280,12 +419,54 @@ impl Chat {
         let mut action: Option<RowAction> = None;
         let can_mutate = !agent_busy;
         let agent_actions = self.harness.is_some();
+        // The call awaiting a decision, rendered as a trailing approval card:
+        // its adapted permission prose, the diff (edits), and Approve / Deny.
+        // Buttons' clicks are applied after the closure.
+        let provider_label = self
+            .provider
+            .as_ref()
+            .map(|p| p.label())
+            .unwrap_or_else(|| "the model".into());
+        let pending_tool = self
+            .harness
+            .as_ref()
+            .and_then(|h| h.pending_tool.as_ref())
+            .map(|p| {
+                (
+                    tools::detail_for(&p.name, &p.args),
+                    tools::permission_prose(&p.name, &p.args, &provider_label),
+                    p.preview.clone(),
+                )
+            });
+        // Soft washes behind rendered diffs' changed blocks.
+        let add_wash = theme.bg().green.gamma_multiply(0.22);
+        let del_wash = theme.bg().red.gamma_multiply(0.22);
+        // Collapsed-row outcome metrics run dimmer than the summary text.
+        let metric_color = theme.neutral_fg_secondary();
+        // A clicked listing row to open, resolved after the closure.
+        let mut open_list_path: Option<String> = None;
 
         // A branch switch suspends stick-to-bottom for the frame — the view
         // holds still while the timeline below the fork is swapped out.
         let branch_anchored = self.branch_anchor.is_some();
+        // Editor-style backdrop: a tap on empty transcript space dismisses
+        // the keyboard. Registered before the scroll content so message
+        // rows, links, and tool containers (higher z) win their own taps;
+        // only bare-canvas taps reach it. Touch-only — desktop has no
+        // on-screen keyboard to dismiss. Suppressed under a takeover (the
+        // key field or chooser owns the surface): a tap there must not yank
+        // focus off the field it's editing.
+        let mut backdrop_tapped = false;
         ui.scope_builder(egui::UiBuilder::new().max_rect(transcript_rect), |ui| {
             ui.set_clip_rect(transcript_rect.intersect(ui.clip_rect()));
+            if touch_os && !takeover {
+                let backdrop = ui.interact(
+                    transcript_rect,
+                    Id::new("chat_transcript_backdrop"),
+                    Sense::click(),
+                );
+                backdrop_tapped = backdrop.clicked();
+            }
             ScrollArea::vertical()
                 .id_salt("chat_messages")
                 .stick_to_bottom(!branch_anchored)
@@ -317,11 +498,13 @@ impl Chat {
                         };
                         // Reserved metadata strip below every row — actions
                         // live in dedicated space, never overlaid on text.
-                        let mut strip = |y: &mut f32, row_rect: Rect, ts: Option<Arc<Galley>>| {
-                            let rect =
-                                Rect::from_min_size(pos2(note_x, *y), vec2(note_wrap_w, STRIP_H));
+                        let mut strip = |y: &mut f32,
+                                         row_rect: Rect,
+                                         ts: Option<Arc<Galley>>,
+                                         h: f32| {
+                            let rect = Rect::from_min_size(pos2(note_x, *y), vec2(note_wrap_w, h));
                             strips.push(StripPlan { vi, rect, row_rect, right: is_mine_row, ts });
-                            *y += STRIP_H + ROW_GAP;
+                            *y += h + ROW_GAP;
                         };
                         if self.entries[i].msg.error {
                             let header = ui.fonts(|f| {
@@ -348,7 +531,188 @@ impl Chat {
                             });
                             let row_rect = Rect::from_min_size(pos2(note_x, y), vec2(w, h));
                             y += h + ROW_GAP;
-                            strip(&mut y, row_rect, None);
+                            strip(&mut y, row_rect, None, STRIP_H);
+                            continue;
+                        }
+
+                        // A tool round-trip: a chevron + one-line summary +
+                        // right-aligned outcome metric, expanding to the call's
+                        // body (bound note state, diff, or listing rows).
+                        // Rendered dim, like a note, not a chat bubble.
+                        if let Some(record) = self.entries[i].msg.tool.clone() {
+                            // A run of consecutive tool rows groups: extra
+                            // padding above its first row and below its last.
+                            let tool_at =
+                                |vj: usize| self.entries[visible[vj].idx].msg.tool.is_some();
+                            if vi == 0 || !tool_at(vi - 1) {
+                                y += TOOL_GROUP_PAD;
+                            }
+                            let last_in_group = vi + 1 >= n || !tool_at(vi + 1);
+                            let id = self.entries[i].msg.id;
+                            let viz = id.and_then(|id| self.tool_viz.get(&id));
+                            let expanded = id.is_some_and(|id| self.expanded_tools.contains(&id));
+                            let summary = ui.fonts(|f| {
+                                f.layout_no_wrap(
+                                    self.entries[i].msg.content.clone(),
+                                    egui::FontId::monospace(TOOL_FONT),
+                                    secondary_color,
+                                )
+                            });
+                            let metric = viz.filter(|v| !v.metric.is_empty()).map(|v| {
+                                let mono = egui::FontId::monospace(TOOL_FONT);
+                                // An edit's "+a -d" reads in the diff colors;
+                                // every other metric stays dim.
+                                let two_tone = v
+                                    .metric
+                                    .split_once(' ')
+                                    .filter(|(a, d)| a.starts_with('+') && d.starts_with('-'));
+                                match two_tone {
+                                    Some((add, del)) => {
+                                        use egui::text::{LayoutJob, TextFormat};
+                                        let mut job = LayoutJob::default();
+                                        job.append(
+                                            add,
+                                            0.0,
+                                            TextFormat {
+                                                font_id: mono.clone(),
+                                                color: theme.fg().green,
+                                                ..Default::default()
+                                            },
+                                        );
+                                        job.append(
+                                            del,
+                                            6.0,
+                                            TextFormat {
+                                                font_id: mono,
+                                                color: theme.fg().red,
+                                                ..Default::default()
+                                            },
+                                        );
+                                        ui.fonts(|f| f.layout_job(job))
+                                    }
+                                    None => ui.fonts(|f| {
+                                        f.layout_no_wrap(v.metric.clone(), mono, metric_color)
+                                    }),
+                                }
+                            });
+                            let header_h = summary.size().y + 2.0 * TOOL_PAD_Y;
+                            let header_rect =
+                                Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, header_h));
+                            let indent = TOOL_PAD_X;
+                            let mut row_h = header_h;
+                            let mut body = None;
+                            let mut body_pos = Pos2::ZERO;
+                            let mut rendered = None;
+                            let mut list_rows = Vec::new();
+                            let mut bottom_pad = TOOL_PAD_Y;
+                            if expanded {
+                                let by = y + header_h + TOOL_PAD_Y;
+                                // Owned so the label (a `self` borrow) can lay
+                                // out the rendered diff below.
+                                let viz_body = viz.map(|v| v.body.clone());
+                                match viz_body {
+                                    Some(tools::Body::List { rows }) => {
+                                        let mut ry = by;
+                                        for row in rows {
+                                            // PLACEHOLDER so paint can color
+                                            // hovered rows.
+                                            let galley = ui.fonts(|f| {
+                                                f.layout_no_wrap(
+                                                    row.clone(),
+                                                    egui::FontId::monospace(TOOL_FONT),
+                                                    egui::Color32::PLACEHOLDER,
+                                                )
+                                            });
+                                            let rh = galley.size().y;
+                                            let rect = Rect::from_min_size(
+                                                pos2(note_x + indent, ry),
+                                                vec2(note_wrap_w - 2.0 * indent, rh),
+                                            );
+                                            let open_path =
+                                                (!row.ends_with('/')).then(|| row.clone());
+                                            list_rows.push(ListRowPlan { galley, rect, open_path });
+                                            ry += rh + 2.0;
+                                        }
+                                        row_h += TOOL_PAD_Y + (ry - by);
+                                    }
+                                    // An edit's diff: del/add segments,
+                                    // nothing else. Separately parsed, so no
+                                    // joining blank line renders between them
+                                    // and lists can't merge.
+                                    Some(tools::Body::Rendered { segments }) => {
+                                        // Flush with the header: the body's
+                                        // top/bottom padding is exactly the
+                                        // band pad, so the first/last washes
+                                        // meet the container edges.
+                                        let pad = DIFF_BLOCK_SPACING / 2.0;
+                                        let by = y + header_h + pad;
+                                        let rw = note_wrap_w - 2.0 * indent;
+                                        let label = &mut self.entries[i].label;
+                                        label.renderer.layout.block_spacing = DIFF_BLOCK_SPACING;
+                                        let rh = segments_height(label, &segments, rw);
+                                        row_h += pad + rh;
+                                        bottom_pad = pad;
+                                        rendered = Some((segments, pos2(note_x + indent, by), rw));
+                                    }
+                                    // A read's note: nothing but the rendered
+                                    // markdown (one unwashed segment).
+                                    Some(tools::Body::Note { text }) => {
+                                        let rw = note_wrap_w - 2.0 * indent;
+                                        let segs = vec![diff::Segment {
+                                            text,
+                                            kind: diff::SegKind::Context,
+                                        }];
+                                        let rh =
+                                            segments_height(&mut self.entries[i].label, &segs, rw);
+                                        row_h += ROW_GAP + rh;
+                                        rendered = Some((segs, pos2(note_x + indent, by), rw));
+                                    }
+                                    other => {
+                                        // Result text, mono; a record with no
+                                        // viz (id-less legacy row) falls back
+                                        // to the raw result.
+                                        let text = match &other {
+                                            Some(tools::Body::Text(t)) => t.as_str(),
+                                            _ => record.result.as_str(),
+                                        };
+                                        let g = body_galley(
+                                            ui,
+                                            text,
+                                            note_wrap_w - 2.0 * indent,
+                                            secondary_color,
+                                        );
+                                        body_pos = pos2(note_x + indent, by);
+                                        row_h += ROW_GAP + g.size().y;
+                                        body = Some(g);
+                                    }
+                                }
+                            }
+                            if expanded {
+                                // Bottom padding inside the bordered body
+                                // (band pad for flush diff bodies).
+                                row_h += bottom_pad;
+                            }
+                            let row_rect =
+                                Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, row_h));
+                            plans.push(RowPlan::Tool {
+                                header_rect,
+                                summary,
+                                metric,
+                                body,
+                                body_pos,
+                                rendered,
+                                list_rows,
+                                border: expanded.then_some(row_rect),
+                            });
+                            y += row_h + ROW_GAP;
+                            // Tool rows show nothing in the strip (no
+                            // timestamp, no icons) — reserve its height only
+                            // when fork arrows need it.
+                            let strip_h = if visible[vi].fork.is_some() { STRIP_H } else { 0.0 };
+                            strip(&mut y, row_rect, None, strip_h);
+                            if last_in_group {
+                                y += TOOL_GROUP_PAD;
+                            }
                             continue;
                         }
 
@@ -412,8 +776,8 @@ impl Chat {
                                 name_h,
                                 content_h,
                             });
-                            y += name_h + content_h + ROW_GAP;
-                            strip(&mut y, row_rect, ts_galley);
+                            y += name_h + content_h + ROW_GAP + AGENT_STRIP_GAP;
+                            strip(&mut y, row_rect, ts_galley, STRIP_H);
                         } else {
                             let content_h =
                                 entry.label.height(&entry.msg.content, max_bubble_content_w);
@@ -433,7 +797,7 @@ impl Chat {
                                 content_h,
                             });
                             y += bubble_h + ROW_GAP;
-                            strip(&mut y, bubble_rect, ts_galley);
+                            strip(&mut y, bubble_rect, ts_galley, STRIP_H);
                         }
                     }
 
@@ -457,8 +821,13 @@ impl Chat {
                         streaming_plan = Some((pos2(note_x, y), name));
                         y += name_h + content_h + ROW_GAP + V_PAD;
                     }
-                    let note_plan =
-                        (agent_busy && agent_streaming.is_empty() && !takeover).then(|| {
+                    // No "thinking…" while an edit awaits approval — the card
+                    // is the active surface, not the model.
+                    let note_plan = (agent_busy
+                        && agent_streaming.is_empty()
+                        && pending_tool.is_none()
+                        && !takeover)
+                        .then(|| {
                             let galley = ui.fonts(|f| {
                                 f.layout(
                                     "thinking…".into(),
@@ -473,13 +842,139 @@ impl Chat {
                             (galley, pos)
                         });
 
+                    // The trailing approval card, shaped like a tool container
+                    // pinned open: a header bar with the command summary, over
+                    // a bordered body holding the permission prose, the
+                    // proposed change, and Approve / Deny.
+                    let review_plan =
+                        pending_tool.as_ref().map(|(summary_text, prose, preview)| {
+                            y += TOOL_GROUP_PAD;
+                            let indent = TOOL_PAD_X;
+
+                            // Header bar: the command summary, left-aligned. No
+                            // right metric — the call hasn't been allowed to run.
+                            let summary = ui.fonts(|f| {
+                                f.layout_no_wrap(
+                                    summary_text.clone(),
+                                    egui::FontId::monospace(TOOL_FONT),
+                                    secondary_color,
+                                )
+                            });
+                            let header_h = summary.size().y + 2.0 * TOOL_PAD_Y;
+                            let header_rect =
+                                Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, header_h));
+                            let mut cy = y + header_h + TOOL_PAD_Y;
+
+                            // Body: the permission request, wrapping. Dimmed mono,
+                            // like the tool summary and result text.
+                            let body_w = note_wrap_w - 2.0 * indent;
+                            let prose = ui.fonts(|f| {
+                                f.layout(
+                                    prose.clone(),
+                                    egui::FontId::monospace(TOOL_FONT),
+                                    secondary_color,
+                                    body_w,
+                                )
+                            });
+                            let prose_pos = pos2(note_x + indent, cy);
+                            cy += prose.size().y;
+
+                            // The proposed change, under the prose.
+                            let body = match preview {
+                                // An edit's diff, rendered with changed blocks
+                                // washed in place.
+                                Some(Ok(segs)) => {
+                                    self.review_label.renderer.layout.block_spacing =
+                                        DIFF_BLOCK_SPACING;
+                                    let h = segments_height(&mut self.review_label, segs, body_w);
+                                    let pos = pos2(note_x + indent, cy + ROW_GAP);
+                                    cy += ROW_GAP + h;
+                                    ReviewBody::Rendered {
+                                        segments: segs.clone(),
+                                        pos,
+                                        width: body_w,
+                                    }
+                                }
+                                // The steering error approval would hit.
+                                Some(Err(e)) => {
+                                    let galley = ui.fonts(|f| {
+                                        f.layout(
+                                            e.clone(),
+                                            egui::FontId::monospace(TOOL_FONT),
+                                            secondary_color,
+                                            body_w,
+                                        )
+                                    });
+                                    let pos = pos2(note_x + indent, cy + ROW_GAP);
+                                    cy += ROW_GAP + galley.size().y;
+                                    ReviewBody::Galley { galley, pos }
+                                }
+                                None => ReviewBody::None,
+                            };
+
+                            // Button row, right-aligned; Approve sits left of Deny
+                            // to match the ⌘A / ⌘D keys. Hints show where a
+                            // hardware keyboard is plausible (desktop, iPad).
+                            cy += V_PAD;
+                            let btn = |ui: &Ui, label: String, accent: bool| {
+                                ui.fonts(|f| {
+                                    f.layout_no_wrap(
+                                        label,
+                                        egui::FontId::proportional(13.0),
+                                        if accent { text_color } else { secondary_color },
+                                    )
+                                })
+                            };
+                            let approve_label = if show_key_hints {
+                                format!("Approve {approve_hint}")
+                            } else {
+                                "Approve".into()
+                            };
+                            let deny_label = if show_key_hints {
+                                format!("Deny {deny_hint}")
+                            } else {
+                                "Deny".into()
+                            };
+                            let approve = btn(ui, approve_label, true);
+                            let deny = btn(ui, deny_label, false);
+                            let btn_h = approve.size().y.max(deny.size().y) + 8.0;
+                            let bpad = 12.0;
+                            let approve_w = approve.size().x + bpad * 2.0;
+                            let deny_w = deny.size().x + bpad * 2.0;
+                            let right = note_x + note_wrap_w - indent;
+                            let deny_rect =
+                                Rect::from_min_size(pos2(right - deny_w, cy), vec2(deny_w, btn_h));
+                            let approve_rect = Rect::from_min_size(
+                                pos2(deny_rect.min.x - STRIP_GAP - approve_w, cy),
+                                vec2(approve_w, btn_h),
+                            );
+                            cy += btn_h + TOOL_PAD_Y;
+
+                            let border =
+                                Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, cy - y));
+                            y = cy + ROW_GAP + TOOL_GROUP_PAD;
+                            ReviewPlan {
+                                header_rect,
+                                summary,
+                                prose,
+                                prose_pos,
+                                body,
+                                approve,
+                                approve_rect,
+                                deny,
+                                deny_rect,
+                                border,
+                            }
+                        });
+
                     // Keep the clicked arrows where they were: correct for
                     // any height change of the swapped fork row (content
                     // above the fork is identical, so that's the whole
                     // delta). Consuming a scroll also un-sticks the area.
-                    if let Some((avi, old_y)) = self.branch_anchor.take() {
+                    if let Some((avi, old_y, row_top)) = self.branch_anchor.take() {
                         if let Some(s) = strips.iter().find(|s| s.vi == avi) {
-                            let delta = old_y - s.rect.min.y;
+                            let new_y = if row_top { s.row_rect.min.y } else { s.rect.min.y };
+                            let delta = old_y - new_y;
                             if delta.abs() > 0.5 {
                                 ui.scroll_with_delta(vec2(0.0, delta));
                             }
@@ -498,15 +993,34 @@ impl Chat {
                         );
                     }
 
+                    // Row-wide widgets register BEFORE content paints, so
+                    // content-level widgets — markdown links, which open on
+                    // cmd-click — sit above them and win the pointer.
+                    let row_resps: Vec<egui::Response> = strips
+                        .iter()
+                        .map(|s| {
+                            ui.interact(
+                                s.row_rect,
+                                Id::new(("chat_row", visible[s.vi].idx)),
+                                Sense::click(),
+                            )
+                        })
+                        .collect();
+
                     // pass 2: paint absolute. No egui layout calls.
                     let editing_id = self.editing;
+                    // Clickable listing rows per tool row (entry index →
+                    // rects+paths), point-tested by the strips loop's row
+                    // widget.
+                    let mut tool_list_hits: HashMap<usize, Vec<(Rect, String)>> = HashMap::new();
                     for (vi, plan) in plans.into_iter().enumerate() {
                         let i = visible[vi].idx;
                         match plan {
                             RowPlan::Bubble { bubble_rect, name_galley, name_h, content_h } => {
+                                // Rounding matches the tool containers.
                                 ui.painter().rect_filled(
                                     bubble_rect,
-                                    CornerRadius::same(CORNER),
+                                    CornerRadius::same(2),
                                     bubble_surface,
                                 );
                                 // The message being edited is outlined in the
@@ -514,7 +1028,7 @@ impl Chat {
                                 if editing_id.is_some() && self.entries[i].msg.id == editing_id {
                                     ui.painter().rect_stroke(
                                         bubble_rect,
-                                        CornerRadius::same(CORNER),
+                                        CornerRadius::same(2),
                                         Stroke::new(
                                             1.0,
                                             theme.fg().get_color(theme.prefs().primary),
@@ -573,19 +1087,109 @@ impl Chat {
                                 ui.painter()
                                     .galley(pos2(pos.x, text_y), galley, error_color);
                             }
+                            RowPlan::Tool {
+                                header_rect,
+                                summary,
+                                metric,
+                                body,
+                                body_pos,
+                                rendered,
+                                list_rows,
+                                border,
+                            } => {
+                                // Paint only — clicks are handled by the
+                                // strips loop's whole-row widget (registered
+                                // after, so it owns the row; a widget here
+                                // would be occluded). Listing hits are
+                                // point-tested against `tool_list_hits`.
+                                //
+                                // The container borrows the markdown table's
+                                // grammar: filled header bar; expanded content
+                                // on the transcript background inside a
+                                // border, corners matching the table's.
+                                let header_rounding = if border.is_some() {
+                                    CornerRadius { nw: 2, ne: 2, sw: 0, se: 0 }
+                                } else {
+                                    CornerRadius::same(2)
+                                };
+                                ui.painter().rect_filled(
+                                    header_rect,
+                                    header_rounding,
+                                    theme.neutral_bg_secondary(),
+                                );
+                                ui.painter().galley(
+                                    pos2(
+                                        header_rect.min.x + TOOL_PAD_X,
+                                        header_rect.center().y - summary.size().y / 2.0,
+                                    ),
+                                    summary,
+                                    secondary_color,
+                                );
+                                if let Some(metric) = metric {
+                                    ui.painter().galley(
+                                        pos2(
+                                            header_rect.max.x - TOOL_PAD_X - metric.size().x,
+                                            header_rect.center().y - metric.size().y / 2.0,
+                                        ),
+                                        metric,
+                                        metric_color,
+                                    );
+                                }
+                                if let Some(body) = body {
+                                    ui.painter().galley(body_pos, body, secondary_color);
+                                }
+                                if let Some((segs, rpos, rwidth)) = rendered {
+                                    // Bands bleed to the container edges
+                                    // (inset for its 1px border).
+                                    let areas = paint_segments(
+                                        ui,
+                                        &mut self.entries[i].label,
+                                        Id::new(("tool_body", i)),
+                                        &segs,
+                                        rpos,
+                                        rwidth,
+                                        (note_x + 1.0, note_x + note_wrap_w - 1.0),
+                                        add_wash,
+                                        del_wash,
+                                    );
+                                    text_areas.extend(areas);
+                                }
+                                for row in list_rows {
+                                    let openable = row.open_path.is_some();
+                                    let color = if openable && ui.rect_contains_pointer(row.rect) {
+                                        text_color
+                                    } else {
+                                        secondary_color
+                                    };
+                                    ui.painter().galley(row.rect.min, row.galley, color);
+                                    if let Some(path) = row.open_path {
+                                        tool_list_hits.entry(i).or_default().push((row.rect, path));
+                                    }
+                                }
+                                if let Some(container) = border {
+                                    ui.painter().rect_stroke(
+                                        container,
+                                        2.0,
+                                        Stroke { width: 1.0, color: theme.neutral_bg_tertiary() },
+                                        StrokeKind::Inside,
+                                    );
+                                }
+                            }
                         }
                     }
 
                     // Metadata strips: timestamp, ‹ 2/3 › arrows, and hover
                     // action icons, in the reserved space under each row.
                     // All row interaction (context menu included) lives here.
-                    for strip in &strips {
+                    for (si, strip) in strips.iter().enumerate() {
                         let vi = strip.vi;
                         let i = visible[vi].idx;
                         let is_tail = vi + 1 == visible.len();
                         let kind = {
                             let m = &self.entries[i].msg;
-                            if m.error {
+                            if m.error || m.tool.is_some() {
+                                // Tool rows carry their own affordance (expand);
+                                // no edit/copy/regen strip.
                                 RowKind::Other
                             } else if m.agent {
                                 RowKind::AgentReply
@@ -599,13 +1203,14 @@ impl Chat {
                             && agent_actions
                             && self.entries[i].msg.id.is_some()
                             && parent_for_sibling(&self.entries, i).is_some();
-                        let regen = editable && kind == RowKind::AgentReply && is_tail;
                         // Retry lives where every other row action lives.
                         let retryable = is_tail && can_retry && self.entries[i].msg.error;
-                        let hovered = ui.rect_contains_pointer(strip.row_rect)
-                            || ui.rect_contains_pointer(strip.rect);
-                        let show_icons =
-                            hovered || (is_tail && kind == RowKind::AgentReply) || retryable;
+                        // Union bridges the gap between the message and its
+                        // strip, so the actions don't blink out when the
+                        // pointer crosses the space between them.
+                        let hovered = ui.rect_contains_pointer(strip.row_rect.union(strip.rect));
+                        // Touch has no hover — reveal actions outright.
+                        let show_icons = touch_os || hovered || retryable;
 
                         // Items lay out from the row's aligned edge inward:
                         // arrows, then timestamp, then action icons. The
@@ -692,12 +1297,16 @@ impl Chat {
                         // hides a reachable target.
                         if show_icons {
                             let mut icons: Vec<(&Icon, Option<RowAction>)> = Vec::new();
+                            // Rerun lives on the *user's* message: resend it
+                            // as a sibling and the turn re-runs.
                             if editable && kind == RowKind::OwnUser {
                                 icons.push((&Icon::PENCIL, Some(RowAction::Edit(i))));
+                                icons.push((&Icon::SYNC, Some(RowAction::ResendFrom(i))));
                             }
-                            icons.push((&Icon::CONTENT_COPY, None));
-                            if regen {
-                                icons.push((&Icon::SYNC, Some(RowAction::Regenerate(i))));
+                            // Tool rows expand instead — nothing worth
+                            // copying in a summary line.
+                            if self.entries[i].msg.tool.is_none() {
+                                icons.push((&Icon::CONTENT_COPY, None));
                             }
                             if retryable {
                                 icons.push((&Icon::SYNC, Some(RowAction::RetryLast)));
@@ -732,17 +1341,36 @@ impl Chat {
                         // Context menu over the message row (secondary path
                         // to the same actions, plus Retry-from-here/Delete).
                         let content = self.entries[i].msg.content.clone();
-                        row_menu(
-                            ui,
-                            strip.row_rect,
-                            i,
-                            &content,
-                            kind,
-                            editable,
-                            regen,
-                            can_mutate,
-                            &mut action,
-                        );
+                        let row_resp = row_resps[si].clone();
+                        row_menu(&row_resp, i, &content, kind, editable, can_mutate, &mut action);
+
+                        // A tool row toggles on a click anywhere on it —
+                        // except its clickable listing rows, which open the
+                        // note instead (point-tested: this row widget owns the
+                        // whole rect, so they can't be their own widgets).
+                        if self.entries[i].msg.tool.is_some() {
+                            let row_resp = row_resp.on_hover_cursor(egui::CursorIcon::PointingHand);
+                            if row_resp.clicked() {
+                                let hit = row_resp.interact_pointer_pos().and_then(|p| {
+                                    tool_list_hits.get(&i).and_then(|rows| {
+                                        rows.iter()
+                                            .find(|(rect, _)| rect.contains(p))
+                                            .map(|(_, path)| path.clone())
+                                    })
+                                });
+                                match (hit, self.entries[i].msg.id) {
+                                    (Some(path), _) => open_list_path = Some(path),
+                                    (None, Some(id)) => {
+                                        action = Some(RowAction::ToggleTool {
+                                            id,
+                                            vi,
+                                            anchor_y: strip.row_rect.min.y,
+                                        });
+                                    }
+                                    (None, None) => {}
+                                }
+                            }
+                        }
                     }
 
                     // Trailing agent rows paint after the transcript.
@@ -761,6 +1389,101 @@ impl Chat {
                         ui.painter().galley(pos, galley, secondary_color);
                     }
 
+                    // The approval card, painted like a tool container pinned
+                    // open: a filled header bar (command summary), a bordered
+                    // body with the permission prose + proposed change, and
+                    // Approve / Deny.
+                    if let Some(r) = review_plan {
+                        // Fill with the bg-family accent (the send button's
+                        // pattern) — the fg accent is for text and strokes.
+                        let accent = theme.bg().get_color(theme.prefs().primary);
+                        // Header bar with top corners rounded, like an expanded
+                        // tool row's.
+                        ui.painter().rect_filled(
+                            r.header_rect,
+                            CornerRadius { nw: 2, ne: 2, sw: 0, se: 0 },
+                            theme.neutral_bg_secondary(),
+                        );
+                        ui.painter().galley(
+                            pos2(
+                                r.header_rect.min.x + TOOL_PAD_X,
+                                r.header_rect.center().y - r.summary.size().y / 2.0,
+                            ),
+                            r.summary,
+                            secondary_color,
+                        );
+                        // The permission request.
+                        ui.painter().galley(r.prose_pos, r.prose, secondary_color);
+                        match r.body {
+                            ReviewBody::None => {}
+                            ReviewBody::Galley { galley, pos } => {
+                                ui.painter().galley(pos, galley, secondary_color);
+                            }
+                            // The proposed change, rendered; changed blocks
+                            // washed in place. Washes paint after the layout
+                            // but under the glyphs — text rides the later
+                            // glyphon callback layer. Bands bleed to the
+                            // container edges (inset for its 1px border).
+                            ReviewBody::Rendered { segments, pos, width } => {
+                                let areas = paint_segments(
+                                    ui,
+                                    &mut self.review_label,
+                                    Id::new("review_body"),
+                                    &segments,
+                                    pos,
+                                    width,
+                                    (note_x + 1.0, note_x + note_wrap_w - 1.0),
+                                    add_wash,
+                                    del_wash,
+                                );
+                                text_areas.extend(areas);
+                            }
+                        }
+
+                        // Deny: bordered. Approve: accent-filled.
+                        let deny = ui
+                            .interact(r.deny_rect, Id::new("chat_review_deny"), Sense::click())
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        ui.painter().rect_stroke(
+                            r.deny_rect,
+                            CornerRadius::same(6),
+                            Stroke::new(1.0, secondary_color),
+                            StrokeKind::Inside,
+                        );
+                        ui.painter().galley(
+                            r.deny_rect.center() - r.deny.size() / 2.0,
+                            r.deny,
+                            secondary_color,
+                        );
+                        let approve = ui
+                            .interact(
+                                r.approve_rect,
+                                Id::new("chat_review_approve"),
+                                Sense::click(),
+                            )
+                            .on_hover_cursor(egui::CursorIcon::PointingHand);
+                        ui.painter()
+                            .rect_filled(r.approve_rect, CornerRadius::same(6), accent);
+                        ui.painter().galley(
+                            r.approve_rect.center() - r.approve.size() / 2.0,
+                            r.approve,
+                            text_color,
+                        );
+                        if approve.clicked() {
+                            approve_clicked = true;
+                        }
+                        if deny.clicked() {
+                            deny_clicked = true;
+                        }
+                        // Container border, like an expanded tool row's.
+                        ui.painter().rect_stroke(
+                            r.border,
+                            2.0,
+                            Stroke { width: 1.0, color: theme.neutral_bg_tertiary() },
+                            StrokeKind::Inside,
+                        );
+                    }
+
                     // First-run: a minimal centered card. The Choose stage
                     // offers the provider roster as a two-column icon grid;
                     // the later stages track validation with one centered
@@ -777,7 +1500,6 @@ impl Chat {
                         let center_x = note_x + note_wrap_w / 2.0;
                         let card_w = note_wrap_w.min(340.0);
                         let field_w = card_w.min(300.0);
-                        let accent = theme.fg().get_color(theme.prefs().primary);
                         let body_font = egui::FontId::proportional(13.5);
 
                         let entry_ref = self.key_entry.as_ref().unwrap();
@@ -837,34 +1559,13 @@ impl Chat {
                             job.halign = egui::Align::Center;
                             ui.fonts(|f| f.layout_job(job))
                         });
-                        let link = ui.fonts(|f| {
-                            f.layout_no_wrap(
-                                "Edit the provider file instead".into(),
-                                body_font.clone(),
-                                secondary_color,
-                            )
+                        // Minimal: the field submits on return, so the only
+                        // control is a centered text Cancel (like the picker).
+                        let cancel = ui.fonts(|f| {
+                            f.layout_no_wrap("Cancel".into(), body_font.clone(), secondary_color)
                         });
 
-                        let (glyph_sz, field_h, btn_h) = (24.0, 30.0, 28.0);
-
-                        // Connect button width, sized to its widest label so
-                        // the text never wraps and the pair doesn't shift when
-                        // it flips to "Connecting…".
-                        let btn_font = egui::TextStyle::Button.resolve(ui.style());
-                        let connect_w = ["Connect", "Connecting…"]
-                            .iter()
-                            .map(|s| {
-                                ui.fonts(|f| {
-                                    f.layout_no_wrap((*s).into(), btn_font.clone(), text_color)
-                                        .size()
-                                        .x
-                                })
-                            })
-                            .fold(0.0_f32, f32::max)
-                            + 28.0;
-                        let btn_gap = 8.0;
-                        let cancel_w = 80.0;
-                        let pair_w = connect_w + btn_gap + cancel_w;
+                        let (glyph_sz, field_h) = (24.0, 30.0);
 
                         // Lay the whole column in one place — the vertical
                         // spacing follows from the pushed gaps, no hand-summed
@@ -874,17 +1575,16 @@ impl Chat {
                         col.glyph(0.0, tex.id, glyph_sz, text_color);
                         col.galley(14.0, head, false);
                         col.reserve(18.0, vec2(field_w, field_h));
-                        let buttons_gap = match status_galley {
+                        let cancel_gap = match status_galley {
                             Some(g) => {
                                 col.galley(10.0, g, true);
-                                8.0
+                                14.0
                             }
-                            None => 10.0,
+                            None => 16.0,
                         };
-                        col.reserve(buttons_gap, vec2(pair_w, btn_h));
-                        col.reserve(14.0, link.size());
+                        col.reserve(cancel_gap, cancel.size());
                         let rects = col.show(ui, transcript_rect, center_x);
-                        let (field_rect, buttons_rect, link_rect) = (rects[0], rects[1], rects[2]);
+                        let (field_rect, cancel_rect) = (rects[0], rects[1]);
 
                         // Masked field on its own raised surface so the input
                         // is visible before it's focused or hovered.
@@ -907,6 +1607,10 @@ impl Chat {
                             pos2(field_rect.min.x + 8.0, field_rect.center().y - row_h / 2.0),
                             pos2(field_rect.max.x - 8.0, field_rect.center().y + row_h / 2.0),
                         );
+                        // The whole visible box is the tap/gesture target,
+                        // reported to the native text view (the one-row rect
+                        // above is only where the masked text lays out).
+                        self.key_field_hit_rect = field_rect;
                         if self.key_field.renderer.buffer.current.text.is_empty() {
                             let hint = ui.fonts(|f| {
                                 f.layout_no_wrap(
@@ -922,45 +1626,15 @@ impl Chat {
                                 secondary_color,
                             );
                         }
-                        // Connect / Cancel buttons, filling the reserved pair.
-                        let connect_label = if connecting { "Connecting…" } else { "Connect" };
-                        let connect_rect =
-                            Rect::from_min_size(buttons_rect.min, vec2(connect_w, btn_h));
-                        let cancel_rect = Rect::from_min_size(
-                            pos2(buttons_rect.min.x + connect_w + btn_gap, buttons_rect.min.y),
-                            vec2(cancel_w, btn_h),
-                        );
-                        let connect_btn = ui.put(
-                            connect_rect,
-                            egui::Button::new(
-                                egui::RichText::new(connect_label).color(theme.neutral_bg()),
-                            )
-                            .fill(accent)
-                            .corner_radius(CornerRadius::same(6)),
-                        );
-                        if connect_btn.clicked() && !connecting {
-                            key_connect = true;
-                        }
-                        let cancel_btn = ui.put(
-                            cancel_rect,
-                            egui::Button::new(egui::RichText::new("Cancel").color(text_color))
-                                .fill(bubble_surface)
-                                .corner_radius(CornerRadius::same(6)),
-                        );
-                        if cancel_btn.clicked() {
-                            key_cancel = true;
-                        }
-
-                        // Quiet escape hatch to the raw file, filling the
-                        // reserved link rect.
-                        let link_resp = ui
-                            .interact(link_rect, Id::new("chat_key_edit_file"), Sense::click())
+                        // Centered text-only Cancel, filling its reserved rect.
+                        let cancel_resp = ui
+                            .interact(cancel_rect, Id::new("chat_key_cancel"), Sense::click())
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
-                        let link_color =
-                            if link_resp.hovered() { text_color } else { secondary_color };
-                        ui.painter().galley(link_rect.min, link, link_color);
-                        if link_resp.clicked() {
-                            key_edit = true;
+                        let cancel_color =
+                            if cancel_resp.hovered() { text_color } else { secondary_color };
+                        ui.painter().galley(cancel_rect.min, cancel, cancel_color);
+                        if cancel_resp.clicked() {
+                            key_cancel = true;
                         }
                     } else if let Some(stage) = &onboard {
                         let ctx = ui.ctx().clone();
@@ -999,19 +1673,6 @@ impl Chat {
                                         text_color,
                                     )
                                 });
-                                // First-run gets the privacy framing; the
-                                // summoned "add provider" doesn't — the empty
-                                // chat behind it already carries that line.
-                                let body = (!summoned).then(|| {
-                                    para(
-                                        ui,
-                                        "Messages you send go to the AI provider you choose. Pick \
-                                         a local model to keep them on your device."
-                                            .into(),
-                                        secondary_color,
-                                    )
-                                });
-
                                 // Two meaningful columns: the household-name
                                 // model makers (+ `custom`, the hand-rolled
                                 // escape hatch) on the left, third-party hosts
@@ -1064,9 +1725,20 @@ impl Chat {
                                     .collect();
                                 let (row_gap, button_h, glyph_sz, pad, glyph_gap, col_gap) =
                                     (8.0, 34.0, 16.0, 10.0, 10.0, 20.0);
+                                // A configured provider gets a right-aligned
+                                // check; reserve its column so the grid width
+                                // doesn't depend on what's set up.
+                                let check_sz = 14.0;
+                                let added =
+                                    |name: &str| self.providers.iter().any(|p| p.name == name);
                                 let max_label =
                                     labels.iter().map(|g| g.size().x).fold(0.0, f32::max);
-                                let cell_w = pad * 2.0 + glyph_sz + glyph_gap + max_label;
+                                let cell_w = pad * 2.0
+                                    + glyph_sz
+                                    + glyph_gap
+                                    + max_label
+                                    + glyph_gap
+                                    + check_sz;
                                 let grid_w = cell_w * 2.0 + col_gap;
                                 let rows = columns.iter().map(|c| c.len()).max().unwrap_or(0);
                                 let grid_h = rows as f32 * button_h
@@ -1082,13 +1754,10 @@ impl Chat {
                                     })
                                 });
 
-                                // headline, optional privacy line, the grid,
-                                // and (when summoned) a cancel — as one column.
+                                // headline, the grid, and (when summoned) a
+                                // cancel — as one column.
                                 let mut col = CenteredColumn::default();
                                 col.galley(0.0, head, false);
-                                if let Some(body) = body {
-                                    col.galley(12.0, body, true);
-                                }
                                 col.reserve(22.0, vec2(grid_w, grid_h));
                                 if let Some(c) = &cancel {
                                     col.reserve(20.0, c.size());
@@ -1134,6 +1803,25 @@ impl Chat {
                                             label,
                                             text_color,
                                         );
+                                        // Right-aligned check for an already-
+                                        // configured provider.
+                                        if added(name) {
+                                            let check = ui.fonts(|f| {
+                                                f.layout_no_wrap(
+                                                    Icon::DONE.icon.to_string(),
+                                                    egui::FontId::monospace(check_sz),
+                                                    secondary_color,
+                                                )
+                                            });
+                                            ui.painter().galley(
+                                                pos2(
+                                                    cell.max.x - pad - check.size().x,
+                                                    yb + (button_h - check.size().y) / 2.0,
+                                                ),
+                                                check,
+                                                secondary_color,
+                                            );
+                                        }
                                         if resp.clicked() {
                                             onboard_pick = Some(name);
                                         }
@@ -1162,10 +1850,6 @@ impl Chat {
                             | Onboard::Unreachable { label: l, .. }
                             | Onboard::PickModel(l) => {
                                 let text = match stage {
-                                    Onboard::Unreachable { auth: true, .. } => format!(
-                                        "Couldn't reach {l}. Check the API key in its provider \
-                                         file, then come back."
-                                    ),
                                     Onboard::Unreachable { local: true, .. } => {
                                         format!("Can't reach {l}. Is the server running?")
                                     }
@@ -1182,6 +1866,9 @@ impl Chat {
                                 col.galley(0.0, para(ui, text, secondary_color), true);
                                 col.show(ui, transcript_rect, center_x);
                             }
+                            // A missing key needs no centered card — the
+                            // composer's "add key" button is the whole story.
+                            Onboard::NeedKey { .. } => {}
                         }
                     } else if visible.is_empty()
                         && self.unshared
@@ -1240,6 +1927,13 @@ impl Chat {
                 });
         });
 
+        // A bare-canvas tap dismisses the keyboard (composer surrenders
+        // focus; iOS hides the on-screen keyboard).
+        if backdrop_tapped {
+            ui.memory_mut(|m| m.surrender_focus(composer_id));
+            ui.ctx().set_virtual_keyboard_shown(false);
+        }
+
         // Transcript text callback. Submit before composer so the composer's
         // own callback (inside show) lands on a later glyphon layer.
         // `clip_rect` not `max_rect`: egui_wgpu drops a zero-area callback rect.
@@ -1256,24 +1950,23 @@ impl Chat {
         let mut changed = false;
         match action {
             Some(RowAction::Delete(i)) => {
-                self.entries.remove(i);
-                self.seq += 1;
+                self.delete_cascade(i);
                 changed = true;
                 {
-                    let seed = self.visible_seed();
+                    let (seed, buffers) = self.agent_seed();
                     if let Some(harness) = &mut self.harness {
-                        harness.reseed(seed);
+                        harness.reseed(seed, buffers);
                     }
                 }
             }
             Some(RowAction::Switch { parent, target, vi, anchor_y }) => {
                 if let Some(id) = self.entries[target].msg.id {
                     self.branch_choice.insert(parent, id);
-                    self.branch_anchor = Some((vi, anchor_y));
+                    self.branch_anchor = Some((vi, anchor_y, false));
                     {
-                        let seed = self.visible_seed();
+                        let (seed, buffers) = self.agent_seed();
                         if let Some(harness) = &mut self.harness {
-                            harness.reseed(seed);
+                            harness.reseed(seed, buffers);
                         }
                     }
                 }
@@ -1283,23 +1976,53 @@ impl Chat {
                 self.resend_as_sibling(i);
                 changed = true;
             }
-            Some(RowAction::Regenerate(i)) => self.regenerate(i),
             Some(RowAction::RetryLast) => retry_clicked = true,
+            Some(RowAction::ToggleTool { id, vi, anchor_y }) => {
+                if !self.expanded_tools.remove(&id) {
+                    self.expanded_tools.insert(id);
+                }
+                self.branch_anchor = Some((vi, anchor_y, true));
+            }
             _ => {}
+        }
+
+        // Resolve the pending edit.
+        if approve_clicked || deny_clicked {
+            if let Some(harness) = &mut self.harness {
+                if approve_clicked {
+                    harness.approve();
+                } else {
+                    harness.deny();
+                }
+            }
+        }
+
+        // A clicked listing row opens the note in the workspace, resolved
+        // through the same file cache markdown links use.
+        if let Some(path) = open_list_path {
+            use crate::file_cache::FilesExt as _;
+            use crate::tab::ExtendedOutput as _;
+            let target = self
+                .composer
+                .renderer
+                .files
+                .read()
+                .unwrap()
+                .by_path(&path)
+                .filter(|f| f.is_document())
+                .map(|f| f.id);
+            if let Some(id) = target {
+                ui.ctx().open_file(id, true);
+            }
         }
 
         {
             if retry_clicked {
-                // The rerun's reply is a sibling of the error row: same parent.
-                self.pending_parent = self
-                    .visible()
-                    .last()
-                    .and_then(|row| parent_for_sibling(&self.entries, row.idx));
-                self.provider = self.resolve_provider();
-                let system = self.system_prompt.clone();
-                if let (Some(harness), Some(provider)) = (&mut self.harness, self.provider.clone())
-                {
-                    harness.retry(provider, system);
+                // Re-run the turn behind the tail error row. Routed through
+                // regenerate so a turn that failed mid-tool-chain reseeds
+                // from its invoking message, not mid-turn.
+                if let Some(idx) = self.visible().last().map(|row| row.idx) {
+                    self.regenerate(idx);
                 }
             }
             if let Some(name) = onboard_pick {
@@ -1312,21 +2035,13 @@ impl Chat {
             if chooser_cancel {
                 self.chooser_open = false;
             }
-            if key_connect {
+            if key_submit {
                 self.connect_provider_key();
-            } else if key_cancel || key_edit {
-                // Both back out of the connect step. The file still holds the
-                // template placeholder (no real key), so `onboard_stage` shows
-                // the chooser — and it does so on reopen too, since that's read
-                // from the file, not remembered here.
-                let file_id = self.key_entry.as_ref().map(|e| e.file_id);
-                self.key_prompt_dismissed = self.key_entry.as_ref().map(|e| e.name.clone());
+            } else if key_cancel {
+                // Cancel returns to the provider selector — pick a different
+                // provider, or the same one to try again.
                 self.key_entry = None;
-                if key_edit {
-                    if let Some(file_id) = file_id {
-                        self.open_provider_file(file_id);
-                    }
-                }
+                self.chooser_open = true;
             }
         }
 
@@ -1415,7 +2130,8 @@ impl Chat {
         );
         self.composer_rect = if hide_composer { Rect::NOTHING } else { composer_rect };
         let col_pad = (available_width - col_width) / 2.0;
-        let h_inset = col_pad + SIDE_INSET;
+        // The bubble spans the content column, like the message rows.
+        let h_inset = col_pad + H_MARGIN;
         let bubble_rect = Rect::from_min_max(
             pos2(composer_rect.min.x + h_inset, composer_rect.min.y),
             pos2(composer_rect.max.x - h_inset, composer_rect.max.y - composer_bottom_inset),
@@ -1432,8 +2148,41 @@ impl Chat {
             bubble_rect.min,
             pos2(bubble_rect.max.x, bubble_rect.max.y - TOOLBAR_H),
         );
-        let inner_rect = text_rect.shrink2(vec2(H_PAD, V_PAD));
-        if !hide_composer {
+        // Inset the sides and top, but run the bottom to the toolbar rather
+        // than insetting it. The composer is top-anchored, so this rect's
+        // bottom is purely the glyphon clip — insetting it by `V_PAD` pinned
+        // the clip onto the last line's box and shaved descenders (g/y tails,
+        // worst on hi-DPI). The empty space above the toolbar is the padding.
+        let inner_rect = Rect::from_min_max(
+            text_rect.min + vec2(H_PAD, V_PAD),
+            pos2(text_rect.max.x - H_PAD, text_rect.max.y),
+        );
+        // When the key is broken the text field is replaced by an accent
+        // "add key" button — a control, never a place to type a secret.
+        // Clicking it opens the dedicated masked field.
+        let mut add_key_clicked = false;
+        if let Some((_, label)) = &need_key {
+            let btn_rect = Rect::from_min_max(
+                text_rect.min + vec2(H_PAD, V_PAD),
+                pos2(text_rect.max.x - H_PAD, text_rect.max.y - V_PAD),
+            );
+            let resp = ui
+                .interact(btn_rect, Id::new("chat_add_key"), Sense::click())
+                .on_hover_cursor(egui::CursorIcon::PointingHand);
+            let accent = theme.bg().get_color(theme.prefs().primary);
+            ui.painter()
+                .rect_filled(btn_rect, CornerRadius::same(8), accent);
+            let btn_label = ui.fonts(|f| {
+                f.layout_no_wrap(
+                    format!("Fix your {label} key"),
+                    egui::FontId::proportional(15.0),
+                    text_color,
+                )
+            });
+            ui.painter()
+                .galley(btn_rect.center() - btn_label.size() / 2.0, btn_label, text_color);
+            add_key_clicked = resp.clicked();
+        } else if !hide_composer {
             self.composer.show(ui, inner_rect, composer_id);
         }
 
@@ -1447,9 +2196,6 @@ impl Chat {
             if self.unshared && self.harness.is_some() && self.config_loaded {
                 match &self.provider {
                     None => Some("pick an AI provider to start".into()),
-                    Some(p) if p.api_key.as_deref() == Some(KEY_PLACEHOLDER) => {
-                        Some(format!("add your {} API key to start", p.label()))
-                    }
                     Some(p) if p.model.trim().is_empty() => Some("pick a model to start".into()),
                     _ => None,
                 }
@@ -1457,8 +2203,12 @@ impl Chat {
                 None
             };
 
-        // Ghosted placeholder over the empty composer.
-        if !hide_composer && self.composer.renderer.buffer.current.text.is_empty() {
+        // Ghosted placeholder over the empty composer (not while the field is
+        // the "add key" button).
+        if !hide_composer
+            && need_key.is_none()
+            && self.composer.renderer.buffer.current.text.is_empty()
+        {
             let row_h = self.composer.row_height();
             let hint_text = send_block.as_deref().unwrap_or("Type a message");
             let hint = ui.fonts(|f| {
@@ -1829,24 +2579,9 @@ impl Chat {
             }
 
             if let Some((provider, model)) = pick {
-                // A picked provider whose file still holds the template
-                // placeholder was never configured — route through the
-                // connect step instead of landing on a dead credential.
-                let placeholder = self
-                    .providers
-                    .iter()
-                    .find(|p| p.name == provider)
-                    .filter(|p| p.api_key.as_deref() == Some(KEY_PLACEHOLDER))
-                    .map(|p| p.label());
-                self.write_selection(provider.clone(), model);
-                if let Some(label) = placeholder {
-                    if let Ok(file) = self
-                        .core
-                        .get_by_path(&format!("/.agent/providers/{provider}.json"))
-                    {
-                        self.open_key_entry(&provider, label, file.id);
-                    }
-                }
+                // The dropdown only lists configured providers (unconfigured
+                // ones are filtered at load), so a pick always has a key.
+                self.write_selection(provider, model);
                 changed = true;
             }
             if let Some(effort) = effort_pick {
@@ -1855,6 +2590,18 @@ impl Chat {
             }
             if open_chooser {
                 self.chooser_open = true;
+            }
+            // The composer's "add key" button opens the dedicated masked
+            // field for the broken provider — the only secret-entry surface.
+            if add_key_clicked {
+                if let Some((name, label)) = &need_key {
+                    if let Ok(file) = self
+                        .core
+                        .get_by_path(&format!("/.agent/providers/{name}.json"))
+                    {
+                        self.open_key_entry(name, label.clone(), file.id);
+                    }
+                }
             }
             if open_prompt {
                 self.create_prompt_file();
@@ -1870,26 +2617,33 @@ impl Chat {
         let non_empty = !self.composer.renderer.buffer.current.text.trim().is_empty();
         let mut send_clicked = false;
         let mut stop_clicked = false;
-        if !hide_composer {
-            let d = TOOLBAR_H - 8.0;
+        // No send button while the field is the "add key" button.
+        if !hide_composer && need_key.is_none() {
+            let d = if touch_os { TOOLBAR_H - 2.0 } else { TOOLBAR_H - 8.0 };
             let center = pos2(toolbar_rect.max.x - d / 2.0, toolbar_rect.center().y);
             let button_rect = Rect::from_center_size(center, vec2(d, d));
-            let resp = ui.interact(button_rect, Id::new("chat_send"), Sense::click());
-
+            // Touch targets stay ~44pt even where the visual is smaller.
+            let hit_rect = if touch_os { button_rect.expand(7.0) } else { button_rect };
             let active = (non_empty && send_block.is_none()) || agent_busy;
-            let fill = if active {
-                theme.bg().get_color(theme.prefs().primary)
-            } else {
-                theme.neutral_bg().lerp_to_gamma(theme.neutral_fg(), 0.12)
-            };
+            let resp = ui.interact(hit_rect, Id::new("chat_send"), Sense::click());
+            // A pointer cursor when it'll do something (send, or stop a turn).
+            let resp =
+                if active { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
+
             let painter = ui.painter();
-            painter.circle_filled(center, d / 2.0, fill);
+            // The markdown-toolbar icon idiom — no filled disc, just the mark
+            // itself: accent when actionable, foreground when idle.
+            let mark = if active {
+                theme.fg().get_color(theme.prefs().primary)
+            } else {
+                theme.neutral_fg()
+            };
             if agent_busy {
                 let side = d * 0.36;
                 painter.rect_filled(
                     Rect::from_center_size(center, vec2(side, side)),
                     CornerRadius::same(2),
-                    theme.neutral_fg(),
+                    mark,
                 );
                 stop_clicked = resp.clicked();
             } else {
@@ -1897,10 +2651,10 @@ impl Chat {
                     f.layout_no_wrap(
                         Icon::SEND.icon.to_string(),
                         egui::FontId::monospace(d * 0.55),
-                        theme.neutral_fg(),
+                        mark,
                     )
                 });
-                painter.galley(center - icon.size() / 2.0, icon, theme.neutral_fg());
+                painter.galley(center - icon.size() / 2.0, icon, mark);
                 send_clicked = resp.clicked();
             }
         }
@@ -1922,13 +2676,29 @@ impl Chat {
         // The one text field's rect, for the native text overlay: the connect
         // step's key field, else the composer, else nothing (the chooser has
         // no text input, so the keyboard should stay down).
+        //
+        // For the composer, report the whole bubble text region (`text_rect`),
+        // not the padded layout rect — this frame is the iOS text view's, so
+        // it doubles as the tap-to-focus / double-tap-to-select gesture
+        // target, and the padding margins should be tappable too (touch→buffer
+        // mapping is hit-tested separately, so a larger frame is safe). It
+        // stops at the toolbar so the dropdowns and send button keep their own
+        // egui taps.
         let interaction_rect = if self.key_entry.is_some() {
-            self.key_field_rect
+            self.key_field_hit_rect
         } else if hide_composer {
             Rect::NOTHING
         } else {
-            inner_rect
+            text_rect
         };
-        (sent || agent_changed || changed, interaction_rect)
+        // The composer's `seq` bumps on any text/selection change. When it
+        // moved but no native keystroke drove it (a send-clear, edit-prefill,
+        // stash-restore), the native text view still holds the old caret —
+        // report so the bridge re-syncs.
+        let composer_seq = self.composer.renderer.buffer.current.seq;
+        let composer_updated = composer_seq != self.composer_seq;
+        self.composer_seq = composer_seq;
+
+        (sent || agent_changed || changed, interaction_rect, composer_updated)
     }
 }
