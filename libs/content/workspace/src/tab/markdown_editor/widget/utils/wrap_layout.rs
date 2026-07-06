@@ -1232,7 +1232,8 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
             if bg_open(&scope_bg_stack) { width - 2.0 * inline_pad } else { width };
         match &items[i] {
             InlineItem::Box { advance, .. } | InlineItem::Embed(EmbedSpec { advance, .. }) => {
-                let lg = if cur_width + advance > effective_width {
+                let overflow = cur_width + advance > effective_width;
+                let lg = if overflow {
                     pick_wrap_point(last_whitespace_glue, last_any_glue, i, effective_width)
                 } else {
                     None
@@ -1240,6 +1241,18 @@ pub fn greedy_break(items: &[InlineItem], width: f32, inline_pad: f32) -> Vec<us
                 if let Some(lg) = lg {
                     breaks.push(lg + 1);
                     cur_width = items[lg + 1..=i].iter().map(item_advance).sum::<f32>();
+                    if bg_open(&scope_bg_stack) {
+                        cur_width += inline_pad;
+                    }
+                    last_whitespace_glue = None;
+                    last_any_glue = None;
+                } else if overflow && cur_width > 0.0 {
+                    // Overflow with no glue to break at — adjacent inline images
+                    // emit no separating whitespace. Break before this item so an
+                    // unbreakable box/embed starts a fresh row instead of running
+                    // past the width into the scrollbar gutter.
+                    breaks.push(i);
+                    cur_width = *advance;
                     if bg_open(&scope_bg_stack) {
                         cur_width += inline_pad;
                     }
@@ -2160,5 +2173,57 @@ impl MdRender {
         // Empty advances: snap by midpoint.
         let mid_x = (fragment.rect.min.x + fragment.rect.max.x) / 2.0;
         if x < mid_x { fragment.source_range.start() } else { fragment.source_range.end() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn embed(advance: f32) -> InlineItem {
+        InlineItem::Embed(EmbedSpec {
+            advance,
+            ascent: advance,
+            descent: 0.0,
+            source_range: (Grapheme(0), Grapheme(0)),
+            url: String::new(),
+            kind: EmbedKind::Image,
+        })
+    }
+
+    /// Adjacent inline images emit no separating glue. Each one that
+    /// overflows the row must still wrap onto its own row rather than
+    /// running past `width` (regression: a full-width image placed after
+    /// a small one overshot into the scrollbar and pushed the next image
+    /// off-screen).
+    #[test]
+    fn adjacent_embeds_wrap_without_glue() {
+        let width = 950.0;
+        // small, full-width, small — as in the reported doc.
+        let items = vec![embed(100.0), embed(900.0), embed(100.0)];
+        let breaks = greedy_break(&items, width, 0.0);
+        // One row per image: [0,1), [1,2), [2,3).
+        assert_eq!(breaks, vec![0, 1, 2, 3]);
+    }
+
+    /// An embed that fits alongside prior content shares the row; only
+    /// the overflowing one breaks.
+    #[test]
+    fn embeds_share_row_until_overflow() {
+        let width = 500.0;
+        let items = vec![embed(100.0), embed(100.0), embed(400.0)];
+        let breaks = greedy_break(&items, width, 0.0);
+        // 100+100 fit; the 400 overflows and starts a new row.
+        assert_eq!(breaks, vec![0, 2, 3]);
+    }
+
+    /// A single embed wider than the row is the first item on its row —
+    /// don't break before it (that would loop / emit an empty row).
+    #[test]
+    fn lone_oversized_embed_does_not_break() {
+        let width = 100.0;
+        let items = vec![embed(500.0)];
+        let breaks = greedy_break(&items, width, 0.0);
+        assert_eq!(breaks, vec![0, 1]);
     }
 }
