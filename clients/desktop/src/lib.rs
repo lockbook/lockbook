@@ -442,6 +442,50 @@ fn set_macos_app_icon(rgba: &[u8], width: u32, height: u32) {
     }
 }
 
+#[cfg(target_os = "linux")]
+fn x11_dpi_configured() -> bool {
+    use x11rb::connection::Connection;
+    use x11rb::protocol::xproto::{AtomEnum, ConnectionExt};
+
+    (|| -> Option<bool> {
+        let (conn, screen_num) = x11rb::connect(None).ok()?;
+
+        let xsettings_atom = conn
+            .intern_atom(false, format!("_XSETTINGS_S{screen_num}").as_bytes())
+            .ok()?
+            .reply()
+            .ok()?
+            .atom;
+        let xsettings_owner = conn
+            .get_selection_owner(xsettings_atom)
+            .ok()?
+            .reply()
+            .ok()?
+            .owner;
+        if xsettings_owner != x11rb::NONE {
+            return Some(true);
+        }
+
+        let root = conn.setup().roots.get(screen_num)?.root;
+        let reply = conn
+            .get_property(false, root, AtomEnum::RESOURCE_MANAGER, AtomEnum::STRING, 0, u32::MAX)
+            .ok()?
+            .reply()
+            .ok()?;
+        let resources = String::from_utf8_lossy(&reply.value);
+        Some(resources_declare_xft_dpi(&resources))
+    })()
+    .unwrap_or(false)
+}
+
+#[cfg(target_os = "linux")]
+fn resources_declare_xft_dpi(resources: &str) -> bool {
+    resources
+        .lines()
+        .filter_map(|line| line.split_once(':'))
+        .any(|(key, value)| key.trim() == "Xft.dpi" && !value.trim().is_empty())
+}
+
 pub fn run() {
     env_logger::init();
 
@@ -452,6 +496,10 @@ pub fn run() {
         // winit's Wayland backend doesn't deliver file drag-and-drop events. Default to X11
         // unless the user has opted in via settings (or set WINIT_UNIX_BACKEND).
         use winit::platform::x11::EventLoopBuilderExtX11;
+
+        if std::env::var_os("WINIT_X11_SCALE_FACTOR").is_none() && !x11_dpi_configured() {
+            std::env::set_var("WINIT_X11_SCALE_FACTOR", "1");
+        }
 
         let allow_wayland = lbeguiapp::Settings::read_from_file()
             .map(|s| s.allow_wayland)
