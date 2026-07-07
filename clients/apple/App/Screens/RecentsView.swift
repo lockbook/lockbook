@@ -22,6 +22,7 @@ struct RecentsView: View {
     var body: some View {
         let docs = recentDocs
         let orderedIds = docs.map(\.id)
+        let sections = Self.sections(for: docs)
 
         Group {
             if docs.isEmpty {
@@ -32,13 +33,26 @@ struct RecentsView: View {
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
-                        ForEach(docs) { file in
-                            VStack(spacing: 0) {
-                                RecentDocRow(file: file, model: model, orderedIds: orderedIds)
-                                Divider()
+                        ForEach(sections, id: \.title) { section in
+                            Text(section.title)
+                                .font(.title3.weight(.semibold))
+                                .padding(.horizontal, 12)
+                                .padding(.top, 22)
+                                .padding(.bottom, 6)
+
+                            ForEach(section.files) { file in
+                                VStack(spacing: 0) {
+                                    RecentDocRow(file: file, model: model, orderedIds: orderedIds)
+
+                                    if file.id != section.files.last?.id {
+                                        Divider()
+                                            .padding(.leading, 58)
+                                    }
+                                }
                             }
                         }
                     }
+                    .padding(.bottom, 20)
                 }
             }
         }
@@ -53,6 +67,50 @@ struct RecentsView: View {
         .environment(fileTreeModel)
         .navigationTitle("Recents")
         .largeNavigationTitle()
+    }
+
+    private static func sections(for docs: [File]) -> [(title: String, files: [File])] {
+        let calendar = Calendar.current
+        let startOfToday = calendar.startOfDay(for: .now)
+
+        var sections: [(title: String, files: [File])] = []
+
+        for file in docs {
+            let modified = Date(timeIntervalSince1970: TimeInterval(file.lastModified) / 1000)
+            let title = sectionTitle(for: modified, calendar: calendar, startOfToday: startOfToday)
+
+            if sections.last?.title == title {
+                sections[sections.count - 1].files.append(file)
+            } else {
+                sections.append((title: title, files: [file]))
+            }
+        }
+
+        return sections
+    }
+
+    private static func sectionTitle(for date: Date, calendar: Calendar, startOfToday: Date) -> String {
+        if date >= startOfToday {
+            return "Today"
+        }
+
+        if let yesterday = calendar.date(byAdding: .day, value: -1, to: startOfToday), date >= yesterday {
+            return "Yesterday"
+        }
+
+        if let weekAgo = calendar.date(byAdding: .day, value: -7, to: startOfToday), date >= weekAgo {
+            return "Previous 7 Days"
+        }
+
+        if let monthAgo = calendar.date(byAdding: .day, value: -30, to: startOfToday), date >= monthAgo {
+            return "Previous 30 Days"
+        }
+
+        if calendar.component(.year, from: date) == calendar.component(.year, from: startOfToday) {
+            return date.formatted(.dateTime.month(.wide))
+        }
+
+        return date.formatted(.dateTime.year())
     }
 
 }
@@ -77,7 +135,7 @@ struct RecentDocRow: View {
                 .frame(width: 22)
                 .padding(.top, 1)
 
-            VStack(alignment: .leading, spacing: 4) {
+            VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .firstTextBaseline) {
                     Text(file.name)
                         .fontWeight(.medium)
@@ -99,8 +157,8 @@ struct RecentDocRow: View {
 
                 FileBreadcrumb(file: file)
 
-                if let preview = model.preview(for: file), !preview.characters.isEmpty {
-                    Text(preview)
+                if let snippet {
+                    Text(snippet)
                         .font(.subheadline)
                         .foregroundStyle(.secondary)
                         .lineLimit(2)
@@ -119,7 +177,7 @@ struct RecentDocRow: View {
         }
         .frame(maxWidth: .infinity, alignment: .leading)
         .padding(.horizontal, 12)
-        .padding(.vertical, 10)
+        .padding(.vertical, 14)
         .contentShape(Rectangle())
         .selectableRow(
             model.selection,
@@ -137,6 +195,18 @@ struct RecentDocRow: View {
 
     private var modifiedDate: Date {
         Date(timeIntervalSince1970: TimeInterval(file.lastModified) / 1000)
+    }
+
+    private var snippet: AttributedString? {
+        if file.name.split(separator: ".").last?.lowercased() == "svg" {
+            return AttributedString("Drawing")
+        }
+
+        guard let preview = model.preview(for: file) else {
+            return nil
+        }
+
+        return preview.characters.isEmpty ? AttributedString("No additional text") : preview
     }
 
 }
