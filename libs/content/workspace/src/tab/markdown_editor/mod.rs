@@ -145,12 +145,28 @@ pub struct MdRender {
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
     pub preview_match: Option<(Grapheme, Grapheme)>,
-    pub interactive: bool,    // enables fold buttons
-    pub readonly: bool,       // disables task checkboxes and saving
-    pub plaintext: bool,      // render as source text, not parsed markdown
+    pub interactive: bool, // enables fold buttons
+    pub readonly: bool,    // disables task checkboxes and saving
+    pub plaintext: bool,   // render as source text, not parsed markdown
+    /// Password mode: render every source byte as `*` while the buffer keeps
+    /// the real text. Only meaningful with `plaintext` — masking a parsed
+    /// markdown tree isn't defined. Byte-length preserving, so
+    /// cursor/selection mapping is unchanged.
+    pub mask: bool,
+    /// Single-line field mode: lay out on one unbounded line instead of
+    /// wrapping at the shown rect's width. [`MdEdit::show`] pairs this with a
+    /// cursor-following horizontal scroll (the `GlyphonTextEdit`
+    /// `singleline_offset` pattern); the caller's rect clips the overflow.
+    pub single_line: bool,
     pub disable_images: bool, // skip image rendering (e.g. for the mobile toolbar)
+    pub contact_linked_sites: bool, // mirror of the persisted pref; gates outbound link fetching
 
     pub reveal_selection: Option<(Grapheme, Grapheme)>,
+    /// A preview atom entered via `Event::EnterAtom` whose whole range is
+    /// selected (a bare autolink card/capsule — its URL *is* its full source,
+    /// so no selection endpoint can land interior). Force-reveals the source;
+    /// re-resolved each frame and cleared when the selection leaves it.
+    pub entered_atom: Option<(Grapheme, Grapheme)>,
     pub reveal_seq: u64, // includes selection and find matches
 
     pub search_range: Option<(Grapheme, Grapheme)>, // drawn in accent color for completions
@@ -228,6 +244,11 @@ pub struct MdEdit {
     /// scroll area callback.
     pub pending_scroll: Option<ScrollTarget>,
 
+    /// Horizontal scroll (px) of a [`MdRender::single_line`] field — how far
+    /// the one-line layout is shifted left so the cursor stays inside the
+    /// shown rect. Maintained by [`MdEdit::show`]; 0 outside single-line mode.
+    pub single_line_scroll: f32,
+
     /// Momentum from the last scroll-area frame; used by `will_consume_touch`
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
@@ -268,6 +289,7 @@ impl MdEdit {
             touch_reorder: Default::default(),
             pending_block_move: None,
             pending_scroll: None,
+            single_line_scroll: 0.0,
             scroll_area_velocity: Default::default(),
             file_id,
             emoji_completions: Default::default(),
@@ -294,6 +316,7 @@ pub struct Editor {
     prev_dimensions: Option<Vec2>,
     prev_virtual_keyboard_shown: bool,
     embeds_seq: u64,
+    link_seq: u64,
 
     // interaction widgets (toolbar + find are Editor-owned; completion
     // widgets moved onto MdEdit so a standalone composer inherits them)
@@ -367,7 +390,7 @@ pub struct MdLayout {
 impl MdLayout {
     pub fn mobile() -> Self {
         Self {
-            margin: 45.0,
+            margin: if cfg!(target_os = "android") { 32.0 } else { 45.0 },
             max_width: 1000.0,
             inline_padding: 3.0,
             annotation_font_size: 12.0,
@@ -445,8 +468,12 @@ impl MdRender {
             interactive: false,
             readonly: true,
             plaintext: false,
+            mask: false,
+            single_line: false,
             disable_images: false,
+            contact_linked_sites: false,
             reveal_selection: None,
+            entered_atom: None,
             reveal_seq: 0,
             text_seq: 0,
             search_range: None,
@@ -509,8 +536,10 @@ impl MdRender {
             interaction_responses: Default::default(),
             revealed_spoilers: Default::default(),
             reveal_selection: None,
+            entered_atom: None,
             search_range: None,
             disable_images: false,
+            contact_linked_sites: false,
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
@@ -518,6 +547,8 @@ impl MdRender {
             interactive: false,
             readonly: true,
             plaintext: false,
+            mask: false,
+            single_line: false,
             embeds: Box::new(()),
             link_resolver: Box::new(()),
             client: Default::default(),
@@ -570,6 +601,7 @@ impl MdRender {
             self.bounds.inline_paragraphs.clear();
             self.calc_source_lines();
             self.calc_fold_bounds(root);
+            self.calc_image_bounds(root);
             // Populate before compute_bounds: pre_spacing_lines (called
             // from compute_bounds_block_pre_spacing) queries
             // hidden_by_fold, which now expects every node already
@@ -668,9 +700,13 @@ impl Editor {
             interactive: true,
             readonly,
             plaintext,
+            mask: false,
+            single_line: false,
             reveal_selection: None,
+            entered_atom: None,
             search_range: None,
             disable_images: false,
+            contact_linked_sites: false,
 
             embeds,
             link_resolver,
@@ -705,6 +741,7 @@ impl Editor {
                 touch_reorder: Default::default(),
                 pending_block_move: None,
                 pending_scroll: None,
+                single_line_scroll: 0.0,
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),
@@ -719,6 +756,7 @@ impl Editor {
             hmac,
             initialized: Default::default(),
             embeds_seq: 0,
+            link_seq: 0,
 
             toolbar: Default::default(),
             find: Default::default(),
@@ -827,6 +865,9 @@ impl Editor {
             self.edit.renderer.dark_mode = dark_mode;
         }
 
+        // Mirror the opt-in fetch preference onto the renderer each frame.
+        self.edit.renderer.contact_linked_sites = self.persistence.get_contact_linked_sites();
+
         let start = web_time::Instant::now();
 
         if height_updated {
@@ -837,6 +878,15 @@ impl Editor {
         let embeds_updated = embeds_seq != self.embeds_seq;
         self.embeds_seq = embeds_seq;
 
+        let link_seq = self
+            .edit
+            .renderer
+            .layout_cache
+            .link_seq
+            .load(std::sync::atomic::Ordering::Relaxed);
+        let link_meta_updated = link_seq != self.link_seq;
+        self.link_seq = link_seq;
+
         // --- input phase ------------------------------------------------------
         // Route workspace-origin events (toolbar Markdown, Undo/Redo) through
         // MdEdit's internal event queue, then let MdEdit::handle_input drain
@@ -845,6 +895,7 @@ impl Editor {
         self.edit.event.internal_events.extend(workspace_events);
 
         let prior_selection = self.edit.renderer.buffer.current.selection;
+        let prior_entered_atom = self.edit.renderer.entered_atom;
         let buf_resp = self.edit.handle_input(ui.ctx(), self.id());
         resp.open_camera = buf_resp.open_camera;
 
@@ -859,6 +910,14 @@ impl Editor {
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
+        // Loads completing (embed textures, link-preview metadata) reflow
+        // layout, moving the selection's on-screen rects without a selection
+        // change — signal so iOS re-queries its native selection/caret rects.
+        // Likewise entering/leaving an atom: Edit on a capsule re-selects the
+        // same range, but the reveal swaps the capsule for its raw source.
+        resp.selection_updated |= embeds_updated
+            || link_meta_updated
+            || prior_entered_atom != self.edit.renderer.entered_atom;
 
         let all_selected = self.edit.renderer.buffer.current.selection
             == (0.into(), self.edit.renderer.last_cursor_position());
@@ -1258,6 +1317,12 @@ impl Editor {
         Frame::canvas(ui.style())
             .inner_margin(Margin::ZERO)
             .stroke(Stroke::NONE)
+            // Frame's own fill sizes to the content min_rect, which the
+            // off-screen neighbor rows (and their interactive allocations)
+            // inflate above the viewport — painting the background over the
+            // toolbar and tab strip during scroll. Paint it ourselves,
+            // clipped to the viewport, below.
+            .fill(egui::Color32::TRANSPARENT)
             .show(ui, |ui| {
                 // Claim full available width with 0 vertical space so the
                 // Frame stretches horizontally regardless of how narrow the
@@ -1289,6 +1354,11 @@ impl Editor {
                 let pre = ui
                     .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
                         ui.set_clip_rect(canvas_rect);
+                        // Editor background, bounded to the viewport (see the
+                        // `fill(TRANSPARENT)` note on the Frame). First shape in
+                        // the scope, so it sits behind all content.
+                        ui.painter()
+                            .rect_filled(canvas_rect, 0.0, ui.visuals().extreme_bg_color);
                         self.edit.scroll_area.touch_scroll = touch_scroll;
                         // An armed touch reorder owns the gesture — don't
                         // scroll the body under the dragged item.
@@ -1303,7 +1373,13 @@ impl Editor {
                         // the scrollbar (so taps on the bar don't).
                         let begun = self.edit.scroll_area.begin(ui);
 
-                        let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
+                        let pre = self.edit.pre_render(
+                            ui,
+                            canvas_rect,
+                            scroll_id,
+                            root,
+                            self.keyboard_visible,
+                        );
 
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.block_boxes.clear();
@@ -1433,6 +1509,11 @@ impl Editor {
                 // order. `Bound::Line` lookup is a linear `range_before`
                 // / `range_after` walk that assumes sorted ranges.
                 self.edit.renderer.bounds.wrap_lines.sort_by_key(|r| r.0);
+
+                // Favicon + selection tint, over the opaque capsule pills.
+                self.edit
+                    .renderer
+                    .show_capsule_overlays(ui, root, canvas_rect);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);

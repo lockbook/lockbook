@@ -17,11 +17,16 @@ use super::MdRender;
 
 pub struct MdLabel {
     pub renderer: MdRender,
+    /// (content hash, width, dark mode) of the last prepared render. When it
+    /// matches, `prepare` skips the reparse + `bump_text_seq` so the layout
+    /// cache survives — a transcript of unchanging labels then re-lays-out
+    /// only on first paint / resize / theme change, not every frame.
+    last_prepared: Option<(u64, u32, bool)>,
 }
 
 impl MdLabel {
     pub fn new(ctx: egui::Context) -> Self {
-        Self { renderer: MdRender::empty(ctx) }
+        Self { renderer: MdRender::empty(ctx), last_prepared: None }
     }
 
     /// Parse `md` at `width` and return the rendered height. Call before
@@ -63,14 +68,39 @@ impl MdLabel {
         self.renderer.text_areas.clear();
 
         // Scoped ui for clipping; the scope's cursor side-effects stay local.
+        // Links resolve inside the same scope: `interact_fragments` registers
+        // their widgets keyed to this ui's id, and read-only labels open
+        // them on plain click.
         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
             self.renderer.show_block(ui, root, top_left);
+            self.renderer.interact_fragments(ui);
+            self.renderer.handle_link_interactions(root, ui);
         });
 
         (std::mem::take(&mut self.renderer.text_areas), rect)
     }
 
     fn prepare(&mut self, md: &str, width: f32) {
+        // Content whose rendered size resolves asynchronously (an image
+        // loading from its placeholder) must re-lay-out every frame to pick
+        // up the change; only static content is safe to memoize.
+        if md.contains("![") {
+            self.last_prepared = None;
+            self.renderer.set_width(width);
+            self.renderer.buffer = Buffer::from(md);
+            self.renderer.bump_text_seq();
+            return;
+        }
+        use std::hash::{Hash as _, Hasher as _};
+        let mut hasher = std::collections::hash_map::DefaultHasher::new();
+        md.hash(&mut hasher);
+        // `dark_mode` is set by the caller before `prepare`; it changes the
+        // layout, so it's part of the key.
+        let key = (hasher.finish(), width.to_bits(), self.renderer.dark_mode);
+        if self.last_prepared == Some(key) {
+            return;
+        }
+        self.last_prepared = Some(key);
         self.renderer.set_width(width);
         self.renderer.buffer = Buffer::from(md);
         self.renderer.bump_text_seq();

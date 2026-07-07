@@ -715,6 +715,7 @@ impl AndroidKeys {
 
             Insert => egui::Key::Insert,
             Delete => egui::Key::Backspace,
+            ForwardDel => egui::Key::Delete,
             Home => egui::Key::Home,
             MoveHome => egui::Key::Home,
             MoveEnd => egui::Key::End,

@@ -57,6 +57,13 @@
         /// range adjustment (selection handles)
         var rangeAdjustmentInProgress = false
 
+        /// edit menu (copy/paste); presented from Rust via `output.has_context_menu`.
+        var menuInteraction: UIEditMenuInteraction?
+        var menuDelegate: UIEditMenuInteractionDelegate?
+        /// menu is over a selected image atom — offer "Edit" (set per-present
+        /// from `output.context_menu_for_atom`)
+        var editMenuForAtom = false
+
         init(mtkView: iOSMTK) {
             self.mtkView = mtkView
 
@@ -68,6 +75,15 @@
             // text input
             textInteraction.textInput = self
             addInteraction(textInteraction)
+
+            // edit menu, presented from Rust (see `output.has_context_menu`)
+            let menuDelegate = MdMenuDelegate()
+            menuDelegate.mtkView = mtkView
+            menuDelegate.view = self
+            let menuInteraction = UIEditMenuInteraction(delegate: menuDelegate)
+            addInteraction(menuInteraction)
+            self.menuDelegate = menuDelegate
+            self.menuInteraction = menuInteraction
 
             for gestureRecognizer in gestureRecognizers ?? [] {
                 // receive touch events immediately even if they are part of any recognized gestures
@@ -1299,6 +1315,46 @@
 
     public class SvgMenuDelegate: NSObject, UIEditMenuInteractionDelegate {}
 
+    // MARK: - MdMenuDelegate
+
+    /// Augments the markdown edit menu: "Open Link" when the selection holds a
+    /// link or image (e.g. a tapped link-preview card or inline image), and
+    /// "Edit" when it's over a selected image atom — select the URL inside the
+    /// atom, revealing its source, since mobile has no arrow keys.
+    public class MdMenuDelegate: NSObject, UIEditMenuInteractionDelegate {
+        weak var mtkView: iOSMTK?
+        weak var view: MdView?
+
+        public func editMenuInteraction(
+            _: UIEditMenuInteraction, menuFor _: UIEditMenuConfiguration,
+            suggestedActions: [UIMenuElement]
+        ) -> UIMenu? {
+            var children = suggestedActions
+            if let wsHandle = mtkView?.wsHandle, let target = selection_open_target(wsHandle) {
+                free_text(target)
+                let open = UIAction(
+                    title: "Open Link", image: UIImage(systemName: "arrow.up.forward.app")
+                ) { [weak self] _ in
+                    if let wsHandle = self?.mtkView?.wsHandle {
+                        open_selection_links(wsHandle)
+                    }
+                }
+                children.insert(open, at: 0)
+            }
+            if let view, view.editMenuForAtom {
+                let edit = UIAction(title: "Edit") { [weak view] _ in
+                    guard let view else { return }
+                    enter_selected_atom(view.wsHandle)
+                    // schedule the frame that processes the event, whose selection
+                    // update then flows back via `output.selection_updated`
+                    view.mtkView.setNeedsDisplay(view.mtkView.frame)
+                }
+                children.insert(edit, at: 0)
+            }
+            return UIMenu(children: children)
+        }
+    }
+
     // MARK: - iOSMTKViewDelegate
 
     public class iOSMTKViewDelegate: NSObject, MTKViewDelegate {
@@ -1328,6 +1384,7 @@
             }
 
             dark_mode(wsHandle, mtkView.isDarkMode())
+            set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
 
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
@@ -1410,6 +1467,18 @@
 
                 if output.selection_updated, !mtkView.ignoreSelectionUpdate {
                     mtkView.onSelectionChanged?()
+                }
+
+                // Edit menu requested by Rust (e.g. tapping a selected image);
+                // point is egui screen space → convert to this view's local space.
+                if output.has_context_menu, let menuInteraction = currentWrapper.menuInteraction {
+                    currentWrapper.editMenuForAtom = output.context_menu_for_atom
+                    let point = CGPoint(
+                        x: CGFloat(output.context_menu_x) - currentWrapper.interactionRect.minX,
+                        y: CGFloat(output.context_menu_y) - currentWrapper.interactionRect.minY
+                    )
+                    let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
+                    menuInteraction.presentEditMenu(with: config)
                 }
 
                 // Position the interaction overlay to the rect Rust reports

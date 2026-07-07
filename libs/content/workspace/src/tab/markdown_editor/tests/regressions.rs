@@ -84,7 +84,7 @@ fn inline_image_advance_matches_rendered_width() {
         .renderer
         .fragments
         .iter()
-        .filter(|f| matches!(f.content, FragmentContent::Image { .. }))
+        .filter(|f| matches!(f.content, FragmentContent::Embed { .. }))
         .collect();
     assert_eq!(images.len(), 2);
     for f in &images {
@@ -112,6 +112,35 @@ fn image_link_no_break_opportunities_wraps() {
         // fails in real usage.
         glyph_in_render_area_check_md(md, w).unwrap_or_else(|e| panic!("width={}: {}", w, e));
     }
+}
+
+/// Mobile edit-menu "Edit": with the selection exactly covering a collapsed
+/// image atom, `Event::EnterAtom` selects the image's URL — endpoints inside
+/// the syntax reveal the raw markdown, and the likeliest edit becomes
+/// type-to-replace. The only touch path in, since mobile has no arrow keys.
+/// A selection that isn't an image is a no-op.
+#[test]
+fn enter_atom_selects_image_url() {
+    let url = "https://example.com/i.png";
+    let mut ws = TestEditor::new(&format!("![alt]({url})\n"));
+    ws.enter_frame();
+    let img = ws.editor.edit.renderer.bounds.images[0];
+
+    // non-image selection: no-op
+    ws.push(Event::EnterAtom);
+    ws.enter_frame();
+    assert!(!ws.editor.edit.renderer.range_revealed_interior(img));
+
+    // tap-select the atom, then enter it
+    ws.push(Event::Select { region: img.into() });
+    ws.enter_frame();
+    assert!(!ws.editor.edit.renderer.range_revealed_interior(img), "selected, not revealed");
+    ws.push(Event::EnterAtom);
+    ws.enter_frame();
+
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    assert_eq!(&ws.editor.edit.renderer.buffer[sel], url, "url selected: {sel:?}");
+    assert!(ws.editor.edit.renderer.range_revealed_interior(img), "source revealed");
 }
 
 #[test]
@@ -566,16 +595,14 @@ fn layout_cache_consistent_under_link_title() {
     ws.enter_frame();
 
     {
-        let mut titles = ws
-            .editor
-            .edit
-            .renderer
-            .layout_cache
-            .link_titles
-            .borrow_mut();
+        use super::super::widget::inline::link::meta::{LinkMeta, LinkMetaState};
+        let mut titles = ws.editor.edit.renderer.layout_cache.link_meta.borrow_mut();
         titles.insert(
             url.to_string(),
-            Arc::new(Mutex::new(super::super::widget::block::TitleState::Loaded("ok".into()))),
+            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
+                title: "ok".into(),
+                ..Default::default()
+            }))),
         );
     }
     ws.editor.edit.renderer.layout_cache.link_seq.store(
@@ -1690,5 +1717,72 @@ fn find_esc_closes_widget() {
     assert!(
         ws.editor.find.term.is_none(),
         "esc should close find (search field focused before esc = {focused})",
+    );
+}
+
+/// The chat connect step's masked key field: a standalone `MdEdit` with
+/// `plaintext + mask + single_line` must produce glyph fragments (the `*`s)
+/// on one unwrapped row, scrolled so a cursor at the end of an overlong key
+/// stays inside the rect.
+#[test]
+fn masked_plaintext_mdedit_renders_glyphs() {
+    use crate::tab::markdown_editor::MdEdit;
+    use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
+
+    let ctx = egui::Context::default();
+    let mut edit = MdEdit::empty(ctx.clone());
+    edit.renderer.plaintext = true;
+    edit.renderer.mask = true;
+    edit.renderer.single_line = true;
+    // Long enough that a 300px field must overflow (~8px/char mono).
+    let key = "sk-test-".repeat(16);
+    edit.set_text(&key);
+
+    let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(300., 30.));
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
+    let frame = |edit: &mut MdEdit| {
+        let _ =
+            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+                ctx.set_lb_theme(Theme::default(Mode::Dark));
+                crate::register_font_system(ctx);
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    edit.show(ui, rect, egui::Id::new("key_field"));
+                });
+            });
+    };
+    frame(&mut edit);
+
+    let glyph_frags: Vec<_> = edit
+        .renderer
+        .fragments
+        .iter()
+        .filter(|f| matches!(f.content, FragmentContent::Glyphs { .. }))
+        .collect();
+    assert!(!glyph_frags.is_empty(), "masked field produced no glyph fragments (invisible key)");
+    // The caret must resolve against the masked layout — this is what iOS's
+    // caretRect(for:) reads; None here is an invisible native cursor.
+    assert!(
+        edit.cursor_line(5.into()).is_some(),
+        "masked field has no caret line (invisible cursor)"
+    );
+    // Single line: every glyph fragment on one row, none wrapped below.
+    let tops: Vec<i32> = glyph_frags.iter().map(|f| f.rect.top() as i32).collect();
+    assert!(tops.windows(2).all(|w| w[0] == w[1]), "single-line field wrapped: {tops:?}");
+
+    // Cursor at the end of the overlong key → the layout scrolls left to
+    // keep it in view (converges over a couple frames), and the caret lands
+    // inside the rect.
+    let end = edit.renderer.buffer.current.segs.last_cursor_position();
+    edit.renderer.buffer.current.selection = (end, end);
+    for _ in 0..3 {
+        frame(&mut edit);
+    }
+    assert!(edit.single_line_scroll > 0.0, "overlong key did not scroll");
+    let [top, _] = edit.cursor_line(end).unwrap();
+    assert!(
+        top.x >= rect.left() && top.x <= rect.right(),
+        "caret ({}) outside field {rect:?} at scroll {}",
+        top.x,
+        edit.single_line_scroll
     );
 }

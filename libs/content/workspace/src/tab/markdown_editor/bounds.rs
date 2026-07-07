@@ -54,6 +54,11 @@ pub struct Bounds {
     /// * Documents may have no folds.
     /// * Fold contents can nest (an inner fold within an outer section).
     pub folds: Vec<FoldBounds>,
+
+    /// Source range of each collapsed inline image, sorted. Atoms for
+    /// navigation: the cursor steps past a whole image rather than into its
+    /// `![alt](url)` source, and a backspace against one selects it.
+    pub images: Vec<(Grapheme, Grapheme)>,
 }
 
 /// Tag + hidden-contents ranges of one actively folded section. Both act
@@ -92,6 +97,7 @@ impl Default for Bounds {
             wrap_lines: Lines::default(),
             inline_paragraphs: Paragraphs::default(),
             folds: Vec::default(),
+            images: Vec::default(),
         }
     }
 }

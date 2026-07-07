@@ -30,6 +30,21 @@ data class CursorMonitorStatus(
 
 const val MAX_CONTENT_SIZE = 25 * 1024 * 1024
 
+private fun KeyEvent.isWorkspaceNavigationKey(): Boolean =
+    when (keyCode) {
+        KeyEvent.KEYCODE_DPAD_LEFT,
+        KeyEvent.KEYCODE_DPAD_RIGHT,
+        KeyEvent.KEYCODE_DPAD_UP,
+        KeyEvent.KEYCODE_DPAD_DOWN,
+        KeyEvent.KEYCODE_MOVE_HOME,
+        KeyEvent.KEYCODE_MOVE_END,
+        KeyEvent.KEYCODE_PAGE_UP,
+        KeyEvent.KEYCODE_PAGE_DOWN,
+        -> true
+
+        else -> false
+    }
+
 @SuppressLint("SoonBlockedPrivateApi")
 class WorkspaceTextInputConnection(
     val workspaceView: WorkspaceView,
@@ -59,7 +74,9 @@ class WorkspaceTextInputConnection(
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
-        super.sendKeyEvent(event)
+        if (event?.isWorkspaceNavigationKey() != true) {
+            super.sendKeyEvent(event)
+        }
 
         if (event != null) {
             val content = event.unicodeChar.toChar().toString()

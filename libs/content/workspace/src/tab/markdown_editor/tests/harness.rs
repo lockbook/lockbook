@@ -191,8 +191,11 @@ impl EmbedResolver for TestEmbeds {
             .copied()
             .unwrap_or_else(|| Vec2::splat(200.))
     }
-    fn show(&self, _ui: &mut Ui, _url: &str, _rect: Rect) {}
-    fn warm(&self, _url: &str) {}
+    fn is_loaded(&self, url: &str) -> bool {
+        self.sizes.lock().unwrap().contains_key(url)
+    }
+    fn show(&self, _ui: &mut Ui, _url: &str, _rect: Rect, _rounding: egui::CornerRadius) {}
+    fn prefetch(&self, _url: &str) {}
     fn seq(&self) -> u64 {
         self.seq.load(Ordering::Relaxed)
     }
@@ -202,11 +205,14 @@ impl EmbedResolver for Arc<TestEmbeds> {
     fn size(&self, url: &str) -> Vec2 {
         (**self).size(url)
     }
-    fn show(&self, ui: &mut Ui, url: &str, rect: Rect) {
-        (**self).show(ui, url, rect)
+    fn is_loaded(&self, url: &str) -> bool {
+        (**self).is_loaded(url)
     }
-    fn warm(&self, url: &str) {
-        (**self).warm(url)
+    fn show(&self, ui: &mut Ui, url: &str, rect: Rect, rounding: egui::CornerRadius) {
+        (**self).show(ui, url, rect, rounding)
+    }
+    fn prefetch(&self, url: &str) {
+        (**self).prefetch(url)
     }
     fn seq(&self) -> u64 {
         (**self).seq()

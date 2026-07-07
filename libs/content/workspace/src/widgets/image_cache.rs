@@ -147,6 +147,18 @@ impl ImageCache {
             .map(|[w, h]| Vec2::new(w, h))
     }
 
+    /// Whether `url`'s texture is decoded and ready to paint this session — the
+    /// real `Loaded` state, not just persisted dims (which outlive the texture).
+    pub fn is_loaded(&self, url: &str) -> bool {
+        let inner = self.inner.lock().unwrap();
+        inner
+            .current
+            .get(url)
+            .or_else(|| inner.previous.get(url))
+            .map(|s| matches!(&*s.lock().unwrap(), ImageState::Loaded(_)))
+            .unwrap_or(false)
+    }
+
     /// Test helper: directly install a `Loaded`/`Failed` state for `url`,
     /// populate dims from texture metadata (when `Ok`), and bump `seq` —
     /// mimicking a worker thread completing a load. The dims insert
@@ -339,33 +351,19 @@ pub fn decode_with_orientation(image_bytes: &[u8]) -> Result<DynamicImage, Strin
 /// decoders can't parse.
 const USER_AGENT: &str = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36";
 
+// Routed through `crate::egress` so images, favicons, and link previews share
+// the same SSRF/HTTPS/size guards (these URLs arrive via shared documents).
 #[cfg(not(target_arch = "wasm32"))]
 fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, String> {
-    let response = client
-        .get(url)
-        .header("User-Agent", USER_AGENT)
-        .send()
-        .map_err(|e| e.to_string())?;
-    let status = response.status();
-    if !status.is_success() {
-        return Err(format!("{} {}", status.as_u16(), status.canonical_reason().unwrap_or("")));
-    }
-    Ok(response.bytes().map_err(|e| e.to_string())?.to_vec())
+    crate::egress::fetch_bytes(client, url, USER_AGENT, crate::egress::MAX_IMAGE_BYTES)
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(target_arch = "wasm32")]
 async fn download_image(client: &HttpClient, url: &str) -> Result<Vec<u8>, String> {
-    let response = client
-        .get(url)
-        .header("User-Agent", USER_AGENT)
-        .send()
+    crate::egress::fetch_bytes(client, url, USER_AGENT, crate::egress::MAX_IMAGE_BYTES)
         .await
-        .map_err(|e| e.to_string())?;
-    let status = response.status();
-    if !status.is_success() {
-        return Err(format!("{} {}", status.as_u16(), status.canonical_reason().unwrap_or("")));
-    }
-    Ok(response.bytes().await.map_err(|e| e.to_string())?.to_vec())
+        .map_err(|e| e.to_string())
 }
 
 #[cfg(test)]

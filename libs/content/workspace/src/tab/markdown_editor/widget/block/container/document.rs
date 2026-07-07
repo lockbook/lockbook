@@ -84,6 +84,16 @@ impl<'ast> MdRender {
     fn layout_source_line(&self, line_idx: usize) -> Layout {
         let line = self.bounds.source_lines[line_idx];
         let mut layout = Layout::new(line);
+        if self.mask {
+            // One `*` per source byte keeps the `one_to_one` (byte-indexed)
+            // mapping exact — cursor, selection, and iOS text rects line up
+            // while the real text never reaches the screen.
+            if !line.is_empty() {
+                let masked = "*".repeat(self.buffer[line].len());
+                layout.push_source(line, &masked, self.text_format_syntax());
+            }
+            return layout;
+        }
         let highlighter_syntax = syntax_set().find_syntax_by_extension(syntax_ext_for(&self.ext));
         if let Some(syntax) = highlighter_syntax {
             let mut highlighter = HighlightLines::new(syntax, syntax_theme());

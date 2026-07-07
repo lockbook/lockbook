@@ -98,7 +98,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZ)V",
+        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZ)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -111,6 +111,7 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.has_edit_menu { 1 } else { 0 }),
             JValue::Float(response.edit_menu_x),
             JValue::Float(response.edit_menu_y),
+            JValue::Bool(if response.edit_menu_for_atom { 1 } else { 0 }),
             JValue::Bool(if response.selection_updated { 1 } else { 0 }),
             JValue::Bool(if response.text_updated { 1 } else { 0 }),
         ],
@@ -171,6 +172,16 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_insertTextAtCursor(
     }
 }
 
+/// Edit-menu "Edit" over a selected image: select the URL inside the atom, revealing its
+/// source (mobile has no arrow keys to get inside).
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterSelectedAtom(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer.context.push_markdown_event(Event::EnterAtom);
+}
+
 /// Push real IME visibility (from the Android inset listener) into the
 /// editor so touch long-press can pick drag-reorder vs text selection.
 #[no_mangle]
@@ -181,6 +192,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
     if let Some(md) = obj.workspace.current_tab_markdown_mut() {
         md.keyboard_visible = shown == 1;
     }
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setContactLinkedSites(
+    _env: JNIEnv, _: JClass, obj: jlong, value: jboolean,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.cfg.set_contact_linked_sites(value == 1);
 }
 
 #[no_mangle]

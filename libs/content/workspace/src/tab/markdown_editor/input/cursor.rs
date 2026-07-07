@@ -4,7 +4,7 @@ use egui::{Color32, Pos2, Rangef, Rect, Sense, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::ExtendedInput as _;
-use crate::tab::markdown_editor::MdEdit;
+use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::theme::palette_v2::ThemeExt as _;
 
 use super::{Event, Region};
@@ -24,9 +24,11 @@ pub struct CursorState {
 impl MdEdit {
     /// Highlights the provided range with a faded version of the provided accent color.
     pub fn show_range(&self, ui: &mut Ui, highlight_range: (Grapheme, Grapheme), color: Color32) {
-        for rect in self.range_rects(highlight_range) {
-            ui.painter().rect_filled(rect, 2., color);
-        }
+        self.renderer.show_range(ui, highlight_range, color)
+    }
+
+    pub fn range_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
+        self.renderer.range_rects(range)
     }
 
     pub fn selection_tap(&self, pos: Pos2) -> bool {
@@ -55,93 +57,6 @@ impl MdEdit {
                 .iter()
                 .any(|&r| pad_rect(r).contains(pos))
         }
-    }
-
-    pub fn range_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
-        let mut result: Vec<Rect> = Vec::new();
-        for frag in self.renderer.fragments.iter() {
-            let frag_range = frag.source_range;
-            // Skip empty-range fragments (anchors) — they contribute
-            // no width, so a selection rect over them would be 0×N
-            // and add noise.
-            if frag_range.start() == frag_range.end() {
-                continue;
-            }
-            if frag_range.end() <= range.start() || frag_range.start() >= range.end() {
-                continue;
-            }
-            let mut rect = frag.rect;
-            if frag_range.contains_inclusive(range.start()) {
-                rect.min.x = self.renderer.fragment_x(frag, range.start());
-            }
-            if frag_range.contains_inclusive(range.end()) {
-                rect.max.x = self.renderer.fragment_x(frag, range.end());
-            }
-            if rect.area() <= 0.001 {
-                continue;
-            }
-            // Coalesce contiguous same-row rects so each row's
-            // selection paints as one merged rounded rect (outer
-            // corners rounded, no rounding at internal fragment
-            // seams).
-            if let Some(last) = result.last_mut() {
-                let same_row = (last.top() - rect.top()).abs() < 0.001
-                    && (last.bottom() - rect.bottom()).abs() < 0.001;
-                let contiguous = (last.right() - rect.left()).abs() < 0.001;
-                if same_row && contiguous {
-                    last.max.x = rect.max.x;
-                    continue;
-                }
-            }
-            result.push(rect);
-        }
-
-        // Selected newlines / blank lines have no glyph to highlight. When
-        // the selection crosses a source line's end, add a fixed-width slab
-        // at that row's end so the captured `\n` reads as selected.
-        // (Soft-wrap whitespace shares its boundary offset with the next
-        // row's start, so it isn't covered here.)
-        if !range.is_empty() {
-            let slab_w = self.renderer.layout.row_height * 0.4;
-            let line_count = self.renderer.bounds.source_lines.len();
-            for i in 0..line_count.saturating_sub(1) {
-                // The `\n` grapheme sits at the line's end offset (source
-                // lines exclude their trailing newline).
-                let newline = self.renderer.bounds.source_lines[i].end();
-                if newline < range.start() || newline >= range.end() {
-                    continue;
-                }
-                // Match the row's content rects (bare fragment rect), not
-                // `cursor_line`'s caret-height-expanded range.
-                if let Some(frag) = self.renderer.fragment_at_offset(newline) {
-                    let x = self.renderer.fragment_x(frag, newline);
-                    let (top, bot) = (frag.rect.min.y, frag.rect.max.y);
-                    // Extend the row's content rect rightward into the slab so
-                    // the newline flows out of the row's highlight as one
-                    // rounded shape, rather than a separate notched rect.
-                    if let Some(r) = result.iter_mut().find(|r| {
-                        (r.top() - top).abs() < 0.001
-                            && (r.bottom() - bot).abs() < 0.001
-                            && (r.right() - x).abs() < 0.5
-                    }) {
-                        r.max.x = r.max.x.max(x + slab_w);
-                    } else {
-                        result.push(Rect::from_min_max(
-                            Pos2::new(x, top),
-                            Pos2::new(x + slab_w, bot),
-                        ));
-                    }
-                }
-            }
-        }
-
-        result.sort_by(|a, b| {
-            a.top()
-                .total_cmp(&b.top())
-                .then(a.left().total_cmp(&b.left()))
-        });
-
-        result
     }
 
     /// Draws a cursor at the provided offset with the provided accent color.
@@ -298,17 +213,167 @@ impl MdEdit {
         use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
         let frag = self.renderer.fragment_at_offset(offset)?;
         let x = self.renderer.fragment_x(frag, offset);
-        // Image fragments span the image band; `rect.bottom()` is the
-        // row's text baseline. Caret stays text-height around it.
-        let y_range = match &frag.content {
-            FragmentContent::Image { .. } => {
+        let row_h = self.renderer.layout.row_height;
+        // A caret bordering a collapsed image (just before or just after it)
+        // spans the image's height.
+        let border_image = self.renderer.fragments.iter().find(|f| {
+            matches!(f.content, FragmentContent::Embed { .. })
+                && (f.source_range.start() == offset || f.source_range.end() == offset)
+        });
+        let y_range = match (border_image, &frag.content) {
+            (Some(image), _) => {
+                egui::Rangef::new(image.rect.top(), image.rect.bottom() + row_h * 0.2)
+            }
+            // interior of an image
+            (None, FragmentContent::Embed { .. }) => {
                 let baseline = frag.rect.bottom();
-                let row_h = self.renderer.layout.row_height;
                 egui::Rangef::new(baseline - row_h * 0.8, baseline + row_h * 0.2)
             }
-            _ => frag.rect.y_range(),
+            (None, _) => frag.rect.y_range(),
         };
         let y_range = y_range.expand(self.renderer.layout.row_spacing / 2.);
         Some([Pos2 { x, y: y_range.min }, Pos2 { x, y: y_range.max }])
+    }
+}
+
+impl MdRender {
+    /// Highlights the provided range with a faded version of the provided accent color.
+    pub fn show_range(&self, ui: &mut Ui, highlight_range: (Grapheme, Grapheme), color: Color32) {
+        for rect in self.range_rects(highlight_range) {
+            ui.painter().rect_filled(rect, 2., color);
+        }
+    }
+
+    /// Rects covering `range` in the rendered layout — the geometry behind
+    /// selection, find highlights, and diff tints. Read-only labels reach it
+    /// on the renderer directly.
+    pub fn range_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
+        use crate::tab::markdown_editor::widget::utils::wrap_layout::FragmentContent;
+        let mut result: Vec<Rect> = Vec::new();
+        for frag in self.fragments.iter() {
+            let frag_range = frag.source_range;
+            // Empty-range fragments contribute no width — except a chip's pad
+            // spacers, which carry the capsule's real side padding. Include
+            // those when their capsule overlaps the selection so the highlight
+            // spans the full pill (and the last rect — where iOS drops the end
+            // handle — reaches the pill's edge).
+            if frag_range.start() == frag_range.end() {
+                let pad_scope = frag
+                    .style_stack
+                    .last()
+                    .filter(|s| s.chip && matches!(frag.content, FragmentContent::Spacer))
+                    .map(|s| s.source_range);
+                let overlaps =
+                    pad_scope.is_some_and(|s| s.start() < range.end() && range.start() < s.end());
+                if !overlaps {
+                    continue;
+                }
+            }
+            // (pads passed their own scope-overlap check above; their empty
+            // range would always fail this one)
+            if frag_range.start() != frag_range.end()
+                && (frag_range.end() <= range.start() || frag_range.start() >= range.end())
+            {
+                continue;
+            }
+            let mut rect = frag.rect;
+            // Recompute an edge only when the selection endpoint falls
+            // *strictly inside* the fragment. At `==` the fragment's own edge
+            // already is the endpoint — and for capsule fragments, which all
+            // share the atom's full source range, recomputing both edges from
+            // global offsets would mangle every segment's rect.
+            if frag_range.start() < range.start() {
+                rect.min.x = self.fragment_x(frag, range.start());
+            }
+            if frag_range.end() > range.end() {
+                rect.max.x = self.fragment_x(frag, range.end());
+            }
+            if rect.area() <= 0.001 {
+                continue;
+            }
+            result.push(rect);
+        }
+
+        // Selected newlines / blank lines have no glyph to highlight. When
+        // the selection crosses a source line's end, add a fixed-width slab
+        // at that row's end so the captured `\n` reads as selected.
+        // (Soft-wrap whitespace shares its boundary offset with the next
+        // row's start, so it isn't covered here.)
+        if !range.is_empty() {
+            let slab_w = self.layout.row_height * 0.4;
+            let line_count = self.bounds.source_lines.len();
+            for i in 0..line_count.saturating_sub(1) {
+                // The `\n` grapheme sits at the line's end offset (source
+                // lines exclude their trailing newline).
+                let newline = self.bounds.source_lines[i].end();
+                if newline < range.start() || newline >= range.end() {
+                    continue;
+                }
+                // Match the row's content rects (bare fragment rect), not
+                // `cursor_line`'s caret-height-expanded range.
+                if let Some(frag) = self.fragment_at_offset(newline) {
+                    let x = self.fragment_x(frag, newline);
+                    let (top, bot) = (frag.rect.min.y, frag.rect.max.y);
+                    // Extend the row's content rect rightward into the slab so
+                    // the newline flows out of the row's highlight as one
+                    // rounded shape, rather than a separate notched rect.
+                    if let Some(r) = result.iter_mut().find(|r| {
+                        (r.top() - top).abs() < 0.001
+                            && (r.bottom() - bot).abs() < 0.001
+                            && (r.right() - x).abs() < 0.5
+                    }) {
+                        r.max.x = r.max.x.max(x + slab_w);
+                    } else {
+                        result.push(Rect::from_min_max(
+                            Pos2::new(x, top),
+                            Pos2::new(x + slab_w, bot),
+                        ));
+                    }
+                }
+            }
+        }
+
+        // Reading order: group vertically-overlapping rects into rows, then by
+        // x — so the last rect is the selection's geometric end, where iOS reads
+        // the end handle. A raw top-sort would put a low inter-image space rect
+        // last, dropping the handle on the next image's left edge.
+        let mut by_top: Vec<usize> = (0..result.len()).collect();
+        by_top.sort_by(|&a, &b| result[a].top().total_cmp(&result[b].top()));
+        let mut row_of = vec![0usize; result.len()];
+        let mut row = 0;
+        let mut row_bottom = f32::NEG_INFINITY;
+        for (i, &k) in by_top.iter().enumerate() {
+            if i != 0 && result[k].top() > row_bottom + 0.5 {
+                row += 1;
+                row_bottom = result[k].bottom();
+            } else {
+                row_bottom = row_bottom.max(result[k].bottom());
+            }
+            row_of[k] = row;
+        }
+        let mut ordered: Vec<(usize, Rect)> = result
+            .iter()
+            .enumerate()
+            .map(|(i, r)| (row_of[i], *r))
+            .collect();
+        ordered.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.left().total_cmp(&b.1.left())));
+
+        // Coalesce contiguous same-row rects (post-sort — the fragment list
+        // interleaves rows) so each row's selection paints as one merged
+        // rounded rect: outer corners rounded, no seams at fragment edges.
+        let mut merged: Vec<Rect> = Vec::new();
+        for (_, rect) in ordered {
+            if let Some(last) = merged.last_mut() {
+                let same_row = (last.top() - rect.top()).abs() < 0.001
+                    && (last.bottom() - rect.bottom()).abs() < 0.001;
+                let contiguous = (last.right() - rect.left()).abs() < 0.001;
+                if same_row && contiguous {
+                    last.max.x = last.max.x.max(rect.max.x);
+                    continue;
+                }
+            }
+            merged.push(rect);
+        }
+        merged
     }
 }

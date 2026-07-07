@@ -7,6 +7,8 @@ import SwiftWorkspace
 
         @State private var showAccountKeys = false
 
+        @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
+
         var body: some View {
             Form {
                 Section("Account") {
@@ -23,6 +25,15 @@ import SwiftWorkspace
 
                 Section("Usage") {
                     UsageSettingsRows(model: model)
+                }
+
+                Section(
+                    header: Text("Editor"),
+                    footer: Text(
+                        "Showing titles and preview cards means contacting the linked site, which reveals your IP address and that you opened the note. Off by default."
+                    )
+                ) {
+                    Toggle("Fetch link previews", isOn: $contactLinkedSites)
                 }
 
                 Section("Privacy") {
@@ -66,6 +77,11 @@ import SwiftWorkspace
                     SettingsUsageView(model: model)
                         .tabItem {
                             Label("Usage", systemImage: "externaldrive")
+                        }
+
+                    SettingsEditorView()
+                        .tabItem {
+                            Label("Editor", systemImage: "doc.text")
                         }
 
                     SettingsDebugView(model: model)
@@ -149,6 +165,24 @@ import SwiftWorkspace
             Form {
                 Section("Usage") {
                     UsageSettingsRows(model: model)
+                }
+            }
+            .formStyle(.grouped)
+        }
+    }
+
+    struct SettingsEditorView: View {
+        @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
+
+        var body: some View {
+            Form {
+                Section("Link Previews") {
+                    Toggle("Fetch link previews", isOn: $contactLinkedSites)
+                    Text(
+                        "Showing titles and preview cards means contacting the linked site, which reveals your IP address and that you opened the note. Off by default."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 }
             }
             .formStyle(.grouped)

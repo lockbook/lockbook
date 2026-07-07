@@ -36,6 +36,26 @@ impl super::SettingsModal {
             ui.add_space(5.0);
 
             ui.horizontal(|ui| {
+                let mut contact_linked_sites = self.ws_persistent_store.get_contact_linked_sites();
+                if switch(ui, &mut contact_linked_sites).changed() {
+                    self.ws_persistent_store
+                        .set_contact_linked_sites(contact_linked_sites);
+                }
+                ui.label("Fetch link previews");
+            });
+
+            ui.add_space(2.0);
+            ui.horizontal_wrapped(|ui| {
+                ui.spacing_mut().item_spacing.x = 0.0;
+                ui.label(
+                    "Showing titles and preview cards means contacting the linked site, \
+                     which reveals your IP address and that you opened the note. Off by default.",
+                );
+            });
+
+            ui.add_space(5.0);
+
+            ui.horizontal(|ui| {
                 switch(ui, &mut s.sidebar_usage);
                 ui.label("Show usage in sidebar");
             });

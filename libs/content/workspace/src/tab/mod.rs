@@ -3,6 +3,7 @@ use crate::file_cache::FilesExt;
 use crate::mind_map::show::MindMap;
 use crate::search::Search;
 use crate::space_inspector::show::SpaceInspector;
+#[cfg(not(target_family = "wasm"))]
 use crate::tab::chat::Chat;
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
@@ -25,6 +26,7 @@ use serde::{Deserialize, Serialize};
 use std::path::PathBuf;
 use web_time::{Instant, SystemTime, UNIX_EPOCH};
 
+#[cfg(not(target_family = "wasm"))]
 pub mod chat;
 pub mod image_viewer;
 pub mod input_controller;
@@ -84,6 +86,7 @@ impl Tab {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.hmac,
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
+            #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::Chat(chat)) => chat.hmac,
             _ => None,
         }
@@ -92,11 +95,13 @@ impl Tab {
     pub fn seq(&self) -> usize {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.buffer.current.seq,
+            #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::Chat(chat)) => chat.seq,
             _ => 0,
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub fn chat(&self) -> Option<&Chat> {
         match &self.content {
             ContentState::Open(TabContent::Chat(chat)) => Some(chat),
@@ -104,6 +109,7 @@ impl Tab {
         }
     }
 
+    #[cfg(not(target_family = "wasm"))]
     pub fn chat_mut(&mut self) -> Option<&mut Chat> {
         match &mut self.content {
             ContentState::Open(TabContent::Chat(chat)) => Some(chat),
@@ -195,12 +201,22 @@ impl Tab {
             ContentState::Open(content) => {
                 let mut resp = Response::default();
                 match content {
+                    #[cfg(not(target_family = "wasm"))]
                     TabContent::Chat(chat) => {
-                        let (sent, interaction_rect) = chat.show(ui);
+                        let (sent, interaction_rect, composer_updated) = chat.show(ui);
                         if sent {
                             self.last_changed = Instant::now();
                         }
-                        resp.text_interaction_rect = Some(interaction_rect);
+                        // App-driven composer edits (send-clear, prefill) must
+                        // re-sync the native text view's caret, same as the
+                        // markdown editor reports.
+                        resp.selection_updated = composer_updated;
+                        // `Rect::NOTHING` means "no text field this frame" —
+                        // report None like the markdown editor does. Forwarded
+                        // as Some it sets the native iOS text view's frame to
+                        // ±∞, where becomeFirstResponder is refused.
+                        resp.text_interaction_rect =
+                            interaction_rect.is_finite().then_some(interaction_rect);
                     }
                     TabContent::Markdown(md) => {
                         let initialized = md.initialized;
@@ -254,6 +270,7 @@ pub enum ContentState {
 
 #[allow(clippy::large_enum_variant)]
 pub enum TabContent {
+    #[cfg(not(target_family = "wasm"))]
     Chat(Chat),
     Image(ImageViewer),
     Markdown(Markdown),
@@ -268,6 +285,7 @@ pub enum TabContent {
 impl std::fmt::Debug for TabContent {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
+            #[cfg(not(target_family = "wasm"))]
             TabContent::Chat(_) => write!(f, "TabContent::Chat"),
             TabContent::Image(_) => write!(f, "TabContent::Image"),
             TabContent::Markdown(_) => write!(f, "TabContent::Markdown"),
@@ -284,6 +302,7 @@ impl std::fmt::Debug for TabContent {
 impl TabContent {
     pub fn id(&self) -> Option<Uuid> {
         match self {
+            #[cfg(not(target_family = "wasm"))]
             TabContent::Chat(chat) => Some(chat.id),
             TabContent::Markdown(md) => Some(md.edit.file_id),
             TabContent::Svg(svg) => Some(svg.open_file),
@@ -298,6 +317,7 @@ impl TabContent {
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match self {
+            #[cfg(not(target_family = "wasm"))]
             TabContent::Chat(chat) => chat.hmac,
             TabContent::Markdown(md) => md.hmac,
             TabContent::Svg(svg) => svg.open_file_hmac,
@@ -307,6 +327,7 @@ impl TabContent {
 
     pub fn seq(&self) -> usize {
         match self {
+            #[cfg(not(target_family = "wasm"))]
             TabContent::Chat(chat) => chat.seq,
             TabContent::Markdown(md) => md.edit.renderer.buffer.current.seq,
             _ => 0,
@@ -317,6 +338,7 @@ impl TabContent {
     /// content type is not editable.
     pub fn clone_content(&self) -> Option<TabSaveContent> {
         match self {
+            #[cfg(not(target_family = "wasm"))]
             TabContent::Chat(chat) => Some(TabSaveContent::Bytes(chat.to_bytes())),
             TabContent::Markdown(md) => {
                 Some(TabSaveContent::String(md.edit.renderer.buffer.current.text.clone()))
@@ -494,14 +516,28 @@ impl Workspace {
     }
 }
 
+/// What the mobile context menu was popped over, so the platform can offer
+/// target-specific actions (e.g. "Edit" over an atom — an image or link
+/// preview whose source is only reachable via `EnterAtom` on touch).
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum ContextMenuTarget {
+    #[default]
+    Text,
+    Atom,
+}
+
 // todo: find a better place for the code that attaches additional things to egui::Context
 pub trait ExtendedOutput {
     fn set_virtual_keyboard_shown(&self, enabled: bool);
     fn pop_virtual_keyboard_shown(&self) -> Option<bool>;
-    fn set_context_menu(&self, pos: egui::Pos2);
-    fn pop_context_menu(&self) -> Option<egui::Pos2>;
+    fn set_context_menu(&self, pos: egui::Pos2, target: ContextMenuTarget);
+    fn pop_context_menu(&self) -> Option<(egui::Pos2, ContextMenuTarget)>;
     fn open_file(&self, id: Uuid, new_tab: bool);
     fn pop_open_files(&self) -> Vec<(Uuid, bool)>;
+    /// Open a file with the selection over `byte_range` (e.g. a placeholder
+    /// to type over).
+    fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
+    fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)>;
 }
 
 impl ExtendedOutput for egui::Context {
@@ -516,13 +552,13 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| m.data.remove_temp(Id::new("virtual_keyboard_shown")))
     }
 
-    fn set_context_menu(&self, pos: egui::Pos2) {
+    fn set_context_menu(&self, pos: egui::Pos2, target: ContextMenuTarget) {
         self.memory_mut(|m| {
-            m.data.insert_temp(Id::new("context_menu"), pos);
+            m.data.insert_temp(Id::new("context_menu"), (pos, target));
         })
     }
 
-    fn pop_context_menu(&self) -> Option<egui::Pos2> {
+    fn pop_context_menu(&self) -> Option<(egui::Pos2, ContextMenuTarget)> {
         self.memory_mut(|m| m.data.remove_temp(Id::new("context_menu")))
     }
 
@@ -539,6 +575,23 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| {
             m.data
                 .remove_temp::<Vec<(Uuid, bool)>>(Id::new("open_files"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool) {
+        self.memory_mut(|m| {
+            let mut ranges: Vec<(Uuid, std::ops::Range<usize>, bool)> =
+                m.data.get_temp(Id::new("open_ranges")).unwrap_or_default();
+            ranges.push((id, byte_range, new_tab));
+            m.data.insert_temp(Id::new("open_ranges"), ranges);
+        })
+    }
+
+    fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_ranges"))
                 .unwrap_or_default()
         })
     }

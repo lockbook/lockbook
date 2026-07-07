@@ -345,6 +345,7 @@
 
             let scale = Float(window?.backingScaleFactor ?? 1.0)
             dark_mode(wsHandle, isDarkMode())
+            set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_scale(wsHandle, scale)
 
             set_tab_strip_inset(wsHandle, Float(tabStripInset()))

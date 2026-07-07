@@ -26,7 +26,9 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
 import androidx.core.net.toUri
 import androidx.input.motionprediction.MotionEventPredictor
+import androidx.preference.PreferenceManager
 import app.lockbook.App
+import app.lockbook.R
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -56,6 +58,9 @@ class WorkspaceView(
             invalidate()
         }
     private val choreographer: Choreographer by lazy { Choreographer.getInstance() }
+
+    private val prefs by lazy { PreferenceManager.getDefaultSharedPreferences(context) }
+    private val contactLinkedSitesKey by lazy { context.getString(R.string.contact_linked_sites_key) }
 
     private val ioScope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -336,6 +341,8 @@ class WorkspaceView(
         pendingFocusX = 0f
         pendingFocusY = 0f
 
+        Workspace.setContactLinkedSites(wgpuObj, prefs.getBoolean(contactLinkedSitesKey, false))
+
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
 
         if (response.urlOpened.isNotEmpty()) {
@@ -387,7 +394,7 @@ class WorkspaceView(
 
                 if (response.hasEditMenu && contextMenu == null) {
                     val actionModeCallback =
-                        TextEditorContextMenu(textInputWrapper)
+                        TextEditorContextMenu(textInputWrapper, response.editMenuForAtom)
 
                     contextMenu =
                         this@WorkspaceView.startActionMode(
@@ -559,6 +566,8 @@ class WorkspaceView(
         const val SPEN_ACTION_DOWN = 211
         const val SPEN_ACTION_MOVE = 213
         const val SPEN_ACTION_UP = 212
+
+        const val EDIT_ATOM_MENU_ID = 0x00E0170A // arbitrary; distinct from android.R.id.*
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -606,6 +615,7 @@ class WorkspaceView(
 
     inner class TextEditorContextMenu(
         private val textInputWrapper: WorkspaceTextInputWrapper,
+        private val forAtom: Boolean = false,
     ) : ActionMode.Callback {
         override fun onCreateActionMode(
             mode: ActionMode?,
@@ -625,6 +635,14 @@ class WorkspaceView(
         }
 
         private fun populateMenuWithItems(menu: Menu) {
+            if (forAtom) {
+                // select the URL inside the image atom, revealing its source —
+                // the only touch path in, since mobile has no arrow keys
+                menu
+                    .add(Menu.NONE, EDIT_ATOM_MENU_ID, 0, "Edit")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+
             if (!textInputWrapper.wsInputConnection.wsEditable
                     .getSelection()
                     .isEmpty()
@@ -660,7 +678,14 @@ class WorkspaceView(
             item: MenuItem?,
         ): Boolean {
             if (item != null) {
-                textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
+                if (item.itemId == EDIT_ATOM_MENU_ID) {
+                    Workspace.enterSelectedAtom(wgpuObj)
+                    // schedule the frame that processes the event, whose selection
+                    // update then flows back via `response.selectionUpdated`
+                    invalidate()
+                } else {
+                    textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
+                }
             }
 
             if (contextMenu != null) {

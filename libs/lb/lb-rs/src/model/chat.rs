@@ -1,10 +1,120 @@
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
+use uuid::Uuid;
 
 #[derive(Serialize, Deserialize, Clone, PartialEq)]
 pub struct Message {
     pub from: String,
     pub content: String,
     pub ts: i64,
+    /// Unique per message. `None` on messages written before ids existed.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub id: Option<Uuid>,
+    /// The message this one follows: its parent in the conversation tree.
+    /// Sibling messages (same parent) are alternate timelines — edits and
+    /// regenerations append siblings rather than deleting. `Uuid::nil()`
+    /// means "first message" (no parent). `None` on messages written before
+    /// threading: their implicit parent is the preceding message in ts
+    /// order, so a legacy transcript reads as one linear chain.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub reply_to: Option<Uuid>,
+    /// Sent by `from`'s agent rather than typed by them. Agent messages
+    /// never trigger agent invocation.
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub agent: bool,
+    /// A tool round-trip by `from`'s agent; `content` is a short human
+    /// summary ("read_file /notes/todo.md") for rendering. The record makes
+    /// the transcript the agent's complete memory: reopening a chat replays
+    /// these into model context, so a restarted agent knows everything the
+    /// live one did.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub tool: Option<ToolRecord>,
+    /// On agent replies: token usage of the turn that produced this message.
+    /// Chat-lifetime usage is the fold of these over the transcript.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub usage: Option<Usage>,
+    /// A harness-level error ("rate limited", "network down") from `from`'s
+    /// agent. Rendered as a dim red row; excluded from agent context (the
+    /// model never saw it).
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub error: bool,
+    /// A `from`-authored configuration entry rather than a chat message (no
+    /// `content`). Carries this user's per-chat agent settings; the latest by
+    /// `ts` wins. Excluded from rendering and from agent context.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub config: Option<ChatConfig>,
+    /// Fields this client doesn't know about, preserved verbatim so a merge
+    /// performed by an older client can't strip them.
+    #[serde(flatten)]
+    pub extra: Map<String, Value>,
+}
+
+/// Per-user, per-chat agent configuration, carried as a non-message entry in
+/// the `.chat` log. Each user's latest entry (by `ts`) is their selection for
+/// this chat; provider *credentials* stay device-local, never in the log.
+#[derive(Serialize, Deserialize, Clone, PartialEq, Default)]
+pub struct ChatConfig {
+    /// The model this user drives this chat with; absent → the global default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<ModelSelection>,
+    /// Reasoning effort for this chat, overriding the provider file's
+    /// default where the model supports it; absent → the file default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
+}
+
+/// A provider+model selection. `provider` names a provider config file
+/// (`/.agent/providers/<provider>.json`); `model` may be empty to mean the
+/// provider file's default.
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct ModelSelection {
+    pub provider: String,
+    pub model: String,
+}
+
+/// Token usage of the agent turn that produced a message. The four fields
+/// are disjoint — `input` excludes cached tokens, so total context is their
+/// sum; writers normalize wire formats that report overlapping counts.
+#[derive(Serialize, Deserialize, Clone, Copy, PartialEq, Eq, Default, Debug)]
+pub struct Usage {
+    pub input: u64,
+    pub output: u64,
+    pub cache_read: u64,
+    pub cache_write: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, PartialEq)]
+pub struct ToolRecord {
+    pub name: String,
+    pub args: Value,
+    /// The result text the model saw (possibly truncated by the writer).
+    pub result: String,
+}
+
+impl Message {
+    pub fn new(from: String, content: String, ts: i64) -> Self {
+        Self {
+            from,
+            content,
+            ts,
+            id: Some(Uuid::new_v4()),
+            reply_to: None,
+            agent: false,
+            tool: None,
+            usage: None,
+            error: false,
+            config: None,
+            extra: Map::new(),
+        }
+    }
+
+    /// A `from`-authored config entry — carries no chat content, isn't rendered,
+    /// and never enters agent context.
+    pub fn config_entry(from: String, ts: i64, config: ChatConfig) -> Self {
+        let mut m = Self::new(from, String::new(), ts);
+        m.config = Some(config);
+        m
+    }
 }
 
 pub struct Buffer {
@@ -60,8 +170,7 @@ mod tests {
     use super::*;
 
     fn line(from: &str, content: &str, ts: i64) -> String {
-        serde_json::to_string(&Message { from: from.into(), content: content.into(), ts }).unwrap()
-            + "\n"
+        serde_json::to_string(&Message::new(from.into(), content.into(), ts)).unwrap() + "\n"
     }
 
     /// Concurrent appends on a shared base union to all turns, each once,
@@ -78,5 +187,46 @@ mod tests {
 
         let contents: Vec<_> = merged.iter().map(|m| m.content.as_str()).collect();
         assert_eq!(contents, ["hello", "one", "two"]);
+    }
+
+    /// Clear vs. concurrent send: the clear erases exactly what the clearer
+    /// had seen (base-contained messages), while a message written
+    /// concurrently on the other side survives — words are never silently
+    /// destroyed. Both sync orders converge on the same result.
+    #[test]
+    fn clear_vs_concurrent_send_converges() {
+        let base = line("a", "one", 1) + &line("b", "two", 2);
+        let cleared = String::new();
+        let extended = base.clone() + &line("b", "three", 3);
+
+        // The clearer pushed first: the sender merges their send into it.
+        let sender_view = Buffer::merge(base.as_bytes(), extended.as_bytes(), cleared.as_bytes());
+        // The sender pushed first: the clearer merges the send into the clear.
+        let clearer_view = Buffer::merge(base.as_bytes(), cleared.as_bytes(), extended.as_bytes());
+
+        let contents = |bytes: &[u8]| {
+            Buffer::new(bytes)
+                .messages
+                .iter()
+                .map(|m| m.content.clone())
+                .collect::<Vec<_>>()
+        };
+        assert_eq!(contents(&sender_view), ["three"]);
+        assert_eq!(contents(&clearer_view), ["three"]);
+    }
+
+    /// A client that doesn't know a field must carry it through parse →
+    /// merge → serialize untouched, or newer clients' data gets stripped.
+    #[test]
+    fn merge_preserves_unknown_fields() {
+        let base = line("a", "hello", 1);
+        let remote = base.clone()
+            + "{\"from\":\"b\",\"content\":\"hi\",\"ts\":2,\"reactions\":\"abc\",\"agent\":true}\n";
+
+        let merged = Buffer::merge(base.as_bytes(), base.as_bytes(), remote.as_bytes());
+        let merged = String::from_utf8(merged).unwrap();
+
+        assert!(merged.contains("\"reactions\":\"abc\""), "unknown field stripped: {merged}");
+        assert!(merged.contains("\"agent\":true"));
     }
 }

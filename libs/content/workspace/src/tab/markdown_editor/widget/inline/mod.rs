@@ -120,6 +120,18 @@ impl<'ast> MdRender {
             .any(|rr| range.intersects(&rr, allow_empty))
     }
 
+    /// True if any reveal range has an endpoint *strictly inside* `range`.
+    /// Unlike [`Self::range_revealed`], bordering or wholly enclosing it
+    /// (tap-select, select-all) doesn't count — only a cursor/end in the
+    /// interior. Exception: `range` is the atom entered via `Event::EnterAtom`,
+    /// whose whole-URL selection has no interior endpoint to offer.
+    pub fn range_revealed_interior(&self, range: (Grapheme, Grapheme)) -> bool {
+        self.entered_atom == Some(range)
+            || self.reveal_ranges().any(|rr| {
+                range.contains(rr.start(), false, false) || range.contains(rr.end(), false, false)
+            })
+    }
+
     /// Returns true if `range` contains any reveal range.
     pub fn range_contains_revealed(
         &self, range: (Grapheme, Grapheme), allow_empty_range: bool, allow_empty_selection: bool,

@@ -64,6 +64,13 @@ impl Lb {
         Ok(Self { rt, lb })
     }
 
+    /// The underlying async [`crate::Lb`], for callers that run their own
+    /// runtime (the blocking methods `block_on` this wrapper's runtime, which
+    /// panics when called from inside another).
+    pub fn async_lb(&self) -> &crate::Lb {
+        &self.lb
+    }
+
     pub fn create_account(
         &self, username: &str, api_url: &str, welcome_doc: bool,
     ) -> LbResult<Account> {
