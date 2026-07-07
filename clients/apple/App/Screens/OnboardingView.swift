@@ -42,23 +42,13 @@ struct OnboardingView: View {
                 .buttonStyle(.bordered)
                 .padding(.bottom)
 
-                #if os(iOS) && DEBUG
-                    Button("Skip to workspace (debug)") {
-                        AppState.shared.isLoggedIn = true
-                    }
-                    .font(.footnote)
-                    .foregroundStyle(.secondary)
-                    .frame(maxWidth: .infinity)
-                    .padding(.bottom)
-                #endif
-
                 Text("By using Lockbook, you acknowledge our [Privacy Policy](https://lockbook.net/privacy-policy) and accept our [Terms of Service](https://lockbook.net/tos).")
                     .foregroundColor(.gray)
                     .font(.caption2)
             }
             .padding(.top, 35)
             .padding(.bottom)
-            .modifier(OnboardingOneHorizontalPadding())
+            .padding(.horizontal)
         }
     }
 
@@ -71,23 +61,6 @@ struct OnboardingView: View {
             .padding(.leading, 12)
         #else
             .padding(.leading)
-        #endif
-    }
-}
-
-struct OnboardingOneHorizontalPadding: ViewModifier {
-    func body(content: Content) -> some View {
-        #if os(iOS)
-            if UIDevice.current.userInterfaceIdiom == .phone {
-                content
-                    .padding(.horizontal)
-            } else {
-                content
-                    .padding(.horizontal, 25)
-            }
-        #else
-            content
-                .padding(.horizontal, 25)
         #endif
     }
 }

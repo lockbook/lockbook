@@ -591,6 +591,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             WorkspaceView()
+                .ignoresSafeArea(.keyboard)
         }
     }
 }
