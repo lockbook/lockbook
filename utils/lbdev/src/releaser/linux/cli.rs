@@ -42,6 +42,7 @@ confinement: strict
 parts:
   lockbook:
     plugin: rust
+    rust-channel: stable
     source: https://github.com/lockbook/lockbook.git
     source-tag: {version}
     build-packages:
