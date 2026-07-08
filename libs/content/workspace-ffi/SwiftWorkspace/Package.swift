@@ -1,10 +1,10 @@
-// swift-tools-version:5.8
+// swift-tools-version:5.9
 import PackageDescription
 
 let package = Package(
     name: "SwiftWorkspace",
     platforms: [
-        .macOS(.v13), .iOS(.v16),
+        .macOS(.v14), .iOS(.v17),
     ],
     products: [
         // Products define the executables and libraries a package produces, and make them visible to other packages.

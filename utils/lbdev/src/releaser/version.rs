@@ -91,25 +91,29 @@ fn handle_cargo_tomls(version: &str) {
 }
 
 fn handle_apple(version: &str) -> CliResult<()> {
-    let plists = ["clients/apple/iOS/info.plist", "clients/apple/macOS/info.plist"];
-    for plist in plists {
-        Command::new("/usr/libexec/Plistbuddy")
-            .args(["-c", &format!("Set CFBundleShortVersionString {version}"), plist])
-            .assert_success()?;
-        let now = OffsetDateTime::now_utc();
+    let path = "clients/apple/lockbook.xcodeproj/project.pbxproj";
+    let mut pbxproj = fs::read_to_string(path).unwrap();
 
-        let month = now.month() as u8;
-        let day = now.day();
-        let year = now.year();
+    let now = OffsetDateTime::now_utc();
 
-        // add leading zeros where missing
-        let month = format!("{month:0>2}");
-        let day = format!("{day:0>2}");
+    let month = now.month() as u8;
+    let day = now.day();
+    let year = now.year();
 
-        Command::new("/usr/libexec/Plistbuddy")
-            .args(["-c", &format!("Set CFBundleVersion {year}{month}{day}"), plist])
-            .assert_success()?;
-    }
+    // add leading zeros where missing
+    let build = format!("{year}{month:0>2}{day:0>2}");
+
+    let marketing_re = Regex::new(r"MARKETING_VERSION = [^;]+;").unwrap();
+    pbxproj = marketing_re
+        .replace_all(&pbxproj, format!("MARKETING_VERSION = {version};"))
+        .to_string();
+
+    let build_re = Regex::new(r"CURRENT_PROJECT_VERSION = [^;]+;").unwrap();
+    pbxproj = build_re
+        .replace_all(&pbxproj, format!("CURRENT_PROJECT_VERSION = {build};"))
+        .to_string();
+
+    fs::write(path, pbxproj).unwrap();
 
     Ok(())
 }

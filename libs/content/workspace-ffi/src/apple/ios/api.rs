@@ -900,6 +900,29 @@ pub unsafe extern "C" fn free_tab_ids(ids: TabsIds) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn reorder_tab(obj: *mut c_void, from: usize, to: usize) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.move_tab(from, to);
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn get_recently_closed_tabs(obj: *mut c_void) -> TabsIds {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let ids: Vec<CUuid> = obj
+        .workspace
+        .recently_closed_tabs
+        .iter()
+        .map(|&id| id.into())
+        .collect();
+
+    TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.renderer

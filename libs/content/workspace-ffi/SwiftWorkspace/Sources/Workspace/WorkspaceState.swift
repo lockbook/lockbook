@@ -1,35 +1,28 @@
 import Bridge
 import Combine
-import SwiftUI
+import Foundation
+import Observation
 
-public class WorkspaceOutputState: ObservableObject {
-    // Should I be using combine state classes for these? Helps reduce refreshes
-    @Published public var openDoc: UUID? = nil
-    @Published public var selectedFolder: UUID? = nil
-    @Published public var newFolderButtonPressed: () = ()
-    @Published public var currentTab: WorkspaceTab = .Welcome
-    @Published public var renameOpenDoc: () = ()
-    @Published public var urlsOpened: [URL] = []
-    @Published public var openCamera: Bool = false
+@Observable public class WorkspaceOutputState {
+    public var openDoc: UUID? = nil
+    public var selectedFolder: UUID? = nil
+    public var currentTab: WorkspaceTab = .Welcome
+    public var urlsOpened: [URL] = []
 
     // Tab count includes non-files
-    // Tab ids includes only file ids
-    // Ideally want to combine these
-    @Published public var tabCount: Int = 0
-    @Published public var tabIds: [UUID] = []
+    public var tabCount: Int = 0
+
+    public var openCamera: Bool = false
 
     public init() {}
 }
 
-public class WorkspaceInputState: ObservableObject {
-    public var coreHandle: UnsafeMutableRawPointer?
-    public var wsHandle: UnsafeMutableRawPointer?
+@Observable public class WorkspaceInputState {
+    @ObservationIgnored public var coreHandle: UnsafeMutableRawPointer?
+    @ObservationIgnored public var wsHandle: UnsafeMutableRawPointer?
 
-    public var sidebarVisible: Bool = false
-
-    public var redraw = PassthroughSubject<Void, Never>()
-    public var focus = PassthroughSubject<Void, Never>()
-    //    maybe make unfocus variable
+    @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
+    @ObservationIgnored public var focus = PassthroughSubject<Void, Never>()
 
     public init(coreHandle: UnsafeMutableRawPointer?) {
         self.coreHandle = coreHandle
@@ -76,6 +69,13 @@ public class WorkspaceInputState: ObservableObject {
         show_search(wsHandle)
         redraw.send(())
         focus.send(())
+    }
+
+    public func showFindInDoc() {
+        guard let wsHandle else { return }
+
+        show_find(wsHandle)
+        redraw.send(())
     }
 
     public func createDocAt(parent: UUID, drawing: Bool) {
@@ -136,7 +136,23 @@ public class WorkspaceInputState: ObservableObject {
     public func getTabsIds() -> [UUID] {
         guard let wsHandle else { return [] }
 
-        let result = get_tabs_ids(wsHandle)
+        return tabIds(from: get_tabs_ids(wsHandle))
+    }
+
+    public func getRecentlyClosedTabs() -> [UUID] {
+        guard let wsHandle else { return [] }
+
+        return tabIds(from: get_recently_closed_tabs(wsHandle))
+    }
+
+    public func moveTab(from: Int, to: Int) {
+        guard let wsHandle else { return }
+
+        reorder_tab(wsHandle, UInt(from), UInt(to))
+        redraw.send(())
+    }
+
+    private func tabIds(from result: TabsIds) -> [UUID] {
         let buffer: [CUuid] = Array(
             UnsafeBufferPointer(start: result.ids, count: Int(result.size))
         )
@@ -154,26 +170,6 @@ public class WorkspaceInputState: ObservableObject {
 public enum WSFileOpCompleted {
     case Rename(id: UUID, newName: String)
     case Delete(id: UUID)
-}
-
-func createTempDir() -> URL? {
-    let fileManager = FileManager.default
-    let tempTempURL = URL(fileURLWithPath: NSTemporaryDirectory())
-        .appendingPathComponent("editor-tmp").appendingPathComponent(
-            UUID().uuidString
-        )
-
-    do {
-        try fileManager.createDirectory(
-            at: tempTempURL,
-            withIntermediateDirectories: true,
-            attributes: nil
-        )
-    } catch {
-        return nil
-    }
-
-    return tempTempURL
 }
 
 public extension WorkspaceInputState {

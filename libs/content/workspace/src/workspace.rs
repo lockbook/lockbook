@@ -58,6 +58,7 @@ pub struct Workspace {
     // User activity
     pub tabs: TabCache,
     pub tab_strip: Vec<TabSlot>,
+    pub recently_closed_tabs: Vec<Uuid>,
     pub current_tab: Option<Destination>,
     pub landing_page: LandingPage,
     pub account: Account,
@@ -130,6 +131,7 @@ impl Workspace {
         let mut ws = Self {
             tabs: TabCache::new(),
             tab_strip: Vec::new(),
+            recently_closed_tabs: Vec::new(),
             current_tab: None,
             landing_page: cfg.get_landing_page(),
             account: core.get_account().expect("failed to get account"),
@@ -189,6 +191,10 @@ impl Workspace {
     /// content from the destination variant. Does not add to tab_strip or
     /// make current — callers decide visibility.
     pub fn open_dest(&mut self, dest: &Destination) {
+        if let Destination::File(id) = dest {
+            self.recently_closed_tabs.retain(|&closed| closed != *id);
+        }
+
         if self.tabs.contains_key(dest) {
             return;
         }
@@ -453,6 +459,7 @@ impl Workspace {
 
     pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
         let dest = Destination::File(id);
+        self.recently_closed_tabs.retain(|&closed| closed != id);
 
         // already in strip — just focus it
         if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
@@ -496,6 +503,7 @@ impl Workspace {
     /// tab's place in the strip rather than opening alongside it.
     pub fn open_file_replacing_search(&mut self, id: Uuid) {
         let dest = Destination::File(id);
+        self.recently_closed_tabs.retain(|&closed| closed != id);
         let search_idx = self
             .tab_strip
             .iter()
@@ -594,6 +602,17 @@ impl Workspace {
             .unwrap_or(false)
     }
 
+    pub fn move_tab(&mut self, from: usize, to: usize) {
+        if from == to || from >= self.tab_strip.len() || to >= self.tab_strip.len() {
+            return;
+        }
+
+        let slot = self.tab_strip.remove(from);
+        self.tab_strip.insert(to, slot);
+        self.out.tabs_changed = true;
+        self.ctx.request_repaint();
+    }
+
     pub fn close_tab(&mut self, i: usize) {
         let Some(slot) = self.tab_strip.get(i) else { return };
         let dest = slot.dest.clone();
@@ -615,6 +634,12 @@ impl Workspace {
         // Remove from tab_strip
         self.tab_strip.remove(i);
         self.out.tabs_changed = true;
+
+        if let Destination::File(id) = dest {
+            self.recently_closed_tabs.retain(|&closed| closed != id);
+            self.recently_closed_tabs.insert(0, id);
+            self.recently_closed_tabs.truncate(20);
+        }
 
         // Update current_tab
         if self.current_tab.as_ref() == Some(&dest) {

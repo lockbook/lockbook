@@ -69,6 +69,14 @@ pub extern "C" fn show_search(obj: *mut c_void) {
 }
 
 #[no_mangle]
+pub extern "C" fn show_find(obj: *mut c_void) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.current_tab_markdown_mut() {
+        md.find.open_requested = true;
+    }
+}
+
+#[no_mangle]
 pub extern "C" fn create_doc_at(obj: *mut c_void, parent: CUuid, is_drawing: bool) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let parent = parent.into();

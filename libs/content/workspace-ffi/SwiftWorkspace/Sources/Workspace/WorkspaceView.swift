@@ -10,9 +10,8 @@ import SwiftUI
     import UIKit
 
     public struct WorkspaceView: UIViewControllerRepresentable {
-        @EnvironmentObject public var workspaceInput: WorkspaceInputState
-        @EnvironmentObject public var workspaceOutput: WorkspaceOutputState
-        @Environment(\.horizontalSizeClass) var horizontalSizeClass
+        @Environment(WorkspaceInputState.self) private var workspaceInput
+        @Environment(WorkspaceOutputState.self) private var workspaceOutput
 
         public init() {}
 
@@ -86,8 +85,7 @@ import SwiftUI
                 workspaceController.didMove(toParent: self)
 
                 workspaceController.inputManager.updateCurrentTab(
-                    newCurrentTab: workspaceOutput.currentTab,
-                    newTabCount: workspaceOutput.tabCount
+                    newCurrentTab: workspaceOutput.currentTab
                 )
             }
         }
@@ -137,19 +135,9 @@ import SwiftUI
                 }
                 .store(in: &cancellables)
 
-            workspaceOutput
-                .$currentTab
-                .sink { [weak self] _ in
-                    DispatchQueue.main.async {
-                        guard let self else { return }
-
-                        self.inputManager.updateCurrentTab(
-                            newCurrentTab: workspaceOutput.currentTab,
-                            newTabCount: workspaceOutput.tabCount
-                        )
-                    }
-                }
-                .store(in: &cancellables)
+            inputManager.mtkView.currentTabChanged = { [weak self] currentTab in
+                self?.inputManager.updateCurrentTab(newCurrentTab: currentTab)
+            }
 
             view = inputManager
         }
@@ -164,7 +152,6 @@ import SwiftUI
         public var mtkView: iOSMTK
 
         var currentWrapper: UIView?
-        var tabCount: Int = 0
 
         init(
             _ workspaceInput: WorkspaceInputState,
@@ -195,10 +182,7 @@ import SwiftUI
             fatalError("init(coder:) has not been implemented")
         }
 
-        public func updateCurrentTab(
-            newCurrentTab: WorkspaceTab,
-            newTabCount: Int
-        ) {
+        public func updateCurrentTab(newCurrentTab: WorkspaceTab) {
             mtkView.tabSwitchTask = { [weak self] in
                 guard let self else {
                     return
@@ -206,10 +190,6 @@ import SwiftUI
 
                 mtkView.onSelectionChanged = nil
                 mtkView.onTextChanged = nil
-
-                tabCount = newTabCount
-
-                let headerSize = mtkView.docHeaderSize
 
                 switch newCurrentTab {
                 case .Welcome, .Pdf, .Loading, .SpaceInspector:
@@ -224,21 +204,14 @@ import SwiftUI
 
                     mtkView.becomeFirstResponder()
                 case .Svg, .Image, .Graph:
-                    if let currentWrapper = currentWrapper
-                        as? SvgView,
-                        currentWrapper.currentHeaderSize
-                        == headerSize
-                    {
+                    if currentWrapper is SvgView {
                         mtkView.onTextChanged?()
                         return
                     }
 
                     currentWrapper?.removeFromSuperview()
 
-                    let drawingWrapper = SvgView(
-                        mtkView: mtkView,
-                        headerSize: headerSize
-                    )
+                    let drawingWrapper = SvgView(mtkView: mtkView)
                     currentWrapper = drawingWrapper
                     mtkView.currentWrapper = drawingWrapper
 
@@ -247,8 +220,7 @@ import SwiftUI
                     addSubview(drawingWrapper)
                     NSLayoutConstraint.activate([
                         drawingWrapper.topAnchor.constraint(
-                            equalTo: topAnchor,
-                            constant: headerSize
+                            equalTo: topAnchor
                         ),
                         drawingWrapper.leftAnchor.constraint(
                             equalTo: leftAnchor
@@ -263,20 +235,13 @@ import SwiftUI
 
                     mtkView.becomeFirstResponder()
                 case .PlainText, .Markdown, .Chat:
-                    if let currentWrapper = currentWrapper
-                        as? MdView,
-                        currentWrapper.currentHeaderSize
-                        == headerSize
-                    {
+                    if currentWrapper is MdView {
                         return
                     }
 
                     currentWrapper?.removeFromSuperview()
 
-                    let textWrapper = MdView(
-                        mtkView: mtkView,
-                        headerSize: headerSize
-                    )
+                    let textWrapper = MdView(mtkView: mtkView)
                     currentWrapper = textWrapper
                     mtkView.currentWrapper = textWrapper
 
@@ -297,20 +262,10 @@ import SwiftUI
 
 #else
     public struct WorkspaceView: NSViewRepresentable, Equatable {
-        @ObservedObject public var workspaceInput: WorkspaceInputState
-        @ObservedObject public var workspaceOutput: WorkspaceOutputState
+        @Environment(WorkspaceInputState.self) private var workspaceInput
+        @Environment(WorkspaceOutputState.self) private var workspaceOutput
 
-        let coreHandle: UnsafeMutableRawPointer?
-
-        public init(
-            _ workspaceInput: WorkspaceInputState,
-            _ workspaceOutput: WorkspaceOutputState,
-            _ coreHandle: UnsafeMutableRawPointer?
-        ) {
-            self.workspaceInput = workspaceInput
-            self.workspaceOutput = workspaceOutput
-            self.coreHandle = coreHandle
-        }
+        public init() {}
 
         public class Coordinator: NSObject {
             var cancellables: Set<AnyCancellable> = []
@@ -328,19 +283,13 @@ import SwiftUI
             let mtkView = MacMTK()
             mtkView.workspaceInput = workspaceInput
             mtkView.workspaceOutput = workspaceOutput
-            mtkView.setInitialContent(coreHandle)
+            mtkView.setInitialContent(workspaceInput.coreHandle)
 
             workspaceInput.redraw
                 .sink { _ in
                     mtkView.setNeedsDisplay(mtkView.frame)
                 }
                 .store(in: &context.coordinator.cancellables)
-
-            workspaceOutput.$openDoc.sink(receiveValue: { _ in
-                guard let window = mtkView.window else { return }
-                window.makeFirstResponder(mtkView)
-            })
-            .store(in: &context.coordinator.cancellables)
 
             workspaceInput.focus.sink(receiveValue: { _ in
                 guard let window = mtkView.window else { return }

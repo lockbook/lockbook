@@ -1,7 +1,7 @@
 import Bridge
 import Foundation
 
-public struct UsageMetrics {
+public struct UsageMetrics: Equatable {
     public let serverUsedExact: UInt64
     public let serverUsedHuman: String
 

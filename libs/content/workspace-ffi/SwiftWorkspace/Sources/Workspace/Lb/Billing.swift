@@ -38,7 +38,7 @@ public struct SubscriptionInfo {
 
     public func isPremium() -> Bool {
         switch platform {
-        case let .stripe(cardLast4Digits):
+        case .stripe:
             true
         case let .googlePlay(state):
             state == .ok || state == .gracePeriod || state == .canceled

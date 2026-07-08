@@ -1,5 +1,3 @@
-import MobileCoreServices
-import SwiftUI
 import UIKit
 import UniformTypeIdentifiers
 
@@ -19,10 +17,6 @@ class ShareViewController: UIViewController {
                 try! FileManager.default.createDirectory(at: sharedFolder, withIntermediateDirectories: true)
 
                 self.processEContext(sharedFolder: sharedFolder, eContext: self.extensionContext!)
-
-                if self.processed.isEmpty {
-                    self.failed = true
-                }
 
                 if !self.failed {
                     let filePathsQuery = self.processed.joined(separator: ",")
@@ -55,29 +49,32 @@ class ShareViewController: UIViewController {
         let attachmentTypes = [UTType.fileURL.identifier, UTType.image.identifier, UTType.movie.identifier]
 
         for attachmentType in attachmentTypes {
-            if attachment.hasItemConformingToTypeIdentifier(attachmentType) {
-                let semaphore = DispatchSemaphore(value: 0)
-
-                if attachmentType == UTType.fileURL.identifier {
-                    _ = attachment.loadObject(ofClass: URL.self) { url, _ in
-                        if let url {
-                            self.importFileIntoAppGroup(sharedFolder: sharedFolder, importing: url)
-                        }
-
-                        semaphore.signal()
-                    }
-                } else {
-                    _ = attachment.loadFileRepresentation(forTypeIdentifier: attachmentType) { url, _ in
-                        if let url {
-                            self.importFileIntoAppGroup(sharedFolder: sharedFolder, importing: url)
-                        }
-
-                        semaphore.signal()
-                    }
-                }
-
-                semaphore.wait()
+            guard attachment.hasItemConformingToTypeIdentifier(attachmentType) else {
+                continue
             }
+
+            let semaphore = DispatchSemaphore(value: 0)
+
+            if attachmentType == UTType.fileURL.identifier {
+                _ = attachment.loadObject(ofClass: URL.self) { url, _ in
+                    if let url {
+                        self.importFileIntoAppGroup(sharedFolder: sharedFolder, importing: url)
+                    }
+
+                    semaphore.signal()
+                }
+            } else {
+                _ = attachment.loadFileRepresentation(forTypeIdentifier: attachmentType) { url, _ in
+                    if let url {
+                        self.importFileIntoAppGroup(sharedFolder: sharedFolder, importing: url)
+                    }
+
+                    semaphore.signal()
+                }
+            }
+
+            semaphore.wait()
+            return
         }
     }
 
