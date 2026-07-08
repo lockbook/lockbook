@@ -10,9 +10,16 @@ jobs:
       - name: install snapcraft
         run: sudo snap install snapcraft --classic
 
-      - name: minimal repro of desktop part validation
+      - name: repro with LD_LIBRARY_PATH override
         run: |
-          mkdir -p /tmp/repro/snap
+          mkdir -p /tmp/repro/snap /tmp/repro/src
+          cat > /tmp/repro/Cargo.toml <<'EOF'
+          [package]
+          name = "repro"
+          version = "0.1.0"
+          edition = "2021"
+          EOF
+          echo 'fn main() { println!("ok"); }' > /tmp/repro/src/main.rs
           cat > /tmp/repro/snap/snapcraft.yaml <<'EOF'
           name: repro
           base: core24
@@ -27,13 +34,15 @@ jobs:
               plugin: rust
               rust-channel: stable
               source: .
+              build-environment:
+                - LD_LIBRARY_PATH: ""
 
           apps:
             repro:
               command: bin/repro
               extensions: [gnome]
           EOF
-          cd /tmp/repro && sudo snapcraft pack --destructive-mode --verbosity=trace 2>&1 | tail -300 || true
+          cd /tmp/repro && sudo snapcraft pack --destructive-mode 2>&1 | tail -60
 
       - name: dump snapcraft internal logs
         if: always()
