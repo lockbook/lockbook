@@ -1,0 +1,59 @@
+name: debug-snap
+on:
+  push:
+    branches: [fix-snap]
+
+jobs:
+  debug:
+    runs-on: ubuntu-latest
+    steps:
+      - name: install snapcraft
+        run: sudo snap install snapcraft --classic
+
+      - name: minimal repro of desktop part validation
+        run: |
+          mkdir -p /tmp/repro/snap
+          cat > /tmp/repro/snap/snapcraft.yaml <<'EOF'
+          name: repro
+          base: core24
+          version: '0.1'
+          summary: repro
+          description: repro
+          grade: stable
+          confinement: strict
+
+          parts:
+            repro:
+              plugin: rust
+              rust-channel: stable
+              source: .
+
+          apps:
+            repro:
+              command: bin/repro
+              extensions: [gnome]
+          EOF
+          cd /tmp/repro && sudo snapcraft pack --destructive-mode --verbosity=trace 2>&1 | tail -300 || true
+
+      - name: dump snapcraft internal logs
+        if: always()
+        run: sudo sh -c 'for f in /root/.local/state/snapcraft/log/*.log; do echo "=== $f ==="; tail -100 "$f"; done' || true
+
+      - name: manual rustup env probes
+        if: always()
+        run: |
+          sudo snap install rustup --classic 2>/dev/null || sudo snap install rustup || true
+          sudo snap install gnome-46-2404-sdk || true
+          sudo bash -c '
+            echo "--- PATH as root: $PATH"
+            echo "--- /snap/bin contents:"; ls -la /snap/bin/ || true
+            echo "--- plain rustup:"
+            command -v rustup; rustup dump-testament; echo plain_exit=$?
+            SDK=/snap/gnome-46-2404-sdk/current
+            export LD_LIBRARY_PATH=$SDK/lib/x86_64-linux-gnu:$SDK/usr/lib/x86_64-linux-gnu:$SDK/usr/lib:$SDK/usr/lib/vala-current:$SDK/usr/lib/x86_64-linux-gnu/pulseaudio
+            echo "--- rustup with gnome sdk LD_LIBRARY_PATH:"
+            rustup dump-testament; echo ld_exit=$?
+            echo "--- snap binary with gnome sdk LD_LIBRARY_PATH:"
+            /usr/bin/snap version; echo snap_exit=$?
+            ldd /usr/bin/snap || true
+          ' || true
