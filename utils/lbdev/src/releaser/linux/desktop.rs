@@ -38,6 +38,8 @@ parts:
     rust-channel: stable
     source: https://github.com/lockbook/lockbook.git
     source-tag: {version}
+    build-environment:
+      - LD_LIBRARY_PATH: ""
     build-packages:
       - git
       - libssl-dev
