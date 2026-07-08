@@ -1,3 +1,4 @@
+use lb_rs::experiments::{WelcomeDoc, cohort};
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::pubkey;
@@ -14,9 +15,11 @@ async fn create_account_success() {
 #[tokio::test]
 async fn create_account_success_with_welcome() {
     let core = test_core().await;
-    core.create_account(&random_name(), &url(), true)
-        .await
-        .unwrap();
+    let mut name = random_name();
+    while !matches!(cohort::<WelcomeDoc>(&name), WelcomeDoc::OldWelcomeDoc) {
+        name = random_name();
+    }
+    core.create_account(&name, &url(), true).await.unwrap();
     core.get_by_path("welcome.md").await.unwrap();
 }
 

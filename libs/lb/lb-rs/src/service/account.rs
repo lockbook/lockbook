@@ -72,8 +72,9 @@ impl LocalLb {
                         .await?;
                     self.sync().await?;
                 }
-                WelcomeDoc::HypeWelcomeDoc => todo!(),
-                WelcomeDoc::FramgentedArchetypes => todo!(),
+                // WelcomeDoc::HypeWelcomeDoc => todo!(),
+                // WelcomeDoc::FramgentedArchetypes => todo!(),
+                _ => {}
             };
         }
 
