@@ -11,5 +11,10 @@
                 ]
             }
         ]
+    },
+    "webcredentials": {
+        "apps": [
+            "39ZS78S25U.app.lockbook"
+        ]
     }
 }
