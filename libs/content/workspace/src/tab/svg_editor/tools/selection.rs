@@ -7,7 +7,7 @@ use glam::DVec2;
 use indexmap::IndexMap;
 use lb_rs::Uuid;
 use lb_rs::model::svg::buffer::{Buffer, get_pen_colors};
-use lb_rs::model::svg::element::{Element, ManipulatorGroupId, Stroke, WeakImages};
+use lb_rs::model::svg::element::{DynamicColor, Element, ManipulatorGroupId, Stroke, WeakImages};
 use resvg::usvg::Transform;
 
 use lb_rs::model::svg::buffer::serialize_inner;
@@ -35,15 +35,81 @@ pub struct Selection {
     pub layout: Layout,
     show_selection_popover: bool,
     pub selection_stroke_snashot: HashMap<Uuid, Stroke>,
+    selection_opacity_snapshot: HashMap<Uuid, f32>,
     pub properties: Option<ElementEditableProperties>,
     selection_container: Option<egui::Rect>,
     selection_handles: Option<SelectionHandles>,
 }
 
-#[derive(Clone, Debug, Default)]
+#[derive(Clone, Debug)]
 pub struct ElementEditableProperties {
-    pub stroke: Option<Stroke>,
+    pub common: CommonEditableProperties,
+    pub specific: ElementSpecificEditableProperties,
+}
+
+#[derive(Clone, Debug)]
+pub struct CommonEditableProperties {
     pub opacity: f32,
+}
+
+#[derive(Clone, Debug)]
+pub enum ElementSpecificEditableProperties {
+    Stroke(StrokeEditableProperties),
+    Image(ImageEditableProperties),
+    Mixed,
+}
+
+#[derive(Clone, Debug)]
+pub struct StrokeEditableProperties {
+    pub stroke: Stroke,
+}
+
+#[derive(Clone, Debug)]
+pub struct ImageEditableProperties;
+
+impl ElementEditableProperties {
+    fn from_selection(selected_elements: &[SelectedElement], buffer: &Buffer) -> Self {
+        let mut has_element = false;
+        let mut all_strokes = true;
+        let mut all_images = true;
+        let mut opacity = 1.0;
+        let mut stroke = None;
+
+        for selected_element in selected_elements {
+            if let Some(el) = buffer.elements.get(&selected_element.id) {
+                has_element = true;
+                opacity = el.opacity();
+                match el {
+                    Element::Path(_) => {
+                        all_images = false;
+                        stroke = el.stroke();
+                        if stroke.is_none() {
+                            all_strokes = false;
+                        }
+                    }
+                    Element::Image(_) => {
+                        all_strokes = false;
+                    }
+                    Element::Text(_) => {
+                        all_strokes = false;
+                        all_images = false;
+                    }
+                }
+            }
+        }
+
+        let specific = if has_element && all_strokes {
+            ElementSpecificEditableProperties::Stroke(StrokeEditableProperties {
+                stroke: stroke.unwrap_or_default(),
+            })
+        } else if has_element && all_images {
+            ElementSpecificEditableProperties::Image(ImageEditableProperties)
+        } else {
+            ElementSpecificEditableProperties::Mixed
+        };
+
+        Self { common: CommonEditableProperties { opacity }, specific }
+    }
 }
 struct SelectionHandles {
     handles: [(egui::Rect, SelectionOperation); 8],
@@ -565,12 +631,15 @@ impl Selection {
         if self.selected_elements.is_empty() {
             self.selection_container = None;
             self.selection_handles = None;
+            self.layout.container_tooltip = None;
+            self.layout.popover = None;
             return;
         }
         let container = self.get_container_rect(selection_ctx.buffer);
 
         if self.current_op != SelectionOperation::Translation
             && self.selection_stroke_snashot.is_empty()
+            && self.selection_opacity_snapshot.is_empty()
         {
             for el in self.selected_elements.iter() {
                 let child = match selection_ctx.buffer.elements.get(&el.id) {
@@ -839,191 +908,194 @@ impl Selection {
 
         let mut buffer_changed = false;
         ui.add_space(10.0);
+        let mut properties = ElementEditableProperties::from_selection(
+            &self.selected_elements,
+            selection_ctx.buffer,
+        );
+
+        buffer_changed |= self.show_common_properties(ui, selection_ctx, &mut properties.common);
+
+        match &mut properties.specific {
+            ElementSpecificEditableProperties::Stroke(stroke_properties) => {
+                buffer_changed |=
+                    self.show_stroke_properties(ui, selection_ctx, &mut stroke_properties.stroke);
+            }
+            ElementSpecificEditableProperties::Image(_)
+            | ElementSpecificEditableProperties::Mixed => {}
+        }
+
+        ui.add_space(20.0);
+
+        show_section_header(ui, "layer");
+        ui.add_space(5.0);
+        ui.horizontal(|ui| {
+            self.show_layer_controls(selection_ctx, ui);
+        });
+
+        ui.add_space(7.5);
+        ui.horizontal(|ui| {
+            self.show_action_controls(selection_ctx, ui);
+        });
+        ui.add_space(10.0);
+
+        self.properties = Some(properties);
+
+        buffer_changed
+    }
+
+    fn show_common_properties(
+        &mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext,
+        common_properties: &mut CommonEditableProperties,
+    ) -> bool {
+        let mut buffer_changed = false;
+
+        show_section_header(ui, "opacity");
+        ui.add_space(10.0);
+
+        let slider_res =
+            show_opacity_slider(ui, &mut common_properties.opacity, &DynamicColor::default());
+
+        if slider_res.drag_started() || slider_res.clicked() {
+            self.selection_opacity_snapshot = self
+                .selected_elements
+                .iter()
+                .filter_map(|s_el| {
+                    selection_ctx
+                        .buffer
+                        .elements
+                        .get(&s_el.id)
+                        .map(|el| (s_el.id, el.opacity()))
+                })
+                .collect();
+        }
+        if slider_res.dragged() || slider_res.clicked() {
+            self.selected_elements.iter().for_each(|s_el| {
+                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                    el.set_opacity(common_properties.opacity);
+                    buffer_changed = true;
+                }
+            });
+        }
+        if slider_res.drag_stopped() || slider_res.clicked() {
+            let event = history::Event::OpacityChange(
+                self.selected_elements
+                    .iter()
+                    .filter_map(|s_el: &selection::SelectedElement| {
+                        selection_ctx.buffer.elements.get(&s_el.id).and_then(|el| {
+                            self.selection_opacity_snapshot
+                                .get(&s_el.id)
+                                .map(|old_opacity| history::OpacityChangeElement {
+                                    id: s_el.id,
+                                    old_opacity: *old_opacity,
+                                    new_opacity: el.opacity(),
+                                })
+                        })
+                    })
+                    .collect(),
+            );
+            self.selection_opacity_snapshot.clear();
+            selection_ctx.history.save(event);
+        }
+
+        buffer_changed
+    }
+
+    fn show_stroke_properties(
+        &mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext, stroke: &mut Stroke,
+    ) -> bool {
+        let mut buffer_changed = false;
+
+        ui.add_space(25.0);
         show_section_header(ui, "stroke");
         ui.add_space(10.0);
 
-        if let Some(properties) = &mut self.properties {
-            self.selected_elements.iter().for_each(|s_el| {
-                if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
-                    properties.opacity = el.opacity();
-                    properties.stroke = el.stroke();
-                }
-            });
+        let colors = get_pen_colors();
+        ui.horizontal_wrapped(|ui| {
+            colors.iter().for_each(|&c| {
+                let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
+                let active_color =
+                    ThemePalette::resolve_dynamic_color(stroke.color, ui.visuals().dark_mode);
 
-            if let Some(stroke) = &mut properties.stroke {
-                let colors = get_pen_colors();
-                ui.horizontal_wrapped(|ui| {
-                    colors.iter().for_each(|&c| {
-                        let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
-                        let active_color = ThemePalette::resolve_dynamic_color(
-                            stroke.color,
-                            ui.visuals().dark_mode,
-                        );
-
-                        let color_btn = show_color_btn(ui, color, active_color, None);
-                        if color_btn.clicked() || color_btn.drag_started() {
-                            let event = history::Event::StrokeChange(
-                                self.selected_elements
-                                    .iter()
-                                    .filter_map(|s_el: &selection::SelectedElement| {
-                                        if let Some(el) =
-                                            selection_ctx.buffer.elements.get_mut(&s_el.id)
-                                        {
-                                            let old_stroke = el.stroke();
-                                            stroke.color = c;
-                                            if let Some(mut el_stroke) = el.stroke() {
-                                                el_stroke.color = c;
-                                                el.set_stroke(*stroke);
-                                                buffer_changed = true;
-                                                Some(history::StrokeChangeElement {
-                                                    id: s_el.id,
-                                                    old_stroke,
-                                                    new_stroke: Some(el_stroke),
-                                                })
-                                            } else {
-                                                None
-                                            }
-                                        } else {
-                                            None
-                                        }
-                                    })
-                                    .collect(),
-                            );
-                            selection_ctx.history.save(event);
-                        }
-                    });
-                });
-                ui.add_space(10.0);
-                let slider_res = show_opacity_slider(ui, &mut stroke.opacity, &stroke.color);
-
-                if slider_res.drag_started() || slider_res.clicked() {
-                    // let's store the inital stroke of each selected el
-                    self.selection_stroke_snashot = self
-                        .selected_elements
-                        .iter()
-                        .filter_map(|s_el| {
-                            if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
-                                el.stroke().map(|stroke| (s_el.id, stroke))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-                }
-                if slider_res.dragged() || slider_res.clicked() {
-                    self.selected_elements.iter().for_each(|s_el| {
-                        if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
-                            if let Some(mut el_stroke) = el.stroke() {
-                                el_stroke.opacity = stroke.opacity;
-                                el.set_stroke(el_stroke);
-                                buffer_changed = true;
-                            }
-                        }
-                    });
-                }
-                if slider_res.drag_stopped() || slider_res.clicked() {
+                let color_btn = show_color_btn(ui, color, active_color, None);
+                if color_btn.clicked() || color_btn.drag_started() {
                     let event = history::Event::StrokeChange(
                         self.selected_elements
                             .iter()
                             .filter_map(|s_el: &selection::SelectedElement| {
                                 if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
-                                    Some(history::StrokeChangeElement {
-                                        id: s_el.id,
-                                        old_stroke: self
-                                            .selection_stroke_snashot
-                                            .get(&s_el.id)
-                                            .copied(),
-                                        new_stroke: el.stroke(),
-                                    })
+                                    let old_stroke = el.stroke();
+                                    stroke.color = c;
+                                    if let Some(mut el_stroke) = el.stroke() {
+                                        el_stroke.color = c;
+                                        el.set_stroke(*stroke);
+                                        buffer_changed = true;
+                                        Some(history::StrokeChangeElement {
+                                            id: s_el.id,
+                                            old_stroke,
+                                            new_stroke: Some(el_stroke),
+                                        })
+                                    } else {
+                                        None
+                                    }
                                 } else {
                                     None
                                 }
                             })
                             .collect(),
                     );
-                    self.selection_stroke_snashot.clear();
                     selection_ctx.history.save(event);
-                }
-
-                ui.add_space(25.0);
-
-                let range = DEFAULT_PEN_STROKE_WIDTH..=10.0;
-                let slider_res = show_thickness_slider(ui, &mut stroke.width, range, 0.0);
-
-                if slider_res.drag_started() || slider_res.clicked() {
-                    // let's store the inital stroke of each selected el
-                    self.selection_stroke_snashot = self
-                        .selected_elements
-                        .iter()
-                        .filter_map(|s_el| {
-                            if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
-                                el.stroke().map(|stroke| (s_el.id, stroke))
-                            } else {
-                                None
-                            }
-                        })
-                        .collect();
-                }
-                if slider_res.dragged() || slider_res.clicked() {
-                    self.selected_elements.iter().for_each(|s_el| {
-                        if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
-                            if let Some(mut el_stroke) = el.stroke() {
-                                el_stroke.width = stroke.width;
-                                el.set_stroke(el_stroke);
-                                buffer_changed = true;
-                            }
-                        }
-                    });
-                }
-                if slider_res.drag_stopped() || slider_res.clicked() {
-                    let event = history::Event::StrokeChange(
-                        self.selected_elements
-                            .iter()
-                            .filter_map(|s_el: &selection::SelectedElement| {
-                                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
-                                    Some(history::StrokeChangeElement {
-                                        id: s_el.id,
-                                        old_stroke: self
-                                            .selection_stroke_snashot
-                                            .get(&s_el.id)
-                                            .copied(),
-                                        new_stroke: el.stroke(),
-                                    })
-                                } else {
-                                    None
-                                }
-                            })
-                            .collect(),
-                    );
-                    self.selection_stroke_snashot.clear();
-                    selection_ctx.history.save(event);
-                }
-
-                ui.add_space(20.0);
-
-                show_section_header(ui, "layer");
-                ui.add_space(5.0);
-                ui.horizontal(|ui| {
-                    self.show_layer_controls(selection_ctx, ui);
-                });
-
-                ui.add_space(7.5);
-                ui.horizontal(|ui| {
-                    self.show_action_controls(selection_ctx, ui);
-                });
-                ui.add_space(10.0);
-            }
-        } else {
-            let mut properties = ElementEditableProperties::default();
-
-            self.selected_elements.iter().for_each(|s_el| {
-                if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
-                    properties.opacity = el.opacity();
-                    properties.stroke = el.stroke();
                 }
             });
+        });
 
-            self.properties = Some(properties);
+        ui.add_space(25.0);
+
+        let range = DEFAULT_PEN_STROKE_WIDTH..=10.0;
+        let slider_res = show_thickness_slider(ui, &mut stroke.width, range, 0.0);
+
+        if slider_res.drag_started() || slider_res.clicked() {
+            self.selection_stroke_snashot = self
+                .selected_elements
+                .iter()
+                .filter_map(|s_el| {
+                    if let Some(el) = selection_ctx.buffer.elements.get(&s_el.id) {
+                        el.stroke().map(|stroke| (s_el.id, stroke))
+                    } else {
+                        None
+                    }
+                })
+                .collect();
+        }
+        if slider_res.dragged() || slider_res.clicked() {
+            self.selected_elements.iter().for_each(|s_el| {
+                if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                    if let Some(mut el_stroke) = el.stroke() {
+                        el_stroke.width = stroke.width;
+                        el.set_stroke(el_stroke);
+                        buffer_changed = true;
+                    }
+                }
+            });
+        }
+        if slider_res.drag_stopped() || slider_res.clicked() {
+            let event = history::Event::StrokeChange(
+                self.selected_elements
+                    .iter()
+                    .filter_map(|s_el: &selection::SelectedElement| {
+                        if let Some(el) = selection_ctx.buffer.elements.get_mut(&s_el.id) {
+                            Some(history::StrokeChangeElement {
+                                id: s_el.id,
+                                old_stroke: self.selection_stroke_snashot.get(&s_el.id).copied(),
+                                new_stroke: el.stroke(),
+                            })
+                        } else {
+                            None
+                        }
+                    })
+                    .collect(),
+            );
+            self.selection_stroke_snashot.clear();
+            selection_ctx.history.save(event);
         }
 
         buffer_changed

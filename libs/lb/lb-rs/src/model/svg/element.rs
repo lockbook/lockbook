@@ -296,6 +296,19 @@ impl Element {
         }
     }
 
+    pub fn set_opacity(&mut self, opacity: f32) {
+        match self {
+            Element::Path(path) => path.opacity = opacity,
+            Element::Image(image) => image.opacity = opacity,
+            Element::Text(_) => todo!(),
+        }
+        match self {
+            Element::Path(path) => path.diff_state.opacity_changed = true,
+            Element::Image(image) => image.diff_state.opacity_changed = true,
+            Element::Text(_) => todo!(),
+        }
+    }
+
     pub fn stroke(&self) -> Option<Stroke> {
         match self {
             Element::Path(path) => path.stroke,
