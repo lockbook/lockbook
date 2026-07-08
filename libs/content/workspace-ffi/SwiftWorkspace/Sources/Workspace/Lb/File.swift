@@ -1,5 +1,7 @@
 import Bridge
+import CoreTransferable
 import Foundation
+import UniformTypeIdentifiers
 
 public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
     public var id: UUID
@@ -165,5 +167,15 @@ extension UUID {
 extension LbUuid {
     func toUUID() -> UUID {
         UUID(uuid: bytes)
+    }
+}
+
+public extension UTType {
+    static let lockbookFile = UTType(exportedAs: "net.lockbook.metadata")
+}
+
+extension File: Transferable {
+    public static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .lockbookFile)
     }
 }

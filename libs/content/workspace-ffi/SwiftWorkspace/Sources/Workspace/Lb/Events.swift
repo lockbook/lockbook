@@ -1,13 +1,13 @@
 import Bridge
 import Foundation
+import Observation
 
-public class Events: ObservableObject {
-    @Published public var status: Status = .init()
-    @Published public var pendingShares: [UUID] = []
-    @Published public var metadataUpdated: Bool = false
+@Observable public class Events {
+    public var status: Status = .init()
+    public var metadataVersion: Int = 0
 }
 
-public struct Status {
+public struct Status: Equatable {
     public var offline: Bool
     public var syncing: Bool
     public var outOfSpace: Bool

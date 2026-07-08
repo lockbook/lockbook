@@ -135,7 +135,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "admin"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -4044,7 +4044,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lb-c"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "lb-rs",
 ]
@@ -4056,7 +4056,7 @@ source = "git+https://github.com/lockbook/lb-fonts#d777ff8ab8bf198ebaf6b3406daba
 
 [[package]]
 name = "lb-fs"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "cli-rs 0.2.0",
  "lb-rs",
@@ -4068,7 +4068,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "jni",
  "lb-rs",
@@ -4099,7 +4099,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "aes-gcm",
  "base64 0.13.1",
@@ -4134,6 +4134,8 @@ dependencies = [
  "serde_json",
  "sha2 0.9.9",
  "similar",
+ "strum 0.28.0",
+ "strum_macros 0.28.0",
  "tempfile",
  "test_utils",
  "time",
@@ -4153,7 +4155,7 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "cli-rs 0.1.13",
  "dotenvy",
@@ -4367,7 +4369,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "arboard",
  "chrono",
@@ -4407,7 +4409,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4428,14 +4430,14 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "lockbook-desktop",
 ]
 
 [[package]]
 name = "lockbook-server"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4474,7 +4476,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "lockbook-desktop",
 ]
@@ -4795,7 +4797,7 @@ dependencies = [
  "once_cell",
  "rustc-hash 1.1.0",
  "spirv",
- "strum",
+ "strum 0.26.3",
  "thiserror 2.0.12",
  "unicode-ident",
 ]
@@ -7444,8 +7446,14 @@ version = "0.26.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8fec0f0aef304996cf250b31b5a10dee7980c85da9d759361292b8bca5a18f06"
 dependencies = [
- "strum_macros",
+ "strum_macros 0.26.4",
 ]
+
+[[package]]
+name = "strum"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9628de9b8791db39ceda2b119bbe13134770b56c138ec1d3af810d045c04f9bd"
 
 [[package]]
 name = "strum_macros"
@@ -7457,6 +7465,18 @@ dependencies = [
  "proc-macro2",
  "quote",
  "rustversion",
+ "syn 2.0.104",
+]
+
+[[package]]
+name = "strum_macros"
+version = "0.28.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ab85eea0270ee17587ed4156089e10b9e6880ee688791d45a905f5b1ca36f664"
+dependencies = [
+ "heck",
+ "proc-macro2",
+ "quote",
  "syn 2.0.104",
 ]
 
@@ -7649,7 +7669,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "bincode",
  "lb-rs",
@@ -9492,7 +9512,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -9526,7 +9546,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -9581,7 +9601,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "26.7.4"
+version = "26.7.8"
 dependencies = [
  "egui",
  "egui_extras",

@@ -1,14 +1,11 @@
 import Bridge
-import Combine
 import Foundation
 import SwiftUI
 
 public protocol LbAPI {
-    var lb: OpaquePointer? { get set }
     var lbUnsafeRawPtr: UnsafeMutableRawPointer? { get set }
     var events: Events { get }
 
-    func start(writablePath: String, logs: Bool) -> Result<Void, LbError>
     func createAccount(username: String, apiUrl: String?, welcomeDoc: Bool) -> Result<Account, LbError>
     func importAccount(key: String, apiUrl: String?) -> Result<Account, LbError>
     func getAccount() -> Result<Account, LbError>
@@ -16,13 +13,8 @@ public protocol LbAPI {
     func logoutAndExit()
     func exportAccountPrivateKey() -> Result<String, LbError>
     func exportAccountPhrase() -> Result<String, LbError>
-    func exportAccountQR() -> Result<[UInt8], LbError>
     func createFile(name: String, parent: UUID, fileType: FileType) -> Result<File, LbError>
     func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError>
-    func writeDocument(id: UUID, content: inout [UInt8]) -> Result<Void, LbError>
-    func getRoot() -> Result<File, LbError>
-    func getChildren(id: UUID) -> Result<[File], LbError>
-    func getAndGetChildren(id: UUID) -> Result<[File], LbError>
     func getFile(id: UUID) -> Result<File, LbError>
     func deleteFile(id: UUID) -> Result<Void, LbError>
     func readDoc(id: UUID) -> Result<[UInt8], LbError>
@@ -33,20 +25,8 @@ public protocol LbAPI {
     func getPendingShares() -> Result<[File], LbError>
     func getPendingShareFiles() -> Result<[File], LbError>
     func deletePendingShare(id: UUID) -> Result<Void, LbError>
-    func createLinkAtPath(pathAndName: String, targetId: UUID) -> Result<File, LbError>
-    func createAtPath(pathAndName: String) -> Result<File, LbError>
-    func getByPath(path: String) -> Result<File, LbError>
-    func getPathById(id: UUID) -> Result<String, LbError>
-    func listFolderPaths() -> Result<[String], LbError>
-    func getLocalChanges() -> Result<[UUID], LbError>
     func debugInfo() -> String
     func sync() -> Result<Void, LbError>
-    func getLastSynced() -> Result<Int64, LbError>
-    func getLastSyncedHumanString() -> Result<String, LbError>
-    func getTimestampHumanString(timestamp: Int64) -> String
-    func suggestedDocs() -> Result<[UUID], LbError>
-    func clearSuggestedId(id: UUID) -> Result<Void, LbError>
-    func clearSuggestedDocs() -> Result<Void, LbError>
     func pinFile(id: UUID) -> Result<Void, LbError>
     func unpinFile(id: UUID) -> Result<Void, LbError>
     func listPinned() -> Result<[UUID], LbError>
@@ -56,11 +36,9 @@ public protocol LbAPI {
     func getFileLinkUrl(id: UUID) -> Result<String, LbError>
     func pathSearcher() -> PathSearching
     func contentSearcher() -> ContentSearching
-    func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError>
     func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError>
     func cancelSubscription() -> Result<Void, LbError>
     func getSubscriptionInfo() -> Result<SubscriptionInfo?, LbError>
-    func subscribe(notify: ((LbEvent) -> Void)?)
 }
 
 public class Lb: LbAPI {
@@ -71,16 +49,14 @@ public class Lb: LbAPI {
     public init(writablePath: String, logs: Bool) {
         print("Starting core at \(writablePath) and logs=\(logs)")
 
-        let res = start(writablePath: writablePath, logs: logs)
+        _ = start(writablePath: writablePath, logs: logs)
 
         subscribe(notify: { event in
             DispatchQueue.main.async {
                 if event.status_updated {
                     self.events.status = self.getStatus()
-                } else if event.metadata_updated {
-                    self.events.metadataUpdated = true
-                } else if event.pending_shares_changed {
-                    self.events.pendingShares = (try? self.getPendingShares().get())?.map(\.id) ?? []
+                } else if event.metadata_updated || event.pending_shares_changed {
+                    self.events.metadataVersion += 1
                 }
             }
         })
@@ -172,17 +148,6 @@ public class Lb: LbAPI {
         return .success(String(cString: res.account_string))
     }
 
-    public func exportAccountQR() -> Result<[UInt8], LbError> {
-        let res = lb_export_account_qr(lb)
-        defer { lb_free_export_account_qr(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(Array(UnsafeBufferPointer(start: res.qr, count: Int(res.qr_len))))
-    }
-
     public func createFile(name: String, parent: UUID, fileType: FileType) -> Result<File, LbError> {
         let res = lb_create_file(lb, name, parent.toLbUuid(), fileType.toLbFileType())
         defer { lb_free_file_res(res) }
@@ -203,55 +168,6 @@ public class Lb: LbAPI {
         }
 
         return .success(File(res.file))
-    }
-
-    public func writeDocument(id: UUID, content: inout [UInt8]) -> Result<Void, LbError> {
-        let len = UInt(content.count)
-        let ptr = content.withUnsafeMutableBytes {
-            $0.baseAddress?.assumingMemoryBound(to: UInt8.self)
-        }
-
-        let err = lb_write_document(lb, id.toLbUuid(), ptr, len)
-
-        if let err {
-            defer { lb_free_err(err) }
-            return .failure(LbError(err.pointee))
-        }
-
-        return .success(())
-    }
-
-    public func getRoot() -> Result<File, LbError> {
-        let res = lb_get_root(lb)
-        defer { lb_free_file_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(File(res.file))
-    }
-
-    public func getChildren(id: UUID) -> Result<[File], LbError> {
-        let res = lb_get_children(lb, id.toLbUuid())
-        defer { lb_free_file_list_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success([LbFile](UnsafeBufferPointer(start: res.list.list, count: Int(res.list.count))).toFiles())
-    }
-
-    public func getAndGetChildren(id: UUID) -> Result<[File], LbError> {
-        let res = lb_get_and_get_children_recursively(lb, id.toLbUuid())
-        defer { lb_free_file_list_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success([LbFile](UnsafeBufferPointer(start: res.list.list, count: Int(res.list.count))).toFiles())
     }
 
     public func getFile(id: UUID) -> Result<File, LbError> {
@@ -364,72 +280,6 @@ public class Lb: LbAPI {
         return .success(())
     }
 
-    public func createLinkAtPath(pathAndName: String, targetId: UUID) -> Result<File, LbError> {
-        let res = lb_create_link_at_path(lb, pathAndName, targetId.toLbUuid())
-        defer { lb_free_file_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(File(res.file))
-    }
-
-    public func createAtPath(pathAndName: String) -> Result<File, LbError> {
-        let res = lb_create_at_path(lb, pathAndName)
-        defer { lb_free_file_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(File(res.file))
-    }
-
-    public func getByPath(path: String) -> Result<File, LbError> {
-        let res = lb_get_by_path(lb, path)
-        defer { lb_free_file_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(File(res.file))
-    }
-
-    public func getPathById(id: UUID) -> Result<String, LbError> {
-        let res = lb_get_path_by_id(lb, id.toLbUuid())
-        defer { lb_free_path_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(String(cString: res.path))
-    }
-
-    public func listFolderPaths() -> Result<[String], LbError> {
-        let res = lb_list_folder_paths(lb)
-        defer { lb_free_paths_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success((0 ..< res.len).map { String(cString: res.paths[Int($0)]!) })
-    }
-
-    public func getLocalChanges() -> Result<[UUID], LbError> {
-        let res = lb_get_local_changes(lb)
-        defer { lb_free_id_list_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(Array(UnsafeBufferPointer(start: res.ids, count: Int(res.len))).toUUIDs())
-    }
-
     public func debugInfo() -> String {
         let osInfo = ProcessInfo.processInfo.operatingSystemVersion
         let debugInfo = lb_debug_info(lb, "\(osInfo.majorVersion).\(osInfo.minorVersion).\(osInfo.patchVersion)")
@@ -459,72 +309,6 @@ public class Lb: LbAPI {
         let err = lb_sync(lb)
         
         if let err = err {
-            defer { lb_free_err(err) }
-            return .failure(LbError(err.pointee))
-        }
-
-        return .success(())
-    }
-
-    public func getLastSynced() -> Result<Int64, LbError> {
-        let res = lb_get_last_synced(lb)
-        defer { lb_free_last_synced_i64(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(res.last)
-    }
-
-    public func getLastSyncedHumanString() -> Result<String, LbError> {
-        let res = lb_get_last_synced_human_string(lb)
-        defer { lb_free_last_synced_human(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(String(cString: res.last))
-    }
-
-    public func getTimestampHumanString(timestamp: Int64) -> String {
-        let msg = lb_get_timestamp_human_string(lb, timestamp)
-        defer { lb_free_str(msg) }
-
-        if let msg {
-            return String(cString: msg)
-        } else {
-            return ""
-        }
-    }
-
-    public func suggestedDocs() -> Result<[UUID], LbError> {
-        let res = lb_suggested_docs(lb)
-        defer { lb_free_id_list_res(res) }
-
-        guard res.err == nil else {
-            return .failure(LbError(res.err.pointee))
-        }
-
-        return .success(Array(UnsafeBufferPointer(start: res.ids, count: Int(res.len))).toUUIDs())
-    }
-
-    public func clearSuggestedId(id: UUID) -> Result<Void, LbError> {
-        let err = lb_clear_suggested_id(lb, id.toLbUuid())
-
-        if let err {
-            defer { lb_free_err(err) }
-            return .failure(LbError(err.pointee))
-        }
-
-        return .success(())
-    }
-
-    public func clearSuggestedDocs() -> Result<Void, LbError> {
-        let err = lb_clear_suggested(lb)
-
-        if let err {
             defer { lb_free_err(err) }
             return .failure(LbError(err.pointee))
         }
@@ -622,17 +406,6 @@ public class Lb: LbAPI {
         LbContentSearcher(lb: lb)
     }
 
-    public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> {
-        let err = lb_upgrade_account_stripe(lb, isOldCard, number, expYear, expMonth, cvc)
-
-        if let err {
-            defer { lb_free_err(err) }
-            return .failure(LbError(err.pointee))
-        }
-
-        return .success(())
-    }
-
     public func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError> {
         let err = lb_upgrade_account_app_store(lb, originalTransactionId, appAccountToken)
 
@@ -704,12 +477,6 @@ public class Lb: LbAPI {
 }
 
 public class MockLb: LbAPI {
-    @Published public var status: Status = .init()
-    public var statusPublisher: Published<Status>.Publisher {
-        $status
-    }
-
-    public var lb: OpaquePointer?
     public var lbUnsafeRawPtr: UnsafeMutableRawPointer?
     public var events: Events = .init()
 
@@ -736,10 +503,6 @@ public class MockLb: LbAPI {
         file5 = File(id: UUID(), parent: rootId, name: "notes.md", type: .document, lastModifiedBy: "smail", lastModified: 1_735_857_230, shares: [])
     }
 
-    public func start(writablePath _: String, logs _: Bool) -> Result<Void, LbError> {
-        .success(())
-    }
-
     public func createAccount(username _: String, apiUrl _: String?, welcomeDoc _: Bool) -> Result<Account, LbError> {
         .success(account)
     }
@@ -759,13 +522,8 @@ public class MockLb: LbAPI {
     public func logoutAndExit() {}
     public func exportAccountPrivateKey() -> Result<String, LbError> { .success(accountPK) }
     public func exportAccountPhrase() -> Result<String, LbError> { .success(accountPhrase) }
-    public func exportAccountQR() -> Result<[UInt8], LbError> { .success([]) }
     public func createFile(name: String, parent: UUID, fileType: FileType) -> Result<File, LbError> { .success(file1) }
     public func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError> { .success(File(id: UUID(), parent: UUID(), name: "about-link.md", type: .link(file2.id), lastModifiedBy: "smail", lastModified: 1735857215, shares: [])) }
-    public func writeDocument(id: UUID, content: inout [UInt8]) -> Result<Void, LbError> { .success(()) }
-    public func getRoot() -> Result<File, LbError> { .success(file0) }
-    public func getChildren(id: UUID) -> Result<[File], LbError> { .success([file1, file2, file3, file4]) }
-    public func getAndGetChildren(id: UUID) -> Result<[File], LbError> { .success([file1, file2, file3, file4]) }
     public func getFile(id: UUID) -> Result<File, LbError> { .success(file1) }
     public func deleteFile(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func readDoc(id: UUID) -> Result<[UInt8], LbError> { .success([]) }
@@ -776,20 +534,8 @@ public class MockLb: LbAPI {
     public func getPendingShares() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
     public func getPendingShareFiles() -> Result<[File], LbError> { .success([file1, file1, file1, file1, file1]) }
     public func deletePendingShare(id: UUID) -> Result<Void, LbError> { .success(()) }
-    public func createLinkAtPath(pathAndName: String, targetId: UUID) -> Result<File, LbError> { .success(file5) }
-    public func createAtPath(pathAndName: String) -> Result<File, LbError> { .success(file1) }
-    public func getByPath(path: String) -> Result<File, LbError> { .success(file1) }
-    public func getPathById(id: UUID) -> Result<String, LbError> { .success("/welcome.md") }
-    public func listFolderPaths() -> Result<[String], LbError> { .success(["/"]) }
-    public func getLocalChanges() -> Result<[UUID], LbError> { .success([UUID(), UUID()]) }
     public func debugInfo() -> String { "No debug info. This is a preview." }
     public func sync() -> Result<Void, LbError> { .success(()) }
-    public func getLastSynced() -> Result<Int64, LbError> { .success(1735857215) }
-    public func getLastSyncedHumanString() -> Result<String, LbError> { .success("You synced a second ago.") }
-    public func getTimestampHumanString(timestamp: Int64) -> String { "1 second ago." }
-    public func suggestedDocs() -> Result<[UUID], LbError> { .success([file1.id, file2.id, file3.id]) }
-    public func clearSuggestedId(id: UUID) -> Result<Void, LbError> { .success(()) }
-    public func clearSuggestedDocs() -> Result<Void, LbError> { .success(()) }
     public func pinFile(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func unpinFile(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func listPinned() -> Result<[UUID], LbError> { .success([file1.id]) }
@@ -801,9 +547,7 @@ public class MockLb: LbAPI {
     }
     public func pathSearcher() -> PathSearching { MockPathSearcher() }
     public func contentSearcher() -> ContentSearching { MockContentSearcher() }
-    public func upgradeAccountStripe(isOldCard: Bool, number: String, expYear: Int32, expMonth: Int32, cvc: String) -> Result<Void, LbError> { .success(()) }
     public func upgradeAccountAppStore(originalTransactionId: String, appAccountToken: String) -> Result<Void, LbError> { .success(()) }
     public func cancelSubscription() -> Result<Void, LbError> { .success(()) }
     public func getSubscriptionInfo() -> Result<SubscriptionInfo?, LbError> { .success(nil) }
-    public func subscribe(notify: ((LbEvent) -> Void)?) { }
 }

@@ -169,11 +169,11 @@ pub fn apple_run_ios(name: String) -> CliResult<()> {
     Command::new("xcodebuild")
         .args([
             "-workspace",
-            "clients/apple/Lockbook.xcworkspace",
+            "clients/apple/lockbook.xcworkspace",
             "-scheme",
-            "Lockbook (iOS)",
-            "-sdk",
-            "iphoneos",
+            "Lockbook",
+            "-destination",
+            "generic/platform=iOS",
             "-configuration",
             "Release",
             "-archivePath",
@@ -216,11 +216,11 @@ pub fn apple_run_macos() -> CliResult<()> {
     Command::new("xcodebuild")
         .args([
             "-workspace",
-            "clients/apple/Lockbook.xcworkspace",
+            "clients/apple/lockbook.xcworkspace",
             "-scheme",
-            "Lockbook (macOS)",
-            "-sdk",
-            "macosx",
+            "Lockbook",
+            "-destination",
+            "generic/platform=macOS",
             "-configuration",
             "Release",
             "-archivePath",

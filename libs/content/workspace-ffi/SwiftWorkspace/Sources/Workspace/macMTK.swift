@@ -69,7 +69,7 @@
 
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(layer!).toOpaque())
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), true)
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false)
             workspaceInput?.wsHandle = wsHandle
 
             modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
@@ -355,6 +355,10 @@
 
             syncWindowBackground()
 
+            if output.tabs_changed {
+                workspaceOutput?.tabCount = Int(tab_count(wsHandle))
+            }
+
             if output.selected_folder_changed {
                 let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
                 if selectedFolder.isNil() {
@@ -369,6 +373,7 @@
                 currentOpenDoc = selectedFile
                 if selectedFile != workspaceOutput?.openDoc {
                     workspaceOutput?.openDoc = selectedFile
+                    window?.makeFirstResponder(self)
                 }
             }
 
