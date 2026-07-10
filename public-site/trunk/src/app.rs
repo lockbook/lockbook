@@ -68,7 +68,7 @@ impl LbWebApp {
             1,
         );
 
-        let cfg = WsPersistentStore::new(false, "/tmp/lb-public-site".into());
+        let cfg = WsPersistentStore::new(false, "/tmp/lb-public-site".into(), true);
 
         Self { core: lb, cfg, images: None, editor: None, canvas: None, initial_screen }
     }

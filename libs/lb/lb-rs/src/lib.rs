@@ -385,12 +385,12 @@ impl Lb {
     }
 
     pub async fn safe_write(
-        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>, origin: Option<Uuid>,
     ) -> LbResult<DocumentHmac> {
         if let Some(local) = self.local.get() {
-            return local.safe_write(id, old_hmac, content).await;
+            return local.safe_write(id, old_hmac, content, origin).await;
         }
-        self.call(Request::SafeWrite { id, old_hmac, content })
+        self.call(Request::SafeWrite { id, old_hmac, content, origin })
             .await
     }
 

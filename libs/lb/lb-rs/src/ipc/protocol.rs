@@ -147,6 +147,7 @@ pub enum Request {
         id: Uuid,
         old_hmac: Option<DocumentHmac>,
         content: Vec<u8>,
+        origin: Option<Uuid>,
     },
 
     CreateFile {

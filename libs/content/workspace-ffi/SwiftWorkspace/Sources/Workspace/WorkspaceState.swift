@@ -19,7 +19,19 @@ import Observation
 
 @Observable public class WorkspaceInputState {
     @ObservationIgnored public var coreHandle: UnsafeMutableRawPointer?
-    @ObservationIgnored public var wsHandle: UnsafeMutableRawPointer?
+    @ObservationIgnored public var wsHandle: UnsafeMutableRawPointer? {
+        didSet {
+            guard wsHandle != nil, !pendingOpens.isEmpty else { return }
+
+            let queued = pendingOpens
+            pendingOpens = []
+            for id in queued {
+                openFile(id: id)
+            }
+        }
+    }
+
+    @ObservationIgnored private var pendingOpens: [UUID] = []
 
     @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
     @ObservationIgnored public var focus = PassthroughSubject<Void, Never>()
@@ -32,6 +44,7 @@ import Observation
 
     public func openFile(id: UUID, newTab: Bool = true) {
         guard let wsHandle else {
+            pendingOpens.append(id)
             return
         }
 

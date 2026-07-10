@@ -1604,6 +1604,7 @@
         public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
         public var wsHandle: UnsafeMutableRawPointer?
+        var claimedPersistence = false
         weak var currentWrapper: UIView?
 
         // pointer
@@ -1841,7 +1842,8 @@
             let metalLayer = UnsafeMutableRawPointer(
                 Unmanaged.passUnretained(layer).toOpaque()
             )
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false)
+            claimedPersistence = true
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
         }
 
@@ -2088,6 +2090,10 @@
 
         deinit {
             deinit_editor(wsHandle)
+
+            if claimedPersistence {
+                WorkspacePersistence.release()
+            }
         }
 
         func unimplemented() {

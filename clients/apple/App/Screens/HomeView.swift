@@ -224,6 +224,9 @@ struct HomeView: View {
                 showTabsSidebar = false
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .createNewFile)) { _ in
+            showCreateFile = true
+        }
         #if os(iOS)
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
                 keyboardVisible = true

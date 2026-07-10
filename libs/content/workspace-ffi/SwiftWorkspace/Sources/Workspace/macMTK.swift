@@ -5,6 +5,7 @@
     public class MacMTK: MTKView, MTKViewDelegate {
         var wsHandle: UnsafeMutableRawPointer?
         var coreHandle: UnsafeMutableRawPointer?
+        var claimedPersistence = false
         var trackingArea: NSTrackingArea?
         var pasteBoardEventId: Int = 0
         var pasteboardString: String?
@@ -69,7 +70,8 @@
 
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(layer!).toOpaque())
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false)
+            claimedPersistence = true
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 
             modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
@@ -453,6 +455,10 @@
         deinit {
             if let wsHandle {
                 deinit_editor(wsHandle)
+            }
+
+            if claimedPersistence {
+                WorkspacePersistence.release()
             }
 
             if let modifierEventHandle {

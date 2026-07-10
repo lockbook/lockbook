@@ -56,7 +56,7 @@ impl LocalLb {
             tx.end();
         }
 
-        self.events.doc_written(id, Actor::User);
+        self.events.doc_written(id, Actor::User(None));
         self.add_doc_event(activity::DocEvent::Write(id, get_time().0))
             .await?;
 
@@ -120,7 +120,7 @@ impl LocalLb {
 
     #[instrument(level = "debug", skip(self, content), err(Debug))]
     pub async fn safe_write(
-        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>, origin: Option<Uuid>,
     ) -> LbResult<DocumentHmac> {
         // get info so we can do operations while not holding lock
         let (target_id, key) = {
@@ -166,10 +166,7 @@ impl LocalLb {
             tx.end();
         }
 
-        // todo: when workspace isn't the only writer, this arg needs to be exposed
-        // this will happen when lb-fs is integrated into an app and shares an lb-rs with ws
-        // or it will happen when there are multiple co-operative core processes.
-        self.events.doc_written(target_id, Actor::User);
+        self.events.doc_written(target_id, Actor::User(origin));
         self.add_doc_event(activity::DocEvent::Write(target_id, get_time().0))
             .await?;
 

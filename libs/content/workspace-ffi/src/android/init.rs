@@ -110,7 +110,7 @@ unsafe fn init_ws(
         .context
         .set_lb_theme(android_material_theme_to_lb(&mut env, theme));
 
-    let workspace = Workspace::new(core, &renderer.context, false, None);
+    let workspace = Workspace::new(core, &renderer.context, false, true, None);
 
     let mut fonts = FontDefinitions::default();
     workspace_rs::register_fonts(&mut fonts);

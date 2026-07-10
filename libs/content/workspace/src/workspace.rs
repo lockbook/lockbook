@@ -108,7 +108,8 @@ pub enum WsUpdates {
 
 impl Workspace {
     pub fn new(
-        core: &Lb, ctx: &Context, show_tabs: bool, file_cache: Option<Arc<RwLock<FileCache>>>,
+        core: &Lb, ctx: &Context, show_tabs: bool, persist: bool,
+        file_cache: Option<Arc<RwLock<FileCache>>>,
     ) -> Self {
         let writable_dir = core.get_config().writeable_path;
         let writeable_dir = Path::new(&writable_dir);
@@ -116,7 +117,8 @@ impl Workspace {
         let files = file_cache.unwrap_or_else(|| {
             Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")))
         });
-        let cfg = WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path);
+        let cfg =
+            WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path, persist);
         let images = ImageCache::new(
             ctx.clone(),
             HttpClient::default(),
@@ -233,6 +235,7 @@ impl Workspace {
             Tab {
                 destination: dest.clone(),
                 content,
+                origin: Uuid::new_v4(),
                 last_changed: now,
                 last_saved: now,
                 read_only: false,
@@ -278,6 +281,7 @@ impl Workspace {
                 self.preview = Some(Tab {
                     destination: Destination::File(id),
                     content: ContentState::Loading(id),
+                    origin: Uuid::new_v4(),
                     last_changed: now,
                     last_saved: now,
                     read_only: true,
@@ -415,7 +419,8 @@ impl Workspace {
             if let Some(tab) = self.tabs.get(dest) {
                 if let Some(id) = tab.id() {
                     if tab.is_dirty(&self.tasks) {
-                        self.tasks.queue_save(SaveRequest { id });
+                        self.tasks
+                            .queue_save(SaveRequest { id, origin: tab.origin });
                     }
                 }
             }
@@ -429,7 +434,8 @@ impl Workspace {
         if let Some(tab) = self.tabs.get(&dest) {
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) {
-                    self.tasks.queue_save(SaveRequest { id });
+                    self.tasks
+                        .queue_save(SaveRequest { id, origin: tab.origin });
                 }
             }
         }
@@ -501,6 +507,16 @@ impl Workspace {
 
     /// Open `id`, consuming the search tab: the selected file takes the search
     /// tab's place in the strip rather than opening alongside it.
+    pub fn reopen_last_closed_tab(&mut self) {
+        while let Some(id) = self.recently_closed_tabs.first().copied() {
+            if self.core.get_file_by_id(id).is_ok() {
+                self.open_file(id, true, true);
+                return;
+            }
+            self.recently_closed_tabs.remove(0);
+        }
+    }
+
     pub fn open_file_replacing_search(&mut self, id: Uuid) {
         let dest = Destination::File(id);
         self.recently_closed_tabs.retain(|&closed| closed != id);
@@ -703,13 +719,21 @@ impl Workspace {
                 Ok(evt) => {
                     match evt {
                         Event::DocumentWritten(id, actor) => {
-                            if actor == Actor::Sync {
-                                self.core.app_foregrounded();
-                                let has_open_tab = self
-                                    .tab_strip
-                                    .iter()
-                                    .any(|s| s.dest.id() == id && self.tabs.contains_key(&s.dest));
-                                if has_open_tab {
+                            let event_origin = match actor {
+                                Actor::Sync => {
+                                    self.core.app_foregrounded();
+                                    None
+                                }
+                                Actor::User(origin) => origin,
+                            };
+                            let open_tab_origin = self
+                                .tab_strip
+                                .iter()
+                                .find(|s| s.dest.id() == id)
+                                .and_then(|s| self.tabs.get(&s.dest))
+                                .map(|t| t.origin);
+                            if let Some(tab_origin) = open_tab_origin {
+                                if event_origin != Some(tab_origin) {
                                     self.tasks.queue_load(LoadRequest {
                                         id,
                                         tab_created: false,
@@ -941,6 +965,7 @@ impl Workspace {
                                     self.ctx.clone(),
                                     Arc::clone(&self.files),
                                     &self.core,
+                                    tab.origin,
                                 )));
                             } else {
                                 let chat = tab.chat_mut().unwrap();
@@ -1022,7 +1047,7 @@ impl Workspace {
             {
                 {
                     let CompletedSave {
-                        request: SaveRequest { id },
+                        request: SaveRequest { id, origin: _ },
                         seq,
                         content,
                         new_hmac_result,
@@ -1339,6 +1364,7 @@ impl Workspace {
 pub struct WsPersistentStore {
     pub path: PathBuf,
     pub data: Arc<RwLock<WsPresistentData>>,
+    enabled: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
@@ -1379,24 +1405,33 @@ impl Default for WsPresistentData {
 }
 
 impl WsPersistentStore {
-    pub fn new(recent_crash: bool, path: PathBuf) -> Self {
+    pub fn new(recent_crash: bool, path: PathBuf, enabled: bool) -> Self {
         let default = WsPresistentData::default();
 
-        if recent_crash && path.exists() {
+        if enabled && recent_crash && path.exists() {
             warn!("removing persistence file due to recent crash");
             fs::remove_file(&path).log_and_ignore();
         }
 
-        match fs::File::open(&path) {
+        let store = match fs::File::open(&path) {
             Ok(f) => WsPersistentStore {
                 path,
                 data: Arc::new(RwLock::new(serde_json::from_reader(f).unwrap_or(default))),
+                enabled,
             },
             Err(err) => {
                 error!("Could not open ws presistance file: {:#?}", err);
-                WsPersistentStore { path, data: Arc::new(RwLock::new(default)) }
+                WsPersistentStore { path, data: Arc::new(RwLock::new(default)), enabled }
             }
+        };
+
+        if !store.enabled {
+            let mut data_lock = store.data.write().unwrap();
+            data_lock.open_tabs.clear();
+            data_lock.current_tab = None;
         }
+
+        store
     }
 
     // todo: store non-file (mind map) tabs?
@@ -1502,6 +1537,10 @@ impl WsPersistentStore {
     }
 
     pub fn write_to_file(&self) {
+        if !self.enabled {
+            return;
+        }
+
         let data = self.data.clone();
         let path = self.path.clone();
         spawn!({

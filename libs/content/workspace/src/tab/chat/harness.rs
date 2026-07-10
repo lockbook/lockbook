@@ -13,6 +13,7 @@
 //! partial enters the transcript and model context); an error discards the
 //! partial and yields an error row the UI offers to retry.
 
+use lb_rs::Uuid;
 use lb_rs::model::chat::Usage;
 use serde_json::Value;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -140,6 +141,7 @@ impl Harness {
     /// which beats a silently dormant agent.
     pub fn new(
         ctx: egui::Context, core: lb_rs::blocking::Lb, history: Vec<ChatMsg>, buffers: Buffers,
+        origin: Uuid,
     ) -> Self {
         let (cmd_tx, cmd_rx) = unbounded_channel();
         let (events_tx, events_rx) = unbounded_channel();
@@ -154,7 +156,7 @@ impl Harness {
                 .enable_all()
                 .build()
                 .expect("tokio runtime");
-            rt.block_on(run(history, buffers, lb, ctx, cmd_rx, events_tx));
+            rt.block_on(run(history, buffers, lb, ctx, cmd_rx, events_tx, origin));
         });
 
         Self { busy: false, streaming: String::new(), pending_tool: None, cmd_tx, events_rx }
@@ -238,7 +240,7 @@ impl Harness {
 
 async fn run(
     mut history: Vec<ChatMsg>, mut buffers: Buffers, lb: lb_rs::Lb, ctx: egui::Context,
-    mut cmd_rx: UnboundedReceiver<Cmd>, events_tx: UnboundedSender<AgentEvent>,
+    mut cmd_rx: UnboundedReceiver<Cmd>, events_tx: UnboundedSender<AgentEvent>, origin: Uuid,
 ) {
     let send = |ev: AgentEvent| {
         let _ = events_tx.send(ev);
@@ -450,7 +452,7 @@ async fn run(
                 // captures a merge's inflow) but stays out of model context —
                 // the model's picture is simply that edits apply.
                 if edit_applied {
-                    let synced = tools::sync_note(&lb, &mut buffers, &call.args).await;
+                    let synced = tools::sync_note(&lb, &mut buffers, &call.args, origin).await;
                     if synced.is_error {
                         // Receipts don't render, so a failed write-back must
                         // surface as an error row. No record is right for
@@ -553,7 +555,13 @@ mod tests {
     #[test]
     fn say_streams_a_reply() {
         let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+            Harness::new(
+                egui::Context::default(),
+                offline_core(),
+                Vec::new(),
+                Buffers::default(),
+                Uuid::new_v4(),
+            );
 
         harness.say("hi".into(), provider(serve_once(SSE_HELLO)), None);
         assert!(harness.busy);
@@ -593,7 +601,13 @@ mod tests {
     fn edit_requests_approval_then_runs() {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
         let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+            Harness::new(
+                egui::Context::default(),
+                offline_core(),
+                Vec::new(),
+                Buffers::default(),
+                Uuid::new_v4(),
+            );
         harness.say("edit my note".into(), provider(base), None);
 
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -632,7 +646,13 @@ mod tests {
     fn denied_edit_completes_without_running() {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
         let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+            Harness::new(
+                egui::Context::default(),
+                offline_core(),
+                Vec::new(),
+                Buffers::default(),
+                Uuid::new_v4(),
+            );
         harness.say("do it".into(), provider(base), None);
 
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -668,7 +688,13 @@ mod tests {
              data: [DONE]\n\n";
         let base = serve_seq(vec![SSE_LIST_CALL, SSE_HELLO]);
         let mut harness =
-            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+            Harness::new(
+                egui::Context::default(),
+                offline_core(),
+                Vec::new(),
+                Buffers::default(),
+                Uuid::new_v4(),
+            );
         harness.say("what's in my vault?".into(), provider(base), None);
 
         // Drain to completion: a tool row, then the reply — no decision step.

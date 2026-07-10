@@ -796,6 +796,7 @@ impl Editor {
                 persistence: WsPersistentStore::new(
                     false,
                     format!("/tmp/{}", Uuid::new_v4()).into(),
+                    true,
                 ),
                 link_resolver: Box::new(()),
                 embeds: Box::new(()),

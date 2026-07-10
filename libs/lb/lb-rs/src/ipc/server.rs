@@ -180,8 +180,8 @@ pub(crate) async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::ReadDocumentWithHmac { id, user_activity } => {
             enc(lb.read_document_with_hmac(id, user_activity).await)
         }
-        Request::SafeWrite { id, old_hmac, content } => {
-            enc(lb.safe_write(id, old_hmac, content).await)
+        Request::SafeWrite { id, old_hmac, content, origin } => {
+            enc(lb.safe_write(id, old_hmac, content, origin).await)
         }
 
         Request::CreateFile { name, parent, file_type } => {

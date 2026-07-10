@@ -621,7 +621,7 @@ fn last_model_for(entries: &[Entry], username: &str, provider: &str) -> Option<S
 impl Chat {
     pub fn new(
         bytes: &[u8], id: Uuid, hmac: Option<DocumentHmac>, account: Account, ctx: egui::Context,
-        files: Arc<RwLock<FileCache>>, core: &lb_rs::blocking::Lb,
+        files: Arc<RwLock<FileCache>>, core: &lb_rs::blocking::Lb, origin: Uuid,
     ) -> Self {
         let entries: Vec<Entry> = Buffer::new(bytes)
             .messages
@@ -657,6 +657,7 @@ impl Chat {
                 core.clone(),
                 seed_history(&entries, &visible),
                 rebuild_buffers(&entries, &visible),
+                origin,
             )
         });
         Self {
@@ -1629,6 +1630,7 @@ mod tests {
             egui::Context::default(),
             files,
             &core,
+            Uuid::new_v4(),
         );
 
         let user = Message::new("me".into(), "list my notes".into(), 0);
@@ -1680,6 +1682,7 @@ mod tests {
             egui::Context::default(),
             files,
             &core,
+            Uuid::new_v4(),
         );
 
         let user = Message::new("me".into(), "fix my note".into(), 0);
@@ -1730,6 +1733,7 @@ mod tests {
             egui::Context::default(),
             files,
             &core,
+            Uuid::new_v4(),
         );
 
         // root q → reply A (+ regenerated sibling A2) → follow-up q2 under A.
@@ -1790,6 +1794,7 @@ mod tests {
             egui::Context::default(),
             files,
             &core,
+            Uuid::new_v4(),
         );
         // `load` sorts by name, so "first in the list" is alphabetical.
         let prov = |name: &str| settings::Provider {
