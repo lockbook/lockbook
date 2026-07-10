@@ -69,6 +69,11 @@ pub struct Tab {
     pub destination: Destination,
     pub content: ContentState,
 
+    /// Uniquely identifies this editing surface across every workspace in the
+    /// process. Rides lb write events as the origin so other surfaces showing
+    /// the same document know to reload while this one skips its own writes.
+    pub origin: Uuid,
+
     pub last_changed: Instant,
     pub last_saved: Instant,
     pub read_only: bool,

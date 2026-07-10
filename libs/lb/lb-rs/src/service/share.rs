@@ -35,7 +35,7 @@ impl LocalLb {
 
         tx.end();
 
-        self.events.meta_changed(Actor::User);
+        self.events.meta_changed(Actor::User(None));
 
         Ok(())
     }
@@ -81,7 +81,7 @@ impl LocalLb {
         tree.delete_share(id, maybe_encrypted_for, &self.keychain)?;
 
         tx.end();
-        self.events.meta_changed(Actor::User);
+        self.events.meta_changed(Actor::User(None));
 
         Ok(())
     }

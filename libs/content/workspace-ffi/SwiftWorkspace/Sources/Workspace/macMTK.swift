@@ -5,6 +5,7 @@
     public class MacMTK: MTKView, MTKViewDelegate {
         var wsHandle: UnsafeMutableRawPointer?
         var coreHandle: UnsafeMutableRawPointer?
+        var claimedPersistence = false
         var trackingArea: NSTrackingArea?
         var pasteBoardEventId: Int = 0
         var pasteboardString: String?
@@ -23,10 +24,11 @@
         var lastWindowBgColor: UInt32 = 0
 
         var modifierEventHandle: Any?
+        var screenChangeObserver: NSObjectProtocol?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
-            preferredFramesPerSecond = 120
+            preferredFramesPerSecond = 144
             delegate = self
             isPaused = true
             enableSetNeedsDisplay = true
@@ -65,11 +67,33 @@
         override public func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             window?.makeFirstResponder(self)
+
+            updatePreferredFrameRate()
+
+            if let screenChangeObserver {
+                NotificationCenter.default.removeObserver(screenChangeObserver)
+                self.screenChangeObserver = nil
+            }
+
+            if let window {
+                screenChangeObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.didChangeScreenNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.updatePreferredFrameRate()
+                }
+            }
+        }
+
+        private func updatePreferredFrameRate() {
+            preferredFramesPerSecond = window?.screen?.maximumFramesPerSecond ?? 60
         }
 
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(layer!).toOpaque())
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false)
+            claimedPersistence = true
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 
             modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
@@ -325,7 +349,7 @@
             // initially window is not set, this defaults to 1.0, initial frame comes from `init_editor`
             // we probably want a setNeedsDisplay here
             let scale = window?.backingScaleFactor ?? 1.0
-            resize_editor(wsHandle, Float(size.width), Float(size.height), Float(scale))
+            resize_editor(wsHandle, Float(max(size.width, 1)), Float(max(size.height, 1)), Float(scale))
         }
 
         public func drawImmediately() {
@@ -455,8 +479,16 @@
                 deinit_editor(wsHandle)
             }
 
+            if claimedPersistence {
+                WorkspacePersistence.release()
+            }
+
             if let modifierEventHandle {
                 NSEvent.removeMonitor(modifierEventHandle)
+            }
+
+            if let screenChangeObserver {
+                NotificationCenter.default.removeObserver(screenChangeObserver)
             }
         }
     }

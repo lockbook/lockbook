@@ -1369,7 +1369,7 @@
             let wsHandle = mtkView.wsHandle
 
             resize_editor(
-                wsHandle, Float(size.width), Float(size.height), Float(scale())
+                wsHandle, Float(max(size.width, 1)), Float(max(size.height, 1)), Float(scale())
             )
             mtkView.setNeedsDisplay()
         }
@@ -1604,6 +1604,7 @@
         public static let POINTER_DECELERATION_RATE: CGFloat = 0.95
 
         public var wsHandle: UnsafeMutableRawPointer?
+        var claimedPersistence = false
         weak var currentWrapper: UIView?
 
         // pointer
@@ -1670,7 +1671,7 @@
             isPaused = false
             enableSetNeedsDisplay = false
             delegate = mtkDelegate
-            preferredFramesPerSecond = 120
+            preferredFramesPerSecond = 144
             isUserInteractionEnabled = true
 
             NotificationCenter.default.addObserver(
@@ -1837,11 +1838,20 @@
             setNeedsDisplay()
         }
 
+        override public func didMoveToWindow() {
+            super.didMoveToWindow()
+
+            if let screen = window?.screen {
+                preferredFramesPerSecond = screen.maximumFramesPerSecond
+            }
+        }
+
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(
                 Unmanaged.passUnretained(layer).toOpaque()
             )
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false)
+            claimedPersistence = true
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
         }
 
@@ -2088,6 +2098,10 @@
 
         deinit {
             deinit_editor(wsHandle)
+
+            if claimedPersistence {
+                WorkspacePersistence.release()
+            }
         }
 
         func unimplemented() {

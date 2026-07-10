@@ -1305,7 +1305,8 @@ impl LocalLb {
             let sync_criteria = |e: Event| {
                 matches!(
                     e,
-                    Event::MetadataChanged(Actor::User) | Event::DocumentWritten(_, Actor::User)
+                    Event::MetadataChanged(Actor::User(_))
+                        | Event::DocumentWritten(_, Actor::User(_))
                 )
             };
 

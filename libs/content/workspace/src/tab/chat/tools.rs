@@ -731,7 +731,7 @@ async fn write_back(lb: &Lb, path: &str, buf: &Buffer) -> Result<Synced, String>
             merge(&buf.base_text, &buf.text, &disk_text)
         };
         match lb
-            .safe_write(id, disk_hmac, to_write.clone().into_bytes())
+            .safe_write(id, disk_hmac, to_write.clone().into_bytes(), None)
             .await
         {
             Ok(new_hmac) => {

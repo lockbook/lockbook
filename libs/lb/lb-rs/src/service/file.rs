@@ -40,7 +40,7 @@ impl LocalLb {
 
         tx.end();
 
-        self.events.meta_changed(Actor::User);
+        self.events.meta_changed(Actor::User(None));
         Ok(ui_file)
     }
 
@@ -62,7 +62,7 @@ impl LocalLb {
 
         tx.end();
 
-        self.events.meta_changed(Actor::User);
+        self.events.meta_changed(Actor::User(None));
 
         Ok(())
     }
@@ -81,7 +81,7 @@ impl LocalLb {
         tree.move_file(id, new_parent, &self.keychain)?;
         tx.end();
 
-        self.events.meta_changed(Actor::User);
+        self.events.meta_changed(Actor::User(None));
 
         Ok(())
     }
@@ -101,7 +101,7 @@ impl LocalLb {
 
         tx.end();
 
-        self.events.meta_changed(Actor::User);
+        self.events.meta_changed(Actor::User(None));
 
         Ok(())
     }

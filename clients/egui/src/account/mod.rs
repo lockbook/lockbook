@@ -86,7 +86,7 @@ impl AccountScreen {
             is_new_user,
             tree: FileTree::new(file_cache.clone()),
             sync: SyncPanel::new(),
-            workspace: Workspace::new(&core_clone, &ctx.clone(), true, Some(file_cache)),
+            workspace: Workspace::new(&core_clone, &ctx.clone(), true, true, Some(file_cache)),
             modals: Modals::default(),
             shutdown: None,
             lb_rx: core.subscribe(),

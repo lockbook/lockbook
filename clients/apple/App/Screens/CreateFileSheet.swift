@@ -70,6 +70,20 @@ struct CreateFileSheet: View {
                     Text(ext)
                         .foregroundStyle(.secondary)
                 }
+
+                #if os(iOS)
+                    if nameFocused, !name.isEmpty {
+                        Button {
+                            selection = nil
+                            name = ""
+                        } label: {
+                            Image(systemName: "xmark.circle.fill")
+                                .foregroundStyle(.tertiary)
+                        }
+                        .buttonStyle(.plain)
+                        .padding(.leading, 4)
+                    }
+                #endif
             }
             .padding(10)
             .background(RoundedRectangle(cornerRadius: 8).fill(Color.gray.opacity(0.15)))
@@ -96,9 +110,18 @@ struct CreateFileSheet: View {
                 location = parent.isRoot ? .root : .custom(parent)
             }
 
-            nameFocused = true
-            selection = TextSelection(range: name.startIndex ..< name.endIndex)
+            #if os(macOS)
+                nameFocused = true
+                selection = TextSelection(range: name.startIndex ..< name.endIndex)
+            #endif
         }
+        #if os(iOS)
+            .onChange(of: nameFocused) { _, focused in
+                if focused {
+                    selection = TextSelection(range: name.startIndex ..< name.endIndex)
+                }
+            }
+        #endif
         .sheet(isPresented: $showFolderPicker) {
             FolderPickerSheet(fileTreeModel: fileTreeModel, selection: customFolder) { folder in
                 location = .custom(folder)

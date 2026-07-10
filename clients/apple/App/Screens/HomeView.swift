@@ -5,6 +5,8 @@ struct HomeView: View {
     @Environment(\.isPreview) private var isPreview
     #if os(iOS)
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #else
+        @Environment(\.controlActiveState) private var controlActiveState
     #endif
 
     @State private var homeState = HomeState()
@@ -54,7 +56,7 @@ struct HomeView: View {
             preferredCompactColumn: $homeState.compactColumn
         ) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 250, ideal: 300)
+                .navigationSplitViewColumnWidth(min: 255, ideal: 300, max: 500)
         } detail: {
             workspace
                 .navigationTitle(detailTitle)
@@ -223,6 +225,12 @@ struct HomeView: View {
             if count == 0 {
                 showTabsSidebar = false
             }
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .createNewFile)) { _ in
+            #if os(macOS)
+                guard controlActiveState == .key else { return }
+            #endif
+            showCreateFile = true
         }
         #if os(iOS)
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
@@ -591,6 +599,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             WorkspaceView()
+                .frame(minWidth: 5, minHeight: 5)
                 .ignoresSafeArea(.keyboard)
         }
     }
