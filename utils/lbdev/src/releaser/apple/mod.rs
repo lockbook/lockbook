@@ -2,8 +2,9 @@ pub mod cli;
 pub mod ios;
 pub mod mac;
 
+use chrono_tz::America::New_York;
 use cli_rs::cli_error::CliResult;
-use time::OffsetDateTime;
+use google_androidpublisher3::chrono::Utc;
 
 use std::fs;
 use std::path::Path;
@@ -20,16 +21,10 @@ pub fn release() -> CliResult<()> {
 }
 
 pub fn build_number() -> String {
-    let now = OffsetDateTime::now_utc();
-
-    let year = now.year();
-    let month = now.month() as u8;
-    let day = now.day();
-    let hour = now.hour();
-    let minute = now.minute();
-    let second = now.second();
-
-    format!("{year}{month:0>2}{day:0>2}.{hour:0>2}{minute:0>2}{second:0>2}")
+    Utc::now()
+        .with_timezone(&New_York)
+        .format("%Y%m%d.%H%M%S")
+        .to_string()
 }
 
 fn clean_build_dir() {
