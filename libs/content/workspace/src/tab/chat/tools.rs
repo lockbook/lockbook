@@ -23,7 +23,7 @@
 
 use std::collections::BTreeMap;
 
-use lb_rs::{Lb, Uuid};
+use lb_rs::Lb;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer as TextBuffer;
 use serde_json::{Value, json};
@@ -665,9 +665,7 @@ async fn edit_note(lb: &Lb, buffers: &mut Buffers, args: &Value) -> Outcome {
 
 /// Write a buffer back to the real note — no longer a model tool; the
 /// driver runs it right after each approved edit.
-pub(super) async fn sync_note(
-    lb: &Lb, buffers: &mut Buffers, args: &Value, origin: Uuid,
-) -> Outcome {
+pub(super) async fn sync_note(lb: &Lb, buffers: &mut Buffers, args: &Value) -> Outcome {
     let path = match arg(args, "path") {
         Ok(p) => p,
         Err(e) => return Outcome::err(e),
@@ -678,7 +676,7 @@ pub(super) async fn sync_note(
     if !buf.dirty() {
         return Outcome::ok(format!("{path} has no unsaved changes."));
     }
-    match write_back(lb, path, &buf, origin).await {
+    match write_back(lb, path, &buf).await {
         Ok(Synced { new_hmac, merged }) => {
             let content = merged.clone().unwrap_or(buf.text);
             buffers.capture(path, Some(new_hmac), content.clone());
@@ -708,7 +706,7 @@ struct Synced {
 /// Write a dirty buffer back with compare-and-swap. On a concurrent on-disk
 /// change, 3-way merge and retry. A brand-new note (no base hmac) is created
 /// first.
-async fn write_back(lb: &Lb, path: &str, buf: &Buffer, origin: Uuid) -> Result<Synced, String> {
+async fn write_back(lb: &Lb, path: &str, buf: &Buffer) -> Result<Synced, String> {
     let id = match lb.get_by_path(path).await {
         Ok(f) => f.id,
         // Never synced: create it, then write with no prior version.
@@ -733,7 +731,7 @@ async fn write_back(lb: &Lb, path: &str, buf: &Buffer, origin: Uuid) -> Result<S
             merge(&buf.base_text, &buf.text, &disk_text)
         };
         match lb
-            .safe_write(id, disk_hmac, to_write.clone().into_bytes(), Some(origin))
+            .safe_write(id, disk_hmac, to_write.clone().into_bytes(), None)
             .await
         {
             Ok(new_hmac) => {

@@ -24,6 +24,7 @@
         var lastWindowBgColor: UInt32 = 0
 
         var modifierEventHandle: Any?
+        var screenChangeObserver: NSObjectProtocol?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
@@ -66,6 +67,27 @@
         override public func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             window?.makeFirstResponder(self)
+
+            updatePreferredFrameRate()
+
+            if let screenChangeObserver {
+                NotificationCenter.default.removeObserver(screenChangeObserver)
+                self.screenChangeObserver = nil
+            }
+
+            if let window {
+                screenChangeObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.didChangeScreenNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.updatePreferredFrameRate()
+                }
+            }
+        }
+
+        private func updatePreferredFrameRate() {
+            preferredFramesPerSecond = window?.screen?.maximumFramesPerSecond ?? 60
         }
 
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
@@ -463,6 +485,10 @@
 
             if let modifierEventHandle {
                 NSEvent.removeMonitor(modifierEventHandle)
+            }
+
+            if let screenChangeObserver {
+                NotificationCenter.default.removeObserver(screenChangeObserver)
             }
         }
     }

@@ -1838,6 +1838,14 @@
             setNeedsDisplay()
         }
 
+        override public func didMoveToWindow() {
+            super.didMoveToWindow()
+
+            if let screen = window?.screen {
+                preferredFramesPerSecond = screen.maximumFramesPerSecond
+            }
+        }
+
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(
                 Unmanaged.passUnretained(layer).toOpaque()
