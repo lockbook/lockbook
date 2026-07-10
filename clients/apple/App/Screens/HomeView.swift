@@ -5,6 +5,8 @@ struct HomeView: View {
     @Environment(\.isPreview) private var isPreview
     #if os(iOS)
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #else
+        @Environment(\.controlActiveState) private var controlActiveState
     #endif
 
     @State private var homeState = HomeState()
@@ -225,6 +227,9 @@ struct HomeView: View {
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .createNewFile)) { _ in
+            #if os(macOS)
+                guard controlActiveState == .key else { return }
+            #endif
             showCreateFile = true
         }
         #if os(iOS)

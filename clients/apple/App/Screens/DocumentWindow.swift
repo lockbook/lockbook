@@ -6,6 +6,8 @@ let documentWindowId = "document"
 struct DocumentWindowView: View {
     let fileId: UUID
 
+    @Environment(\.dismiss) private var dismiss
+
     @State private var workspaceInput = WorkspaceInputState(coreHandle: AppState.lb.lbUnsafeRawPtr)
     @State private var workspaceOutput = WorkspaceOutputState()
 
@@ -23,6 +25,14 @@ struct DocumentWindowView: View {
             }
         }
         .navigationTitle(fileName)
+        .background {
+            Button("Close Window") {
+                dismiss()
+            }
+            .keyboardShortcut("w", modifiers: .command)
+            .opacity(0)
+            .accessibilityHidden(true)
+        }
     }
 
     private var fileName: String {

@@ -1,11 +1,15 @@
 import SwiftUI
 
+let mainWindowId = "main"
+
 @main
 struct LockbookApp: App {
     @State private var billingState = BillingState()
 
+    @Environment(\.openWindow) private var openWindow
+
     var body: some Scene {
-        WindowGroup {
+        WindowGroup(id: mainWindowId) {
             ContentView()
                 .environment(billingState)
         }
@@ -15,6 +19,13 @@ struct LockbookApp: App {
                     NotificationCenter.default.post(name: .createNewFile, object: nil)
                 }
                 .keyboardShortcut("n", modifiers: .command)
+
+                #if os(macOS)
+                    Button("New Window") {
+                        openWindow(id: mainWindowId)
+                    }
+                    .keyboardShortcut("n", modifiers: [.command, .shift])
+                #endif
             }
         }
 
