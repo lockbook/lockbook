@@ -1671,7 +1671,7 @@
             isPaused = false
             enableSetNeedsDisplay = false
             delegate = mtkDelegate
-            preferredFramesPerSecond = 120
+            preferredFramesPerSecond = 144
             isUserInteractionEnabled = true
 
             NotificationCenter.default.addObserver(

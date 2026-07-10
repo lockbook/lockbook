@@ -28,7 +28,7 @@
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
-            preferredFramesPerSecond = 120
+            preferredFramesPerSecond = 144
             delegate = self
             isPaused = true
             enableSetNeedsDisplay = true
