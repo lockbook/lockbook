@@ -7,7 +7,7 @@ use gh_release::ReleaseClient;
 use std::fs::File;
 use std::process::Command;
 
-use super::clean_build_dir;
+use super::{build_number, clean_build_dir};
 
 pub fn release(clean_and_build: bool, gh: bool, app_store: bool) -> CliResult<()> {
     if clean_and_build {
@@ -42,6 +42,7 @@ fn archive() -> CliResult<()> {
             "clients/apple/build/Lockbook-macOS.xcarchive",
             "archive",
         ])
+        .arg(format!("CURRENT_PROJECT_VERSION={}", build_number()))
         .assert_success()?;
 
     // creates .app to upload to github
