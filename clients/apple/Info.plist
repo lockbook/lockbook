@@ -35,6 +35,16 @@
 				<string>public.item</string>
 			</array>
 		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>net.lockbook.tab</string>
+			<key>UTTypeDescription</key>
+			<string>Lockbook workspace tab</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
+			</array>
+		</dict>
 	</array>
 </dict>
 </plist>

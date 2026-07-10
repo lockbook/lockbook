@@ -27,6 +27,13 @@ struct LockbookApp: App {
                     .keyboardShortcut("n", modifiers: [.command, .shift])
                 #endif
             }
+
+            CommandGroup(after: .sidebar) {
+                Button("Show Sidebar") {
+                    NotificationCenter.default.post(name: .toggleSidebar, object: nil)
+                }
+                .keyboardShortcut("s", modifiers: .command)
+            }
         }
 
         WindowGroup(id: documentWindowId, for: UUID.self) { $fileId in
@@ -50,6 +57,7 @@ struct LockbookApp: App {
 
 extension Notification.Name {
     static let createNewFile = Notification.Name("createNewFile")
+    static let toggleSidebar = Notification.Name("toggleSidebar")
 }
 
 struct ContentView: View {

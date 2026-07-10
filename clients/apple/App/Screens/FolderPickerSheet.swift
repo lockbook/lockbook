@@ -24,7 +24,10 @@ struct FolderPickerSheet: View {
     private var searchResults: [File] {
         Array(
             filesModel.idsToFiles.values
-                .filter { !$0.isRoot && $0.name.localizedCaseInsensitiveContains(query) }
+                .filter {
+                    $0.isFolder && !$0.isRoot
+                        && $0.name.localizedCaseInsensitiveContains(query)
+                }
                 .sorted()
                 .prefix(50)
         )

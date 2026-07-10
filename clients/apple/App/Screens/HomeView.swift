@@ -56,7 +56,7 @@ struct HomeView: View {
             preferredCompactColumn: $homeState.compactColumn
         ) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 255, ideal: 300, max: 500)
+                .navigationSplitViewColumnWidth(min: 268, ideal: 300, max: 500)
         } detail: {
             workspace
                 .navigationTitle(detailTitle)
@@ -231,6 +231,14 @@ struct HomeView: View {
                 guard controlActiveState == .key else { return }
             #endif
             showCreateFile = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
+            #if os(macOS)
+                guard controlActiveState == .key else { return }
+            #endif
+            withAnimation {
+                homeState.splitViewVisibility = homeState.splitViewVisibility == .detailOnly ? .all : .detailOnly
+            }
         }
         #if os(iOS)
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
