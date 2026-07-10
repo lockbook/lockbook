@@ -111,6 +111,7 @@ struct FolderPickerSheet: View {
                     }
                 }
             }
+            .id(query.isEmpty)
             .padding(.horizontal)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
