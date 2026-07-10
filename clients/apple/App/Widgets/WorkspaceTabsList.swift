@@ -255,6 +255,12 @@ struct WorkspaceTabsList: View {
         let name = filesModel.idsToFiles[id]?.name ?? "unknown"
 
         return HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.vertical, 8)
+                .padding(.trailing, 2)
+
             Image(systemName: "arrow.uturn.left")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -272,6 +278,7 @@ struct WorkspaceTabsList: View {
         .onTapGesture {
             workspaceInput.openFile(id: id)
         }
+        .draggable(id.uuidString)
     }
 
     private var closeCountLabel: String {
@@ -323,13 +330,26 @@ struct WorkspaceTabsList: View {
             endZoneTargeted = false
         }
 
-        guard let dragged = dragged.flatMap(UUID.init),
-              let from = tabIds.firstIndex(of: dragged)
-        else {
+        guard let dragged = dragged.flatMap(UUID.init) else {
             return false
         }
 
         let targetIndex = target.flatMap { tabIds.firstIndex(of: $0) } ?? tabIds.count
+
+        guard let from = tabIds.firstIndex(of: dragged) else {
+            guard recentlyClosed.contains(dragged) else {
+                return false
+            }
+
+            workspaceInput.openFile(id: dragged)
+            workspaceInput.moveTab(from: tabIds.count, to: targetIndex)
+            withAnimation {
+                refresh()
+            }
+
+            return true
+        }
+
         let to = from < targetIndex ? targetIndex - 1 : targetIndex
 
         guard to != from else {
