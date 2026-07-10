@@ -54,7 +54,7 @@ struct HomeView: View {
             preferredCompactColumn: $homeState.compactColumn
         ) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 250, ideal: 300)
+                .navigationSplitViewColumnWidth(min: 255, ideal: 300, max: 500)
         } detail: {
             workspace
                 .navigationTitle(detailTitle)
@@ -591,6 +591,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             WorkspaceView()
+                .frame(minWidth: 5, minHeight: 5)
                 .ignoresSafeArea(.keyboard)
         }
     }

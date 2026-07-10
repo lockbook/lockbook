@@ -1369,7 +1369,7 @@
             let wsHandle = mtkView.wsHandle
 
             resize_editor(
-                wsHandle, Float(size.width), Float(size.height), Float(scale())
+                wsHandle, Float(max(size.width, 1)), Float(max(size.height, 1)), Float(scale())
             )
             mtkView.setNeedsDisplay()
         }
