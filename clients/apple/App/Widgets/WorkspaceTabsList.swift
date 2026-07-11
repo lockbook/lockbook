@@ -1,10 +1,25 @@
+import CoreTransferable
 import SwiftUI
 import SwiftWorkspace
+import UniformTypeIdentifiers
+
+extension UTType {
+    static let lockbookTab = UTType(exportedAs: "net.lockbook.tab")
+}
+
+struct TabDragItem: Codable, Transferable {
+    let id: UUID
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .lockbookTab)
+    }
+}
 
 struct WorkspaceTabsList: View {
     @Environment(FilesModel.self) private var filesModel
     @Environment(WorkspaceInputState.self) private var workspaceInput
     @Environment(WorkspaceOutputState.self) private var workspaceOutput
+    @Environment(\.openWindow) private var openWindow
 
     let fileTreeModel: FileTreeModel
 
@@ -164,8 +179,8 @@ struct WorkspaceTabsList: View {
         .contextMenu {
             tabMenu(id)
         }
-        .draggable(id.uuidString)
-        .dropDestination(for: String.self) { items, _ in
+        .draggable(TabDragItem(id: id))
+        .dropDestination(for: TabDragItem.self) { items, _ in
             dropTab(items.first, before: id)
         } isTargeted: { targeted in
             dropTargetId = targeted ? id : (dropTargetId == id ? nil : dropTargetId)
@@ -184,7 +199,7 @@ struct WorkspaceTabsList: View {
             .frame(height: 12)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
-            .dropDestination(for: String.self) { items, _ in
+            .dropDestination(for: TabDragItem.self) { items, _ in
                 dropTab(items.first, before: nil)
             } isTargeted: { targeted in
                 endZoneTargeted = targeted
@@ -207,6 +222,14 @@ struct WorkspaceTabsList: View {
                 }
             }
         } else {
+            if supportsMultipleWindows {
+                contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
+                    openWindow(id: documentWindowId, value: id)
+                }
+
+                Divider()
+            }
+
             contextMenuItem("Close", systemImage: "xmark") {
                 close([id])
             }
@@ -278,7 +301,7 @@ struct WorkspaceTabsList: View {
         .onTapGesture {
             workspaceInput.openFile(id: id)
         }
-        .draggable(id.uuidString)
+        .draggable(TabDragItem(id: id))
     }
 
     private var closeCountLabel: String {
@@ -324,13 +347,13 @@ struct WorkspaceTabsList: View {
         workspaceInput.openFile(id: id)
     }
 
-    private func dropTab(_ dragged: String?, before target: UUID?) -> Bool {
+    private func dropTab(_ dragged: TabDragItem?, before target: UUID?) -> Bool {
         defer {
             dropTargetId = nil
             endZoneTargeted = false
         }
 
-        guard let dragged = dragged.flatMap(UUID.init) else {
+        guard let dragged = dragged?.id else {
             return false
         }
 
@@ -362,6 +385,14 @@ struct WorkspaceTabsList: View {
         workspaceInput.moveTab(from: from, to: to)
 
         return true
+    }
+
+    private var supportsMultipleWindows: Bool {
+        #if os(iOS)
+            UIApplication.shared.supportsMultipleScenes
+        #else
+            true
+        #endif
     }
 
     private func refresh() {
