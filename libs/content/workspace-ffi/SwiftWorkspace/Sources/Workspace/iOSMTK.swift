@@ -272,6 +272,15 @@
             mtkView.touchesCancelled(touches, with: event)
         }
 
+        override public func gestureRecognizerShouldBegin(
+            _ gestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            if isInteractiveContentPop(gestureRecognizer) {
+                return false
+            }
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
+        }
+
         private func checkCancelCursorPlacement(_ touches: Set<UITouch>) {
             // consumed workspace touches (e.g. tapping to stop a kinetic scroll or toggle a checkbox) preclude cursor placement
             for touch in touches {
@@ -1238,6 +1247,15 @@
             mtkView.touchesCancelled(touches, with: event)
         }
 
+        override public func gestureRecognizerShouldBegin(
+            _ gestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            if isInteractiveContentPop(gestureRecognizer) {
+                return false
+            }
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
+        }
+
         override public func paste(_: Any?) {
             if let image = UIPasteboard.general.image {
                 mtkView.importContent(.image(image), isPaste: true)
@@ -1384,6 +1402,7 @@
             }
 
             dark_mode(wsHandle, mtkView.isDarkMode())
+            syncAccentColor(mtkView)
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
 
             set_scale(wsHandle, Float(scale()))
@@ -1549,6 +1568,36 @@
             }
 
             mtkView.enableSetNeedsDisplay = mtkView.isPaused
+        }
+
+        private var lastAccentColors: UInt64 = 0
+
+        private func syncAccentColor(_ mtkView: iOSMTK) {
+            let light = packedAccent(
+                mtkView.tintColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .light))
+            )
+            let dark = packedAccent(
+                mtkView.tintColor.resolvedColor(with: UITraitCollection(userInterfaceStyle: .dark))
+            )
+
+            let combined = (UInt64(light) << 32) | UInt64(dark)
+            guard combined != lastAccentColors else { return }
+            lastAccentColors = combined
+
+            set_accent_color(mtkView.wsHandle, light, dark)
+        }
+
+        private func packedAccent(_ color: UIColor) -> UInt32 {
+            var r: CGFloat = 0
+            var g: CGFloat = 0
+            var b: CGFloat = 0
+            var a: CGFloat = 0
+            color.getRed(&r, green: &g, blue: &b, alpha: &a)
+
+            let ri = UInt32((min(max(r, 0), 1) * 255).rounded())
+            let gi = UInt32((min(max(g, 0), 1) * 255).rounded())
+            let bi = UInt32((min(max(b, 0), 1) * 255).rounded())
+            return (ri << 24) | (gi << 16) | (bi << 8) | 0xFF
         }
 
         func scale() -> CGFloat {
@@ -1873,6 +1922,15 @@
 
         override public func traitCollectionDidChange(_: UITraitCollection?) {
             setNeedsDisplay(frame)
+        }
+
+        override public func gestureRecognizerShouldBegin(
+            _ gestureRecognizer: UIGestureRecognizer
+        ) -> Bool {
+            if isInteractiveContentPop(gestureRecognizer) {
+                return false
+            }
+            return super.gestureRecognizerShouldBegin(gestureRecognizer)
         }
 
         override public func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent?) {
@@ -2292,6 +2350,23 @@
                 x: cRect.min_x, y: cRect.min_y, width: cRect.max_x - cRect.min_x,
                 height: cRect.max_y - cRect.min_y
             )
+        }
+    }
+
+    extension UIView {
+        func isInteractiveContentPop(_ gestureRecognizer: UIGestureRecognizer) -> Bool {
+            guard #available(iOS 26.0, *) else { return false }
+
+            var responder = next
+            while let current = responder {
+                if let controller = current as? UIViewController {
+                    return gestureRecognizer
+                        === controller.navigationController?
+                        .interactiveContentPopGestureRecognizer
+                }
+                responder = current.next
+            }
+            return false
         }
     }
 

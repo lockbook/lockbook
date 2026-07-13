@@ -1,11 +1,11 @@
 use crate::WgpuWorkspace;
-use egui::{Event, MouseWheelUnit, vec2};
+use egui::{Color32, Event, MouseWheelUnit, vec2};
 use lb_c::Uuid;
 use lb_c::model::errors::Unexpected;
 use std::ffi::{CStr, CString, c_char, c_void};
 use std::path::PathBuf;
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};
-use workspace_rs::theme::palette_v2::{Mode, ThemeExt};
+use workspace_rs::theme::palette_v2::{Mode, ThemeExt, ensure_normal_text_contrast};
 
 use super::response::*;
 
@@ -143,6 +143,26 @@ pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
         theme.current = Mode::Light;
     }
 
+    obj.renderer.context.set_lb_theme(theme);
+}
+
+/// # Safety
+///
+/// Accent colors packed as 0xRRGGBBAA, resolved for light and dark appearances.
+#[no_mangle]
+pub unsafe extern "C" fn set_accent_color(obj: *mut c_void, light: u32, dark: u32) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let unpack = |c: u32| Color32::from_rgb((c >> 24) as u8, (c >> 16) as u8, (c >> 8) as u8);
+
+    let mut theme = obj.renderer.context.get_lb_theme();
+    let light = ensure_normal_text_contrast(unpack(light), theme.bright.grey);
+    let dark = ensure_normal_text_contrast(unpack(dark), theme.dim.grey);
+    if theme.dim.blue == light && theme.bright.blue == dark {
+        return;
+    }
+
+    theme.dim.blue = light;
+    theme.bright.blue = dark;
     obj.renderer.context.set_lb_theme(theme);
 }
 
