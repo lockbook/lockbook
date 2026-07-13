@@ -93,15 +93,8 @@ impl<'ast> Editor {
 
         let mut w = 2. * margin;
 
-        if is_ios {
-            let mut n = 0;
-            if self.virtual_keyboard_shown {
-                n += 1;
-            }
-            if persistence.search || is_default {
-                n += 1;
-            }
-            w += group(n);
+        if is_ios && (persistence.search || is_default) {
+            w += group(1);
         }
 
         w += group(count(&[persistence.undo, persistence.redo]));
@@ -165,44 +158,25 @@ impl<'ast> Editor {
 
                     let mut events = Vec::new();
 
-                    if is_ios {
-                        let mut any_util = false;
-                        if self.virtual_keyboard_shown {
-                            if IconButton::new(Icon::KEYBOARD_HIDE.size(ICON_SIZE))
-                                .size(BUTTON_SIZE)
-                                .show(ui)
-                                .clicked()
-                            {
-                                ui.ctx().set_virtual_keyboard_shown(false);
+                    if is_ios && (persistence.search || toolbar_is_default) {
+                        let find_open = self.find.term.is_some();
+                        if IconButton::new(Icon::SEARCH.size(ICON_SIZE))
+                            .size(BUTTON_SIZE)
+                            .tooltip("Search")
+                            .colored(find_open)
+                            .disabled(self.toolbar.menu_open)
+                            .show(ui)
+                            .clicked()
+                        {
+                            if find_open {
+                                self.find.term = None;
+                                self.find.matches.clear();
+                                self.find.current_match = None;
+                            } else {
+                                self.find.open_requested = true;
                             }
-                            any_util = true;
                         }
-                        if persistence.search || toolbar_is_default {
-                            if any_util {
-                                ui.add_space(5.);
-                            }
-                            let find_open = self.find.term.is_some();
-                            if IconButton::new(Icon::SEARCH.size(ICON_SIZE))
-                                .size(BUTTON_SIZE)
-                                .tooltip("Search")
-                                .colored(find_open)
-                                .disabled(self.toolbar.menu_open)
-                                .show(ui)
-                                .clicked()
-                            {
-                                if find_open {
-                                    self.find.term = None;
-                                    self.find.matches.clear();
-                                    self.find.current_match = None;
-                                } else {
-                                    self.find.open_requested = true;
-                                }
-                            }
-                            any_util = true;
-                        }
-                        if any_util {
-                            add_seperator(ui);
-                        }
+                        add_seperator(ui);
                     }
 
                     let mut any_undo_redo = false;

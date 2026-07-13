@@ -310,6 +310,7 @@ enum NewFileType: CaseIterable, Identifiable {
     case markdown
     case drawing
     case folder
+    case other
 
     var id: Self {
         self
@@ -320,6 +321,7 @@ enum NewFileType: CaseIterable, Identifiable {
         case .markdown: "Note"
         case .drawing: "Drawing"
         case .folder: "Folder"
+        case .other: "Other"
         }
     }
 
@@ -328,6 +330,7 @@ enum NewFileType: CaseIterable, Identifiable {
         case .markdown: ".md"
         case .drawing: ".svg"
         case .folder: nil
+        case .other: nil
         }
     }
 }

@@ -189,6 +189,28 @@ pub fn translucent_over(target: Color32, background: Color32, alpha: f32) -> Col
     )
 }
 
+pub fn ensure_normal_text_contrast(color: Color32, background: Color32) -> Color32 {
+    if contrast_ratio(color, background).passes_normal_text() {
+        return color;
+    }
+
+    let toward_black = contrast_ratio(Color32::BLACK, background);
+    let toward_white = contrast_ratio(Color32::WHITE, background);
+    let target = if toward_black >= toward_white { Color32::BLACK } else { Color32::WHITE };
+
+    let mut lo = 0.0f32;
+    let mut hi = 1.0f32;
+    for _ in 0..12 {
+        let mid = (lo + hi) / 2.0;
+        if contrast_ratio(color.lerp_to_gamma(target, mid), background).passes_normal_text() {
+            hi = mid;
+        } else {
+            lo = mid;
+        }
+    }
+    color.lerp_to_gamma(target, hi)
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq, PartialOrd, Ord)]
 pub enum ContrastRatio {
     /// Below the 3:1 threshold used for large text and non-text UI.
@@ -334,6 +356,46 @@ impl Theme {
                 magenta: hex_color!("#AC8CD9"),
                 cyan: hex_color!("#6EECF7"),
                 white: hex_color!("#FFFFFF"),
+            },
+            dark_prefs: Preferences {
+                primary: Palette::Blue,
+                secondary: Palette::Green,
+                tertiary: Palette::Magenta,
+                quaternary: Palette::Cyan,
+            },
+        }
+    }
+
+    pub fn apple(current: Mode) -> Self {
+        Self {
+            current,
+            dim: ThemeVariant {
+                black: hex_color!("#000000"),
+                grey: hex_color!("#1C1C1E"),
+                white: hex_color!("#FFFFFF"),
+                red: hex_color!("#FF383C"),
+                green: hex_color!("#34C759"),
+                yellow: hex_color!("#FFCC00"),
+                blue: hex_color!("#006BC9"),
+                magenta: hex_color!("#CB30E0"),
+                cyan: hex_color!("#00C0E8"),
+            },
+            light_prefs: Preferences {
+                primary: Palette::Blue,
+                secondary: Palette::Green,
+                tertiary: Palette::Magenta,
+                quaternary: Palette::Cyan,
+            },
+            bright: ThemeVariant {
+                black: hex_color!("#000000"),
+                grey: hex_color!("#F2F2F7"),
+                white: hex_color!("#FFFFFF"),
+                red: hex_color!("#FF4245"),
+                green: hex_color!("#30D158"),
+                yellow: hex_color!("#FFD600"),
+                blue: hex_color!("#0091FF"),
+                magenta: hex_color!("#DB34F2"),
+                cyan: hex_color!("#3CD3FE"),
             },
             dark_prefs: Preferences {
                 primary: Palette::Blue,
@@ -625,5 +687,55 @@ mod tests {
     fn contrast_ratio_classifies_wcag_thresholds() {
         assert_eq!(contrast_ratio(Color32::BLACK, Color32::WHITE), ContrastRatio::Maximum);
         assert_eq!(contrast_ratio(Color32::WHITE, Color32::WHITE), ContrastRatio::Low);
+    }
+
+    #[test]
+    fn apple_theme_accent_passes_inline_code_contrast() {
+        for mode in [Mode::Light, Mode::Dark] {
+            let theme = Theme::apple(mode);
+            let accent = theme.fg().get_color(theme.prefs().primary);
+            let background = theme.neutral_bg_secondary();
+            assert!(contrast_ratio(accent, background).passes_normal_text());
+        }
+    }
+
+    #[test]
+    fn system_accents_adjust_to_pass_normal_text() {
+        let light_accents = [
+            hex_color!("#FF383C"),
+            hex_color!("#FF8D28"),
+            hex_color!("#FFCC00"),
+            hex_color!("#34C759"),
+            hex_color!("#0088FF"),
+            hex_color!("#CB30E0"),
+            hex_color!("#FF2D55"),
+            hex_color!("#8E8E93"),
+        ];
+        let dark_accents = [
+            hex_color!("#FF4245"),
+            hex_color!("#FF9230"),
+            hex_color!("#FFD600"),
+            hex_color!("#30D158"),
+            hex_color!("#0091FF"),
+            hex_color!("#DB34F2"),
+            hex_color!("#FF375F"),
+            hex_color!("#8E8E93"),
+        ];
+
+        let theme = Theme::apple(Mode::Light);
+        for accent in light_accents {
+            let adjusted = ensure_normal_text_contrast(accent, theme.bright.grey);
+            assert!(contrast_ratio(adjusted, theme.bright.grey).passes_normal_text());
+        }
+        for accent in dark_accents {
+            let adjusted = ensure_normal_text_contrast(accent, theme.dim.grey);
+            assert!(contrast_ratio(adjusted, theme.dim.grey).passes_normal_text());
+        }
+
+        assert_eq!(ensure_normal_text_contrast(theme.dim.blue, theme.bright.grey), theme.dim.blue);
+        assert_eq!(
+            ensure_normal_text_contrast(theme.bright.blue, theme.dim.grey),
+            theme.bright.blue
+        );
     }
 }

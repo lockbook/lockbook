@@ -76,6 +76,32 @@ import Observation
         redraw.send(())
     }
 
+    public func navBack() {
+        guard let wsHandle else { return }
+
+        nav_back(wsHandle)
+        redraw.send(())
+    }
+
+    public func navForward() {
+        guard let wsHandle else { return }
+
+        nav_forward(wsHandle)
+        redraw.send(())
+    }
+
+    public func canNavBack() -> Bool {
+        guard let wsHandle else { return false }
+
+        return can_nav_back(wsHandle)
+    }
+
+    public func canNavForward() -> Bool {
+        guard let wsHandle else { return false }
+
+        return can_nav_forward(wsHandle)
+    }
+
     public func showSearch() {
         guard let wsHandle else { return }
 
