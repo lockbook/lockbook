@@ -732,10 +732,7 @@ mod tests {
             assert!(contrast_ratio(adjusted, theme.dim.grey).passes_normal_text());
         }
 
-        assert_eq!(
-            ensure_normal_text_contrast(theme.dim.blue, theme.bright.grey),
-            theme.dim.blue
-        );
+        assert_eq!(ensure_normal_text_contrast(theme.dim.blue, theme.bright.grey), theme.dim.blue);
         assert_eq!(
             ensure_normal_text_contrast(theme.bright.blue, theme.dim.grey),
             theme.bright.blue
