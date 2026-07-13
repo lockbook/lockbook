@@ -148,7 +148,7 @@ import SwiftUI
         }
     }
 
-    public class iOSMTKInputManager: UIView, UIGestureRecognizerDelegate {
+    public class iOSMTKInputManager: UIView {
         public var mtkView: iOSMTK
 
         var currentWrapper: UIView?
