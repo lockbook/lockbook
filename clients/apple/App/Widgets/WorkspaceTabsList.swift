@@ -29,6 +29,8 @@ struct WorkspaceTabsList: View {
     @State private var dropTargetId: UUID? = nil
     @State private var endZoneTargeted = false
     @State private var renameTarget: File? = nil
+    @State private var canNavBack = false
+    @State private var canNavForward = false
 
     var body: some View {
         ScrollView {
@@ -87,6 +89,22 @@ struct WorkspaceTabsList: View {
                     }
                 }
                 .keyboardShortcut(.cancelAction)
+            } else {
+                Button {
+                    workspaceInput.navBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .fontWeight(.semibold)
+                }
+                .disabled(!canNavBack)
+
+                Button {
+                    workspaceInput.navForward()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .fontWeight(.semibold)
+                }
+                .disabled(!canNavForward)
             }
         }
         .padding(.horizontal)
@@ -397,6 +415,8 @@ struct WorkspaceTabsList: View {
 
     private func refresh() {
         tabIds = workspaceInput.getTabsIds()
+        canNavBack = workspaceInput.canNavBack()
+        canNavForward = workspaceInput.canNavForward()
 
         let open = Set(tabIds)
         recentlyClosed = workspaceInput.getRecentlyClosedTabs()

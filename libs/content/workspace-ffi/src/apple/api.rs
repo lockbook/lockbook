@@ -63,6 +63,34 @@ pub extern "C" fn open_file_at(
 }
 
 #[no_mangle]
+pub extern "C" fn nav_back(obj: *mut c_void) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if obj.workspace.can_back() {
+        obj.workspace.back();
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn nav_forward(obj: *mut c_void) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if obj.workspace.can_forward() {
+        obj.workspace.forward();
+    }
+}
+
+#[no_mangle]
+pub extern "C" fn can_nav_back(obj: *mut c_void) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.can_back()
+}
+
+#[no_mangle]
+pub extern "C" fn can_nav_forward(obj: *mut c_void) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.can_forward()
+}
+
+#[no_mangle]
 pub extern "C" fn show_search(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.workspace.upsert_search(None);
