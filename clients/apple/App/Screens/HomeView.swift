@@ -100,7 +100,8 @@ struct HomeView: View {
 
                     #if os(iOS)
                         if horizontalSizeClass == .regular,
-                           homeState.splitViewVisibility != .all
+                           homeState.splitViewVisibility != .all,
+                           !keyboardVisible
                         {
                             ToolbarItem(placement: .topBarLeading) {
                                 Button {
@@ -115,7 +116,7 @@ struct HomeView: View {
 
                     #endif
 
-                    if let file = openDocFile {
+                    if let file = openDocFile, !keyboardObscuresToolbar {
                         ToolbarItem(placement: sharePlacement) {
                             Button {
                                 shareTarget = file
@@ -125,7 +126,7 @@ struct HomeView: View {
                         }
                     }
 
-                    if workspaceOutput.tabCount > 0 {
+                    if workspaceOutput.tabCount > 0, !keyboardObscuresToolbar {
                         ToolbarItem(placement: sharePlacement) {
                             Button {
                                 showTabsSidebar.toggle()
@@ -134,6 +135,21 @@ struct HomeView: View {
                             }
                         }
                     }
+
+                    #if os(iOS)
+                        if keyboardVisible {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    dismissKeyboard()
+                                } label: {
+                                    Image(systemName: "checkmark")
+                                        .fontWeight(.bold)
+                                        .frame(width: 26, height: 26)
+                                }
+                                .buttonStyle(.glassProminent)
+                            }
+                        }
+                    #endif
                 }
                 .inspector(isPresented: inspectorPresented) {
                     WorkspaceTabsList(fileTreeModel: fileTreeModel)
@@ -294,6 +310,14 @@ struct HomeView: View {
         }
     }
 
+    private var keyboardObscuresToolbar: Bool {
+        #if os(iOS)
+            keyboardVisible
+        #else
+            false
+        #endif
+    }
+
     private var inspectorPresented: Binding<Bool> {
         Binding(
             get: {
@@ -357,6 +381,12 @@ struct HomeView: View {
 
             quickCreateCount += 1
             workspaceInput.createDocAt(parent: parent.id, drawing: false)
+        }
+
+        private func dismissKeyboard() {
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+            )
         }
 
         private func searchEverywhere() {
