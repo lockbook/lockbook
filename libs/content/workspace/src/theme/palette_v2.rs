@@ -344,6 +344,46 @@ impl Theme {
         }
     }
 
+    pub fn apple(current: Mode) -> Self {
+        Self {
+            current,
+            dim: ThemeVariant {
+                black: hex_color!("#000000"),
+                grey: hex_color!("#1C1C1E"),
+                white: hex_color!("#FFFFFF"),
+                red: hex_color!("#FF383C"),
+                green: hex_color!("#34C759"),
+                yellow: hex_color!("#FFCC00"),
+                blue: hex_color!("#0088FF"),
+                magenta: hex_color!("#CB30E0"),
+                cyan: hex_color!("#00C0E8"),
+            },
+            light_prefs: Preferences {
+                primary: Palette::Blue,
+                secondary: Palette::Green,
+                tertiary: Palette::Magenta,
+                quaternary: Palette::Cyan,
+            },
+            bright: ThemeVariant {
+                black: hex_color!("#000000"),
+                grey: hex_color!("#F2F2F7"),
+                white: hex_color!("#FFFFFF"),
+                red: hex_color!("#FF4245"),
+                green: hex_color!("#30D158"),
+                yellow: hex_color!("#FFD600"),
+                blue: hex_color!("#0091FF"),
+                magenta: hex_color!("#DB34F2"),
+                cyan: hex_color!("#3CD3FE"),
+            },
+            dark_prefs: Preferences {
+                primary: Palette::Blue,
+                secondary: Palette::Green,
+                tertiary: Palette::Magenta,
+                quaternary: Palette::Cyan,
+            },
+        }
+    }
+
     pub fn darcula(current: Mode) -> Self {
         Self {
             current,
