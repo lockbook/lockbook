@@ -8,6 +8,7 @@ import android.os.Handler
 import android.os.Looper
 import android.text.InputType
 import android.view.GestureDetector
+import android.view.KeyEvent
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -757,6 +758,74 @@ class WorkspaceTextInputWrapper(
     }
 
     override fun onCheckIsTextEditor(): Boolean = true
+
+    private fun shouldForwardToRust(event: KeyEvent): Boolean =
+        when (event.keyCode) {
+            KeyEvent.KEYCODE_BACK,
+            KeyEvent.KEYCODE_HOME,
+            KeyEvent.KEYCODE_APP_SWITCH,
+            KeyEvent.KEYCODE_MENU,
+            KeyEvent.KEYCODE_SEARCH,
+            KeyEvent.KEYCODE_POWER,
+            KeyEvent.KEYCODE_SLEEP,
+            KeyEvent.KEYCODE_WAKEUP,
+            KeyEvent.KEYCODE_VOLUME_UP,
+            KeyEvent.KEYCODE_VOLUME_DOWN,
+            KeyEvent.KEYCODE_VOLUME_MUTE,
+            KeyEvent.KEYCODE_MUTE,
+            KeyEvent.KEYCODE_BRIGHTNESS_UP,
+            KeyEvent.KEYCODE_BRIGHTNESS_DOWN,
+            KeyEvent.KEYCODE_CALL,
+            KeyEvent.KEYCODE_ENDCALL,
+            KeyEvent.KEYCODE_HEADSETHOOK,
+            KeyEvent.KEYCODE_CAMERA,
+            -> false
+
+            else -> true
+        }
+
+    private fun forwardWorkspaceKeyEvent(event: KeyEvent): Boolean {
+        if (!shouldForwardToRust(event)) {
+            return false
+        }
+
+        wsInputConnection.forwardWorkspaceKeyEvent(event)
+        workspaceView.drawImmediately()
+        return true
+    }
+
+    override fun onKeyDown(
+        keyCode: Int,
+        event: KeyEvent,
+    ): Boolean {
+        if (forwardWorkspaceKeyEvent(event)) {
+            return true
+        }
+
+        return super.onKeyDown(keyCode, event)
+    }
+
+    override fun onKeyUp(
+        keyCode: Int,
+        event: KeyEvent,
+    ): Boolean {
+        if (forwardWorkspaceKeyEvent(event)) {
+            return true
+        }
+
+        return super.onKeyUp(keyCode, event)
+    }
+
+    override fun onKeyShortcut(
+        keyCode: Int,
+        event: KeyEvent,
+    ): Boolean {
+        if (forwardWorkspaceKeyEvent(event)) {
+            return true
+        }
+
+        return super.onKeyShortcut(keyCode, event)
+    }
 
     override fun onCreateInputConnection(outAttrs: EditorInfo?): InputConnection {
         if (outAttrs != null) {
