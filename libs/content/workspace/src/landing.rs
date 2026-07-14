@@ -33,6 +33,14 @@ struct RecentFile {
     path_segments: Vec<(String, bool)>,
 }
 
+struct RecentRowLayout {
+    rect: Rect,
+    idx: usize,
+    visible: usize,
+    separator: Stroke,
+    section_opacity: f32,
+}
+
 impl PartialEq for LandingPage {
     fn eq(&self, _other: &Self) -> bool {
         true
@@ -385,7 +393,15 @@ impl Workspace {
                         Vec2::new(width, RECENTS_ROW_HEIGHT),
                     );
                     self.show_recent_file_row(
-                        ui, file, row_rect, idx, visible, separator, visibility,
+                        ui,
+                        file,
+                        RecentRowLayout {
+                            rect: row_rect,
+                            idx,
+                            visible,
+                            separator,
+                            section_opacity: visibility,
+                        },
                     );
                 }
             },
@@ -394,11 +410,15 @@ impl Workspace {
     }
 
     fn show_recent_file_row(
-        &mut self, ui: &mut egui::Ui, recent: &RecentFile, row_rect: Rect, idx: usize,
-        visible: usize, separator: Stroke, section_opacity: f32,
+        &mut self, ui: &mut egui::Ui, recent: &RecentFile, layout: RecentRowLayout,
     ) {
         let theme = ui.ctx().get_lb_theme();
         let file = &recent.file;
+        let row_rect = layout.rect;
+        let idx = layout.idx;
+        let visible = layout.visible;
+        let separator = layout.separator;
+        let section_opacity = layout.section_opacity;
         let row_edge_radius = 10.0;
         let row_hover_vertical_inset = 1.0;
         let detail_gap = 8.0;
