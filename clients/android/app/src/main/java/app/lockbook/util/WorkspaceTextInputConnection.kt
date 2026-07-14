@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import android.text.Editable
+import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.inputmethod.BaseInputConnection
 import android.view.inputmethod.ExtractedText
@@ -45,6 +46,10 @@ private fun KeyEvent.isWorkspaceNavigationKey(): Boolean =
         else -> false
     }
 
+private fun KeyEvent.isSoftKeyboardEvent(): Boolean =
+    deviceId == KeyCharacterMap.VIRTUAL_KEYBOARD ||
+        (flags and KeyEvent.FLAG_SOFT_KEYBOARD) != 0
+
 @SuppressLint("SoonBlockedPrivateApi")
 class WorkspaceTextInputConnection(
     val workspaceView: WorkspaceView,
@@ -62,6 +67,19 @@ class WorkspaceTextInputConnection(
     private fun getClipboardManager(): ClipboardManager =
         App.applicationContext().getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
 
+    fun forwardWorkspaceKeyEvent(event: KeyEvent) {
+        val content = event.unicodeChar.toChar().toString()
+        Workspace.sendKeyEvent(
+            WorkspaceView.wgpuObj,
+            event.keyCode,
+            content,
+            event.action == KeyEvent.ACTION_DOWN,
+            event.isAltPressed,
+            event.isCtrlPressed,
+            event.isShiftPressed,
+        )
+    }
+
     fun notifySelectionUpdated() {
         val selection = wsEditable.getSelection()
         getInputMethodManager().updateSelection(
@@ -74,25 +92,12 @@ class WorkspaceTextInputConnection(
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
-        if (event?.isWorkspaceNavigationKey() != true) {
-            super.sendKeyEvent(event)
+        if (event == null) {
+            return super.sendKeyEvent(null)
         }
 
-        if (event != null) {
-            val content = event.unicodeChar.toChar().toString()
-            Workspace.sendKeyEvent(
-                WorkspaceView.wgpuObj,
-                event.keyCode,
-                content,
-                event.action == KeyEvent.ACTION_DOWN,
-                event.isAltPressed,
-                event.isCtrlPressed,
-                event.isShiftPressed,
-            )
-        }
-
+        forwardWorkspaceKeyEvent(event)
         workspaceView.drawImmediately()
-
         return true
     }
 
