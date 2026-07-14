@@ -17,6 +17,7 @@ pub enum Event {
     Insert(Vec<InsertElement>),
     Delete(Vec<DeleteElement>),
     Transform(Vec<TransformElement>),
+    OpacityChange(Vec<OpacityChangeElement>),
     StrokeChange(Vec<StrokeChangeElement>),
 }
 
@@ -41,6 +42,13 @@ pub struct StrokeChangeElement {
     pub id: Uuid,
     pub old_stroke: Option<Stroke>,
     pub new_stroke: Option<Stroke>,
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct OpacityChangeElement {
+    pub id: Uuid,
+    pub old_opacity: f32,
+    pub new_opacity: f32,
 }
 
 impl History {
@@ -101,6 +109,13 @@ impl History {
                         if let Some(stroke) = stroke_change_payload.new_stroke {
                             el.set_stroke(stroke);
                         }
+                    }
+                });
+            }
+            Event::OpacityChange(payload) => {
+                payload.iter().for_each(|opacity_change_payload| {
+                    if let Some(el) = buffer.elements.get_mut(&opacity_change_payload.id) {
+                        el.set_opacity(opacity_change_payload.new_opacity);
                     }
                 });
             }
@@ -175,6 +190,18 @@ impl History {
                             id: stroke_change_payload.id,
                             old_stroke: stroke_change_payload.new_stroke,
                             new_stroke: stroke_change_payload.old_stroke,
+                        })
+                        .collect(),
+                );
+            }
+            Event::OpacityChange(opacity_change_elements) => {
+                source = Event::OpacityChange(
+                    opacity_change_elements
+                        .iter()
+                        .map(|opacity_change_payload| OpacityChangeElement {
+                            id: opacity_change_payload.id,
+                            old_opacity: opacity_change_payload.new_opacity,
+                            new_opacity: opacity_change_payload.old_opacity,
                         })
                         .collect(),
                 );
