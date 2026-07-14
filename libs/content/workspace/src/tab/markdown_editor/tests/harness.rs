@@ -252,7 +252,11 @@ fn build_editor(core: Lb, md: &str, ext: &str, embeds: Box<dyn EmbedResolver>) -
         MdResources {
             ctx,
             core,
-            persistence: WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into()),
+            persistence: WsPersistentStore::new(
+                false,
+                format!("/tmp/{}", Uuid::new_v4()).into(),
+                true,
+            ),
             link_resolver: Box::new(TestLinks),
             embeds,
             files,

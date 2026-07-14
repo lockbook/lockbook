@@ -78,7 +78,7 @@ impl LocalLb {
             };
         }
 
-        self.events.meta_changed(Actor::User);
+        self.events.meta_changed(Actor::User(None));
         self.events.signed_in();
 
         Ok(account)

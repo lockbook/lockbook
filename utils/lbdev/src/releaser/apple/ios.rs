@@ -5,7 +5,7 @@ use crate::releaser::secrets::AppStore;
 use crate::utils::CommandRunner;
 use std::process::Command;
 
-use super::clean_build_dir;
+use super::{build_number, clean_build_dir};
 
 pub fn release(clean_and_build: bool) -> CliResult<()> {
     if clean_and_build {
@@ -33,6 +33,7 @@ fn archive() -> CliResult<()> {
             "clients/apple/build/Lockbook-iOS.xcarchive",
             "archive",
         ])
+        .arg(format!("CURRENT_PROJECT_VERSION={}", build_number()))
         .assert_success()?;
 
     Command::new("xcodebuild")

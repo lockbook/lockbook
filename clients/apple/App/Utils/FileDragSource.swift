@@ -74,6 +74,7 @@ enum FileExporter {
         let file: File
         let filesModel: FilesModel
         let onClick: () -> Void
+        let onDoubleClick: () -> Void
 
         func makeNSView(context _: Context) -> FileDragSourceView {
             let view = FileDragSourceView()
@@ -89,6 +90,7 @@ enum FileExporter {
             view.file = file
             view.filesModel = filesModel
             view.onClick = onClick
+            view.onDoubleClick = onDoubleClick
         }
     }
 
@@ -96,6 +98,7 @@ enum FileExporter {
         var file: File? = nil
         var filesModel: FilesModel? = nil
         var onClick: (() -> Void)? = nil
+        var onDoubleClick: (() -> Void)? = nil
 
         static let exportQueue: OperationQueue = {
             let queue = OperationQueue()
@@ -110,6 +113,11 @@ enum FileExporter {
         override func mouseDown(with event: NSEvent) {
             if event.modifierFlags.contains(.control) {
                 super.mouseDown(with: event)
+                return
+            }
+
+            if event.clickCount == 2 {
+                onDoubleClick?()
                 return
             }
 

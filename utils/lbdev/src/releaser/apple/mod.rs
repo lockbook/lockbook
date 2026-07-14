@@ -2,7 +2,9 @@ pub mod cli;
 pub mod ios;
 pub mod mac;
 
+use chrono_tz::America::New_York;
 use cli_rs::cli_error::CliResult;
+use google_androidpublisher3::chrono::Utc;
 
 use std::fs;
 use std::path::Path;
@@ -16,6 +18,13 @@ pub fn release() -> CliResult<()> {
     ios::release(false)?;
     mac::release(false, true, true)?;
     Ok(())
+}
+
+pub fn build_number() -> String {
+    Utc::now()
+        .with_timezone(&New_York)
+        .format("%Y%m%d.%H%M%S")
+        .to_string()
 }
 
 fn clean_build_dir() {

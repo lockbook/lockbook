@@ -5,6 +5,7 @@
     public class MacMTK: MTKView, MTKViewDelegate {
         var wsHandle: UnsafeMutableRawPointer?
         var coreHandle: UnsafeMutableRawPointer?
+        var claimedPersistence = false
         var trackingArea: NSTrackingArea?
         var pasteBoardEventId: Int = 0
         var pasteboardString: String?
@@ -21,12 +22,15 @@
         var cursorHidden: Bool = false
 
         var lastWindowBgColor: UInt32 = 0
+        var lastAccentColors: UInt64 = 0
 
         var modifierEventHandle: Any?
+        var screenChangeObserver: NSObjectProtocol?
+        var accentChangeObserver: NSObjectProtocol?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
-            preferredFramesPerSecond = 120
+            preferredFramesPerSecond = 144
             delegate = self
             isPaused = true
             enableSetNeedsDisplay = true
@@ -65,16 +69,47 @@
         override public func viewDidMoveToWindow() {
             super.viewDidMoveToWindow()
             window?.makeFirstResponder(self)
+
+            updatePreferredFrameRate()
+
+            if let screenChangeObserver {
+                NotificationCenter.default.removeObserver(screenChangeObserver)
+                self.screenChangeObserver = nil
+            }
+
+            if let window {
+                screenChangeObserver = NotificationCenter.default.addObserver(
+                    forName: NSWindow.didChangeScreenNotification,
+                    object: window,
+                    queue: .main
+                ) { [weak self] _ in
+                    self?.updatePreferredFrameRate()
+                }
+            }
+        }
+
+        private func updatePreferredFrameRate() {
+            preferredFramesPerSecond = window?.screen?.maximumFramesPerSecond ?? 60
         }
 
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(layer!).toOpaque())
-            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false)
+            claimedPersistence = true
+            wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 
             modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
             registerForDraggedTypes([.png, .tiff, .fileURL, .string])
             becomeFirstResponder()
+
+            accentChangeObserver = NotificationCenter.default.addObserver(
+                forName: NSColor.systemColorsDidChangeNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                guard let self else { return }
+                setNeedsDisplay(frame)
+            }
         }
 
         override public func draggingEntered(_: NSDraggingInfo) -> NSDragOperation {
@@ -308,6 +343,30 @@
             titlebarBandHeight()
         }
 
+        func syncAccentColor() {
+            guard let wsHandle else { return }
+            guard let light = packedAccent(for: .aqua),
+                  let dark = packedAccent(for: .darkAqua) else { return }
+
+            let combined = (UInt64(light) << 32) | UInt64(dark)
+            guard combined != lastAccentColors else { return }
+            lastAccentColors = combined
+
+            set_accent_color(wsHandle, light, dark)
+        }
+
+        private func packedAccent(for name: NSAppearance.Name) -> UInt32? {
+            var packed: UInt32?
+            NSAppearance(named: name)?.performAsCurrentDrawingAppearance {
+                guard let c = NSColor.controlAccentColor.usingColorSpace(.sRGB) else { return }
+                let r = UInt32((min(max(c.redComponent, 0), 1) * 255).rounded())
+                let g = UInt32((min(max(c.greenComponent, 0), 1) * 255).rounded())
+                let b = UInt32((min(max(c.blueComponent, 0), 1) * 255).rounded())
+                packed = (r << 24) | (g << 16) | (b << 8) | 0xFF
+            }
+            return packed
+        }
+
         func syncWindowBackground() {
             guard let wsHandle, let window else { return }
             let packed = desired_sidebar_color(wsHandle)
@@ -325,7 +384,7 @@
             // initially window is not set, this defaults to 1.0, initial frame comes from `init_editor`
             // we probably want a setNeedsDisplay here
             let scale = window?.backingScaleFactor ?? 1.0
-            resize_editor(wsHandle, Float(size.width), Float(size.height), Float(scale))
+            resize_editor(wsHandle, Float(max(size.width, 1)), Float(max(size.height, 1)), Float(scale))
         }
 
         public func drawImmediately() {
@@ -345,6 +404,7 @@
 
             let scale = Float(window?.backingScaleFactor ?? 1.0)
             dark_mode(wsHandle, isDarkMode())
+            syncAccentColor()
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_scale(wsHandle, scale)
 
@@ -455,8 +515,20 @@
                 deinit_editor(wsHandle)
             }
 
+            if claimedPersistence {
+                WorkspacePersistence.release()
+            }
+
             if let modifierEventHandle {
                 NSEvent.removeMonitor(modifierEventHandle)
+            }
+
+            if let screenChangeObserver {
+                NotificationCenter.default.removeObserver(screenChangeObserver)
+            }
+
+            if let accentChangeObserver {
+                NotificationCenter.default.removeObserver(accentChangeObserver)
             }
         }
     }

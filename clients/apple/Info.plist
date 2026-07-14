@@ -2,6 +2,8 @@
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
 <dict>
+	<key>CADisableMinimumFrameDurationOnPhone</key>
+	<true/>
 	<key>CFBundleURLTypes</key>
 	<array>
 		<dict>
@@ -31,6 +33,16 @@
 			<key>UTTypeConformsTo</key>
 			<array>
 				<string>public.item</string>
+			</array>
+		</dict>
+		<dict>
+			<key>UTTypeIdentifier</key>
+			<string>net.lockbook.tab</string>
+			<key>UTTypeDescription</key>
+			<string>Lockbook workspace tab</string>
+			<key>UTTypeConformsTo</key>
+			<array>
+				<string>public.data</string>
 			</array>
 		</dict>
 	</array>

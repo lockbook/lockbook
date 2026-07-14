@@ -51,6 +51,7 @@ struct SelectableRowModifier: ViewModifier {
     @Environment(FilesModel.self) private var filesModel
     @Environment(FileTreeModel.self) private var fileTreeModel
     @Environment(WorkspaceInputState.self) private var workspaceInput
+    @Environment(\.openWindow) private var openWindow
 
     let selection: SelectionModel
     let id: UUID
@@ -95,6 +96,13 @@ struct SelectableRowModifier: ViewModifier {
             .onTapGesture {
                 handleTap()
             }
+            #if os(iOS)
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded {
+                        openInNewWindow()
+                    }
+                )
+            #endif
         )
         .contextMenu {
             if selection.selecting {
@@ -108,6 +116,14 @@ struct SelectableRowModifier: ViewModifier {
                     contextMenuItem("New File Here", systemImage: "square.and.pencil") {
                         showCreateFile = true
                     }
+                }
+
+                if file?.isFolder == false, supportsMultipleWindows {
+                    contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
+                        openInNewWindow()
+                    }
+
+                    Divider()
                 }
 
                 contextMenuItem("Rename", systemImage: "pencil") {
@@ -183,14 +199,32 @@ struct SelectableRowModifier: ViewModifier {
         #if os(macOS)
             content.overlay {
                 if let file {
-                    MacFileDragSource(file: file, filesModel: filesModel) {
+                    MacFileDragSource(file: file, filesModel: filesModel, onClick: {
                         handleTap()
-                    }
+                    }, onDoubleClick: {
+                        openInNewWindow()
+                    })
                 }
             }
         #else
             content
         #endif
+    }
+
+    private var supportsMultipleWindows: Bool {
+        #if os(iOS)
+            UIApplication.shared.supportsMultipleScenes
+        #else
+            true
+        #endif
+    }
+
+    private func openInNewWindow() {
+        guard let file, !file.isFolder, !selection.selecting, supportsMultipleWindows else {
+            return
+        }
+
+        openWindow(id: documentWindowId, value: file.id)
     }
 
     @ViewBuilder

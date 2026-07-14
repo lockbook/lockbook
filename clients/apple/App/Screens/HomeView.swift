@@ -5,6 +5,8 @@ struct HomeView: View {
     @Environment(\.isPreview) private var isPreview
     #if os(iOS)
         @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #else
+        @Environment(\.controlActiveState) private var controlActiveState
     #endif
 
     @State private var homeState = HomeState()
@@ -20,6 +22,7 @@ struct HomeView: View {
         @State private var showSettings = false
         @State private var keyboardVisible = false
         @State private var showCreateAlongside = false
+        @State private var detailWidth: CGFloat = 0
     #else
         @State private var showImporter = false
     #endif
@@ -54,12 +57,13 @@ struct HomeView: View {
             preferredCompactColumn: $homeState.compactColumn
         ) {
             sidebar
-                .navigationSplitViewColumnWidth(min: 250, ideal: 300)
+                .navigationSplitViewColumnWidth(min: 268, ideal: 300, max: 500)
         } detail: {
             workspace
                 .navigationTitle(detailTitle)
                 #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                 #endif
                 .toolbar {
                     if let file = openDocFile {
@@ -81,6 +85,10 @@ struct HomeView: View {
                                     }
 
                                     titleCrumb(file, leading: [])
+
+                                    titleCrumb(file, leading: [], showIcon: false)
+
+                                    titleCrumb(file, leading: [], showIcon: false, showPencil: false)
                                 }
                                 .font(.subheadline)
                                 .padding(.horizontal, 16)
@@ -91,6 +99,9 @@ struct HomeView: View {
                                         .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
                                 }
                                 .contentShape(Capsule())
+                                #if os(iOS)
+                                    .frame(maxWidth: titlePillMaxWidth)
+                                #endif
                             }
                             .buttonStyle(.plain)
                         }
@@ -98,7 +109,8 @@ struct HomeView: View {
 
                     #if os(iOS)
                         if horizontalSizeClass == .regular,
-                           homeState.splitViewVisibility != .all
+                           homeState.splitViewVisibility != .all,
+                           !keyboardVisible
                         {
                             ToolbarItem(placement: .topBarLeading) {
                                 Button {
@@ -113,7 +125,7 @@ struct HomeView: View {
 
                     #endif
 
-                    if let file = openDocFile {
+                    if let file = openDocFile, !keyboardObscuresToolbar {
                         ToolbarItem(placement: sharePlacement) {
                             Button {
                                 shareTarget = file
@@ -123,7 +135,7 @@ struct HomeView: View {
                         }
                     }
 
-                    if workspaceOutput.tabCount > 0 {
+                    if workspaceOutput.tabCount > 0, !keyboardObscuresToolbar {
                         ToolbarItem(placement: sharePlacement) {
                             Button {
                                 showTabsSidebar.toggle()
@@ -132,6 +144,21 @@ struct HomeView: View {
                             }
                         }
                     }
+
+                    #if os(iOS)
+                        if keyboardVisible {
+                            ToolbarItem(placement: .topBarTrailing) {
+                                Button {
+                                    dismissKeyboard()
+                                } label: {
+                                    Image(systemName: "checkmark")
+                                        .fontWeight(.bold)
+                                        .frame(width: 26, height: 26)
+                                }
+                                .buttonStyle(.glassProminent)
+                            }
+                        }
+                    #endif
                 }
                 .inspector(isPresented: inspectorPresented) {
                     WorkspaceTabsList(fileTreeModel: fileTreeModel)
@@ -230,6 +257,20 @@ struct HomeView: View {
                 showTabsSidebar = false
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .createNewFile)) { _ in
+            #if os(macOS)
+                guard controlActiveState == .key else { return }
+            #endif
+            showCreateFile = true
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .toggleSidebar)) { _ in
+            #if os(macOS)
+                guard controlActiveState == .key else { return }
+            #endif
+            withAnimation {
+                homeState.splitViewVisibility = homeState.splitViewVisibility == .detailOnly ? .all : .detailOnly
+            }
+        }
         #if os(iOS)
             .onReceive(NotificationCenter.default.publisher(for: UIResponder.keyboardWillShowNotification)) { _ in
                 keyboardVisible = true
@@ -292,6 +333,14 @@ struct HomeView: View {
                 filesModel.moveResult = nil
             }
         }
+    }
+
+    private var keyboardObscuresToolbar: Bool {
+        #if os(iOS)
+            keyboardVisible
+        #else
+            false
+        #endif
     }
 
     private var inspectorPresented: Binding<Bool> {
@@ -357,6 +406,29 @@ struct HomeView: View {
 
             quickCreateCount += 1
             workspaceInput.createDocAt(parent: parent.id, drawing: false)
+        }
+
+        private var titlePillMaxWidth: CGFloat {
+            guard detailWidth > 0 else { return .infinity }
+
+            var chrome: CGFloat = 76
+            if keyboardVisible {
+                chrome += 58
+            } else {
+                if openDocFile != nil { chrome += 50 }
+                if workspaceOutput.tabCount > 0 { chrome += 50 }
+                if horizontalSizeClass == .regular, homeState.splitViewVisibility != .all {
+                    chrome += 50
+                }
+            }
+
+            return max(140, detailWidth - chrome)
+        }
+
+        private func dismissKeyboard() {
+            UIApplication.shared.sendAction(
+                #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
+            )
         }
 
         private func searchEverywhere() {
@@ -562,11 +634,15 @@ struct HomeView: View {
         #endif
     }
 
-    private func titleCrumb(_ file: File, leading: [String]) -> some View {
+    private func titleCrumb(
+        _ file: File, leading: [String], showIcon: Bool = true, showPencil: Bool = true
+    ) -> some View {
         HStack(spacing: 8) {
-            Image(systemName: FileIconHelper.docNameToSystemImageName(name: file.name))
-                .font(.system(size: 13))
-                .foregroundStyle(Color.accentColor)
+            if showIcon {
+                Image(systemName: FileIconHelper.docNameToSystemImageName(name: file.name))
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.accentColor)
+            }
 
             ForEach(Array(leading.enumerated()), id: \.offset) { _, segment in
                 Text(segment)
@@ -585,10 +661,12 @@ struct HomeView: View {
                 .truncationMode(.middle)
                 .layoutPriority(1)
 
-            Image(systemName: "pencil")
-                .font(.system(size: 12, weight: .semibold))
-                .foregroundStyle(.secondary)
-                .padding(.leading, 4)
+            if showPencil {
+                Image(systemName: "pencil")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(.secondary)
+                    .padding(.leading, 4)
+            }
         }
     }
 
@@ -607,6 +685,7 @@ struct HomeView: View {
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
         } else {
             WorkspaceView()
+                .frame(minWidth: 5, minHeight: 5)
                 .ignoresSafeArea(.keyboard)
         }
     }

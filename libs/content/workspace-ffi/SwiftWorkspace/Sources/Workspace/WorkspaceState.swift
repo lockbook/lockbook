@@ -23,9 +23,18 @@ import Observation
         didSet {
             guard let wsHandle else { return }
             set_sidebar_open(wsHandle, nativeSidebarOpen)
+
+            guard !pendingOpens.isEmpty else { return }
+            let queued = pendingOpens
+            pendingOpens = []
+            for id in queued {
+                openFile(id: id)
+            }
         }
     }
+
     @ObservationIgnored private var nativeSidebarOpen = false
+    @ObservationIgnored private var pendingOpens: [UUID] = []
 
     @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
     @ObservationIgnored public var focus = PassthroughSubject<Void, Never>()
@@ -38,6 +47,7 @@ import Observation
 
     public func openFile(id: UUID, newTab: Bool = true) {
         guard let wsHandle else {
+            pendingOpens.append(id)
             return
         }
 
@@ -67,6 +77,32 @@ import Observation
             no_folder_selected(wsHandle)
         }
         redraw.send(())
+    }
+
+    public func navBack() {
+        guard let wsHandle else { return }
+
+        nav_back(wsHandle)
+        redraw.send(())
+    }
+
+    public func navForward() {
+        guard let wsHandle else { return }
+
+        nav_forward(wsHandle)
+        redraw.send(())
+    }
+
+    public func canNavBack() -> Bool {
+        guard let wsHandle else { return false }
+
+        return can_nav_back(wsHandle)
+    }
+
+    public func canNavForward() -> Bool {
+        guard let wsHandle else { return false }
+
+        return can_nav_forward(wsHandle)
     }
 
     public func showSearch() {

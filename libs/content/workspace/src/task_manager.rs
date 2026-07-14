@@ -88,6 +88,7 @@ pub struct LoadRequest {
 #[derive(Clone, Debug)]
 pub struct SaveRequest {
     pub id: Uuid,
+    pub origin: Uuid,
 }
 
 // Timing
@@ -460,9 +461,12 @@ impl TaskManager {
         content: TabSaveContent,
     ) {
         let id = request.id;
-        let new_hmac_result =
-            self.core
-                .safe_write(request.id, old_hmac, content.clone().into_bytes()); // todo: unnecessary clone
+        let new_hmac_result = self.core.safe_write(
+            request.id,
+            old_hmac,
+            content.clone().into_bytes(), // todo: unnecessary clone
+            Some(request.origin),
+        );
 
         {
             let mut tasks = self.tasks.lock().unwrap();

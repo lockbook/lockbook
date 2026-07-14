@@ -35,7 +35,8 @@ fn inline_image_advance_matches_rendered_width() {
     ctx.set_pixels_per_point(2.0);
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let persistence = WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into());
+    let persistence =
+        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
     let image_cache =
         ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());
     let image_cache_handle = image_cache.clone();
@@ -1157,7 +1158,8 @@ fn image_load_layout_consistent() {
     let ctx = Context::default();
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let persistence = WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into());
+    let persistence =
+        WsPersistentStore::new(false, format!("/tmp/{}", Uuid::new_v4()).into(), true);
 
     let image_cache =
         ImageCache::new(ctx.clone(), client, lb.clone(), files.clone(), persistence.clone());

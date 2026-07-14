@@ -442,6 +442,15 @@ impl Workspace {
             self.out.selected_file = None;
         }
 
+        // Ctrl-shift-T to reopen the most recently closed tab
+        if self
+            .ctx
+            .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::T))
+        {
+            self.reopen_last_closed_tab();
+            self.out.selected_file = self.current_tab_id();
+        }
+
         // reorder tabs
         // non-apple: ctrl+shift+pg down / up
         // apple: command+control+shift [ ]

@@ -106,9 +106,9 @@ impl Lb {
     }
 
     pub fn safe_write(
-        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>,
+        &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>, origin: Option<Uuid>,
     ) -> LbResult<DocumentHmac> {
-        self.block_on(self.lb.safe_write(id, old_hmac, content))
+        self.block_on(self.lb.safe_write(id, old_hmac, content, origin))
     }
 
     pub fn write_document(&self, id: Uuid, content: &[u8]) -> LbResult<()> {

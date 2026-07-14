@@ -5,7 +5,6 @@ use std::fmt::{Display, Formatter};
 use std::fs;
 use std::process::Command;
 use std::str::FromStr;
-use time::OffsetDateTime;
 use toml_edit::{Document, value};
 
 use crate::utils::CommandRunner;
@@ -94,14 +93,7 @@ fn handle_apple(version: &str) -> CliResult<()> {
     let path = "clients/apple/lockbook.xcodeproj/project.pbxproj";
     let mut pbxproj = fs::read_to_string(path).unwrap();
 
-    let now = OffsetDateTime::now_utc();
-
-    let month = now.month() as u8;
-    let day = now.day();
-    let year = now.year();
-
-    // add leading zeros where missing
-    let build = format!("{year}{month:0>2}{day:0>2}");
+    let build = super::apple::build_number();
 
     let marketing_re = Regex::new(r"MARKETING_VERSION = [^;]+;").unwrap();
     pbxproj = marketing_re

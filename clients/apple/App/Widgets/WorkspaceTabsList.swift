@@ -1,10 +1,25 @@
+import CoreTransferable
 import SwiftUI
 import SwiftWorkspace
+import UniformTypeIdentifiers
+
+extension UTType {
+    static let lockbookTab = UTType(exportedAs: "net.lockbook.tab")
+}
+
+struct TabDragItem: Codable, Transferable {
+    let id: UUID
+
+    static var transferRepresentation: some TransferRepresentation {
+        CodableRepresentation(contentType: .lockbookTab)
+    }
+}
 
 struct WorkspaceTabsList: View {
     @Environment(FilesModel.self) private var filesModel
     @Environment(WorkspaceInputState.self) private var workspaceInput
     @Environment(WorkspaceOutputState.self) private var workspaceOutput
+    @Environment(\.openWindow) private var openWindow
 
     let fileTreeModel: FileTreeModel
 
@@ -14,6 +29,8 @@ struct WorkspaceTabsList: View {
     @State private var dropTargetId: UUID? = nil
     @State private var endZoneTargeted = false
     @State private var renameTarget: File? = nil
+    @State private var canNavBack = false
+    @State private var canNavForward = false
 
     var body: some View {
         ScrollView {
@@ -72,6 +89,22 @@ struct WorkspaceTabsList: View {
                     }
                 }
                 .keyboardShortcut(.cancelAction)
+            } else {
+                Button {
+                    workspaceInput.navBack()
+                } label: {
+                    Image(systemName: "chevron.left")
+                        .fontWeight(.semibold)
+                }
+                .disabled(!canNavBack)
+
+                Button {
+                    workspaceInput.navForward()
+                } label: {
+                    Image(systemName: "chevron.right")
+                        .fontWeight(.semibold)
+                }
+                .disabled(!canNavForward)
             }
         }
         .padding(.horizontal)
@@ -164,8 +197,8 @@ struct WorkspaceTabsList: View {
         .contextMenu {
             tabMenu(id)
         }
-        .draggable(id.uuidString)
-        .dropDestination(for: String.self) { items, _ in
+        .draggable(TabDragItem(id: id))
+        .dropDestination(for: TabDragItem.self) { items, _ in
             dropTab(items.first, before: id)
         } isTargeted: { targeted in
             dropTargetId = targeted ? id : (dropTargetId == id ? nil : dropTargetId)
@@ -184,7 +217,7 @@ struct WorkspaceTabsList: View {
             .frame(height: 12)
             .frame(maxWidth: .infinity)
             .contentShape(Rectangle())
-            .dropDestination(for: String.self) { items, _ in
+            .dropDestination(for: TabDragItem.self) { items, _ in
                 dropTab(items.first, before: nil)
             } isTargeted: { targeted in
                 endZoneTargeted = targeted
@@ -207,6 +240,14 @@ struct WorkspaceTabsList: View {
                 }
             }
         } else {
+            if supportsMultipleWindows {
+                contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
+                    openWindow(id: documentWindowId, value: id)
+                }
+
+                Divider()
+            }
+
             contextMenuItem("Close", systemImage: "xmark") {
                 close([id])
             }
@@ -255,6 +296,12 @@ struct WorkspaceTabsList: View {
         let name = filesModel.idsToFiles[id]?.name ?? "unknown"
 
         return HStack(spacing: 8) {
+            Image(systemName: "line.3.horizontal")
+                .font(.system(size: 12, weight: .semibold))
+                .foregroundStyle(.tertiary)
+                .padding(.vertical, 8)
+                .padding(.trailing, 2)
+
             Image(systemName: "arrow.uturn.left")
                 .font(.system(size: 12))
                 .foregroundStyle(.secondary)
@@ -272,6 +319,7 @@ struct WorkspaceTabsList: View {
         .onTapGesture {
             workspaceInput.openFile(id: id)
         }
+        .draggable(TabDragItem(id: id))
     }
 
     private var closeCountLabel: String {
@@ -317,19 +365,32 @@ struct WorkspaceTabsList: View {
         workspaceInput.openFile(id: id)
     }
 
-    private func dropTab(_ dragged: String?, before target: UUID?) -> Bool {
+    private func dropTab(_ dragged: TabDragItem?, before target: UUID?) -> Bool {
         defer {
             dropTargetId = nil
             endZoneTargeted = false
         }
 
-        guard let dragged = dragged.flatMap(UUID.init),
-              let from = tabIds.firstIndex(of: dragged)
-        else {
+        guard let dragged = dragged?.id else {
             return false
         }
 
         let targetIndex = target.flatMap { tabIds.firstIndex(of: $0) } ?? tabIds.count
+
+        guard let from = tabIds.firstIndex(of: dragged) else {
+            guard recentlyClosed.contains(dragged) else {
+                return false
+            }
+
+            workspaceInput.openFile(id: dragged)
+            workspaceInput.moveTab(from: tabIds.count, to: targetIndex)
+            withAnimation {
+                refresh()
+            }
+
+            return true
+        }
+
         let to = from < targetIndex ? targetIndex - 1 : targetIndex
 
         guard to != from else {
@@ -344,8 +405,18 @@ struct WorkspaceTabsList: View {
         return true
     }
 
+    private var supportsMultipleWindows: Bool {
+        #if os(iOS)
+            UIApplication.shared.supportsMultipleScenes
+        #else
+            true
+        #endif
+    }
+
     private func refresh() {
         tabIds = workspaceInput.getTabsIds()
+        canNavBack = workspaceInput.canNavBack()
+        canNavForward = workspaceInput.canNavForward()
 
         let open = Set(tabIds)
         recentlyClosed = workspaceInput.getRecentlyClosedTabs()

@@ -135,7 +135,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "admin"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -1266,6 +1266,28 @@ dependencies = [
  "serde",
  "wasm-bindgen",
  "windows-targets 0.52.6",
+]
+
+[[package]]
+name = "chrono-tz"
+version = "0.9.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "93698b29de5e97ad0ae26447b344c482a7284c737d9ddc5f9e52b74a336671bb"
+dependencies = [
+ "chrono",
+ "chrono-tz-build",
+ "phf 0.11.3",
+]
+
+[[package]]
+name = "chrono-tz-build"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0c088aee841df9c3041febbb73934cfc39708749bf96dc827e3359cd39ef11b1"
+dependencies = [
+ "parse-zoneinfo",
+ "phf 0.11.3",
+ "phf_codegen 0.11.3",
 ]
 
 [[package]]
@@ -4044,7 +4066,7 @@ checksum = "e2abad23fbc42b3700f2f279844dc832adb2b2eb069b2df918f455c4e18cc646"
 
 [[package]]
 name = "lb-c"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "lb-rs",
 ]
@@ -4056,7 +4078,7 @@ source = "git+https://github.com/lockbook/lb-fonts#d777ff8ab8bf198ebaf6b3406daba
 
 [[package]]
 name = "lb-fs"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "cli-rs 0.2.0",
  "lb-rs",
@@ -4068,7 +4090,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "jni",
  "lb-rs",
@@ -4099,7 +4121,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "aes-gcm",
  "base64 0.13.1",
@@ -4155,8 +4177,9 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
+ "chrono-tz",
  "cli-rs 0.1.13",
  "dotenvy",
  "gh_release",
@@ -4167,7 +4190,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.8",
- "time",
  "tokio",
  "toml",
  "toml_edit 0.19.15",
@@ -4369,7 +4391,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "arboard",
  "chrono",
@@ -4409,7 +4431,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-egui"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "dark-light",
  "eframe",
@@ -4430,14 +4452,14 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "lockbook-desktop",
 ]
 
 [[package]]
 name = "lockbook-server"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4476,7 +4498,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "lockbook-desktop",
 ]
@@ -5553,6 +5575,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "parse-zoneinfo"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1f2a05b18d44e2957b88f96ba460715e295bc1d7510468a2f3d3b44535d26c24"
+dependencies = [
+ "regex",
+]
+
+[[package]]
 name = "password-hash"
 version = "0.4.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -5641,6 +5672,15 @@ dependencies = [
 
 [[package]]
 name = "phf"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "1fd6780a80ae0c52cc120a26a1a42c1ae51b247a253e4e06113d23d2c2edd078"
+dependencies = [
+ "phf_shared 0.11.3",
+]
+
+[[package]]
+name = "phf"
 version = "0.13.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c1562dc717473dbaa4c1f85a36410e03c047b2e7df7f45ee938fbef64ae7fadf"
@@ -5668,6 +5708,16 @@ checksum = "4fb1c3a8bc4dd4e5cfce29b44ffc14bedd2ee294559a294e2a4d4c9e9a6a13cd"
 dependencies = [
  "phf_generator 0.10.0",
  "phf_shared 0.10.0",
+]
+
+[[package]]
+name = "phf_codegen"
+version = "0.11.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "aef8048c789fa5e851558d709946d6d79a8ff88c0440c587967f8e94bfb1216a"
+dependencies = [
+ "phf_generator 0.11.2",
+ "phf_shared 0.11.3",
 ]
 
 [[package]]
@@ -7669,7 +7719,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "bincode",
  "lb-rs",
@@ -9512,7 +9562,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -9546,7 +9596,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -9601,7 +9651,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "26.7.8"
+version = "26.7.10"
 dependencies = [
  "egui",
  "egui_extras",

@@ -32,7 +32,10 @@ pub enum Event {
 
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum Actor {
-    User,
+    /// A write initiated locally. The id identifies the writer (e.g. a
+    /// workspace instance) so subscribers can tell their own writes apart
+    /// from writes by other workspaces or tools sharing this lb.
+    User(Option<Uuid>),
     Sync,
 }
 
