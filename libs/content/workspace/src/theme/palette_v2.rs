@@ -164,6 +164,7 @@ impl Theme {
             Mode::Dark => self.dim.black,
         }
     }
+
 }
 
 /// Returns the color that, painted at opacity `alpha` over `background`,
@@ -371,7 +372,7 @@ impl Theme {
             current,
             dim: ThemeVariant {
                 black: hex_color!("#000000"),
-                grey: hex_color!("#1C1C1E"),
+                grey: hex_color!("#1D1D1D"),
                 white: hex_color!("#FFFFFF"),
                 red: hex_color!("#FF383C"),
                 green: hex_color!("#34C759"),
@@ -388,7 +389,7 @@ impl Theme {
             },
             bright: ThemeVariant {
                 black: hex_color!("#000000"),
-                grey: hex_color!("#F2F2F7"),
+                grey: hex_color!("#F6F6F6"),
                 white: hex_color!("#FFFFFF"),
                 red: hex_color!("#FF4245"),
                 green: hex_color!("#30D158"),
@@ -404,6 +405,12 @@ impl Theme {
                 quaternary: Palette::Cyan,
             },
         }
+    }
+
+    pub fn apple_macos(current: Mode) -> Self {
+        let mut theme = Self::apple(current);
+        theme.dim.black = hex_color!("#101010");
+        theme
     }
 
     pub fn darcula(current: Mode) -> Self {

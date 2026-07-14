@@ -58,11 +58,15 @@ struct HomeView: View {
         ) {
             sidebar
                 .navigationSplitViewColumnWidth(min: 268, ideal: 300, max: 500)
+                #if os(iOS)
+                    .toolbar(removing: .sidebarToggle)
+                #endif
         } detail: {
             workspace
                 .navigationTitle(detailTitle)
                 #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
+                    .toolbar(removing: .sidebarToggle)
                     .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                 #endif
                 .toolbar {

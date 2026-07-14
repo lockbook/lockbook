@@ -33,7 +33,11 @@ pub unsafe extern "C" fn init_ws(
 
     visuals::init(&renderer.context);
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
-    renderer.context.set_lb_theme(Theme::apple(mode));
+    #[cfg(target_os = "macos")]
+    let theme = Theme::apple_macos(mode);
+    #[cfg(not(target_os = "macos"))]
+    let theme = Theme::apple(mode);
+    renderer.context.set_lb_theme(theme);
 
     let workspace = Workspace::new(core, &renderer.context, show_tabs, persist, None);
     let mut fonts = FontDefinitions::default();
