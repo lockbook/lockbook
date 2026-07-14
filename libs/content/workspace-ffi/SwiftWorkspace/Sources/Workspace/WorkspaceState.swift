@@ -19,7 +19,13 @@ import Observation
 
 @Observable public class WorkspaceInputState {
     @ObservationIgnored public var coreHandle: UnsafeMutableRawPointer?
-    @ObservationIgnored public var wsHandle: UnsafeMutableRawPointer?
+    @ObservationIgnored public var wsHandle: UnsafeMutableRawPointer? {
+        didSet {
+            guard let wsHandle else { return }
+            set_sidebar_open(wsHandle, nativeSidebarOpen)
+        }
+    }
+    @ObservationIgnored private var nativeSidebarOpen = false
 
     @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
     @ObservationIgnored public var focus = PassthroughSubject<Void, Never>()
@@ -150,6 +156,15 @@ import Observation
 
         reorder_tab(wsHandle, UInt(from), UInt(to))
         redraw.send(())
+    }
+
+    public func setSidebarOpen(_ open: Bool) {
+        nativeSidebarOpen = open
+
+        if let wsHandle {
+            set_sidebar_open(wsHandle, open)
+            redraw.send(())
+        }
     }
 
     private func tabIds(from result: TabsIds) -> [UUID] {

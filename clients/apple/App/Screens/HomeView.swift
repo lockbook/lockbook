@@ -203,6 +203,12 @@ struct HomeView: View {
         .onChange(of: AppState.lb.events.metadataVersion) {
             filesModel.loadFiles()
         }
+        .onAppear {
+            workspaceInput.setSidebarOpen(nativeSidebarOpen)
+        }
+        .onChange(of: nativeSidebarOpen) { _, open in
+            workspaceInput.setSidebarOpen(open)
+        }
         .onChange(of: AppState.lb.events.status) { _, status in
             filesModel.recomputeStatusDots(status: status)
 
@@ -256,6 +262,16 @@ struct HomeView: View {
         } else {
             nil
         }
+    }
+
+    private var nativeSidebarOpen: Bool {
+        #if os(iOS)
+            if horizontalSizeClass == .compact {
+                return homeState.compactColumn == .sidebar
+            }
+        #endif
+
+        return homeState.splitViewVisibility == .all
     }
 
     @ViewBuilder
