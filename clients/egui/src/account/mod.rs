@@ -137,6 +137,7 @@ impl AccountScreen {
         self.show_any_modals(ctx, 0.0);
 
         let sidebar_expanded = !self.settings.read().unwrap().zen_mode;
+        self.workspace.sidebar_open = sidebar_expanded;
 
         let sidebar_min_width: f32 = 300.0;
         // max width is 2/3 of screen, but at least sidebar_min_width to avoid looking weird on small screens

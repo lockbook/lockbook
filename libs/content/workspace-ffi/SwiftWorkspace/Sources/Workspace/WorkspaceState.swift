@@ -21,8 +21,10 @@ import Observation
     @ObservationIgnored public var coreHandle: UnsafeMutableRawPointer?
     @ObservationIgnored public var wsHandle: UnsafeMutableRawPointer? {
         didSet {
-            guard wsHandle != nil, !pendingOpens.isEmpty else { return }
+            guard let wsHandle else { return }
+            set_sidebar_open(wsHandle, nativeSidebarOpen)
 
+            guard !pendingOpens.isEmpty else { return }
             let queued = pendingOpens
             pendingOpens = []
             for id in queued {
@@ -31,6 +33,7 @@ import Observation
         }
     }
 
+    @ObservationIgnored private var nativeSidebarOpen = false
     @ObservationIgnored private var pendingOpens: [UUID] = []
 
     @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
@@ -189,6 +192,15 @@ import Observation
 
         reorder_tab(wsHandle, UInt(from), UInt(to))
         redraw.send(())
+    }
+
+    public func setSidebarOpen(_ open: Bool) {
+        nativeSidebarOpen = open
+
+        if let wsHandle {
+            set_sidebar_open(wsHandle, open)
+            redraw.send(())
+        }
     }
 
     private func tabIds(from result: TabsIds) -> [UUID] {

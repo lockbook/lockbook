@@ -1,8 +1,8 @@
 use basic_human_duration::ChronoHumanDuration;
 use egui::os::OperatingSystem;
 use egui::{
-    Align2, DragAndDrop, Galley, Id, Image, Key, LayerId, Modifiers, Order, Rangef, Rect, RichText,
-    Sense, TextWrapMode, UiBuilder, ViewportCommand, include_image, vec2,
+    Align2, DragAndDrop, Galley, Id, Key, LayerId, Modifiers, Order, Rangef, Rect, RichText, Sense,
+    TextWrapMode, UiBuilder, ViewportCommand, vec2,
 };
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
@@ -22,6 +22,11 @@ use crate::widgets::glyphon_cache::GlyphonCache;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
 use lb_rs::Uuid;
+
+pub const NEW_NOTE_SHORTCUT: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::N);
+pub const SEARCH_SHORTCUT: egui::KeyboardShortcut =
+    egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
 
 impl Workspace {
     #[instrument(level = "trace", skip_all)]
@@ -52,11 +57,8 @@ impl Workspace {
         self.apply_pending_open_range();
 
         if self.is_empty() {
-            if self.show_tabs {
-                self.show_landing_page(ui);
-            } else {
-                self.show_mobile_landing_page(ui);
-            }
+            self.show_landing_page(ui);
+
             self.landing_page_first_frame = false;
         } else {
             ui.centered_and_justified(|ui| self.show_tabs(ui));
@@ -115,58 +117,6 @@ impl Workspace {
                     .style_mut(|style| style.interaction.tooltip_delay = f32::MAX);
             }
         }
-    }
-
-    fn show_mobile_landing_page(&mut self, ui: &mut egui::Ui) {
-        let punchout = if ui.visuals().dark_mode {
-            include_image!("../punchout-dark.png")
-        } else {
-            include_image!("../punchout-light.png")
-        };
-
-        ui.centered_and_justified(|ui| {
-            ui.vertical_centered(|ui| {
-                ui.add_space(30.0);
-                let image_size = egui::vec2(200.0, 200.0);
-                ui.add(Image::new(punchout).fit_to_exact_size(image_size));
-                ui.add_space(120.0);
-
-                ui.label(
-                    RichText::new("TOOLS")
-                        .small()
-                        .weak()
-                        .text_style(egui::TextStyle::Button),
-                );
-                ui.add_space(24.0);
-
-                let is_beta = self
-                    .core
-                    .get_account()
-                    .map(|a| a.is_beta())
-                    .unwrap_or_default();
-                if is_beta
-                    && ui
-                        .add_sized(
-                            [200.0, 44.0],
-                            egui::Button::new(RichText::new("Mind Map").size(18.0)),
-                        )
-                        .clicked()
-                {
-                    self.upsert_mind_map(self.core.clone());
-                }
-                ui.add_space(12.0);
-
-                if ui
-                    .add_sized(
-                        [200.0, 44.0],
-                        egui::Button::new(RichText::new("Space Inspector").size(18.0)),
-                    )
-                    .clicked()
-                {
-                    self.start_space_inspector(self.core.clone(), None);
-                }
-            });
-        });
     }
 
     fn show_tabs(&mut self, ui: &mut egui::Ui) {
@@ -417,10 +367,9 @@ impl Workspace {
         ];
 
         // Ctrl-N pressed while new file modal is not open.
-        if self
-            .ctx
-            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::N))
-        {
+        if self.ctx.input_mut(|i| {
+            i.consume_key_exact(NEW_NOTE_SHORTCUT.modifiers, NEW_NOTE_SHORTCUT.logical_key)
+        }) {
             self.create_doc(false);
         }
 
@@ -452,10 +401,10 @@ impl Workspace {
         {
             self.upsert_search(Some(SearchType::Content));
         }
-        if self
-            .ctx
-            .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::O))
-        {
+
+        if self.ctx.input_mut(|i| {
+            i.consume_key_exact(SEARCH_SHORTCUT.modifiers, SEARCH_SHORTCUT.logical_key)
+        }) {
             self.upsert_search(Some(SearchType::Path));
         }
 

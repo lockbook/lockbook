@@ -134,6 +134,13 @@ pub unsafe extern "C" fn set_contact_linked_sites(obj: *mut c_void, value: bool)
 
 /// # Safety
 #[no_mangle]
+pub unsafe extern "C" fn set_sidebar_open(obj: *mut c_void, open: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.sidebar_open = open;
+}
+
+/// # Safety
+#[no_mangle]
 pub unsafe extern "C" fn dark_mode(obj: *mut c_void, dark: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let mut theme = obj.renderer.context.get_lb_theme();

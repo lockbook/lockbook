@@ -87,6 +87,7 @@ pub struct Workspace {
     pub show_tabs: bool, // set on mobile to hide the tab strip
     pub tab_strip_left_inset: f32,
     pub tab_strip_min_height: f32,
+    pub sidebar_open: bool,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
     // Transient state (consider removing)
@@ -153,6 +154,7 @@ impl Workspace {
             show_tabs,
             tab_strip_left_inset: 0.0,
             tab_strip_min_height: 0.0,
+            sidebar_open: false,
             focused_parent: Default::default(),
 
             landing_page_first_frame: true,
@@ -166,6 +168,12 @@ impl Workspace {
             pending_open_range: None,
             ws_rx,
         };
+
+        {
+            let files = Arc::clone(&ws.files);
+            let files = files.read().unwrap();
+            ws.landing_page.update_recent_files(&files);
+        }
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();
 
@@ -674,7 +682,9 @@ impl Workspace {
         loop {
             match self.ws_rx.try_recv() {
                 Ok(WsUpdates::FileCacheComputed(file_cache)) => {
-                    *self.files.write().unwrap() = file_cache.unwrap();
+                    let file_cache = file_cache.unwrap();
+                    self.landing_page.update_recent_files(&file_cache);
+                    *self.files.write().unwrap() = file_cache;
                     self.out.file_cache_updated = true;
 
                     for tab in self.tabs.values_mut() {
