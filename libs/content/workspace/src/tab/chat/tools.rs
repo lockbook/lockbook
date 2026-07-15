@@ -44,11 +44,18 @@ pub const DENIED_RESULT: &str = "The user denied this tool call.";
 /// cover their subtree and the folder itself; note grants cover exactly that
 /// note. `"/"` grants everything. Compared as path segments, not characters
 /// — `/notes/` must not match `/notes2/a.md` on a shared string prefix.
+///
+/// Dotted segments *beyond the grant* never match: a broad grant must not
+/// implicitly cover `/.agent/` (provider files carry API keys, and the
+/// prompt file steers the agent — silent reads exfiltrate, silent writes
+/// self-modify). Spelling the dots out in the grant is the opt-in.
 pub fn in_scope(path: &str, scope: &[String]) -> bool {
     let path = path_segments(path);
     scope.iter().any(|g| {
         let grant = path_segments(g);
-        if g.ends_with('/') { path.starts_with(grant.as_slice()) } else { path == grant }
+        let covered =
+            if g.ends_with('/') { path.starts_with(grant.as_slice()) } else { path == grant };
+        covered && !path[grant.len()..].iter().any(|s| s.starts_with('.'))
     })
 }
 
@@ -639,11 +646,22 @@ async fn list(lb: &Lb, args: &Value) -> Outcome {
     let Ok(children) = children else {
         return Outcome::err(format!("error: couldn't list {path}."));
     };
+    let listed_depth = path_segments(path).len();
     for f in children {
         if f.id == folder.id {
             continue;
         }
         let p = lb.get_path_by_id(f.id).await.unwrap_or(f.name.clone());
+        // Dotted rows stay hidden unless the listed path itself is inside
+        // them — same opt-in as `in_scope`, so names don't leak what
+        // contents can't back up. (`get`: the name fallback above can be
+        // shallower than the listed path.)
+        let dotted = path_segments(&p)
+            .get(listed_depth..)
+            .is_some_and(|rest| rest.iter().any(|s| s.starts_with('.')));
+        if dotted {
+            continue;
+        }
         rows.push(p);
     }
     if rows.is_empty() {
@@ -1194,5 +1212,30 @@ mod tests {
         assert!(in_scope("/anything/x.md", &root));
 
         assert!(!in_scope("/anything", &[]), "empty scope grants nothing");
+    }
+
+    /// Dotted segments beyond the grant never match — `/.agent/` holds
+    /// provider keys and the prompt, so "everything" must not include it
+    /// implicitly. Spelling the dots out in the grant is the opt-in, and
+    /// deeper dots still need their own.
+    #[test]
+    fn dotted_segments_need_their_own_grant() {
+        let scope = |s: &[&str]| s.iter().map(|g| g.to_string()).collect::<Vec<_>>();
+
+        let root = scope(&["/"]);
+        assert!(!in_scope("/.agent/providers/openai.json", &root));
+        assert!(!in_scope("/.agent/prompt.md", &root));
+        assert!(!in_scope("/.agent/", &root));
+        assert!(!in_scope("/notes/.hidden.md", &scope(&["/notes/"])));
+        // A dot inside a name is an extension, not hiding.
+        assert!(in_scope("/notes/a.md", &root));
+
+        // Explicitly granting the dotted folder (or note) opts in…
+        let agent = scope(&["/.agent/"]);
+        assert!(in_scope("/.agent/providers/openai.json", &agent));
+        assert!(in_scope("/.agent/", &agent));
+        assert!(in_scope("/.agent/prompt.md", &scope(&["/.agent/prompt.md"])));
+        // …but only down to the next dotted segment.
+        assert!(!in_scope("/.agent/.keys/k", &agent));
     }
 }
