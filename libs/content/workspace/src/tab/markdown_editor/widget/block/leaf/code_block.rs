@@ -143,6 +143,9 @@ impl<'ast> MdRender {
         let row_height = self.layout.row_height;
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+        if let Some(code) = self.ctx.get_lb_theme().code_variant() {
+            ui.painter().rect_filled(rect, 2., code.background);
+        }
         ui.painter().rect_stroke(
             rect,
             2.,
@@ -277,6 +280,9 @@ impl<'ast> MdRender {
         let height = self.height_indented_code_block(node, node_code_block, synthetic);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
+        if let Some(code) = self.ctx.get_lb_theme().code_variant() {
+            ui.painter().rect_filled(rect, 2., code.background);
+        }
         ui.painter().rect_stroke(
             rect,
             2.,

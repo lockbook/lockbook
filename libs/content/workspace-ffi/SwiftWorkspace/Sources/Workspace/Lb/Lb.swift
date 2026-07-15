@@ -57,6 +57,11 @@ public class Lb: LbAPI {
                     self.events.status = self.getStatus()
                 } else if event.metadata_updated || event.pending_shares_changed {
                     self.events.metadataVersion += 1
+                } else if event.doc_written {
+                    self.events.docWritten = DocWritten(
+                        id: event.doc_written_id.toUUID(),
+                        seq: (self.events.docWritten?.seq ?? 0) + 1
+                    )
                 }
             }
         })

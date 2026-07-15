@@ -5,6 +5,17 @@ import Observation
 @Observable public class Events {
     public var status: Status = .init()
     public var metadataVersion: Int = 0
+    public var docWritten: DocWritten? = nil
+}
+
+public struct DocWritten: Equatable {
+    public let id: UUID
+    public let seq: Int
+
+    public init(id: UUID, seq: Int) {
+        self.id = id
+        self.seq = seq
+    }
 }
 
 public struct Status: Equatable {

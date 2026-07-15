@@ -100,14 +100,3 @@ pub unsafe extern "C" fn set_tab_strip_height(obj: *mut c_void, height: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.workspace.tab_strip_min_height = height;
 }
-
-/// # Safety
-/// obj must be a valid pointer to WgpuWorkspace
-///
-/// Returns the desired sidebar color packed as 0xRRGGBBAA.
-#[no_mangle]
-pub unsafe extern "C" fn desired_sidebar_color(obj: *mut c_void) -> u32 {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let c = obj.renderer.context.style().visuals.panel_fill;
-    ((c.r() as u32) << 24) | ((c.g() as u32) << 16) | ((c.b() as u32) << 8) | (c.a() as u32)
-}
