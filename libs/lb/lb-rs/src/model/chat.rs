@@ -61,6 +61,12 @@ pub struct ChatConfig {
     /// default where the model supports it; absent → the file default.
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub effort: Option<String>,
+    /// The paths this chat's agent may read and edit when the model is
+    /// remote: folder roots (trailing '/') and single notes. The full list
+    /// is carried per entry; absent → no change, latest wins. Absent in
+    /// every entry → nothing granted.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub scope: Option<Vec<String>>,
     /// Config fields this client doesn't know about, preserved verbatim so a
     /// merge performed by an older client can't strip them (mirrors
     /// [`Message::extra`]).

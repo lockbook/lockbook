@@ -442,6 +442,8 @@ impl Chat {
                     tools::detail_for(&p.name, &p.args),
                     tools::permission_prose(&p.name, &p.args, &provider_label),
                     p.preview.clone(),
+                    p.name == "request_access",
+                    tools::request_reason(&p.args),
                 )
             });
         // Soft washes behind rendered diffs' changed blocks.
@@ -852,8 +854,8 @@ impl Chat {
                     // pinned open: a header bar with the command summary, over
                     // a bordered body holding the permission prose, the
                     // proposed change, and Approve / Deny.
-                    let review_plan =
-                        pending_tool.as_ref().map(|(summary_text, prose, preview)| {
+                    let review_plan = pending_tool.as_ref().map(
+                        |(summary_text, prose, preview, is_request, reason)| {
                             y += TOOL_GROUP_PAD;
                             let indent = TOOL_PAD_X;
 
@@ -884,6 +886,26 @@ impl Chat {
                             });
                             let prose_pos = pos2(note_x + indent, cy);
                             cy += prose.size().y;
+
+                            // A request_access call's stated reason, in
+                            // the model's own words — italic sans sets it
+                            // apart from the ask sentence's dimmed mono.
+                            let reason_plan = reason.as_ref().map(|r| {
+                                let galley = ui.fonts(|f| {
+                                    f.layout(
+                                        format!("“{r}”"),
+                                        egui::FontId {
+                                            size: TOOL_FONT,
+                                            family: egui::FontFamily::Name("Italic".into()),
+                                        },
+                                        secondary_color,
+                                        body_w,
+                                    )
+                                });
+                                let pos = pos2(note_x + indent, cy + ROW_GAP);
+                                cy += ROW_GAP + galley.size().y;
+                                (galley, pos)
+                            });
 
                             // The proposed change, under the prose.
                             let body = match preview {
@@ -930,10 +952,13 @@ impl Chat {
                                     )
                                 })
                             };
+                            // A grant reads as "Allow" — it confers standing
+                            // access, not a one-shot approval.
+                            let verb = if *is_request { "Allow" } else { "Approve" };
                             let approve_label = if show_key_hints {
-                                format!("Approve {approve_hint}")
+                                format!("{verb} {approve_hint}")
                             } else {
-                                "Approve".into()
+                                verb.into()
                             };
                             let deny_label = if show_key_hints {
                                 format!("Deny {deny_hint}")
@@ -963,6 +988,7 @@ impl Chat {
                                 summary,
                                 prose,
                                 prose_pos,
+                                reason: reason_plan,
                                 body,
                                 approve,
                                 approve_rect,
@@ -970,7 +996,8 @@ impl Chat {
                                 deny_rect,
                                 border,
                             }
-                        });
+                        },
+                    );
 
                     // Keep the clicked arrows where they were: correct for
                     // any height change of the swapped fork row (content
@@ -1419,6 +1446,10 @@ impl Chat {
                         );
                         // The permission request.
                         ui.painter().galley(r.prose_pos, r.prose, secondary_color);
+                        // The agent's stated reason, italic, under the ask.
+                        if let Some((galley, pos)) = r.reason {
+                            ui.painter().galley(pos, galley, secondary_color);
+                        }
                         match r.body {
                             ReviewBody::None => {}
                             ReviewBody::Galley { galley, pos } => {
@@ -2426,6 +2457,7 @@ impl Chat {
             // Model and effort need a resolved provider; the picker above is
             // the whole toolbar until one resolves.
             let mut effort_pick: Option<String> = None;
+            let mut revoke: Option<String> = None;
             if let Some(current) = current {
                 // The button shows the selected model's display name when the
                 // listing has landed; the id (what's actually configured) until
@@ -2523,6 +2555,48 @@ impl Chat {
                             }
                         });
                 }
+
+                // Access chip: what the agent can reach. A local model reads
+                // everything (nothing egresses); a remote one only the
+                // granted roots, given out strictly through the agent's own
+                // request_access cards — no manual grant here, only revoke.
+                // Nothing to say (remote, nothing granted yet) → no chip.
+                let scope = latest_scope(&self.entries, &self.account.username);
+                if current.is_local() || !scope.is_empty() {
+                    // "/" subsumes any other listed root, so it reads as one
+                    // grant rather than "N paths" once it's in the list.
+                    let root_granted = scope.iter().any(|g| g == "/");
+                    let access_label = if current.is_local() {
+                        "access: all (local)".to_string()
+                    } else if root_granted {
+                        "access: everything".to_string()
+                    } else {
+                        match scope.as_slice() {
+                            [one] => format!("access: {one}"),
+                            many => format!("access: {} paths", many.len()),
+                        }
+                    };
+                    let access_resp = dropdown(ui, "chat_access_btn", &access_label)
+                        .on_hover_text("the notes and folders this chat's agent can read and edit");
+                    egui::Popup::menu(&access_resp)
+                        .align(egui::RectAlign::TOP_START)
+                        .show(|ui| {
+                            ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                            ui.set_min_width(180.0);
+                            if current.is_local() {
+                                ui.weak("local model — notes never leave this machine");
+                            } else {
+                                ui.weak("click a grant to revoke it");
+                                for g in &scope {
+                                    let label = if g == "/" { "everything" } else { g };
+                                    if ui.button(row_text(label, false)).clicked() {
+                                        revoke = Some(g.clone());
+                                        ui.close();
+                                    }
+                                }
+                            }
+                        });
+                }
             }
 
             // Conversation-scoped actions live in a ⋯ overflow at the
@@ -2591,6 +2665,10 @@ impl Chat {
             }
             if let Some(effort) = effort_pick {
                 self.write_effort(effort);
+                changed = true;
+            }
+            if let Some(path) = revoke {
+                self.revoke_grant(&path);
                 changed = true;
             }
             if open_chooser {

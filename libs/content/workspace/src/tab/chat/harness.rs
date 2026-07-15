@@ -34,22 +34,34 @@ const MAX_TOOL_TURNS: u32 = 30;
 enum Cmd {
     /// A user message to respond to; the caller already appended it to the
     /// transcript. `system` overrides the built-in preamble when the user
-    /// has a prompt file.
-    Say { text: String, provider: Provider, system: Option<String> },
+    /// has a prompt file. `turn` carries the access scope the turn runs
+    /// under and the chat's own folder (for the prompt's access block).
+    Say { text: String, provider: Provider, system: Option<String>, turn: TurnAccess },
     /// Cancel the turn in flight, keeping the text streamed so far.
     Stop,
     /// Re-run the last failed turn — with current config, so "fix the key,
     /// hit retry" works.
-    Retry { provider: Provider, system: Option<String> },
+    Retry { provider: Provider, system: Option<String>, turn: TurnAccess },
     /// Replace model context wholesale — the UI's transcript mutations
     /// (delete, and later edit/regenerate) recompute the seed and hand the
     /// driver its new truth. Sent only while idle. Buffers are session state
     /// and survive a reseed.
     Reseed(Vec<ChatMsg>, Buffers),
-    /// Approve the pending edit — it runs and then applies to the real note.
+    /// Approve the pending call — an edit runs and applies to the real note;
+    /// a `request_access` adds its path to the turn's scope.
     Approve,
-    /// Deny the pending edit; the model is told and steers.
+    /// Deny the pending call; the model is told and steers.
     Deny,
+}
+
+/// Access context a turn runs under, snapshotted at send.
+#[derive(Clone, Default)]
+pub struct TurnAccess {
+    /// Granted roots — folders (trailing '/') and single notes. Grants made
+    /// mid-turn extend the driver's copy; the UI persists them.
+    pub scope: Vec<String>,
+    /// The folder the chat file lives in, for the prompt's access block.
+    pub chat_folder: String,
 }
 
 /// Driver → UI.
@@ -62,19 +74,21 @@ enum AgentEvent {
         text: String,
         usage: Option<Usage>,
     },
-    /// An edit wants to run; the UI shows the approval card (with the
-    /// proposed diff) and the turn blocks until approve/deny. Reads and
-    /// listings run without a gate.
+    /// A tool call wants to run; the UI shows the approval card and the turn
+    /// blocks until approve/deny. Cards show for edits (with the proposed
+    /// diff) and `request_access`; see [`gate`].
     ToolRequest {
         name: String,
         /// The call's raw arguments, for the card's adapted permission prose.
         args: Value,
         /// For edits: the proposed change as diff segments, or the steering
-        /// error approval would hit. `None` for gated reads.
+        /// error approval would hit. `None` for `request_access`.
         preview: Option<Result<Vec<diff::Segment>, String>>,
     },
     /// A tool call resolved (ran, or was denied) — persist it.
     ToolDone(ToolOutcome),
+    /// The user granted `request_access` — the UI persists the widened scope.
+    Granted(String),
     /// The turn failed; any partial text was discarded. Retryable.
     Error(String),
     TurnEnded,
@@ -105,7 +119,7 @@ pub struct Harness {
     pub busy: bool,
     /// Text streamed so far this turn.
     pub streaming: String,
-    /// The edit awaiting the user's decision; `Some` drives the approval
+    /// The call awaiting the user's decision; `Some` drives the approval
     /// card.
     pub pending_tool: Option<PendingTool>,
 
@@ -113,12 +127,12 @@ pub struct Harness {
     events_rx: UnboundedReceiver<AgentEvent>,
 }
 
-/// An edit shown to the user for approval.
+/// A gated tool call shown to the user for approval.
 pub struct PendingTool {
     pub name: String,
     pub args: Value,
     /// For edits: the proposed change as diff segments, or the steering
-    /// error approval would hit. `None` for gated reads.
+    /// error approval would hit. `None` for `request_access`.
     pub preview: Option<Result<Vec<diff::Segment>, String>>,
 }
 
@@ -128,6 +142,8 @@ pub enum HarnessUpdate {
     Reply { text: String, usage: Option<Usage> },
     /// Append a tool record.
     Tool(ToolOutcome),
+    /// Persist a granted scope root as a config entry.
+    Granted(String),
     /// Append as an error row.
     Error(String),
 }
@@ -162,9 +178,11 @@ impl Harness {
 
     /// Send a user message to the agent. The caller has already appended it
     /// to the transcript.
-    pub fn say(&mut self, text: String, provider: Provider, system: Option<String>) {
+    pub fn say(
+        &mut self, text: String, provider: Provider, system: Option<String>, turn: TurnAccess,
+    ) {
         self.busy = true;
-        let _ = self.cmd_tx.send(Cmd::Say { text, provider, system });
+        let _ = self.cmd_tx.send(Cmd::Say { text, provider, system, turn });
     }
 
     /// Cancel the turn in flight; the partial reply arrives as a normal
@@ -174,19 +192,19 @@ impl Harness {
     }
 
     /// Re-run the last failed turn.
-    pub fn retry(&mut self, provider: Provider, system: Option<String>) {
+    pub fn retry(&mut self, provider: Provider, system: Option<String>, turn: TurnAccess) {
         self.busy = true;
-        let _ = self.cmd_tx.send(Cmd::Retry { provider, system });
+        let _ = self.cmd_tx.send(Cmd::Retry { provider, system, turn });
     }
 
-    /// Approve the pending edit. No-op if nothing is pending.
+    /// Approve the pending call. No-op if nothing is pending.
     pub fn approve(&mut self) {
         if self.pending_tool.take().is_some() {
             let _ = self.cmd_tx.send(Cmd::Approve);
         }
     }
 
-    /// Deny the pending edit.
+    /// Deny the pending call.
     pub fn deny(&mut self) {
         if self.pending_tool.take().is_some() {
             let _ = self.cmd_tx.send(Cmd::Deny);
@@ -220,6 +238,7 @@ impl Harness {
                     self.pending_tool = None;
                     updates.push(HarnessUpdate::Tool(outcome));
                 }
+                AgentEvent::Granted(path) => updates.push(HarnessUpdate::Granted(path)),
                 AgentEvent::Error(e) => {
                     self.streaming.clear();
                     updates.push(HarnessUpdate::Error(e));
@@ -256,15 +275,17 @@ async fn run(
                 None => return,
             },
         };
-        let (provider, system) = match cmd {
-            Cmd::Say { text, provider, system } => {
+        let (provider, system, turn_access) = match cmd {
+            Cmd::Say { text, provider, system, turn } => {
                 history.push(ChatMsg::User(text));
-                (provider, system)
+                (provider, system, turn)
             }
             // Retry only makes sense while the last context entry is the
             // user message whose turn failed.
-            Cmd::Retry { provider, system } if matches!(history.last(), Some(ChatMsg::User(_))) => {
-                (provider, system)
+            Cmd::Retry { provider, system, turn }
+                if matches!(history.last(), Some(ChatMsg::User(_))) =>
+            {
+                (provider, system, turn)
             }
             // Not a turn; no busy state to clear. The rebuilt buffers replace
             // the branch (a mutation may have removed tool rows).
@@ -285,10 +306,16 @@ async fn run(
             }
         };
 
-        // Reads egress note content to the provider, so they gate on
-        // approval too — except when the model runs on this machine and
-        // nothing leaves it.
+        // Reads egress note content to the provider, so a remote model only
+        // reaches paths the user has granted; a local model sees everything
+        // (nothing leaves the machine). Grants made this turn extend the list.
         let local = provider.is_local();
+        let TurnAccess { mut scope, chat_folder } = turn_access;
+        // Built once per turn, not per completion — see `access_intro` for why.
+        let mut system_full = system.clone().unwrap_or_else(preamble);
+        if !local {
+            system_full.push_str(&access_intro(&chat_folder));
+        }
         // The turn's backend, from the provider resolved at send time; reused
         // across the turn's completions.
         let backend = match provider.kind.as_str() {
@@ -308,7 +335,7 @@ async fn run(
         'turn: loop {
             turns += 1;
             let req = CompletionReq {
-                system: system.clone().unwrap_or_else(preamble),
+                system: system_full.clone(),
                 messages: history.clone(),
                 max_tokens: MAX_TOKENS,
                 tools: tools::schemas(),
@@ -373,60 +400,110 @@ async fn run(
             }
 
             // One call at a time on the wire, but handle a batch defensively —
-            // every tool_use needs a matching result. Edits always block on
-            // the user's approval (and, once approved and successful, apply
-            // straight through to the real note); reads gate only when the
-            // provider is remote.
+            // every tool_use needs a matching result. Out-of-scope calls fail
+            // as steering results (no card); edits and access requests block
+            // on the user's approval. An approved edit applies straight
+            // through to the real note; an approved request widens the scope.
             for call in calls {
                 let is_edit = call.name == "edit_note";
-                let gated = is_edit || !local;
-                if gated {
-                    let preview = if is_edit {
-                        Some(tools::preview_edit(&lb, &buffers, &call.args).await)
-                    } else {
-                        None
-                    };
-                    send(AgentEvent::ToolRequest {
-                        name: call.name.clone(),
-                        args: call.args.clone(),
-                        preview,
-                    });
-
-                    // Block on the decision, queuing unrelated commands.
-                    let approved = loop {
-                        match cmd_rx.recv().await {
-                            Some(Cmd::Approve) => break Some(true),
-                            Some(Cmd::Deny) => break Some(false),
-                            Some(Cmd::Stop) | None => break None,
-                            Some(other) => pending.push_back(other),
-                        }
-                    };
-                    match approved {
-                        // Stopped mid-approval: end the turn. The assistant's
-                        // call is left unanswered in the driver's history, but
-                        // the next Say reseeds from the transcript.
-                        None => break 'turn,
-                        // Denied: record the refusal (identical text live and
-                        // persisted); the model adjusts.
-                        Some(false) => {
-                            history.push(ChatMsg::ToolResult {
-                                id: call.id.clone(),
-                                content: tools::DENIED_RESULT.into(),
-                                is_error: false,
-                            });
-                            send(AgentEvent::ToolDone(ToolOutcome {
-                                name: call.name,
-                                args: call.args,
-                                result: tools::DENIED_RESULT.into(),
-                                // No buffer effect — replay skips it.
-                                is_error: true,
-                                capture: None,
-                                user_action: false,
-                            }));
-                            continue;
-                        }
-                        Some(true) => {}
+                let is_request = call.name == "request_access";
+                match gate(&call.name, &call.args, local, &scope) {
+                    Gate::OutOfScope => {
+                        let path = call_path(&call.args);
+                        let result = tools::out_of_scope(path, &scope);
+                        history.push(ChatMsg::ToolResult {
+                            id: call.id.clone(),
+                            content: result.clone(),
+                            is_error: false,
+                        });
+                        send(AgentEvent::ToolDone(ToolOutcome {
+                            name: call.name,
+                            args: call.args,
+                            result,
+                            // No buffer effect — replay skips it.
+                            is_error: true,
+                            capture: None,
+                            user_action: false,
+                        }));
+                        continue;
                     }
+                    Gate::Card => {
+                        let preview = if is_edit {
+                            Some(tools::preview_edit(&lb, &buffers, &call.args).await)
+                        } else {
+                            None
+                        };
+                        send(AgentEvent::ToolRequest {
+                            name: call.name.clone(),
+                            args: call.args.clone(),
+                            preview,
+                        });
+
+                        // Block on the decision, queuing unrelated commands.
+                        let approved = loop {
+                            match cmd_rx.recv().await {
+                                Some(Cmd::Approve) => break Some(true),
+                                Some(Cmd::Deny) => break Some(false),
+                                Some(Cmd::Stop) | None => break None,
+                                Some(other) => pending.push_back(other),
+                            }
+                        };
+                        match approved {
+                            // Stopped mid-approval: end the turn. The
+                            // assistant's call is left unanswered in the
+                            // driver's history, but the next Say reseeds from
+                            // the transcript.
+                            None => break 'turn,
+                            // Denied: record the refusal (identical text live
+                            // and persisted); the model adjusts.
+                            Some(false) => {
+                                history.push(ChatMsg::ToolResult {
+                                    id: call.id.clone(),
+                                    content: tools::DENIED_RESULT.into(),
+                                    is_error: false,
+                                });
+                                send(AgentEvent::ToolDone(ToolOutcome {
+                                    name: call.name,
+                                    args: call.args,
+                                    result: tools::DENIED_RESULT.into(),
+                                    // No buffer effect — replay skips it.
+                                    is_error: true,
+                                    capture: None,
+                                    user_action: false,
+                                }));
+                                continue;
+                            }
+                            Some(true) => {}
+                        }
+                    }
+                    Gate::Run => {}
+                }
+
+                // An approved request is answered by the harness, not
+                // dispatched: normalize the path (folders gain their '/'),
+                // widen the turn's scope, and hand the UI the grant to
+                // persist.
+                if is_request {
+                    let grant = tools::normalize_grant(&lb, call_path(&call.args)).await;
+                    scope.push(grant.clone());
+                    send(AgentEvent::Granted(grant.clone()));
+                    // The running total, not just this grant — see `access_intro`.
+                    let result =
+                        format!("granted: {grant}. Currently granted: {}", scope.join(", "));
+                    history.push(ChatMsg::ToolResult {
+                        id: call.id.clone(),
+                        content: result.clone(),
+                        is_error: false,
+                    });
+                    send(AgentEvent::ToolDone(ToolOutcome {
+                        name: call.name,
+                        args: call.args,
+                        result,
+                        is_error: false,
+                        capture: None,
+                        user_action: false,
+                    }));
+                    continue;
                 }
 
                 let out = tools::dispatch(&lb, &mut buffers, &call.name, &call.args).await;
@@ -478,6 +555,49 @@ async fn run(
             send(AgentEvent::TurnEnded);
         }
     }
+}
+
+/// What to do with a tool call before dispatch.
+#[derive(Debug, PartialEq)]
+enum Gate {
+    /// Runs silently.
+    Run,
+    /// Blocks on the approval card.
+    Card,
+    /// Fails with the out-of-scope steering result; no card.
+    OutOfScope,
+}
+
+/// The single access choke point. `request_access` always cards; everything
+/// else is scope-checked when the provider is remote (reads egress); edits
+/// additionally card even in scope.
+fn gate(name: &str, args: &Value, local: bool, scope: &[String]) -> Gate {
+    if name == "request_access" {
+        return Gate::Card;
+    }
+    if !local && !tools::in_scope(call_path(args), scope) {
+        return Gate::OutOfScope;
+    }
+    if name == "edit_note" { Gate::Card } else { Gate::Run }
+}
+
+/// The path a call targets; `list`'s default root when absent.
+fn call_path(args: &Value) -> &str {
+    args.get("path").and_then(Value::as_str).unwrap_or("/")
+}
+
+/// The system prompt's access section for a remote provider: static for the
+/// turn (indeed the whole chat, short of the folder moving) so it never
+/// perturbs the cached prefix. What's actually granted is deliberately
+/// absent — it changes on a mid-turn grant, so it travels as tool results
+/// instead ([`tools::out_of_scope`], the `request_access` outcome below).
+fn access_intro(chat_folder: &str) -> String {
+    format!(
+        "\n\nAccess: you can only read and edit paths the user has granted this chat — a call \
+         outside them fails, naming what's currently granted. Call request_access for the \
+         narrowest scope that covers the task (folder paths end with '/'), and carry on after \
+         the user decides. This chat lives in {chat_folder}."
+    )
 }
 
 /// The prompt's editable substance — also the prompt-file template, so
@@ -555,7 +675,7 @@ mod tests {
         let mut harness =
             Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
 
-        harness.say("hi".into(), provider(serve_once(SSE_HELLO)), None);
+        harness.say("hi".into(), provider(serve_once(SSE_HELLO)), None, TurnAccess::default());
         assert!(harness.busy);
 
         let deadline = Instant::now() + Duration::from_secs(5);
@@ -565,6 +685,7 @@ mod tests {
                 match update {
                     HarnessUpdate::Reply { text, usage } => replies.push((text, usage)),
                     HarnessUpdate::Tool(_) => panic!("unexpected tool"),
+                    HarnessUpdate::Granted(g) => panic!("unexpected grant: {g}"),
                     HarnessUpdate::Error(e) => panic!("unexpected error: {e}"),
                 }
             }
@@ -594,7 +715,7 @@ mod tests {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
         let mut harness =
             Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
-        harness.say("edit my note".into(), provider(base), None);
+        harness.say("edit my note".into(), provider(base), None, TurnAccess::default());
 
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline && harness.pending_tool.is_none() {
@@ -633,7 +754,7 @@ mod tests {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
         let mut harness =
             Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
-        harness.say("do it".into(), provider(base), None);
+        harness.say("do it".into(), provider(base), None, TurnAccess::default());
 
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline && harness.pending_tool.is_none() {
@@ -669,7 +790,7 @@ mod tests {
         let base = serve_seq(vec![SSE_LIST_CALL, SSE_HELLO]);
         let mut harness =
             Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
-        harness.say("what's in my vault?".into(), provider(base), None);
+        harness.say("what's in my vault?".into(), provider(base), None, TurnAccess::default());
 
         // Drain to completion: a tool row, then the reply — no decision step.
         let updates = drain(&mut harness);
@@ -684,11 +805,122 @@ mod tests {
                     saw_tool = true;
                 }
                 HarnessUpdate::Reply { text, .. } => reply = Some(text),
+                HarnessUpdate::Granted(g) => panic!("unexpected grant: {g}"),
                 HarnessUpdate::Error(e) => panic!("unexpected error: {e}"),
             }
         }
         assert!(saw_tool, "expected a tool row");
         assert_eq!(reply.as_deref(), Some("Hello"));
+        assert!(!harness.busy);
+    }
+
+    /// The single access choke point: `request_access` always cards; a remote
+    /// provider's calls are scope-checked (reads run in scope, edits card in
+    /// scope, anything out of scope fails); a local provider skips scope but
+    /// its edits still card.
+    #[test]
+    fn gate_routes_by_scope_and_locality() {
+        use serde_json::json;
+        let scope = vec!["/notes/".to_string(), "/one.md".to_string()];
+        let read = |p: &str| json!({ "path": p });
+
+        assert_eq!(gate("request_access", &read("/x/"), true, &[]), Gate::Card);
+        assert_eq!(gate("request_access", &read("/x/"), false, &[]), Gate::Card);
+
+        // Remote: scope decides.
+        assert_eq!(gate("read_note", &read("/notes/a.md"), false, &scope), Gate::Run);
+        assert_eq!(gate("read_note", &read("/one.md"), false, &scope), Gate::Run);
+        assert_eq!(gate("read_note", &read("/other.md"), false, &scope), Gate::OutOfScope);
+        assert_eq!(gate("list", &json!({}), false, &scope), Gate::OutOfScope); // default "/"
+        assert_eq!(gate("list", &read("/notes/"), false, &scope), Gate::Run);
+        assert_eq!(gate("edit_note", &read("/notes/a.md"), false, &scope), Gate::Card);
+        assert_eq!(gate("edit_note", &read("/other.md"), false, &scope), Gate::OutOfScope);
+
+        // Local: everything readable, edits still card.
+        assert_eq!(gate("read_note", &read("/other.md"), true, &[]), Gate::Run);
+        assert_eq!(gate("list", &json!({}), true, &[]), Gate::Run);
+        assert_eq!(gate("edit_note", &read("/other.md"), true, &[]), Gate::Card);
+    }
+
+    /// SSE body for a completion invoking `request_access` on a folder.
+    const SSE_REQUEST_CALL: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+         data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"request_access\",\"arguments\":\"{\\\"path\\\":\\\"/notes/\\\",\\\"reason\\\":\\\"to summarize\\\"}\"}}]}}]}\n\n\
+         data: {\"choices\":[],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":1}}\n\n\
+         data: [DONE]\n\n";
+
+    /// `request_access` raises the card; allowing it emits a Granted update
+    /// (for the UI to persist), answers the model with the grant, and the
+    /// turn completes.
+    #[test]
+    fn request_access_grant_flow() {
+        let base = serve_seq(vec![SSE_REQUEST_CALL, SSE_HELLO]);
+        let mut harness =
+            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+        harness.say("summarize my notes".into(), provider(base), None, TurnAccess::default());
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && harness.pending_tool.is_none() {
+            harness.pump();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        let pending = harness.pending_tool.as_ref().expect("grant card");
+        assert_eq!(pending.name, "request_access");
+        assert_eq!(pending.args["path"], "/notes/");
+        assert!(pending.preview.is_none());
+
+        harness.approve();
+
+        let updates = drain(&mut harness);
+        let granted = updates.iter().find_map(|u| match u {
+            HarnessUpdate::Granted(p) => Some(p.clone()),
+            _ => None,
+        });
+        // The offline core can't resolve /notes/ — the grant lands verbatim.
+        assert_eq!(granted.as_deref(), Some("/notes/"));
+        let tool = updates
+            .iter()
+            .find_map(|u| match u {
+                HarnessUpdate::Tool(t) => Some(t),
+                _ => None,
+            })
+            .expect("a granted tool row");
+        assert_eq!(tool.name, "request_access");
+        assert_eq!(tool.result, "granted: /notes/. Currently granted: /notes/");
+        assert!(!tool.is_error);
+        assert!(!harness.busy);
+    }
+
+    /// Denying `request_access` steers the model without widening anything.
+    #[test]
+    fn request_access_deny_flow() {
+        let base = serve_seq(vec![SSE_REQUEST_CALL, SSE_HELLO]);
+        let mut harness =
+            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+        harness.say("summarize my notes".into(), provider(base), None, TurnAccess::default());
+
+        let deadline = Instant::now() + Duration::from_secs(5);
+        while Instant::now() < deadline && harness.pending_tool.is_none() {
+            harness.pump();
+            std::thread::sleep(Duration::from_millis(5));
+        }
+        assert!(harness.pending_tool.is_some());
+        harness.deny();
+
+        let updates = drain(&mut harness);
+        assert!(
+            !updates
+                .iter()
+                .any(|u| matches!(u, HarnessUpdate::Granted(_))),
+            "deny must not grant"
+        );
+        let tool = updates
+            .iter()
+            .find_map(|u| match u {
+                HarnessUpdate::Tool(t) => Some(t),
+                _ => None,
+            })
+            .expect("a denied tool row");
+        assert_eq!(tool.result, tools::DENIED_RESULT);
         assert!(!harness.busy);
     }
 }

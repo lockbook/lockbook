@@ -38,6 +38,45 @@ const OPEN_CAP: usize = 256 * 1024;
 /// sees, so a restored transcript's context matches the live one.
 pub const DENIED_RESULT: &str = "The user denied this tool call.";
 
+/// Whether `path` falls under any granted root: folder grants (trailing '/')
+/// cover their subtree and the folder itself; note grants cover exactly that
+/// note. `"/"` grants everything.
+pub fn in_scope(path: &str, scope: &[String]) -> bool {
+    let path = path.trim_end_matches('/');
+    scope.iter().any(|g| match g.strip_suffix('/') {
+        Some(folder) => {
+            folder.is_empty() || path == folder || path.starts_with(&format!("{folder}/"))
+        }
+        None => path == g,
+    })
+}
+
+/// The steering result of a call outside the chat's granted scope. Names the
+/// recovery tool and states what's currently granted (the system prompt
+/// deliberately doesn't — see `access_intro` — so this is the model's only
+/// source for it short of scrolling its own history). Silent on whether the
+/// path exists — existence outside scope is itself private.
+pub fn out_of_scope(path: &str, scope: &[String]) -> String {
+    let granted = if scope.is_empty() { "none yet".into() } else { scope.join(", ") };
+    format!(
+        "denied: {path} is outside the folders this chat can access. Currently granted: \
+         {granted}. Call request_access to ask the user, then retry."
+    )
+}
+
+/// A grant as stored: the canonical path, folders with their trailing '/'.
+/// An unresolvable path is granted verbatim — harmless, and a folder created
+/// later under a verbatim folder grant still matches.
+pub(super) async fn normalize_grant(lb: &Lb, path: &str) -> String {
+    match lb.get_by_path(path).await {
+        Ok(f) => lb
+            .get_path_by_id(f.id)
+            .await
+            .unwrap_or_else(|_| path.into()),
+        Err(_) => path.into(),
+    }
+}
+
 /// One note open on the branch: the captured base (content + version at
 /// capture) and the current edited text. `dirty` ⇔ `text != base_text`.
 #[derive(Clone)]
@@ -293,6 +332,8 @@ pub fn viz_record(
         return viz("error", text_body());
     }
     match (name, post) {
+        // Denied requests returned early above; what's left is a grant.
+        ("request_access", _) => viz("granted", text_body()),
         ("list", _) => {
             if result.ends_with("is empty.") {
                 return viz("empty", text_body());
@@ -431,6 +472,22 @@ pub fn schemas() -> Vec<ToolSchema> {
             parameters: one_path("path"),
         },
         ToolSchema {
+            name: "request_access",
+            description: "Ask the user to grant this chat access to a folder \
+                          (path ending in '/') or a single note. Request the \
+                          narrowest scope that covers the task — usually the \
+                          chat's own folder. The user sees your reason.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "reason": { "type": "string", "description": "One short sentence: why you need it." },
+                },
+                "required": ["path"],
+                "additionalProperties": false,
+            }),
+        },
+        ToolSchema {
             name: "edit_note",
             description: "Replace an exact string in a note. old_str must \
                           match exactly once, or set replace_all to change \
@@ -493,6 +550,11 @@ pub fn permission_prose(name: &str, args: &Value, provider: &str) -> String {
     let path = args.get("path").and_then(Value::as_str);
     let flag = |key: &str| args.get(key).and_then(Value::as_bool).unwrap_or(false);
     match name {
+        "request_access" => match path.unwrap_or_default() {
+            "/" => format!("Let {provider} read and edit your entire lockbook?"),
+            p if p.ends_with('/') => format!("Let {provider} read and edit everything in {p}?"),
+            p => format!("Let {provider} read and edit {p}?"),
+        },
         "read_note" => {
             format!("Send the full contents of {} to {provider}?", path.unwrap_or_default())
         }
@@ -523,6 +585,14 @@ pub fn permission_prose(name: &str, args: &Value, provider: &str) -> String {
         }
         _ => format!("Let the model run {}?", detail_for(name, args)),
     }
+}
+
+/// A `request_access` call's stated reason, trimmed — rendered on its own
+/// line under [`permission_prose`]'s ask, set off in the model's own words
+/// rather than folded into the yes/no sentence.
+pub fn request_reason(args: &Value) -> Option<String> {
+    let reason = args.get("reason").and_then(Value::as_str)?.trim();
+    (!reason.is_empty()).then(|| reason.to_string())
 }
 
 /// A string argument, or a steering error naming the omission.
@@ -1087,15 +1157,41 @@ mod tests {
         assert!(detail.ends_with('…') && detail.len() < 100);
     }
 
-    /// The four slice tools are advertised, with flat strict-compatible
+    /// The slice tools are advertised, with flat strict-compatible
     /// schemas (object, additionalProperties:false).
     #[test]
     fn schemas_are_flat_and_named() {
         let names: Vec<_> = schemas().iter().map(|s| s.name).collect();
-        assert_eq!(names, ["list", "read_note", "edit_note"]);
+        assert_eq!(names, ["list", "read_note", "request_access", "edit_note"]);
         for s in schemas() {
             assert_eq!(s.parameters["type"], "object");
             assert_eq!(s.parameters["additionalProperties"], false);
         }
+    }
+
+    /// Folder grants cover their subtree and the folder itself, on path
+    /// boundaries; note grants cover exactly that note; "/" covers all.
+    #[test]
+    fn in_scope_matches_on_path_boundaries() {
+        let scope = |s: &[&str]| s.iter().map(|g| g.to_string()).collect::<Vec<_>>();
+
+        let folder = scope(&["/notes/"]);
+        assert!(in_scope("/notes/a.md", &folder));
+        assert!(in_scope("/notes/deep/b.md", &folder));
+        assert!(in_scope("/notes/", &folder), "listing the granted folder itself");
+        assert!(in_scope("/notes", &folder), "trailing-slash-less spelling");
+        assert!(!in_scope("/notes2/a.md", &folder), "sibling prefix must not match");
+        assert!(!in_scope("/a.md", &folder));
+
+        let note = scope(&["/one.md"]);
+        assert!(in_scope("/one.md", &note));
+        assert!(!in_scope("/one.md.bak", &note));
+        assert!(!in_scope("/", &note));
+
+        let root = scope(&["/"]);
+        assert!(in_scope("/", &root));
+        assert!(in_scope("/anything/x.md", &root));
+
+        assert!(!in_scope("/anything", &[]), "empty scope grants nothing");
     }
 }
