@@ -249,6 +249,16 @@ pub struct MdEdit {
     /// shown rect. Maintained by [`MdEdit::show`]; 0 outside single-line mode.
     pub single_line_scroll: f32,
 
+    /// Vertical scroll (px) of a multi-line field whose content outgrew its
+    /// rect (the chat composer at max height). Maintained by [`MdEdit::show`];
+    /// 0 while the content fits.
+    pub overflow_scroll: f32,
+
+    /// Buffer (seq, selection) and rect at the last cursor-follow of
+    /// `overflow_scroll` — the follow runs when these change, leaving a
+    /// wheel scroll free to move the cursor out of view.
+    overflow_follow: (usize, (Grapheme, Grapheme), Rect),
+
     /// Momentum from the last scroll-area frame; used by `will_consume_touch`
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
@@ -290,6 +300,8 @@ impl MdEdit {
             pending_block_move: None,
             pending_scroll: None,
             single_line_scroll: 0.0,
+            overflow_scroll: 0.0,
+            overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
             file_id,
             emoji_completions: Default::default(),
@@ -742,6 +754,8 @@ impl Editor {
                 pending_block_move: None,
                 pending_scroll: None,
                 single_line_scroll: 0.0,
+                overflow_scroll: 0.0,
+                overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),
@@ -1802,13 +1816,20 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    let (sans, mono, bold, base_scale) = if cfg!(target_vendor = "apple") {
-        (lb_fonts::SF_PRO_TEXT_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
+    let (sans, mono, bold, italic, base_scale) = if cfg!(target_vendor = "apple") {
+        (
+            lb_fonts::SF_PRO_TEXT_REGULAR,
+            lb_fonts::SF_MONO_REGULAR,
+            lb_fonts::SF_PRO_TEXT_BOLD,
+            lb_fonts::SF_PRO_TEXT_ITALIC,
+            0.9,
+        )
     } else {
         (
             lb_fonts::NOTO_SANS_REGULAR,
             lb_fonts::NOTO_SANS_MONO_REGULAR,
             lb_fonts::NOTO_SANS_BOLD,
+            lb_fonts::NOTO_SANS_ITALIC,
             1.,
         )
     };
@@ -1847,6 +1868,14 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         FontData {
             tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(bold)
+        }
+        .into(),
+    );
+    fonts.font_data.insert(
+        "italic".to_string(),
+        FontData {
+            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
+            ..FontData::from_static(italic)
         }
         .into(),
     );
@@ -1932,6 +1961,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts
         .families
         .insert(FontFamily::Name(Arc::from("Bold")), vec!["bold".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("Italic")), vec!["italic".into()]);
     fonts
         .families
         .insert(FontFamily::Name(Arc::from("SansSuper")), vec!["sans_super".into()]);
