@@ -4,6 +4,7 @@
 //! the reviewable state lives in the parent module and `config`.
 
 use super::*;
+use crate::show::InputStateExt as _;
 
 /// A vertically-stacked, horizontally-centered column painted as one block in
 /// a rect — the shared skeleton of the onboarding chooser, connect step,
@@ -307,7 +308,8 @@ impl Chat {
         // completion popup is up (which accepts with Enter itself), and not
         // while a turn is streaming: a send can't fire then, and consuming
         // the key would eat the stroke with no feedback. Left unconsumed it
-        // types a newline, which at least shows the key landed.
+        // types a newline, which at least shows the key landed. Exact match:
+        // `consume_key` ignores extra Shift, so it'd treat Shift+Enter as a send.
         let composer_focused = ui.memory(|m| m.has_focus(composer_id));
         let completions_open =
             self.composer.emoji_completions.active || self.composer.link_completions.active;
@@ -315,7 +317,7 @@ impl Chat {
             && !agent_busy
             && ui.ctx().input_mut(|i| {
                 i.consume_key(Modifiers::COMMAND, Key::Enter)
-                    || (!completions_open && i.consume_key(Modifiers::NONE, Key::Enter))
+                    || (!completions_open && i.consume_key_exact(Modifiers::NONE, Key::Enter))
             });
 
         // ⌘A approve / ⌘D deny while a call awaits a decision. Consumed
