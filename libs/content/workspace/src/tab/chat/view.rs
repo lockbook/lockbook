@@ -4,6 +4,7 @@
 //! the reviewable state lives in the parent module and `config`.
 
 use super::*;
+use crate::file_cache::path_segments;
 use crate::show::InputStateExt as _;
 
 /// A vertically-stacked, horizontally-centered column painted as one block in
@@ -2329,38 +2330,61 @@ impl Chat {
                     .on_hover_text(format!("{used} / {window} tokens ({:.0}%)", ratio * 100.0));
             }
 
-            let mut dropdown = |ui: &mut Ui, id: &str, text: &str| -> egui::Response {
-                let galley = ui.fonts(|f| {
-                    f.layout_no_wrap(
+            // The ⋯ overflow anchors the strip's right end; chips lay against
+            // the budget it leaves. A chip that can't fit folds into its menu.
+            let more_d = TOOLBAR_H - 8.0;
+            let more_rect = Rect::from_center_size(
+                pos2(toolbar_rect.max.x - more_d / 2.0, toolbar_rect.center().y),
+                vec2(more_d, more_d),
+            );
+            let budget_max_x = more_rect.min.x - STRIP_GAP;
+
+            // Label ⌄ chip. Labels elide at a cap (model ids run long) and at
+            // the remaining budget; `must_fit` chips (provider, model — the
+            // strip's identity) draw regardless, eating what room remains,
+            // while the rest return None for the caller to fold into ⋯.
+            let mut dropdown =
+                |ui: &mut Ui, id: &str, text: &str, must_fit: bool| -> Option<egui::Response> {
+                    let chevron = ui.fonts(|f| {
+                        f.layout_no_wrap(
+                            Icon::CHEVRON_DOWN.icon.to_string(),
+                            egui::FontId::monospace(12.0),
+                            text_color,
+                        )
+                    });
+                    let avail = budget_max_x - cursor_x;
+                    let mut job = egui::text::LayoutJob::simple_singleline(
                         text.to_string(),
                         egui::FontId::proportional(NOTE_FONT),
                         text_color,
-                    )
-                });
-                let chevron = ui.fonts(|f| {
-                    f.layout_no_wrap(
-                        Icon::CHEVRON_DOWN.icon.to_string(),
-                        egui::FontId::monospace(12.0),
+                    );
+                    job.wrap = egui::text::TextWrapping {
+                        max_width: 140.0f32.min(avail - chevron.size().x - 6.0).max(0.0),
+                        max_rows: 1,
+                        break_anywhere: true,
+                        overflow_character: Some('…'),
+                    };
+                    let galley = ui.fonts(|f| f.layout_job(job));
+                    let w = galley.size().x + chevron.size().x + 6.0;
+                    if !must_fit && w > avail {
+                        return None;
+                    }
+                    let rect =
+                        Rect::from_min_size(pos2(cursor_x, toolbar_rect.min.y), vec2(w, TOOLBAR_H));
+                    cursor_x = rect.max.x + STRIP_GAP;
+                    let resp = ui
+                        .interact(rect, Id::new(id), Sense::click())
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    let text_top = rect.min.y + (TOOLBAR_H - galley.size().y) / 2.0;
+                    ui.painter()
+                        .galley(pos2(rect.min.x, text_top), galley, text_color);
+                    ui.painter().galley(
+                        pos2(rect.max.x - chevron.size().x, text_top),
+                        chevron,
                         text_color,
-                    )
-                });
-                let w = galley.size().x + chevron.size().x + 6.0;
-                let rect =
-                    Rect::from_min_size(pos2(cursor_x, toolbar_rect.min.y), vec2(w, TOOLBAR_H));
-                cursor_x = rect.max.x + STRIP_GAP;
-                let resp = ui
-                    .interact(rect, Id::new(id), Sense::click())
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let text_top = rect.min.y + (TOOLBAR_H - galley.size().y) / 2.0;
-                ui.painter()
-                    .galley(pos2(rect.min.x, text_top), galley, text_color);
-                ui.painter().galley(
-                    pos2(rect.max.x - chevron.size().x, text_top),
-                    chevron,
-                    text_color,
-                );
-                resp
-            };
+                    );
+                    Some(resp)
+                };
 
             let mut pick: Option<(String, String)> = None;
 
@@ -2379,7 +2403,8 @@ impl Chat {
             let provider_label = current
                 .map(|c| c.label())
                 .unwrap_or_else(|| "select provider".to_string());
-            let provider_resp = dropdown(ui, "chat_provider_btn", &provider_label);
+            let provider_resp =
+                dropdown(ui, "chat_provider_btn", &provider_label, true).expect("must_fit chip");
             let glyphs = &mut self.glyphs;
             // A row with the provider's brand mark, tinted like its text —
             // similar names in this space (Groq vs Grok) make a wordlist
@@ -2453,6 +2478,27 @@ impl Chat {
             // the whole toolbar until one resolves.
             let mut effort_pick: Option<String> = None;
             let mut revoke: Option<String> = None;
+            // Chips the budget folded into the ⋯ menu, where they reappear
+            // as submenus.
+            let mut effort_folded = false;
+            let mut access_folded = false;
+            let scope = latest_scope(&self.entries, &self.account.username);
+            // "/" subsumes any other listed root, so it reads as one grant
+            // rather than "N paths"; a single grant shows its leaf name —
+            // full paths overwhelm a chip, and the popover has them whole.
+            let access_label = if scope.iter().any(|g| g == "/") {
+                "access: everything".to_string()
+            } else {
+                match scope.as_slice() {
+                    [] => String::new(),
+                    [one] => {
+                        let name = path_segments(one).last().copied().unwrap_or_default();
+                        let slash = if one.ends_with('/') { "/" } else { "" };
+                        format!("access: {name}{slash}")
+                    }
+                    many => format!("access: {} paths", many.len()),
+                }
+            };
             if let Some(current) = current {
                 // The button shows the selected model's display name when the
                 // listing has landed; the id (what's actually configured) until
@@ -2471,7 +2517,8 @@ impl Chat {
                         .map(|m| m.label().to_string())
                         .unwrap_or_else(|| current.model.clone())
                 };
-                let model_resp = dropdown(ui, "chat_model_btn", &model_label);
+                let model_resp =
+                    dropdown(ui, "chat_model_btn", &model_label, true).expect("must_fit chip");
                 egui::Popup::menu(&model_resp)
                     .align(egui::RectAlign::TOP_START)
                     .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
@@ -2526,74 +2573,73 @@ impl Chat {
                     // read as an effort control next to provider/model names.
                     let label =
                         format!("effort: {}", current.effort.as_deref().unwrap_or(EFFORT_AUTO));
-                    let effort_resp = dropdown(ui, "chat_effort_btn", &label).on_hover_text(
-                        "how hard the model reasons before replying — auto uses its own default",
-                    );
-                    egui::Popup::menu(&effort_resp)
-                        .align(egui::RectAlign::TOP_START)
-                        .show(|ui| {
-                            ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
-                            ui.set_min_width(100.0);
-                            if ui
-                                .button(row_text(EFFORT_AUTO, current.effort.is_none()))
-                                .clicked()
-                            {
-                                effort_pick = Some(EFFORT_AUTO.into());
-                                ui.close();
-                            }
-                            for level in EFFORT_LEVELS {
-                                let selected = current.effort.as_deref() == Some(*level);
-                                if ui.button(row_text(level, selected)).clicked() {
-                                    effort_pick = Some((*level).into());
-                                    ui.close();
-                                }
-                            }
-                        });
+                    match dropdown(ui, "chat_effort_btn", &label, false) {
+                        Some(effort_resp) => {
+                            let effort_resp = effort_resp.on_hover_text(
+                                "how hard the model reasons before replying — auto uses its own \
+                                 default",
+                            );
+                            egui::Popup::menu(&effort_resp)
+                                .align(egui::RectAlign::TOP_START)
+                                .show(|ui| {
+                                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                    ui.set_min_width(100.0);
+                                    if ui
+                                        .button(row_text(EFFORT_AUTO, current.effort.is_none()))
+                                        .clicked()
+                                    {
+                                        effort_pick = Some(EFFORT_AUTO.into());
+                                        ui.close();
+                                    }
+                                    for level in EFFORT_LEVELS {
+                                        let selected = current.effort.as_deref() == Some(*level);
+                                        if ui.button(row_text(level, selected)).clicked() {
+                                            effort_pick = Some((*level).into());
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                        }
+                        None => effort_folded = true,
+                    }
                 }
 
                 // Access chip: what the agent can reach, granted strictly
                 // through its own request_access cards, no manual grant here
                 // — only revoke. Uniform regardless of provider: no chip
                 // until something's actually been granted.
-                let scope = latest_scope(&self.entries, &self.account.username);
                 if !scope.is_empty() {
-                    // "/" subsumes any other listed root, so it reads as one
-                    // grant rather than "N paths" once it's in the list.
-                    let access_label = if scope.iter().any(|g| g == "/") {
-                        "access: everything".to_string()
-                    } else {
-                        match scope.as_slice() {
-                            [one] => format!("access: {one}"),
-                            many => format!("access: {} paths", many.len()),
+                    match dropdown(ui, "chat_access_btn", &access_label, false) {
+                        Some(access_resp) => {
+                            let access_resp = access_resp.on_hover_text(
+                                "the notes and folders this chat's agent can read and edit",
+                            );
+                            egui::Popup::menu(&access_resp)
+                                .align(egui::RectAlign::TOP_START)
+                                .show(|ui| {
+                                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                    ui.set_min_width(180.0);
+                                    ui.weak("click a grant to revoke it");
+                                    for g in &scope {
+                                        let label = if g == "/" { "everything" } else { g };
+                                        if ui.button(row_text(label, false)).clicked() {
+                                            revoke = Some(g.clone());
+                                            ui.close();
+                                        }
+                                    }
+                                });
                         }
-                    };
-                    let access_resp = dropdown(ui, "chat_access_btn", &access_label)
-                        .on_hover_text("the notes and folders this chat's agent can read and edit");
-                    egui::Popup::menu(&access_resp)
-                        .align(egui::RectAlign::TOP_START)
-                        .show(|ui| {
-                            ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
-                            ui.set_min_width(180.0);
-                            ui.weak("click a grant to revoke it");
-                            for g in &scope {
-                                let label = if g == "/" { "everything" } else { g };
-                                if ui.button(row_text(label, false)).clicked() {
-                                    revoke = Some(g.clone());
-                                    ui.close();
-                                }
-                            }
-                        });
+                        None => access_folded = true,
+                    }
                 }
             }
 
             // Conversation-scoped actions live in a ⋯ overflow at the
             // toolbar's right end — not in the provider picker, which stays
             // a pure provider list. Right-aligned so the rare actions sit
-            // away from the per-message controls.
+            // away from the per-message controls. Chips the budget folded
+            // lead the menu as submenus, above the standing actions.
             {
-                let d = TOOLBAR_H - 8.0;
-                let center = pos2(toolbar_rect.max.x - d / 2.0, toolbar_rect.center().y);
-                let more_rect = Rect::from_center_size(center, vec2(d, d));
                 let more_resp = ui
                     .interact(more_rect, Id::new("chat_more_btn"), Sense::click())
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -2612,6 +2658,47 @@ impl Chat {
                     .show(|ui| {
                         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
                         ui.set_min_width(140.0);
+                        if effort_folded {
+                            if let Some(current) = current {
+                                let label = format!(
+                                    "effort: {}",
+                                    current.effort.as_deref().unwrap_or(EFFORT_AUTO)
+                                );
+                                ui.menu_button(row_text(&label, false), |ui| {
+                                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                    if ui
+                                        .button(row_text(EFFORT_AUTO, current.effort.is_none()))
+                                        .clicked()
+                                    {
+                                        effort_pick = Some(EFFORT_AUTO.into());
+                                        ui.close();
+                                    }
+                                    for level in EFFORT_LEVELS {
+                                        let selected = current.effort.as_deref() == Some(*level);
+                                        if ui.button(row_text(level, selected)).clicked() {
+                                            effort_pick = Some((*level).into());
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                        if access_folded {
+                            ui.menu_button(row_text(&access_label, false), |ui| {
+                                ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                ui.weak("tap a grant to revoke it");
+                                for g in &scope {
+                                    let label = if g == "/" { "everything" } else { g };
+                                    if ui.button(row_text(label, false)).clicked() {
+                                        revoke = Some(g.clone());
+                                        ui.close();
+                                    }
+                                }
+                            });
+                        }
+                        if effort_folded || access_folded {
+                            ui.separator();
+                        }
                         // The system prompt, as an editable file. "system
                         // prompt" is the real term and reads unambiguously to
                         // anyone who's used an agent; the tooltip covers the
