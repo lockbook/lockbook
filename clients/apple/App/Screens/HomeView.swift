@@ -182,7 +182,9 @@ struct HomeView: View {
                         )
                     }
                     .overlay(alignment: .bottom) {
-                        if !keyboardVisible {
+                        // Not over chats: the composer owns the bottom edge,
+                        // and the buttons would sit on its controls.
+                        if !keyboardVisible, !chatOpen {
                             HStack {
                                 detailSearchButton
 
@@ -195,6 +197,7 @@ struct HomeView: View {
                         }
                     }
                     .animation(.easeInOut(duration: 0.2), value: keyboardVisible)
+                    .animation(.easeInOut(duration: 0.2), value: chatOpen)
                 #endif
         }
         .overlay {
@@ -437,6 +440,13 @@ struct HomeView: View {
             UIApplication.shared.sendAction(
                 #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
             )
+        }
+
+        // The workspace's own report of what's rendered — not inferred from
+        // the file name, which would re-implement the Rust side's type
+        // mapping and drift.
+        private var chatOpen: Bool {
+            workspaceOutput.currentTab == .Chat
         }
 
         private func searchEverywhere() {
