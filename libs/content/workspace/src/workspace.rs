@@ -1036,6 +1036,12 @@ impl Workspace {
                             md.initialized = true;
                             md.id_salt = egui::Id::new("search_preview");
                         }
+                        // A chat's first frame would focus its composer,
+                        // stealing focus from the search query.
+                        #[cfg(not(target_family = "wasm"))]
+                        if let Some(chat) = tab.chat_mut() {
+                            chat.initialized = true;
+                        }
                     } else {
                         self.out.tabs_changed = true;
                     }
