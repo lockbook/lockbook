@@ -249,6 +249,16 @@ pub struct MdEdit {
     /// shown rect. Maintained by [`MdEdit::show`]; 0 outside single-line mode.
     pub single_line_scroll: f32,
 
+    /// Vertical scroll (px) of a multi-line field whose content outgrew its
+    /// rect (the chat composer at max height). Maintained by [`MdEdit::show`];
+    /// 0 while the content fits.
+    pub overflow_scroll: f32,
+
+    /// Buffer (seq, selection) and rect at the last cursor-follow of
+    /// `overflow_scroll` — the follow runs when these change, leaving a
+    /// wheel scroll free to move the cursor out of view.
+    overflow_follow: (usize, (Grapheme, Grapheme), Rect),
+
     /// Momentum from the last scroll-area frame; used by `will_consume_touch`
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
@@ -290,6 +300,8 @@ impl MdEdit {
             pending_block_move: None,
             pending_scroll: None,
             single_line_scroll: 0.0,
+            overflow_scroll: 0.0,
+            overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
             file_id,
             emoji_completions: Default::default(),
@@ -742,6 +754,8 @@ impl Editor {
                 pending_block_move: None,
                 pending_scroll: None,
                 single_line_scroll: 0.0,
+                overflow_scroll: 0.0,
+                overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),

@@ -199,9 +199,22 @@ impl MdEdit {
         // `single_line_scroll` shifts the layout to keep the cursor in view.
         let layout_width = if self.renderer.single_line { 100_000.0 } else { rect.width() };
         self.renderer.set_width(layout_width);
-        let origin = rect.min - egui::vec2(self.single_line_scroll, 0.0);
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
+
+        // A multi-line field shorter than its content (the chat composer at
+        // max height) scrolls vertically: wheel here, cursor-follow at the
+        // bottom of this fn. `height` is memoized — computing it early is free.
+        let height = self.renderer.height(root);
+        let overflow =
+            if self.renderer.single_line { 0.0 } else { (height - rect.height()).max(0.0) };
+        if overflow > 0.0 && ui.rect_contains_pointer(rect) {
+            let delta = ui.input_mut(|i| std::mem::take(&mut i.smooth_scroll_delta.y));
+            self.overflow_scroll -= delta;
+        }
+        self.overflow_scroll = self.overflow_scroll.clamp(0.0, overflow);
+
+        let origin = rect.min - egui::vec2(self.single_line_scroll, self.overflow_scroll);
         // Composer entry point (chat); no keyboard-state plumbing — image
         // taps there fall back to desktop/cmd gating via `touch_mode`.
         let pre = self.pre_render(ui, rect, id, root, false);
@@ -212,11 +225,10 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
-        let height = self.renderer.height(root);
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
-            // Clip the (possibly overflowing) one-line layout to the field.
-            if self.renderer.single_line {
+            // Clip the (possibly overflowing) layout to the field.
+            if self.renderer.single_line || overflow > 0.0 {
                 ui.set_clip_rect(rect.intersect(ui.clip_rect()));
             }
             self.renderer.show_block(ui, root, origin);
@@ -251,6 +263,34 @@ impl MdEdit {
             let scroll = scroll.max(0.0);
             if scroll != self.single_line_scroll {
                 self.single_line_scroll = scroll;
+                ui.ctx().request_repaint();
+            }
+        }
+
+        // The same correction vertically for a bounded multi-line field, but
+        // only when the buffer / rect changed or a drag-selection is in
+        // flight — a wheel scroll can move the cursor out of view.
+        let follow =
+            (self.renderer.buffer.current.seq, self.renderer.buffer.current.selection, rect);
+        if !self.renderer.single_line
+            && (follow != self.overflow_follow || self.in_progress_selection.is_some())
+        {
+            self.overflow_follow = follow;
+            let sel_end = self
+                .in_progress_selection
+                .unwrap_or(self.renderer.buffer.current.selection)
+                .1;
+            let mut scroll = self.overflow_scroll;
+            if let Some([top, bot]) = self.cursor_line(sel_end) {
+                if bot.y > rect.bottom() {
+                    scroll += bot.y - rect.bottom();
+                } else if top.y < rect.top() {
+                    scroll -= rect.top() - top.y;
+                }
+            }
+            let scroll = scroll.clamp(0.0, overflow);
+            if scroll != self.overflow_scroll {
+                self.overflow_scroll = scroll;
                 ui.ctx().request_repaint();
             }
         }

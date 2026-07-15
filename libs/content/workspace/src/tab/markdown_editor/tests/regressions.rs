@@ -1788,3 +1788,59 @@ fn masked_plaintext_mdedit_renders_glyphs() {
         edit.single_line_scroll
     );
 }
+
+/// The chat composer: a multi-line `MdEdit` in a height-capped rect must
+/// scroll vertically to keep the cursor in view instead of clipping it
+/// under the bottom edge.
+#[test]
+fn bounded_composer_scrolls_cursor_into_view() {
+    use crate::tab::markdown_editor::MdEdit;
+    use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
+
+    let ctx = egui::Context::default();
+    let mut edit = MdEdit::empty(ctx.clone());
+    // Enough lines that a 140px-tall composer must overflow several times over.
+    let draft: String = (0..30).map(|i| format!("- line {i}\n")).collect();
+    edit.set_text(&draft);
+
+    let rect = egui::Rect::from_min_size(egui::pos2(100., 100.), egui::vec2(600., 140.));
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(800., 600.));
+    let frame = |edit: &mut MdEdit| {
+        let _ =
+            ctx.run(egui::RawInput { screen_rect: Some(screen), ..Default::default() }, |ctx| {
+                ctx.set_lb_theme(Theme::default(Mode::Dark));
+                crate::register_font_system(ctx);
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    edit.show(ui, rect, egui::Id::new("composer"));
+                });
+            });
+    };
+
+    let end = {
+        frame(&mut edit);
+        edit.renderer.buffer.current.segs.last_cursor_position()
+    };
+    edit.renderer.buffer.current.selection = (end, end);
+    for _ in 0..3 {
+        frame(&mut edit);
+    }
+    assert!(edit.overflow_scroll > 0.0, "overflowing composer did not scroll");
+    // `cursor_line` pads the fragment box by row_spacing/2 per side; the
+    // glyphs themselves must land inside the rect.
+    let slack = edit.renderer.layout.row_spacing / 2.0 + 0.5;
+    let [top, bot] = edit.cursor_line(end).unwrap();
+    assert!(
+        top.y >= rect.top() - slack && bot.y <= rect.bottom() + slack,
+        "caret line ({}..{}) outside composer {rect:?} at scroll {}",
+        top.y,
+        bot.y,
+        edit.overflow_scroll
+    );
+
+    // Cursor back at the top: the view follows back up.
+    edit.renderer.buffer.current.selection = (0.into(), 0.into());
+    for _ in 0..3 {
+        frame(&mut edit);
+    }
+    assert_eq!(edit.overflow_scroll, 0.0, "cursor at start should scroll back to the top");
+}
