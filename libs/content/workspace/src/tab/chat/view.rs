@@ -2556,19 +2556,15 @@ impl Chat {
                         });
                 }
 
-                // Access chip: what the agent can reach. A local model reads
-                // everything (nothing egresses); a remote one only the
-                // granted roots, given out strictly through the agent's own
-                // request_access cards — no manual grant here, only revoke.
-                // Nothing to say (remote, nothing granted yet) → no chip.
+                // Access chip: what the agent can reach, granted strictly
+                // through its own request_access cards, no manual grant here
+                // — only revoke. Uniform regardless of provider: no chip
+                // until something's actually been granted.
                 let scope = latest_scope(&self.entries, &self.account.username);
-                if current.is_local() || !scope.is_empty() {
+                if !scope.is_empty() {
                     // "/" subsumes any other listed root, so it reads as one
                     // grant rather than "N paths" once it's in the list.
-                    let root_granted = scope.iter().any(|g| g == "/");
-                    let access_label = if current.is_local() {
-                        "access: all (local)".to_string()
-                    } else if root_granted {
+                    let access_label = if scope.iter().any(|g| g == "/") {
                         "access: everything".to_string()
                     } else {
                         match scope.as_slice() {
@@ -2583,16 +2579,12 @@ impl Chat {
                         .show(|ui| {
                             ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
                             ui.set_min_width(180.0);
-                            if current.is_local() {
-                                ui.weak("local model — notes never leave this machine");
-                            } else {
-                                ui.weak("click a grant to revoke it");
-                                for g in &scope {
-                                    let label = if g == "/" { "everything" } else { g };
-                                    if ui.button(row_text(label, false)).clicked() {
-                                        revoke = Some(g.clone());
-                                        ui.close();
-                                    }
+                            ui.weak("click a grant to revoke it");
+                            for g in &scope {
+                                let label = if g == "/" { "everything" } else { g };
+                                if ui.button(row_text(label, false)).clicked() {
+                                    revoke = Some(g.clone());
+                                    ui.close();
                                 }
                             }
                         });

@@ -306,16 +306,14 @@ async fn run(
             }
         };
 
-        // Reads egress note content to the provider, so a remote model only
-        // reaches paths the user has granted; a local model sees everything
-        // (nothing leaves the machine). Grants made this turn extend the list.
-        let local = provider.is_local();
+        // Scope applies uniformly, local model or not: asking is now a single
+        // request_access round trip rather than a per-call modal, so there's
+        // no friction left to spare a local model from — one code path, one
+        // thing to reason about. Grants made this turn extend the list.
         let TurnAccess { mut scope, chat_folder } = turn_access;
         // Built once per turn, not per completion — see `access_intro` for why.
         let mut system_full = system.clone().unwrap_or_else(preamble);
-        if !local {
-            system_full.push_str(&access_intro(&chat_folder));
-        }
+        system_full.push_str(&access_intro(&chat_folder));
         // The turn's backend, from the provider resolved at send time; reused
         // across the turn's completions.
         let backend = match provider.kind.as_str() {
@@ -407,7 +405,7 @@ async fn run(
             for call in calls {
                 let is_edit = call.name == "edit_note";
                 let is_request = call.name == "request_access";
-                match gate(&call.name, &call.args, local, &scope) {
+                match gate(&call.name, &call.args, &scope) {
                     Gate::OutOfScope => {
                         let path = call_path(&call.args);
                         let result = tools::out_of_scope(path, &scope);
@@ -568,14 +566,14 @@ enum Gate {
     OutOfScope,
 }
 
-/// The single access choke point. `request_access` always cards; everything
-/// else is scope-checked when the provider is remote (reads egress); edits
-/// additionally card even in scope.
-fn gate(name: &str, args: &Value, local: bool, scope: &[String]) -> Gate {
+/// The single access choke point, uniform regardless of provider. `request_access`
+/// always cards; everything else is scope-checked; edits additionally card
+/// even in scope.
+fn gate(name: &str, args: &Value, scope: &[String]) -> Gate {
     if name == "request_access" {
         return Gate::Card;
     }
-    if !local && !tools::in_scope(call_path(args), scope) {
+    if !tools::in_scope(call_path(args), scope) {
         return Gate::OutOfScope;
     }
     if name == "edit_note" { Gate::Card } else { Gate::Run }
@@ -586,11 +584,11 @@ fn call_path(args: &Value) -> &str {
     args.get("path").and_then(Value::as_str).unwrap_or("/")
 }
 
-/// The system prompt's access section for a remote provider: static for the
-/// turn (indeed the whole chat, short of the folder moving) so it never
-/// perturbs the cached prefix. What's actually granted is deliberately
-/// absent — it changes on a mid-turn grant, so it travels as tool results
-/// instead ([`tools::out_of_scope`], the `request_access` outcome below).
+/// The system prompt's access section, static for the turn (indeed the whole
+/// chat, short of the folder moving) so it never perturbs the cached prefix.
+/// What's actually granted is deliberately absent — it changes on a mid-turn
+/// grant, so it travels as tool results instead ([`tools::out_of_scope`], the
+/// `request_access` outcome below).
 fn access_intro(chat_folder: &str) -> String {
     format!(
         "\n\nAccess: you can only read and edit paths the user has granted this chat — a call \
@@ -643,6 +641,13 @@ mod tests {
             client_type: ClientType::Unknown,
         })
         .unwrap()
+    }
+
+    /// A turn granted the whole lockbook — the tests below aren't exercising
+    /// scope itself (see `gate_routes_by_scope` / the `request_access_*`
+    /// tests for that), so they run with nothing to deny.
+    fn full_scope() -> TurnAccess {
+        TurnAccess { scope: vec!["/".into()], chat_folder: "/".into() }
     }
 
     fn provider(base_url: String) -> Provider {
@@ -715,7 +720,7 @@ mod tests {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
         let mut harness =
             Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
-        harness.say("edit my note".into(), provider(base), None, TurnAccess::default());
+        harness.say("edit my note".into(), provider(base), None, full_scope());
 
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline && harness.pending_tool.is_none() {
@@ -754,7 +759,7 @@ mod tests {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
         let mut harness =
             Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
-        harness.say("do it".into(), provider(base), None, TurnAccess::default());
+        harness.say("do it".into(), provider(base), None, full_scope());
 
         let deadline = Instant::now() + Duration::from_secs(5);
         while Instant::now() < deadline && harness.pending_tool.is_none() {
@@ -777,11 +782,11 @@ mod tests {
         assert!(!harness.busy);
     }
 
-    /// The full tool round-trip: first completion emits a call → it runs
-    /// ungated and feeds a result back → second completion returns the final
-    /// reply → idle.
+    /// The full tool round-trip: first completion emits a call → in scope, it
+    /// runs straight through and feeds a result back → second completion
+    /// returns the final reply → idle.
     #[test]
-    fn tool_call_runs_ungated_then_completes() {
+    fn tool_call_runs_in_scope_then_completes() {
         // First response calls `list`; second (after the result) is the reply.
         const SSE_LIST_CALL: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
              data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"call_1\",\"type\":\"function\",\"function\":{\"name\":\"list\",\"arguments\":\"{}\"}}]}}]}\n\n\
@@ -790,7 +795,7 @@ mod tests {
         let base = serve_seq(vec![SSE_LIST_CALL, SSE_HELLO]);
         let mut harness =
             Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
-        harness.say("what's in my vault?".into(), provider(base), None, TurnAccess::default());
+        harness.say("what's in my vault?".into(), provider(base), None, full_scope());
 
         // Drain to completion: a tool row, then the reply — no decision step.
         let updates = drain(&mut harness);
@@ -814,32 +819,30 @@ mod tests {
         assert!(!harness.busy);
     }
 
-    /// The single access choke point: `request_access` always cards; a remote
-    /// provider's calls are scope-checked (reads run in scope, edits card in
-    /// scope, anything out of scope fails); a local provider skips scope but
-    /// its edits still card.
+    /// The single access choke point, uniform regardless of provider:
+    /// `request_access` always cards; everything else is scope-checked;
+    /// edits additionally card even in scope.
     #[test]
-    fn gate_routes_by_scope_and_locality() {
+    fn gate_routes_by_scope() {
         use serde_json::json;
         let scope = vec!["/notes/".to_string(), "/one.md".to_string()];
         let read = |p: &str| json!({ "path": p });
 
-        assert_eq!(gate("request_access", &read("/x/"), true, &[]), Gate::Card);
-        assert_eq!(gate("request_access", &read("/x/"), false, &[]), Gate::Card);
+        assert_eq!(gate("request_access", &read("/x/"), &[]), Gate::Card);
+        assert_eq!(gate("request_access", &read("/x/"), &scope), Gate::Card);
 
-        // Remote: scope decides.
-        assert_eq!(gate("read_note", &read("/notes/a.md"), false, &scope), Gate::Run);
-        assert_eq!(gate("read_note", &read("/one.md"), false, &scope), Gate::Run);
-        assert_eq!(gate("read_note", &read("/other.md"), false, &scope), Gate::OutOfScope);
-        assert_eq!(gate("list", &json!({}), false, &scope), Gate::OutOfScope); // default "/"
-        assert_eq!(gate("list", &read("/notes/"), false, &scope), Gate::Run);
-        assert_eq!(gate("edit_note", &read("/notes/a.md"), false, &scope), Gate::Card);
-        assert_eq!(gate("edit_note", &read("/other.md"), false, &scope), Gate::OutOfScope);
+        assert_eq!(gate("read_note", &read("/notes/a.md"), &scope), Gate::Run);
+        assert_eq!(gate("read_note", &read("/one.md"), &scope), Gate::Run);
+        assert_eq!(gate("read_note", &read("/other.md"), &scope), Gate::OutOfScope);
+        assert_eq!(gate("list", &json!({}), &scope), Gate::OutOfScope); // default "/"
+        assert_eq!(gate("list", &read("/notes/"), &scope), Gate::Run);
+        assert_eq!(gate("edit_note", &read("/notes/a.md"), &scope), Gate::Card);
+        assert_eq!(gate("edit_note", &read("/other.md"), &scope), Gate::OutOfScope);
 
-        // Local: everything readable, edits still card.
-        assert_eq!(gate("read_note", &read("/other.md"), true, &[]), Gate::Run);
-        assert_eq!(gate("list", &json!({}), true, &[]), Gate::Run);
-        assert_eq!(gate("edit_note", &read("/other.md"), true, &[]), Gate::Card);
+        // Empty scope — no bypass for anyone, edit or otherwise.
+        assert_eq!(gate("read_note", &read("/other.md"), &[]), Gate::OutOfScope);
+        assert_eq!(gate("list", &json!({}), &[]), Gate::OutOfScope);
+        assert_eq!(gate("edit_note", &read("/other.md"), &[]), Gate::OutOfScope);
     }
 
     /// SSE body for a completion invoking `request_access` on a folder.

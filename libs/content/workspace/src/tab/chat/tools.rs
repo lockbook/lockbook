@@ -540,12 +540,12 @@ pub fn detail_for(name: &str, args: &Value) -> String {
     }
 }
 
-/// Plain-language permission prose for the approval card, adapted to the
-/// call's parameters and phrased as a yes/no question. Reads gate on *egress*
-/// — the card only appears for a remote provider — so they name `provider`
-/// and frame it as sending; `list` sends names, `read_note` sends contents.
-/// Edits gate on *mutation* and head the diff below. Unknown shapes fall back
-/// to the terse detail.
+/// Plain-language prose for a tool call, phrased as a yes/no question.
+/// `request_access` and `edit_note` are the only names the harness's `gate`
+/// ever raises as a card today — everything else is scope-checked silently —
+/// but the function still covers every tool name generally, `read_note`/`list`
+/// included, so a future gate can reuse this without new prose. Unknown
+/// shapes fall back to the terse detail.
 pub fn permission_prose(name: &str, args: &Value, provider: &str) -> String {
     let path = args.get("path").and_then(Value::as_str);
     let flag = |key: &str| args.get(key).and_then(Value::as_bool).unwrap_or(false);
