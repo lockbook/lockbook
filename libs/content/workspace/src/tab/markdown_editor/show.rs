@@ -241,6 +241,9 @@ impl MdEdit {
         self.handle_block_drag(ui);
         self.post_render(ui, rect, id, pre);
         self.draw_dragged_overlay(ui, root);
+        if overflow > 0.0 {
+            self.show_overflow_scrollbar(ui, rect, id, height, overflow);
+        }
 
         // Keep the cursor inside the rect: fragments (and so `cursor_line`)
         // are in shifted screen coords, so edge overshoot maps 1:1 onto a
@@ -294,6 +297,58 @@ impl MdEdit {
                 ui.ctx().request_repaint();
             }
         }
+    }
+
+    /// Overlay scrollbar on the right edge of an overflowing bounded field,
+    /// styled after the document scroll area's bar. Same semantics too: a
+    /// thumb grab drags relatively; any other press jumps the thumb to the
+    /// pointer.
+    fn show_overflow_scrollbar(
+        &mut self, ui: &mut Ui, rect: Rect, id: Id, height: f32, overflow: f32,
+    ) {
+        const BAR_WIDTH: f32 = 10.0;
+        const BAR_INSET: f32 = 3.0;
+        const MIN_THUMB: f32 = 12.0;
+        let track = Rect::from_min_max(
+            Pos2::new(rect.max.x - BAR_WIDTH - BAR_INSET, rect.min.y),
+            Pos2::new(rect.max.x - BAR_INSET, rect.max.y),
+        );
+        let thumb_h = (track.height() * rect.height() / height).max(MIN_THUMB);
+        let movable = track.height() - thumb_h;
+        let thumb_at = |scroll: f32| {
+            Rect::from_min_size(
+                Pos2::new(track.min.x, track.min.y + movable * (scroll / overflow)),
+                egui::Vec2::new(track.width(), thumb_h),
+            )
+        };
+
+        // Registered after the field's own interact so the bar wins the strip.
+        let resp = ui.interact(track, id.with("overflow_scrollbar"), Sense::click_and_drag());
+        if movable > 0.0 {
+            if let Some(pos) = resp.interact_pointer_pos() {
+                let on_thumb = thumb_at(self.overflow_scroll).contains(pos);
+                if (resp.drag_started() || resp.clicked()) && !on_thumb {
+                    let target = (pos.y - track.min.y - thumb_h / 2.0).clamp(0.0, movable);
+                    self.overflow_scroll = target / movable * overflow;
+                } else if resp.dragged() && !resp.drag_started() {
+                    self.overflow_scroll = (self.overflow_scroll
+                        + resp.drag_delta().y / movable * overflow)
+                        .clamp(0.0, overflow);
+                }
+                ui.ctx().request_repaint();
+            }
+        }
+
+        let theme = ui.ctx().get_lb_theme();
+        let track_color = theme.neutral_bg().lerp_to_gamma(theme.neutral(), 0.3);
+        ui.painter().rect_filled(track, 3.0, track_color);
+        ui.painter().rect(
+            thumb_at(self.overflow_scroll),
+            3.0,
+            theme.neutral(),
+            Stroke::NONE,
+            egui::epaint::StrokeKind::Inside,
+        );
     }
 
     /// Consume the marker's [`BlockDragAction`] for the frame and, on
