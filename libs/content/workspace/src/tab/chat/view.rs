@@ -320,17 +320,20 @@ impl Chat {
                     || (!completions_open && i.consume_key_exact(Modifiers::NONE, Key::Enter))
             });
 
-        // ⌘A approve / ⌘D deny while a call awaits a decision. Consumed
-        // before the composer's input phase so ⌘A can't fall through to
-        // select-all while the card is up.
-        let approve_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
-        let deny_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::D);
+        // ⌘Enter approve / Esc deny while a call awaits a decision. A send
+        // can't fire mid-turn, so the send stroke is free to mean "yes, go"
+        // while the card is up. Consumed before the composer's input phase
+        // so neither falls through to the editor; stood down while the
+        // chooser owns the canvas (its own Esc closes it).
+        let approve_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::Enter);
+        let deny_shortcut = egui::KeyboardShortcut::new(Modifiers::NONE, Key::Escape);
         let mut approve_clicked = false;
         let mut deny_clicked = false;
         if self
             .harness
             .as_ref()
             .is_some_and(|h| h.pending_tool.is_some())
+            && !self.chooser_open
         {
             ui.ctx().input_mut(|i| {
                 approve_clicked = i.consume_shortcut(&approve_shortcut);
@@ -345,7 +348,8 @@ impl Chat {
         // and tablet-width touch screens (iPad); not phones.
         let show_key_hints = !touch_os || available_width >= 600.0;
         let approve_hint = ui.ctx().format_shortcut(&approve_shortcut);
-        let deny_hint = ui.ctx().format_shortcut(&deny_shortcut);
+        // format_shortcut spells it "Escape" — every editor's label is "esc".
+        let deny_hint = "esc".to_string();
 
         // Return submits the key — the connect step has no Connect button.
         let mut key_submit = false;
@@ -914,8 +918,7 @@ impl Chat {
                                 None => ReviewBody::None,
                             };
 
-                            // Button row, right-aligned; Approve sits left of Deny
-                            // to match the ⌘A / ⌘D keys. Hints show where a
+                            // Button row, right-aligned. Hints show where a
                             // hardware keyboard is plausible (desktop, iPad).
                             cy += V_PAD;
                             let btn = |ui: &Ui, label: String, accent: bool| {
