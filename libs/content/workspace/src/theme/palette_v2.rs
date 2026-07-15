@@ -200,7 +200,6 @@ impl Theme {
             Mode::Dark => self.dim.black,
         }
     }
-
 }
 
 /// Returns the color that, painted at opacity `alpha` over `background`,
