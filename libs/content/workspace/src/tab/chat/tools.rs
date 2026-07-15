@@ -6,10 +6,10 @@
 //! observes a note's contents — a `read_note`, or an `edit_note`/`append_note`
 //! that auto-opens — the note is *captured*: its bytes and version (hmac) are
 //! snapshotted into a [`Buffer`] and the note surfaces as an agent-owned tab.
-//! Every edit mutates the buffer, not the file. Each edit is individually
-//! approved by the user (the card shows [`preview_edit`]'s diff); on
-//! approval the harness runs the edit and immediately writes the buffer
-//! back to the note ([`sync_note`], no longer a model tool).
+//! Every edit mutates the buffer, not the file; the harness gates each call
+//! on the chat's granted scope ([`in_scope`]) and immediately writes an
+//! in-scope edit's buffer back to the note ([`sync_note`], no longer a model
+//! tool). The transcript's diffed tool rows are the review surface.
 //!
 //! # Determinism / replay
 //!
@@ -36,7 +36,7 @@ use super::backend::ToolSchema;
 /// replay, so oversized notes error instead of loading a partial snapshot.
 const OPEN_CAP: usize = 256 * 1024;
 
-/// The persisted result of a denied edit. Kept identical to what the model
+/// The persisted result of a denied call. Kept identical to what the model
 /// sees, so a restored transcript's context matches the live one.
 pub const DENIED_RESULT: &str = "The user denied this tool call.";
 
@@ -375,46 +375,6 @@ pub fn viz_record(
     }
 }
 
-/// The change an `edit_note` call proposes, for the approval card: the
-/// target's current text (open buffer, else disk) with the edit applied,
-/// as del/add segments with one block of context. `Err` is the steering
-/// message the call will hit if approved, shown on the card instead.
-pub(super) async fn preview_edit(
-    lb: &Lb, buffers: &Buffers, args: &Value,
-) -> Result<Vec<super::diff::Segment>, String> {
-    let path = arg(args, "path")?;
-    let old = arg(args, "old_str")?;
-    let new = arg(args, "new_str")?;
-    let replace_all = args
-        .get("replace_all")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let base = match buffers.get(path) {
-        Some(b) => b.text.clone(),
-        None => match capture_from_disk(lb, path).await {
-            Ok((_, content)) if content.len() > OPEN_CAP => {
-                return Err(format!(
-                    "error: {path} is too large to open ({} KiB).",
-                    content.len() / 1024
-                ));
-            }
-            Ok((_, content)) => content,
-            Err(NotADoc) => return Err(format!("error: {path} is a folder, not a note.")),
-            Err(Missing) => return Err(format!("error: no note at {path}.")),
-            Err(NotUtf8) => return Err(format!("error: {path} isn't text.")),
-        },
-    };
-    // A scratch store so the preview can't touch the real branch.
-    let mut scratch = Buffers::default();
-    scratch.capture(path, None, base.clone());
-    scratch.edit(path, old, new, replace_all)?;
-    let text = scratch
-        .get(path)
-        .map(|b| b.text.clone())
-        .unwrap_or_default();
-    Ok(super::diff::segments(&base, &text, 1))
-}
-
 fn count(n: usize, noun: &str) -> String {
     if n == 1 { format!("1 {noun}") } else { format!("{n} {noun}s") }
 }
@@ -549,11 +509,10 @@ pub fn detail_for(name: &str, args: &Value) -> String {
 }
 
 /// Plain-language prose for a tool call, phrased as a yes/no question.
-/// `request_access` and `edit_note` are the only names the harness's `gate`
-/// ever raises as a card today — everything else is scope-checked silently —
-/// but the function still covers every tool name generally, `read_note`/`list`
-/// included, so a future gate can reuse this without new prose. Unknown
-/// shapes fall back to the terse detail.
+/// `request_access` is the only name the harness's `gate` raises as a card
+/// today — everything else runs or steers on scope, silently — but the
+/// function still covers every tool name generally so a future gate can
+/// reuse it without new prose. Unknown shapes fall back to the terse detail.
 pub fn permission_prose(name: &str, args: &Value, provider: &str) -> String {
     let path = args.get("path").and_then(Value::as_str);
     let flag = |key: &str| args.get(key).and_then(Value::as_bool).unwrap_or(false);

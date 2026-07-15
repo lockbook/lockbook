@@ -441,8 +441,6 @@ impl Chat {
                 (
                     tools::detail_for(&p.name, &p.args),
                     tools::permission_prose(&p.name, &p.args, &provider_label),
-                    p.preview.clone(),
-                    p.name == "request_access",
                     tools::request_reason(&p.args),
                 )
             });
@@ -850,154 +848,117 @@ impl Chat {
                             (galley, pos)
                         });
 
-                    // The trailing approval card, shaped like a tool container
-                    // pinned open: a header bar with the command summary, over
-                    // a bordered body holding the permission prose, the
-                    // proposed change, and Approve / Deny.
-                    let review_plan = pending_tool.as_ref().map(
-                        |(summary_text, prose, preview, is_request, reason)| {
-                            y += TOOL_GROUP_PAD;
-                            let indent = TOOL_PAD_X;
+                    // The trailing approval card (request_access — the only
+                    // gated call), shaped like a tool container pinned open:
+                    // a header bar with the command summary, over a bordered
+                    // body holding the permission prose and Allow / Deny.
+                    let review_plan = pending_tool.as_ref().map(|(summary_text, prose, reason)| {
+                        y += TOOL_GROUP_PAD;
+                        let indent = TOOL_PAD_X;
 
-                            // Header bar: the command summary, left-aligned. No
-                            // right metric — the call hasn't been allowed to run.
-                            let summary = ui.fonts(|f| {
-                                f.layout_no_wrap(
-                                    summary_text.clone(),
-                                    egui::FontId::monospace(TOOL_FONT),
-                                    secondary_color,
-                                )
-                            });
-                            let header_h = summary.size().y + 2.0 * TOOL_PAD_Y;
-                            let header_rect =
-                                Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, header_h));
-                            let mut cy = y + header_h + TOOL_PAD_Y;
+                        // Header bar: the command summary, left-aligned. No
+                        // right metric — the call hasn't been allowed to run.
+                        let summary = ui.fonts(|f| {
+                            f.layout_no_wrap(
+                                summary_text.clone(),
+                                egui::FontId::monospace(TOOL_FONT),
+                                secondary_color,
+                            )
+                        });
+                        let header_h = summary.size().y + 2.0 * TOOL_PAD_Y;
+                        let header_rect =
+                            Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, header_h));
+                        let mut cy = y + header_h + TOOL_PAD_Y;
 
-                            // Body: the permission request, wrapping. Dimmed mono,
-                            // like the tool summary and result text.
-                            let body_w = note_wrap_w - 2.0 * indent;
-                            let prose = ui.fonts(|f| {
+                        // Body: the permission request, wrapping. Dimmed mono,
+                        // like the tool summary and result text.
+                        let body_w = note_wrap_w - 2.0 * indent;
+                        let prose = ui.fonts(|f| {
+                            f.layout(
+                                prose.clone(),
+                                egui::FontId::monospace(TOOL_FONT),
+                                secondary_color,
+                                body_w,
+                            )
+                        });
+                        let prose_pos = pos2(note_x + indent, cy);
+                        cy += prose.size().y;
+
+                        // The call's stated reason, in the model's own
+                        // words — italic sans sets it apart from the ask
+                        // sentence's dimmed mono.
+                        let reason_plan = reason.as_ref().map(|r| {
+                            let galley = ui.fonts(|f| {
                                 f.layout(
-                                    prose.clone(),
-                                    egui::FontId::monospace(TOOL_FONT),
+                                    format!("“{r}”"),
+                                    egui::FontId {
+                                        size: TOOL_FONT,
+                                        family: egui::FontFamily::Name("Italic".into()),
+                                    },
                                     secondary_color,
                                     body_w,
                                 )
                             });
-                            let prose_pos = pos2(note_x + indent, cy);
-                            cy += prose.size().y;
+                            let pos = pos2(note_x + indent, cy + ROW_GAP);
+                            cy += ROW_GAP + galley.size().y;
+                            (galley, pos)
+                        });
 
-                            // A request_access call's stated reason, in
-                            // the model's own words — italic sans sets it
-                            // apart from the ask sentence's dimmed mono.
-                            let reason_plan = reason.as_ref().map(|r| {
-                                let galley = ui.fonts(|f| {
-                                    f.layout(
-                                        format!("“{r}”"),
-                                        egui::FontId {
-                                            size: TOOL_FONT,
-                                            family: egui::FontFamily::Name("Italic".into()),
-                                        },
-                                        secondary_color,
-                                        body_w,
-                                    )
-                                });
-                                let pos = pos2(note_x + indent, cy + ROW_GAP);
-                                cy += ROW_GAP + galley.size().y;
-                                (galley, pos)
-                            });
+                        // Button row, right-aligned. Hints show where a
+                        // hardware keyboard is plausible (desktop, iPad).
+                        cy += V_PAD;
+                        let btn = |ui: &Ui, label: String, accent: bool| {
+                            ui.fonts(|f| {
+                                f.layout_no_wrap(
+                                    label,
+                                    egui::FontId::proportional(13.0),
+                                    if accent { text_color } else { secondary_color },
+                                )
+                            })
+                        };
+                        // A grant reads as "Allow" — it confers standing
+                        // access, not a one-shot approval.
+                        let approve_label = if show_key_hints {
+                            format!("Allow {approve_hint}")
+                        } else {
+                            "Allow".into()
+                        };
+                        let deny_label = if show_key_hints {
+                            format!("Deny {deny_hint}")
+                        } else {
+                            "Deny".into()
+                        };
+                        let approve = btn(ui, approve_label, true);
+                        let deny = btn(ui, deny_label, false);
+                        let btn_h = approve.size().y.max(deny.size().y) + 8.0;
+                        let bpad = 12.0;
+                        let approve_w = approve.size().x + bpad * 2.0;
+                        let deny_w = deny.size().x + bpad * 2.0;
+                        let right = note_x + note_wrap_w - indent;
+                        let deny_rect =
+                            Rect::from_min_size(pos2(right - deny_w, cy), vec2(deny_w, btn_h));
+                        let approve_rect = Rect::from_min_size(
+                            pos2(deny_rect.min.x - STRIP_GAP - approve_w, cy),
+                            vec2(approve_w, btn_h),
+                        );
+                        cy += btn_h + TOOL_PAD_Y;
 
-                            // The proposed change, under the prose.
-                            let body = match preview {
-                                // An edit's diff, rendered with changed blocks
-                                // washed in place.
-                                Some(Ok(segs)) => {
-                                    self.review_label.renderer.layout.block_spacing =
-                                        DIFF_BLOCK_SPACING;
-                                    let h = segments_height(&mut self.review_label, segs, body_w);
-                                    let pos = pos2(note_x + indent, cy + ROW_GAP);
-                                    cy += ROW_GAP + h;
-                                    ReviewBody::Rendered {
-                                        segments: segs.clone(),
-                                        pos,
-                                        width: body_w,
-                                    }
-                                }
-                                // The steering error approval would hit.
-                                Some(Err(e)) => {
-                                    let galley = ui.fonts(|f| {
-                                        f.layout(
-                                            e.clone(),
-                                            egui::FontId::monospace(TOOL_FONT),
-                                            secondary_color,
-                                            body_w,
-                                        )
-                                    });
-                                    let pos = pos2(note_x + indent, cy + ROW_GAP);
-                                    cy += ROW_GAP + galley.size().y;
-                                    ReviewBody::Galley { galley, pos }
-                                }
-                                None => ReviewBody::None,
-                            };
-
-                            // Button row, right-aligned. Hints show where a
-                            // hardware keyboard is plausible (desktop, iPad).
-                            cy += V_PAD;
-                            let btn = |ui: &Ui, label: String, accent: bool| {
-                                ui.fonts(|f| {
-                                    f.layout_no_wrap(
-                                        label,
-                                        egui::FontId::proportional(13.0),
-                                        if accent { text_color } else { secondary_color },
-                                    )
-                                })
-                            };
-                            // A grant reads as "Allow" — it confers standing
-                            // access, not a one-shot approval.
-                            let verb = if *is_request { "Allow" } else { "Approve" };
-                            let approve_label = if show_key_hints {
-                                format!("{verb} {approve_hint}")
-                            } else {
-                                verb.into()
-                            };
-                            let deny_label = if show_key_hints {
-                                format!("Deny {deny_hint}")
-                            } else {
-                                "Deny".into()
-                            };
-                            let approve = btn(ui, approve_label, true);
-                            let deny = btn(ui, deny_label, false);
-                            let btn_h = approve.size().y.max(deny.size().y) + 8.0;
-                            let bpad = 12.0;
-                            let approve_w = approve.size().x + bpad * 2.0;
-                            let deny_w = deny.size().x + bpad * 2.0;
-                            let right = note_x + note_wrap_w - indent;
-                            let deny_rect =
-                                Rect::from_min_size(pos2(right - deny_w, cy), vec2(deny_w, btn_h));
-                            let approve_rect = Rect::from_min_size(
-                                pos2(deny_rect.min.x - STRIP_GAP - approve_w, cy),
-                                vec2(approve_w, btn_h),
-                            );
-                            cy += btn_h + TOOL_PAD_Y;
-
-                            let border =
-                                Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, cy - y));
-                            y = cy + ROW_GAP + TOOL_GROUP_PAD;
-                            ReviewPlan {
-                                header_rect,
-                                summary,
-                                prose,
-                                prose_pos,
-                                reason: reason_plan,
-                                body,
-                                approve,
-                                approve_rect,
-                                deny,
-                                deny_rect,
-                                border,
-                            }
-                        },
-                    );
+                        let border =
+                            Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, cy - y));
+                        y = cy + ROW_GAP + TOOL_GROUP_PAD;
+                        ReviewPlan {
+                            header_rect,
+                            summary,
+                            prose,
+                            prose_pos,
+                            reason: reason_plan,
+                            approve,
+                            approve_rect,
+                            deny,
+                            deny_rect,
+                            border,
+                        }
+                    });
 
                     // Keep the clicked arrows where they were: correct for
                     // any height change of the swapped fork row (content
@@ -1450,33 +1411,8 @@ impl Chat {
                         if let Some((galley, pos)) = r.reason {
                             ui.painter().galley(pos, galley, secondary_color);
                         }
-                        match r.body {
-                            ReviewBody::None => {}
-                            ReviewBody::Galley { galley, pos } => {
-                                ui.painter().galley(pos, galley, secondary_color);
-                            }
-                            // The proposed change, rendered; changed blocks
-                            // washed in place. Washes paint after the layout
-                            // but under the glyphs — text rides the later
-                            // glyphon callback layer. Bands bleed to the
-                            // container edges (inset for its 1px border).
-                            ReviewBody::Rendered { segments, pos, width } => {
-                                let areas = paint_segments(
-                                    ui,
-                                    &mut self.review_label,
-                                    Id::new("review_body"),
-                                    &segments,
-                                    pos,
-                                    width,
-                                    (note_x + 1.0, note_x + note_wrap_w - 1.0),
-                                    add_wash,
-                                    del_wash,
-                                );
-                                text_areas.extend(areas);
-                            }
-                        }
 
-                        // Deny: bordered. Approve: accent-filled.
+                        // Deny: bordered. Allow: accent-filled.
                         let deny = ui
                             .interact(r.deny_rect, Id::new("chat_review_deny"), Sense::click())
                             .on_hover_cursor(egui::CursorIcon::PointingHand);

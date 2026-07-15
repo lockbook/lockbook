@@ -18,7 +18,6 @@ use serde_json::Value;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 
 use super::backend::{Backend, ChatMsg, CompletionReq};
-use super::diff;
 use super::settings::Provider;
 use super::tools::{self, Buffers};
 use super::{anthropic, openai};
@@ -47,8 +46,7 @@ enum Cmd {
     /// driver its new truth. Sent only while idle. Buffers are session state
     /// and survive a reseed.
     Reseed(Vec<ChatMsg>, Buffers),
-    /// Approve the pending call — an edit runs and applies to the real note;
-    /// a `request_access` adds its path to the turn's scope.
+    /// Approve the pending `request_access` — its path joins the turn's scope.
     Approve,
     /// Deny the pending call; the model is told and steers.
     Deny,
@@ -75,15 +73,11 @@ enum AgentEvent {
         usage: Option<Usage>,
     },
     /// A tool call wants to run; the UI shows the approval card and the turn
-    /// blocks until approve/deny. Cards show for edits (with the proposed
-    /// diff) and `request_access`; see [`gate`].
+    /// blocks until approve/deny. Only `request_access` cards; see [`gate`].
     ToolRequest {
         name: String,
         /// The call's raw arguments, for the card's adapted permission prose.
         args: Value,
-        /// For edits: the proposed change as diff segments, or the steering
-        /// error approval would hit. `None` for `request_access`.
-        preview: Option<Result<Vec<diff::Segment>, String>>,
     },
     /// A tool call resolved (ran, or was denied) — persist it.
     ToolDone(ToolOutcome),
@@ -103,9 +97,9 @@ pub struct ToolOutcome {
     /// A steering failure — the call had no successful buffer effect, so
     /// replay suppresses its mutation.
     pub is_error: bool,
-    /// A harness-authored consequence of the user's approval (the automatic
-    /// write-back after an approved edit), not a model call — the record
-    /// persists and folds but stays out of model context.
+    /// A harness-authored consequence of a call (the automatic write-back
+    /// after an in-scope edit), not a model call — the record persists and
+    /// folds but stays out of model context.
     pub user_action: bool,
     /// Raw content to persist as this record's replay attachment (full, out of
     /// model context): a read/auto-open capture, or a merge-sync's merged text.
@@ -131,9 +125,6 @@ pub struct Harness {
 pub struct PendingTool {
     pub name: String,
     pub args: Value,
-    /// For edits: the proposed change as diff segments, or the steering
-    /// error approval would hit. `None` for `request_access`.
-    pub preview: Option<Result<Vec<diff::Segment>, String>>,
 }
 
 /// Transcript-bound output of [`Harness::pump`].
@@ -231,8 +222,8 @@ impl Harness {
                         updates.push(HarnessUpdate::Reply { text, usage });
                     }
                 }
-                AgentEvent::ToolRequest { name, args, preview } => {
-                    self.pending_tool = Some(PendingTool { name, args, preview });
+                AgentEvent::ToolRequest { name, args } => {
+                    self.pending_tool = Some(PendingTool { name, args });
                 }
                 AgentEvent::ToolDone(outcome) => {
                     self.pending_tool = None;
@@ -399,9 +390,9 @@ async fn run(
 
             // One call at a time on the wire, but handle a batch defensively —
             // every tool_use needs a matching result. Out-of-scope calls fail
-            // as steering results (no card); edits and access requests block
-            // on the user's approval. An approved edit applies straight
-            // through to the real note; an approved request widens the scope.
+            // as steering results (no card); in-scope calls run, edits
+            // applying straight through to the real note; access requests
+            // block on the user's approval and widen the scope.
             for call in calls {
                 let is_edit = call.name == "edit_note";
                 let is_request = call.name == "request_access";
@@ -426,15 +417,9 @@ async fn run(
                         continue;
                     }
                     Gate::Card => {
-                        let preview = if is_edit {
-                            Some(tools::preview_edit(&lb, &buffers, &call.args).await)
-                        } else {
-                            None
-                        };
                         send(AgentEvent::ToolRequest {
                             name: call.name.clone(),
                             args: call.args.clone(),
-                            preview,
                         });
 
                         // Block on the decision, queuing unrelated commands.
@@ -520,8 +505,8 @@ async fn run(
                     user_action: false,
                 }));
 
-                // The approved edit lands on the real note now. The receipt
-                // record persists and folds (it marks the buffer saved, and
+                // The edit lands on the real note now. The receipt record
+                // persists and folds (it marks the buffer saved, and
                 // captures a merge's inflow) but stays out of model context —
                 // the model's picture is simply that edits apply.
                 if edit_applied {
@@ -566,17 +551,15 @@ enum Gate {
     OutOfScope,
 }
 
-/// The single access choke point, uniform regardless of provider. `request_access`
-/// always cards; everything else is scope-checked; edits additionally card
-/// even in scope.
+/// The single access choke point, uniform regardless of provider.
+/// `request_access` always cards; everything else — edits included — runs
+/// iff in scope. A grant is the standing consent; the transcript's diffed
+/// tool rows are the review surface for what it covered.
 fn gate(name: &str, args: &Value, scope: &[String]) -> Gate {
     if name == "request_access" {
         return Gate::Card;
     }
-    if !tools::in_scope(call_path(args), scope) {
-        return Gate::OutOfScope;
-    }
-    if name == "edit_note" { Gate::Card } else { Gate::Run }
+    if tools::in_scope(call_path(args), scope) { Gate::Run } else { Gate::OutOfScope }
 }
 
 /// The path a call targets; `list`'s default root when absent.
@@ -712,31 +695,18 @@ mod tests {
          data: {\"choices\":[],\"usage\":{\"prompt_tokens\":5,\"completion_tokens\":1}}\n\n\
          data: [DONE]\n\n";
 
-    /// An edit call raises the approval card; approval runs it (a steering
-    /// error on the offline core, so no write-back receipt) and the turn
-    /// completes.
+    /// An in-scope edit runs straight through — no card, no decision step (a
+    /// steering error on the offline core, so no write-back receipt) — and
+    /// the turn completes.
     #[test]
-    fn edit_requests_approval_then_runs() {
+    fn edit_runs_in_scope_without_card() {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
         let mut harness =
             Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
         harness.say("edit my note".into(), provider(base), None, full_scope());
 
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while Instant::now() < deadline && harness.pending_tool.is_none() {
-            harness.pump();
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        let pending = harness.pending_tool.as_ref().expect("approval card");
-        assert_eq!(pending.name, "edit_note");
-        assert_eq!(pending.args["path"], "/a.md");
-        // No account on the offline core → the preview carries the
-        // steering error approval would hit.
-        assert!(matches!(&pending.preview, Some(Err(e)) if e.starts_with("error:")));
-        assert!(harness.busy);
-
-        harness.approve();
-
+        // Drains to completion unattended — a card would block the turn on a
+        // decision that never comes and time this out.
         let updates = drain(&mut harness);
         let tools: Vec<_> = updates
             .iter()
@@ -752,22 +722,14 @@ mod tests {
         assert!(harness.pending_tool.is_none());
     }
 
-    /// Denying an edit feeds the denial back without running it; the turn
+    /// An out-of-scope edit steers without a card or a decision; the turn
     /// still completes.
     #[test]
-    fn denied_edit_completes_without_running() {
+    fn edit_out_of_scope_steers_without_card() {
         let base = serve_seq(vec![SSE_EDIT_CALL, SSE_HELLO]);
         let mut harness =
             Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
-        harness.say("do it".into(), provider(base), None, full_scope());
-
-        let deadline = Instant::now() + Duration::from_secs(5);
-        while Instant::now() < deadline && harness.pending_tool.is_none() {
-            harness.pump();
-            std::thread::sleep(Duration::from_millis(5));
-        }
-        assert!(harness.pending_tool.is_some());
-        harness.deny();
+        harness.say("do it".into(), provider(base), None, TurnAccess::default());
 
         let updates = drain(&mut harness);
         let tool = updates
@@ -776,10 +738,11 @@ mod tests {
                 HarnessUpdate::Tool(t) => Some(t),
                 _ => None,
             })
-            .expect("a denied tool row");
-        assert_eq!(tool.result, tools::DENIED_RESULT);
+            .expect("a steered tool row");
+        assert!(tool.result.starts_with("denied:"), "{}", tool.result);
         assert!(tool.is_error);
         assert!(!harness.busy);
+        assert!(harness.pending_tool.is_none());
     }
 
     /// The full tool round-trip: first completion emits a call → in scope, it
@@ -820,8 +783,8 @@ mod tests {
     }
 
     /// The single access choke point, uniform regardless of provider:
-    /// `request_access` always cards; everything else is scope-checked;
-    /// edits additionally card even in scope.
+    /// `request_access` always cards; everything else — edits included —
+    /// runs iff in scope.
     #[test]
     fn gate_routes_by_scope() {
         use serde_json::json;
@@ -836,7 +799,7 @@ mod tests {
         assert_eq!(gate("read_note", &read("/other.md"), &scope), Gate::OutOfScope);
         assert_eq!(gate("list", &json!({}), &scope), Gate::OutOfScope); // default "/"
         assert_eq!(gate("list", &read("/notes/"), &scope), Gate::Run);
-        assert_eq!(gate("edit_note", &read("/notes/a.md"), &scope), Gate::Card);
+        assert_eq!(gate("edit_note", &read("/notes/a.md"), &scope), Gate::Run);
         assert_eq!(gate("edit_note", &read("/other.md"), &scope), Gate::OutOfScope);
 
         // Empty scope — no bypass for anyone, edit or otherwise.
@@ -869,7 +832,6 @@ mod tests {
         let pending = harness.pending_tool.as_ref().expect("grant card");
         assert_eq!(pending.name, "request_access");
         assert_eq!(pending.args["path"], "/notes/");
-        assert!(pending.preview.is_none());
 
         harness.approve();
 

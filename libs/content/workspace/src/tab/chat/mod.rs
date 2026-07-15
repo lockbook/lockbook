@@ -280,7 +280,7 @@ struct ListRowPlan {
 /// The trailing approval card for a call awaiting a decision, styled like a
 /// [`RowPlan::Tool`] container pinned open: a filled header bar carrying the
 /// command summary (no right metric — it hasn't run), over a bordered body
-/// holding the permission prose, the proposed change, and Approve / Deny.
+/// holding the permission prose and Allow / Deny.
 /// Laid out in pass 1, painted after the rows.
 struct ReviewPlan {
     header_rect: Rect,
@@ -289,25 +289,15 @@ struct ReviewPlan {
     /// The plain-language permission request, atop the body.
     prose: Arc<Galley>,
     prose_pos: Pos2,
-    /// A `request_access` call's stated reason, set in italic under the
-    /// prose — `None` outside a request or when it gave none.
+    /// The call's stated reason, set in italic under the prose — `None`
+    /// when it gave none.
     reason: Option<(Arc<Galley>, Pos2)>,
-    body: ReviewBody,
     approve: Arc<Galley>,
     approve_rect: Rect,
     deny: Arc<Galley>,
     deny_rect: Rect,
     /// The full container, bordered like an expanded tool row.
     border: Rect,
-}
-
-/// The card body's proposed change, below the permission prose: an edit's
-/// change as stacked markdown segments with changed ones washed, a steering
-/// error as a plain line, or nothing (a gated read is prose-only).
-enum ReviewBody {
-    None,
-    Galley { galley: Arc<Galley>, pos: Pos2 },
-    Rendered { segments: Vec<diff::Segment>, pos: Pos2, width: f32 },
 }
 
 /// The metadata strip under a row, laid out in pass 1 and drawn after the
@@ -396,9 +386,6 @@ pub struct Chat {
     harness: Option<harness::Harness>,
     /// Renders the in-flight streaming reply.
     streaming_label: MdLabel,
-    /// Renders the approval card's proposed change (the combined block
-    /// diff) as markdown.
-    review_label: MdLabel,
     /// Unshared at open — eligible for an agent (setup guidance is shown if
     /// none could be built).
     unshared: bool,
@@ -694,13 +681,6 @@ impl Chat {
             hide_children_of: None,
             harness,
             streaming_label: {
-                let mut label = MdLabel::new(ctx.clone());
-                label.renderer.files = Arc::clone(&files);
-                label.renderer.link_resolver =
-                    Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
-                label
-            },
-            review_label: {
                 let mut label = MdLabel::new(ctx.clone());
                 label.renderer.files = Arc::clone(&files);
                 label.renderer.link_resolver = Box::new(FileCacheLinkResolver::new(files, id));
