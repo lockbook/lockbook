@@ -28,6 +28,8 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer as TextBuffer;
 use serde_json::{Value, json};
 
+use crate::file_cache::path_segments;
+
 use super::backend::ToolSchema;
 
 /// A note the model refuses to open beyond — a truncated capture would corrupt
@@ -40,14 +42,13 @@ pub const DENIED_RESULT: &str = "The user denied this tool call.";
 
 /// Whether `path` falls under any granted root: folder grants (trailing '/')
 /// cover their subtree and the folder itself; note grants cover exactly that
-/// note. `"/"` grants everything.
+/// note. `"/"` grants everything. Compared as path segments, not characters
+/// — `/notes/` must not match `/notes2/a.md` on a shared string prefix.
 pub fn in_scope(path: &str, scope: &[String]) -> bool {
-    let path = path.trim_end_matches('/');
-    scope.iter().any(|g| match g.strip_suffix('/') {
-        Some(folder) => {
-            folder.is_empty() || path == folder || path.starts_with(&format!("{folder}/"))
-        }
-        None => path == g,
+    let path = path_segments(path);
+    scope.iter().any(|g| {
+        let grant = path_segments(g);
+        if g.ends_with('/') { path.starts_with(grant.as_slice()) } else { path == grant }
     })
 }
 
