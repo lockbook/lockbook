@@ -191,6 +191,9 @@ struct RecentDocRow: View {
         .onAppear {
             model.loadPreviewIfNeeded(file)
         }
+        .onChange(of: file.lastModified) {
+            model.loadPreviewIfNeeded(file)
+        }
     }
 
     private var modifiedDate: Date {

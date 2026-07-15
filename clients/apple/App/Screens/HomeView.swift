@@ -234,6 +234,10 @@ struct HomeView: View {
         .onChange(of: AppState.lb.events.metadataVersion) {
             filesModel.loadFiles()
         }
+        .onChange(of: AppState.lb.events.docWritten) { _, docWritten in
+            guard let docWritten else { return }
+            filesModel.documentWritten(docWritten.id)
+        }
         .onAppear {
             workspaceInput.setSidebarOpen(nativeSidebarOpen)
         }

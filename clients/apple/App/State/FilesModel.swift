@@ -102,6 +102,27 @@ import SwiftWorkspace
         }
     }
 
+    func documentWritten(_ id: UUID) {
+        DispatchQueue.global(qos: .userInitiated).async {
+            guard case let .success(file) = AppState.lb.getFile(id: id) else {
+                return
+            }
+
+            DispatchQueue.main.async {
+                guard let existing = self.idsToFiles[file.id], existing.parent == file.parent else {
+                    self.loadFiles()
+                    return
+                }
+
+                self.idsToFiles[file.id] = file
+
+                if let idx = self.childrenByParent[file.parent]?.firstIndex(where: { $0.id == file.id }) {
+                    self.childrenByParent[file.parent]?[idx] = file
+                }
+            }
+        }
+    }
+
     func ancestors(of file: File) -> [File] {
         var chain: [File] = []
         var current = file

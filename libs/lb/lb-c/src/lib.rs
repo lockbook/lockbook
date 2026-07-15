@@ -1116,6 +1116,8 @@ pub struct LbEvent {
     pub status_updated: bool,
     pub metadata_updated: bool,
     pub pending_shares_changed: bool,
+    pub doc_written: bool,
+    pub doc_written_id: LbUuid,
 }
 
 pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
@@ -1139,6 +1141,11 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
                     Event::PendingSharesChanged => {
                         LbEvent { pending_shares_changed: true, ..Default::default() }
                     }
+                    Event::DocumentWritten(id, _) => LbEvent {
+                        doc_written: true,
+                        doc_written_id: id.into(),
+                        ..Default::default()
+                    },
                     _ => continue,
                 };
 
