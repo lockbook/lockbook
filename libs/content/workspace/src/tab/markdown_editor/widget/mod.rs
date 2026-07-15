@@ -363,13 +363,25 @@ impl<'ast> MdRender {
 
     pub fn syntax_color_for_hex(&self, hex: &str) -> egui::Color32 {
         let theme = self.ctx.get_lb_theme();
+        if let Some(code) = theme.code_variant() {
+            return match hex {
+                "#000000" => code.text,
+                "#111111" => code.comment,
+                "#222222" => code.class,
+                "#333333" => code.function,
+                "#444444" => code.keyword,
+                "#555555" => code.string,
+                "#666666" => code.number,
+                _ => code.text,
+            };
+        }
         match hex {
             "#000000" => theme.neutral_fg(),
             "#111111" => theme.neutral_fg_secondary(),
             "#222222" => theme.fg().get_color(theme.prefs().primary),
             "#333333" => theme.fg().get_color(theme.prefs().secondary),
             "#444444" => theme.fg().get_color(theme.prefs().tertiary),
-            "#555555" => theme.fg().get_color(theme.prefs().quaternary),
+            "#555555" | "#666666" => theme.fg().get_color(theme.prefs().quaternary),
             _ => theme.neutral_fg(),
         }
     }
