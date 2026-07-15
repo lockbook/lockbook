@@ -392,10 +392,16 @@ impl Chat {
             let _ = self.composer.handle_input(ui.ctx(), composer_id);
         }
 
+        // Send/stop sits inside the text area at its trailing edge
+        // (messaging-app idiom) — the text column narrows to wrap clear of it.
+        let send_d = if touch_os { TOOLBAR_H - 2.0 } else { TOOLBAR_H - 8.0 };
+        let send_zone = send_d + H_PAD;
+
         // Measure at the exact render width so the composer bubble grows
         // same-frame. The re-parse inside `show` below hits the layout cache.
-        // `H_MARGIN` and `H_PAD` mirror the h_inset / shrink geometry below.
-        let composer_inner_w = (col_width - 2.0 * H_MARGIN - 2.0 * H_PAD).max(0.0);
+        // `H_MARGIN`, `H_PAD`, and `send_zone` mirror the h_inset / shrink
+        // geometry below.
+        let composer_inner_w = (col_width - 2.0 * H_MARGIN - 2.0 * H_PAD - send_zone).max(0.0);
         let measured_h = self.composer.measure_height(composer_inner_w);
 
         // Autogrow with a max cap, no lower floor — a lower floor makes a
@@ -2125,9 +2131,10 @@ impl Chat {
         // bottom is purely the glyphon clip — insetting it by `V_PAD` pinned
         // the clip onto the last line's box and shaved descenders (g/y tails,
         // worst on hi-DPI). The empty space above the toolbar is the padding.
+        // The right side additionally clears the send button's zone.
         let inner_rect = Rect::from_min_max(
             text_rect.min + vec2(H_PAD, V_PAD),
-            pos2(text_rect.max.x - H_PAD, text_rect.max.y),
+            pos2(text_rect.max.x - H_PAD - send_zone, text_rect.max.y),
         );
         // When the key is broken the text field is replaced by an accent
         // "add key" button — a control, never a place to type a secret.
@@ -2174,6 +2181,58 @@ impl Chat {
             } else {
                 None
             };
+
+        // Send/stop at the text area's trailing edge, bottom-aligned so it
+        // tracks the newest line as the composer grows (centered while a
+        // single line leaves the area shorter than the button). While a turn
+        // streams the button is a stop square (the reply keeps what streamed
+        // so far).
+        let non_empty = !self.composer.renderer.buffer.current.text.trim().is_empty();
+        let mut send_clicked = false;
+        let mut stop_clicked = false;
+        // No send button while the field is the "add key" button.
+        if !hide_composer && need_key.is_none() {
+            let center = pos2(
+                text_rect.max.x - H_PAD - send_d / 2.0,
+                (text_rect.max.y - V_PAD - send_d / 2.0).max(text_rect.center().y),
+            );
+            let button_rect = Rect::from_center_size(center, vec2(send_d, send_d));
+            // Touch targets stay ~44pt even where the visual is smaller.
+            let hit_rect = if touch_os { button_rect.expand(7.0) } else { button_rect };
+            let active = (non_empty && send_block.is_none()) || agent_busy;
+            let resp = ui.interact(hit_rect, Id::new("chat_send"), Sense::click());
+            // A pointer cursor when it'll do something (send, or stop a turn).
+            let resp =
+                if active { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
+
+            let painter = ui.painter();
+            // The markdown-toolbar icon idiom — no filled disc, just the mark
+            // itself: accent when actionable, foreground when idle.
+            let mark = if active {
+                theme.fg().get_color(theme.prefs().primary)
+            } else {
+                theme.neutral_fg()
+            };
+            if agent_busy {
+                let side = send_d * 0.36;
+                painter.rect_filled(
+                    Rect::from_center_size(center, vec2(side, side)),
+                    CornerRadius::same(2),
+                    mark,
+                );
+                stop_clicked = resp.clicked();
+            } else {
+                let icon = ui.fonts(|f| {
+                    f.layout_no_wrap(
+                        Icon::SEND.icon.to_string(),
+                        egui::FontId::monospace(send_d * 0.55),
+                        mark,
+                    )
+                });
+                painter.galley(center - icon.size() / 2.0, icon, mark);
+                send_clicked = resp.clicked();
+            }
+        }
 
         // Ghosted placeholder over the empty composer (not while the field is
         // the "add key" button).
@@ -2528,13 +2587,12 @@ impl Chat {
             }
 
             // Conversation-scoped actions live in a ⋯ overflow at the
-            // toolbar's right, beside send — not in the provider picker,
-            // which stays a pure provider list. Right-aligned so the rare
-            // actions sit away from the per-message controls.
+            // toolbar's right end — not in the provider picker, which stays
+            // a pure provider list. Right-aligned so the rare actions sit
+            // away from the per-message controls.
             {
                 let d = TOOLBAR_H - 8.0;
-                let center =
-                    pos2(toolbar_rect.max.x - d - STRIP_GAP - d / 2.0, toolbar_rect.center().y);
+                let center = pos2(toolbar_rect.max.x - d / 2.0, toolbar_rect.center().y);
                 let more_rect = Rect::from_center_size(center, vec2(d, d));
                 let more_resp = ui
                     .interact(more_rect, Id::new("chat_more_btn"), Sense::click())
@@ -2623,53 +2681,6 @@ impl Chat {
             }
         }
 
-        // Send/stop at the toolbar's right end. While a turn streams the
-        // button is a stop square (the reply keeps what streamed so far).
-        let non_empty = !self.composer.renderer.buffer.current.text.trim().is_empty();
-        let mut send_clicked = false;
-        let mut stop_clicked = false;
-        // No send button while the field is the "add key" button.
-        if !hide_composer && need_key.is_none() {
-            let d = if touch_os { TOOLBAR_H - 2.0 } else { TOOLBAR_H - 8.0 };
-            let center = pos2(toolbar_rect.max.x - d / 2.0, toolbar_rect.center().y);
-            let button_rect = Rect::from_center_size(center, vec2(d, d));
-            // Touch targets stay ~44pt even where the visual is smaller.
-            let hit_rect = if touch_os { button_rect.expand(7.0) } else { button_rect };
-            let active = (non_empty && send_block.is_none()) || agent_busy;
-            let resp = ui.interact(hit_rect, Id::new("chat_send"), Sense::click());
-            // A pointer cursor when it'll do something (send, or stop a turn).
-            let resp =
-                if active { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
-
-            let painter = ui.painter();
-            // The markdown-toolbar icon idiom — no filled disc, just the mark
-            // itself: accent when actionable, foreground when idle.
-            let mark = if active {
-                theme.fg().get_color(theme.prefs().primary)
-            } else {
-                theme.neutral_fg()
-            };
-            if agent_busy {
-                let side = d * 0.36;
-                painter.rect_filled(
-                    Rect::from_center_size(center, vec2(side, side)),
-                    CornerRadius::same(2),
-                    mark,
-                );
-                stop_clicked = resp.clicked();
-            } else {
-                let icon = ui.fonts(|f| {
-                    f.layout_no_wrap(
-                        Icon::SEND.icon.to_string(),
-                        egui::FontId::monospace(d * 0.55),
-                        mark,
-                    )
-                });
-                painter.galley(center - icon.size() / 2.0, icon, mark);
-                send_clicked = resp.clicked();
-            }
-        }
-
         if stop_clicked {
             if let Some(harness) = &mut self.harness {
                 harness.stop();
@@ -2693,14 +2704,14 @@ impl Chat {
         // it doubles as the tap-to-focus / double-tap-to-select gesture
         // target, and the padding margins should be tappable too (touch→buffer
         // mapping is hit-tested separately, so a larger frame is safe). It
-        // stops at the toolbar so the dropdowns and send button keep their own
-        // egui taps.
+        // stops at the toolbar and short of the send button's zone so those
+        // keep their own egui taps.
         let interaction_rect = if self.key_entry.is_some() {
             self.key_field_hit_rect
         } else if hide_composer {
             Rect::NOTHING
         } else {
-            text_rect
+            Rect::from_min_max(text_rect.min, pos2(text_rect.max.x - send_zone, text_rect.max.y))
         };
         // The composer's `seq` bumps on any text/selection change. When it
         // moved but no native keystroke drove it (a send-clear, edit-prefill,
