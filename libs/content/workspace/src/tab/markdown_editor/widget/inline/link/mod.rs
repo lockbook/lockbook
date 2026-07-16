@@ -318,8 +318,9 @@ impl<'ast> MdRender {
         self.link_resolver.wikilink_state(url)
     }
 
-    /// URL of the first link/image whose source range intersects the current
-    /// selection — what an "Open Link" affordance (the iOS edit menu) acts on.
+    /// URL (or wikilink target) of the first link-like node whose source range
+    /// intersects the current selection — gates and feeds the platform edit
+    /// menu's "Open Link" / "Copy Link".
     pub fn selection_open_target(&mut self) -> Option<String> {
         let arena = Arena::new();
         let root = self.reparse(&arena);
@@ -327,6 +328,7 @@ impl<'ast> MdRender {
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Link(l) | NodeValue::Image(l) => l.url.clone(),
+                NodeValue::WikiLink(nwl) => nwl.url.clone(),
                 _ => continue,
             };
             if !url.is_empty() && self.node_range(node).intersects(&selection, true) {

@@ -2075,3 +2075,15 @@ fn touch_image_tap_selects_and_pops_menu() {
         "atom context menu popped: {menu:?}"
     );
 }
+
+/// `selection_open_target` gates the platform edit menu's "Open Link" /
+/// "Copy Link" — it must see wikilinks, not just links and images.
+#[test]
+fn selection_open_target_includes_wikilinks() {
+    let mut ws = TestEditor::new("a [[todo]] wikilink\n");
+    let link = ((2).into(), (10).into());
+    assert_eq!(&ws.editor.edit.renderer.buffer[link], "[[todo]]");
+    ws.push(Event::Select { region: link.into() });
+    ws.enter_frame();
+    assert_eq!(ws.editor.edit.renderer.selection_open_target().as_deref(), Some("todo"));
+}
