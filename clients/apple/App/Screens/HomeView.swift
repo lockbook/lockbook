@@ -18,11 +18,11 @@ struct HomeView: View {
     @State private var renameTarget: File? = nil
     @State private var showTabsSidebar = false
     @State private var showOutOfSpaceAlert = false
+    @State private var detailWidth: CGFloat = 0
     #if os(iOS)
         @State private var showSettings = false
         @State private var keyboardVisible = false
         @State private var showCreateAlongside = false
-        @State private var detailWidth: CGFloat = 0
     #else
         @State private var showImporter = false
     #endif
@@ -65,49 +65,18 @@ struct HomeView: View {
             workspace
                 .navigationTitle(detailTitle)
                 #if os(iOS)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .sidebarToggle)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
+                #else
+                    .background {
+                        DetailWidthReader { detailWidth = $0 }
+                    }
                 #endif
                 .toolbar {
                     if let file = openDocFile {
                         ToolbarItem(placement: .principal) {
-                            Button {
-                                renameTarget = file
-                            } label: {
-                                let segments = filesModel.ancestors(of: file).map(\.name)
-
-                                ViewThatFits(in: .horizontal) {
-                                    titleCrumb(file, leading: segments)
-
-                                    if segments.count > 1, let parent = segments.last {
-                                        titleCrumb(file, leading: ["…", parent])
-                                    }
-
-                                    if !segments.isEmpty {
-                                        titleCrumb(file, leading: ["…"])
-                                    }
-
-                                    titleCrumb(file, leading: [])
-
-                                    titleCrumb(file, leading: [], showIcon: false)
-
-                                    titleCrumb(file, leading: [], showIcon: false, showPencil: false)
-                                }
-                                .font(.subheadline)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background {
-                                    Capsule()
-                                        .fill(titleCapsuleColor)
-                                        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
-                                }
-                                .contentShape(Capsule())
-                                #if os(iOS)
-                                    .frame(maxWidth: titlePillMaxWidth)
-                                #endif
-                            }
-                            .buttonStyle(.plain)
+                            titlePill(for: file)
                         }
                     }
 
@@ -518,15 +487,17 @@ struct HomeView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: tabstripPlacement) {
-                Picker("Tabs", selection: $selectedTab) {
-                    ForEach([SidebarTab.files, .recents, .sharedWithMe]) { tab in
-                        Label(tab.title, systemImage: tab.systemImage)
-                            .tag(tab)
+            if showTabPicker {
+                ToolbarItem(placement: tabstripPlacement) {
+                    Picker("Tabs", selection: $selectedTab) {
+                        ForEach([SidebarTab.files, .recents, .sharedWithMe]) { tab in
+                            Label(tab.title, systemImage: tab.systemImage)
+                                .tag(tab)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
                 }
-                .pickerStyle(.segmented)
-                .fixedSize()
             }
 
             #if os(iOS)
@@ -629,6 +600,14 @@ struct HomeView: View {
         #endif
     }
 
+    private var showTabPicker: Bool {
+        #if os(macOS)
+            nativeSidebarOpen
+        #else
+            true
+        #endif
+    }
+
     private var sharePlacement: ToolbarItemPlacement {
         #if os(macOS)
             .primaryAction
@@ -643,6 +622,90 @@ struct HomeView: View {
         }
 
         return filesModel.idsToFiles[id]
+    }
+
+    private func titlePill(for file: File) -> some View {
+        let variant = crumbVariant(for: file)
+
+        return Button {
+            renameTarget = file
+        } label: {
+            titleCrumb(file, leading: variant.leading, showIcon: variant.showIcon, showPencil: variant.showPencil)
+                .font(.subheadline)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background {
+                    Capsule()
+                        .fill(titleCapsuleColor)
+                        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+                }
+                .contentShape(Capsule())
+                #if os(iOS)
+                    .frame(maxWidth: crumbAvailableWidth)
+                #endif
+        }
+        .buttonStyle(.plain)
+        #if os(macOS)
+            .cappedWidth(crumbAvailableWidth)
+            .id(variant)
+        #endif
+    }
+
+    private var crumbAvailableWidth: CGFloat {
+        #if os(macOS)
+            detailWidth > 0 ? detailWidth * 0.6 : 600
+        #else
+            titlePillMaxWidth
+        #endif
+    }
+
+    private struct CrumbVariant: Hashable {
+        var leading: [String]
+        var showIcon = true
+        var showPencil = true
+    }
+
+    private func crumbVariant(for file: File) -> CrumbVariant {
+        let segments = filesModel.ancestors(of: file).map(\.name)
+
+        var options: [CrumbVariant] = [CrumbVariant(leading: segments)]
+        if segments.count > 1, let parent = segments.last {
+            options.append(CrumbVariant(leading: ["…", parent]))
+        }
+        if !segments.isEmpty {
+            options.append(CrumbVariant(leading: ["…"]))
+        }
+        options.append(CrumbVariant(leading: [], showIcon: false, showPencil: false))
+
+        let available = crumbAvailableWidth
+        for variant in options where crumbWidth(variant, name: file.name) <= available {
+            return variant
+        }
+
+        return options.last ?? CrumbVariant(leading: [], showIcon: false, showPencil: false)
+    }
+
+    private func crumbWidth(_ variant: CrumbVariant, name: String) -> CGFloat {
+        var width: CGFloat = 32
+        if variant.showIcon { width += 23 }
+        for segment in variant.leading {
+            width += crumbTextWidth(segment) + 8
+            width += 18
+        }
+        width += crumbTextWidth(name) + 8
+        if variant.showPencil { width += 16 }
+
+        return width
+    }
+
+    private func crumbTextWidth(_ string: String) -> CGFloat {
+        #if os(macOS)
+            let font = NSFont.preferredFont(forTextStyle: .subheadline)
+        #else
+            let font = UIFont.preferredFont(forTextStyle: .subheadline)
+        #endif
+
+        return (string as NSString).size(withAttributes: [.font: font]).width
     }
 
     private var titleCapsuleColor: Color {
@@ -719,6 +782,90 @@ private extension View {
             .sensoryFeedback(.impact(weight: .medium), trigger: trigger)
     }
 }
+
+#if os(macOS)
+    private struct CappedWidthLayout: Layout {
+        let width: CGFloat?
+
+        func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+            subviews.first?.sizeThatFits(capped(proposal)) ?? .zero
+        }
+
+        func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+            subviews.first?.place(
+                at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center, proposal: capped(proposal)
+            )
+        }
+
+        private func capped(_ proposal: ProposedViewSize) -> ProposedViewSize {
+            guard let width else { return proposal }
+
+            return ProposedViewSize(width: min(proposal.width ?? width, width), height: proposal.height)
+        }
+    }
+
+    private extension View {
+        func cappedWidth(_ width: CGFloat?) -> some View {
+            CappedWidthLayout(width: width) { self }
+        }
+    }
+
+    private struct DetailWidthReader: NSViewRepresentable {
+        let onChange: (CGFloat) -> Void
+
+        func makeNSView(context: Context) -> WidthReportingView {
+            let view = WidthReportingView()
+            view.onChange = onChange
+            return view
+        }
+
+        func updateNSView(_ nsView: WidthReportingView, context: Context) {
+            nsView.onChange = onChange
+        }
+
+        final class WidthReportingView: NSView {
+            var onChange: ((CGFloat) -> Void)?
+            private var lastWidth: CGFloat = 0
+
+            override init(frame frameRect: NSRect) {
+                super.init(frame: frameRect)
+                postsFrameChangedNotifications = true
+                NotificationCenter.default.addObserver(
+                    self, selector: #selector(frameChanged),
+                    name: NSView.frameDidChangeNotification, object: self
+                )
+            }
+
+            @available(*, unavailable)
+            required init?(coder: NSCoder) {
+                fatalError("init(coder:) has not been implemented")
+            }
+
+            deinit {
+                NotificationCenter.default.removeObserver(self)
+            }
+
+            override func layout() {
+                super.layout()
+                report()
+            }
+
+            @objc private func frameChanged() {
+                report()
+            }
+
+            private func report() {
+                let width = bounds.width
+                guard width != lastWidth, width > 0 else { return }
+
+                lastWidth = width
+                DispatchQueue.main.async { [weak self] in
+                    self?.onChange?(width)
+                }
+            }
+        }
+    }
+#endif
 
 enum SidebarTab: String, Identifiable {
     case files
