@@ -642,6 +642,47 @@ impl<'ast> MdRender {
         });
     }
 
+    /// Drop `url`'s cached metadata and fetch it fresh — the context menu's
+    /// "Refresh Preview". Explicitly user-invoked, but still behind the
+    /// contact-linked-sites opt-in (previews don't render without it anyway).
+    pub fn refresh_link_meta(&self, url: &str) {
+        if !self.contact_linked_sites {
+            return;
+        }
+        let resolved_url = match self.resolve_link(url) {
+            Some(ResolvedLink::External(u))
+                if u.starts_with("http://") || u.starts_with("https://") =>
+            {
+                u
+            }
+            _ => return,
+        };
+        let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
+        self.layout_cache
+            .link_meta
+            .borrow_mut()
+            .insert(resolved_url.clone(), arc.clone());
+        self.spawn_meta_fetch(resolved_url, arc, 0);
+    }
+
+    /// Re-fetch preview metadata for every link intersecting the selection —
+    /// the touch edit menu's "Refresh Preview".
+    pub fn refresh_selection_previews(&mut self) {
+        let arena = Arena::new();
+        let root = self.reparse(&arena);
+        let selection = self.buffer.current.selection;
+        let mut urls = vec![];
+        for node in root.descendants() {
+            if let NodeValue::Link(l) = &node.data.borrow().value {
+                if !l.url.is_empty() && self.node_range(node).intersects(&selection, true) {
+                    urls.push(l.url.clone());
+                }
+            }
+        }
+        for url in urls {
+            self.refresh_link_meta(&url);
+        }
+    }
 }
 
 /// Result of a [`MdRender::get_link_meta`] lookup.
@@ -688,6 +729,7 @@ pub enum LinkMenuAction {
     Open,
     Copy,
     Edit,
+    Refresh,
 }
 
 /// What a desktop context menu over a link-like node acts on.
@@ -702,9 +744,10 @@ pub struct LinkMenuTarget {
     pub force_reveal: bool,
 }
 
-/// The link section of a desktop context menu; `editable` gates "Edit".
+/// The link section of a desktop context menu; `editable` gates "Edit",
+/// `refreshable` gates "Refresh Preview" (rendered previews only).
 pub fn link_menu_buttons(
-    ui: &mut egui::Ui, is_image: bool, editable: bool,
+    ui: &mut egui::Ui, is_image: bool, editable: bool, refreshable: bool,
 ) -> Option<LinkMenuAction> {
     let mut action = None;
     let (open, copy, edit) = if is_image {
@@ -722,6 +765,10 @@ pub fn link_menu_buttons(
     }
     if editable && ui.button(edit).clicked() {
         action = Some(LinkMenuAction::Edit);
+        ui.close();
+    }
+    if refreshable && ui.button("Refresh Preview").clicked() {
+        action = Some(LinkMenuAction::Refresh);
         ui.close();
     }
     action

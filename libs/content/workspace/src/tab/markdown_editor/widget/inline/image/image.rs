@@ -206,11 +206,15 @@ impl<'ast> MdEdit {
         if !self.renderer.touch_mode {
             let is_image = matches!(node.data.borrow().value, NodeValue::Image(_));
             let editable = !self.renderer.readonly;
+            // cards/capsules render fetched previews; images don't
+            let refreshable = !is_image && self.renderer.contact_linked_sites;
             let mut action = None;
-            response.context_menu(|ui| action = link_menu_buttons(ui, is_image, editable));
+            response
+                .context_menu(|ui| action = link_menu_buttons(ui, is_image, editable, refreshable));
             match action {
                 Some(LinkMenuAction::Open) => self.renderer.open_resolved_link(url, ui.ctx()),
                 Some(LinkMenuAction::Copy) => ui.ctx().copy_text(url.to_string()),
+                Some(LinkMenuAction::Refresh) => self.renderer.refresh_link_meta(url),
                 Some(LinkMenuAction::Edit) => {
                     let (select, force_reveal) = self.atom_edit_selection(node);
                     if force_reveal {

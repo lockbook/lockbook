@@ -678,7 +678,8 @@ impl MdEdit {
             let mut menu_events: Vec<Event> = Vec::new();
             response.context_menu(|ui| {
                 if let Some(t) = &link_target {
-                    link_action = link_menu_buttons(ui, t.is_image, !readonly);
+                    // plain links never render a preview — nothing to refresh
+                    link_action = link_menu_buttons(ui, t.is_image, !readonly, false);
                     ui.separator();
                 }
                 ui.horizontal(|ui| {
@@ -727,6 +728,7 @@ impl MdEdit {
                         }
                     }
                     LinkMenuAction::Copy => ui.ctx().copy_text(t.url.clone()),
+                    LinkMenuAction::Refresh => self.renderer.refresh_link_meta(&t.url),
                     LinkMenuAction::Edit => {
                         if t.force_reveal {
                             self.renderer.entered_atom = Some(t.node_range);
