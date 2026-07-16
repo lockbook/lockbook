@@ -1379,6 +1379,18 @@
             }
             return UIMenu(children: children)
         }
+
+        /// Anchor the menu to the selection's full footprint — the tapped
+        /// atom (image / preview) or word — so UIKit places it clear of the
+        /// content instead of flipping below the source point and covering it.
+        public func editMenuInteraction(
+            _: UIEditMenuInteraction, targetRectFor _: UIEditMenuConfiguration
+        ) -> CGRect {
+            guard let view, let range = view.selectedTextRange else { return .null }
+            let union = view.selectionRects(for: range)
+                .reduce(CGRect.null) { $0.union($1.rect) }
+            return union
+        }
     }
 
     // MARK: - iOSMTKViewDelegate
