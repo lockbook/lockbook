@@ -18,13 +18,14 @@ struct HomeView: View {
     @State private var renameTarget: File? = nil
     @State private var showTabsSidebar = false
     @State private var showOutOfSpaceAlert = false
+    @State private var detailWidth: CGFloat = 0
     #if os(iOS)
         @State private var showSettings = false
         @State private var keyboardVisible = false
         @State private var showCreateAlongside = false
-        @State private var detailWidth: CGFloat = 0
     #else
         @State private var showImporter = false
+        @State private var detailLeadingInset: CGFloat = 0
     #endif
 
     @State private var filesModel: FilesModel
@@ -64,10 +65,15 @@ struct HomeView: View {
         } detail: {
             workspace
                 .navigationTitle(detailTitle)
+                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
+                    detailWidth = frame.width
+                    #if os(macOS)
+                        detailLeadingInset = frame.minX
+                    #endif
+                }
                 #if os(iOS)
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .sidebarToggle)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                 #endif
                 .toolbar {
                     if let file = openDocFile {
@@ -108,6 +114,9 @@ struct HomeView: View {
                                 #endif
                             }
                             .buttonStyle(.plain)
+                            #if os(macOS)
+                                .cappedWidth(titlePillWidth)
+                            #endif
                         }
                     }
 
@@ -645,6 +654,23 @@ struct HomeView: View {
         return filesModel.idsToFiles[id]
     }
 
+    #if os(macOS)
+        private var titlePillWidth: CGFloat? {
+            guard detailWidth > 0 else { return nil }
+
+            var trailing: CGFloat = 24
+            if openDocFile != nil { trailing += 52 }
+            if workspaceOutput.tabCount > 0 { trailing += 52 }
+
+            let leading = nativeSidebarOpen ? detailLeadingInset + 8 : 152
+            let windowWidth = detailLeadingInset + detailWidth
+            let centered = windowWidth - 2 * max(leading, trailing)
+            let inline = windowWidth - leading - trailing
+
+            return max(140, min(inline, centered))
+        }
+    #endif
+
     private var titleCapsuleColor: Color {
         #if os(macOS)
             Color(nsColor: .controlBackgroundColor)
@@ -719,6 +745,34 @@ private extension View {
             .sensoryFeedback(.impact(weight: .medium), trigger: trigger)
     }
 }
+
+#if os(macOS)
+    private struct CappedWidthLayout: Layout {
+        let width: CGFloat?
+
+        func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+            subviews.first?.sizeThatFits(capped(proposal)) ?? .zero
+        }
+
+        func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+            subviews.first?.place(
+                at: CGPoint(x: bounds.midX, y: bounds.midY), anchor: .center, proposal: capped(proposal)
+            )
+        }
+
+        private func capped(_ proposal: ProposedViewSize) -> ProposedViewSize {
+            guard let width else { return proposal }
+
+            return ProposedViewSize(width: min(proposal.width ?? width, width), height: proposal.height)
+        }
+    }
+
+    private extension View {
+        func cappedWidth(_ width: CGFloat?) -> some View {
+            CappedWidthLayout(width: width) { self }
+        }
+    }
+#endif
 
 enum SidebarTab: String, Identifiable {
     case files
