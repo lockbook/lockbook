@@ -1335,10 +1335,11 @@
 
     // MARK: - MdMenuDelegate
 
-    /// Augments the markdown edit menu: "Open Link" when the selection holds a
-    /// link or image (e.g. a tapped link-preview card or inline image), and
-    /// "Edit" when it's over a selected image atom — select the URL inside the
-    /// atom, revealing its source, since mobile has no arrow keys.
+    /// Augments the markdown edit menu: "Open Link" and "Copy Link" when the
+    /// selection holds a link or image (a tapped link, preview card/capsule,
+    /// or inline image), and "Edit" when it's over a selected atom — select
+    /// the URL inside the atom, revealing its source, since mobile has no
+    /// arrow keys.
     public class MdMenuDelegate: NSObject, UIEditMenuInteractionDelegate {
         weak var mtkView: iOSMTK?
         weak var view: MdView?
@@ -1349,7 +1350,14 @@
         ) -> UIMenu? {
             var children = suggestedActions
             if let wsHandle = mtkView?.wsHandle, let target = selection_open_target(wsHandle) {
+                let url = String(cString: target)
                 free_text(target)
+                let copy = UIAction(
+                    title: "Copy Link", image: UIImage(systemName: "link")
+                ) { _ in
+                    UIPasteboard.general.string = url
+                }
+                children.insert(copy, at: 0)
                 let open = UIAction(
                     title: "Open Link", image: UIImage(systemName: "arrow.up.forward.app")
                 ) { [weak self] _ in
