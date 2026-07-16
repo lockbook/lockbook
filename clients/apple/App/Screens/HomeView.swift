@@ -75,7 +75,7 @@ struct HomeView: View {
                 #endif
                 .toolbar {
                     if let file = openDocFile {
-                        ToolbarItem(placement: .status) {
+                        ToolbarItem(placement: .principal) {
                             titlePill(for: file)
                         }
                     }
@@ -675,8 +675,6 @@ struct HomeView: View {
         if !segments.isEmpty {
             options.append(CrumbVariant(leading: ["…"]))
         }
-        options.append(CrumbVariant(leading: []))
-        options.append(CrumbVariant(leading: [], showIcon: false))
         options.append(CrumbVariant(leading: [], showIcon: false, showPencil: false))
 
         let available = crumbAvailableWidth
