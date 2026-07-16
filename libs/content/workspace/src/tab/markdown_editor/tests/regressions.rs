@@ -1973,3 +1973,105 @@ fn wrapped_capsule_touch_region_matches_pill() {
         "tap after the preview must place the cursor (#4895)"
     );
 }
+
+/// Touch tap on a plain rendered link: selects the whole link and pops the
+/// `Atom` context menu ("Open Link" / "Edit" on the platform side) instead
+/// of opening the link or placing the cursor.
+#[test]
+fn touch_link_tap_selects_and_pops_menu() {
+    use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+
+    let mut ws = TestEditor::new("some [title](https://example.com) text\n");
+    ws.editor.edit.renderer.touch_mode = true;
+    // One frame to lay out with touch-mode scopes, one more because
+    // interaction runs against the previous frame's fragments.
+    ws.enter_frame();
+    ws.enter_frame();
+
+    let link = ((5).into(), (33).into());
+    assert_eq!(&ws.editor.edit.renderer.buffer[link], "[title](https://example.com)");
+    let frag = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| f.interaction.is_some() && f.source_range.start() >= link.0)
+        .expect("link interaction fragment");
+    let pos = frag.rect.center();
+
+    let modifiers = egui::Modifiers::default();
+    ws.enter_frame_with_input(vec![
+        egui::Event::PointerMoved(pos),
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers,
+        },
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers,
+        },
+    ]);
+
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection, link, "link selected");
+    let menu = ws.editor.edit.renderer.ctx.pop_context_menu();
+    assert!(
+        matches!(menu, Some((_, ContextMenuTarget::Atom))),
+        "atom context menu popped: {menu:?}"
+    );
+}
+
+/// Touch tap on a collapsed inline image: selects the atom and pops the
+/// `Atom` context menu — never opens the URL directly (opening moved into
+/// the menu's "Open Link").
+#[test]
+fn touch_image_tap_selects_and_pops_menu() {
+    use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+
+    let (mut ws, _embeds) = TestEditor::with_test_embeds(
+        super::harness::build_lb(),
+        "![alt](https://example.com/i.png)\n",
+    );
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+    ws.enter_frame();
+
+    let img = ws.editor.edit.renderer.bounds.images[0];
+    let frag = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| matches!(f.content, FragmentContent::Embed { .. }))
+        .expect("image embed fragment");
+    let pos = frag.rect.center();
+
+    let modifiers = egui::Modifiers::default();
+    ws.enter_frame_with_input(vec![
+        egui::Event::PointerMoved(pos),
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: true,
+            modifiers,
+        },
+        egui::Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed: false,
+            modifiers,
+        },
+    ]);
+
+    assert_eq!(ws.editor.edit.renderer.buffer.current.selection, img, "image selected");
+    let menu = ws.editor.edit.renderer.ctx.pop_context_menu();
+    assert!(
+        matches!(menu, Some((_, ContextMenuTarget::Atom))),
+        "atom context menu popped: {menu:?}"
+    );
+}

@@ -9,19 +9,19 @@ use std::collections::hash_map::Entry;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
+use lb_rs::model::text::operation_types::Operation;
+
 use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
-use crate::tab::ExtendedOutput as _;
+use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta,
 };
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{
-    FontFamily, Format, Layout, StyleInfo,
-};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
-use crate::theme::icons::Icon;
+use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -49,17 +49,6 @@ impl<'ast> MdRender {
     pub fn text_format_link_pill(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
         Format {
             background: self.ctx.get_lb_theme().neutral_bg_secondary(),
-            underline: false,
-            ..self.text_format_link(parent, state)
-        }
-    }
-
-    /// `Icon` glyph (no underline) used for the touch-mode "open link"
-    /// affordance appended after each link. Coloured to match the link's
-    /// state so the button doesn't read as healthy-blue on a warning link.
-    pub fn text_format_link_button(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
-        Format {
-            family: FontFamily::Icons,
             underline: false,
             ..self.text_format_link(parent, state)
         }
@@ -129,9 +118,10 @@ impl<'ast> MdRender {
     /// swap the URL bytes for the title via `push_override`. Empty-text
     /// links (`[](url)`) are not autolinks and have nothing to show, so
     /// they render their raw source like other incomplete syntax.
-    /// With cmd held, opens a `Sense::click` interaction scope so egui
-    /// z-order routes cmd-click here; without cmd no scope is opened
-    /// and clicks fall through to the editor.
+    /// A `Sense::click` interaction scope routes clicks here when they
+    /// act on the link (cmd held, read-only, or unrevealed touch);
+    /// otherwise no scope is opened and clicks fall through to the
+    /// editor for cursor placement.
     pub fn layout_link(
         &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
     ) {
@@ -194,29 +184,18 @@ impl<'ast> MdRender {
 
         // Plain inline link (labeled, or an autolink whose title hasn't
         // resolved): cmd-click opens (desktop editor); read-only views have
-        // no cursor to place, so a plain click opens; touch gets a trailing
-        // open affordance.
-        let clickable = self.readonly || self.ctx.input(|i| i.modifiers.command);
+        // no cursor to place, so a plain click opens; touch taps select the
+        // link and pop the menu — unless revealed, when taps place the
+        // cursor in the raw source.
+        let clickable = self.readonly
+            || self.ctx.input(|i| i.modifiers.command)
+            || (self.touch_mode && !revealed);
         let salt = Self::link_interaction_id_salt(node_range);
         if clickable {
             layout.interaction_open(salt, egui::Sense::click());
         }
         self.layout_circumfix(layout, node, range, link_fmt.clone());
         if clickable {
-            layout.interaction_close();
-        }
-
-        let broken = matches!(state, LinkState::Broken { .. });
-        if self.touch_mode && !broken && range.contains_inclusive(node_range.end()) {
-            let anchor = (node_range.end(), node_range.end());
-            let parent_fmt = self.text_format(parent);
-            layout.push_override(anchor, " ", parent_fmt);
-            layout.interaction_open(salt, egui::Sense::click());
-            layout.push_override(
-                anchor,
-                Icon::OPEN_IN_NEW.icon,
-                self.text_format_link_button(parent, state),
-            );
             layout.interaction_close();
         }
     }
@@ -420,9 +399,9 @@ impl<'ast> MdRender {
     }
 
     /// Hover → `PointingHand` + Warning/Broken tooltip; click → open
-    /// in a new tab. The producer only opens an interaction scope when
-    /// cmd is held (desktop) or for the trailing open-link affordance
-    /// (touch); the response's presence is the gate.
+    /// in a new tab. The producer's interaction scope is the gate: cmd
+    /// held (desktop), read-only, or touch — where the click instead
+    /// selects the link and pops the menu ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.id();
         for node in root.descendants() {
@@ -465,7 +444,7 @@ impl<'ast> MdRender {
                 }
             }
 
-            if response.clicked() {
+            if response.clicked() && (self.readonly || !self.touch_mode) {
                 if is_wikilink {
                     if let Some(file_id) = self.resolve_wikilink(&url) {
                         ui.ctx().open_file(file_id, true);
@@ -686,6 +665,46 @@ impl<'ast> MdEdit {
                 }
             }
             _ => (node_range, false),
+        }
+    }
+
+    /// Touch tap on a plain rendered link or wikilink: select the link and
+    /// pop the atom menu ("Open Link" / "Edit"), mirroring embed taps
+    /// ([`Self::handle_embed_tap`]). Applied via `ops` so the selection is
+    /// current when the platform builds the menu.
+    pub fn handle_link_menu_taps(
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
+    ) {
+        if !self.renderer.touch_mode || self.renderer.readonly {
+            return;
+        }
+        let parent_base = ui.id();
+        for node in root.descendants() {
+            match &node.data.borrow().value {
+                NodeValue::Link(_) | NodeValue::WikiLink(_) => {}
+                _ => continue,
+            }
+            let node_range = self.renderer.node_range(node);
+            let salt = MdRender::link_interaction_id_salt(node_range);
+            let response = match self
+                .renderer
+                .interaction_responses
+                .get(&parent_base.with(salt))
+            {
+                Some(r) => r.clone(), // clone to release the `renderer` borrow
+                None => continue,
+            };
+            if response.clicked() {
+                ui.memory_mut(|m| m.request_focus(id));
+                let region = Region::BetweenLocations {
+                    start: Location::Grapheme(node_range.start()),
+                    end: Location::Grapheme(node_range.end()),
+                };
+                self.calc_operations(ui.ctx(), root, Event::Select { region }, ops);
+                ui.ctx()
+                    .set_context_menu(response.rect.center_top(), ContextMenuTarget::Atom);
+                return;
+            }
         }
     }
 }

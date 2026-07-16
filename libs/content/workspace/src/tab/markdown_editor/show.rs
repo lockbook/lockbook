@@ -215,9 +215,8 @@ impl MdEdit {
         self.overflow_scroll = self.overflow_scroll.clamp(0.0, overflow);
 
         let origin = rect.min - egui::vec2(self.single_line_scroll, self.overflow_scroll);
-        // Composer entry point (chat); no keyboard-state plumbing — image
-        // taps there fall back to desktop/cmd gating via `touch_mode`.
-        let pre = self.pre_render(ui, rect, id, root, false);
+        // Composer entry point (chat).
+        let pre = self.pre_render(ui, rect, id, root);
 
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
@@ -603,7 +602,6 @@ impl MdEdit {
     /// selection. Returns the focus state for [`MdEdit::post_render`].
     pub fn pre_render<'a>(
         &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
-        keyboard_visible: bool,
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
         self.renderer.viewport_height = ui.clip_rect().height();
@@ -636,10 +634,11 @@ impl MdEdit {
 
         let mut ops = Vec::new();
 
-        // image / card taps → open (cmd / keyboard-hidden) or select
-        self.handle_image_interactions(root, ui, id, keyboard_visible, &mut ops);
-        self.handle_card_interactions(root, ui, id, keyboard_visible, &mut ops);
-        self.handle_link_capsule_interactions(root, ui, id, keyboard_visible, &mut ops);
+        // image / card / link taps → open (cmd) or select + menu (touch)
+        self.handle_image_interactions(root, ui, id, &mut ops);
+        self.handle_card_interactions(root, ui, id, &mut ops);
+        self.handle_link_capsule_interactions(root, ui, id, &mut ops);
+        self.handle_link_menu_taps(root, ui, id, &mut ops);
 
         // --- context menu (desktop only) -------------------------------------
         ui.ctx()

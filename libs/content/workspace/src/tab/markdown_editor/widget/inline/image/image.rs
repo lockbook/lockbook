@@ -154,13 +154,10 @@ impl<'ast> MdRender {
 
 impl<'ast> MdEdit {
     /// The gesture that *opens* an embed rather than selecting it: a cmd-click
-    /// (desktop) or a keyboard-hidden tap (mobile). Shared by every embed kind.
-    pub fn embed_tap_opens(&self, ui: &egui::Ui, keyboard_visible: bool) -> bool {
-        if self.renderer.touch_mode {
-            !keyboard_visible
-        } else {
-            ui.ctx().input(|i| i.modifiers.command)
-        }
+    /// (desktop). Touch taps always select and pop the context menu, whose
+    /// "Open Link" action opens. Shared by every embed kind.
+    pub fn embed_tap_opens(&self, ui: &egui::Ui) -> bool {
+        !self.renderer.touch_mode && ui.ctx().input(|i| i.modifiers.command)
     }
 
     /// Shared tap handling for one embed fragment (inline image, link card, or
@@ -207,10 +204,9 @@ impl<'ast> MdEdit {
 
     /// Open or select an inline image clicked this frame (see [`Self::handle_embed_tap`]).
     pub fn handle_image_interactions(
-        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
-        ops: &mut Vec<Operation>,
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
-        let open = self.embed_tap_opens(ui, keyboard_visible);
+        let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Image(link) => link.url.clone(),

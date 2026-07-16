@@ -244,10 +244,9 @@ impl<'ast> MdEdit {
     /// `Link` that `link_renders_as_card`); tap handling is shared via
     /// [`MdEdit::handle_embed_tap`].
     pub fn handle_card_interactions(
-        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
-        ops: &mut Vec<Operation>,
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
-        let open = self.embed_tap_opens(ui, keyboard_visible);
+        let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Link(link) => link.url.clone(),
@@ -266,10 +265,9 @@ impl<'ast> MdEdit {
     /// counterpart to [`Self::handle_card_interactions`]. Only links that
     /// rendered as a capsule have a registered response.
     pub fn handle_link_capsule_interactions(
-        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
-        ops: &mut Vec<Operation>,
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
-        let open = self.embed_tap_opens(ui, keyboard_visible);
+        let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Link(link) => link.url.clone(),
