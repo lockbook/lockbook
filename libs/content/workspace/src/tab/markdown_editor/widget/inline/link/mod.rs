@@ -16,7 +16,7 @@ use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
-    LinkMeta, LinkMetaState, extract_link_meta,
+    LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
 };
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
@@ -515,19 +515,22 @@ impl<'ast> MdRender {
             .entry(resolved_url.clone())
         {
             Entry::Occupied(mut e) => {
-                // A rate-limited failure whose next-retry timestamp has passed
-                // is eligible again (still behind the fetch opt-in).
-                let retry_due = matches!(
-                    *e.get().lock().unwrap(),
-                    LinkMetaState::Failed { retry_at: Some(t) } if t <= now
-                );
-                if retry_due && self.contact_linked_sites {
-                    let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
-                    e.insert(arc.clone());
-                    self.spawn_meta_fetch(resolved_url, arc.clone());
-                    arc
-                } else {
-                    e.get().clone()
+                // A failure whose next-retry timestamp has passed is eligible
+                // again (still behind the fetch opt-in).
+                let retry_attempts = match &*e.get().lock().unwrap() {
+                    LinkMetaState::Failed { retry_at: Some(t), attempts } if *t <= now => {
+                        Some(*attempts)
+                    }
+                    _ => None,
+                };
+                match retry_attempts {
+                    Some(attempts) if self.contact_linked_sites => {
+                        let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
+                        e.insert(arc.clone());
+                        self.spawn_meta_fetch(resolved_url, arc.clone(), attempts);
+                        arc
+                    }
+                    _ => e.get().clone(),
                 }
             }
             Entry::Vacant(e) => {
@@ -538,7 +541,7 @@ impl<'ast> MdRender {
                 }
                 let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
                 e.insert(arc.clone());
-                self.spawn_meta_fetch(resolved_url, arc.clone());
+                self.spawn_meta_fetch(resolved_url, arc.clone(), 0);
                 arc
             }
         };
@@ -547,7 +550,7 @@ impl<'ast> MdRender {
         match &*state {
             LinkMetaState::Loaded(meta) => LinkMetaLookup::Loaded(meta.clone()),
             LinkMetaState::Loading => LinkMetaLookup::Loading,
-            LinkMetaState::Failed { retry_at: Some(until) } if *until > now => {
+            LinkMetaState::Failed { retry_at: Some(until), .. } if *until > now => {
                 // Wake a frame when the cooldown lapses — an idle editor never
                 // repaints, so without this the retry waits for user input.
                 self.ctx.request_repaint_after(*until - now);
@@ -558,8 +561,18 @@ impl<'ast> MdRender {
     }
 
     /// Fetch + scrape `resolved_url`'s metadata into `meta_state` off-thread,
-    /// then bump `link_seq` and request a repaint.
-    fn spawn_meta_fetch(&self, resolved_url: String, meta_state: Arc<Mutex<LinkMetaState>>) {
+    /// then bump `link_seq` and request a repaint. `attempts` counts prior
+    /// consecutive failures — it drives the transient-failure backoff.
+    fn spawn_meta_fetch(
+        &self, resolved_url: String, meta_state: Arc<Mutex<LinkMetaState>>, attempts: u32,
+    ) {
+        /// Self-assigned retry-after for network-level failures; doubles per
+        /// consecutive failure up to the cap.
+        const TRANSIENT_RETRY_BASE: std::time::Duration = std::time::Duration::from_secs(60);
+        const TRANSIENT_RETRY_CAP: std::time::Duration = std::time::Duration::from_secs(15 * 60);
+        /// Bot walls outlive short retries — a site's posture changes slowly.
+        const BLOCKED_RETRY: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
+
         let client = self.client.clone();
         let ctx = self.ctx.clone();
         let link_seq = self.layout_cache.link_seq.clone();
@@ -575,11 +588,14 @@ impl<'ast> MdRender {
             let mut html = fetch_html(&client, &resolved_url, CHROME).await;
 
             // Some sites (e.g. Twitter/X) only serve static content to known
-            // crawlers — but never burn a second request on a host that's
-            // rate-limiting us.
-            let parses = |h: &str| extract_link_meta(h, &resolved_url).is_some();
+            // crawlers, and bot walls often whitelist them — but never burn a
+            // second request on a host that's rate-limiting us.
+            let good = |h: &str| {
+                extract_link_meta(h, &resolved_url)
+                    .is_some_and(|m| !is_junk_meta(h, &m, &resolved_url))
+            };
             if !matches!(html, Err(FetchError::RateLimited { .. }))
-                && !html.as_deref().is_ok_and(parses)
+                && !html.as_deref().is_ok_and(good)
             {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
@@ -591,19 +607,41 @@ impl<'ast> MdRender {
                 }
             }
 
+            let now = web_time::Instant::now();
             *meta_state.lock().unwrap() = match html {
-                Ok(h) => extract_link_meta(&h, &resolved_url)
-                    .map(LinkMetaState::Loaded)
-                    .unwrap_or(LinkMetaState::Failed { retry_at: None }),
+                Ok(h) => match extract_link_meta(&h, &resolved_url) {
+                    Some(meta) if !is_junk_meta(&h, &meta, &resolved_url) => {
+                        LinkMetaState::Loaded(meta)
+                    }
+                    // Junk describes the wall, not the page — treat like a
+                    // bot wall rather than rendering it.
+                    Some(_) => LinkMetaState::Failed {
+                        retry_at: Some(now + BLOCKED_RETRY),
+                        attempts: attempts + 1,
+                    },
+                    None => LinkMetaState::Failed { retry_at: None, attempts: attempts + 1 },
+                },
                 Err(FetchError::RateLimited { until }) => {
-                    LinkMetaState::Failed { retry_at: Some(until) }
+                    LinkMetaState::Failed { retry_at: Some(until), attempts: attempts + 1 }
                 }
-                Err(_) => LinkMetaState::Failed { retry_at: None },
+                Err(FetchError::Blocked(_)) => LinkMetaState::Failed {
+                    retry_at: Some(now + BLOCKED_RETRY),
+                    attempts: attempts + 1,
+                },
+                Err(FetchError::Transient(_)) => {
+                    let backoff =
+                        (TRANSIENT_RETRY_BASE * 2u32.pow(attempts.min(4))).min(TRANSIENT_RETRY_CAP);
+                    LinkMetaState::Failed { retry_at: Some(now + backoff), attempts: attempts + 1 }
+                }
+                Err(FetchError::Permanent(_)) => {
+                    LinkMetaState::Failed { retry_at: None, attempts: attempts + 1 }
+                }
             };
             link_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
             ctx.request_repaint();
         });
     }
+
 }
 
 /// Result of a [`MdRender::get_link_meta`] lookup.
