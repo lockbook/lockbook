@@ -167,6 +167,24 @@ impl MdEdit {
             });
         }
 
+        self.sync_reveal_selection(ctx, id, prior_entered_atom);
+        self.renderer.search_range = self
+            .emoji_completions
+            .search_term_range
+            .or(self.link_completions.search_term_range);
+
+        buf_resp
+    }
+
+    /// Sync `reveal_selection` to the buffer selection, bumping `reveal_seq`
+    /// (and requesting a repaint) when it or `entered_atom` changed. Runs in
+    /// `handle_input` and again after [`Self::pre_render`] applies
+    /// pointer/tap ops, so the frame that reports a selection change also
+    /// paints its reveal — iOS queries caret and selection geometry
+    /// synchronously on that report.
+    fn sync_reveal_selection(
+        &mut self, ctx: &Context, id: Id, prior_entered_atom: Option<(Grapheme, Grapheme)>,
+    ) {
         let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
             .then_some(self.renderer.buffer.current.selection);
         if self.renderer.reveal_selection != new_reveal_selection
@@ -179,12 +197,6 @@ impl MdEdit {
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             ctx.request_repaint();
         }
-        self.renderer.search_range = self
-            .emoji_completions
-            .search_term_range
-            .or(self.link_completions.search_term_range);
-
-        buf_resp
     }
 
     /// Draw the document inline at `rect`: pointer + context menu via
@@ -606,6 +618,7 @@ impl MdEdit {
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
         self.renderer.viewport_height = ui.clip_rect().height();
+        let prior_entered_atom = self.renderer.entered_atom;
 
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
@@ -831,9 +844,10 @@ impl MdEdit {
         self.renderer.buffer.queue(ops);
         self.renderer.buffer.update();
         // Pointer only emits Select ops (no text change), so no re-parse
-        // needed. A pointer-driven selection change means reveal_ranges (set
-        // in handle_input) reflects the pre-click selection — the new
-        // selection appears in reveal_ranges next frame. Accepted lag.
+        // needed — but reveal must reflect the applied ops (and any
+        // `entered_atom` a menu "Edit" set) in this frame's paint: iOS
+        // queries geometry as soon as the change is reported.
+        self.sync_reveal_selection(ui.ctx(), id, prior_entered_atom);
 
         self.renderer.in_progress_selection = self.in_progress_selection;
 
