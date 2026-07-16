@@ -119,11 +119,22 @@
                 }
             }
 
+            // The change already happened Rust-side by notify time, so pair
+            // will/did back-to-back — an unpaired `did` sometimes leaves
+            // UIKit's cached selection geometry (caret, handles) stale.
             mtkView.onSelectionChanged = { [weak self] in
+                self?.inputDelegate?.selectionWillChange(self)
                 self?.inputDelegate?.selectionDidChange(self)
             }
             mtkView.onTextChanged = { [weak self] in
+                self?.inputDelegate?.textWillChange(self)
                 self?.inputDelegate?.textDidChange(self)
+            }
+            // Geometry-only moves (scroll, embed loads): re-fetch rects with a
+            // bare `did` — the will/did pair resets the keyboard's QuickType
+            // context, and a per-frame reset flickers the suggestion bar.
+            mtkView.onSelectionGeometryChanged = { [weak self] in
+                self?.inputDelegate?.selectionDidChange(self)
             }
 
             // pan (iPad trackpad support)
@@ -1506,7 +1517,7 @@
                 }
 
                 if output.scroll_updated {
-                    mtkView.onSelectionChanged?()
+                    mtkView.onSelectionGeometryChanged?()
                 }
 
                 if output.text_updated, !mtkView.ignoreTextUpdate {
@@ -1711,6 +1722,7 @@
         // view hierarchy management
         var tabSwitchTask: (() -> Void)? // facilitates switching wrapper views in response to tab change
         var onSelectionChanged: (() -> Void)? // only populated when wrapper is markdown
+        var onSelectionGeometryChanged: (() -> Void)? // ditto; rects moved, selection didn't
         var onTextChanged: (() -> Void)? // also only populated when wrapper is markdown
         var ignoreSelectionUpdate = false // don't invoke corresponding handler when drawing immediately
         var ignoreTextUpdate = false // also don't invoke corresponding handler when drawing immediately
