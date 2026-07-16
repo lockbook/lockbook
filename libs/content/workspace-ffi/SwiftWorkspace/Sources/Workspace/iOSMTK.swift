@@ -1420,6 +1420,10 @@
                 mtkView.workspaceOutput?.openCamera = true
             }
 
+            if output.mobile_toolbar_shown != mtkView.workspaceOutput?.mobileToolbarShown {
+                mtkView.workspaceOutput?.mobileToolbarShown = output.mobile_toolbar_shown
+            }
+
             if output.selected_folder_changed {
                 let selectedFolder = UUID(uuid: get_selected_folder(wsHandle)._0)
                 if selectedFolder.isNil() {

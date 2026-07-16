@@ -182,9 +182,7 @@ struct HomeView: View {
                         )
                     }
                     .overlay(alignment: .bottom) {
-                        // Not over chats: the composer owns the bottom edge,
-                        // and the buttons would sit on its controls.
-                        if !keyboardVisible, !chatOpen {
+                        if !hideFloatingButtons {
                             HStack {
                                 detailSearchButton
 
@@ -196,8 +194,7 @@ struct HomeView: View {
                             .transition(.opacity)
                         }
                     }
-                    .animation(.easeInOut(duration: 0.2), value: keyboardVisible)
-                    .animation(.easeInOut(duration: 0.2), value: chatOpen)
+                    .animation(.easeInOut(duration: 0.2), value: hideFloatingButtons)
                 #endif
         }
         .overlay {
@@ -368,6 +365,10 @@ struct HomeView: View {
     }
 
     #if os(iOS)
+        private var hideFloatingButtons: Bool {
+            keyboardVisible || workspaceOutput.mobileToolbarShown || chatOpen
+        }
+
         @ViewBuilder
         private var detailSearchButton: some View {
             Group {

@@ -93,6 +93,8 @@ pub struct Response {
     /// live — the editor viewport minus the find widget and toolbar. The
     /// single source of truth for positioning the `MdView` iOS overlay.
     pub text_interaction_rect: Option<egui::Rect>,
+
+    pub mobile_toolbar_shown: bool,
 }
 
 pub struct MdRender {
@@ -990,6 +992,7 @@ impl Editor {
                     } else {
                         0.
                     };
+                    self.next_resp.mobile_toolbar_shown = toolbar_height > 0.;
 
                     let avail = ui.available_rect_before_wrap();
                     self.next_resp.text_interaction_rect = Some(egui::Rect::from_min_max(
