@@ -213,6 +213,18 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openSelectionLinks(
     }
 }
 
+/// Edit-menu "Refresh Preview": re-fetch preview metadata for links in the
+/// current selection.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_refreshSelectionPreviews(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.renderer.refresh_selection_previews();
+    }
+}
+
 /// Push real IME visibility (from the Android inset listener) into the
 /// editor so touch long-press can pick drag-reorder vs text selection.
 #[no_mangle]

@@ -103,6 +103,7 @@ object Workspace {
     external fun enterSelectedAtom(rustObj: Long)
     external fun selectionOpenTarget(rustObj: Long): String?
     external fun openSelectionLinks(rustObj: Long)
+    external fun refreshSelectionPreviews(rustObj: Long)
     external fun setContactLinkedSites(rustObj: Long, value: Boolean)
 }
 

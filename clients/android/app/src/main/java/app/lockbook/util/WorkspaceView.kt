@@ -570,6 +570,7 @@ class WorkspaceView(
         const val EDIT_ATOM_MENU_ID = 0x00E0170A // arbitrary; distinct from android.R.id.*
         const val OPEN_LINK_MENU_ID = 0x00E0170B
         const val COPY_LINK_MENU_ID = 0x00E0170C
+        const val REFRESH_PREVIEW_MENU_ID = 0x00E0170D
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -658,6 +659,12 @@ class WorkspaceView(
                 menu
                     .add(Menu.NONE, EDIT_ATOM_MENU_ID, 0, "Edit")
                     .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+                if (openTarget != null) {
+                    menu
+                        .add(Menu.NONE, REFRESH_PREVIEW_MENU_ID, 0, "Refresh Preview")
+                        .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+                }
             }
 
             if (!textInputWrapper.wsInputConnection.wsEditable
@@ -706,6 +713,10 @@ class WorkspaceView(
                         Workspace.openSelectionLinks(wgpuObj)
                         // schedule the frame that processes the open, which flows
                         // back via `response.urlOpened` / `response.selectedFile`
+                        invalidate()
+                    }
+                    REFRESH_PREVIEW_MENU_ID -> {
+                        Workspace.refreshSelectionPreviews(wgpuObj)
                         invalidate()
                     }
                     COPY_LINK_MENU_ID -> {
