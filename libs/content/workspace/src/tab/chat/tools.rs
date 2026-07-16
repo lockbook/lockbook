@@ -6,10 +6,10 @@
 //! observes a note's contents — a `read_note`, or an `edit_note`/`append_note`
 //! that auto-opens — the note is *captured*: its bytes and version (hmac) are
 //! snapshotted into a [`Buffer`] and the note surfaces as an agent-owned tab.
-//! Every edit mutates the buffer, not the file. Each edit is individually
-//! approved by the user (the card shows [`preview_edit`]'s diff); on
-//! approval the harness runs the edit and immediately writes the buffer
-//! back to the note ([`sync_note`], no longer a model tool).
+//! Every edit mutates the buffer, not the file; the harness gates each call
+//! on the chat's granted scope ([`in_scope`]) and immediately writes an
+//! in-scope edit's buffer back to the note ([`sync_note`], no longer a model
+//! tool). The transcript's diffed tool rows are the review surface.
 //!
 //! # Determinism / replay
 //!
@@ -28,15 +28,62 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::model::text::buffer::Buffer as TextBuffer;
 use serde_json::{Value, json};
 
+use crate::file_cache::path_segments;
+
 use super::backend::ToolSchema;
 
 /// A note the model refuses to open beyond — a truncated capture would corrupt
 /// replay, so oversized notes error instead of loading a partial snapshot.
 const OPEN_CAP: usize = 256 * 1024;
 
-/// The persisted result of a denied edit. Kept identical to what the model
+/// The persisted result of a denied call. Kept identical to what the model
 /// sees, so a restored transcript's context matches the live one.
 pub const DENIED_RESULT: &str = "The user denied this tool call.";
+
+/// Whether `path` falls under any granted root: folder grants (trailing '/')
+/// cover their subtree and the folder itself; note grants cover exactly that
+/// note. `"/"` grants everything. Compared as path segments, not characters
+/// — `/notes/` must not match `/notes2/a.md` on a shared string prefix.
+///
+/// Dotted segments *beyond the grant* never match: a broad grant must not
+/// implicitly cover `/.agent/` (provider files carry API keys, and the
+/// prompt file steers the agent — silent reads exfiltrate, silent writes
+/// self-modify). Spelling the dots out in the grant is the opt-in.
+pub fn in_scope(path: &str, scope: &[String]) -> bool {
+    let path = path_segments(path);
+    scope.iter().any(|g| {
+        let grant = path_segments(g);
+        let covered =
+            if g.ends_with('/') { path.starts_with(grant.as_slice()) } else { path == grant };
+        covered && !path[grant.len()..].iter().any(|s| s.starts_with('.'))
+    })
+}
+
+/// The steering result of a call outside the chat's granted scope. Names the
+/// recovery tool and states what's currently granted (the system prompt
+/// deliberately doesn't — see `access_intro` — so this is the model's only
+/// source for it short of scrolling its own history). Silent on whether the
+/// path exists — existence outside scope is itself private.
+pub fn out_of_scope(path: &str, scope: &[String]) -> String {
+    let granted = if scope.is_empty() { "none yet".into() } else { scope.join(", ") };
+    format!(
+        "denied: {path} is outside the folders this chat can access. Currently granted: \
+         {granted}. Call request_access to ask the user, then retry."
+    )
+}
+
+/// A grant as stored: the canonical path, folders with their trailing '/'.
+/// An unresolvable path is granted verbatim — harmless, and a folder created
+/// later under a verbatim folder grant still matches.
+pub(super) async fn normalize_grant(lb: &Lb, path: &str) -> String {
+    match lb.get_by_path(path).await {
+        Ok(f) => lb
+            .get_path_by_id(f.id)
+            .await
+            .unwrap_or_else(|_| path.into()),
+        Err(_) => path.into(),
+    }
+}
 
 /// One note open on the branch: the captured base (content + version at
 /// capture) and the current edited text. `dirty` ⇔ `text != base_text`.
@@ -293,6 +340,8 @@ pub fn viz_record(
         return viz("error", text_body());
     }
     match (name, post) {
+        // Denied requests returned early above; what's left is a grant.
+        ("request_access", _) => viz("granted", text_body()),
         ("list", _) => {
             if result.ends_with("is empty.") {
                 return viz("empty", text_body());
@@ -324,46 +373,6 @@ pub fn viz_record(
         }
         _ => viz("", text_body()),
     }
-}
-
-/// The change an `edit_note` call proposes, for the approval card: the
-/// target's current text (open buffer, else disk) with the edit applied,
-/// as del/add segments with one block of context. `Err` is the steering
-/// message the call will hit if approved, shown on the card instead.
-pub(super) async fn preview_edit(
-    lb: &Lb, buffers: &Buffers, args: &Value,
-) -> Result<Vec<super::diff::Segment>, String> {
-    let path = arg(args, "path")?;
-    let old = arg(args, "old_str")?;
-    let new = arg(args, "new_str")?;
-    let replace_all = args
-        .get("replace_all")
-        .and_then(Value::as_bool)
-        .unwrap_or(false);
-    let base = match buffers.get(path) {
-        Some(b) => b.text.clone(),
-        None => match capture_from_disk(lb, path).await {
-            Ok((_, content)) if content.len() > OPEN_CAP => {
-                return Err(format!(
-                    "error: {path} is too large to open ({} KiB).",
-                    content.len() / 1024
-                ));
-            }
-            Ok((_, content)) => content,
-            Err(NotADoc) => return Err(format!("error: {path} is a folder, not a note.")),
-            Err(Missing) => return Err(format!("error: no note at {path}.")),
-            Err(NotUtf8) => return Err(format!("error: {path} isn't text.")),
-        },
-    };
-    // A scratch store so the preview can't touch the real branch.
-    let mut scratch = Buffers::default();
-    scratch.capture(path, None, base.clone());
-    scratch.edit(path, old, new, replace_all)?;
-    let text = scratch
-        .get(path)
-        .map(|b| b.text.clone())
-        .unwrap_or_default();
-    Ok(super::diff::segments(&base, &text, 1))
 }
 
 fn count(n: usize, noun: &str) -> String {
@@ -431,6 +440,22 @@ pub fn schemas() -> Vec<ToolSchema> {
             parameters: one_path("path"),
         },
         ToolSchema {
+            name: "request_access",
+            description: "Ask the user to grant this chat access to a folder \
+                          (path ending in '/') or a single note. Request the \
+                          narrowest scope that covers the task — usually the \
+                          chat's own folder. The user sees your reason.",
+            parameters: json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string" },
+                    "reason": { "type": "string", "description": "One short sentence: why you need it." },
+                },
+                "required": ["path"],
+                "additionalProperties": false,
+            }),
+        },
+        ToolSchema {
             name: "edit_note",
             description: "Replace an exact string in a note. old_str must \
                           match exactly once, or set replace_all to change \
@@ -483,16 +508,20 @@ pub fn detail_for(name: &str, args: &Value) -> String {
     }
 }
 
-/// Plain-language permission prose for the approval card, adapted to the
-/// call's parameters and phrased as a yes/no question. Reads gate on *egress*
-/// — the card only appears for a remote provider — so they name `provider`
-/// and frame it as sending; `list` sends names, `read_note` sends contents.
-/// Edits gate on *mutation* and head the diff below. Unknown shapes fall back
-/// to the terse detail.
+/// Plain-language prose for a tool call, phrased as a yes/no question.
+/// `request_access` is the only name the harness's `gate` raises as a card
+/// today — everything else runs or steers on scope, silently — but the
+/// function still covers every tool name generally so a future gate can
+/// reuse it without new prose. Unknown shapes fall back to the terse detail.
 pub fn permission_prose(name: &str, args: &Value, provider: &str) -> String {
     let path = args.get("path").and_then(Value::as_str);
     let flag = |key: &str| args.get(key).and_then(Value::as_bool).unwrap_or(false);
     match name {
+        "request_access" => match path.unwrap_or_default() {
+            "/" => format!("Let {provider} read and edit your entire lockbook?"),
+            p if p.ends_with('/') => format!("Let {provider} read and edit everything in {p}?"),
+            p => format!("Let {provider} read and edit {p}?"),
+        },
         "read_note" => {
             format!("Send the full contents of {} to {provider}?", path.unwrap_or_default())
         }
@@ -523,6 +552,14 @@ pub fn permission_prose(name: &str, args: &Value, provider: &str) -> String {
         }
         _ => format!("Let the model run {}?", detail_for(name, args)),
     }
+}
+
+/// A `request_access` call's stated reason, trimmed — rendered on its own
+/// line under [`permission_prose`]'s ask, set off in the model's own words
+/// rather than folded into the yes/no sentence.
+pub fn request_reason(args: &Value) -> Option<String> {
+    let reason = args.get("reason").and_then(Value::as_str)?.trim();
+    (!reason.is_empty()).then(|| reason.to_string())
 }
 
 /// A string argument, or a steering error naming the omission.
@@ -568,11 +605,22 @@ async fn list(lb: &Lb, args: &Value) -> Outcome {
     let Ok(children) = children else {
         return Outcome::err(format!("error: couldn't list {path}."));
     };
+    let listed_depth = path_segments(path).len();
     for f in children {
         if f.id == folder.id {
             continue;
         }
         let p = lb.get_path_by_id(f.id).await.unwrap_or(f.name.clone());
+        // Dotted rows stay hidden unless the listed path itself is inside
+        // them — same opt-in as `in_scope`, so names don't leak what
+        // contents can't back up. (`get`: the name fallback above can be
+        // shallower than the listed path.)
+        let dotted = path_segments(&p)
+            .get(listed_depth..)
+            .is_some_and(|rest| rest.iter().any(|s| s.starts_with('.')));
+        if dotted {
+            continue;
+        }
         rows.push(p);
     }
     if rows.is_empty() {
@@ -1087,15 +1135,66 @@ mod tests {
         assert!(detail.ends_with('…') && detail.len() < 100);
     }
 
-    /// The four slice tools are advertised, with flat strict-compatible
+    /// The slice tools are advertised, with flat strict-compatible
     /// schemas (object, additionalProperties:false).
     #[test]
     fn schemas_are_flat_and_named() {
         let names: Vec<_> = schemas().iter().map(|s| s.name).collect();
-        assert_eq!(names, ["list", "read_note", "edit_note"]);
+        assert_eq!(names, ["list", "read_note", "request_access", "edit_note"]);
         for s in schemas() {
             assert_eq!(s.parameters["type"], "object");
             assert_eq!(s.parameters["additionalProperties"], false);
         }
+    }
+
+    /// Folder grants cover their subtree and the folder itself, on path
+    /// boundaries; note grants cover exactly that note; "/" covers all.
+    #[test]
+    fn in_scope_matches_on_path_boundaries() {
+        let scope = |s: &[&str]| s.iter().map(|g| g.to_string()).collect::<Vec<_>>();
+
+        let folder = scope(&["/notes/"]);
+        assert!(in_scope("/notes/a.md", &folder));
+        assert!(in_scope("/notes/deep/b.md", &folder));
+        assert!(in_scope("/notes/", &folder), "listing the granted folder itself");
+        assert!(in_scope("/notes", &folder), "trailing-slash-less spelling");
+        assert!(!in_scope("/notes2/a.md", &folder), "sibling prefix must not match");
+        assert!(!in_scope("/a.md", &folder));
+
+        let note = scope(&["/one.md"]);
+        assert!(in_scope("/one.md", &note));
+        assert!(!in_scope("/one.md.bak", &note));
+        assert!(!in_scope("/", &note));
+
+        let root = scope(&["/"]);
+        assert!(in_scope("/", &root));
+        assert!(in_scope("/anything/x.md", &root));
+
+        assert!(!in_scope("/anything", &[]), "empty scope grants nothing");
+    }
+
+    /// Dotted segments beyond the grant never match — `/.agent/` holds
+    /// provider keys and the prompt, so "everything" must not include it
+    /// implicitly. Spelling the dots out in the grant is the opt-in, and
+    /// deeper dots still need their own.
+    #[test]
+    fn dotted_segments_need_their_own_grant() {
+        let scope = |s: &[&str]| s.iter().map(|g| g.to_string()).collect::<Vec<_>>();
+
+        let root = scope(&["/"]);
+        assert!(!in_scope("/.agent/providers/openai.json", &root));
+        assert!(!in_scope("/.agent/prompt.md", &root));
+        assert!(!in_scope("/.agent/", &root));
+        assert!(!in_scope("/notes/.hidden.md", &scope(&["/notes/"])));
+        // A dot inside a name is an extension, not hiding.
+        assert!(in_scope("/notes/a.md", &root));
+
+        // Explicitly granting the dotted folder (or note) opts in…
+        let agent = scope(&["/.agent/"]);
+        assert!(in_scope("/.agent/providers/openai.json", &agent));
+        assert!(in_scope("/.agent/", &agent));
+        assert!(in_scope("/.agent/prompt.md", &scope(&["/.agent/prompt.md"])));
+        // …but only down to the next dotted segment.
+        assert!(!in_scope("/.agent/.keys/k", &agent));
     }
 }

@@ -280,7 +280,7 @@ struct ListRowPlan {
 /// The trailing approval card for a call awaiting a decision, styled like a
 /// [`RowPlan::Tool`] container pinned open: a filled header bar carrying the
 /// command summary (no right metric — it hasn't run), over a bordered body
-/// holding the permission prose, the proposed change, and Approve / Deny.
+/// holding the permission prose and Allow / Deny.
 /// Laid out in pass 1, painted after the rows.
 struct ReviewPlan {
     header_rect: Rect,
@@ -289,22 +289,15 @@ struct ReviewPlan {
     /// The plain-language permission request, atop the body.
     prose: Arc<Galley>,
     prose_pos: Pos2,
-    body: ReviewBody,
+    /// The call's stated reason, set in italic under the prose — `None`
+    /// when it gave none.
+    reason: Option<(Arc<Galley>, Pos2)>,
     approve: Arc<Galley>,
     approve_rect: Rect,
     deny: Arc<Galley>,
     deny_rect: Rect,
     /// The full container, bordered like an expanded tool row.
     border: Rect,
-}
-
-/// The card body's proposed change, below the permission prose: an edit's
-/// change as stacked markdown segments with changed ones washed, a steering
-/// error as a plain line, or nothing (a gated read is prose-only).
-enum ReviewBody {
-    None,
-    Galley { galley: Arc<Galley>, pos: Pos2 },
-    Rendered { segments: Vec<diff::Segment>, pos: Pos2, width: f32 },
 }
 
 /// The metadata strip under a row, laid out in pass 1 and drawn after the
@@ -393,9 +386,6 @@ pub struct Chat {
     harness: Option<harness::Harness>,
     /// Renders the in-flight streaming reply.
     streaming_label: MdLabel,
-    /// Renders the approval card's proposed change (the combined block
-    /// diff) as markdown.
-    review_label: MdLabel,
     /// Unshared at open — eligible for an agent (setup guidance is shown if
     /// none could be built).
     unshared: bool,
@@ -565,6 +555,18 @@ fn latest_effort(entries: &[Entry], username: &str) -> Option<String> {
         .next_back()
 }
 
+/// This user's granted access roots (config entries are ts-sorted with the
+/// log; last wins). Empty until the first grant.
+fn latest_scope(entries: &[Entry], username: &str) -> Vec<String> {
+    entries
+        .iter()
+        .filter(|e| e.msg.from == username)
+        .filter_map(|e| e.msg.config.as_ref())
+        .filter_map(|c| c.scope.clone())
+        .next_back()
+        .unwrap_or_default()
+}
+
 /// The toolbar effort control shows only where the model reasons: Anthropic
 /// drives adaptive thinking natively, and OpenAI-compat reasoning models
 /// take `reasoning_effort`. The compat case is a best-effort id heuristic
@@ -681,13 +683,6 @@ impl Chat {
             streaming_label: {
                 let mut label = MdLabel::new(ctx.clone());
                 label.renderer.files = Arc::clone(&files);
-                label.renderer.link_resolver =
-                    Box::new(FileCacheLinkResolver::new(Arc::clone(&files), id));
-                label
-            },
-            review_label: {
-                let mut label = MdLabel::new(ctx.clone());
-                label.renderer.files = Arc::clone(&files);
                 label.renderer.link_resolver = Box::new(FileCacheLinkResolver::new(files, id));
                 label
             },
@@ -799,11 +794,12 @@ impl Chat {
         self.pending_parent = msg_id;
         self.provider = self.resolve_provider();
         let system = self.system_prompt.clone();
+        let turn = self.turn_access();
         let (mut seed, buffers) = self.agent_seed();
         seed.pop(); // `say` pushes the new message itself
         if let (Some(harness), Some(provider)) = (&mut self.harness, self.provider.clone()) {
             harness.reseed(seed, buffers);
-            harness.say(content, provider, system);
+            harness.say(content, provider, system, turn);
         }
         self.scroll_to_bottom = true;
     }
@@ -820,12 +816,28 @@ impl Chat {
         self.pending_parent = Some(parent);
         self.provider = self.resolve_provider();
         let system = self.system_prompt.clone();
+        let turn = self.turn_access();
         let (seed, buffers) = self.agent_seed();
         if let (Some(harness), Some(provider)) = (&mut self.harness, self.provider.clone()) {
             harness.reseed(seed, buffers);
-            harness.retry(provider, system);
+            harness.retry(provider, system, turn);
         }
         self.scroll_to_bottom = true;
+    }
+
+    /// The access context a turn runs under, snapshotted at send: this
+    /// user's granted roots and the folder the chat file lives in.
+    fn turn_access(&self) -> harness::TurnAccess {
+        let chat_folder = self
+            .core
+            .get_path_by_id(self.id)
+            .ok()
+            .and_then(|p| p.rfind('/').map(|i| p[..=i].to_string()))
+            .unwrap_or_else(|| "/".into());
+        harness::TurnAccess {
+            scope: latest_scope(&self.entries, &self.account.username),
+            chat_folder,
+        }
     }
 
     /// The id of the user message whose turn produced `entries[idx]`: walk
@@ -973,6 +985,7 @@ impl Chat {
     fn clear_chat(&mut self) {
         let selection = latest_selection(&self.entries, &self.account.username);
         let effort = latest_effort(&self.entries, &self.account.username);
+        let scope = latest_scope(&self.entries, &self.account.username);
         if let Some(h) = &mut self.harness {
             h.reseed(Vec::new(), tools::Buffers::default());
         }
@@ -989,6 +1002,9 @@ impl Chat {
         if let Some(eff) = effort {
             self.write_effort(eff);
         }
+        // Access grants are a standing permission, not conversation
+        // content — clearing the transcript must not revoke them.
+        self.restore_scope(scope);
         // With no re-recorded selection this falls back to the default
         // provider (or none) — same resolution as a brand-new chat.
         self.provider = self.resolve_provider();
@@ -1087,6 +1103,7 @@ impl Chat {
                     self.push_agent_message(text, usage, false)
                 }
                 harness::HarnessUpdate::Tool(outcome) => self.push_tool_message(outcome),
+                harness::HarnessUpdate::Granted(path) => self.write_grant(path),
                 harness::HarnessUpdate::Error(e) => self.push_agent_message(e, None, true),
             }
         }
@@ -1156,9 +1173,10 @@ impl Chat {
             let (mut seed, buffers) = self.agent_seed();
             seed.pop(); // `say` pushes the new message itself
             let system = self.system_prompt.clone();
+            let turn = self.turn_access();
             if let (Some(harness), Some(provider)) = (&mut self.harness, self.provider.clone()) {
                 harness.reseed(seed, buffers);
-                harness.say(content, provider, system);
+                harness.say(content, provider, system, turn);
             }
         }
         self.composer.clear();
@@ -1959,5 +1977,47 @@ mod tests {
         ] {
             assert!(!is_reasoning_model(id), "{id} should not be a reasoning model");
         }
+    }
+
+    /// Grants persist as config entries: the latest scope list wins, repeat
+    /// grants don't duplicate, and revoking removes just the one root — all
+    /// without clobbering the model selection folded from the same log.
+    #[test]
+    fn scope_grants_fold_dedupe_and_revoke() {
+        use lb_rs::model::core_config::{ClientType, Config};
+        let core = lb_rs::blocking::Lb::init(Config {
+            writeable_path: format!("/tmp/{}", Uuid::new_v4()),
+            logs: false,
+            stdout_logs: false,
+            colored_logs: false,
+            background_work: false,
+            client_type: ClientType::Unknown,
+        })
+        .unwrap();
+        let files = Arc::new(RwLock::new(FileCache::empty()));
+        let mut chat = Chat::new(
+            b"",
+            Uuid::new_v4(),
+            None,
+            Account::new("me".into(), "url".into()),
+            egui::Context::default(),
+            files,
+            &core,
+        );
+
+        assert!(latest_scope(&chat.entries, "me").is_empty());
+        chat.write_selection("openai".into(), "gpt-5".into());
+
+        chat.write_grant("/notes/".into());
+        chat.write_grant("/notes/".into()); // repeat: no duplicate
+        chat.write_grant("/one.md".into());
+        assert_eq!(latest_scope(&chat.entries, "me"), ["/notes/", "/one.md"]);
+
+        chat.revoke_grant("/notes/");
+        assert_eq!(latest_scope(&chat.entries, "me"), ["/one.md"]);
+
+        // The scope entries carried no model — the selection still folds.
+        let sel = latest_selection(&chat.entries, "me").expect("selection survives");
+        assert_eq!(sel.provider, "openai");
     }
 }

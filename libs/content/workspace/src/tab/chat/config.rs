@@ -137,6 +137,42 @@ impl Chat {
         });
     }
 
+    /// Persist an approved `request_access` grant (the driver already widened
+    /// its own copy for the turn in flight).
+    pub(super) fn write_grant(&mut self, path: String) {
+        let mut scope = super::latest_scope(&self.entries, &self.account.username);
+        if !scope.contains(&path) {
+            scope.push(path);
+            self.write_config(lb_rs::model::chat::ChatConfig {
+                scope: Some(scope),
+                ..Default::default()
+            });
+        }
+    }
+
+    /// Remove a granted root (the chip's revoke). Takes effect next turn — a
+    /// turn in flight keeps the scope it was sent with.
+    pub(super) fn revoke_grant(&mut self, path: &str) {
+        let mut scope = super::latest_scope(&self.entries, &self.account.username);
+        scope.retain(|g| g != path);
+        self.write_config(lb_rs::model::chat::ChatConfig {
+            scope: Some(scope),
+            ..Default::default()
+        });
+    }
+
+    /// Re-record a scope list verbatim — `clear_chat`'s carry-forward, mirroring
+    /// `write_selection`/`write_effort`. Skips the write when there was
+    /// nothing to carry, rather than log an empty scope entry.
+    pub(super) fn restore_scope(&mut self, scope: Vec<String>) {
+        if !scope.is_empty() {
+            self.write_config(lb_rs::model::chat::ChatConfig {
+                scope: Some(scope),
+                ..Default::default()
+            });
+        }
+    }
+
     /// Append a config entry and re-resolve the provider display cache.
     fn write_config(&mut self, config: lb_rs::model::chat::ChatConfig) {
         let msg =

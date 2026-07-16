@@ -366,7 +366,7 @@ struct HomeView: View {
 
     #if os(iOS)
         private var hideFloatingButtons: Bool {
-            keyboardVisible || workspaceOutput.mobileToolbarShown
+            keyboardVisible || workspaceOutput.mobileToolbarShown || chatOpen
         }
 
         @ViewBuilder
@@ -441,6 +441,13 @@ struct HomeView: View {
             UIApplication.shared.sendAction(
                 #selector(UIResponder.resignFirstResponder), to: nil, from: nil, for: nil
             )
+        }
+
+        // The workspace's own report of what's rendered — not inferred from
+        // the file name, which would re-implement the Rust side's type
+        // mapping and drift.
+        private var chatOpen: Bool {
+            workspaceOutput.currentTab == .Chat
         }
 
         private func searchEverywhere() {
