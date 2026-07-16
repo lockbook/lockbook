@@ -151,7 +151,7 @@ impl<'ast> MdRender {
             // iOS routes touches through `touch_consuming_rects` —
             // without this entry a tap on the chip would place the
             // cursor instead of reaching the expand handler below.
-            self.touch_consuming_rects.push(response.rect);
+            self.touch_consume_interaction(id);
 
             if response.hovered() {
                 ui.ctx()

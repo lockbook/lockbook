@@ -1844,3 +1844,94 @@ fn bounded_composer_scrolls_cursor_into_view() {
     }
     assert_eq!(edit.overflow_scroll, 0.0, "cursor at start should scroll back to the top");
 }
+
+/// A wrapped capsule's touch region matches its painted pill: a tap between
+/// the pill's own rows hits the pill (#4894), while taps beside or trailing
+/// it — inside the scope's bounding box — still place the cursor (#4895).
+#[test]
+fn wrapped_capsule_touch_region_matches_pill() {
+    use std::sync::{Arc, Mutex};
+
+    use egui::{Pos2, Rect, Vec2};
+
+    use crate::tab::markdown_editor::widget::inline::link::meta::{LinkMeta, LinkMetaState};
+
+    let mut ws = TestEditor::new("before https://example.com after\n");
+    ws.editor
+        .edit
+        .renderer
+        .layout_cache
+        .link_meta
+        .borrow_mut()
+        .insert(
+            "https://example.com".to_string(),
+            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
+                title: "a sufficiently long example title that wraps across rows".into(),
+                ..Default::default()
+            }))),
+        );
+    // Interaction runs against the previous frame's fragments, and the first
+    // frame after a resize still wraps at the old width — settle the layout.
+    let size = Vec2::new(300., 600.);
+    for _ in 0..3 {
+        ws.enter_frame_at(size);
+    }
+
+    // The capsule's fragments are the ones inside its chip style scope.
+    let chip_rects: Vec<Rect> = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .filter(|f| f.style_stack.iter().any(|s| s.chip))
+        .map(|f| f.rect)
+        .collect();
+    assert!(!chip_rects.is_empty(), "capsule did not render");
+
+    let mut rows: Vec<Rect> = Vec::new();
+    for r in &chip_rects {
+        match rows
+            .iter_mut()
+            .find(|row| (row.min.y - r.min.y).abs() < 0.5)
+        {
+            Some(row) => *row = row.union(*r),
+            None => rows.push(*r),
+        }
+    }
+    rows.sort_by(|a, b| a.min.y.total_cmp(&b.min.y));
+    assert!(rows.len() >= 2, "capsule expected to wrap: {rows:?}");
+    let (first, second) = (rows[0], rows[1]);
+    assert!(first.max.y < second.min.y, "rows expected to be separated by row spacing");
+
+    // Taps on the capsule are consumed.
+    assert!(ws.editor.touches_interactive_element(first.center()));
+    assert!(ws.editor.touches_interactive_element(second.center()));
+
+    // Between the pill's own rows — visually on the button — the tap
+    // hits the pill (#4894), whether nearer the upper or lower row.
+    let gap_y = (first.max.y + second.min.y) / 2.0;
+    for y in [gap_y - 1.0, gap_y + 1.0] {
+        let gap = Pos2::new(second.center().x, y);
+        assert!(
+            ws.editor.touches_interactive_element(gap),
+            "tap between the pill's rows must hit the pill (#4894): {gap:?}"
+        );
+    }
+
+    // Beside the pill in the same gap band — lower half, right of the
+    // second row's end — there's no ink, so the tap places the cursor.
+    let beside = Pos2::new(second.max.x + 10.0, gap_y + 1.0);
+    assert!(
+        !ws.editor.touches_interactive_element(beside),
+        "tap beside the pill must place the cursor: {beside:?}"
+    );
+
+    // Trailing the capsule's last row segment: must also place the cursor.
+    let last = *rows.last().unwrap();
+    let after = Pos2::new(last.max.x + 10.0, last.center().y);
+    assert!(
+        !ws.editor.touches_interactive_element(after),
+        "tap after the preview must place the cursor (#4895)"
+    );
+}

@@ -432,14 +432,15 @@ impl<'ast> MdRender {
                 _ => continue,
             };
             let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
+
+            // iOS routes touches through `touch_consuming_rects` —
+            // without these entries a tap on the open-link button would
+            // place the cursor instead of reaching the click handler below.
+            self.touch_consume_interaction(id);
+
             let Some(response) = self.interaction_responses.get(&id) else {
                 continue;
             };
-
-            // iOS routes touches through `touch_consuming_rects` —
-            // without this entry a tap on the open-link button would
-            // place the cursor instead of reaching the click handler below.
-            self.touch_consuming_rects.push(response.rect);
 
             if response.hovered() {
                 ui.ctx()

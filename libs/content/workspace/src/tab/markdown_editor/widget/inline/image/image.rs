@@ -166,7 +166,7 @@ impl<'ast> MdEdit {
     /// Shared tap handling for one embed fragment (inline image, link card, or
     /// capsule): when `open`, a click opens `url`, else it selects `node_range`
     /// and pops the touch edit menu as an `Atom` target, so the platform offers
-    /// "Edit" (`Event::EnterAtom`). Registers the rect in
+    /// "Edit" (`Event::EnterAtom`). Registers the fragment rects in
     /// `touch_consuming_rects` so iOS routes the tap here; `salt` identifies
     /// the fragment's `Sense::click` scope. No-op if the embed wasn't rendered
     /// this frame. The per-kind handlers differ only in node lookup.
@@ -181,7 +181,7 @@ impl<'ast> MdEdit {
             None => return,
         };
 
-        self.renderer.touch_consuming_rects.push(response.rect);
+        self.renderer.touch_consume_interaction(ui.id().with(salt));
 
         if open && response.hovered() {
             ui.ctx()

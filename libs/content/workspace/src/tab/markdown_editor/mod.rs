@@ -133,6 +133,9 @@ pub struct MdRender {
     /// Per-frame, keyed by `ui.id().with(salt)`; populated by
     /// `interact_fragments`, consumed by handlers in each node type.
     pub interaction_responses: std::collections::HashMap<egui::Id, egui::Response>,
+    /// Per-scope interact rects behind `interaction_responses`, whose merged
+    /// rect is only a bounding box; read by `touch_consume_interaction`.
+    pub interaction_rects: std::collections::HashMap<egui::Id, Vec<Rect>>,
     /// Spoilers the user has tapped to reveal. Persistent across frames;
     /// cleared by `bump_text_seq` whenever the doc text changes so a
     /// fresh edit re-hides every spoiler.
@@ -474,6 +477,7 @@ impl MdRender {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
             in_progress_selection: None,
             in_progress_block_drag: None,
@@ -548,6 +552,7 @@ impl MdRender {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
             reveal_selection: None,
             entered_atom: None,
@@ -705,6 +710,7 @@ impl Editor {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
 
             in_progress_selection: None,

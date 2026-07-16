@@ -59,14 +59,15 @@ impl<'ast> MdRender {
             }
             let salt = Self::spoiler_interaction_id_salt(node);
             let id = parent_base.with(salt);
+
+            // iOS routes touches through `touch_consuming_rects` —
+            // without these entries a tap on a spoiler would place the
+            // cursor instead of reaching the toggle handler below.
+            self.touch_consume_interaction(id);
+
             let Some(response) = self.interaction_responses.get(&id) else {
                 continue;
             };
-
-            // iOS routes touches through `touch_consuming_rects` —
-            // without this entry a tap on a spoiler would place the
-            // cursor instead of reaching the toggle handler below.
-            self.touch_consuming_rects.push(response.rect);
 
             if response.hovered() {
                 ui.ctx()
