@@ -561,10 +561,15 @@
                 return
             }
 
+            // Replacing moves the caret; without the selection brackets UIKit
+            // keeps stale caret/selection geometry (the immediate draw
+            // swallows the frame's own selection_updated).
+            inputDelegate?.selectionWillChange(self)
             inputDelegate?.textWillChange(self)
             replace_text(wsHandle, range.c, text)
             mtkView.drawImmediately()
             inputDelegate?.textDidChange(self)
+            inputDelegate?.selectionDidChange(self)
         }
 
         public var selectedTextRange: UITextRange? {
