@@ -940,12 +940,11 @@ impl Editor {
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
-        // Loads completing (embed textures, link-preview metadata) reflow
-        // layout, moving the selection's on-screen rects without a selection
-        // change — signal so iOS re-queries its native selection/caret rects.
-        // Likewise entering/leaving an atom: Edit on a capsule re-selects the
-        // same range, but the reveal swaps the capsule for its raw source.
-        resp.selection_updated |= embeds_updated
+        // Loads completing (embeds, link meta) and atom enter/exit reflow
+        // layout, moving the selection's rects without moving the selection.
+        // Report as a scroll: iOS re-fetches geometry on either signal, but a
+        // selection report also resets the keyboard's QuickType context.
+        resp.scroll_updated |= embeds_updated
             || link_meta_updated
             || prior_entered_atom != self.edit.renderer.entered_atom;
 
