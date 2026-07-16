@@ -281,26 +281,26 @@ impl<'ast> MdEdit {
         }
     }
 
-    /// If the selection exactly covers a link rendered as a preview atom (card
-    /// or capsule), keep the whole URL selected and force-reveal the source via
-    /// `entered_atom` — a bare autolink *is* its URL, so unlike an image there
-    /// is no interior sub-range to select. True if handled.
+    /// If the selection exactly covers a link or wikilink, move it inside
+    /// for editing via [`MdEdit::atom_edit_selection`]. The touch edit
+    /// menu's "Edit" lands here. True if handled.
     pub fn enter_at_link(
         &mut self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>,
     ) -> bool {
         let selection = self.renderer.buffer.current.selection;
         for node in root.descendants() {
-            if !matches!(node.data.borrow().value, NodeValue::Link(_)) {
+            if !matches!(node.data.borrow().value, NodeValue::Link(_) | NodeValue::WikiLink(_)) {
                 continue;
             }
-            let url = super::node_link_url(node);
             let node_range = self.renderer.node_range(node);
-            if selection != node_range || url.is_empty() || !self.renderer.link_is_auto(node, &url)
-            {
+            if selection != node_range {
                 continue;
             }
-            self.renderer.entered_atom = Some(node_range);
-            operations.push(Operation::Select(node_range));
+            let (select, force_reveal) = self.atom_edit_selection(node);
+            if force_reveal {
+                self.renderer.entered_atom = Some(node_range);
+            }
+            operations.push(Operation::Select(select));
             return true;
         }
         false

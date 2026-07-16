@@ -13,7 +13,6 @@ use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
 use crate::tab::ExtendedOutput as _;
-use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta,
 };
@@ -21,6 +20,7 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FontFamily, Format, Layout, StyleInfo,
 };
+use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -650,4 +650,42 @@ fn alone_on_line<'a>(
         sib = next(s);
     }
     true
+}
+
+impl<'ast> MdEdit {
+    /// The selection that edits a link-like node's hidden part: an image's
+    /// or labeled link's destination, a wikilink's interior, a bare
+    /// autolink's whole URL. `true` if acting on it should force-reveal via
+    /// `entered_atom` — a bare autolink *is* its URL, so there is no
+    /// interior sub-range whose selection would reveal the source.
+    pub fn atom_edit_selection(&self, node: &'ast AstNode<'ast>) -> ((Grapheme, Grapheme), bool) {
+        let node_range = self.renderer.node_range(node);
+        let is_image = matches!(node.data.borrow().value, NodeValue::Image(_));
+        match &node.data.borrow().value {
+            NodeValue::WikiLink(_) => ((node_range.start() + 2, node_range.end() - 2), false),
+            NodeValue::Link(_) | NodeValue::Image(_) => {
+                let url = node_link_url(node);
+                if !is_image && !url.is_empty() && self.renderer.link_is_auto(node, &url) {
+                    (node_range, true)
+                } else {
+                    // `[title](url)` / `![alt](url)` — the postfix is
+                    // `](url)`; without a label there are no children (no
+                    // postfix) and the url starts after the opening syntax.
+                    let open_len = if is_image { 4 } else { 3 };
+                    let url_range = match self.renderer.postfix_range(node) {
+                        Some(postfix) => (postfix.start() + 2, postfix.end() - 1),
+                        None => (node_range.start() + open_len, node_range.end() - 1),
+                    };
+                    if url_range.0 <= url_range.1 {
+                        (url_range, false)
+                    } else {
+                        // degenerate: interior caret
+                        let caret = node_range.start() + (open_len - 2);
+                        ((caret, caret), false)
+                    }
+                }
+            }
+            _ => (node_range, false),
+        }
+    }
 }

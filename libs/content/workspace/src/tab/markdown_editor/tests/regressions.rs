@@ -144,6 +144,44 @@ fn enter_atom_selects_image_url() {
     assert!(ws.editor.edit.renderer.range_revealed_interior(img), "source revealed");
 }
 
+/// Mobile edit-menu "Edit" on a labeled link: with the selection exactly
+/// covering `[title](url)`, `Event::EnterAtom` selects the destination —
+/// the hidden part, mirroring [`enter_atom_selects_image_url`].
+#[test]
+fn enter_atom_selects_link_destination() {
+    let url = "https://example.com";
+    let mut ws = TestEditor::new(&format!("some [title]({url}) text\n"));
+    ws.enter_frame();
+
+    let link = ((5).into(), (14 + url.len()).into());
+    assert_eq!(&ws.editor.edit.renderer.buffer[link], format!("[title]({url})"));
+    ws.push(Event::Select { region: link.into() });
+    ws.enter_frame();
+    ws.push(Event::EnterAtom);
+    ws.enter_frame();
+
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    assert_eq!(&ws.editor.edit.renderer.buffer[sel], url, "destination selected: {sel:?}");
+}
+
+/// Mobile edit-menu "Edit" on a wikilink: with the selection exactly covering
+/// `[[target]]`, `Event::EnterAtom` selects the interior.
+#[test]
+fn enter_atom_selects_wikilink_interior() {
+    let mut ws = TestEditor::new("some [[target]] text\n");
+    ws.enter_frame();
+
+    let link = ((5).into(), (15).into());
+    assert_eq!(&ws.editor.edit.renderer.buffer[link], "[[target]]");
+    ws.push(Event::Select { region: link.into() });
+    ws.enter_frame();
+    ws.push(Event::EnterAtom);
+    ws.enter_frame();
+
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    assert_eq!(&ws.editor.edit.renderer.buffer[sel], "target", "interior selected: {sel:?}");
+}
+
 #[test]
 fn long_link_stays_inside_render_area() {
     // Long links should wrap at UAX#14 break opportunities (`/`,
