@@ -14,6 +14,8 @@ import Observation
 
     public var openCamera: Bool = false
 
+    public var mobileToolbarShown: Bool = false
+
     public init() {}
 }
 

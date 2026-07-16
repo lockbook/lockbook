@@ -200,6 +200,7 @@ impl Workspace {
                 self.out.markdown_editor_selection_updated = true;
             }
             self.out.text_interaction_rect = resp.text_interaction_rect;
+            self.out.mobile_toolbar_shown = resp.mobile_toolbar_shown;
             if resp.scroll_updated {
                 self.out.markdown_editor_scroll_updated = true;
             }

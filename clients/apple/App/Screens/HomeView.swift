@@ -182,7 +182,7 @@ struct HomeView: View {
                         )
                     }
                     .overlay(alignment: .bottom) {
-                        if !keyboardVisible {
+                        if !hideFloatingButtons {
                             HStack {
                                 detailSearchButton
 
@@ -194,7 +194,7 @@ struct HomeView: View {
                             .transition(.opacity)
                         }
                     }
-                    .animation(.easeInOut(duration: 0.2), value: keyboardVisible)
+                    .animation(.easeInOut(duration: 0.2), value: hideFloatingButtons)
                 #endif
         }
         .overlay {
@@ -365,6 +365,10 @@ struct HomeView: View {
     }
 
     #if os(iOS)
+        private var hideFloatingButtons: Bool {
+            keyboardVisible || workspaceOutput.mobileToolbarShown
+        }
+
         @ViewBuilder
         private var detailSearchButton: some View {
             Group {

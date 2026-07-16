@@ -32,6 +32,8 @@ pub struct IOSResponse {
     pub has_text_interaction_rect: bool,
     pub text_interaction_rect: CRect,
 
+    pub mobile_toolbar_shown: bool,
+
     /// Present the edit menu (copy/paste) at this point — set on tapping a
     /// selected image. Egui screen points; `MdView` converts to local space.
     pub has_context_menu: bool,
@@ -58,6 +60,7 @@ impl From<crate::Response> for IOSResponse {
                     markdown_editor_selection_updated,
                     markdown_editor_scroll_updated,
                     text_interaction_rect,
+                    mobile_toolbar_shown,
                     tabs_changed,
                     failure_messages: _,
                     selected_folder_changed,
@@ -101,6 +104,7 @@ impl From<crate::Response> for IOSResponse {
             has_virtual_keyboard_shown: virtual_keyboard_shown.is_some(),
             virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
             selected_folder_changed,
+            mobile_toolbar_shown,
             has_text_interaction_rect: text_interaction_rect.is_some(),
             text_interaction_rect: text_interaction_rect
                 .map(|r| CRect {
