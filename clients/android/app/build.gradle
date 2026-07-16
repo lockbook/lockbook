@@ -13,8 +13,8 @@ android {
         minSdkVersion 24
         targetSdk=36
 
-        versionCode 4431
-        versionName "26.7.10"
+        versionCode 4432
+        versionName "26.7.16"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
