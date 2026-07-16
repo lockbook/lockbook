@@ -568,6 +568,8 @@ class WorkspaceView(
         const val SPEN_ACTION_UP = 212
 
         const val EDIT_ATOM_MENU_ID = 0x00E0170A // arbitrary; distinct from android.R.id.*
+        const val OPEN_LINK_MENU_ID = 0x00E0170B
+        const val COPY_LINK_MENU_ID = 0x00E0170C
     }
 
     inner class FloatingTextEditorContextMenu(
@@ -617,6 +619,9 @@ class WorkspaceView(
         private val textInputWrapper: WorkspaceTextInputWrapper,
         private val forAtom: Boolean = false,
     ) : ActionMode.Callback {
+        // URL under the selection when the menu was built; feeds "Copy Link"
+        private var openTarget: String? = null
+
         override fun onCreateActionMode(
             mode: ActionMode?,
             menu: Menu?,
@@ -635,8 +640,20 @@ class WorkspaceView(
         }
 
         private fun populateMenuWithItems(menu: Menu) {
+            // link (or wikilink/image) in the selection → offer open + copy
+            openTarget = Workspace.selectionOpenTarget(wgpuObj)
+            if (openTarget != null) {
+                menu
+                    .add(Menu.NONE, OPEN_LINK_MENU_ID, 0, "Open Link")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+
+                menu
+                    .add(Menu.NONE, COPY_LINK_MENU_ID, 0, "Copy Link")
+                    .setShowAsAction(MenuItem.SHOW_AS_ACTION_ALWAYS)
+            }
+
             if (forAtom) {
-                // select the URL inside the image atom, revealing its source —
+                // select the URL inside the atom, revealing its source —
                 // the only touch path in, since mobile has no arrow keys
                 menu
                     .add(Menu.NONE, EDIT_ATOM_MENU_ID, 0, "Edit")
@@ -678,13 +695,29 @@ class WorkspaceView(
             item: MenuItem?,
         ): Boolean {
             if (item != null) {
-                if (item.itemId == EDIT_ATOM_MENU_ID) {
-                    Workspace.enterSelectedAtom(wgpuObj)
-                    // schedule the frame that processes the event, whose selection
-                    // update then flows back via `response.selectionUpdated`
-                    invalidate()
-                } else {
-                    textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
+                when (item.itemId) {
+                    EDIT_ATOM_MENU_ID -> {
+                        Workspace.enterSelectedAtom(wgpuObj)
+                        // schedule the frame that processes the event, whose selection
+                        // update then flows back via `response.selectionUpdated`
+                        invalidate()
+                    }
+                    OPEN_LINK_MENU_ID -> {
+                        Workspace.openSelectionLinks(wgpuObj)
+                        // schedule the frame that processes the open, which flows
+                        // back via `response.urlOpened` / `response.selectedFile`
+                        invalidate()
+                    }
+                    COPY_LINK_MENU_ID -> {
+                        openTarget?.let {
+                            (
+                                context.getSystemService(Context.CLIPBOARD_SERVICE)
+                                    as ClipboardManager
+                            ).setPrimaryClip(ClipData.newPlainText("", it))
+                        }
+                    }
+                    else ->
+                        textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
                 }
             }
 
