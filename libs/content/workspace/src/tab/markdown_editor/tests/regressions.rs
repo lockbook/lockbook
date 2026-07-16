@@ -2087,3 +2087,203 @@ fn selection_open_target_includes_wikilinks() {
     ws.enter_frame();
     assert_eq!(ws.editor.edit.renderer.selection_open_target().as_deref(), Some("todo"));
 }
+
+/// A caret bordering a collapsed embed — inline image or link preview card —
+/// spans the embed's full height: it reads as one big glyph. Pins the
+/// intermittent short-caret bug's fixed behavior.
+#[test]
+fn caret_bordering_embeds_spans_their_height() {
+    use std::sync::{Arc, Mutex};
+
+    use crate::tab::markdown_editor::widget::inline::link::meta::{LinkMeta, LinkMetaState};
+
+    // image: caret at the image's start spans its (test-embed 200pt) height
+    let (mut ws, _embeds) = TestEditor::with_test_embeds(
+        super::harness::build_lb(),
+        "![alt](https://example.com/i.png)\n",
+    );
+    ws.enter_frame();
+    let [top, bot] = ws.editor.edit.cursor_line((0).into()).expect("image caret");
+    let row_h = ws.editor.edit.renderer.layout.row_height;
+    assert!(
+        bot.y - top.y > 3.0 * row_h,
+        "caret bordering an image spans it: {} vs row {row_h}",
+        bot.y - top.y
+    );
+
+    // card: caret at the card's start spans the card
+    let mut ws = TestEditor::new("https://example.com\n");
+    ws.editor
+        .edit
+        .renderer
+        .layout_cache
+        .link_meta
+        .borrow_mut()
+        .insert(
+            "https://example.com".to_string(),
+            Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
+                title: "Example Title".into(),
+                description: Some(
+                    "A description long enough to wrap onto multiple lines of the \
+                     card body, giving the card several rows of height beyond its \
+                     title so the guard below holds."
+                        .into(),
+                ),
+                ..Default::default()
+            }))),
+        );
+    ws.enter_frame();
+    ws.enter_frame();
+    let card = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| matches!(f.content, FragmentContent::Embed { .. }))
+        .expect("card embed fragment")
+        .rect;
+    let row_h = ws.editor.edit.renderer.layout.row_height;
+    assert!(card.height() > 3.0 * row_h, "card is tall: {}", card.height());
+    let [top, bot] = ws.editor.edit.cursor_line((0).into()).expect("card caret");
+    assert!(
+        bot.y - top.y >= card.height(),
+        "caret bordering a card spans it: {} vs card {}",
+        bot.y - top.y,
+        card.height()
+    );
+}
+
+/// Phone-mode layout (#4892): with link preview cards in the doc and the
+/// keyboard up, the editor content must not outgrow its allocation — the
+/// bottom toolbar is the next allocation, so any overflow pushes it off
+/// screen. Swept across scroll positions.
+#[test]
+fn phone_toolbar_never_pushed_off_screen() {
+    use std::sync::{Arc, Mutex, RwLock};
+
+    use lb_rs::Uuid;
+
+    use crate::file_cache::FileCache;
+    use crate::tab::markdown_editor::widget::inline::link::meta::{LinkMeta, LinkMetaState};
+    use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
+    use crate::workspace::WsPersistentStore;
+
+    let lb = super::harness::build_lb();
+    let ctx = egui::Context::default();
+    ctx.set_os(egui::os::OperatingSystem::IOS);
+
+    let mut md = String::new();
+    for i in 0..10 {
+        md.push_str(&format!("paragraph {i} with a line of text\n\nhttps://example{i}.com\n\n"));
+    }
+
+    let files = Arc::new(RwLock::new(FileCache::empty()));
+    let mut editor = super::super::Editor::new(
+        &md,
+        Uuid::new_v4(),
+        None,
+        super::super::MdResources {
+            ctx: ctx.clone(),
+            core: lb,
+            persistence: WsPersistentStore::new(
+                false,
+                format!("/tmp/{}", Uuid::new_v4()).into(),
+                true,
+            ),
+            link_resolver: Box::new(super::harness::TestLinks),
+            embeds: Box::new(()),
+            files,
+        },
+        super::super::MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: false },
+    );
+    assert!(editor.edit.renderer.touch_mode, "touch mode");
+    assert!(editor.edit.phone_mode, "phone mode");
+    for i in 0..10 {
+        editor
+            .edit
+            .renderer
+            .layout_cache
+            .link_meta
+            .borrow_mut()
+            .insert(
+                format!("https://example{i}.com"),
+                Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
+                    title: format!("Example {i}"),
+                    description: Some(
+                        "a description that adds a couple of wrapped lines to the \
+                         card body so every card is several rows tall"
+                            .into(),
+                    ),
+                    ..Default::default()
+                }))),
+            );
+    }
+    editor.virtual_keyboard_shown = true;
+
+    let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(390., 700.));
+    let mut frame = |editor: &mut super::super::Editor, events: Vec<egui::Event>| -> (f32, f32) {
+        let mut content = (f32::NAN, f32::NAN);
+        let _ = ctx.run(
+            egui::RawInput { screen_rect: Some(screen), events, ..Default::default() },
+            |ctx| {
+                ctx.set_lb_theme(Theme::default(Mode::Dark));
+                crate::register_font_system(ctx);
+                editor.focus(ctx);
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    editor.show(ui);
+                    content = (ui.min_rect().max.y, ui.max_rect().max.y);
+                });
+            },
+        );
+        content
+    };
+
+    for _ in 0..4 {
+        frame(&mut editor, vec![]);
+    }
+
+    // Sweep scroll; every few steps park the cursor at a card boundary —
+    // the reported repro is cursor-near-preview — which also runs the
+    // scroll-to-cursor reveal against the caret rect.
+    let card_offsets: Vec<usize> = (0..10)
+        .map(|i| {
+            editor
+                .edit
+                .renderer
+                .buffer
+                .current
+                .text
+                .find(&format!("https://example{i}.com"))
+                .unwrap()
+        })
+        .collect();
+    let pointer = screen.center();
+    for step in 0..60 {
+        if step % 6 == 0 {
+            use crate::tab::ExtendedInput as _;
+            let offset: Grapheme = card_offsets[step / 6].into();
+            ctx.push_markdown_event(Event::Select {
+                region: Region::BetweenLocations {
+                    start: Location::Grapheme(offset),
+                    end: Location::Grapheme(offset),
+                },
+            });
+        }
+        let (bottom, allowed) = frame(
+            &mut editor,
+            vec![
+                egui::Event::PointerMoved(pointer),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, -40.0),
+                    modifiers: Default::default(),
+                },
+            ],
+        );
+        assert!(
+            bottom <= allowed + 0.5,
+            "content bottom {bottom} exceeds allocation {allowed} at scroll step {step} (#4892)"
+        );
+    }
+}
