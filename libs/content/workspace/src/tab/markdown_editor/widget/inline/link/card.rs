@@ -255,9 +255,8 @@ impl<'ast> MdEdit {
             if !self.renderer.link_renders_as_card(node) {
                 continue;
             }
-            let node_range = self.renderer.node_range(node);
-            let salt = MdRender::card_interaction_id_salt(node_range);
-            self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
+            let salt = MdRender::card_interaction_id_salt(self.renderer.node_range(node));
+            self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
         }
     }
 
@@ -273,9 +272,8 @@ impl<'ast> MdEdit {
                 NodeValue::Link(link) => link.url.clone(),
                 _ => continue,
             };
-            let node_range = self.renderer.node_range(node);
-            let salt = MdRender::link_capsule_id_salt(node_range);
-            self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
+            let salt = MdRender::link_capsule_id_salt(self.renderer.node_range(node));
+            self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
         }
     }
 

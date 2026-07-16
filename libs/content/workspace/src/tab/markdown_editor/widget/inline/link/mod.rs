@@ -631,7 +631,84 @@ fn alone_on_line<'a>(
     true
 }
 
+/// A choice from the desktop link context menu ([`link_menu_buttons`]).
+#[derive(Clone, Copy)]
+pub enum LinkMenuAction {
+    Open,
+    Copy,
+    Edit,
+}
+
+/// What a desktop context menu over a link-like node acts on.
+#[derive(Clone)]
+pub struct LinkMenuTarget {
+    pub url: String,
+    pub is_wikilink: bool,
+    pub is_image: bool,
+    pub node_range: (Grapheme, Grapheme),
+    /// See [`MdEdit::atom_edit_selection`].
+    pub select: (Grapheme, Grapheme),
+    pub force_reveal: bool,
+}
+
+/// The link section of a desktop context menu; `editable` gates "Edit".
+pub fn link_menu_buttons(
+    ui: &mut egui::Ui, is_image: bool, editable: bool,
+) -> Option<LinkMenuAction> {
+    let mut action = None;
+    let (open, copy, edit) = if is_image {
+        ("Open Image", "Copy URL", "Edit Image")
+    } else {
+        ("Open Link", "Copy Link", "Edit Link")
+    };
+    if ui.button(open).clicked() {
+        action = Some(LinkMenuAction::Open);
+        ui.close();
+    }
+    if ui.button(copy).clicked() {
+        action = Some(LinkMenuAction::Copy);
+        ui.close();
+    }
+    if editable && ui.button(edit).clicked() {
+        action = Some(LinkMenuAction::Edit);
+        ui.close();
+    }
+    action
+}
+
 impl<'ast> MdEdit {
+    /// The link-like node under `pos` for a desktop context menu, resolved
+    /// through the fragment actually painted there — no offset snapping
+    /// from empty space beside a link.
+    pub fn link_target_at_pos(
+        &self, root: &'ast AstNode<'ast>, pos: egui::Pos2,
+    ) -> Option<LinkMenuTarget> {
+        let frag = self.renderer.fragment_at_pos(pos)?;
+        let offset = frag.source_range.start();
+        for node in root.descendants() {
+            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::Image(l) => (l.url.clone(), false, true),
+                NodeValue::Link(l) => (l.url.clone(), false, false),
+                _ => continue,
+            };
+            let node_range = self.renderer.node_range(node);
+            if url.is_empty() || offset < node_range.start() || offset >= node_range.end() {
+                continue;
+            }
+            let (select, force_reveal) = self.atom_edit_selection(node);
+            return Some(LinkMenuTarget {
+                url,
+                is_wikilink,
+                is_image,
+                node_range,
+                select,
+                force_reveal,
+            });
+        }
+        None
+    }
+
     /// The selection that edits a link-like node's hidden part: an image's
     /// or labeled link's destination, a wikilink's interior, a bare
     /// autolink's whole URL. `true` if acting on it should force-reveal via

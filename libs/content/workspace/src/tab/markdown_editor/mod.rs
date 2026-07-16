@@ -278,6 +278,11 @@ pub struct MdEdit {
     /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
     pub link_completions: LinkCompletions,
 
+    /// The link-like node under the last desktop right-click, captured when
+    /// the click lands so the context menu's link section stays stable while
+    /// the menu is open and the pointer moves.
+    pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
+
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
@@ -311,6 +316,7 @@ impl MdEdit {
             file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
+            context_menu_link: None,
             scroll_area: AffineScrollArea::new(file_id),
         }
     }
@@ -768,6 +774,7 @@ impl Editor {
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: Default::default(),
+                context_menu_link: None,
                 scroll_area: AffineScrollArea::new(file_id),
             },
 

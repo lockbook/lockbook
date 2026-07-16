@@ -6,6 +6,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
+use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, link_menu_buttons};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -161,17 +162,17 @@ impl<'ast> MdEdit {
     }
 
     /// Shared tap handling for one embed fragment (inline image, link card, or
-    /// capsule): when `open`, a click opens `url`, else it selects `node_range`
-    /// and pops the touch edit menu as an `Atom` target, so the platform offers
-    /// "Edit" (`Event::EnterAtom`). Registers the fragment rects in
+    /// capsule): when `open`, a click opens `url`, else it selects the node
+    /// and (touch) pops the edit menu as an `Atom` target, so the platform
+    /// offers "Edit" (`Event::EnterAtom`). Desktop right-click shows the link
+    /// menu ([`link_menu_buttons`]). Registers the fragment rects in
     /// `touch_consuming_rects` so iOS routes the tap here; `salt` identifies
     /// the fragment's `Sense::click` scope. No-op if the embed wasn't rendered
     /// this frame. The per-kind handlers differ only in node lookup.
     #[allow(clippy::too_many_arguments)]
     pub fn handle_embed_tap(
-        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id,
-        ops: &mut Vec<Operation>, node_range: (Grapheme, Grapheme), url: &str, salt: egui::Id,
-        open: bool,
+        &mut self, root: &'ast AstNode<'ast>, node: &'ast AstNode<'ast>, ui: &egui::Ui,
+        id: egui::Id, ops: &mut Vec<Operation>, url: &str, salt: egui::Id, open: bool,
     ) {
         let response = match self.renderer.interaction_responses.get(&ui.id().with(salt)) {
             Some(r) => r.clone(), // clone to release the `renderer` borrow
@@ -180,6 +181,7 @@ impl<'ast> MdEdit {
 
         self.renderer.touch_consume_interaction(ui.id().with(salt));
 
+        let node_range = self.renderer.node_range(node);
         if open && response.hovered() {
             ui.ctx()
                 .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
@@ -200,6 +202,30 @@ impl<'ast> MdEdit {
                 }
             }
         }
+
+        if !self.renderer.touch_mode {
+            let is_image = matches!(node.data.borrow().value, NodeValue::Image(_));
+            let editable = !self.renderer.readonly;
+            let mut action = None;
+            response.context_menu(|ui| action = link_menu_buttons(ui, is_image, editable));
+            match action {
+                Some(LinkMenuAction::Open) => self.renderer.open_resolved_link(url, ui.ctx()),
+                Some(LinkMenuAction::Copy) => ui.ctx().copy_text(url.to_string()),
+                Some(LinkMenuAction::Edit) => {
+                    let (select, force_reveal) = self.atom_edit_selection(node);
+                    if force_reveal {
+                        self.renderer.entered_atom = Some(node_range);
+                    }
+                    ui.memory_mut(|m| m.request_focus(id));
+                    let region = Region::BetweenLocations {
+                        start: Location::Grapheme(select.start()),
+                        end: Location::Grapheme(select.end()),
+                    };
+                    self.calc_operations(ui.ctx(), root, Event::Select { region }, ops);
+                }
+                None => {}
+            }
+        }
     }
 
     /// Open or select an inline image clicked this frame (see [`Self::handle_embed_tap`]).
@@ -214,7 +240,7 @@ impl<'ast> MdEdit {
             };
             let node_range = self.renderer.node_range(node);
             let salt = MdRender::image_interaction_id_salt(node_range);
-            self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
+            self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
         }
     }
 

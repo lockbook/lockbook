@@ -29,6 +29,7 @@ use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
+use super::widget::inline::link::{LinkMenuAction, link_menu_buttons};
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
 pub struct PreRenderState {
@@ -650,9 +651,23 @@ impl MdEdit {
         ui.ctx()
             .style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
         if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
+            // Capture the link under the click when it lands, so the menu's
+            // link section stays stable while the pointer moves over it.
+            if response.secondary_clicked() {
+                self.context_menu_link = response
+                    .interact_pointer_pos()
+                    .and_then(|pos| self.link_target_at_pos(root, pos));
+            }
+            let link_target = self.context_menu_link.clone();
+            let mut link_action = None;
+
             let readonly = self.renderer.readonly;
             let mut menu_events: Vec<Event> = Vec::new();
             response.context_menu(|ui| {
+                if let Some(t) = &link_target {
+                    link_action = link_menu_buttons(ui, t.is_image, !readonly);
+                    ui.separator();
+                }
                 ui.horizontal(|ui| {
                     ui.set_min_height(30.);
                     ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
@@ -687,6 +702,31 @@ impl MdEdit {
                     }
                 });
             });
+            if let (Some(action), Some(t)) = (link_action, &link_target) {
+                match action {
+                    LinkMenuAction::Open => {
+                        if t.is_wikilink {
+                            if let Some(file_id) = self.renderer.resolve_wikilink(&t.url) {
+                                ui.ctx().open_file(file_id, true);
+                            }
+                        } else {
+                            self.renderer.open_resolved_link(&t.url, ui.ctx());
+                        }
+                    }
+                    LinkMenuAction::Copy => ui.ctx().copy_text(t.url.clone()),
+                    LinkMenuAction::Edit => {
+                        if t.force_reveal {
+                            self.renderer.entered_atom = Some(t.node_range);
+                        }
+                        menu_events.push(Event::Select {
+                            region: Region::BetweenLocations {
+                                start: Location::Grapheme(t.select.start()),
+                                end: Location::Grapheme(t.select.end()),
+                            },
+                        });
+                    }
+                }
+            }
             for ev in menu_events {
                 self.calc_operations(ui.ctx(), root, ev, &mut ops);
             }
