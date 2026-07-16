@@ -286,6 +286,17 @@ pub unsafe extern "C" fn open_selection_links(obj: *mut c_void) {
     }
 }
 
+/// Edit-menu "Refresh Preview": re-fetch preview metadata for links in the
+/// current selection.
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn refresh_selection_previews(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.renderer.refresh_selection_previews();
+    }
+}
+
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {

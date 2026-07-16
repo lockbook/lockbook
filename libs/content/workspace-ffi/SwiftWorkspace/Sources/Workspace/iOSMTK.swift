@@ -1392,6 +1392,15 @@
                     view.mtkView.setNeedsDisplay(view.mtkView.frame)
                 }
                 children.insert(edit, at: 0)
+
+                let refresh = UIAction(
+                    title: "Refresh Preview", image: UIImage(systemName: "arrow.clockwise")
+                ) { [weak view] _ in
+                    guard let view else { return }
+                    refresh_selection_previews(view.wsHandle)
+                    view.mtkView.setNeedsDisplay(view.mtkView.frame)
+                }
+                children.append(refresh)
             }
             return UIMenu(children: children)
         }
