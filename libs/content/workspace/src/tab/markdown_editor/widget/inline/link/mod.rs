@@ -22,6 +22,7 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
+use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -248,17 +249,19 @@ impl<'ast> MdRender {
                 continue; // not rendered as a capsule
             }
 
-            // Favicon over the leading em-space slot, once its texture loads.
+            // Favicon over the leading em-space slot; a neutral link glyph
+            // holds the slot while the texture loads — or forever, if it
+            // never does — so the reserved space always reads as an icon.
             if let Some(favicon_url) = self.capsule_favicon_url(&url) {
+                let chip = chip_rects[0];
+                let size = chip.height() * 0.7;
+                let inset = chip.height() * 0.3;
+                let icon_rect = egui::Rect::from_min_size(
+                    egui::Pos2::new(chip.min.x + inset, chip.center().y - size * 0.5),
+                    egui::Vec2::splat(size),
+                );
                 self.embeds.prefetch(&favicon_url);
                 if self.embeds.is_loaded(&favicon_url) {
-                    let chip = chip_rects[0];
-                    let size = chip.height() * 0.7;
-                    let inset = chip.height() * 0.3;
-                    let icon_rect = egui::Rect::from_min_size(
-                        egui::Pos2::new(chip.min.x + inset, chip.center().y - size * 0.5),
-                        egui::Vec2::splat(size),
-                    );
                     // Dark mode: a near-white tile behind the icon so dark
                     // monochrome marks (e.g. GitHub) read against the dark pill;
                     // opaque favicons simply hide it.
@@ -268,6 +271,14 @@ impl<'ast> MdRender {
                     }
                     self.embeds
                         .show(ui, &favicon_url, icon_rect, egui::CornerRadius::same(3));
+                } else {
+                    ui.painter().text(
+                        icon_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        Icon::LINK.icon,
+                        egui::FontId::monospace(size),
+                        self.ctx.get_lb_theme().neutral_fg_secondary(),
+                    );
                 }
             }
 
