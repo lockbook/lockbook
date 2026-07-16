@@ -188,15 +188,19 @@ import SwiftUI
                     return
                 }
 
-                mtkView.onSelectionChanged = nil
-                mtkView.onTextChanged = nil
-
+                // Text callbacks are nulled only where the MdView they're
+                // wired to goes away (a fresh one rewires in init). A switch
+                // that keeps the wrapper — markdown ↔ chat — keeps them: they
+                // feed Rust-side changes to UIKit's inputDelegate, and a deaf
+                // delegate desyncs autocorrect and keyboard state.
                 switch newCurrentTab {
                 case .Welcome, .Pdf, .Loading, .SpaceInspector:
                     if currentWrapper == nil {
                         return
                     }
 
+                    mtkView.onSelectionChanged = nil
+                    mtkView.onTextChanged = nil
                     currentWrapper?.removeFromSuperview()
 
                     currentWrapper = nil
@@ -209,6 +213,8 @@ import SwiftUI
                         return
                     }
 
+                    mtkView.onSelectionChanged = nil
+                    mtkView.onTextChanged = nil
                     currentWrapper?.removeFromSuperview()
 
                     let drawingWrapper = SvgView(mtkView: mtkView)
