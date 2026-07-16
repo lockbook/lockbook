@@ -279,7 +279,13 @@ impl Chat {
         };
 
         let composer_id = Id::new("chat_composer");
-        if !self.initialized {
+        // Focus when first shown or whenever nothing holds focus — the
+        // editor's policy, and load-bearing on iOS: typing arrives as egui
+        // events only a focused composer consumes, and taps place the cursor
+        // via the text FFI without touching egui focus, so lost focus must
+        // self-heal here. (The touch keyboard tracks UIKit first-responder
+        // state, not egui focus — the re-grab never summons it.)
+        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
             ui.memory_mut(|m| m.request_focus(composer_id));
             self.initialized = true;
         }
