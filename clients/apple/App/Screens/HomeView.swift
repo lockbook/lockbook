@@ -25,7 +25,6 @@ struct HomeView: View {
         @State private var showCreateAlongside = false
     #else
         @State private var showImporter = false
-        @State private var detailLeadingInset: CGFloat = 0
     #endif
 
     @State private var filesModel: FilesModel
@@ -65,58 +64,19 @@ struct HomeView: View {
         } detail: {
             workspace
                 .navigationTitle(detailTitle)
-                .onGeometryChange(for: CGRect.self) { $0.frame(in: .global) } action: { frame in
-                    detailWidth = frame.width
-                    #if os(macOS)
-                        detailLeadingInset = frame.minX
-                    #endif
-                }
                 #if os(iOS)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { detailWidth = $0 }
                     .navigationBarTitleDisplayMode(.inline)
                     .toolbar(removing: .sidebarToggle)
+                #else
+                    .background {
+                        DetailWidthReader { detailWidth = $0 }
+                    }
                 #endif
                 .toolbar {
                     if let file = openDocFile {
-                        ToolbarItem(placement: .principal) {
-                            Button {
-                                renameTarget = file
-                            } label: {
-                                let segments = filesModel.ancestors(of: file).map(\.name)
-
-                                ViewThatFits(in: .horizontal) {
-                                    titleCrumb(file, leading: segments)
-
-                                    if segments.count > 1, let parent = segments.last {
-                                        titleCrumb(file, leading: ["…", parent])
-                                    }
-
-                                    if !segments.isEmpty {
-                                        titleCrumb(file, leading: ["…"])
-                                    }
-
-                                    titleCrumb(file, leading: [])
-
-                                    titleCrumb(file, leading: [], showIcon: false)
-
-                                    titleCrumb(file, leading: [], showIcon: false, showPencil: false)
-                                }
-                                .font(.subheadline)
-                                .padding(.horizontal, 16)
-                                .padding(.vertical, 8)
-                                .background {
-                                    Capsule()
-                                        .fill(titleCapsuleColor)
-                                        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
-                                }
-                                .contentShape(Capsule())
-                                #if os(iOS)
-                                    .frame(maxWidth: titlePillMaxWidth)
-                                #endif
-                            }
-                            .buttonStyle(.plain)
-                            #if os(macOS)
-                                .cappedWidth(titlePillWidth)
-                            #endif
+                        ToolbarItem(placement: .status) {
+                            titlePill(for: file)
                         }
                     }
 
@@ -527,15 +487,17 @@ struct HomeView: View {
             }
         }
         .toolbar {
-            ToolbarItem(placement: tabstripPlacement) {
-                Picker("Tabs", selection: $selectedTab) {
-                    ForEach([SidebarTab.files, .recents, .sharedWithMe]) { tab in
-                        Label(tab.title, systemImage: tab.systemImage)
-                            .tag(tab)
+            if showTabPicker {
+                ToolbarItem(placement: tabstripPlacement) {
+                    Picker("Tabs", selection: $selectedTab) {
+                        ForEach([SidebarTab.files, .recents, .sharedWithMe]) { tab in
+                            Label(tab.title, systemImage: tab.systemImage)
+                                .tag(tab)
+                        }
                     }
+                    .pickerStyle(.segmented)
+                    .fixedSize()
                 }
-                .pickerStyle(.segmented)
-                .fixedSize()
             }
 
             #if os(iOS)
@@ -638,6 +600,14 @@ struct HomeView: View {
         #endif
     }
 
+    private var showTabPicker: Bool {
+        #if os(macOS)
+            nativeSidebarOpen
+        #else
+            true
+        #endif
+    }
+
     private var sharePlacement: ToolbarItemPlacement {
         #if os(macOS)
             .primaryAction
@@ -654,22 +624,91 @@ struct HomeView: View {
         return filesModel.idsToFiles[id]
     }
 
-    #if os(macOS)
-        private var titlePillWidth: CGFloat? {
-            guard detailWidth > 0 else { return nil }
+    private func titlePill(for file: File) -> some View {
+        let variant = crumbVariant(for: file)
 
-            var trailing: CGFloat = 24
-            if openDocFile != nil { trailing += 52 }
-            if workspaceOutput.tabCount > 0 { trailing += 52 }
-
-            let leading = nativeSidebarOpen ? detailLeadingInset + 8 : 152
-            let windowWidth = detailLeadingInset + detailWidth
-            let centered = windowWidth - 2 * max(leading, trailing)
-            let inline = windowWidth - leading - trailing
-
-            return max(140, min(inline, centered))
+        return Button {
+            renameTarget = file
+        } label: {
+            titleCrumb(file, leading: variant.leading, showIcon: variant.showIcon, showPencil: variant.showPencil)
+                .font(.subheadline)
+                .padding(.horizontal, 16)
+                .padding(.vertical, 8)
+                .background {
+                    Capsule()
+                        .fill(titleCapsuleColor)
+                        .shadow(color: .black.opacity(0.08), radius: 3, y: 1)
+                }
+                .contentShape(Capsule())
+                #if os(iOS)
+                    .frame(maxWidth: crumbAvailableWidth)
+                #endif
         }
-    #endif
+        .buttonStyle(.plain)
+        #if os(macOS)
+            .cappedWidth(crumbAvailableWidth)
+            .id(variant)
+        #endif
+    }
+
+    private var crumbAvailableWidth: CGFloat {
+        #if os(macOS)
+            detailWidth > 0 ? detailWidth * 0.6 : 600
+        #else
+            titlePillMaxWidth
+        #endif
+    }
+
+    private struct CrumbVariant: Hashable {
+        var leading: [String]
+        var showIcon = true
+        var showPencil = true
+    }
+
+    private func crumbVariant(for file: File) -> CrumbVariant {
+        let segments = filesModel.ancestors(of: file).map(\.name)
+
+        var options: [CrumbVariant] = [CrumbVariant(leading: segments)]
+        if segments.count > 1, let parent = segments.last {
+            options.append(CrumbVariant(leading: ["…", parent]))
+        }
+        if !segments.isEmpty {
+            options.append(CrumbVariant(leading: ["…"]))
+        }
+        options.append(CrumbVariant(leading: []))
+        options.append(CrumbVariant(leading: [], showIcon: false))
+        options.append(CrumbVariant(leading: [], showIcon: false, showPencil: false))
+
+        let available = crumbAvailableWidth
+        for variant in options where crumbWidth(variant, name: file.name) <= available {
+            return variant
+        }
+
+        return options.last ?? CrumbVariant(leading: [], showIcon: false, showPencil: false)
+    }
+
+    private func crumbWidth(_ variant: CrumbVariant, name: String) -> CGFloat {
+        var width: CGFloat = 32
+        if variant.showIcon { width += 23 }
+        for segment in variant.leading {
+            width += crumbTextWidth(segment) + 8
+            width += 18
+        }
+        width += crumbTextWidth(name) + 8
+        if variant.showPencil { width += 16 }
+
+        return width
+    }
+
+    private func crumbTextWidth(_ string: String) -> CGFloat {
+        #if os(macOS)
+            let font = NSFont.preferredFont(forTextStyle: .subheadline)
+        #else
+            let font = UIFont.preferredFont(forTextStyle: .subheadline)
+        #endif
+
+        return (string as NSString).size(withAttributes: [.font: font]).width
+    }
 
     private var titleCapsuleColor: Color {
         #if os(macOS)
@@ -770,6 +809,62 @@ private extension View {
     private extension View {
         func cappedWidth(_ width: CGFloat?) -> some View {
             CappedWidthLayout(width: width) { self }
+        }
+    }
+
+    private struct DetailWidthReader: NSViewRepresentable {
+        let onChange: (CGFloat) -> Void
+
+        func makeNSView(context: Context) -> WidthReportingView {
+            let view = WidthReportingView()
+            view.onChange = onChange
+            return view
+        }
+
+        func updateNSView(_ nsView: WidthReportingView, context: Context) {
+            nsView.onChange = onChange
+        }
+
+        final class WidthReportingView: NSView {
+            var onChange: ((CGFloat) -> Void)?
+            private var lastWidth: CGFloat = 0
+
+            override init(frame frameRect: NSRect) {
+                super.init(frame: frameRect)
+                postsFrameChangedNotifications = true
+                NotificationCenter.default.addObserver(
+                    self, selector: #selector(frameChanged),
+                    name: NSView.frameDidChangeNotification, object: self
+                )
+            }
+
+            @available(*, unavailable)
+            required init?(coder: NSCoder) {
+                fatalError("init(coder:) has not been implemented")
+            }
+
+            deinit {
+                NotificationCenter.default.removeObserver(self)
+            }
+
+            override func layout() {
+                super.layout()
+                report()
+            }
+
+            @objc private func frameChanged() {
+                report()
+            }
+
+            private func report() {
+                let width = bounds.width
+                guard width != lastWidth, width > 0 else { return }
+
+                lastWidth = width
+                DispatchQueue.main.async { [weak self] in
+                    self?.onChange?(width)
+                }
+            }
         }
     }
 #endif
