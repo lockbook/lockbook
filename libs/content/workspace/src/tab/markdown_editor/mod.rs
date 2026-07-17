@@ -416,7 +416,7 @@ pub struct MdLayout {
 impl MdLayout {
     pub fn mobile() -> Self {
         Self {
-            margin: if cfg!(target_os = "android") { 32.0 } else { 45.0 },
+            margin: 32.0,
             max_width: 1000.0,
             inline_padding: 3.0,
             annotation_font_size: 12.0,
@@ -1291,8 +1291,10 @@ impl Editor {
             self.persistence.write_to_file();
         }
 
-        // focus editor when first shown or when nothing else has focus
-        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
+        // focus editor when first shown or when nothing else has focus — not
+        // while the menu covers it: egui re-drops the unshown editor's focus,
+        // and the flip-flop repaint-loops and flickers the menu (#4896)
+        if editor_shown && (!self.initialized || ui.memory(|m| m.focused().is_none())) {
             self.focus(ui.ctx());
         }
         if self.focused(ui.ctx()) {
@@ -1542,7 +1544,7 @@ impl Editor {
                 // Favicon + selection tint, over the opaque capsule pills.
                 self.edit
                     .renderer
-                    .show_capsule_overlays(ui, root, canvas_rect);
+                    .show_capsule_overlays(ui, root, canvas_rect, 0);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);

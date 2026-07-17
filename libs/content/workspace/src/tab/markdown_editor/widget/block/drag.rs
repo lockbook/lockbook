@@ -6,7 +6,7 @@
 
 use comrak::nodes::{AstNode, NodeValue};
 use egui::{CursorIcon, Pos2, Rect, Ui, Vec2};
-use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
+use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 
@@ -264,8 +264,6 @@ impl<'ast> MdRender {
 pub struct BlockMovePlan {
     pub run_range: (Grapheme, Grapheme),
     pub new_run: String,
-    /// Moved item's range in post-move offsets (for selection).
-    pub moved_range: (Grapheme, Grapheme),
 }
 
 impl<'ast> MdRender {
@@ -349,17 +347,6 @@ impl<'ast> MdRender {
         let moved = rblocks.remove(lo);
         rblocks.insert(to_adj, moved);
 
-        use unicode_segmentation::UnicodeSegmentation as _;
-        let g = |s: &str| -> Graphemes { s.graphemes(true).count().into() };
-        let mut moved_start = run_range.0;
-        for i in 0..to_adj {
-            moved_start += g(&rblocks[i]);
-            if i < rgaps.len() {
-                moved_start += g(&rgaps[i]);
-            }
-        }
-        let moved_range = (moved_start, moved_start + g(&rblocks[to_adj]));
-
         let mut new_run = String::new();
         for i in 0..rblocks.len() {
             new_run.push_str(&rblocks[i]);
@@ -368,7 +355,7 @@ impl<'ast> MdRender {
             }
         }
 
-        Some(BlockMovePlan { run_range, new_run, moved_range })
+        Some(BlockMovePlan { run_range, new_run })
     }
 
     fn line_idx_for_offset(&self, offset: Grapheme) -> usize {
