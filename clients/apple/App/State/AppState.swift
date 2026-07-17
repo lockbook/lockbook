@@ -7,15 +7,7 @@ import SwiftWorkspace
     
     var account: Account? = nil
     var isLoggedIn: Bool = false
-    var error: UIError? = nil {
-        didSet {
-            guard let error else { return }
-            print("‼️ AppState.error set: \(error.title) — \(error.message)")
-            for frame in Thread.callStackSymbols.prefix(12) {
-                print("    \(frame)")
-            }
-        }
-    }
+    var error: UIError? = nil
 
     private init() {
         checkIfLoggedIn()

@@ -35,7 +35,6 @@ public enum EC: Int {
     case currentUsageIsMoreThanNewTier
     case diskPathInvalid
     case diskPathTaken
-    case drawingInvalid
     case existingRequestPending
     case fileNameContainsSlash
     case fileNameTooLong
