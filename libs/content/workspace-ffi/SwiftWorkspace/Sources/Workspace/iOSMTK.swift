@@ -1384,7 +1384,9 @@
                 children.insert(open, at: 0)
             }
             if let view, view.editMenuForAtom {
-                let edit = UIAction(title: "Edit") { [weak view] _ in
+                let edit = UIAction(
+                    title: "Edit", image: UIImage(systemName: "pencil")
+                ) { [weak view] _ in
                     guard let view else { return }
                     enter_selected_atom(view.wsHandle)
                     // schedule the frame that processes the event, whose selection
