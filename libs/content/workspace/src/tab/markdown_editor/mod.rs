@@ -1291,8 +1291,10 @@ impl Editor {
             self.persistence.write_to_file();
         }
 
-        // focus editor when first shown or when nothing else has focus
-        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
+        // focus editor when first shown or when nothing else has focus — not
+        // while the menu covers it: egui re-drops the unshown editor's focus,
+        // and the flip-flop repaint-loops and flickers the menu (#4896)
+        if editor_shown && (!self.initialized || ui.memory(|m| m.focused().is_none())) {
             self.focus(ui.ctx());
         }
         if self.focused(ui.ctx()) {

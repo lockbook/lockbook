@@ -584,6 +584,11 @@ impl<'ast> Editor {
                                 mem::replace(&mut self.edit.renderer.link_resolver, Box::new(()));
                             self.edit.renderer.disable_images = true;
 
+                            // labels are static exemplars — never reveal syntax
+                            // at the editor's (unrelated) selection offsets
+                            let reveal_selection =
+                                mem::take(&mut self.edit.renderer.reveal_selection);
+
                             self.edit.renderer.layout_cache.clear();
 
                             // page title
@@ -1026,6 +1031,7 @@ impl<'ast> Editor {
 
                             self.edit.renderer.link_resolver = link_resolver;
                             self.edit.renderer.disable_images = false;
+                            self.edit.renderer.reveal_selection = reveal_selection;
                         });
                 });
             });
