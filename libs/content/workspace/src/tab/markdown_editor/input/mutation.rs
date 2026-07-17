@@ -53,6 +53,8 @@ impl MdEdit {
             .buffer
             .queue(vec![Operation::Select(plan.moved_range)]);
         resp |= self.renderer.buffer.update();
+        // the drag already positioned the viewport; don't scroll-to-cursor
+        resp.selection_user_moved = false;
         resp
     }
 }
