@@ -2176,14 +2176,18 @@ fn phone_toolbar_never_pushed_off_screen() {
 
     let mut md = String::new();
     for i in 0..10 {
+        md.push_str(&format!("## section {i}\n\n"));
         md.push_str(&format!("paragraph {i} with a line of text\n\nhttps://example{i}.com\n\n"));
         // mid-sentence capsule; the long seeded title wraps it across rows
         md.push_str(&format!(
             "some leading words then https://inline{i}.example.com and trailing text to wrap\n\n"
         ));
+        md.push_str(&format!("![an image](https://img{i}.example.com/i.png)\n\n"));
     }
 
     let files = Arc::new(RwLock::new(FileCache::empty()));
+    // The canary resolver allocates in `show` — the worst-case embed painter.
+    let embeds = Arc::new(super::harness::TestEmbeds::default());
     let mut editor = super::super::Editor::new(
         &md,
         Uuid::new_v4(),
@@ -2197,7 +2201,7 @@ fn phone_toolbar_never_pushed_off_screen() {
                 true,
             ),
             link_resolver: Box::new(super::harness::TestLinks),
-            embeds: Box::new(()),
+            embeds: Box::new(embeds.clone()),
             files,
         },
         super::super::MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: false },
@@ -2220,6 +2224,7 @@ fn phone_toolbar_never_pushed_off_screen() {
                          card body so every card is several rows tall"
                             .into(),
                     ),
+                    thumbnail_url: Some(format!("https://example{i}.com/hero.png")),
                     ..Default::default()
                 }))),
             );
@@ -2235,13 +2240,26 @@ fn phone_toolbar_never_pushed_off_screen() {
                     title: format!(
                         "a sufficiently long inline preview title number {i} that wraps"
                     ),
+                    favicon_url: Some(format!("https://inline{i}.example.com/favicon.ico")),
                     ..Default::default()
                 }))),
             );
+        // mark every texture loaded so the canary's `show` actually runs
+        for url in [
+            format!("https://example{i}.com/hero.png"),
+            format!("https://inline{i}.example.com/favicon.ico"),
+            format!("https://img{i}.example.com/i.png"),
+        ] {
+            embeds.complete(&url, egui::Vec2::new(200.0, 150.0));
+        }
     }
+    // favicons/capsules only render with link fetching on; all metadata is
+    // seeded above, so no request actually leaves the test
+    editor.persistence.set_contact_linked_sites(true);
     editor.virtual_keyboard_shown = true;
 
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(390., 700.));
+    let frames_run = std::cell::Cell::new(0u32);
     let frame = |editor: &mut super::super::Editor, events: Vec<egui::Event>| -> (f32, f32) {
         let mut content = (f32::NAN, f32::NAN);
         let _ = ctx.run(
@@ -2256,6 +2274,17 @@ fn phone_toolbar_never_pushed_off_screen() {
                 });
             },
         );
+        // The layout-level signal: embed painting (which runs for off-screen
+        // neighbor rows) must never drag the toolbar allocation off screen.
+        // The first frames lay out before fonts/virtualization settle.
+        frames_run.set(frames_run.get() + 1);
+        if frames_run.get() > 4 {
+            let toolbar = editor.mobile_toolbar_rect.expect("toolbar allocated");
+            assert!(
+                toolbar.max.y <= screen.max.y + 0.5,
+                "toolbar allocated off screen: {toolbar:?} (#4892)"
+            );
+        }
         content
     };
 
