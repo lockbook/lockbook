@@ -497,55 +497,25 @@ impl MdEdit {
         let card_rect = src_rect.expand2(egui::Vec2::new(0.0, vpad));
         let hole = src_rect.expand2(egui::Vec2::new(0.0, vpad));
 
-        // Cutout with a CSS-`box-shadow: inset` on top + left edges:
-        // `Shadow::as_shape` only blurs outward, so place each source
-        // rect outside the hole, flush against it, and clip the
-        // painter — the blur fades from the rim inward.
-        let radius = egui::CornerRadius::same(3);
-        ui.painter()
-            .rect_filled(hole, radius, theme.neutral_bg_secondary());
-        let alpha_top: u8 = if self.renderer.dark_mode { 70 } else { 28 };
-        let alpha_left: u8 = if self.renderer.dark_mode { 45 } else { 18 };
-        let blur: u8 = 18;
-        let inset = ui.painter().with_clip_rect(hole);
-        let top_source = egui::Rect::from_min_max(
-            Pos2::new(hole.left() - 60.0, hole.top() - 60.0),
-            Pos2::new(hole.right() + 60.0, hole.top()),
-        );
-        inset.add(
-            egui::epaint::Shadow {
-                offset: [0, 0],
-                blur,
-                spread: 0,
-                color: egui::Color32::from_black_alpha(alpha_top),
-            }
-            .as_shape(top_source, egui::CornerRadius::ZERO),
-        );
-        let left_source = egui::Rect::from_min_max(
-            Pos2::new(hole.left() - 60.0, hole.top() - 60.0),
-            Pos2::new(hole.left(), hole.bottom() + 60.0),
-        );
-        inset.add(
-            egui::epaint::Shadow {
-                offset: [0, 0],
-                blur,
-                spread: 0,
-                color: egui::Color32::from_black_alpha(alpha_left),
-            }
-            .as_shape(left_source, egui::CornerRadius::ZERO),
+        // Fill tracks the editor background (pure black on OLED); border
+        // matches link preview cards.
+        let card_corner = egui::CornerRadius::same(4);
+        let fill = theme.neutral_bg();
+        let stroke_color = theme.neutral_bg_tertiary();
+
+        // Source slot: an empty ghost of the card.
+        ui.painter().rect_filled(hole, card_corner, fill);
+        ui.painter().rect_stroke(
+            hole,
+            card_corner,
+            Stroke::new(0.5, stroke_color),
+            egui::epaint::StrokeKind::Inside,
         );
 
         // Floating card translated so the grab-point stays under the
         // pointer regardless of mid-drag scroll.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = card_rect.translate(offset);
-        // Flat canvas-island styling; values match `svg_editor::mod.rs`.
-        let card_corner = egui::CornerRadius::same(4);
-        let (fill, stroke_color) = if self.renderer.dark_mode {
-            (egui::Color32::from_rgb(30, 30, 30), egui::Color32::from_rgb(56, 56, 56))
-        } else {
-            (ui.visuals().extreme_bg_color, egui::Color32::from_rgb(235, 235, 235))
-        };
         ui.painter().rect_filled(card, card_corner, fill);
         ui.painter().rect_stroke(
             card,
