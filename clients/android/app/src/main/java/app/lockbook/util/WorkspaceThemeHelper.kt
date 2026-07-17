@@ -71,6 +71,14 @@ object WorkspaceThemeHelper {
             )
         val materialSurface =
             context.getMaterialColorOrFallback(com.google.android.material.R.attr.colorSurface, R.color.md_theme_surface)
+        // The editor background: the extreme Material container role rather
+        // than the tinted `colorSurface` — near-black on OLED in dark mode,
+        // pure white in light mode.
+        val materialSurfaceContainerLowest =
+            context.getMaterialColorOrFallback(
+                com.google.android.material.R.attr.colorSurfaceContainerLowest,
+                R.color.md_theme_surface,
+            )
         val materialSurfaceContainerHigh =
             context.getMaterialColorOrFallback(
                 com.google.android.material.R.attr.colorSurfaceContainerHigh,
@@ -122,7 +130,7 @@ object WorkspaceThemeHelper {
         val dim =
             harmonizedDim
                 .copy(
-                    black = if (darkMode) materialSurface else materialOnSurface,
+                    black = if (darkMode) materialSurfaceContainerLowest else materialOnSurface,
                     grey = if (darkMode) materialSurfaceContainerHigh else materialOnSurfaceVariant,
                     white = if (darkMode) materialOnSurface else materialSurface,
                 ).withPaletteColors(if (darkMode) bgAccentColors else fgAccentColors)
@@ -132,7 +140,7 @@ object WorkspaceThemeHelper {
                 .copy(
                     black = materialOnSurface,
                     grey = if (darkMode) materialOnSurfaceVariant else materialSurfaceContainerHigh,
-                    white = materialSurface,
+                    white = materialSurfaceContainerLowest,
                 ).withPaletteColors(if (darkMode) fgAccentColors else bgAccentColors)
 
         return WorkspaceTheme(
