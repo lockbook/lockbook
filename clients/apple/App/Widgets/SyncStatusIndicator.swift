@@ -45,6 +45,13 @@ enum SyncIndicator: Equatable {
         case .syncError: "Error"
         }
     }
+
+    static func attention(for status: Status) -> SyncIndicator? {
+        switch SyncIndicator(status: status) {
+        case .synced, .syncing: nil
+        case let other: other
+        }
+    }
 }
 
 enum UsageBarDisplayMode: String, Codable, CaseIterable, Identifiable {
@@ -91,21 +98,6 @@ struct UsageBar: View {
         guard usage.serverCapExact > 0 else { return 0 }
 
         return Double(usage.serverUsedExact) / Double(usage.serverCapExact)
-    }
-}
-
-struct SyncStatusDot: View {
-    let indicator: SyncIndicator
-
-    var body: some View {
-        if indicator == .syncing {
-            ProgressView()
-                .controlSize(.small)
-        } else {
-            Circle()
-                .fill(indicator.color)
-                .frame(width: 8, height: 8)
-        }
     }
 }
 
@@ -184,55 +176,22 @@ struct SyncStatusFooter: View {
     }
 }
 
-enum SyncPillDisplay: Equatable {
-    case syncing
-    case synced
-    case attention(SyncIndicator)
-
-    static func attentionOnly(for status: Status) -> SyncIndicator? {
-        switch SyncIndicator(status: status) {
-        case .synced, .syncing: nil
-        case let other: other
-        }
-    }
-
-    private var indicator: SyncIndicator {
-        switch self {
-        case .syncing: .syncing
-        case .synced: .synced
-        case let .attention(indicator): indicator
-        }
-    }
-
-    var label: String {
-        indicator.shortLabel
-    }
-
-    var color: Color {
-        indicator.color
-    }
-
-    var showsSpinner: Bool {
-        self == .syncing
-    }
-}
-
 struct SyncStatusPill: View {
-    let display: SyncPillDisplay?
+    let indicator: SyncIndicator?
     let action: () -> Void
 
     var body: some View {
         Group {
-            if let display {
+            if let indicator {
                 Button(action: action) {
                     HStack(spacing: 6) {
-                        if display.showsSpinner {
+                        if indicator == .syncing {
                             ProgressView().controlSize(.small)
                         } else {
-                            Circle().fill(display.color).frame(width: 8, height: 8)
+                            Circle().fill(indicator.color).frame(width: 8, height: 8)
                         }
 
-                        Text(display.label)
+                        Text(indicator.shortLabel)
                             .font(.footnote)
                             .fontWeight(.medium)
                     }
@@ -250,6 +209,6 @@ struct SyncStatusPill: View {
 }
 
 #Preview("Pill") {
-    SyncStatusPill(display: .attention(.offline)) {}
+    SyncStatusPill(indicator: .offline) {}
         .padding()
 }

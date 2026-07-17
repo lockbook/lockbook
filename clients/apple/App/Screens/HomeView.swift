@@ -21,7 +21,7 @@ struct HomeView: View {
     @State private var showUpgrade = false
     @State private var upgradeModel: SettingsModel? = nil
     @State private var detailWidth: CGFloat = 0
-    @State private var syncPillDisplay: SyncPillDisplay? = nil
+    @State private var syncPillDisplay: SyncIndicator? = nil
     #if os(iOS)
         @State private var showSettings = false
         @State private var keyboardVisible = false
@@ -525,15 +525,11 @@ struct HomeView: View {
     private static let syncPillAnim: Animation = .spring(response: 0.35, dampingFraction: 0.8)
 
     private func reconcileSyncPill() {
-        switch syncPillDisplay {
-        case .syncing, .synced:
+        if syncPillDisplay == .syncing || syncPillDisplay == .synced {
             return
-        default:
-            break
         }
 
-        let target = SyncPillDisplay.attentionOnly(for: AppState.lb.events.status)
-            .map { SyncPillDisplay.attention($0) }
+        let target = SyncIndicator.attention(for: AppState.lb.events.status)
 
         if syncPillDisplay != target {
             withAnimation(Self.syncPillAnim) {
@@ -557,9 +553,9 @@ struct HomeView: View {
             guard !Task.isCancelled else { return }
         }
 
-        if let attention = SyncPillDisplay.attentionOnly(for: AppState.lb.events.status) {
+        if let attention = SyncIndicator.attention(for: AppState.lb.events.status) {
             withAnimation(Self.syncPillAnim) {
-                syncPillDisplay = .attention(attention)
+                syncPillDisplay = attention
             }
             return
         }
@@ -572,8 +568,7 @@ struct HomeView: View {
         guard !Task.isCancelled else { return }
 
         withAnimation(Self.syncPillAnim) {
-            syncPillDisplay = SyncPillDisplay.attentionOnly(for: AppState.lb.events.status)
-                .map { .attention($0) }
+            syncPillDisplay = SyncIndicator.attention(for: AppState.lb.events.status)
         }
     }
 
@@ -638,7 +633,7 @@ struct HomeView: View {
                     ToolbarSpacer(.flexible, placement: .bottomBar)
 
                     ToolbarItem(placement: .bottomBar) {
-                        SyncStatusPill(display: syncPillDisplay, action: syncTapped)
+                        SyncStatusPill(indicator: syncPillDisplay, action: syncTapped)
                     }
 
                     ToolbarSpacer(.flexible, placement: .bottomBar)
