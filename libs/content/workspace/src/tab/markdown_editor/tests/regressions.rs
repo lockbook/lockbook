@@ -2172,10 +2172,15 @@ fn phone_toolbar_never_pushed_off_screen() {
     let lb = super::harness::build_lb();
     let ctx = egui::Context::default();
     ctx.set_os(egui::os::OperatingSystem::IOS);
+    ctx.set_pixels_per_point(3.0); // fractional row geometry, like a real phone
 
     let mut md = String::new();
     for i in 0..10 {
         md.push_str(&format!("paragraph {i} with a line of text\n\nhttps://example{i}.com\n\n"));
+        // mid-sentence capsule; the long seeded title wraps it across rows
+        md.push_str(&format!(
+            "some leading words then https://inline{i}.example.com and trailing text to wrap\n\n"
+        ));
     }
 
     let files = Arc::new(RwLock::new(FileCache::empty()));
@@ -2214,6 +2219,21 @@ fn phone_toolbar_never_pushed_off_screen() {
                         "a description that adds a couple of wrapped lines to the \
                          card body so every card is several rows tall"
                             .into(),
+                    ),
+                    ..Default::default()
+                }))),
+            );
+        editor
+            .edit
+            .renderer
+            .layout_cache
+            .link_meta
+            .borrow_mut()
+            .insert(
+                format!("https://inline{i}.example.com"),
+                Arc::new(Mutex::new(LinkMetaState::Loaded(LinkMeta {
+                    title: format!(
+                        "a sufficiently long inline preview title number {i} that wraps"
                     ),
                     ..Default::default()
                 }))),
@@ -2285,5 +2305,98 @@ fn phone_toolbar_never_pushed_off_screen() {
             bottom <= allowed + 0.5,
             "content bottom {bottom} exceeds allocation {allowed} at scroll step {step} (#4892)"
         );
+    }
+    // ...and back up — the reported repro is upward scroll near wrapped
+    // inline previews.
+    for step in 0..80 {
+        if step % 8 == 0 {
+            use crate::tab::ExtendedInput as _;
+            let offset: Grapheme = card_offsets[step / 8].into();
+            ctx.push_markdown_event(Event::Select {
+                region: Region::BetweenLocations {
+                    start: Location::Grapheme(offset),
+                    end: Location::Grapheme(offset),
+                },
+            });
+        }
+        let (bottom, allowed) = frame(
+            &mut editor,
+            vec![
+                egui::Event::PointerMoved(pointer),
+                egui::Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, 35.0),
+                    modifiers: Default::default(),
+                },
+            ],
+        );
+        assert!(
+            bottom <= allowed + 0.5,
+            "content bottom {bottom} exceeds allocation {allowed} at up-scroll step {step} (#4892)"
+        );
+    }
+
+    // Touch-drag scrolling exercises AffineScrollArea's touch + momentum
+    // path (not the wheel path); drag in both directions with pauses so
+    // momentum runs between gestures.
+    for dir in [-1.0f32, 1.0] {
+        for gesture in 0..6 {
+            let y0 = 400.0;
+            let steps = 8;
+            let dy = 30.0 * dir;
+            let mk = |phase: egui::TouchPhase, pos: egui::Pos2| egui::Event::Touch {
+                device_id: egui::TouchDeviceId(0),
+                id: egui::TouchId(gesture as u64),
+                phase,
+                pos,
+                force: None,
+            };
+            let p0 = egui::Pos2::new(200.0, y0);
+            frame(
+                &mut editor,
+                vec![
+                    mk(egui::TouchPhase::Start, p0),
+                    egui::Event::PointerMoved(p0),
+                    egui::Event::PointerButton {
+                        pos: p0,
+                        button: egui::PointerButton::Primary,
+                        pressed: true,
+                        modifiers: Default::default(),
+                    },
+                ],
+            );
+            for i in 1..=steps {
+                let p = egui::Pos2::new(200.0, y0 + dy * i as f32);
+                let (bottom, allowed) = frame(
+                    &mut editor,
+                    vec![mk(egui::TouchPhase::Move, p), egui::Event::PointerMoved(p)],
+                );
+                assert!(
+                    bottom <= allowed + 0.5,
+                    "content bottom {bottom} exceeds allocation {allowed} mid-drag (#4892)"
+                );
+            }
+            let p_end = egui::Pos2::new(200.0, y0 + dy * steps as f32);
+            frame(
+                &mut editor,
+                vec![
+                    mk(egui::TouchPhase::End, p_end),
+                    egui::Event::PointerButton {
+                        pos: p_end,
+                        button: egui::PointerButton::Primary,
+                        pressed: false,
+                        modifiers: Default::default(),
+                    },
+                ],
+            );
+            // let momentum play out
+            for _ in 0..10 {
+                let (bottom, allowed) = frame(&mut editor, vec![]);
+                assert!(
+                    bottom <= allowed + 0.5,
+                    "content bottom {bottom} exceeds allocation {allowed} in momentum (#4892)"
+                );
+            }
+        }
     }
 }
