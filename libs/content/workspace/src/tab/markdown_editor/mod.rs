@@ -347,6 +347,9 @@ pub struct Editor {
     pub find: Find,
 
     // misc
+    /// Where the phone toolbar was allocated this frame — the layout-level
+    /// signal that embed painting hasn't dragged it off screen (#4892).
+    pub mobile_toolbar_rect: Option<egui::Rect>,
     pub virtual_keyboard_shown: bool,
     /// Real platform IME visibility, pushed by the client (Android inset
     /// listener, iOS keyboard callbacks). Unlike `virtual_keyboard_shown`
@@ -791,6 +794,7 @@ impl Editor {
             find: Default::default(),
 
             // this is used to toggle the mobile toolbar
+            mobile_toolbar_rect: None,
             virtual_keyboard_shown: cfg!(target_os = "android"),
             keyboard_visible: false,
             unprocessed_scroll: Default::default(),
@@ -1043,6 +1047,7 @@ impl Editor {
                     {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
+                        self.mobile_toolbar_rect = Some(rect);
                         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                             self.show_toolbar(root, ui);
                         });

@@ -1835,12 +1835,19 @@ impl MdRender {
                 }
 
                 if let FragmentContent::Embed { url, kind } = &frag.content {
+                    // Non-advancing child ui: embeds paint for off-screen
+                    // neighbor rows too, and any allocation there would drag
+                    // the layout cursor below the viewport, displacing
+                    // siblings laid out after the editor (#4892).
+                    let embed_ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(screen_rect));
                     match kind {
-                        EmbedKind::Image => {
-                            self.embeds
-                                .show(ui, url, screen_rect, egui::CornerRadius::same(2))
-                        }
-                        EmbedKind::LinkCard => self.paint_link_card(ui, url, screen_rect),
+                        EmbedKind::Image => self.embeds.show(
+                            embed_ui,
+                            url,
+                            screen_rect,
+                            egui::CornerRadius::same(2),
+                        ),
+                        EmbedKind::LinkCard => self.paint_link_card(embed_ui, url, screen_rect),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,

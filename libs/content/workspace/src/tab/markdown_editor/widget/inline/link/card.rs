@@ -220,8 +220,11 @@ impl<'ast> MdRender {
                 let m = self.card_metrics(rect.width(), &meta);
                 let origin = rect.min.to_vec2();
                 if let Some((img_rect, thumb, rounding)) = &m.image {
-                    self.embeds
-                        .show(ui, thumb, img_rect.translate(origin), *rounding);
+                    // non-advancing child ui — see the embed paint in
+                    // `show_wrap_layout` (#4892)
+                    let rect = img_rect.translate(origin);
+                    let thumb_ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(rect));
+                    self.embeds.show(thumb_ui, thumb, rect, *rounding);
                 }
                 for (pos, galley) in [&m.site, &m.title, &m.desc].into_iter().flatten() {
                     ui.painter()

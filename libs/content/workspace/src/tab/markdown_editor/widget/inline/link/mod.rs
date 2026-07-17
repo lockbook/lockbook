@@ -269,6 +269,9 @@ impl<'ast> MdRender {
                         ui.painter()
                             .rect_filled(icon_rect, 3.0, egui::Color32::from_gray(235));
                     }
+                    // non-advancing child ui — see the embed paint in
+                    // `show_wrap_layout` (#4892)
+                    let ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(icon_rect));
                     self.embeds
                         .show(ui, &favicon_url, icon_rect, egui::CornerRadius::same(3));
                 } else {
