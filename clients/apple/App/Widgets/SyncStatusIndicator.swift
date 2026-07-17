@@ -10,9 +10,7 @@ enum SyncIndicator: Equatable {
     case syncError
 
     init(status: Status) {
-        if status.syncing {
-            self = .syncing
-        } else if status.offline {
+        if status.offline {
             self = .offline
         } else if status.outOfSpace {
             self = .outOfSpace
@@ -20,6 +18,8 @@ enum SyncIndicator: Equatable {
             self = .updateRequired
         } else if status.unexpectedSyncProblem != nil {
             self = .syncError
+        } else if status.syncing {
+            self = .syncing
         } else {
             self = .synced
         }
@@ -236,10 +236,6 @@ struct SyncStatusPill: View {
                             .font(.footnote)
                             .fontWeight(.medium)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.regularMaterial, in: Capsule())
-                    .overlay(Capsule().strokeBorder(.separator, lineWidth: 0.5))
                 }
                 .tint(.primary)
                 .transition(.scale(scale: 0.8).combined(with: .opacity))
