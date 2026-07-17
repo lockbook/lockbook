@@ -709,16 +709,19 @@ class WorkspaceView(
                         // update then flows back via `response.selectionUpdated`
                         invalidate()
                     }
+
                     OPEN_LINK_MENU_ID -> {
                         Workspace.openSelectionLinks(wgpuObj)
                         // schedule the frame that processes the open, which flows
                         // back via `response.urlOpened` / `response.selectedFile`
                         invalidate()
                     }
+
                     REFRESH_PREVIEW_MENU_ID -> {
                         Workspace.refreshSelectionPreviews(wgpuObj)
                         invalidate()
                     }
+
                     COPY_LINK_MENU_ID -> {
                         openTarget?.let {
                             (
@@ -727,8 +730,10 @@ class WorkspaceView(
                             ).setPrimaryClip(ClipData.newPlainText("", it))
                         }
                     }
-                    else ->
+
+                    else -> {
                         textInputWrapper.wsInputConnection.performContextMenuAction(item.itemId)
+                    }
                 }
             }
 
