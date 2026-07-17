@@ -34,11 +34,13 @@ pub struct LinkMeta {
 pub enum LinkMetaState {
     Loading,
     Loaded(LinkMeta),
-    /// `retry_at: Some(t)` — rate-limited; eligible for a refetch once `t`
-    /// (the host's next-retry timestamp from `crate::egress`) passes.
-    /// `None` — deterministic failure, no retry this session.
+    /// `retry_at: Some(t)` — eligible for a refetch once `t` passes (the
+    /// host's `Retry-After`, a transient-failure backoff, or a bot-wall
+    /// cooldown). `None` — deterministic failure, no retry this session.
+    /// `attempts` counts consecutive failures and drives the backoff.
     Failed {
         retry_at: Option<web_time::Instant>,
+        attempts: u32,
     },
 }
 
@@ -211,5 +213,80 @@ mod tests {
     fn description_absent_is_none() {
         let html = "<html><head><title>t</title></head></html>";
         assert_eq!(extract_link_meta(html, BASE).unwrap().description, None);
+    }
+}
+
+/// Whether scraped metadata describes the wall between us and the page — a
+/// bot challenge or block/error page served as HTML — or carries nothing the
+/// URL didn't (empty or bare-domain title). The plain URL reads better than
+/// any of these, so callers treat junk as a fetch failure.
+pub fn is_junk_meta(html: &str, meta: &LinkMeta, base_url: &str) -> bool {
+    let title = meta.title.trim();
+    if title.is_empty() {
+        return true;
+    }
+    if let Some(host) = url::Url::parse(base_url)
+        .ok()
+        .and_then(|u| u.host_str().map(str::to_owned))
+    {
+        if title.eq_ignore_ascii_case(&host)
+            || title.eq_ignore_ascii_case(host.trim_start_matches("www."))
+        {
+            return true;
+        }
+    }
+    // challenge / block page titles (Cloudflare, Akamai, bare server errors)
+    const WALL_TITLES: &[&str] = &[
+        "just a moment",
+        "attention required",
+        "access denied",
+        "verifying you are human",
+        "checking your browser",
+        "robot or human",
+        "are you a robot",
+        "403 forbidden",
+        "404 not found",
+    ];
+    let lower = title.to_lowercase();
+    if WALL_TITLES.iter().any(|w| lower.starts_with(w)) {
+        return true;
+    }
+    // challenge machinery in the body
+    const WALL_MARKERS: &[&str] =
+        &["cf_chl_", "challenges.cloudflare.com", "hcaptcha.com", "google.com/recaptcha"];
+    WALL_MARKERS.iter().any(|m| html.contains(m))
+}
+
+#[cfg(test)]
+mod junk_tests {
+    use super::*;
+
+    fn meta(title: &str) -> LinkMeta {
+        LinkMeta { title: title.into(), ..Default::default() }
+    }
+
+    #[test]
+    fn wall_titles_and_markers_are_junk() {
+        let base = "https://example.com/article";
+        assert!(is_junk_meta("<html></html>", &meta("Just a moment..."), base));
+        assert!(is_junk_meta("<html></html>", &meta("Attention Required! | Cloudflare"), base));
+        assert!(is_junk_meta("<html></html>", &meta("Access Denied"), base));
+        assert!(is_junk_meta("<html></html>", &meta("403 Forbidden"), base));
+        assert!(is_junk_meta(
+            r#"<script src="https://challenges.cloudflare.com/x.js"></script>"#,
+            &meta("Anything"),
+            base
+        ));
+        assert!(is_junk_meta("", &meta("  "), base));
+        assert!(is_junk_meta("", &meta("example.com"), base));
+        assert!(is_junk_meta("", &meta("www.example.com"), "https://www.example.com"));
+    }
+
+    #[test]
+    fn real_titles_are_not_junk() {
+        let base = "https://example.com/article";
+        assert!(!is_junk_meta("<html></html>", &meta("A Real Article Title"), base));
+        assert!(!is_junk_meta("<html></html>", &meta("Home"), base)); // low-quality but real
+        assert!(!is_junk_meta("<html></html>", &meta("Accessibility at Example"), base));
     }
 }

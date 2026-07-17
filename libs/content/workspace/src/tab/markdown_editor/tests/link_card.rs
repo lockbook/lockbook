@@ -342,6 +342,7 @@ fn rate_limited_meta_degrades_and_gates_refetch() {
     let mut ws = TestEditor::new("https://example.com\n");
     let arc = Arc::new(Mutex::new(LinkMetaState::Failed {
         retry_at: Some(web_time::Instant::now() + std::time::Duration::from_secs(60)),
+        attempts: 1,
     }));
     ws.editor
         .edit
@@ -355,7 +356,8 @@ fn rate_limited_meta_degrades_and_gates_refetch() {
 
     // Timestamp lapses, but fetching is off (the default): the entry must be
     // left untouched — no Loading swap-in, no spawned request.
-    *arc.lock().unwrap() = LinkMetaState::Failed { retry_at: Some(web_time::Instant::now()) };
+    *arc.lock().unwrap() =
+        LinkMetaState::Failed { retry_at: Some(web_time::Instant::now()), attempts: 1 };
     ws.enter_frame();
     let entry = ws.editor.edit.renderer.layout_cache.link_meta.borrow()[url].clone();
     assert!(Arc::ptr_eq(&arc, &entry), "fetching off: expired retry_at doesn't refetch");

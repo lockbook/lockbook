@@ -194,7 +194,13 @@ impl EmbedResolver for TestEmbeds {
     fn is_loaded(&self, url: &str) -> bool {
         self.sizes.lock().unwrap().contains_key(url)
     }
-    fn show(&self, _ui: &mut Ui, _url: &str, _rect: Rect, _rounding: egui::CornerRadius) {}
+    /// Worst-case resolver: allocates its rect. Real resolvers are paint-only,
+    /// but callers must survive an allocating one — embeds paint for
+    /// off-screen neighbor rows, where an allocation drags the layout cursor
+    /// off the viewport (#4892). Callers pass a non-advancing child ui.
+    fn show(&self, ui: &mut Ui, _url: &str, rect: Rect, _rounding: egui::CornerRadius) {
+        ui.allocate_rect(rect, egui::Sense::hover());
+    }
     fn prefetch(&self, _url: &str) {}
     fn seq(&self) -> u64 {
         self.seq.load(Ordering::Relaxed)

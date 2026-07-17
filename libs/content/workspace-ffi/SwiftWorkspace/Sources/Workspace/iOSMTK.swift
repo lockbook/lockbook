@@ -119,11 +119,22 @@
                 }
             }
 
+            // The change already happened Rust-side by notify time, so pair
+            // will/did back-to-back — an unpaired `did` sometimes leaves
+            // UIKit's cached selection geometry (caret, handles) stale.
             mtkView.onSelectionChanged = { [weak self] in
+                self?.inputDelegate?.selectionWillChange(self)
                 self?.inputDelegate?.selectionDidChange(self)
             }
             mtkView.onTextChanged = { [weak self] in
+                self?.inputDelegate?.textWillChange(self)
                 self?.inputDelegate?.textDidChange(self)
+            }
+            // Geometry-only moves (scroll, embed loads): re-fetch rects with a
+            // bare `did` — the will/did pair resets the keyboard's QuickType
+            // context, and a per-frame reset flickers the suggestion bar.
+            mtkView.onSelectionGeometryChanged = { [weak self] in
+                self?.inputDelegate?.selectionDidChange(self)
             }
 
             // pan (iPad trackpad support)
@@ -561,10 +572,15 @@
                 return
             }
 
+            // Replacing moves the caret; without the selection brackets UIKit
+            // keeps stale caret/selection geometry (the immediate draw
+            // swallows the frame's own selection_updated).
+            inputDelegate?.selectionWillChange(self)
             inputDelegate?.textWillChange(self)
             replace_text(wsHandle, range.c, text)
             mtkView.drawImmediately()
             inputDelegate?.textDidChange(self)
+            inputDelegate?.selectionDidChange(self)
         }
 
         public var selectedTextRange: UITextRange? {
@@ -1335,10 +1351,11 @@
 
     // MARK: - MdMenuDelegate
 
-    /// Augments the markdown edit menu: "Open Link" when the selection holds a
-    /// link or image (e.g. a tapped link-preview card or inline image), and
-    /// "Edit" when it's over a selected image atom — select the URL inside the
-    /// atom, revealing its source, since mobile has no arrow keys.
+    /// Augments the markdown edit menu: "Open Link" and "Copy Link" when the
+    /// selection holds a link or image (a tapped link, preview card/capsule,
+    /// or inline image), and "Edit" when it's over a selected atom — select
+    /// the URL inside the atom, revealing its source, since mobile has no
+    /// arrow keys.
     public class MdMenuDelegate: NSObject, UIEditMenuInteractionDelegate {
         weak var mtkView: iOSMTK?
         weak var view: MdView?
@@ -1349,7 +1366,14 @@
         ) -> UIMenu? {
             var children = suggestedActions
             if let wsHandle = mtkView?.wsHandle, let target = selection_open_target(wsHandle) {
+                let url = String(cString: target)
                 free_text(target)
+                let copy = UIAction(
+                    title: "Copy Link", image: UIImage(systemName: "link")
+                ) { _ in
+                    UIPasteboard.general.string = url
+                }
+                children.insert(copy, at: 0)
                 let open = UIAction(
                     title: "Open Link", image: UIImage(systemName: "arrow.up.forward.app")
                 ) { [weak self] _ in
@@ -1360,7 +1384,9 @@
                 children.insert(open, at: 0)
             }
             if let view, view.editMenuForAtom {
-                let edit = UIAction(title: "Edit") { [weak view] _ in
+                let edit = UIAction(
+                    title: "Edit", image: UIImage(systemName: "pencil")
+                ) { [weak view] _ in
                     guard let view else { return }
                     enter_selected_atom(view.wsHandle)
                     // schedule the frame that processes the event, whose selection
@@ -1368,8 +1394,29 @@
                     view.mtkView.setNeedsDisplay(view.mtkView.frame)
                 }
                 children.insert(edit, at: 0)
+
+                let refresh = UIAction(
+                    title: "Refresh Preview", image: UIImage(systemName: "arrow.clockwise")
+                ) { [weak view] _ in
+                    guard let view else { return }
+                    refresh_selection_previews(view.wsHandle)
+                    view.mtkView.setNeedsDisplay(view.mtkView.frame)
+                }
+                children.append(refresh)
             }
             return UIMenu(children: children)
+        }
+
+        /// Anchor the menu to the selection's full footprint — the tapped
+        /// atom (image / preview) or word — so UIKit places it clear of the
+        /// content instead of flipping below the source point and covering it.
+        public func editMenuInteraction(
+            _: UIEditMenuInteraction, targetRectFor _: UIEditMenuConfiguration
+        ) -> CGRect {
+            guard let view, let range = view.selectedTextRange else { return .null }
+            let union = view.selectionRects(for: range)
+                .reduce(CGRect.null) { $0.union($1.rect) }
+            return union
         }
     }
 
@@ -1481,7 +1528,7 @@
                 }
 
                 if output.scroll_updated {
-                    mtkView.onSelectionChanged?()
+                    mtkView.onSelectionGeometryChanged?()
                 }
 
                 if output.text_updated, !mtkView.ignoreTextUpdate {
@@ -1686,6 +1733,7 @@
         // view hierarchy management
         var tabSwitchTask: (() -> Void)? // facilitates switching wrapper views in response to tab change
         var onSelectionChanged: (() -> Void)? // only populated when wrapper is markdown
+        var onSelectionGeometryChanged: (() -> Void)? // ditto; rects moved, selection didn't
         var onTextChanged: (() -> Void)? // also only populated when wrapper is markdown
         var ignoreSelectionUpdate = false // don't invoke corresponding handler when drawing immediately
         var ignoreTextUpdate = false // also don't invoke corresponding handler when drawing immediately

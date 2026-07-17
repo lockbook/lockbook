@@ -29,6 +29,7 @@ use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
+use super::widget::inline::link::{LinkMenuAction, link_menu_buttons};
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
 pub struct PreRenderState {
@@ -166,6 +167,24 @@ impl MdEdit {
             });
         }
 
+        self.sync_reveal_selection(ctx, id, prior_entered_atom);
+        self.renderer.search_range = self
+            .emoji_completions
+            .search_term_range
+            .or(self.link_completions.search_term_range);
+
+        buf_resp
+    }
+
+    /// Sync `reveal_selection` to the buffer selection, bumping `reveal_seq`
+    /// (and requesting a repaint) when it or `entered_atom` changed. Runs in
+    /// `handle_input` and again after [`Self::pre_render`] applies
+    /// pointer/tap ops, so the frame that reports a selection change also
+    /// paints its reveal — iOS queries caret and selection geometry
+    /// synchronously on that report.
+    fn sync_reveal_selection(
+        &mut self, ctx: &Context, id: Id, prior_entered_atom: Option<(Grapheme, Grapheme)>,
+    ) {
         let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
             .then_some(self.renderer.buffer.current.selection);
         if self.renderer.reveal_selection != new_reveal_selection
@@ -178,12 +197,6 @@ impl MdEdit {
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             ctx.request_repaint();
         }
-        self.renderer.search_range = self
-            .emoji_completions
-            .search_term_range
-            .or(self.link_completions.search_term_range);
-
-        buf_resp
     }
 
     /// Draw the document inline at `rect`: pointer + context menu via
@@ -215,9 +228,8 @@ impl MdEdit {
         self.overflow_scroll = self.overflow_scroll.clamp(0.0, overflow);
 
         let origin = rect.min - egui::vec2(self.single_line_scroll, self.overflow_scroll);
-        // Composer entry point (chat); no keyboard-state plumbing — image
-        // taps there fall back to desktop/cmd gating via `touch_mode`.
-        let pre = self.pre_render(ui, rect, id, root, false);
+        // Composer entry point (chat).
+        let pre = self.pre_render(ui, rect, id, root);
 
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
@@ -603,10 +615,10 @@ impl MdEdit {
     /// selection. Returns the focus state for [`MdEdit::post_render`].
     pub fn pre_render<'a>(
         &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
-        keyboard_visible: bool,
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
         self.renderer.viewport_height = ui.clip_rect().height();
+        let prior_entered_atom = self.renderer.entered_atom;
 
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
@@ -636,10 +648,11 @@ impl MdEdit {
 
         let mut ops = Vec::new();
 
-        // image / card taps → open (cmd / keyboard-hidden) or select
-        self.handle_image_interactions(root, ui, id, keyboard_visible, &mut ops);
-        self.handle_card_interactions(root, ui, id, keyboard_visible, &mut ops);
-        self.handle_link_capsule_interactions(root, ui, id, keyboard_visible, &mut ops);
+        // image / card / link taps → open (cmd) or select + menu (touch)
+        self.handle_image_interactions(root, ui, id, &mut ops);
+        self.handle_card_interactions(root, ui, id, &mut ops);
+        self.handle_link_capsule_interactions(root, ui, id, &mut ops);
+        self.handle_link_menu_taps(root, ui, id, &mut ops);
 
         // --- context menu (desktop only) -------------------------------------
         ui.ctx()
@@ -651,9 +664,24 @@ impl MdEdit {
         ui.ctx()
             .style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
         if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
+            // Capture the link under the click when it lands, so the menu's
+            // link section stays stable while the pointer moves over it.
+            if response.secondary_clicked() {
+                self.context_menu_link = response
+                    .interact_pointer_pos()
+                    .and_then(|pos| self.link_target_at_pos(root, pos));
+            }
+            let link_target = self.context_menu_link.clone();
+            let mut link_action = None;
+
             let readonly = self.renderer.readonly;
             let mut menu_events: Vec<Event> = Vec::new();
             response.context_menu(|ui| {
+                if let Some(t) = &link_target {
+                    // plain links never render a preview — nothing to refresh
+                    link_action = link_menu_buttons(ui, t.is_image, !readonly, false);
+                    ui.separator();
+                }
                 ui.horizontal(|ui| {
                     ui.set_min_height(30.);
                     ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
@@ -688,6 +716,32 @@ impl MdEdit {
                     }
                 });
             });
+            if let (Some(action), Some(t)) = (link_action, &link_target) {
+                match action {
+                    LinkMenuAction::Open => {
+                        if t.is_wikilink {
+                            if let Some(file_id) = self.renderer.resolve_wikilink(&t.url) {
+                                ui.ctx().open_file(file_id, true);
+                            }
+                        } else {
+                            self.renderer.open_resolved_link(&t.url, ui.ctx());
+                        }
+                    }
+                    LinkMenuAction::Copy => ui.ctx().copy_text(t.url.clone()),
+                    LinkMenuAction::Refresh => self.renderer.refresh_link_meta(&t.url),
+                    LinkMenuAction::Edit => {
+                        if t.force_reveal {
+                            self.renderer.entered_atom = Some(t.node_range);
+                        }
+                        menu_events.push(Event::Select {
+                            region: Region::BetweenLocations {
+                                start: Location::Grapheme(t.select.start()),
+                                end: Location::Grapheme(t.select.end()),
+                            },
+                        });
+                    }
+                }
+            }
             for ev in menu_events {
                 self.calc_operations(ui.ctx(), root, ev, &mut ops);
             }
@@ -792,9 +846,10 @@ impl MdEdit {
         self.renderer.buffer.queue(ops);
         self.renderer.buffer.update();
         // Pointer only emits Select ops (no text change), so no re-parse
-        // needed. A pointer-driven selection change means reveal_ranges (set
-        // in handle_input) reflects the pre-click selection — the new
-        // selection appears in reveal_ranges next frame. Accepted lag.
+        // needed — but reveal must reflect the applied ops (and any
+        // `entered_atom` a menu "Edit" set) in this frame's paint: iOS
+        // queries geometry as soon as the change is reported.
+        self.sync_reveal_selection(ui.ctx(), id, prior_entered_atom);
 
         self.renderer.in_progress_selection = self.in_progress_selection;
 

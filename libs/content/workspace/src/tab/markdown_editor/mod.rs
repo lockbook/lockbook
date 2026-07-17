@@ -133,6 +133,9 @@ pub struct MdRender {
     /// Per-frame, keyed by `ui.id().with(salt)`; populated by
     /// `interact_fragments`, consumed by handlers in each node type.
     pub interaction_responses: std::collections::HashMap<egui::Id, egui::Response>,
+    /// Per-scope interact rects behind `interaction_responses`, whose merged
+    /// rect is only a bounding box; read by `touch_consume_interaction`.
+    pub interaction_rects: std::collections::HashMap<egui::Id, Vec<Rect>>,
     /// Spoilers the user has tapped to reveal. Persistent across frames;
     /// cleared by `bump_text_seq` whenever the doc text changes so a
     /// fresh edit re-hides every spoiler.
@@ -275,6 +278,11 @@ pub struct MdEdit {
     /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
     pub link_completions: LinkCompletions,
 
+    /// The link-like node under the last desktop right-click, captured when
+    /// the click lands so the context menu's link section stays stable while
+    /// the menu is open and the pointer moves.
+    pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
+
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
@@ -308,6 +316,7 @@ impl MdEdit {
             file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
+            context_menu_link: None,
             scroll_area: AffineScrollArea::new(file_id),
         }
     }
@@ -338,6 +347,9 @@ pub struct Editor {
     pub find: Find,
 
     // misc
+    /// Where the phone toolbar was allocated this frame — the layout-level
+    /// signal that embed painting hasn't dragged it off screen (#4892).
+    pub mobile_toolbar_rect: Option<egui::Rect>,
     pub virtual_keyboard_shown: bool,
     /// Real platform IME visibility, pushed by the client (Android inset
     /// listener, iOS keyboard callbacks). Unlike `virtual_keyboard_shown`
@@ -474,6 +486,7 @@ impl MdRender {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
             in_progress_selection: None,
             in_progress_block_drag: None,
@@ -548,6 +561,7 @@ impl MdRender {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
             reveal_selection: None,
             entered_atom: None,
@@ -705,6 +719,7 @@ impl Editor {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
 
             in_progress_selection: None,
@@ -762,6 +777,7 @@ impl Editor {
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: Default::default(),
+                context_menu_link: None,
                 scroll_area: AffineScrollArea::new(file_id),
             },
 
@@ -778,6 +794,7 @@ impl Editor {
             find: Default::default(),
 
             // this is used to toggle the mobile toolbar
+            mobile_toolbar_rect: None,
             virtual_keyboard_shown: cfg!(target_os = "android"),
             keyboard_visible: false,
             unprocessed_scroll: Default::default(),
@@ -927,12 +944,11 @@ impl Editor {
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
-        // Loads completing (embed textures, link-preview metadata) reflow
-        // layout, moving the selection's on-screen rects without a selection
-        // change — signal so iOS re-queries its native selection/caret rects.
-        // Likewise entering/leaving an atom: Edit on a capsule re-selects the
-        // same range, but the reveal swaps the capsule for its raw source.
-        resp.selection_updated |= embeds_updated
+        // Loads completing (embeds, link meta) and atom enter/exit reflow
+        // layout, moving the selection's rects without moving the selection.
+        // Report as a scroll: iOS re-fetches geometry on either signal, but a
+        // selection report also resets the keyboard's QuickType context.
+        resp.scroll_updated |= embeds_updated
             || link_meta_updated
             || prior_entered_atom != self.edit.renderer.entered_atom;
 
@@ -1031,6 +1047,7 @@ impl Editor {
                     {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
+                        self.mobile_toolbar_rect = Some(rect);
                         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                             self.show_toolbar(root, ui);
                         });
@@ -1391,13 +1408,7 @@ impl Editor {
                         // the scrollbar (so taps on the bar don't).
                         let begun = self.edit.scroll_area.begin(ui);
 
-                        let pre = self.edit.pre_render(
-                            ui,
-                            canvas_rect,
-                            scroll_id,
-                            root,
-                            self.keyboard_visible,
-                        );
+                        let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.block_boxes.clear();

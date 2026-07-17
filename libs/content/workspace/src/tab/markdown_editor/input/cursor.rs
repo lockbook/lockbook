@@ -214,8 +214,8 @@ impl MdEdit {
         let frag = self.renderer.fragment_at_offset(offset)?;
         let x = self.renderer.fragment_x(frag, offset);
         let row_h = self.renderer.layout.row_height;
-        // A caret bordering a collapsed image (just before or just after it)
-        // spans the image's height.
+        // A caret bordering a collapsed embed (image or link card) spans the
+        // embed's height — it reads as one big glyph.
         let border_image = self.renderer.fragments.iter().find(|f| {
             matches!(f.content, FragmentContent::Embed { .. })
                 && (f.source_range.start() == offset || f.source_range.end() == offset)

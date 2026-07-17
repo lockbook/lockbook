@@ -200,6 +200,7 @@ import SwiftUI
                     }
 
                     mtkView.onSelectionChanged = nil
+                    mtkView.onSelectionGeometryChanged = nil
                     mtkView.onTextChanged = nil
                     currentWrapper?.removeFromSuperview()
 
@@ -214,6 +215,7 @@ import SwiftUI
                     }
 
                     mtkView.onSelectionChanged = nil
+                    mtkView.onSelectionGeometryChanged = nil
                     mtkView.onTextChanged = nil
                     currentWrapper?.removeFromSuperview()
 
