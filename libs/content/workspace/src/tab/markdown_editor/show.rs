@@ -761,11 +761,10 @@ impl MdEdit {
                     Some(Region::ToLocation(location))
                 } else if response.clicked() && self.scroll_area.momentum_cancel_press() {
                     None
-                } else if response.clicked()
-                    && matches!(self.touch_reorder, TouchReorder::Armed { .. })
-                {
-                    // Long-press that armed a reorder also lands as a click on
-                    // release — consume it so it doesn't place the cursor.
+                } else if matches!(self.touch_reorder, TouchReorder::Armed { .. }) {
+                    // An armed reorder owns the gesture: swallow both the release
+                    // click and egui's touch long-press (a `secondary_clicked`
+                    // below), so it can't also place the cursor or open a menu.
                     None
                 } else if response.clicked() {
                     if cfg!(target_os = "android") && self.selection_tap(pos) {
