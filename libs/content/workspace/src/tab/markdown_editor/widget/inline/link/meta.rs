@@ -279,7 +279,7 @@ mod junk_tests {
         ));
         assert!(is_junk_meta("", &meta("  "), base));
         assert!(is_junk_meta("", &meta("example.com"), base));
-        assert!(is_junk_meta("", &meta("www.example.com"), &format!("https://www.example.com")));
+        assert!(is_junk_meta("", &meta("www.example.com"), "https://www.example.com"));
     }
 
     #[test]

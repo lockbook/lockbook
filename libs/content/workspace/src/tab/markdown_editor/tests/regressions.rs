@@ -2222,7 +2222,7 @@ fn phone_toolbar_never_pushed_off_screen() {
     editor.virtual_keyboard_shown = true;
 
     let screen = egui::Rect::from_min_size(egui::Pos2::ZERO, egui::Vec2::new(390., 700.));
-    let mut frame = |editor: &mut super::super::Editor, events: Vec<egui::Event>| -> (f32, f32) {
+    let frame = |editor: &mut super::super::Editor, events: Vec<egui::Event>| -> (f32, f32) {
         let mut content = (f32::NAN, f32::NAN);
         let _ = ctx.run(
             egui::RawInput { screen_rect: Some(screen), events, ..Default::default() },
