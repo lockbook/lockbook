@@ -248,7 +248,7 @@ impl MdEdit {
         self.renderer.fragments.sort_by_key(|f| f.source_range);
 
         // Favicon + selection tint, over the opaque capsule pills.
-        self.renderer.show_capsule_overlays(ui, root, rect);
+        self.renderer.show_capsule_overlays(ui, root, rect, 0);
 
         self.handle_block_drag(ui);
         self.post_render(ui, rect, id, pre);
@@ -593,6 +593,11 @@ impl MdEdit {
             }
         });
         self.renderer.painting_drag_float = false;
+        // Favicons paint in a separate pass over `fragments`; the float's
+        // capsules live in `fragments[frag_len..]`, so re-run that pass
+        // scoped to them before they're truncated away.
+        self.renderer
+            .show_capsule_overlays(ui, root, ui.clip_rect(), frag_len);
         let floating_text = std::mem::take(&mut self.renderer.text_areas);
         let floating_deco = std::mem::take(&mut self.renderer.deco_lines);
         self.renderer.fragments.truncate(frag_len);

@@ -218,8 +218,13 @@ impl<'ast> MdRender {
     /// pass: the favicon over the title's em-space slot, then a selection tint on
     /// top of a selected capsule (the opaque pill hides the under-text rect —
     /// like images/cards).
+    /// `frag_start` bounds the pass to `fragments[frag_start..]`: the main
+    /// render passes `0`; the drag float passes its own fragment offset so
+    /// only the floated capsule's favicon is painted (its selection tint is
+    /// skipped — the card is already distinct).
     pub fn show_capsule_overlays(
         &mut self, ui: &mut egui::Ui, root: &'ast AstNode<'ast>, viewport: egui::Rect,
+        frag_start: usize,
     ) {
         // Clip favicon + tint to the editor viewport: this runs before
         // `post_render` installs its overlay clip, so a chip scrolled past the
@@ -236,8 +241,7 @@ impl<'ast> MdRender {
                 _ => continue,
             };
             let node_range = self.node_range(node);
-            let chip_rects: Vec<egui::Rect> = self
-                .fragments
+            let chip_rects: Vec<egui::Rect> = self.fragments[frag_start..]
                 .iter()
                 .filter(|f| {
                     f.source_range.intersects(&node_range, true)
@@ -285,7 +289,7 @@ impl<'ast> MdRender {
                 }
             }
 
-            if !sel.is_empty() && sel.contains_range(&node_range, true, true) {
+            if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
                 let accent = theme.bg().get_color(theme.prefs().primary);
                 let tint =

@@ -1544,7 +1544,7 @@ impl Editor {
                 // Favicon + selection tint, over the opaque capsule pills.
                 self.edit
                     .renderer
-                    .show_capsule_overlays(ui, root, canvas_rect);
+                    .show_capsule_overlays(ui, root, canvas_rect, 0);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
