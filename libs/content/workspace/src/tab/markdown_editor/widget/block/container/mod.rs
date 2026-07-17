@@ -58,6 +58,12 @@ impl<'ast> MdRender {
         if let Some(preview_range) = self.preview_match {
             ranges.push(self.source_line_range(preview_range));
         }
+        // Keep the dragged item rendered even after auto-scroll parks its
+        // source slot off-screen — the floating card and drop-gap both
+        // read its `block_box`.
+        if let Some(drag) = self.in_progress_block_drag {
+            ranges.push(self.source_line_range(drag.section_range));
+        }
         ranges
     }
 

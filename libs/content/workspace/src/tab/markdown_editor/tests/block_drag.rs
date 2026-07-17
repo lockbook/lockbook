@@ -237,6 +237,50 @@ fn drag_within_own_span_is_a_cancel() {
     assert!(r.drop_gap_for(&drag, within).is_none(), "hovering own span cancels");
 }
 
+// Auto-scroll during a drag can park the dragged item's source slot
+// off-screen, where render virtualization would normally cull it. That
+// dropped its `block_box`, so `section_rect` (the floating card) and
+// `drop_gap_for` (the drop target) both went `None` and the item
+// visibly vanished. An in-progress drag must keep its span rendered.
+#[test]
+fn dragged_item_stays_indexed_off_screen() {
+    use crate::tab::markdown_editor::widget::block::drag::BlockDrag;
+
+    // A list taller than the 800x600 test viewport so late items cull.
+    let doc: String = (0..80).map(|i| format!("- item {i}\n")).collect();
+    let mut ws = TestEditor::new(&doc);
+    ws.editor.edit.renderer.interactive = true;
+    ws.enter_frame();
+
+    let all = items(&mut ws);
+    let (last_range, last_parent) = *all.last().unwrap();
+
+    let indexed = |ws: &TestEditor, r: &(Grapheme, Grapheme)| {
+        ws.editor
+            .edit
+            .renderer
+            .block_boxes
+            .iter()
+            .any(|b| b.node_range == *r)
+    };
+
+    assert!(!indexed(&ws, &last_range), "a far-off-screen item is culled without a drag");
+
+    ws.editor.edit.in_progress_block_drag = Some(BlockDrag {
+        section_range: last_range,
+        grabbed: last_range,
+        parent_start: last_parent,
+        grab_offset: egui::Vec2::ZERO,
+    });
+    ws.enter_frame();
+
+    assert!(indexed(&ws, &last_range), "the dragged item stays indexed while off-screen");
+    assert!(
+        ws.editor.edit.renderer.section_rect(last_range).is_some(),
+        "section_rect resolves, so the floating card still draws"
+    );
+}
+
 // Task items reorder the same way bullets do.
 #[test]
 fn moving_task_item_works() {
