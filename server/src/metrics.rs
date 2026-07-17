@@ -145,6 +145,10 @@ where
                     let user_info = match maybe_user_info {
                         None => {
                             deleted_users += 1;
+                            let _ = METRICS_USAGE_BY_USER_VEC.remove_label_values(&[&username]);
+                            let _ = EGRESS_BY_USER.remove_label_values(&[&username]);
+                            let _ = ACTIVITY_BY_USER.remove_label_values(&[&username]);
+                            let _ = AGE_BY_USER.remove_label_values(&[&username]);
                             continue;
                         }
                         Some(user_info) => user_info,
