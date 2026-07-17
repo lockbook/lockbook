@@ -18,7 +18,6 @@ use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::GlyphonLabel;
 
 const MAX_RESULTS: usize = 7;
-const MIN_QUERY_LEN: usize = 2;
 const POPUP_PADDING: f32 = 24.0; // 8 left + 8 gap + 8 right
 const TARGET_POPUP_WIDTH: f32 = 320.0; // soft target per row; popup grows to fit actual content
 const MIN_HINT_WIDTH: f32 = 60.0; // always leave at least this much room for the hint
@@ -75,10 +74,15 @@ impl LinkCompletions {
         let dest = matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest);
         let qr = query_range(buffer, range, mode);
         let query = &buffer[qr];
-        if !dest && query.len() < MIN_QUERY_LEN {
+        if self.suppressed.as_deref() == Some(query) {
             return;
         }
-        if self.suppressed.as_deref() == Some(query) {
+        // `- [` is far more likely a task item than a link: while the bracket
+        // content could still be a checkbox, hold the popup.
+        if mode == CompletionMode::Link
+            && (query.is_empty() || query == " " || query.eq_ignore_ascii_case("x"))
+            && follows_list_marker(buffer, range.0)
+        {
             return;
         }
         // External and already-resolved destinations aren't file paths;
@@ -357,6 +361,44 @@ fn existing_title(raw: &str, mode: CompletionMode) -> String {
 /// Returns the grapheme `&str` at the given char offset.
 fn grapheme_at(buffer: &Buffer, i: usize) -> &str {
     &buffer[(Grapheme(i), Grapheme(i + 1))]
+}
+
+/// Whether the `[` at `bracket` is the first content of a list item (after
+/// optional indentation and blockquote markers) — where it far more likely
+/// starts a task checkbox than a link.
+fn follows_list_marker(buffer: &Buffer, bracket: Grapheme) -> bool {
+    let mut i = bracket.0;
+    let mut prefix = String::new();
+    while i > 0 {
+        let g = grapheme_at(buffer, i - 1);
+        if g == "\n" {
+            break;
+        }
+        prefix.insert_str(0, g);
+        if prefix.len() > 40 {
+            return false; // marker prefixes are short
+        }
+        i -= 1;
+    }
+
+    let mut s = prefix.trim_start();
+    while let Some(rest) = s.strip_prefix('>') {
+        s = rest.trim_start();
+    }
+    let s = if let Some(rest) = s.strip_prefix(['-', '*', '+']) {
+        rest
+    } else {
+        let digits = s.len() - s.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+        if digits == 0 {
+            return false;
+        }
+        match s[digits..].strip_prefix(['.', ')']) {
+            Some(rest) => rest,
+            None => return false,
+        }
+    };
+    // the marker needs trailing whitespace, and nothing else before the `[`
+    !s.is_empty() && s.chars().all(|c| c == ' ' || c == '\t')
 }
 
 /// Returns the range of a `[[...]]` wikilink token under the cursor.
@@ -1079,6 +1121,30 @@ mod tests {
     /// resolves back to the file it was for. Covers all three insert forms —
     /// bare stem (`todo`), full name when the stem collides (`Pancakes.md`),
     /// and a relative path when the full name collides across folders (`a/Spec`).
+    #[test]
+    fn list_markers_hold_the_popup() {
+        use lb_rs::model::text::buffer::Buffer;
+        use lb_rs::model::text::offset_types::Grapheme;
+
+        use super::follows_list_marker;
+
+        let at_bracket = |md: &str| {
+            let buffer = Buffer::from(md);
+            let bracket = md.rfind('[').unwrap();
+            follows_list_marker(&buffer, Grapheme(bracket))
+        };
+        assert!(at_bracket("- ["));
+        assert!(at_bracket("  * ["));
+        assert!(at_bracket("1. ["));
+        assert!(at_bracket("12) ["));
+        assert!(at_bracket("> - ["));
+        assert!(at_bracket("text\n- ["));
+        assert!(!at_bracket("some ["));
+        assert!(!at_bracket("-[")); // no space: not a list marker
+        assert!(!at_bracket("a - ["));
+        assert!(!at_bracket("["));
+    }
+
     #[test]
     fn destination_context_detected_and_title_kept() {
         use lb_rs::model::text::buffer::Buffer;
