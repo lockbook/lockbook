@@ -280,6 +280,9 @@ struct UsageSettingsRows: View {
     let model: SettingsModel
 
     @State private var confirmCancelSubscription = false
+    #if os(macOS)
+        @AppStorage("usageBarMode") private var usageBarMode: UsageBarDisplayMode = .whenHalf
+    #endif
 
     var body: some View {
         if let isPremium = model.isPremium {
@@ -311,6 +314,14 @@ struct UsageSettingsRows: View {
         } else {
             ProgressView()
         }
+
+        #if os(macOS)
+            Picker("Sidebar usage bar", selection: $usageBarMode) {
+                ForEach(UsageBarDisplayMode.allCases) { mode in
+                    Text(mode.label).tag(mode)
+                }
+            }
+        #endif
 
         if model.isPremium == true {
             Button("Cancel Subscription", role: .destructive) {

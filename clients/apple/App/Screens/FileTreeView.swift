@@ -5,6 +5,9 @@ struct FileTreeView: View {
     @Environment(FilesModel.self) private var filesModel
     @Environment(WorkspaceInputState.self) private var workspaceInput
     @Environment(WorkspaceOutputState.self) private var workspaceOutput
+    #if os(iOS)
+        @Environment(HomeState.self) private var homeState
+    #endif
 
     let fileTreeModel: FileTreeModel
 
@@ -115,6 +118,9 @@ struct FileTreeView: View {
                 }
             }
             .refreshable {
+                #if os(iOS)
+                    homeState.explicitSyncRequested()
+                #endif
                 workspaceInput.requestSync()
             }
             .selectionCommands(fileTreeModel.selection)

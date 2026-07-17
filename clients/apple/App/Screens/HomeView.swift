@@ -18,7 +18,10 @@ struct HomeView: View {
     @State private var renameTarget: File? = nil
     @State private var showTabsSidebar = false
     @State private var showOutOfSpaceAlert = false
+    @State private var showUpgrade = false
+    @State private var upgradeModel: SettingsModel? = nil
     @State private var detailWidth: CGFloat = 0
+    @State private var syncPillDisplay: SyncPillDisplay? = nil
     #if os(iOS)
         @State private var showSettings = false
         @State private var keyboardVisible = false
@@ -213,21 +216,47 @@ struct HomeView: View {
         .onChange(of: nativeSidebarOpen) { _, open in
             workspaceInput.setSidebarOpen(open)
         }
-        .onChange(of: AppState.lb.events.status) { _, status in
+        .onChange(of: AppState.lb.events.status, initial: true) { _, status in
             filesModel.recomputeStatusDots(status: status)
+            reconcileSyncPill()
 
             if status.outOfSpace, !hideOutOfSpaceAlert {
                 showOutOfSpaceAlert = true
             }
         }
+        #if os(iOS)
+            .task(id: homeState.explicitSyncCount) {
+                await runSyncPillFlow()
+            }
+        #endif
         .alert("You're out of space", isPresented: $showOutOfSpaceAlert) {
+            Button("Upgrade") {
+                upgradeModel = SettingsModel()
+                showUpgrade = true
+            }
+
             Button("Don't show again") {
                 hideOutOfSpaceAlert = true
             }
 
             Button("Dismiss", role: .cancel) {}
         } message: {
-            Text("Your changes will stop syncing until you free up space or upgrade your account in Settings.")
+            Text("Your changes will stop syncing until you free up space or upgrade for more storage.")
+        }
+        .sheet(isPresented: $showUpgrade) {
+            if let upgradeModel {
+                NavigationStack {
+                    UpgradeAccountView(settingsModel: upgradeModel)
+                        .toolbar {
+                            ToolbarItem(placement: .cancellationAction) {
+                                Button("Done") { showUpgrade = false }
+                            }
+                        }
+                }
+                #if os(macOS)
+                    .frame(minWidth: 420, minHeight: 520)
+                #endif
+            }
         }
         .onChange(of: workspaceOutput.tabCount) { _, count in
             if count == 0 {
@@ -468,6 +497,83 @@ struct HomeView: View {
             }
 
             sidebarContent
+
+            #if os(macOS)
+                SyncStatusFooter(action: syncTapped)
+            #else
+                if horizontalSizeClass == .regular {
+                    SyncStatusFooter(action: syncTapped)
+                }
+            #endif
+        }
+    }
+
+    private func syncTapped() {
+        let status = AppState.lb.events.status
+
+        if status.updateRequired {
+            AppState.shared.error = .custom(
+                title: "Your Lockbook is out of date", msg: "Update to the latest version to sync"
+            )
+        } else if status.outOfSpace {
+            showOutOfSpaceAlert = true
+        }
+
+        workspaceInput.requestSync()
+    }
+
+    private static let syncPillAnim: Animation = .spring(response: 0.35, dampingFraction: 0.8)
+
+    private func reconcileSyncPill() {
+        switch syncPillDisplay {
+        case .syncing, .synced:
+            return
+        default:
+            break
+        }
+
+        let target = SyncPillDisplay.attentionOnly(for: AppState.lb.events.status)
+            .map { SyncPillDisplay.attention($0) }
+
+        if syncPillDisplay != target {
+            withAnimation(Self.syncPillAnim) {
+                syncPillDisplay = target
+            }
+        }
+    }
+
+    private func runSyncPillFlow() async {
+        guard homeState.explicitSyncCount != 0 else { return }
+
+        withAnimation(Self.syncPillAnim) {
+            syncPillDisplay = .syncing
+        }
+
+        try? await Task.sleep(for: .milliseconds(600))
+        guard !Task.isCancelled else { return }
+
+        while AppState.lb.events.status.syncing {
+            try? await Task.sleep(for: .milliseconds(100))
+            guard !Task.isCancelled else { return }
+        }
+
+        if let attention = SyncPillDisplay.attentionOnly(for: AppState.lb.events.status) {
+            withAnimation(Self.syncPillAnim) {
+                syncPillDisplay = .attention(attention)
+            }
+            return
+        }
+
+        withAnimation(Self.syncPillAnim) {
+            syncPillDisplay = .synced
+        }
+
+        try? await Task.sleep(for: .milliseconds(1200))
+        guard !Task.isCancelled else { return }
+
+        withAnimation(Self.syncPillAnim) {
+            syncPillDisplay = SyncPillDisplay.attentionOnly(for: AppState.lb.events.status)
+                .map { .attention($0) }
         }
     }
 
@@ -498,6 +604,7 @@ struct HomeView: View {
                     .pickerStyle(.segmented)
                     .fixedSize()
                 }
+                .sharedBackgroundVisibility(.hidden)
             }
 
             #if os(iOS)
@@ -526,6 +633,12 @@ struct HomeView: View {
                         } label: {
                             Image(systemName: "magnifyingglass")
                         }
+                    }
+
+                    ToolbarSpacer(.flexible, placement: .bottomBar)
+
+                    ToolbarItem(placement: .bottomBar) {
+                        SyncStatusPill(display: syncPillDisplay, action: syncTapped)
                     }
 
                     ToolbarSpacer(.flexible, placement: .bottomBar)
