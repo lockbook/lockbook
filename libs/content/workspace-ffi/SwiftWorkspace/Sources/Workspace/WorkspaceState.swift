@@ -133,8 +133,10 @@ import Observation
     public func requestSync() {
         guard let wsHandle else { return }
 
-        request_sync(wsHandle)
         redraw.send(())
+        DispatchQueue.global(qos: .userInitiated).async {
+            request_sync(wsHandle)
+        }
     }
 
     public func closeDoc(id: UUID) {
