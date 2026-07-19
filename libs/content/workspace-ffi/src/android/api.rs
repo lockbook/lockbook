@@ -482,10 +482,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
     mut _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    while !obj.workspace.tab_strip.is_empty() {
-        obj.workspace.close_tab(0);
-    }
+    obj.workspace.close_all_tabs();
 }
 
 #[no_mangle]

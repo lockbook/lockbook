@@ -1102,10 +1102,7 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn close_all_tabs(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    while !obj.workspace.tab_strip.is_empty() {
-        obj.workspace.close_tab(0);
-    }
+    obj.workspace.close_all_tabs();
 }
 
 /// # Safety
