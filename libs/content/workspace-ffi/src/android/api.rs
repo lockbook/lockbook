@@ -434,14 +434,16 @@ pub struct WsStatus {
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
-    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, new_file: jboolean,
 ) -> jint {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    obj.workspace.open_file(id, true, true);
+    // Plain open = in place; `new_file` (create / explicit new surface) = new tab.
+    let in_new_tab = new_file != 0;
+    obj.workspace.open_file(id, true, in_new_tab);
     get_current_tab(obj)
 }
 
