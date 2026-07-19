@@ -448,7 +448,7 @@ impl Workspace {
             .ctx
             .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::T))
         {
-            self.reopen_last_closed_tab();
+            self.reopen_closed_tab();
             self.out.selected_file = self.current_tab_id();
         }
 

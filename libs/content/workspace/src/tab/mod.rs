@@ -49,13 +49,21 @@ impl Destination {
             Self::Search => Uuid::nil(),
         }
     }
+
+    /// Underlying file id, if any (e.g. `None` for search).
+    pub fn backing_file(&self) -> Option<Uuid> {
+        match self {
+            Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => Some(*id),
+            Self::Search => None,
+        }
+    }
 }
 
 #[derive(Clone)]
 pub struct TabSlot {
     pub dest: Destination,
-    pub back: Vec<Uuid>,
-    pub forward: Vec<Uuid>,
+    pub back: Vec<Destination>,
+    pub forward: Vec<Destination>,
     pub rename: Option<String>,
 }
 

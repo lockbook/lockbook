@@ -912,9 +912,9 @@ pub unsafe extern "C" fn get_recently_closed_tabs(obj: *mut c_void) -> TabsIds {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let ids: Vec<CUuid> = obj
         .workspace
-        .recently_closed_tabs
-        .iter()
-        .map(|&id| id.into())
+        .recently_closed_tabs()
+        .into_iter()
+        .map(Into::into)
         .collect();
 
     TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
