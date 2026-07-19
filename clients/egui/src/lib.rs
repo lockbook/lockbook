@@ -184,7 +184,7 @@ impl Lockbook {
                         Some(fc) => {
                             let file_cache = Arc::new(RwLock::new(fc));
                             let mut workspace =
-                                Workspace::new(&core, ctx, true, Some(file_cache.clone()));
+                                Workspace::new(&core, ctx, true, true, Some(file_cache.clone()));
                             // Match the tab strip to the traffic-light band so the
                             // top reads as one bar: its height is top-to-light-
                             // center (our ruler-measured `HEADER_CENTER`) doubled.
