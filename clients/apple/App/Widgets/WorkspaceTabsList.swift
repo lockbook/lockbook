@@ -317,7 +317,10 @@ struct WorkspaceTabsList: View {
         .padding(.horizontal, 8)
         .contentShape(Rectangle())
         .onTapGesture {
-            workspaceInput.openFile(id: id)
+            workspaceInput.reopenClosedFile(id: id)
+            withAnimation {
+                refresh()
+            }
         }
         .draggable(TabDragItem(id: id))
     }
@@ -358,11 +361,10 @@ struct WorkspaceTabsList: View {
     }
 
     private func reopenLastClosed() {
-        guard let id = recentlyClosed.first else {
-            return
+        workspaceInput.reopenLastClosedTab()
+        withAnimation {
+            refresh()
         }
-
-        workspaceInput.openFile(id: id)
     }
 
     private func dropTab(_ dragged: TabDragItem?, before target: UUID?) -> Bool {
@@ -382,8 +384,15 @@ struct WorkspaceTabsList: View {
                 return false
             }
 
-            workspaceInput.openFile(id: dragged)
-            workspaceInput.moveTab(from: tabIds.count, to: targetIndex)
+            workspaceInput.reopenClosedFile(id: dragged)
+            // Reopen may insert mid-strip; move to the drop target if needed.
+            let openIds = workspaceInput.getTabsIds()
+            if let reopenedFrom = openIds.firstIndex(of: dragged), reopenedFrom != targetIndex {
+                let to = reopenedFrom < targetIndex ? targetIndex - 1 : targetIndex
+                if to != reopenedFrom, to >= 0, to < openIds.count {
+                    workspaceInput.moveTab(from: reopenedFrom, to: to)
+                }
+            }
             withAnimation {
                 refresh()
             }

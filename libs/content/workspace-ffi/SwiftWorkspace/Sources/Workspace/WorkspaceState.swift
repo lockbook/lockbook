@@ -194,6 +194,22 @@ import Observation
         return tabIds(from: get_recently_closed_tabs(wsHandle))
     }
 
+    /// Restores the most recently closed tab with its back/forward history.
+    public func reopenLastClosedTab() {
+        guard let wsHandle else { return }
+
+        reopen_last_closed_tab(wsHandle)
+        redraw.send(())
+    }
+
+    /// Restores a closed file tab by id (full slot history + placement).
+    public func reopenClosedFile(id: UUID) {
+        guard let wsHandle else { return }
+
+        reopen_closed_file(wsHandle, CUuid(_0: id.uuid))
+        redraw.send(())
+    }
+
     public func moveTab(from: Int, to: Int) {
         guard let wsHandle else { return }
 

@@ -923,6 +923,22 @@ pub unsafe extern "C" fn get_recently_closed_tabs(obj: *mut c_void) -> TabsIds {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn reopen_last_closed_tab(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.reopen_closed_tab();
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn reopen_closed_file(obj: *mut c_void, id: CUuid) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.reopen_closed_file(id.into());
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.renderer
