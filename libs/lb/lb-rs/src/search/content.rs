@@ -114,7 +114,7 @@ impl ContentSearcher {
 
     /// Update the search query. Results available via `results()`.
     pub fn query(&mut self, input: &str) {
-        let query = input.to_lowercase();
+        let query = input.trim().to_lowercase();
         if self.submitted_query == query {
             return;
         }
@@ -133,6 +133,8 @@ impl ContentSearcher {
         let query = &self.submitted_query;
         let words: Vec<&str> = query.split_whitespace().collect();
 
+        let mut scored = Vec::new();
+
         for doc in &self.documents {
             if let Some(ids) = &self.filter_ids {
                 if !ids.contains(&doc.file.id) {
@@ -140,12 +142,14 @@ impl ContentSearcher {
                 }
             }
 
-            let path = if doc.parent_path == "/" {
-                format!("/{}", doc.filename)
+            let parent = doc.parent_path.to_lowercase();
+            let name = doc.filename.to_lowercase();
+            let (path, name_start) = if parent == "/" {
+                (format!("/{name}"), 1)
             } else {
-                format!("{}/{}", doc.parent_path, doc.filename)
-            }
-            .to_lowercase();
+                let name_start = parent.len() + 1;
+                (format!("{parent}/{name}"), name_start)
+            };
 
             let mut matched_words = vec![false; words.len()];
             let path_matches = collect_matches(&path, query, &words, &mut matched_words);
@@ -156,36 +160,53 @@ impl ContentSearcher {
             let has_match = !path_matches.is_empty() || !content_matches.is_empty();
 
             if all_words_matched && has_match {
-                self.results.push(SearchResult {
-                    id: doc.file.id,
-                    filename: doc.filename.clone(),
-                    parent_path: doc.parent_path.clone(),
-                    is_folder: false,
-                    path_indices: Vec::new(),
-                    path_matches,
-                    content_matches,
-                });
+                let filename_exact = path_matches
+                    .iter()
+                    .filter(|m| m.exact && m.range.end > name_start)
+                    .count();
+                let filename_partial = path_matches
+                    .iter()
+                    .filter(|m| !m.exact && m.range.end > name_start)
+                    .count();
+                let content_exact = content_matches.iter().filter(|m| m.exact).count();
+
+                let tier = if filename_exact > 0 {
+                    0
+                } else if content_exact > 0 {
+                    1
+                } else if filename_partial > 0 {
+                    2
+                } else {
+                    3
+                };
+
+                let key = (
+                    tier,
+                    Reverse(filename_exact),
+                    Reverse(content_exact),
+                    Reverse(filename_partial),
+                    Reverse(path_matches.len()),
+                    Reverse(content_matches.len()),
+                    path,
+                );
+
+                scored.push((
+                    key,
+                    SearchResult {
+                        id: doc.file.id,
+                        filename: doc.filename.clone(),
+                        parent_path: doc.parent_path.clone(),
+                        is_folder: false,
+                        path_indices: Vec::new(),
+                        path_matches,
+                        content_matches,
+                    },
+                ));
             }
         }
 
-        self.results.sort_by_key(|r| {
-            let tier = if !r.path_matches.is_empty() {
-                0
-            } else if r.content_matches.iter().any(|m| m.exact) {
-                1
-            } else {
-                2
-            };
-            let path_exact = r.path_matches.iter().filter(|m| m.exact).count();
-            let content_exact = r.content_matches.iter().filter(|m| m.exact).count();
-            (
-                tier,
-                Reverse(path_exact),
-                Reverse(r.path_matches.len()),
-                Reverse(content_exact),
-                Reverse(r.content_matches.len()),
-            )
-        });
+        scored.sort_by(|a, b| a.0.cmp(&b.0));
+        self.results = scored.into_iter().map(|(_, r)| r).collect();
     }
 
     /// Get search results.
