@@ -7,6 +7,7 @@
     android:clickable="true"
     android:focusable="true"
     app:cardBackgroundColor="?attr/colorSecondaryContainer"
+<<<<<<< Updated upstream
     app:cardCornerRadius="16dp"
     app:cardElevation="0dp">
 
@@ -18,31 +19,53 @@
         android:orientation="vertical"
         android:paddingHorizontal="8dp"
         android:paddingTop="8dp"
+=======
+    app:cardCornerRadius="24dp"
+    app:cardElevation="0dp">
+
+    <LinearLayout
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:minHeight="56dp"
+        android:orientation="horizontal"
+        android:paddingStart="6dp"
+        android:paddingTop="6dp"
+        android:paddingEnd="16dp"
+>>>>>>> Stashed changes
         android:paddingBottom="6dp">
 
-        <com.google.android.material.textview.MaterialTextView
-            android:id="@+id/pinned_file_emoji"
-            android:layout_width="28dp"
-            android:layout_height="32dp"
-            android:gravity="center"
-            android:textAppearance="?attr/textAppearanceTitleLarge"
-            android:visibility="gone" />
+        <FrameLayout
+            android:layout_width="44dp"
+            android:layout_height="44dp"
+            android:background="@drawable/pinned_file_emoji_background"
+            android:padding="6dp">
 
-        <ImageView
-            android:id="@+id/pinned_file_icon"
-            android:layout_width="28dp"
-            android:layout_height="32dp"
-            android:contentDescription="@string/file"
-            app:tint="?attr/colorOnSecondaryContainer" />
+            <com.google.android.material.textview.MaterialTextView
+                android:id="@+id/pinned_file_emoji"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:gravity="center"
+                android:textAppearance="?attr/textAppearanceTitleMedium"
+                android:visibility="gone" />
+
+            <ImageView
+                android:id="@+id/pinned_file_icon"
+                android:layout_width="match_parent"
+                android:layout_height="match_parent"
+                android:contentDescription="@string/file"
+                app:tint="?attr/colorOnSecondaryContainer" />
+        </FrameLayout>
 
         <com.google.android.material.textview.MaterialTextView
             android:id="@+id/pinned_file_title"
-            android:layout_width="match_parent"
+            android:layout_width="wrap_content"
             android:layout_height="wrap_content"
+            android:layout_marginStart="12dp"
             android:ellipsize="end"
-            android:gravity="center"
+            android:maxWidth="172dp"
             android:maxLines="1"
-            android:textAppearance="?attr/textAppearanceLabelMedium"
+            android:textAppearance="?attr/textAppearanceTitleSmall"
             android:textColor="?attr/colorOnSecondaryContainer" />
     </LinearLayout>
 </com.google.android.material.card.MaterialCardView>

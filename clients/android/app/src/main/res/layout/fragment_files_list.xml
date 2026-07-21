@@ -61,7 +61,7 @@
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/pinned_files_list"
                     android:layout_width="match_parent"
-                    android:layout_height="92dp"
+                    android:layout_height="wrap_content"
                     android:clipToPadding="false"
                     android:overScrollMode="never"
                     android:paddingHorizontal="12dp"
