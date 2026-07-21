@@ -66,7 +66,7 @@ impl MdEdit {
             ui.painter().clone().vline(
                 top.x,
                 Rangef { min: top.y, max: bot.y },
-                Stroke::new(1., accent),
+                Stroke::new(2., accent),
             );
         }
     }
