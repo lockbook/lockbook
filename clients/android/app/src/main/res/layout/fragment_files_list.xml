@@ -41,6 +41,33 @@
                 android:minHeight="20dp"
                 />
 
+            <LinearLayout
+                android:id="@+id/pinned_files_section"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:paddingTop="8dp"
+                android:paddingBottom="8dp"
+                android:visibility="gone">
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:paddingHorizontal="16dp"
+                    android:paddingBottom="4dp"
+                    android:text="@string/pinned_files"
+                    android:textAppearance="?attr/textAppearanceTitleSmall" />
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/pinned_files_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="92dp"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:paddingHorizontal="12dp"
+                    android:scrollbars="none" />
+            </LinearLayout>
+
         </com.google.android.material.appbar.AppBarLayout>
 
         <LinearLayout

@@ -21,7 +21,14 @@ import net.lockbook.Lb
 import net.lockbook.LbEvent
 import net.lockbook.LbStatus
 import net.lockbook.Usage
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.UUID
+
+data class PinnedFile(
+    val id: String,
+    val emoji: String? = null,
+)
 
 class FileTreeViewModel(
     application: Application,
@@ -36,6 +43,11 @@ class FileTreeViewModel(
     val _files = MutableLiveData<List<FileViewHolderInfo>>(emptyList())
     val files: LiveData<List<FileViewHolderInfo>>
         get() = _files
+
+    private val pinnedFileEntries = loadPinnedFiles()
+    val _pinnedFiles = MutableLiveData<List<PinnedFile>>(emptyList())
+    val pinnedFiles: LiveData<List<PinnedFile>>
+        get() = _pinnedFiles
 
     // / the current file path
     val _breadcrumbItems = MutableLiveData<MutableList<BreadCrumbItem>>()
@@ -162,6 +174,97 @@ class FileTreeViewModel(
 
     private fun refreshFilesDataSource() {
         _files.value = fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
+        refreshPinnedFiles()
+    }
+
+    fun pinFiles(files: List<File>): List<PinnedFile> {
+        val newlyPinned = files
+            .filter { file -> pinnedFileEntries.none { it.id == file.id } }
+            .map { file -> PinnedFile(file.id) }
+
+        if (newlyPinned.isNotEmpty()) {
+            pinnedFileEntries.addAll(newlyPinned)
+            persistPinnedFiles()
+            refreshPinnedFiles()
+        }
+
+        return newlyPinned
+    }
+
+    fun setPinnedEmoji(
+        fileId: String,
+        emoji: String?,
+    ) {
+        val index = pinnedFileEntries.indexOfFirst { it.id == fileId }
+        if (index == -1) {
+            return
+        }
+
+        pinnedFileEntries[index] = PinnedFile(fileId, emoji?.takeIf { it.isNotBlank() })
+        persistPinnedFiles()
+        refreshPinnedFiles()
+    }
+
+    fun unpinFile(fileId: String) {
+        if (pinnedFileEntries.removeAll { it.id == fileId }) {
+            persistPinnedFiles()
+            refreshPinnedFiles()
+        }
+    }
+
+    fun restorePinnedFile(pin: PinnedFile) {
+        if (pinnedFileEntries.none { it.id == pin.id }) {
+            pinnedFileEntries.add(pin)
+            persistPinnedFiles()
+            refreshPinnedFiles()
+        }
+    }
+
+    private fun refreshPinnedFiles() {
+        val knownFileIds = fileModel.idsAndFiles.keys
+        if (pinnedFileEntries.removeAll { it.id !in knownFileIds }) {
+            persistPinnedFiles()
+        }
+
+        _pinnedFiles.value = pinnedFileEntries.toList()
+    }
+
+    private fun loadPinnedFiles(): MutableList<PinnedFile> {
+        val serializedPins =
+            PreferenceManager
+                .getDefaultSharedPreferences(getApplication())
+                .getString(getString(R.string.pinned_files_key), "[]")
+                ?: "[]"
+
+        return runCatching {
+            JSONArray(serializedPins)
+                .let { pins ->
+                    MutableList(pins.length()) { index ->
+                        val pin = pins.getJSONObject(index)
+                        PinnedFile(pin.getString("id"), pin.optString("emoji").takeIf { it.isNotBlank() })
+                    }
+                }.distinctBy { it.id }.toMutableList()
+        }.getOrDefault(mutableListOf())
+    }
+
+    private fun persistPinnedFiles() {
+        val serializedPins =
+            JSONArray().apply {
+                pinnedFileEntries.forEach { pin ->
+                    put(
+                        JSONObject().apply {
+                            put("id", pin.id)
+                            putOpt("emoji", pin.emoji)
+                        },
+                    )
+                }
+            }.toString()
+
+        PreferenceManager
+            .getDefaultSharedPreferences(getApplication())
+            .edit {
+                putString(getString(R.string.pinned_files_key), serializedPins)
+            }
     }
 
     fun hydrateStatusUpdate(

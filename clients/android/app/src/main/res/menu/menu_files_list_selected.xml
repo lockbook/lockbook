@@ -2,6 +2,13 @@
 <menu xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto">
     <item
+        android:id="@+id/menu_list_files_pin"
+        android:icon="@drawable/ic_outline_push_pin_24"
+        android:orderInCategory="0"
+        android:title="@string/pin"
+        app:showAsAction="ifRoom" />
+
+    <item
         android:id="@+id/menu_list_files_info"
         android:icon="@drawable/ic_baseline_info_24"
         android:orderInCategory="1"
