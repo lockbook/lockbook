@@ -1,7 +1,7 @@
 use basic_human_duration::ChronoHumanDuration;
 use egui::os::OperatingSystem;
 use egui::{
-    Align2, DragAndDrop, Galley, Id, Key, LayerId, Modifiers, Order, Rangef, Rect, RichText, Sense,
+    Align2, DragAndDrop, Galley, Id, Key, LayerId, Modifiers, Order, Rangef, Rect, Sense,
     TextWrapMode, UiBuilder, ViewportCommand, vec2,
 };
 use serde::{Deserialize, Serialize};
@@ -222,20 +222,18 @@ impl Workspace {
                 egui::Frame::default()
                     .fill(ui.ctx().style().visuals.panel_fill)
                     .show(ui, |ui| {
-                        if self.tab_strip_min_height > 0.0 {
-                            ui.set_min_height(self.tab_strip_min_height);
-                        }
+                        let strip_h = if self.tab_strip_min_height > 0.0 {
+                            self.tab_strip_min_height
+                        } else {
+                            crate::workspace::CHROME_STRIP_H
+                        };
+                        ui.set_min_height(strip_h);
+                        ui.set_max_height(strip_h);
                         if self.tab_strip_left_inset > 0.0 {
                             ui.add_space(self.tab_strip_left_inset);
                         }
-                        // Fit the nav buttons within a short strip so they don't
-                        // force it taller than `tab_strip_min_height`; a larger
-                        // band (e.g. macOS) keeps them at the default 37.
-                        let nav_size = if self.tab_strip_min_height > 0.0 {
-                            self.tab_strip_min_height.min(37.0)
-                        } else {
-                            37.0
-                        };
+                        // Square nav hit targets fit inside the strip band.
+                        let nav_size = strip_h;
                         if IconButton::new(Icon::ARROW_LEFT.size(15.0))
                             .disabled(
                                 self.current_tab
@@ -616,13 +614,14 @@ impl Workspace {
             self.ctx.get_lb_theme().neutral_bg_secondary()
         };
 
-        let tab_text_height = 20.0;
-        let tab_padding = if self.tab_strip_min_height > tab_text_height {
-            let v = ((self.tab_strip_min_height - tab_text_height) / 2.0).round() as i8;
-            egui::Margin { left: 10, right: 10, top: v, bottom: v }
+        let strip_h = if self.tab_strip_min_height > 0.0 {
+            self.tab_strip_min_height
         } else {
-            egui::Margin::symmetric(10, 10)
+            crate::workspace::CHROME_STRIP_H
         };
+        let tab_text_height = 20.0;
+        let v = ((strip_h - tab_text_height) / 2.0).round().max(0.0) as i8;
+        let tab_padding = egui::Margin { left: 10, right: 10, top: v, bottom: v };
 
         let rename_id = egui::Id::new("rename_tab").with(t);
         let mut rename_submitted = false;
@@ -819,12 +818,12 @@ impl Workspace {
                     if tab_label_resp.clicked() && !close_button_clicked {
                         result = Some(TabLabelResponse::Clicked);
                     }
-                    tab_label_resp.context_menu(|ui| {
-                        if ui.button("Close tab").clicked() {
-                            result = Some(TabLabelResponse::Closed);
-                            ui.close();
-                        }
-                    });
+                    if crate::widgets::show_text_menu(&tab_label_resp, |m| {
+                        m.item("Close tab");
+                    }) == Some(0)
+                    {
+                        result = Some(TabLabelResponse::Closed);
+                    }
 
                     ui.advance_cursor_after_rect(text_rect.union(close_button_rect));
 
@@ -916,11 +915,15 @@ impl Workspace {
             .map(|tab| tab.last_saved.elapsed_human_string())
             .unwrap_or_else(|| "unknown".to_string());
         let status_summary = self.tab_status(t).summary();
-        tab_label.response.on_hover_ui(|ui| {
-            ui.label(RichText::from(status_summary).size(15.0));
-            ui.label(RichText::from(format!("last saved {last_saved_str}")).size(12.0));
+        crate::widgets::floating::tip_lines(
+            ui.ctx(),
+            &tab_label.response,
+            &status_summary,
+            &format!("last saved {last_saved_str}"),
+        );
+        if tab_label.response.hovered() {
             ui.ctx().request_repaint_after_secs(1.0);
-        });
+        }
 
         result
     }

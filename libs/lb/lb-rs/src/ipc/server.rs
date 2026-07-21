@@ -212,6 +212,7 @@ pub(crate) async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::ListPathsWithIds { filter } => enc(lb.list_paths_with_ids(filter).await),
 
         Request::ShareFile { id, username, mode } => enc(lb.share_file(id, &username, mode).await),
+        Request::GetPublicKey { username } => enc(lb.get_public_key(&username).await),
         Request::GetPendingShares => enc(lb.get_pending_shares().await),
         Request::GetPendingShareFiles => enc(lb.get_pending_share_files().await),
         Request::KnownUsernames => enc(lb.known_usernames().await),

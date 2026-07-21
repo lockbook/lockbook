@@ -545,6 +545,22 @@ impl Lb {
             .await
     }
 
+    /// Resolve `username` → public key (cache first, then server).
+    ///
+    /// - `Ok(Some(pk))` — user exists
+    /// - `Ok(None)` — user does not exist
+    /// - `Err(ServerUnreachable)` — offline / network failure
+    /// - `Err(…)` — other failures
+    pub async fn get_public_key(
+        &self, username: &str,
+    ) -> LbResult<Option<libsecp256k1::PublicKey>> {
+        if let Some(local) = self.local.get() {
+            return local.get_public_key(username).await;
+        }
+        self.call(Request::GetPublicKey { username: username.to_string() })
+            .await
+    }
+
     pub async fn get_pending_shares(&self) -> LbResult<Vec<File>> {
         if let Some(local) = self.local.get() {
             return local.get_pending_shares().await;

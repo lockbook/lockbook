@@ -32,6 +32,14 @@ impl ApplicationHandler<UserEvent> for App {
             .with_inner_size(LogicalSize::new(1300, 800))
             .with_window_icon(window_icon);
 
+        // Windows: DnD is on by default; set explicitly so OS→app file drops
+        // stay enabled (master eframe used `.with_drag_and_drop(true)`).
+        #[cfg(target_os = "windows")]
+        let window_attrs = {
+            use winit::platform::windows::WindowAttributesExtWindows as _;
+            window_attrs.with_drag_and_drop(true)
+        };
+
         // macOS (dev): drop the title bar but keep the native traffic lights —
         // content runs full-height with the lights floating over the top-left.
         #[cfg(target_os = "macos")]
@@ -115,7 +123,16 @@ impl ApplicationHandler<UserEvent> for App {
         }
 
         if let WindowEvent::DroppedFile(path) = &event {
-            let content = vec![ClipContent::Files(vec![path.clone()])];
+            // Workspace inserts images into the open markdown note. Raw paths
+            // arrive as `Files`, which is still a todo there — convert known
+            // images to bytes (same as ⌘V image paste). Non-images go through
+            // as Files for future tree import.
+            let content = match std::fs::read(path) {
+                Ok(bytes) if image::guess_format(&bytes).is_ok() => {
+                    vec![ClipContent::Image(bytes)]
+                }
+                _ => vec![ClipContent::Files(vec![path.clone()])],
+            };
             state
                 .lb
                 .renderer
@@ -124,8 +141,11 @@ impl ApplicationHandler<UserEvent> for App {
                     content,
                     position: state.last_pointer_pos,
                 });
+            state.window.request_redraw();
         }
 
+        // ThemeChanged is applied below (our theme stack, not egui defaults).
+        // Still feed other events to egui-winit.
         if !matches!(event, WindowEvent::ThemeChanged(_)) {
             // todo: check this -- if there's no clipboard it falls back to a "manual" string which
             // may be populated by egui itself and result in double paste.
@@ -150,6 +170,14 @@ impl ApplicationHandler<UserEvent> for App {
                     .lb
                     .renderer
                     .set_native_pixels_per_point(scale_factor as f32);
+                state.window.request_redraw();
+            }
+            WindowEvent::ThemeChanged(theme) => {
+                // Live OS light/dark — previously ignored (filtered from egui and
+                // never applied to Lockbook). Reapply the lockbook theme stack.
+                let dark = matches!(theme, winit::window::Theme::Dark);
+                let ctx = state.lb.renderer.context.clone();
+                state.lb.app.set_dark_mode(&ctx, dark);
                 state.window.request_redraw();
             }
             WindowEvent::RedrawRequested => {

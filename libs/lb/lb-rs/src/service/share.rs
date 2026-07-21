@@ -1,6 +1,6 @@
 use crate::LocalLb;
 use crate::model::api::GetPublicKeyRequest;
-use crate::model::errors::{LbErr, LbResult};
+use crate::model::errors::{LbErr, LbErrKind, LbResult};
 use crate::model::file::{File, ShareMode};
 use crate::model::file_metadata::Owner;
 use crate::model::tree_like::TreeLike;
@@ -9,19 +9,71 @@ use libsecp256k1::PublicKey;
 use uuid::Uuid;
 
 impl LocalLb {
-    // todo: this can check whether the username is known already
+    /// Resolve `username` → public key without sharing.
+    ///
+    /// 1. Local `pub_key_lookup` (any owner already mapped to this name)
+    /// 2. Server `GetPublicKey` — successful results are cached
+    ///
+    /// Returns:
+    /// - `Ok(Some(pk))` — account exists
+    /// - `Ok(None)` — server says the user does not exist
+    /// - `Err(ServerUnreachable)` — offline / request failed to send
+    /// - `Err(…)` — other failures (e.g. client update required, no account)
+    #[instrument(level = "debug", skip(self))]
+    pub async fn get_public_key(&self, username: &str) -> LbResult<Option<PublicKey>> {
+        let username = username.trim().to_lowercase();
+        if username.is_empty() {
+            return Ok(None);
+        }
+
+        // Cache hit: reverse-lookup by username in the local key map.
+        {
+            let tx = self.ro_tx().await;
+            if let Some(owner) = tx.db().pub_key_lookup.get().iter().find_map(|(owner, name)| {
+                if name.eq_ignore_ascii_case(&username) {
+                    Some(*owner)
+                } else {
+                    None
+                }
+            }) {
+                return Ok(Some(owner.0));
+            }
+        }
+
+        let account = self.get_account()?;
+        match self
+            .client
+            .request(account, GetPublicKeyRequest { username: username.clone() })
+            .await
+        {
+            Ok(resp) => {
+                let mut tx = self.begin_tx().await;
+                tx.db()
+                    .pub_key_lookup
+                    .insert(Owner(resp.key), username)?;
+                tx.end();
+                Ok(Some(resp.key))
+            }
+            Err(e) => {
+                let err = LbErr::from(e);
+                match err.kind {
+                    // UserNotFound maps to AccountNonexistent today — treat as
+                    // a soft miss so callers can distinguish offline vs missing.
+                    LbErrKind::AccountNonexistent => Ok(None),
+                    _ => Err(err),
+                }
+            }
+        }
+    }
+
     #[instrument(level = "debug", skip(self))]
     pub async fn share_file(&self, id: Uuid, username: &str, mode: ShareMode) -> LbResult<()> {
-        let account = self.get_account()?;
         let username = username.to_lowercase();
 
-        let sharee = Owner(
-            self.client
-                .request(account, GetPublicKeyRequest { username: username.clone() })
-                .await
-                .map_err(LbErr::from)?
-                .key,
-        );
+        let sharee = match self.get_public_key(&username).await? {
+            Some(pk) => Owner(pk),
+            None => return Err(LbErrKind::AccountNonexistent.into()),
+        };
 
         let mut tx = self.begin_tx().await;
         let db = tx.db();

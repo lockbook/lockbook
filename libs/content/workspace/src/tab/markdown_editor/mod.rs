@@ -59,6 +59,7 @@ pub fn syntax_theme() -> &'static Theme {
 }
 
 pub mod bounds;
+pub mod context_menu;
 pub mod fold;
 pub mod input;
 pub mod md_label;
@@ -283,6 +284,10 @@ pub struct MdEdit {
     /// the menu is open and the pointer moves.
     pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
 
+    /// Set by the desktop context menu “Find…”; drained by [`Editor::show`]
+    /// into [`Find::open_requested`] (find lives on the outer editor).
+    pub open_find_requested: bool,
+
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
@@ -317,6 +322,7 @@ impl MdEdit {
             emoji_completions: Default::default(),
             link_completions: Default::default(),
             context_menu_link: None,
+            open_find_requested: false,
             scroll_area: AffineScrollArea::new(file_id),
         }
     }
@@ -778,6 +784,7 @@ impl Editor {
                 emoji_completions: Default::default(),
                 link_completions: Default::default(),
                 context_menu_link: None,
+                open_find_requested: false,
                 scroll_area: AffineScrollArea::new(file_id),
             },
 
@@ -1152,6 +1159,11 @@ impl Editor {
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
+
+        // Context menu “Find…” lands on MdEdit; open the outer find UI here.
+        if std::mem::take(&mut self.edit.open_find_requested) {
+            self.find.open_requested = true;
+        }
 
         // Completion popups render last, outside the scroll area's clip, so
         // they composite over the toolbar / find widget when the cursor is
@@ -1974,6 +1986,12 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .into()
     });
 
+    // Phosphor UI icons — same family name as the desktop shell (`"phosphor"`).
+    // Registered here so iOS/Android (workspace-ffi) get them via the shared path.
+    fonts
+        .font_data
+        .insert("phosphor".into(), FontData::from_static(lb_fonts::PHOSPHOR).into());
+
     fonts
         .families
         .insert(FontFamily::Name(Arc::from("Bold")), vec!["bold".into()]);
@@ -2001,6 +2019,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts
         .families
         .insert(FontFamily::Name(Arc::from("Icons")), vec!["icons".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("phosphor")), vec!["phosphor".into()]);
 
     fonts
         .families
@@ -2019,6 +2040,15 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .get_mut(&FontFamily::Monospace)
         .unwrap()
         .push("icons".to_owned());
+
+    // Icon codepoints in labels resolve without an explicit phosphor FontId.
+    for family in [FontFamily::Proportional, FontFamily::Monospace] {
+        fonts
+            .families
+            .get_mut(&family)
+            .unwrap()
+            .push("phosphor".to_owned());
+    }
 }
 
 /// Headless editor harness matching the Android FFI surface so tests read

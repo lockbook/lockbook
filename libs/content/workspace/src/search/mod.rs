@@ -390,6 +390,7 @@ impl Search {
             .width(400.)
             .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
             .show(|ui| {
+                crate::widgets::FloatingChrome::from_ctx(ui.ctx()).apply_popup_style(ui);
                 ui.set_min_width(400.0);
                 ui.spacing_mut().item_spacing.y = 2.0;
                 egui::ScrollArea::vertical()

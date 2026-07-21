@@ -46,7 +46,7 @@ fn render_frame(script: &[Action], scroll: Option<f32>) -> RgbaImage {
         // Frame 1: install fonts/theme, bail before drawing — `set_fonts` lands
         // next frame and the design system needs the "Bold" family.
         if app.is_none() {
-            let a = Lockbook::new(ctx);
+            let mut a = Lockbook::new(ctx);
             a.deferred_init(ctx);
             app = Some(a);
             ctx.request_repaint();
@@ -215,7 +215,7 @@ fn micro_filmstrip() {
             .wgpu()
             .build(|ctx| {
                 if app.is_none() {
-                    let a = Lockbook::new(ctx);
+                    let mut a = Lockbook::new(ctx);
                     a.deferred_init(ctx);
                     app = Some(a);
                     ctx.request_repaint();

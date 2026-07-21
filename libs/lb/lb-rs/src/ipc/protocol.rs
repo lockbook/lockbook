@@ -211,6 +211,10 @@ pub enum Request {
         username: String,
         mode: ShareMode,
     },
+    /// Username → public key; `Ok(None)` if the account does not exist.
+    GetPublicKey {
+        username: String,
+    },
     GetPendingShares,
     GetPendingShareFiles,
     KnownUsernames,

@@ -6,7 +6,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
-use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, link_menu_buttons};
+use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, link_menu_labels};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -165,7 +165,7 @@ impl<'ast> MdEdit {
     /// capsule): when `open`, a click opens `url`, else it selects the node
     /// and (touch) pops the edit menu as an `Atom` target, so the platform
     /// offers "Edit" (`Event::EnterAtom`). Desktop right-click shows the link
-    /// menu ([`link_menu_buttons`]). Registers the fragment rects in
+    /// menu). Registers the fragment rects in
     /// `touch_consuming_rects` so iOS routes the tap here; `salt` identifies
     /// the fragment's `Sense::click` scope. No-op if the embed wasn't rendered
     /// this frame. The per-kind handlers differ only in node lookup.
@@ -208,9 +208,17 @@ impl<'ast> MdEdit {
             let editable = !self.renderer.readonly;
             // cards/capsules render fetched previews; images don't
             let refreshable = !is_image && self.renderer.contact_linked_sites;
-            let mut action = None;
-            response
-                .context_menu(|ui| action = link_menu_buttons(ui, is_image, editable, refreshable));
+            let (open_l, copy_l, edit_l) = link_menu_labels(is_image);
+            let action = crate::widgets::show_menu(&response, |m| {
+                m.item(open_l, LinkMenuAction::Open);
+                m.item(copy_l, LinkMenuAction::Copy);
+                if editable {
+                    m.item(edit_l, LinkMenuAction::Edit);
+                }
+                if refreshable {
+                    m.item("Refresh Preview", LinkMenuAction::Refresh);
+                }
+            });
             match action {
                 Some(LinkMenuAction::Open) => self.renderer.open_resolved_link(url, ui.ctx()),
                 Some(LinkMenuAction::Copy) => ui.ctx().copy_text(url.to_string()),

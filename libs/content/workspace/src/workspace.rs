@@ -54,6 +54,11 @@ use crate::mind_map::show::MindMap;
 #[cfg(not(target_family = "wasm"))]
 use tokio::sync::broadcast::error::TryRecvError;
 
+/// Shared height for the desktop **tab strip** and **markdown toolbar**.
+/// Hosts may still override `tab_strip_min_height` (e.g. native titlebar band);
+/// desktop egui uses this constant for both chrome rows.
+pub const CHROME_STRIP_H: f32 = 32.0;
+
 pub struct Workspace {
     // User activity
     pub tabs: TabCache,
@@ -153,7 +158,8 @@ impl Workspace {
 
             show_tabs,
             tab_strip_left_inset: 0.0,
-            tab_strip_min_height: 0.0,
+            // Desktop strip height; native hosts may overwrite each frame.
+            tab_strip_min_height: if show_tabs { CHROME_STRIP_H } else { 0.0 },
             sidebar_open: false,
             focused_parent: Default::default(),
 
@@ -823,38 +829,54 @@ impl Workspace {
             for clip in content {
                 match clip {
                     crate::tab::ClipContent::Image(data) => {
-                        let file = crate::tab::import_image(&self.core, file_id, &data);
-
-                        // Refresh before the markdown event lands: the image
-                        // cache's URL→id lookup reads `self.files` on first
-                        // load and caches a sticky "image not found" failure
-                        // if the file isn't there yet.
-                        *self.files.write().unwrap() =
-                            FileCache::new(&self.core).expect("failed to refresh file cache");
-
-                        let rel_path = {
-                            let guard = self.files.read().unwrap();
-                            let parent = guard.get_by_id(file_id).unwrap().parent;
-                            crate::file_cache::relative_path(
-                                &guard.path(parent),
-                                &guard.path(file.id),
-                            )
-                        };
-                        let link = format!("![{}]({})", file.name, rel_path);
-
-                        self.ctx
-                            .push_markdown_event(crate::tab::markdown_editor::Event::Replace {
-                                region: crate::tab::markdown_editor::input::Region::Selection,
-                                text: link,
-                                advance_cursor: true,
-                            });
+                        self.insert_dropped_image(file_id, &data);
                     }
-                    crate::tab::ClipContent::Files(..) => {
-                        // todo: support file drop & paste
+                    crate::tab::ClipContent::Files(paths) => {
+                        // OS file drops often arrive as paths (desktop winit).
+                        // Images → same path as clipboard image paste; other
+                        // types still deferred (tree import lives in the shell).
+                        for path in paths {
+                            match std::fs::read(&path) {
+                                Ok(data) if image::guess_format(&data).is_ok() => {
+                                    self.insert_dropped_image(file_id, &data);
+                                }
+                                Ok(_) => {
+                                    // non-image: ignore for now
+                                }
+                                Err(e) => {
+                                    eprintln!("failed to read dropped file {path:?}: {e}");
+                                }
+                            }
+                        }
                     }
                 }
             }
         }
+    }
+
+    /// Import image bytes next to the open note and insert a markdown image link.
+    fn insert_dropped_image(&mut self, file_id: Uuid, data: &[u8]) {
+        let file = crate::tab::import_image(&self.core, file_id, data);
+
+        // Refresh before the markdown event lands: the image cache's URL→id
+        // lookup reads `self.files` on first load and caches a sticky "image
+        // not found" failure if the file isn't there yet.
+        *self.files.write().unwrap() =
+            FileCache::new(&self.core).expect("failed to refresh file cache");
+
+        let rel_path = {
+            let guard = self.files.read().unwrap();
+            let parent = guard.get_by_id(file_id).unwrap().parent;
+            crate::file_cache::relative_path(&guard.path(parent), &guard.path(file.id))
+        };
+        let link = format!("![{}]({})", file.name, rel_path);
+
+        self.ctx
+            .push_markdown_event(crate::tab::markdown_editor::Event::Replace {
+                region: crate::tab::markdown_editor::input::Region::Selection,
+                text: link,
+                advance_cursor: true,
+            });
     }
 
     // #[instrument(level = "trace", skip_all)]

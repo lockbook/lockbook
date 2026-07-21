@@ -164,7 +164,7 @@ impl<'ast> MdRender {
                     advance_cursor: false,
                 });
             }
-            response.on_hover_text("Show Contents");
+            crate::widgets::tip_text(ui.ctx(), &response, "Show Contents");
         }
     }
 }

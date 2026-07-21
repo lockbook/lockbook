@@ -84,7 +84,7 @@ impl IconButton {
         } else {
             Vec2::splat(galley.mesh_bounds.size().max_elem() * 2.)
         };
-        let (rect, mut resp) = ui.allocate_exact_size(
+        let (rect, resp) = ui.allocate_exact_size(
             desired_size,
             if self.disabled { Sense::hover() } else { Sense::click() },
         );
@@ -123,18 +123,7 @@ impl IconButton {
         );
 
         if let Some(tooltip) = &self.tooltip {
-            ui.ctx()
-                .style_mut(|s| s.visuals.menu_corner_radius = egui::CornerRadius::same(2));
-            resp = resp.on_hover_ui(|ui| {
-                let text: WidgetText = (tooltip).into();
-                let text = text.clone().into_galley(
-                    ui,
-                    Some(TextWrapMode::Extend),
-                    ui.available_width(),
-                    egui::TextStyle::Small,
-                );
-                ui.add(egui::Label::new(text));
-            });
+            crate::widgets::tip_text(ui.ctx(), &resp, tooltip.as_str());
         }
 
         resp

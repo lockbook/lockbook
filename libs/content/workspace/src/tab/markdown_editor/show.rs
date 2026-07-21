@@ -14,22 +14,19 @@
 
 use comrak::Arena;
 use egui::os::OperatingSystem;
-use egui::{Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, ViewportCommand};
+use egui::{Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder};
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::ScrollTarget;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
-use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
-use crate::widgets::IconButton;
 
 use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
-use super::widget::inline::link::{LinkMenuAction, link_menu_buttons};
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
 pub struct PreRenderState {
@@ -629,97 +626,13 @@ impl MdEdit {
         self.handle_link_capsule_interactions(root, ui, id, &mut ops);
         self.handle_link_menu_taps(root, ui, id, &mut ops);
 
-        // --- context menu (desktop only) -------------------------------------
-        ui.ctx()
-            .style_mut(|s| s.spacing.menu_margin = egui::vec2(10., 5.).into());
-        ui.ctx()
-            .style_mut(|s| s.visuals.menu_corner_radius = egui::CornerRadius::same(2));
-        ui.ctx()
-            .style_mut(|s| s.visuals.window_fill = s.visuals.extreme_bg_color);
-        ui.ctx()
-            .style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
+        // --- context menu (desktop only) — see `context_menu` module ---
+        // Styles go through push_markdown_event (toolbar path), not `ops`.
+        // When the menu is open or a leaf was chosen, skip pointer→selection
+        // so a Format click doesn't place the caret under the menu.
+        let mut suppress_pointer_select = false;
         if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
-            // Capture the link under the click when it lands, so the menu's
-            // link section stays stable while the pointer moves over it.
-            if response.secondary_clicked() {
-                self.context_menu_link = response
-                    .interact_pointer_pos()
-                    .and_then(|pos| self.link_target_at_pos(root, pos));
-            }
-            let link_target = self.context_menu_link.clone();
-            let mut link_action = None;
-
-            let readonly = self.renderer.readonly;
-            let mut menu_events: Vec<Event> = Vec::new();
-            response.context_menu(|ui| {
-                if let Some(t) = &link_target {
-                    // plain links never render a preview — nothing to refresh
-                    link_action = link_menu_buttons(ui, t.is_image, !readonly, false);
-                    ui.separator();
-                }
-                ui.horizontal(|ui| {
-                    ui.set_min_height(30.);
-                    ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
-
-                    if IconButton::new(Icon::CONTENT_CUT)
-                        .tooltip("Cut")
-                        .disabled(readonly)
-                        .show(ui)
-                        .clicked()
-                    {
-                        menu_events.push(Event::Cut);
-                        ui.close();
-                    }
-                    ui.add_space(5.);
-                    if IconButton::new(Icon::CONTENT_COPY)
-                        .tooltip("Copy")
-                        .show(ui)
-                        .clicked()
-                    {
-                        menu_events.push(Event::Copy);
-                        ui.close();
-                    }
-                    ui.add_space(5.);
-                    if IconButton::new(Icon::CONTENT_PASTE)
-                        .tooltip("Paste")
-                        .disabled(readonly)
-                        .show(ui)
-                        .clicked()
-                    {
-                        ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
-                        ui.close();
-                    }
-                });
-            });
-            if let (Some(action), Some(t)) = (link_action, &link_target) {
-                match action {
-                    LinkMenuAction::Open => {
-                        if t.is_wikilink {
-                            if let Some(file_id) = self.renderer.resolve_wikilink(&t.url) {
-                                ui.ctx().open_file(file_id, true);
-                            }
-                        } else {
-                            self.renderer.open_resolved_link(&t.url, ui.ctx());
-                        }
-                    }
-                    LinkMenuAction::Copy => ui.ctx().copy_text(t.url.clone()),
-                    LinkMenuAction::Refresh => self.renderer.refresh_link_meta(&t.url),
-                    LinkMenuAction::Edit => {
-                        if t.force_reveal {
-                            self.renderer.entered_atom = Some(t.node_range);
-                        }
-                        menu_events.push(Event::Select {
-                            region: Region::BetweenLocations {
-                                start: Location::Grapheme(t.select.start()),
-                                end: Location::Grapheme(t.select.end()),
-                            },
-                        });
-                    }
-                }
-            }
-            for ev in menu_events {
-                self.calc_operations(ui.ctx(), root, ev, &mut ops);
-            }
+            suppress_pointer_select = self.show_desktop_context_menu(&response, root, ui);
         }
 
         // --- pointer → selection change ---------------------------------------
@@ -729,7 +642,7 @@ impl MdEdit {
         let modifiers = ui.ctx().input(|i| i.modifiers);
         let ctx = ui.ctx().clone();
         let have_galleys = !self.renderer.fragments.is_empty();
-        if have_galleys {
+        if have_galleys && !suppress_pointer_select {
             if let Some(pos) = response.interact_pointer_pos() {
                 let location = Location::Pos(pos);
 

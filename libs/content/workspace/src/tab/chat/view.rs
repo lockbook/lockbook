@@ -2332,8 +2332,12 @@ impl Chat {
                     ui.painter()
                         .add(egui::Shape::line(points, Stroke::new(2.0, fill)));
                 }
-                ui.interact(rect, Id::new("chat_context_ring"), Sense::hover())
-                    .on_hover_text(format!("{used} / {window} tokens ({:.0}%)", ratio * 100.0));
+                let ring = ui.interact(rect, Id::new("chat_context_ring"), Sense::hover());
+                crate::widgets::tip_text(
+                    ui.ctx(),
+                    &ring,
+                    format!("{used} / {window} tokens ({:.0}%)", ratio * 100.0),
+                );
             }
 
             // The ⋯ overflow anchors the strip's right end; chips lay against
@@ -2424,6 +2428,7 @@ impl Chat {
             egui::Popup::menu(&provider_resp)
                 .align(egui::RectAlign::TOP_START)
                 .show(|ui| {
+                    crate::widgets::FloatingChrome::from_ctx(ui.ctx()).apply_popup_style(ui);
                     ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
                     ui.set_min_width(140.0);
                     // Same grouping and order as the add-provider menu;
@@ -2529,6 +2534,7 @@ impl Chat {
                     .align(egui::RectAlign::TOP_START)
                     .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
                     .show(|ui| {
+                        crate::widgets::FloatingChrome::from_ctx(ui.ctx()).apply_popup_style(ui);
                         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
                         ui.set_min_width(180.0);
                         match &self.models {
@@ -2588,6 +2594,8 @@ impl Chat {
                             egui::Popup::menu(&effort_resp)
                                 .align(egui::RectAlign::TOP_START)
                                 .show(|ui| {
+                                    crate::widgets::FloatingChrome::from_ctx(ui.ctx())
+                                        .apply_popup_style(ui);
                                     ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
                                     ui.set_min_width(100.0);
                                     if ui
@@ -2623,6 +2631,8 @@ impl Chat {
                             egui::Popup::menu(&access_resp)
                                 .align(egui::RectAlign::TOP_START)
                                 .show(|ui| {
+                                    crate::widgets::FloatingChrome::from_ctx(ui.ctx())
+                                        .apply_popup_style(ui);
                                     ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
                                     ui.set_min_width(180.0);
                                     ui.weak("click a grant to revoke it");
@@ -2662,6 +2672,7 @@ impl Chat {
                 egui::Popup::menu(&more_resp)
                     .align(egui::RectAlign::TOP_END)
                     .show(|ui| {
+                        crate::widgets::FloatingChrome::from_ctx(ui.ctx()).apply_popup_style(ui);
                         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
                         ui.set_min_width(140.0);
                         if effort_folded {

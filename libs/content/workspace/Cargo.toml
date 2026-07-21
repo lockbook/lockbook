@@ -29,7 +29,8 @@ hayro = "0.4.0"
 image = "0.25.9"
 indexmap = { version = "2.5.0", features = ["rayon"] }
 lazy_static = "1.4.0"
-lb-fonts = { git = "https://github.com/lockbook/lb-fonts" }
+# Local checkout for Phosphor work — switch back to git after publishing lb-fonts.
+lb-fonts = { path = "../../../../lb-fonts" }
 lb-rs = { path = "../../lb/lb-rs" }
 linkify = "0.10.0"
 lyon = "1.0.1"

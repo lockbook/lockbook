@@ -5,6 +5,12 @@
 //! ink, and the accent shows up only in the focus ring. Destructive is a
 //! Wireframe with `tone = danger` — red text, outline that firms to red on
 //! hover; icon-only will be just a content variant.
+//!
+//! Elevated **chips** (sidebar New/Import, pin strip) use free functions
+//! [`paint_chip`] / [`chip_colors`] — not the labeled `Button` type.
+//!
+//! Disabled is a state modifier (not a treatment): same geometry, muted fill/
+//! ink, no hover/press, no click.
 
 use egui::{Color32, CornerRadius, FontId, Response, Sense, Stroke, StrokeKind, Ui, vec2};
 
@@ -33,6 +39,13 @@ pub struct Button<'a> {
     label: String,
     treatment: Treatment,
     tone: Tone,
+    enabled: bool,
+    /// When set, force this height (share sheet row, etc.).
+    height: Option<f32>,
+    /// Cap width; label is ellipsized when content would exceed it.
+    max_width: Option<f32>,
+    /// Optional keyboard badge drawn after the label (e.g. `esc`, `⌘↩`).
+    shortcut: Option<String>,
 }
 
 impl<'a> Button<'a> {
@@ -47,11 +60,44 @@ impl<'a> Button<'a> {
     }
 
     fn new(tokens: &'a Tokens, label: impl Into<String>, treatment: Treatment) -> Self {
-        Self { tokens, label: label.into(), treatment, tone: Tone::Brand }
+        Self {
+            tokens,
+            label: label.into(),
+            treatment,
+            tone: Tone::Brand,
+            enabled: true,
+            height: None,
+            max_width: None,
+            shortcut: None,
+        }
     }
 
     pub fn danger(mut self) -> Self {
         self.tone = Tone::Danger;
+        self
+    }
+
+    /// When false: muted chrome, no hover/press, clicks ignored.
+    pub fn enabled(mut self, enabled: bool) -> Self {
+        self.enabled = enabled;
+        self
+    }
+
+    /// Pin the control to an exact height (e.g. align with `search_field::HEIGHT`).
+    pub fn height(mut self, h: f32) -> Self {
+        self.height = Some(h);
+        self
+    }
+
+    /// Cap outer width; the label ellipsizes when content would exceed it.
+    pub fn max_width(mut self, w: f32) -> Self {
+        self.max_width = Some(w);
+        self
+    }
+
+    /// Show a keyboard shortcut badge after the label.
+    pub fn shortcut(mut self, s: impl Into<String>) -> Self {
+        self.shortcut = Some(s.into());
         self
     }
 
@@ -60,18 +106,56 @@ impl<'a> Button<'a> {
         // Regular 14 label; roomier padding and a 32px floor keep the box from
         // squatting.
         let font = FontId::proportional(14.0);
+        let sc_font = FontId::proportional(12.0);
         let padding = vec2(14.0, 8.0);
+        let sc_gap = 8.0_f32;
 
-        let galley = ui
-            .painter()
-            .layout_no_wrap(self.label.clone(), font, Color32::PLACEHOLDER);
-        let mut desired = galley.size() + padding * 2.0;
-        desired.y = desired.y.max(32.0);
-        let (rect, response) = ui.allocate_exact_size(desired, Sense::click());
+        let sc_galley = self.shortcut.as_ref().map(|s| {
+            ui.painter()
+                .layout_no_wrap(s.clone(), sc_font, Color32::PLACEHOLDER)
+        });
+        let sc_w = sc_galley
+            .as_ref()
+            .map(|g| g.size().x + sc_gap)
+            .unwrap_or(0.0);
 
-        // Ease hover over a few frames so state changes feel tactile, not abrupt.
-        let hover = ui.ctx().animate_bool(response.id, response.hovered());
-        let (fill, stroke, text) = self.colors(hover, response.is_pointer_button_down_on());
+        // When max_width is set, reserve padding + shortcut first, then wrap label.
+        let label_max = self.max_width.map(|mw| {
+            (mw - padding.x * 2.0 - sc_w).max(24.0)
+        });
+        let galley = if let Some(max_w) = label_max {
+            ui.painter().layout(
+                self.label.clone(),
+                font,
+                Color32::PLACEHOLDER,
+                max_w,
+            )
+        } else {
+            ui.painter()
+                .layout_no_wrap(self.label.clone(), font, Color32::PLACEHOLDER)
+        };
+        let mut desired = galley.size() + padding * 2.0 + vec2(sc_w, 0.0);
+        desired.y = self.height.unwrap_or(desired.y.max(32.0));
+        if let Some(mw) = self.max_width {
+            desired.x = desired.x.min(mw).max(0.0);
+        }
+        let sense = if self.enabled {
+            Sense::click()
+        } else {
+            Sense::hover()
+        };
+        let (rect, response) = ui.allocate_exact_size(desired, sense);
+
+        let hover = if self.enabled {
+            ui.ctx().animate_bool(response.id, response.hovered())
+        } else {
+            0.0
+        };
+        let pressed = self.enabled && response.is_pointer_button_down_on();
+        let (fill, stroke, text) = self.colors(hover, pressed);
+        // Shortcut matches label ink (palette) so badges stay readable on
+        // primary filled buttons where muted was too low-contrast.
+        let sc_ink = text;
 
         let radius = CornerRadius::same(6);
         let painter = ui.painter();
@@ -79,15 +163,25 @@ impl<'a> Button<'a> {
         if stroke.a() > 0 {
             painter.rect_stroke(rect, radius, Stroke::new(1.0, stroke), StrokeKind::Inside);
         }
-        painter.galley(rect.center() - galley.size() / 2.0, galley, text);
 
-        if response.has_focus() {
-            // A soft neutral halo hugging the edge — reads as focus without the
-            // loud, spaced accent ring.
+        // Center the label (+ optional shortcut) as a unit.
+        let label_w = galley.size().x;
+        let label_h = galley.size().y;
+        let content_w = label_w + sc_w;
+        let left = rect.center().x - content_w / 2.0;
+        let cy = rect.center().y;
+        painter.galley(egui::pos2(left, cy - label_h / 2.0), galley, text);
+        if let Some(sg) = sc_galley {
+            let sc_pos = egui::pos2(left + label_w + sc_gap, cy - sg.size().y / 2.0);
+            painter.galley(sc_pos, sg, sc_ink);
+        }
+
+        if self.enabled && response.has_focus() {
+            // Soft focus halo — hairline palette color, no faded ink.
             painter.rect_stroke(
                 rect,
                 radius,
-                Stroke::new(3.0, t.fg().gamma_multiply(0.25)),
+                Stroke::new(3.0, t.line()),
                 StrokeKind::Outside,
             );
         }
@@ -100,6 +194,18 @@ impl<'a> Button<'a> {
     /// outlines firm from the neutral line to their tone color.
     fn colors(&self, hover: f32, pressed: bool) -> (Color32, Color32, Color32) {
         let t = self.tokens;
+
+        if !self.enabled {
+            return match self.treatment {
+                // Filled primary: raised slab, muted label (not inverted).
+                Treatment::Filled => (t.surface_raised(), Color32::TRANSPARENT, t.text_muted()),
+                Treatment::Wireframe => (t.surface(), t.line(), t.text_muted()),
+                Treatment::Frameless => {
+                    (Color32::TRANSPARENT, Color32::TRANSPARENT, t.text_muted())
+                }
+            };
+        }
+
         // The tone color an outline firms *to*: fg for a normal button, red for
         // destructive. The primary fill is deliberately toneless.
         let accent = match self.tone {
@@ -108,6 +214,7 @@ impl<'a> Button<'a> {
         };
         match self.treatment {
             Treatment::Filled => {
+                // Ink fill eases toward canvas on engage — both palette ends.
                 let fill = if pressed {
                     t.fg().lerp_to_gamma(t.canvas(), 0.18)
                 } else {
@@ -116,26 +223,82 @@ impl<'a> Button<'a> {
                 (fill, Color32::TRANSPARENT, t.canvas())
             }
             Treatment::Wireframe => {
-                let stroke = t.line().lerp_to_gamma(accent, hover);
-                let fill = if pressed {
-                    t.surface().lerp_to_gamma(accent, 0.08)
+                let stroke = if hover > 0.5 || pressed {
+                    accent
                 } else {
-                    t.surface().lerp_to_gamma(accent, 0.04 * hover)
+                    t.line()
+                };
+                let fill = if pressed {
+                    t.surface_raised()
+                } else if hover > 0.0 {
+                    t.surface().lerp_to_gamma(t.surface_raised(), hover)
+                } else {
+                    t.surface()
                 };
                 (fill, stroke, accent)
             }
             Treatment::Frameless => {
                 let ink = match self.tone {
-                    Tone::Brand => t.text_muted().lerp_to_gamma(t.fg(), hover),
+                    Tone::Brand => {
+                        if hover > 0.5 {
+                            t.fg()
+                        } else {
+                            t.text_muted()
+                        }
+                    }
                     Tone::Danger => t.danger(),
                 };
                 let fill = if pressed {
-                    t.fg().gamma_multiply(0.10)
+                    t.surface_raised()
+                } else if hover > 0.0 {
+                    t.canvas().lerp_to_gamma(t.surface_raised(), hover)
                 } else {
-                    t.fg().gamma_multiply(0.05 * hover)
+                    Color32::TRANSPARENT
                 };
                 (fill, Color32::TRANSPARENT, ink)
             }
         }
+    }
+}
+
+/// Chip chrome colors — palette only.
+///
+/// Rest: solid `base` (usually canvas), **no** outline.  
+/// Hover: soft `line` outline faded with `hover` (0→1 from `animate_bool`) so
+/// it eases off properly — not binary on-for-the-whole-fade.  
+/// Press: full `line` stroke; fill eases slightly toward ink.
+pub fn chip_colors(
+    t: &Tokens, base: Color32, hover: f32, pressed: bool,
+) -> (Color32, Color32) {
+    let fill = if pressed {
+        base.lerp_to_gamma(t.fg(), 0.08)
+    } else {
+        base
+    };
+    // Quiet hairline; alpha tracks hover so leave eases out (not a sticky solid).
+    let stroke = if pressed {
+        t.line()
+    } else if hover > 0.0 {
+        t.line().linear_multiply(hover)
+    } else {
+        Color32::TRANSPARENT
+    };
+    (fill, stroke)
+}
+
+/// Paint elevated chip chrome (New / Import / Search, pin chips).
+///
+/// See [`chip_colors`]. `base` is the resting fill — canvas on surface chrome.
+/// Pass `animate_bool` hover (0→1) so the outline fades with the ease.
+pub fn paint_chip(
+    ui: &Ui, t: &Tokens, rect: egui::Rect, radius: impl Into<CornerRadius>, hover: f32,
+    pressed: bool, base: Color32,
+) {
+    let radius = radius.into();
+    let (fill, stroke) = chip_colors(t, base, hover, pressed);
+    let painter = ui.painter();
+    painter.rect_filled(rect, radius, fill);
+    if stroke.a() > 0 {
+        painter.rect_stroke(rect, radius, Stroke::new(1.0, stroke), StrokeKind::Inside);
     }
 }

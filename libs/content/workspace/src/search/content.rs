@@ -320,13 +320,12 @@ impl SearchExecutor for ContentSearch {
                                 clicked_new_tab = ui.input(|i| i.modifiers.command);
                             }
                         }
-                        if openable {
-                            resp.context_menu(|ui| {
-                                if ui.button("Open in new tab").clicked() {
-                                    ctx_new_tab_id = Some(r.id);
-                                    ui.close();
-                                }
-                            });
+                        if openable
+                            && crate::widgets::show_text_menu(&resp, |m| {
+                                m.item("Open in new tab");
+                            }) == Some(0)
+                        {
+                            ctx_new_tab_id = Some(r.id);
                         }
                     }
 

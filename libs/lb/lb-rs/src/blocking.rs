@@ -161,6 +161,23 @@ impl Lb {
         self.block_on(self.lb.share_file(id, username, mode))
     }
 
+    /// Resolve `username` → public key (cache first, then server).
+    ///
+    /// - `Ok(Some(pk))` — user exists
+    /// - `Ok(None)` — user does not exist
+    /// - `Err(ServerUnreachable)` — offline / network failure
+    pub fn get_public_key(
+        &self, username: &str,
+    ) -> LbResult<Option<libsecp256k1::PublicKey>> {
+        self.block_on(self.lb.get_public_key(username))
+    }
+
+    /// Usernames already in the local public-key cache (people we've resolved
+    /// before). Thin wrapper over the existing async API.
+    pub fn known_usernames(&self) -> LbResult<Vec<String>> {
+        self.block_on(self.lb.known_usernames())
+    }
+
     pub fn get_pending_shares(&self) -> LbResult<Vec<File>> {
         self.block_on(self.lb.get_pending_shares())
     }

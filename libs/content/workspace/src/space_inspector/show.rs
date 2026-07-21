@@ -231,14 +231,13 @@ impl SpaceInspector {
 
         let response = ui.interact(root_draw_anchor, Id::new(-1), Sense::hover());
 
-        response.on_hover_text(
-            "Name:\n".to_owned()
-                + &self.data.all_files[&self.data.focused_folder]
-                    .file
-                    .name
-                    .to_string()
-                + "\nSize:\n"
-                + &display_size,
+        crate::widgets::tip_text(
+            ui.ctx(),
+            &response,
+            format!(
+                "Name:\n{}\nSize:\n{}",
+                self.data.all_files[&self.data.focused_folder].file.name, display_size
+            ),
         );
 
         // Starts drawing the rest of the folders and files
@@ -456,23 +455,19 @@ impl SpaceInspector {
                 if response.clicked() && item_filerow.file.is_folder() {
                     changed_focused_folder = Some(item.id);
                 }
-                // Context menu
-                response.context_menu(|ui| {
-                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
-
-                    ui.label(self.data.all_files[&item.id].file.name.to_string());
-                    ui.label(&display_size);
-                    ui.separator();
-
-                    if ui.ctx().input(|i| i.key_pressed(egui::Key::Escape)) {
-                        ui.close();
+                // Context menu — floating chrome (not stock egui menu).
+                if let Some(i) = crate::widgets::show_text_menu(&response, |m| {
+                    if item_filerow.file.is_folder() {
+                        m.item("Focus File");
                     }
-                    if item_filerow.file.is_folder() && ui.button("Focus File").clicked() {
+                    m.item_danger("Delete");
+                }) {
+                    let is_folder = item_filerow.file.is_folder();
+                    let focus_idx = if is_folder { 0 } else { usize::MAX };
+                    let delete_idx = if is_folder { 1 } else { 0 };
+                    if i == focus_idx {
                         changed_focused_folder = Some(item.id);
-                        ui.close();
-                    }
-
-                    if ui.button("Delete").clicked() {
+                    } else if i == delete_idx {
                         let lb = self.lb.clone();
                         let id = item_filerow.file.id;
                         deleted_id = Some(id);
@@ -480,8 +475,8 @@ impl SpaceInspector {
                             lb.delete_file(&id).unwrap();
                         });
                     }
-                });
-                response.on_hover_text(hover_text);
+                }
+                crate::widgets::tip_text(ui.ctx(), &response, hover_text);
             }
 
             if item_filerow.file.is_folder() {

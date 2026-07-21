@@ -1,3 +1,12 @@
 pub mod button;
+pub mod context_menu;
 pub mod file_tree;
+pub mod modals;
 pub mod nav;
+pub mod pinned;
+pub mod scroll_overlay;
+pub mod search_field;
+pub mod settings_panel;
+pub mod sidebar_views;
+pub mod sync_footer;
+pub mod tree_chrome;

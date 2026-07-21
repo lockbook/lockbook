@@ -115,13 +115,13 @@ impl SearchExecutor for PathSearch {
                         clicked_id = Some(row.id);
                         clicked_new_tab = ui.input(|i| i.modifiers.command);
                     }
-                    resp.context_menu(|ui| {
-                        if ui.button("Open in new tab").clicked() {
-                            clicked_id = Some(row.id);
-                            clicked_new_tab = true;
-                            ui.close();
-                        }
-                    });
+                    if crate::widgets::show_text_menu(&resp, |m| {
+                        m.item("Open in new tab");
+                    }) == Some(0)
+                    {
+                        clicked_id = Some(row.id);
+                        clicked_new_tab = true;
+                    }
                 }
             });
 
