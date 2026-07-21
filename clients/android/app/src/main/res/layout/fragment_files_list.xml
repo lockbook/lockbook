@@ -30,16 +30,36 @@
                 android:background="?attr/colorSurfaceContainerLow"
                 app:menu="@menu/menu_files_list"
                 app:navigationIcon="@drawable/ic_outline_menu_24"
-                app:title="@string/lockbook_title" />
+                />
+
+            <LinearLayout
+                android:id="@+id/pinned_files_section"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="4dp"
+                android:orientation="vertical"
+                android:visibility="gone">
+
+                <androidx.recyclerview.widget.RecyclerView
+                    android:id="@+id/pinned_files_list"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:clipToPadding="false"
+                    android:overScrollMode="never"
+                    android:scrollbars="none" />
+            </LinearLayout>
 
             <app.lockbook.ui.BreadCrumbView
                 android:id="@+id/files_breadcrumb_bar"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:background="?attr/colorSurfaceContainerLow"
+                android:paddingHorizontal="12dp"
                 app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
-                android:minHeight="20dp"
                 />
+
+
 
         </com.google.android.material.appbar.AppBarLayout>
 

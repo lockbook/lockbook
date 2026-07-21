@@ -7,21 +7,48 @@
 package app.lockbook.model
 
 import android.app.Application
+import android.content.Context
 import androidx.core.content.edit
+import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.emptyPreferences
+import androidx.datastore.preferences.core.stringPreferencesKey
+import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
+import androidx.lifecycle.viewModelScope
 import androidx.preference.PreferenceManager
 import app.lockbook.R
 import app.lockbook.screen.UpdateFilesUI
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.flow.catch
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.launch
 import net.lockbook.File
 import net.lockbook.Lb
 import net.lockbook.LbEvent
 import net.lockbook.LbStatus
 import net.lockbook.Usage
+import org.json.JSONArray
+import org.json.JSONObject
+import timber.log.Timber
+import java.io.IOException
 import java.util.UUID
+
+data class PinnedFile(
+    val id: String,
+    val emoji: String? = null,
+)
+
+private const val PINNED_FILES_DATASTORE_NAME = "pinned_files"
+private const val PINNED_FILES_KEY = "pinned_files"
+private val pinnedFilesPreferenceKey = stringPreferencesKey(PINNED_FILES_KEY)
+private val Context.pinnedFilesDataStore by preferencesDataStore(name = PINNED_FILES_DATASTORE_NAME)
 
 class FileTreeViewModel(
     application: Application,
@@ -36,6 +63,12 @@ class FileTreeViewModel(
     val _files = MutableLiveData<List<FileViewHolderInfo>>(emptyList())
     val files: LiveData<List<FileViewHolderInfo>>
         get() = _files
+
+    private var pinnedFileEntries = mutableListOf<PinnedFile>()
+    private var persistPinnedFilesJob: Job? = null
+    val _pinnedFiles = MutableLiveData<List<PinnedFile>>(emptyList())
+    val pinnedFiles: LiveData<List<PinnedFile>>
+        get() = _pinnedFiles
 
     // / the current file path
     val _breadcrumbItems = MutableLiveData<MutableList<BreadCrumbItem>>()
@@ -68,6 +101,7 @@ class FileTreeViewModel(
 
     init {
         startUpInRoot()
+        loadPinnedFiles()
         getStatus()
     }
 
@@ -162,6 +196,128 @@ class FileTreeViewModel(
 
     private fun refreshFilesDataSource() {
         _files.value = fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
+        refreshPinnedFiles()
+    }
+
+    fun pinFiles(files: List<File>): List<PinnedFile> {
+        val newlyPinned =
+            files
+                .filter { file -> pinnedFileEntries.none { it.id == file.id } }
+                .map { file -> PinnedFile(file.id) }
+
+        if (newlyPinned.isNotEmpty()) {
+            pinnedFileEntries.addAll(newlyPinned)
+            persistPinnedFiles()
+            refreshPinnedFiles()
+        }
+
+        return newlyPinned
+    }
+
+    fun setPinnedEmoji(
+        fileId: String,
+        emoji: String?,
+    ) {
+        val index = pinnedFileEntries.indexOfFirst { it.id == fileId }
+        if (index == -1) {
+            return
+        }
+
+        pinnedFileEntries[index] = PinnedFile(fileId, emoji?.takeIf { it.isNotBlank() })
+        persistPinnedFiles()
+        refreshPinnedFiles()
+    }
+
+    fun unpinFile(fileId: String) {
+        if (pinnedFileEntries.removeAll { it.id == fileId }) {
+            persistPinnedFiles()
+            refreshPinnedFiles()
+        }
+    }
+
+    fun restorePinnedFile(pin: PinnedFile) {
+        if (pinnedFileEntries.none { it.id == pin.id }) {
+            pinnedFileEntries.add(pin)
+            persistPinnedFiles()
+            refreshPinnedFiles()
+        }
+    }
+
+    private fun refreshPinnedFiles() {
+        val knownFileIds = fileModel.idsAndFiles.keys
+        if (pinnedFileEntries.removeAll { it.id !in knownFileIds }) {
+            persistPinnedFiles()
+        }
+
+        _pinnedFiles.value = pinnedFileEntries.toList()
+    }
+
+    private fun loadPinnedFiles() {
+        viewModelScope.launch {
+            val pins =
+                getApplication<Application>()
+                    .pinnedFilesDataStore
+                    .data
+                    .catch { exception ->
+                        if (exception is IOException) {
+                            Timber.e(exception, "Unable to read pinned files.")
+                            emit(emptyPreferences())
+                        } else {
+                            throw exception
+                        }
+                    }.map { preferences ->
+                        deserializePinnedFiles(preferences[pinnedFilesPreferenceKey] ?: "[]")
+                    }.flowOn(Dispatchers.IO)
+                    .first()
+
+            pinnedFileEntries = pins.toMutableList()
+            refreshPinnedFiles()
+        }
+    }
+
+    private fun deserializePinnedFiles(serializedPins: String): MutableList<PinnedFile> =
+        runCatching {
+            JSONArray(serializedPins)
+                .let { pins ->
+                    MutableList(pins.length()) { index ->
+                        val pin = pins.getJSONObject(index)
+                        PinnedFile(pin.getString("id"), pin.optString("emoji").takeIf { it.isNotBlank() })
+                    }
+                }.distinctBy { it.id }
+                .toMutableList()
+        }.onFailure { exception ->
+            Timber.e(exception, "Unable to parse pinned files.")
+        }.getOrDefault(mutableListOf())
+
+    private fun serializePinnedFiles(pins: List<PinnedFile>): String =
+        JSONArray()
+            .apply {
+                pins.forEach { pin ->
+                    put(
+                        JSONObject().apply {
+                            put("id", pin.id)
+                            putOpt("emoji", pin.emoji)
+                        },
+                    )
+                }
+            }.toString()
+
+    private fun persistPinnedFiles(pins: List<PinnedFile> = pinnedFileEntries.toList()) {
+        persistPinnedFilesJob?.cancel()
+        persistPinnedFilesJob =
+            viewModelScope.launch(Dispatchers.IO) {
+                val serializedPins = serializePinnedFiles(pins)
+
+                try {
+                    getApplication<Application>()
+                        .pinnedFilesDataStore
+                        .edit { preferences ->
+                            preferences[pinnedFilesPreferenceKey] = serializedPins
+                        }
+                } catch (exception: IOException) {
+                    Timber.e(exception, "Unable to persist pinned files.")
+                }
+            }
     }
 
     fun hydrateStatusUpdate(

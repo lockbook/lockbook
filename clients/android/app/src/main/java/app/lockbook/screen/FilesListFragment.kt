@@ -10,6 +10,8 @@ import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import android.view.*
+import android.widget.EditText
+import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
@@ -28,6 +30,7 @@ import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
+import com.google.android.material.snackbar.Snackbar
 import com.google.android.material.textview.MaterialTextView
 import com.leinardi.android.speeddial.SpeedDialActionItem
 import kotlinx.coroutines.Dispatchers
@@ -38,6 +41,15 @@ import net.lockbook.Lb
 import net.lockbook.LbError
 import java.lang.ref.WeakReference
 import java.util.*
+
+private enum class PinnedFileAction(
+    @param:StringRes val titleRes: Int,
+) {
+    ChangeEmoji(R.string.change_emoji),
+    RemoveEmoji(R.string.remove_emoji),
+    Unpin(R.string.unpin),
+    ShowInFolder(R.string.show_in_folder),
+}
 
 class FilesListFragment :
     Fragment(),
@@ -55,6 +67,12 @@ class FilesListFragment :
         FileTreeAdapter(
             onItemClick = ::onFileItemClicked,
             onItemLongClick = ::onFileItemLongClicked,
+        )
+    }
+    private val pinnedFilesAdapter by lazy {
+        PinnedFilesAdapter(
+            onItemClick = { enterFile(it.file) },
+            onItemLongClick = ::showPinnedFileActions,
         )
     }
 
@@ -80,6 +98,20 @@ class FilesListFragment :
                 val selectedFiles = getSelectedFiles()
 
                 when (item?.itemId) {
+                    R.id.menu_list_files_pin -> {
+                        val newlyPinned = model.pinFiles(selectedFiles.intoFileMetadata())
+                        if (newlyPinned.size == 1) {
+                            selectedFiles
+                                .firstOrNull { it.fileMetadata.id == newlyPinned.single().id }
+                                ?.let { showPinnedSnackbar(it.fileMetadata) }
+                        } else if (newlyPinned.isNotEmpty()) {
+                            Snackbar.make(binding.root, R.string.pinned, Snackbar.LENGTH_SHORT).show()
+                        } else {
+                            Snackbar.make(binding.root, R.string.already_pinned, Snackbar.LENGTH_SHORT).show()
+                        }
+                        unselectFiles()
+                    }
+
                     R.id.menu_list_files_rename -> {
                         if (selectedFiles.size == 1) {
                             activityModel.launchTransientScreen(TransientScreen.Rename(selectedFiles[0].fileMetadata))
@@ -154,6 +186,7 @@ class FilesListFragment :
         }
 
         setUpFilesList()
+        setUpPinnedFiles()
         observeFilesList()
 
         model.breadcrumbItems.observe(viewLifecycleOwner) {
@@ -400,6 +433,94 @@ class FilesListFragment :
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
         recyclerView.adapter = fileTreeAdapter
         recyclerView.itemAnimator = null
+    }
+
+    private fun setUpPinnedFiles() {
+        binding.pinnedFilesList.layoutManager = LinearLayoutManager(requireContext(), LinearLayoutManager.HORIZONTAL, false)
+        binding.pinnedFilesList.adapter = pinnedFilesAdapter
+        binding.pinnedFilesList.itemAnimator = null
+
+        model.pinnedFiles.observe(viewLifecycleOwner) { pins ->
+            val items =
+                pins.mapNotNull { pin ->
+                    model.fileModel.idsAndFiles[pin.id]?.let { file -> PinnedFileItem(pin, file) }
+                }
+            pinnedFilesAdapter.submitList(items)
+            binding.pinnedFilesSection.visibility = if (items.isEmpty()) View.GONE else View.VISIBLE
+        }
+    }
+
+    private fun showPinnedSnackbar(file: File) {
+        Snackbar
+            .make(binding.root, R.string.pinned, Snackbar.LENGTH_SHORT)
+            .setAction(R.string.add_emoji) {
+                showEmojiDialog(file.id, file.getPrettyName(), null)
+            }.show()
+    }
+
+    private fun showPinnedFileActions(item: PinnedFileItem) {
+        val actions =
+            buildList {
+                add(PinnedFileAction.ChangeEmoji)
+                if (item.pin.emoji != null) {
+                    add(PinnedFileAction.RemoveEmoji)
+                }
+                add(PinnedFileAction.Unpin)
+                add(PinnedFileAction.ShowInFolder)
+            }
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(item.file.getPrettyName())
+            .setItems(actions.map { getString(it.titleRes) }.toTypedArray()) { _, which ->
+                when (actions[which]) {
+                    PinnedFileAction.ChangeEmoji -> {
+                        showEmojiDialog(item.pin.id, item.file.getPrettyName(), item.pin.emoji)
+                    }
+
+                    PinnedFileAction.RemoveEmoji -> {
+                        model.setPinnedEmoji(item.pin.id, null)
+                    }
+
+                    PinnedFileAction.Unpin -> {
+                        model.unpinFile(item.pin.id)
+                        Snackbar
+                            .make(binding.root, R.string.unpinned, Snackbar.LENGTH_SHORT)
+                            .setAction(R.string.undo) { model.restorePinnedFile(item.pin) }
+                            .show()
+                    }
+
+                    PinnedFileAction.ShowInFolder -> {
+                        showPinnedFileInFolder(item.file)
+                    }
+                }
+            }.show()
+    }
+
+    private fun showEmojiDialog(
+        fileId: String,
+        fileName: String,
+        currentEmoji: String?,
+    ) {
+        val content = layoutInflater.inflate(R.layout.dialog_pick_pin_emoji, null)
+        val emojiInput = content.findViewById<EditText>(R.id.pin_emoji_input)
+        emojiInput.setText(currentEmoji)
+        emojiInput.setSelection(emojiInput.text.length)
+
+        MaterialAlertDialogBuilder(requireContext())
+            .setTitle(R.string.choose_pin_emoji)
+            .setMessage(fileName)
+            .setView(content)
+            .setNegativeButton(android.R.string.cancel, null)
+            .setPositiveButton(android.R.string.ok) { _, _ ->
+                model.setPinnedEmoji(fileId, emojiInput.text?.toString())
+            }.show()
+            .window
+            ?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
+    }
+
+    private fun showPinnedFileInFolder(file: File) {
+        val parent = model.fileModel.idsAndFiles[file.parent] ?: model.fileModel.root
+        enterFolder(parent)
     }
 
     private fun onFileItemClicked(item: FileViewHolderInfo) {
