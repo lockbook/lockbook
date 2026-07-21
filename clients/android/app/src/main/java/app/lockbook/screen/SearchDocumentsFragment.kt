@@ -31,6 +31,10 @@ import java.lang.ref.WeakReference
 class SearchDocumentsFragment : Fragment() {
     private lateinit var binding: FragmentSearchDocumentsBinding
 
+    companion object {
+        const val ARG_RETURN_TO_WORKSPACE = "return_to_workspace"
+    }
+
     private val model: SearchDocumentsViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
@@ -243,16 +247,14 @@ class SearchDocumentsFragment : Fragment() {
     }
 
     private fun showFiles() {
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+        val returnToWorkspace = arguments?.getBoolean(ARG_RETURN_TO_WORKSPACE) ?: false
+        activityModel.updateMainScreenUI(
+            if (returnToWorkspace) {
+                UpdateMainScreenUI.ShowDetailFromSearch
+            } else {
+                UpdateMainScreenUI.ShowFiles
+            },
+        )
     }
 
-    override fun onResume() {
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
-        super.onResume()
-    }
-
-    override fun onStop() {
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
-        super.onStop()
-    }
 }

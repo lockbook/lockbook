@@ -54,6 +54,7 @@ import com.afollestad.recyclical.withItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import net.lockbook.File
+import net.lockbook.File.FileType
 import kotlin.math.abs
 
 private const val EXPANDED_BOTTOM_SHEET_HEIGHT = 600
@@ -100,9 +101,10 @@ class WorkspaceFragment : Fragment() {
         onCreateTabList(workspaceWrapper)
 
         model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
+            println("LB_DEBUG workspace openFile id=$id newFile=$newFile -> ShowDetail")
             model.isFileTreeSyncedToCurrentTab = true
             workspaceWrapper.workspaceView.openDoc(id, newFile)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowDetail)
         }
 
         // Forward real IME visibility into the editor so touch long-press
@@ -138,8 +140,10 @@ class WorkspaceFragment : Fragment() {
 
         model.workspaceBackRequested.observe(viewLifecycleOwner) {
             val navigatedBack = workspaceWrapper.workspaceView.back()
+            println("LB_DEBUG workspaceBackRequested navigatedBack=$navigatedBack")
             if (!navigatedBack) {
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+                println("LB_DEBUG workspaceBackRequested -> ShowSidebar")
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSidebar)
             }
         }
 
@@ -169,7 +173,8 @@ class WorkspaceFragment : Fragment() {
                         model.tabs.removeAt(tabIndex)
                         model.tabs.insert(tabIndex, updatedTab)
 
-                        binding.tabsList.adapter?.notifyItemChanged(tabIndex)
+                        binding.compactTabsList.adapter?.notifyItemChanged(tabIndex)
+                        binding.expandedTabsList.adapter?.notifyItemChanged(tabIndex)
                     }
                 }
             }
@@ -204,7 +209,7 @@ class WorkspaceFragment : Fragment() {
         binding.workspaceToolbar.setNavigationOnClickListener {
             (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                 .hideSoftInputFromWindow(view?.windowToken, 0)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSidebar)
         }
 
         binding.workspaceToolbar.setOnClickListener {
@@ -239,48 +244,20 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun toggleTabListExpansion(shouldExpand: Boolean) {
-        val currOrientation = (binding.tabsList.layoutManager as LinearLayoutManager).orientation
-        if ((currOrientation == LinearLayoutManager.VERTICAL && shouldExpand) ||
-            (currOrientation == LinearLayoutManager.HORIZONTAL && !shouldExpand)
-        ) {
+        if (binding.expandedBottomSheetContent.isVisible == shouldExpand) {
             return
         }
 
-        val (newOrientation, newHeight) =
-            if (currOrientation == LinearLayoutManager.VERTICAL) {
-                LinearLayoutManager.HORIZONTAL to ViewGroup.LayoutParams.WRAP_CONTENT
+        val newHeight =
+            if (shouldExpand) {
+                EXPANDED_BOTTOM_SHEET_HEIGHT
             } else {
-                LinearLayoutManager.VERTICAL to EXPANDED_BOTTOM_SHEET_HEIGHT
+                ViewGroup.LayoutParams.WRAP_CONTENT
             }
 
         animateBottomSheetHeight(newHeight) {
-            binding.expandList.visibility =
-                if (binding.expandList.isVisible) {
-                    View.GONE
-                } else {
-                    View.VISIBLE
-                }
-            binding.forwardWs.visibility =
-                if (binding.forwardWs.isVisible) {
-                    View.GONE
-                } else {
-                    View.VISIBLE
-                }
-
-            binding.closeAllTabs.visibility =
-                if (binding.closeAllTabs.isVisible) {
-                    View.GONE
-                } else {
-                    View.VISIBLE
-                }
-
-            binding.tabsList.layoutManager =
-                LinearLayoutManager(
-                    requireContext(),
-                    newOrientation,
-                    false,
-                )
-            setupTabList()
+            setBottomSheetExpanded(shouldExpand)
+            scrollToCurrentTab(getCurrentFile()?.id)
         }
     }
 
@@ -329,7 +306,8 @@ class WorkspaceFragment : Fragment() {
                 } else {
                     (progress - 0.5f) * 2f // 0.0 -> 1.0
                 }
-            binding.tabsList.alpha = alpha
+            binding.collapsedBottomSheetContent.alpha = alpha
+            binding.expandedBottomSheetContent.alpha = alpha
         }
 
         animator.addUpdateListener(
@@ -417,7 +395,7 @@ class WorkspaceFragment : Fragment() {
                 .toList()
 
         model.tabs.set(openTabs)
-        binding.tabsList.adapter?.notifyDataSetChanged()
+        notifyTabListsChanged()
         binding.closeAllTabs.isEnabled = !model.tabs.isEmpty()
 
         scrollToCurrentTab(newTab.id)
@@ -431,7 +409,8 @@ class WorkspaceFragment : Fragment() {
         if (newTab == null) return
         val selectedPosition = model.tabs.indexOfFirst { it.id == newTab }
         if (selectedPosition != -1) {
-            binding.tabsList.scrollToPosition(selectedPosition)
+            binding.compactTabsList.scrollToPosition(selectedPosition)
+            binding.expandedTabsList.scrollToPosition(selectedPosition)
         }
     }
 
@@ -518,7 +497,8 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun onCreateTabList(workspaceWrapper: WorkspaceWrapperView) {
-        setupTabList()
+        setupTabLists()
+        setBottomSheetExpanded(model.tabListExpanded.value ?: false)
 
         model.tabListExpanded.observe(viewLifecycleOwner) { shouldExpand ->
             toggleTabListExpansion(shouldExpand)
@@ -528,15 +508,35 @@ class WorkspaceFragment : Fragment() {
             model._tabListExpanded.value = !(model.tabListExpanded.value ?: false)
         }
 
+        binding.collapseList.setOnClickListener {
+            model._tabListExpanded.value = false
+        }
+
         binding.forwardWs.setOnClickListener {
             workspaceWrapper.workspaceView.forward()
+        }
+
+        binding.searchWs.setOnClickListener {
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch(returnToWorkspace = true))
+        }
+
+        binding.searchWsCompact.setOnClickListener {
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch(returnToWorkspace = true))
+        }
+
+        binding.createWs.setOnClickListener {
+            activityModel.launchTransientScreen(TransientScreen.Create(getCreateParentId()))
+        }
+
+        binding.createWsCompact.setOnClickListener {
+            activityModel.launchTransientScreen(TransientScreen.Create(getCreateParentId()))
         }
 
         binding.closeAllTabs.setOnClickListener {
             workspaceWrapper.workspaceView.closeAllTabs()
             workspaceWrapper.workspaceView.invalidate()
             model._tabListExpanded.postValue(false)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.CloseWorkspacePane)
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSidebar)
         }
     }
 
@@ -544,45 +544,87 @@ class WorkspaceFragment : Fragment() {
         binding.forwardWs.isEnabled = workspaceWrapper.workspaceView.canForward()
     }
 
-    @SuppressLint("NotifyDataSetChanged")
-    private fun setupTabList() {
-        binding.tabsList.setup {
+    private fun setBottomSheetExpanded(isExpanded: Boolean) {
+        binding.collapsedBottomSheetContent.isVisible = !isExpanded
+        binding.expandedBottomSheetContent.isVisible = isExpanded
+        binding.collapsedBottomSheetContent.alpha = 1f
+        binding.expandedBottomSheetContent.alpha = 1f
+    }
+
+    private fun getCreateParentId(): String {
+        val currentFile = getCurrentFile()
+        return when {
+            currentFile?.type == FileType.Folder -> currentFile.id
+            currentFile?.parent != null -> currentFile.parent
+            else -> filesListModel.fileModel.parent.id
+        }
+    }
+
+    private fun setupTabLists() {
+        setupCompactTabList()
+        setupExpandedTabList()
+    }
+
+    private fun setupCompactTabList() {
+        binding.compactTabsList.layoutManager =
+            LinearLayoutManager(
+                requireContext(),
+                LinearLayoutManager.HORIZONTAL,
+                false,
+            )
+
+        binding.compactTabsList.setup {
             withDataSource(model.tabs)
 
-            val orientation = (binding.tabsList.layoutManager as LinearLayoutManager).orientation
-            if (orientation == LinearLayoutManager.HORIZONTAL) {
-                withItem<File, HorizontalTabItemHolder>(R.layout.horizontal_tab_item) {
-                    onBind(::HorizontalTabItemHolder) { i, item ->
-                        name.text = item.name
-                        name.isChecked = getCurrentFile()?.id == item.id
-                    }
-                    onClick {
-                        switchTab(item.id)
-                    }
+            withItem<File, HorizontalTabItemHolder>(R.layout.horizontal_tab_item) {
+                onBind(::HorizontalTabItemHolder) { i, item ->
+                    name.text = item.name
+                    name.isChecked = getCurrentFile()?.id == item.id
                 }
-            } else {
-                withItem<File, VerticalTabItemHolder>(R.layout.vertical_tab_item) {
-                    onBind(::VerticalTabItemHolder) { i, item ->
-                        name.text = item.name
-                        val isSelected = getCurrentFile()?.id == item.id
+                onClick {
+                    switchTab(item.id)
+                }
+            }
+        }
+    }
 
-                        name.isChecked = isSelected
-                        name.setIconResource(item.getIconResource())
+    private fun setupExpandedTabList() {
+        binding.expandedTabsList.layoutManager =
+            LinearLayoutManager(
+                requireContext(),
+                LinearLayoutManager.VERTICAL,
+                false,
+            )
 
-                        closeButton.isChecked = isSelected
-                        closeButton.setOnClickListener {
-                            model._closeFile.value = item.id
-                            binding.tabsList.adapter?.notifyDataSetChanged()
-                        }
+        binding.expandedTabsList.setup {
+            withDataSource(model.tabs)
 
-                        name.setOnClickListener {
-                            switchTab(item.id)
-                        }
+            withItem<File, VerticalTabItemHolder>(R.layout.vertical_tab_item) {
+                onBind(::VerticalTabItemHolder) { i, item ->
+                    name.text = item.name
+                    val isSelected = getCurrentFile()?.id == item.id
+
+                    name.isChecked = isSelected
+                    name.setIconResource(item.getIconResource())
+
+                    closeButton.isChecked = isSelected
+                    closeButton.setOnClickListener {
+                        model._closeFile.value = item.id
+                        notifyTabListsChanged()
+                    }
+
+                    name.setOnClickListener {
+                        switchTab(item.id)
                     }
                 }
             }
         }
+    }
 
+    @SuppressLint("NotifyDataSetChanged")
+    private fun notifyTabListsChanged() {
+        binding.compactTabsList.adapter?.notifyDataSetChanged()
+        binding.expandedTabsList.adapter?.notifyDataSetChanged()
         scrollToCurrentTab(getCurrentFile()?.id)
     }
 

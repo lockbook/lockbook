@@ -50,16 +50,6 @@ class ShareFileFragment : Fragment() {
         return binding.root
     }
 
-    override fun onResume() {
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
-        super.onResume()
-    }
-
-    override fun onStop() {
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
-        super.onStop()
-    }
-
     private fun populateShares(file: File) {
         binding.shareFileAddUser.setOnClickListener {
             val username = binding.shareFileUsername.text.toString()

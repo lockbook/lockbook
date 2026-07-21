@@ -21,7 +21,6 @@ import androidx.core.view.isVisible
 import androidx.fragment.app.*
 import androidx.lifecycle.lifecycleScope
 import androidx.navigation.ui.setupWithNavController
-import androidx.slidingpanelayout.widget.SlidingPaneLayout
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.billing.BillingEvent
@@ -40,10 +39,15 @@ import java.lang.ref.WeakReference
 class MainScreenActivity : AppCompatActivity() {
     private var _binding: ActivityMainScreenBinding? = null
     val binding get() = _binding!!
-    private val slidingPaneLayout get() = binding.slidingPaneLayout
+    private lateinit var workspaceShell: AdaptiveWorkspaceShell
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
+    }
+
+    companion object {
+        private const val SIDEBAR_SEARCH_FRAGMENT_TAG = "SidebarSearch"
+        private const val WORKSPACE_FRAGMENT_TAG = "Workspace"
     }
 
     private val fragmentFinishedCallback =
@@ -103,6 +107,18 @@ class MainScreenActivity : AppCompatActivity() {
 
         _binding = ActivityMainScreenBinding.inflate(layoutInflater)
         setContentView(binding.root)
+        workspaceShell = binding.root
+        workspaceShell.setOnModeChangedListener { mode ->
+            window?.setSoftInputMode(
+                if (mode == WorkspaceShellMode.SidebarOnly) {
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN
+                } else {
+                    WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING
+                },
+            )
+            (maybeGetFilesFragment() as? FilesListFragment)?.updateOpenDetailButtonVisibility()
+        }
+        ensureWorkspaceFragment()
 
         ThemeMode.affirmThemeModeFromSaved(baseContext)
 
@@ -112,15 +128,6 @@ class MainScreenActivity : AppCompatActivity() {
             fragmentFinishedCallback,
             false,
         )
-
-        val wFragment = supportFragmentManager.findFragmentByTag("Workspace")
-
-        if (wFragment == null) {
-            supportFragmentManager.commit {
-                setReorderingAllowed(true)
-                add<WorkspaceFragment>(R.id.detail_container, "Workspace")
-            }
-        }
 
         (application as App).billingClientLifecycle.apply {
             this@MainScreenActivity.lifecycle.addObserver(this)
@@ -148,8 +155,6 @@ class MainScreenActivity : AppCompatActivity() {
         if (model.exportImportModel.isLoadingOverlayVisible) {
             updateMainScreenUI(UpdateMainScreenUI.ShowHideProgressOverlay(model.exportImportModel.isLoadingOverlayVisible))
         }
-
-        slidingPaneLayout.lockMode = SlidingPaneLayout.LOCK_MODE_LOCKED
 
         model.launchActivityScreen.observe(
             this,
@@ -211,7 +216,7 @@ class MainScreenActivity : AppCompatActivity() {
                         setTransition(FragmentTransaction.TRANSIT_FRAGMENT_FADE)
                         addToBackStack(WorkspaceFragment.BACKSTACK_TAG)
 
-                        slidingPaneLayout.openPane()
+                        workspaceShell.showDetail()
                     }
                 }
 
@@ -234,15 +239,26 @@ class MainScreenActivity : AppCompatActivity() {
             this,
             object : OnBackPressedCallback(true) {
                 override fun handleOnBackPressed() {
-                    if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+                    println(
+                        "LB_DEBUG back detail=${supportFragmentManager.findFragmentById(R.id.detail_container)?.javaClass?.simpleName} " +
+                            "shell=${workspaceShell.mode} detailVisible=${workspaceShell.isDetailVisible} " +
+                            "search=${maybeGetSearchFilesFragment() != null} sidebarSearch=${isSidebarSearchVisible()}",
+                    )
+                    val detailFragment = supportFragmentManager.findFragmentById(R.id.detail_container)
+                    if (detailFragment != null && detailFragment !is WorkspaceFragment) {
+                        println("LB_DEBUG back -> pop detail backstack")
                         model.updateMainScreenUI(UpdateMainScreenUI.PopBackstackToWorkspace)
-                    } else if (slidingPaneLayout.isSlideable && slidingPaneLayout.isOpen) {
-                        // On small displays where only files or an editor show at once,
-                        // handle back behavior differently.
+                    } else if (workspaceShell.isDetailVisible) {
+                        println("LB_DEBUG back -> request workspace back")
                         workspaceModel.requestWorkspaceBack()
+                    } else if (isSidebarSearchVisible()) {
+                        println("LB_DEBUG back -> show detail from sidebar search")
+                        updateMainScreenUI(UpdateMainScreenUI.ShowDetailFromSearch)
                     } else if (maybeGetSearchFilesFragment() != null) {
+                        println("LB_DEBUG back -> show files")
                         updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
                     } else if (maybeGetFilesFragment() == null || maybeGetFilesFragment()?.onBackPressed() == true) {
+                        println("LB_DEBUG back -> default back")
                         isEnabled = false // Disable this callback to allow normal back behavior
                         onBackPressedDispatcher.onBackPressed()
                     }
@@ -255,41 +271,33 @@ class MainScreenActivity : AppCompatActivity() {
             },
         )
 
-        slidingPaneLayout.addPanelSlideListener(
-            object : SlidingPaneLayout.SimplePanelSlideListener() {
-                override fun onPanelOpened(panel: View) {
-                    window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING)
-                }
-
-                override fun onPanelClosed(panel: View) {
-                    window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN)
-                }
-
-                override fun onPanelSlide(
-                    panel: View,
-                    slideOffset: Float,
-                ) {
-                }
-            },
-        )
-
         val navController = navHost().navController
         binding.bottomNavigation.setupWithNavController(navController)
+        navController.addOnDestinationChangedListener { _, destination, _ ->
+            binding.bottomNavigation.isVisible =
+                destination.id in setOf(
+                    R.id.filesListFragment,
+                    R.id.pendingSharesFragment,
+                )
+        }
     }
 
     override fun onResume() {
         super.onResume()
         intent.extras?.getString(ShareReceiverActivity.IMPORTED_FILE_KEY)?.let { dest ->
             workspaceModel._openFile.postValue(Pair(dest, false))
+            showWorkspaceDetail()
             intent.removeExtra(ShareReceiverActivity.IMPORTED_FILE_KEY)
         }
     }
 
     private fun updateMainScreenUI(update: UpdateMainScreenUI) {
+        println("LB_DEBUG updateMainScreenUI ${update.javaClass.simpleName}")
         when (update) {
             is UpdateMainScreenUI.OpenFile -> {
                 if (update.id != null) {
                     workspaceModel._openFile.value = Pair(update.id, false)
+                    showWorkspaceDetail()
                 } else {
                     if (workspaceModel.currentTab.value != null) {
                         workspaceModel._closeFile.value = workspaceModel.currentTab.value?.id
@@ -299,15 +307,20 @@ class MainScreenActivity : AppCompatActivity() {
 
             is UpdateMainScreenUI.OpenFileFromSearch -> {
                 workspaceModel._openFile.value = Pair(update.id, false)
-                navHost().navController.popBackStack()
+                if (isSidebarSearchVisible()) {
+                    showSidebarFiles()
+                    showWorkspaceDetail()
+                } else {
+                    navHost().navController.popBackStack()
+                }
             }
 
-            is UpdateMainScreenUI.CloseWorkspacePane -> {
-                slidingPaneLayout.closePane()
+            UpdateMainScreenUI.ShowSidebar -> {
+                workspaceShell.showSidebar()
             }
 
-            is UpdateMainScreenUI.OpenWorkspacePane -> {
-                slidingPaneLayout.openPane()
+            UpdateMainScreenUI.ShowDetail -> {
+                showWorkspaceDetail()
             }
 
             is UpdateMainScreenUI.NotifyError -> {
@@ -331,33 +344,89 @@ class MainScreenActivity : AppCompatActivity() {
             }
 
             UpdateMainScreenUI.PopBackstackToWorkspace -> {
-                if (supportFragmentManager.findFragmentById(R.id.detail_container) !is WorkspaceFragment) {
+                val detailFragment = supportFragmentManager.findFragmentById(R.id.detail_container)
+                if (detailFragment != null && detailFragment !is WorkspaceFragment) {
                     supportFragmentManager.popBackStack(WorkspaceFragment.BACKSTACK_TAG, FragmentManager.POP_BACK_STACK_INCLUSIVE)
                 }
             }
 
-            UpdateMainScreenUI.ShowSearch -> {
-                navHost().navController.navigate(R.id.action_files_to_search)
+            is UpdateMainScreenUI.ShowSearch -> {
+                val args =
+                    Bundle().apply {
+                        putBoolean(SearchDocumentsFragment.ARG_RETURN_TO_WORKSPACE, update.returnToWorkspace)
+                    }
+
+                if (update.returnToWorkspace) {
+                    showSidebarSearch(args)
+                } else {
+                    val navController = navHost().navController
+                    if (navController.currentDestination?.id != R.id.searchFilesFragment) {
+                        navController.navigate(R.id.searchFilesFragment, args)
+                    }
+                }
             }
 
             UpdateMainScreenUI.ShowFiles -> {
                 navHost().navController.popBackStack()
             }
 
-            UpdateMainScreenUI.ToggleBottomViewNavigation -> {
-                binding.bottomNavigation.visibility =
-                    if (binding.bottomNavigation.isVisible) {
-                        View.GONE
-                    } else {
-                        View.VISIBLE
-                    }
+            UpdateMainScreenUI.ShowDetailFromSearch -> {
+                if (isSidebarSearchVisible()) {
+                    showSidebarFiles()
+                } else {
+                    navHost().navController.popBackStack()
+                }
+                showWorkspaceDetail()
             }
 
-            UpdateMainScreenUI.CloseSlidingPane -> {
-                slidingPaneLayout.closePane()
-            }
         }
     }
+
+    fun isShowingSidebarOnly(): Boolean = workspaceShell.isSidebarOnly
+
+    private fun ensureWorkspaceFragment() {
+        if (supportFragmentManager.findFragmentByTag(WORKSPACE_FRAGMENT_TAG) != null) {
+            return
+        }
+
+        supportFragmentManager.commitNow {
+            setReorderingAllowed(true)
+            add<WorkspaceFragment>(R.id.detail_container, WORKSPACE_FRAGMENT_TAG)
+        }
+    }
+
+    private fun showWorkspaceDetail() {
+        workspaceShell.showDetail()
+    }
+
+    private fun showSidebarSearch(args: Bundle) {
+        val existingSearchFragment = supportFragmentManager.findFragmentByTag(SIDEBAR_SEARCH_FRAGMENT_TAG)
+        if (existingSearchFragment == null) {
+            supportFragmentManager.commitNow {
+                setReorderingAllowed(true)
+                add<SearchDocumentsFragment>(R.id.sidebar_search_container, SIDEBAR_SEARCH_FRAGMENT_TAG, args)
+            }
+        }
+
+        binding.sidebarFilesContainer.visibility = View.GONE
+        binding.sidebarSearchContainer.visibility = View.VISIBLE
+        workspaceShell.showSidebar()
+    }
+
+    private fun showSidebarFiles() {
+        binding.sidebarSearchContainer.visibility = View.GONE
+        binding.sidebarFilesContainer.visibility = View.VISIBLE
+        binding.bottomNavigation.isVisible = isBottomNavigationDestination()
+    }
+
+    private fun isSidebarSearchVisible(): Boolean = binding.sidebarSearchContainer.isVisible
+
+    private fun isBottomNavigationDestination(): Boolean =
+        navHost().navController.currentDestination?.id in
+            setOf(
+                R.id.filesListFragment,
+                R.id.pendingSharesFragment,
+            )
 
     private fun finalizeShare(files: List<File>) {
         val uris = ArrayList<Uri>()

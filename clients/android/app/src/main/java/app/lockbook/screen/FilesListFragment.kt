@@ -264,7 +264,7 @@ class FilesListFragment :
             }
 
             currentTab = it
-            updateOpenWorkspacePaneButtonVisibility()
+            updateOpenDetailButtonVisibility()
         }
 
         val header = binding.navigationView.getHeaderView(0)
@@ -324,7 +324,7 @@ class FilesListFragment :
         }
 
         binding.root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateOpenWorkspacePaneButtonVisibility()
+            updateOpenDetailButtonVisibility()
         }
 
         binding.navigationView.getHeaderView(0).let { header ->
@@ -352,11 +352,11 @@ class FilesListFragment :
         binding.filesToolbar.setOnMenuItemClickListener { item ->
             when (item.itemId) {
                 R.id.menu_files_list_search -> {
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch)
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch())
                 }
 
                 R.id.menu_files_list_open_ws -> {
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowDetail)
                 }
             }
 
@@ -366,19 +366,19 @@ class FilesListFragment :
         }
 
         toggleMenuBar()
-        updateOpenWorkspacePaneButtonVisibility()
+        updateOpenDetailButtonVisibility()
     }
 
-    private fun updateOpenWorkspacePaneButtonVisibility() {
-        val isWorkspacePaneSlideable =
-            (activity as? MainScreenActivity)
-                ?.binding
-                ?.slidingPaneLayout
-                ?.isSlideable == true
+    fun updateOpenDetailButtonVisibility() {
+        if (_binding == null) {
+            return
+        }
+
+        val isSidebarOnly = (activity as? MainScreenActivity)?.isShowingSidebarOnly() == true
         val isWelcomeOpen = currentTab.type == WorkspaceTabType.Welcome
 
         menu.menu.findItem(R.id.menu_files_list_open_ws)?.isVisible =
-            isWorkspacePaneSlideable && !isWelcomeOpen
+            isSidebarOnly && !isWelcomeOpen
     }
 
     private fun observeFilesList() {

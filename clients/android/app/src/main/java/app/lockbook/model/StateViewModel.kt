@@ -137,17 +137,17 @@ sealed class UpdateMainScreenUI {
 
     object ShowSubscriptionConfirmed : UpdateMainScreenUI()
 
-    object ShowSearch : UpdateMainScreenUI()
+    data class ShowSearch(
+        val returnToWorkspace: Boolean = false,
+    ) : UpdateMainScreenUI()
 
     object ShowFiles : UpdateMainScreenUI()
 
+    object ShowDetailFromSearch : UpdateMainScreenUI()
+
     object PopBackstackToWorkspace : UpdateMainScreenUI()
 
-    object ToggleBottomViewNavigation : UpdateMainScreenUI()
+    object ShowSidebar : UpdateMainScreenUI()
 
-    object CloseSlidingPane : UpdateMainScreenUI()
-
-    object CloseWorkspacePane : UpdateMainScreenUI()
-
-    object OpenWorkspacePane : UpdateMainScreenUI()
+    object ShowDetail : UpdateMainScreenUI()
 }
