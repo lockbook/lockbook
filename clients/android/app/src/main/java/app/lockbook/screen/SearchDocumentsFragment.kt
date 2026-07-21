@@ -26,6 +26,8 @@ import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.listitem.ListItemLayout
+import net.lockbook.File
+import net.lockbook.File.FileType
 import java.lang.ref.WeakReference
 
 class SearchDocumentsFragment : Fragment() {
@@ -47,6 +49,7 @@ class SearchDocumentsFragment : Fragment() {
         },
     )
     private val activityModel: StateViewModel by activityViewModels()
+    private val fileTreeModel: FileTreeViewModel by activityViewModels()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
@@ -126,7 +129,7 @@ class SearchDocumentsFragment : Fragment() {
                     )
 
                     fileItemHolder.setOnClickListener {
-                        openSearchResult(item.file.id)
+                        openSearchResult(item.file)
                     }
                 }
             }
@@ -150,7 +153,7 @@ class SearchDocumentsFragment : Fragment() {
                     }
 
                     itemHolder.setOnClickListener {
-                        openSearchResult(item.file.id)
+                        openSearchResult(item.file)
                     }
                 }
             }
@@ -195,9 +198,20 @@ class SearchDocumentsFragment : Fragment() {
         return binding.root
     }
 
-    private fun openSearchResult(fileId: String) {
+    private fun openSearchResult(file: File) {
         binding.searchDocumentsSearch.clearFocus()
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(fileId))
+        when (file.type) {
+            FileType.Document -> {
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(file.id))
+            }
+
+            FileType.Folder -> {
+                fileTreeModel.enterFolder(file)
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+            }
+
+            FileType.Link -> {} // shouldn't happen
+        }
     }
 
     private fun updateSearchResultAppearance(
