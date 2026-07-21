@@ -430,7 +430,7 @@
 //      FIXME: Can we just do this in rust?
             let newFile = UUID(uuid: output.doc_created._0)
             if !newFile.isNil() {
-                workspaceInput?.openFile(id: newFile)
+                workspaceInput?.openFile(id: newFile, newTab: true)
             }
 
             if output.urls_opened.size > 0 {

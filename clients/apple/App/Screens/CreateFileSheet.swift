@@ -285,7 +285,7 @@ struct CreateFileSheet: View {
             filesModel.loadFiles()
 
             if !file.isFolder {
-                workspaceInput.openFile(id: file.id)
+                workspaceInput.openFile(id: file.id, newTab: true)
                 homeState.compactColumn = .detail
             }
 

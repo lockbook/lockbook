@@ -47,7 +47,10 @@ import Observation
 
     public init() {}
 
-    public func openFile(id: UUID, newTab: Bool = true) {
+    /// Open a file. Default is in place (navigate the current tab, like
+    /// Obsidian / the egui file tree). Pass `newTab: true` for create, reopen,
+    /// multi-window, or explicit "open in new tab".
+    public func openFile(id: UUID, newTab: Bool = false) {
         guard let wsHandle else {
             pendingOpens.append(id)
             return
@@ -61,7 +64,7 @@ import Observation
         //        focus.send(())
     }
 
-    public func openFile(id: UUID, rangeStart: Int, rangeEnd: Int, newTab: Bool = true) {
+    public func openFile(id: UUID, rangeStart: Int, rangeEnd: Int, newTab: Bool = false) {
         guard let wsHandle else { return }
 
         let uuid = CUuid(_0: id.uuid)
@@ -189,6 +192,22 @@ import Observation
         guard let wsHandle else { return [] }
 
         return tabIds(from: get_recently_closed_tabs(wsHandle))
+    }
+
+    /// Restores the most recently closed tab with its back/forward history.
+    public func reopenLastClosedTab() {
+        guard let wsHandle else { return }
+
+        reopen_last_closed_tab(wsHandle)
+        redraw.send(())
+    }
+
+    /// Restores a closed file tab by id (full slot history + placement).
+    public func reopenClosedFile(id: UUID) {
+        guard let wsHandle else { return }
+
+        reopen_closed_file(wsHandle, CUuid(_0: id.uuid))
+        redraw.send(())
     }
 
     public func moveTab(from: Int, to: Int) {

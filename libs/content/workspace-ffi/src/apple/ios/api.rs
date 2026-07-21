@@ -912,12 +912,28 @@ pub unsafe extern "C" fn get_recently_closed_tabs(obj: *mut c_void) -> TabsIds {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let ids: Vec<CUuid> = obj
         .workspace
-        .recently_closed_tabs
-        .iter()
-        .map(|&id| id.into())
+        .recently_closed_tabs()
+        .into_iter()
+        .map(Into::into)
         .collect();
 
     TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn reopen_last_closed_tab(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.reopen_closed_tab();
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn reopen_closed_file(obj: *mut c_void, id: CUuid) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.reopen_closed_file(id.into());
 }
 
 /// # Safety
@@ -1102,10 +1118,7 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn close_all_tabs(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    while !obj.workspace.tab_strip.is_empty() {
-        obj.workspace.close_tab(0);
-    }
+    obj.workspace.close_all_tabs();
 }
 
 /// # Safety

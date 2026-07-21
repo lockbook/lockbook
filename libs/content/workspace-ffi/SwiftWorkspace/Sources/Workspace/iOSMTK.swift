@@ -1575,7 +1575,7 @@
             //      FIXME: Can we just do this in rust?
             let newFile = UUID(uuid: output.doc_created._0)
             if !newFile.isNil() {
-                mtkView.workspaceInput?.openFile(id: newFile)
+                mtkView.workspaceInput?.openFile(id: newFile, newTab: true)
             }
 
             if output.urls_opened.size > 0 {
