@@ -14,7 +14,7 @@ use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::consume_indent_columns;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format, Layout};
 
-use crate::theme::palette_v2::ThemeExt as _;
+use crate::theme::palette_v2::{ThemeExt as _, translucent_over};
 
 /// Language tokens whose bundled syntect grammar panics inside
 /// `highlight_line` — fancy-regex can't compile features the
@@ -143,13 +143,15 @@ impl<'ast> MdRender {
         let row_height = self.layout.row_height;
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        if let Some(code) = self.ctx.get_lb_theme().code_variant() {
-            ui.painter().rect_filled(rect, 2., code.background);
+        let theme = self.ctx.get_lb_theme();
+        if let Some(code) = theme.code_variant() {
+            let fill = translucent_over(code.background, theme.neutral_bg(), 0.5);
+            ui.painter().rect_filled(rect, 2., fill);
         }
         ui.painter().rect_stroke(
             rect,
             2.,
-            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
+            Stroke::new(1., theme.neutral_bg_tertiary()),
             egui::epaint::StrokeKind::Inside,
         );
 
@@ -280,13 +282,15 @@ impl<'ast> MdRender {
         let height = self.height_indented_code_block(node, node_code_block, synthetic);
 
         let rect = Rect::from_min_size(top_left, Vec2::new(width, height));
-        if let Some(code) = self.ctx.get_lb_theme().code_variant() {
-            ui.painter().rect_filled(rect, 2., code.background);
+        let theme = self.ctx.get_lb_theme();
+        if let Some(code) = theme.code_variant() {
+            let fill = translucent_over(code.background, theme.neutral_bg(), 0.5);
+            ui.painter().rect_filled(rect, 2., fill);
         }
         ui.painter().rect_stroke(
             rect,
             2.,
-            Stroke::new(1., self.ctx.get_lb_theme().neutral_bg_tertiary()),
+            Stroke::new(1., theme.neutral_bg_tertiary()),
             egui::epaint::StrokeKind::Inside,
         );
 
