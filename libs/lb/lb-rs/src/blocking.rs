@@ -135,6 +135,10 @@ impl Lb {
         self.block_on(self.lb.delete(id))
     }
 
+    pub fn duplicate_file(&self, id: &Uuid) -> LbResult<File> {
+        self.block_on(self.lb.duplicate_file(id))
+    }
+
     pub fn read_document(&self, id: Uuid, user_activity: bool) -> LbResult<DecryptedDocument> {
         self.block_on(self.lb.read_document(id, user_activity))
     }

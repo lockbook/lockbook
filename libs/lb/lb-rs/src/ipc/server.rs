@@ -190,6 +190,7 @@ pub(crate) async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::RenameFile { id, new_name } => enc(lb.rename_file(&id, &new_name).await),
         Request::MoveFile { id, new_parent } => enc(lb.move_file(&id, &new_parent).await),
         Request::Delete { id } => enc(lb.delete(&id).await),
+        Request::DuplicateFile { id } => enc(lb.duplicate_file(&id).await),
         Request::Root => enc(lb.root().await),
         Request::ListMetadatas => enc(lb.list_metadatas().await),
         Request::GetChildren { id } => enc(lb.get_children(&id).await),
