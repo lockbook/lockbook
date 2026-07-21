@@ -289,7 +289,7 @@ class MainScreenActivity : AppCompatActivity() {
         when (update) {
             is UpdateMainScreenUI.OpenFile -> {
                 if (update.id != null) {
-                    workspaceModel._openFile.value = Pair(update.id, false)
+                    workspaceModel._openFile.value = Pair(update.id, true)
                 } else {
                     if (workspaceModel.currentTab.value != null) {
                         workspaceModel._closeFile.value = workspaceModel.currentTab.value?.id
