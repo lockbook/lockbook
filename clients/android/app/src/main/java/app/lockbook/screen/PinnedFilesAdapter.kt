@@ -3,13 +3,11 @@ package app.lockbook.screen
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.widget.ImageView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
 import app.lockbook.model.PinnedFile
-import app.lockbook.util.getIconResource
 import com.google.android.material.textview.MaterialTextView
 import net.lockbook.File
 
@@ -36,10 +34,8 @@ class PinnedFilesAdapter(
     ) {
         val item = getItem(position)
         holder.title.text = item.file.getPrettyName()
-        holder.icon.setImageResource(item.file.getIconResource())
         holder.emoji.text = item.pin.emoji
         holder.emoji.visibility = if (item.pin.emoji == null) View.GONE else View.VISIBLE
-        holder.icon.visibility = if (item.pin.emoji == null) View.VISIBLE else View.GONE
         holder.itemView.setOnClickListener { onItemClick(item) }
         holder.itemView.setOnLongClickListener {
             onItemLongClick(item)
@@ -51,7 +47,6 @@ class PinnedFilesAdapter(
         itemView: View,
     ) : RecyclerView.ViewHolder(itemView) {
         val emoji: MaterialTextView = itemView.findViewById(R.id.pinned_file_emoji)
-        val icon: ImageView = itemView.findViewById(R.id.pinned_file_icon)
         val title: MaterialTextView = itemView.findViewById(R.id.pinned_file_title)
     }
 }

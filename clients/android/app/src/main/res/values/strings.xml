@@ -85,10 +85,9 @@
     <string name="create_file_title_folder">New Folder</string>
 
     <string name="files_list_items_selected">%d Selected</string>
-    <string name="pinned_files">Pinned</string>
-    <string name="pinned_files_key">pinned_files</string>
     <string name="pin">Pin</string>
     <string name="pinned">Pinned</string>
+    <string name="already_pinned">Already pinned</string>
     <string name="add_emoji">Add emoji</string>
     <string name="change_emoji">Change emoji</string>
     <string name="remove_emoji">Remove emoji</string>
@@ -96,7 +95,7 @@
     <string name="unpinned">Unpinned</string>
     <string name="undo">Undo</string>
     <string name="show_in_folder">Show in folder</string>
-    <string name="choose_pin_emoji">Choose pin emoji</string>
+    <string name="choose_pin_emoji">Choose an emoji for your pin</string>
     <string name="pin_emoji_hint">Emoji</string>
 
     <string name="settings_open_new_document_automatically">Automatically open new files.</string>

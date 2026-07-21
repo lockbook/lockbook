@@ -12,6 +12,6 @@
         android:layout_height="wrap_content"
         android:hint="@string/pin_emoji_hint"
         android:imeOptions="actionDone"
-        android:inputType="textCapSentences"
+        android:inputType="textShortMessage"
         android:maxLines="1" />
 </com.google.android.material.textfield.TextInputLayout>

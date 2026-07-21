@@ -30,33 +30,16 @@
                 android:background="?attr/colorSurfaceContainerLow"
                 app:menu="@menu/menu_files_list"
                 app:navigationIcon="@drawable/ic_outline_menu_24"
-                app:title="@string/lockbook_title" />
-
-            <app.lockbook.ui.BreadCrumbView
-                android:id="@+id/files_breadcrumb_bar"
-                android:layout_width="match_parent"
-                android:layout_height="wrap_content"
-                android:background="?attr/colorSurfaceContainerLow"
-                app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
-                android:minHeight="20dp"
                 />
 
             <LinearLayout
                 android:id="@+id/pinned_files_section"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
+                android:paddingHorizontal="12dp"
+                android:paddingVertical="4dp"
                 android:orientation="vertical"
-                android:paddingTop="8dp"
-                android:paddingBottom="8dp"
                 android:visibility="gone">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="match_parent"
-                    android:layout_height="wrap_content"
-                    android:paddingHorizontal="16dp"
-                    android:paddingBottom="4dp"
-                    android:text="@string/pinned_files"
-                    android:textAppearance="?attr/textAppearanceTitleSmall" />
 
                 <androidx.recyclerview.widget.RecyclerView
                     android:id="@+id/pinned_files_list"
@@ -64,9 +47,19 @@
                     android:layout_height="wrap_content"
                     android:clipToPadding="false"
                     android:overScrollMode="never"
-                    android:paddingHorizontal="12dp"
                     android:scrollbars="none" />
             </LinearLayout>
+
+            <app.lockbook.ui.BreadCrumbView
+                android:id="@+id/files_breadcrumb_bar"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="?attr/colorSurfaceContainerLow"
+                android:paddingHorizontal="12dp"
+                app:arrow_drawable="@drawable/ic_baseline_keyboard_arrow_right_24"
+                />
+
+
 
         </com.google.android.material.appbar.AppBarLayout>
 
