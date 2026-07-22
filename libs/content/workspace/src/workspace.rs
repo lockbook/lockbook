@@ -516,13 +516,11 @@ impl Workspace {
             return;
         }
 
-        // Prefer full closed-tab restore when this dest is still on the closed
-        // stack (preserves back/forward instead of in-place navigate).
-        if self.closed_tabs.iter().any(|c| c.slot.dest == dest) {
-            self.reopen_closed_file(id);
-            return;
-        }
-
+        // Ordinary open never rehydrates a closed slot's back/forward (browsers
+        // don't either). Full session restore is only via reopen_closed_tab /
+        // reopen_closed_file (Cmd+Shift+T, Recently Closed, strip menu).
+        // open_dest / create_tab still drop matching closed entries so the
+        // file leaves the recently-closed list when opened normally.
         if in_new_tab {
             self.create_tab(dest, make_current);
             return;
