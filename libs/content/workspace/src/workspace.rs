@@ -516,13 +516,7 @@ impl Workspace {
             return;
         }
 
-        // Prefer full closed-tab restore when this dest is still on the closed
-        // stack (preserves back/forward instead of in-place navigate).
-        if self.closed_tabs.iter().any(|c| c.slot.dest == dest) {
-            self.reopen_closed_file(id);
-            return;
-        }
-
+        // new tab
         if in_new_tab {
             self.create_tab(dest, make_current);
             return;
