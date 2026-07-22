@@ -441,9 +441,10 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    // Plain open = in place; `new_file` (create / explicit new surface) = new tab.
-    let in_new_tab = new_file != 0;
-    obj.workspace.open_file(id, true, in_new_tab);
+    // Always open in a new tab (pre-#4918 / mobile strip behavior). `new_file`
+    // is retained for the JNI signature used by Kotlin callers.
+    let _ = new_file;
+    obj.workspace.open_file(id, true, true);
     get_current_tab(obj)
 }
 
