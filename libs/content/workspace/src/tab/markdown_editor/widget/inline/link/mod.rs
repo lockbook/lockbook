@@ -316,11 +316,11 @@ impl<'ast> MdRender {
         self.link_resolver.resolve_link(url)
     }
 
-    /// Open `url` in-app (in place) for internal file links, or in the system
-    /// browser for external URLs. Shared by link and image interaction handlers.
+    /// Open `url` in a new tab, navigating in-app for internal file links and
+    /// to the browser otherwise. Shared by link and image interaction handlers.
     pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context) {
         match self.resolve_link(url) {
-            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, false),
+            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, true),
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
@@ -418,11 +418,10 @@ impl<'ast> MdRender {
         }
     }
 
-    /// Hover → `PointingHand` + Warning/Broken tooltip; click → open in place
-    /// (Cmd/Ctrl+click can be layered later for new tab). The producer's
-    /// interaction scope is the gate: cmd held (desktop), read-only, or touch
-    /// — where the click instead selects the link and pops the menu
-    /// ([`MdEdit::handle_link_menu_taps`]).
+    /// Hover → `PointingHand` + Warning/Broken tooltip; click → open
+    /// in a new tab. The producer's interaction scope is the gate: cmd
+    /// held (desktop), read-only, or touch — where the click instead
+    /// selects the link and pops the menu ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.id();
         for node in root.descendants() {
@@ -466,24 +465,9 @@ impl<'ast> MdRender {
             }
 
             if response.clicked() && (self.readonly || !self.touch_mode) {
-                let new_tab = ui.input(|i| i.modifiers.command);
                 if is_wikilink {
                     if let Some(file_id) = self.resolve_wikilink(&url) {
-                        ui.ctx().open_file(file_id, new_tab);
-                    }
-                } else if new_tab {
-                    match self.resolve_link(&url) {
-                        Some(ResolvedLink::File(file_id)) => {
-                            ui.ctx().open_file(file_id, true);
-                        }
-                        Some(ResolvedLink::External(target)) => {
-                            ui.ctx()
-                                .open_url(egui::OpenUrl { url: target, new_tab: true });
-                        }
-                        None => {
-                            ui.ctx()
-                                .open_url(egui::OpenUrl { url: url.clone(), new_tab: true });
-                        }
+                        ui.ctx().open_file(file_id, true);
                     }
                 } else {
                     self.open_resolved_link(&url, ui.ctx());
