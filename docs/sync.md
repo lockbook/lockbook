@@ -2,7 +2,8 @@
 
 *this document is slightly out of date, it doesn't contain documentation on work
 like `safe_write` which enables near-real-time collaboration. It will be updated
-soon.*
+soon. In the meantime it does provide a good foundation of the initial design
+ constraints which are largely unchanged.*
 
 ## Overview
 Sync v3 is the latest iteration of our logic that syncs users' file trees across
