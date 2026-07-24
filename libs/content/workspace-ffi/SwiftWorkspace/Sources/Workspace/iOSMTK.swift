@@ -1602,20 +1602,11 @@
             }
 
             mtkView.redrawTask?.cancel()
+            mtkView.redrawTask = nil
+            mtkView.redrawDeadline = nil
             mtkView.isPaused = output.redraw_in > 50
-            if mtkView.isPaused {
-                let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
-                let redrawInInterval = DispatchTimeInterval.milliseconds(
-                    Int(truncatingIfNeeded: min(500, redrawIn))
-                )
-
-                let newRedrawTask = DispatchWorkItem {
-                    mtkView.drawImmediately()
-                }
-                DispatchQueue.main.asyncAfter(
-                    deadline: .now() + redrawInInterval, execute: newRedrawTask
-                )
-                mtkView.redrawTask = newRedrawTask
+            if mtkView.isPaused, output.redraw_in != UInt64.max {
+                mtkView.scheduleRedraw(inMs: UInt64(truncatingIfNeeded: output.redraw_in))
             }
 
             mtkView.enableSetNeedsDisplay = mtkView.isPaused
@@ -1723,6 +1714,7 @@
         // mtk
         var mtkDelegate: iOSMTKViewDelegate?
         var redrawTask: DispatchWorkItem?
+        var redrawDeadline: DispatchTime?
 
         // workspace
         var workspaceOutput: WorkspaceOutputState?
@@ -1954,11 +1946,48 @@
             claimedPersistence = true
             wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
+
+            if let wsHandle {
+                RepaintRelay.register(wsHandle) { [weak self] delayMs in
+                    DispatchQueue.main.async {
+                        self?.repaintRequested(inMs: delayMs)
+                    }
+                }
+                set_repaint_callback(wsHandle, wsHandle) { context, delayMs in
+                    RepaintRelay.fire(context, delayMs)
+                }
+            }
+        }
+
+        func repaintRequested(inMs delayMs: UInt64) {
+            if delayMs == 0 {
+                setNeedsDisplay(frame)
+            } else {
+                scheduleRedraw(inMs: delayMs)
+            }
+        }
+
+        func scheduleRedraw(inMs delayMs: UInt64) {
+            let deadline = DispatchTime.now()
+                + .milliseconds(Int(min(delayMs, UInt64(Int32.max))))
+
+            if redrawTask != nil, let existing = redrawDeadline, existing <= deadline {
+                return
+            }
+
+            redrawTask?.cancel()
+            let task = DispatchWorkItem { [weak self] in
+                self?.drawImmediately()
+            }
+            redrawTask = task
+            redrawDeadline = deadline
+            DispatchQueue.main.asyncAfter(deadline: deadline, execute: task)
         }
 
         public func drawImmediately() {
             redrawTask?.cancel()
             redrawTask = nil
+            redrawDeadline = nil
 
             ignoreSelectionUpdate = true
             ignoreTextUpdate = true
@@ -2207,6 +2236,9 @@
         }
 
         deinit {
+            if let wsHandle {
+                RepaintRelay.unregister(wsHandle)
+            }
             deinit_editor(wsHandle)
 
             if claimedPersistence {
