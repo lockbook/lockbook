@@ -43,6 +43,10 @@ struct ShareFileSheet: View {
                     .foregroundStyle(.secondary)
                     .lineLimit(1)
                     .truncationMode(.middle)
+
+                #if os(macOS)
+                    SheetCloseButton()
+                #endif
             }
 
             HStack(spacing: 8) {

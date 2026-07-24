@@ -49,6 +49,17 @@ struct CreateFileSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            #if os(macOS)
+                HStack {
+                    Text(renameTarget == nil ? "New File" : "Rename")
+                        .font(.headline)
+
+                    Spacer()
+
+                    SheetCloseButton()
+                }
+            #endif
+
             if renameTarget == nil {
                 Picker("Type", selection: $type) {
                     ForEach(NewFileType.allCases) { type in
@@ -146,7 +157,7 @@ struct CreateFileSheet: View {
                         location = .root
                     }
 
-                    if let doc = openDocFile, alongsideFolder != nil {
+                    if let doc = openDocFile, alongsideFolder != nil, doc.id != renameTarget?.id {
                         locationChip(
                             "Alongside \(doc.name)",
                             systemImage: "arrow.turn.down.right",
