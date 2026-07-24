@@ -414,6 +414,10 @@ struct SetAPIURLView: View {
                     .bold()
 
                 Spacer()
+
+                #if os(macOS)
+                    SheetCloseButton()
+                #endif
             }
 
             TextField("\(defaultAPIURL)", text: $unsavedAPIURL)
