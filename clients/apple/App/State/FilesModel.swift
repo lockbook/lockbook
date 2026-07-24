@@ -292,13 +292,13 @@ import SwiftWorkspace
         }
     }
 
-    func acceptShare(file: File) {
-        guard let root else {
+    func acceptShare(file: File, into dest: File? = nil) {
+        guard let parent = dest ?? root else {
             return
         }
 
         mutateAndReload {
-            AppState.lb.createLink(name: file.name, parent: root.id, target: file.id).map { _ in () }
+            AppState.lb.createLink(name: file.name, parent: parent.id, target: file.id).map { _ in () }
         }
     }
 
