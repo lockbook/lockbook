@@ -26,6 +26,7 @@
         var modifierEventHandle: Any?
         var screenChangeObserver: NSObjectProtocol?
         var accentChangeObserver: NSObjectProtocol?
+        var appActiveObserver: NSObjectProtocol?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
@@ -111,6 +112,26 @@
                 guard let self else { return }
                 setNeedsDisplay(frame)
             }
+
+            appActiveObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.syncModifiers()
+            }
+        }
+
+        func syncModifiers() {
+            let flags = NSEvent.modifierFlags
+            modifier_event(
+                wsHandle,
+                flags.contains(.shift),
+                flags.contains(.control),
+                flags.contains(.option),
+                flags.contains(.command)
+            )
+            setNeedsDisplay(frame)
         }
 
         override public func draggingEntered(_: NSDraggingInfo) -> NSDragOperation {
@@ -516,6 +537,10 @@
 
             if let accentChangeObserver {
                 NotificationCenter.default.removeObserver(accentChangeObserver)
+            }
+
+            if let appActiveObserver {
+                NotificationCenter.default.removeObserver(appActiveObserver)
             }
         }
     }
