@@ -1353,7 +1353,10 @@ impl LocalLb {
                 if self.user_active().await {
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 } else {
-                    tokio::time::sleep(Duration::from_secs(5 * 60)).await;
+                    tokio::select! {
+                        _ = tokio::time::sleep(Duration::from_secs(5 * 60)) => {}
+                        _ = self.user_wake.notified() => {}
+                    }
                 }
                 self.sync().await.map_unexpected().log_and_ignore();
             }
@@ -1362,7 +1365,7 @@ impl LocalLb {
 
     async fn user_active(&self) -> bool {
         let last_seen = self.user_last_seen.read().await;
-        last_seen.elapsed() < Duration::from_secs(3 * 60)
+        last_seen.elapsed() < Duration::from_secs(15)
     }
 
     fn post_sync_worker(self) {

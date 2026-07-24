@@ -126,6 +126,7 @@ impl LocalLb {
         let bg_lb = self.clone();
         tokio::spawn(async move {
             *bg_lb.user_last_seen.write().await = web_time::Instant::now();
+            bg_lb.user_wake.notify_one();
         });
     }
 }
