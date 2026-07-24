@@ -47,6 +47,15 @@ import Observation
 
     public init() {}
 
+    #if os(iOS)
+        deinit {
+            guard let wsHandle else { return }
+            DispatchQueue.main.async {
+                WorkspaceControllerRegistry.controllers.removeValue(forKey: wsHandle)
+            }
+        }
+    #endif
+
     /// Open a file. Default is a new tab. Pass `newTab: false` to navigate the
     /// current tab in place (e.g. special surfaces that intentionally replace).
     public func openFile(id: UUID, newTab: Bool = true) {

@@ -26,6 +26,7 @@
         var modifierEventHandle: Any?
         var screenChangeObserver: NSObjectProtocol?
         var accentChangeObserver: NSObjectProtocol?
+        var appActiveObserver: NSObjectProtocol?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
@@ -97,7 +98,9 @@
             wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 
-            modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
+            modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+                self?.modifiersChanged(event: event) ?? event
+            }
             registerForDraggedTypes([.png, .tiff, .fileURL, .string])
             becomeFirstResponder()
 
@@ -109,6 +112,26 @@
                 guard let self else { return }
                 setNeedsDisplay(frame)
             }
+
+            appActiveObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.syncModifiers()
+            }
+        }
+
+        func syncModifiers() {
+            let flags = NSEvent.modifierFlags
+            modifier_event(
+                wsHandle,
+                flags.contains(.shift),
+                flags.contains(.control),
+                flags.contains(.option),
+                flags.contains(.command)
+            )
+            setNeedsDisplay(frame)
         }
 
         override public func draggingEntered(_: NSDraggingInfo) -> NSDragOperation {
@@ -484,8 +507,9 @@
                 let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
                 let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)))
 
-                let newRedrawTask = DispatchWorkItem {
-                    self.setNeedsDisplay(self.frame)
+                let newRedrawTask = DispatchWorkItem { [weak self] in
+                    guard let self else { return }
+                    setNeedsDisplay(frame)
                 }
                 DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
                 redrawTask = newRedrawTask
@@ -513,6 +537,10 @@
 
             if let accentChangeObserver {
                 NotificationCenter.default.removeObserver(accentChangeObserver)
+            }
+
+            if let appActiveObserver {
+                NotificationCenter.default.removeObserver(appActiveObserver)
             }
         }
     }
