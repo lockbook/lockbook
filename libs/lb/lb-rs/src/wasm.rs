@@ -27,6 +27,7 @@ impl LocalLb {
 
         Ok(Self {
             user_last_seen,
+            user_wake: Default::default(),
             config: config.clone(),
             keychain: Default::default(),
             db: Arc::new(RwLock::new(db)),

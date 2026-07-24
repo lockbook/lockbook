@@ -17,6 +17,7 @@
         var currentOpenDoc: UUID?
 
         var redrawTask: DispatchWorkItem?
+        var redrawDeadline: DispatchTime?
 
         var lastCursor: NSCursor = .arrow
         var cursorHidden: Bool = false
@@ -98,6 +99,17 @@
             wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 
+            if let wsHandle {
+                RepaintRelay.register(wsHandle) { [weak self] delayMs in
+                    DispatchQueue.main.async {
+                        self?.repaintRequested(inMs: delayMs)
+                    }
+                }
+                set_repaint_callback(wsHandle, wsHandle) { context, delayMs in
+                    RepaintRelay.fire(context, delayMs)
+                }
+            }
+
             modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
                 self?.modifiersChanged(event: event) ?? event
             }
@@ -120,6 +132,32 @@
             ) { [weak self] _ in
                 self?.syncModifiers()
             }
+        }
+
+        func repaintRequested(inMs delayMs: UInt64) {
+            if delayMs == 0 {
+                setNeedsDisplay(frame)
+            } else {
+                scheduleRedraw(inMs: delayMs)
+            }
+        }
+
+        func scheduleRedraw(inMs delayMs: UInt64) {
+            let deadline = DispatchTime.now()
+                + .milliseconds(Int(min(delayMs, UInt64(Int32.max))))
+
+            if redrawTask != nil, let existing = redrawDeadline, existing <= deadline {
+                return
+            }
+
+            redrawTask?.cancel()
+            let task = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                setNeedsDisplay(frame)
+            }
+            redrawTask = task
+            redrawDeadline = deadline
+            DispatchQueue.main.asyncAfter(deadline: deadline, execute: task)
         }
 
         func syncModifiers() {
@@ -399,6 +437,7 @@
         public func drawImmediately() {
             redrawTask?.cancel()
             redrawTask = nil
+            redrawDeadline = nil
 
             isPaused = true
             enableSetNeedsDisplay = false
@@ -502,17 +541,10 @@
 
             redrawTask?.cancel()
             redrawTask = nil
+            redrawDeadline = nil
             isPaused = output.redraw_in > 50
-            if isPaused {
-                let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
-                let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)))
-
-                let newRedrawTask = DispatchWorkItem { [weak self] in
-                    guard let self else { return }
-                    setNeedsDisplay(frame)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
-                redrawTask = newRedrawTask
+            if isPaused, output.redraw_in != UInt64.max {
+                scheduleRedraw(inMs: UInt64(truncatingIfNeeded: output.redraw_in))
             }
 
             enableSetNeedsDisplay = isPaused
@@ -520,6 +552,7 @@
 
         deinit {
             if let wsHandle {
+                RepaintRelay.unregister(wsHandle)
                 deinit_editor(wsHandle)
             }
 

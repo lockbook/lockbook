@@ -41,6 +41,7 @@ pub struct Lb {
 pub struct LocalLb {
     pub config: Config,
     pub user_last_seen: Arc<RwLock<Instant>>,
+    pub user_wake: Arc<Notify>,
     pub keychain: Keychain,
     pub db: LbDb,
     pub docs: AsyncDocs,
@@ -67,9 +68,20 @@ impl LocalLb {
         let syncer = Default::default();
         let events = EventSubs::default();
         let user_last_seen = Arc::new(RwLock::new(Instant::now()));
+        let user_wake = Arc::new(Notify::new());
 
-        let result =
-            Self { config, keychain, db, docs, client, syncer, events, status, user_last_seen };
+        let result = Self {
+            config,
+            keychain,
+            db,
+            docs,
+            client,
+            syncer,
+            events,
+            status,
+            user_last_seen,
+            user_wake,
+        };
 
         #[cfg(not(target_family = "wasm"))]
         {
@@ -683,7 +695,7 @@ use service::events::EventSubs;
 use service::keychain::Keychain;
 use std::sync::{Arc, OnceLock};
 use subscribers::status::StatusUpdater;
-use tokio::sync::RwLock;
+use tokio::sync::{Notify, RwLock};
 pub use uuid::Uuid;
 use web_time::Instant;
 
