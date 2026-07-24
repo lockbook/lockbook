@@ -12,7 +12,11 @@ struct LockbookApp: App {
         WindowGroup(id: mainWindowId) {
             ContentView()
                 .environment(billingState)
+                .handlesExternalEvents(preferring: ["*"], allowing: ["*"])
         }
+        #if os(macOS)
+            .handlesExternalEvents(matching: ["*"])
+        #endif
         .commands {
             CommandGroup(replacing: .newItem) {
                 Button("New File") {
