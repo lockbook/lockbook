@@ -424,6 +424,13 @@ impl Lb {
             .await
     }
 
+    pub async fn duplicate_file(&self, id: &Uuid) -> LbResult<File> {
+        if let Some(local) = self.local.get() {
+            return local.duplicate_file(id).await;
+        }
+        self.call(Request::DuplicateFile { id: *id }).await
+    }
+
     pub async fn delete(&self, id: &Uuid) -> LbResult<()> {
         if let Some(local) = self.local.get() {
             return local.delete(id).await;

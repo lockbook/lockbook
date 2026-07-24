@@ -286,6 +286,12 @@ import SwiftWorkspace
         }
     }
 
+    func duplicateFile(_ file: File) {
+        mutateAndReload {
+            AppState.lb.duplicateFile(id: file.id)
+        }
+    }
+
     func acceptShare(file: File) {
         guard let root else {
             return

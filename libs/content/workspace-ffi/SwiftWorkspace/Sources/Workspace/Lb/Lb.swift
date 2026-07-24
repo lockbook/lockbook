@@ -17,6 +17,7 @@ public protocol LbAPI {
     func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError>
     func getFile(id: UUID) -> Result<File, LbError>
     func deleteFile(id: UUID) -> Result<Void, LbError>
+    func duplicateFile(id: UUID) -> Result<File, LbError>
     func readDoc(id: UUID) -> Result<[UInt8], LbError>
     func listMetadatas() -> Result<[File], LbError>
     func renameFile(id: UUID, newName: String) -> Result<Void, LbError>
@@ -195,6 +196,17 @@ public class Lb: LbAPI {
         }
 
         return .success(())
+    }
+
+    public func duplicateFile(id: UUID) -> Result<File, LbError> {
+        let res = lb_duplicate_file(lb, id.toLbUuid())
+        defer { lb_free_file_res(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(File(res.file))
     }
 
     public func readDoc(id: UUID) -> Result<[UInt8], LbError> {
@@ -531,6 +543,7 @@ public class MockLb: LbAPI {
     public func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError> { .success(File(id: UUID(), parent: UUID(), name: "about-link.md", type: .link(file2.id), lastModifiedBy: "smail", lastModified: 1735857215, shares: [])) }
     public func getFile(id: UUID) -> Result<File, LbError> { .success(file1) }
     public func deleteFile(id: UUID) -> Result<Void, LbError> { .success(()) }
+    public func duplicateFile(id: UUID) -> Result<File, LbError> { .success(file1) }
     public func readDoc(id: UUID) -> Result<[UInt8], LbError> { .success([]) }
     public func listMetadatas() -> Result<[File], LbError> { .success([file0, file1, file2, file3, file4, file5]) }
     public func renameFile(id: UUID, newName: String) -> Result<Void, LbError> { .success(()) }

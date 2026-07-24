@@ -134,6 +134,14 @@ struct SelectableRowModifier: ViewModifier {
                     showMovePicker = true
                 }
 
+                if file?.isFolder == false {
+                    contextMenuItem("Duplicate", systemImage: "plus.square.on.square") {
+                        if let file {
+                            filesModel.duplicateFile(file)
+                        }
+                    }
+                }
+
                 contextMenuItem(
                     isPinned ? "Unpin" : "Pin",
                     systemImage: isPinned ? "pin.slash" : "pin"
