@@ -2,15 +2,35 @@ import Foundation
 import Observation
 import SwiftWorkspace
 
+#if os(macOS)
+    import AppKit
+#else
+    import UIKit
+#endif
+
 @Observable class AppState {
     static let shared = AppState()
-    
+
     var account: Account? = nil
     var isLoggedIn: Bool = false
     var error: UIError? = nil
 
     private init() {
         checkIfLoggedIn()
+
+        #if os(macOS)
+            let foregroundNotification = NSApplication.didBecomeActiveNotification
+        #else
+            let foregroundNotification = UIApplication.didBecomeActiveNotification
+        #endif
+
+        NotificationCenter.default.addObserver(
+            forName: foregroundNotification,
+            object: nil,
+            queue: .main
+        ) { _ in
+            AppState.lb.appForegrounded()
+        }
     }
 
     static let LB_LOC: String = {

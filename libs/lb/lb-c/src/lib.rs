@@ -12,6 +12,7 @@ use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::blocking::Lb;
 pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::ShareMode;
+use lb_rs::model::filename::NameComponents;
 use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::Event;
@@ -240,6 +241,31 @@ pub extern "C" fn lb_create_file(
     }
 }
 
+#[repr(C)]
+pub struct LbNextNameRes {
+    err: *mut LbFfiErr,
+    name: *mut c_char,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_next_name(
+    lb: *mut Lb, parent: LbUuid, desired: *const c_char,
+) -> LbNextNameRes {
+    let lb = rlb(lb);
+
+    match lb.get_children(&parent.into()) {
+        Ok(children) => {
+            let mut name = NameComponents::from(rstr(desired));
+            if let Some(variant) = name.variant.take() {
+                name.name = format!("{}-{}", name.name, variant);
+            }
+            name.next_in_children(children);
+            LbNextNameRes { err: null_mut(), name: cstring(name.to_name()) }
+        }
+        Err(err) => LbNextNameRes { err: lb_err(err), name: null_mut() },
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_write_document(
     lb: *mut Lb, id: LbUuid, ptr: *mut u8, len: usize,
@@ -293,6 +319,12 @@ pub extern "C" fn lb_get_and_get_children_recursively(lb: *mut Lb, id: LbUuid) -
         }
         Err(e) => LbFileListRes { err: lb_err(e), list: Default::default() },
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_app_foregrounded(lb: *mut Lb) {
+    let lb = rlb(lb);
+    lb.app_foregrounded();
 }
 
 #[unsafe(no_mangle)]
