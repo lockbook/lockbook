@@ -318,6 +318,19 @@ pub extern "C" fn lb_delete_file(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
     }
 }
 
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_duplicate_file(lb: *mut Lb, id: LbUuid) -> LbFileRes {
+    let lb = rlb(lb);
+
+    match lb.duplicate_file(&id.into()) {
+        Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
+        Err(err) => {
+            let err = lb_err(err);
+            LbFileRes { err, file: Default::default() }
+        }
+    }
+}
+
 #[repr(C)]
 pub struct LbDocRes {
     err: *mut LbFfiErr,
