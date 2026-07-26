@@ -155,10 +155,6 @@ pub enum Request {
         parent: Uuid,
         file_type: FileType,
     },
-    DuplicateFiles {
-        ids: Vec<Uuid>,
-        parent: Uuid,
-    },
     RenameFile {
         id: Uuid,
         new_name: String,

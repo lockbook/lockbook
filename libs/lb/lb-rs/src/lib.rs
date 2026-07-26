@@ -420,13 +420,6 @@ impl Lb {
         .await
     }
 
-    pub async fn duplicate_files(&self, ids: Vec<Uuid>, parent: Uuid) -> LbResult<Vec<File>> {
-        if let Some(local) = self.local.get() {
-            return local.duplicate_files(&ids, &parent).await;
-        }
-        self.call(Request::DuplicateFiles { ids, parent }).await
-    }
-
     pub async fn rename_file(&self, id: &Uuid, new_name: &str) -> LbResult<()> {
         if let Some(local) = self.local.get() {
             return local.rename_file(id, new_name).await;

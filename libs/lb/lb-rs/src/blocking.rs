@@ -105,10 +105,6 @@ impl Lb {
         self.block_on(self.lb.create_file(name, parent, file_type))
     }
 
-    pub fn duplicate_files(&self, ids: &[Uuid], parent: &Uuid) -> LbResult<Vec<File>> {
-        self.block_on(self.lb.duplicate_files(ids.to_vec(), *parent))
-    }
-
     pub fn safe_write(
         &self, id: Uuid, old_hmac: Option<DocumentHmac>, content: Vec<u8>, origin: Option<Uuid>,
     ) -> LbResult<DocumentHmac> {

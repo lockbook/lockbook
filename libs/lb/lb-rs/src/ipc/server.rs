@@ -187,7 +187,6 @@ pub(crate) async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::CreateFile { name, parent, file_type } => {
             enc(lb.create_file(&name, &parent, file_type).await)
         }
-        Request::DuplicateFiles { ids, parent } => enc(lb.duplicate_files(&ids, &parent).await),
         Request::RenameFile { id, new_name } => enc(lb.rename_file(&id, &new_name).await),
         Request::MoveFile { id, new_parent } => enc(lb.move_file(&id, &new_parent).await),
         Request::Delete { id } => enc(lb.delete(&id).await),
