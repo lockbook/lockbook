@@ -35,6 +35,7 @@ struct CreateFileSheet: View {
     @State private var type: NewFileType = .markdown
     @State private var renameExt: String? = nil
     @State private var name = Self.defaultName
+    @State private var lastAutoName = Self.defaultName
     @State private var selection: TextSelection? = nil
     @State private var location: LocationChoice = .root
     @State private var showFolderPicker = false
@@ -49,6 +50,17 @@ struct CreateFileSheet: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
+            #if os(macOS)
+                HStack {
+                    Text(renameTarget == nil ? "New File" : "Rename")
+                        .font(.headline)
+
+                    Spacer()
+
+                    SheetCloseButton()
+                }
+            #endif
+
             if renameTarget == nil {
                 Picker("Type", selection: $type) {
                     ForEach(NewFileType.allCases) { type in
@@ -110,10 +122,18 @@ struct CreateFileSheet: View {
                 location = parent.isRoot ? .root : .custom(parent)
             }
 
+            refreshAutoName()
+
             #if os(macOS)
                 nameFocused = true
                 selection = TextSelection(range: name.startIndex ..< name.endIndex)
             #endif
+        }
+        .onChange(of: location) {
+            refreshAutoName()
+        }
+        .onChange(of: type) {
+            refreshAutoName()
         }
         #if os(iOS)
             .onChange(of: nameFocused) { _, focused in
@@ -146,7 +166,7 @@ struct CreateFileSheet: View {
                         location = .root
                     }
 
-                    if let doc = openDocFile, alongsideFolder != nil {
+                    if let doc = openDocFile, alongsideFolder != nil, doc.id != renameTarget?.id {
                         locationChip(
                             "Alongside \(doc.name)",
                             systemImage: "arrow.turn.down.right",
@@ -233,6 +253,35 @@ struct CreateFileSheet: View {
         }
 
         return (String(file.name[..<dot]), String(file.name[dot...]))
+    }
+
+    private func refreshAutoName() {
+        guard renameTarget == nil, name == lastAutoName, let parent = destination else {
+            return
+        }
+
+        let desired = Self.defaultName + (type.ext ?? "")
+
+        guard case let .success(next) = AppState.lb.nextName(parent: parent.id, desired: desired) else {
+            return
+        }
+
+        var base = next
+        if let ext = type.ext, base.hasSuffix(ext) {
+            base = String(base.dropLast(ext.count))
+        }
+
+        guard base != name else {
+            return
+        }
+
+        selection = nil
+        name = base
+        lastAutoName = base
+
+        if nameFocused {
+            selection = TextSelection(range: name.startIndex ..< name.endIndex)
+        }
     }
 
     private func submit() {

@@ -286,13 +286,19 @@ import SwiftWorkspace
         }
     }
 
-    func acceptShare(file: File) {
-        guard let root else {
+    func duplicateFile(_ file: File) {
+        mutateAndReload {
+            AppState.lb.duplicateFile(id: file.id)
+        }
+    }
+
+    func acceptShare(file: File, into dest: File? = nil) {
+        guard let parent = dest ?? root else {
             return
         }
 
         mutateAndReload {
-            AppState.lb.createLink(name: file.name, parent: root.id, target: file.id).map { _ in () }
+            AppState.lb.createLink(name: file.name, parent: parent.id, target: file.id).map { _ in () }
         }
     }
 

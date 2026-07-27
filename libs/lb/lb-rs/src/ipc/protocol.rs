@@ -237,6 +237,10 @@ pub enum Request {
     GetLastSynced,
     GetLastSyncedHuman,
     Subscribe,
+
+    DuplicateFile {
+        id: Uuid,
+    },
 }
 
 #[cfg(test)]

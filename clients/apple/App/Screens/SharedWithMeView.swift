@@ -3,7 +3,11 @@ import SwiftWorkspace
 
 struct SharedWithMeView: View {
     @Environment(FilesModel.self) private var filesModel
+    @Environment(WorkspaceInputState.self) private var workspaceInput
     @Environment(WorkspaceOutputState.self) private var workspaceOutput
+    #if os(iOS)
+        @Environment(HomeState.self) private var homeState
+    #endif
 
     let fileTreeModel: FileTreeModel
 
@@ -59,6 +63,12 @@ struct SharedWithMeView: View {
                     scrollHelper.scrollTo(openDoc, anchor: .center)
                 }
             }
+            .refreshable {
+                #if os(iOS)
+                    homeState.explicitSyncRequested()
+                #endif
+                workspaceInput.requestSync()
+            }
         }
         .environment(fileTreeModel)
     }
@@ -70,8 +80,10 @@ struct PendingShareRowView: View {
     @Environment(FileTreeModel.self) private var fileTreeModel
     @Environment(HomeState.self) private var homeState
     @Environment(WorkspaceInputState.self) private var workspaceInput
+    @Environment(\.openWindow) private var openWindow
 
     @State private var confirmRejection = false
+    @State private var showAcceptInto = false
 
     let file: File
     var level: CGFloat = 1
@@ -94,8 +106,8 @@ struct PendingShareRowView: View {
 
     var body: some View {
         fileRow
-            .onTapGesture {
-                openFile()
+            .contextMenu {
+                menuItems
             }
             .confirmationDialog(
                 "Are you sure?",
@@ -104,6 +116,11 @@ struct PendingShareRowView: View {
             ) {
                 Button("Reject \"\(file.name)\"", role: .destructive) {
                     filesModel.rejectShare(id: file.id)
+                }
+            }
+            .sheet(isPresented: $showAcceptInto) {
+                FolderPickerSheet(fileTreeModel: fileTreeModel, selection: nil) { folder in
+                    filesModel.acceptShare(file: file, into: folder)
                 }
             }
             .id(file.id)
@@ -117,23 +134,11 @@ struct PendingShareRowView: View {
 
     var fileRow: some View {
         HStack {
-            FileIcon(file: file)
-
-            Text(file.name)
-                .lineLimit(1)
-                .truncationMode(.tail)
-                .allowsTightening(true)
-                .foregroundColor(.primary)
-
-            Spacer()
-
-            if !isLeaf {
-                DisclosureChevron(isOpen: isOpen)
-            }
+            draggableContent
 
             if isRootShare {
                 Button(action: {
-                    filesModel.acceptShare(file: file)
+                    showAcceptInto = true
                 }, label: {
                     Label("Accept", systemImage: "checkmark.circle.fill")
                         .labelStyle(.iconOnly)
@@ -152,10 +157,111 @@ struct PendingShareRowView: View {
             }
         }
         .padding(.vertical, 9)
-        .contentShape(Rectangle())
         .padding(.leading, level * 20 + 5)
         .padding(.trailing)
         .modifier(OpenDocModifier(file: file))
+    }
+
+    private var rowContent: some View {
+        HStack {
+            FileIcon(file: file)
+
+            Text(file.name)
+                .lineLimit(1)
+                .truncationMode(.tail)
+                .allowsTightening(true)
+                .foregroundColor(.primary)
+
+            if let dot = filesModel.statusDots[file.id] {
+                Circle()
+                    .fill(dot.color)
+                    .frame(width: 8, height: 8)
+            }
+
+            Spacer()
+
+            if !isLeaf {
+                DisclosureChevron(isOpen: isOpen)
+            }
+        }
+        .contentShape(Rectangle())
+    }
+
+    @ViewBuilder
+    private var draggableContent: some View {
+        #if os(macOS)
+            rowContent.overlay {
+                MacFileDragSource(file: file, filesModel: filesModel, onClick: {
+                    openFile()
+                }, onDoubleClick: {
+                    openInNewWindow()
+                })
+            }
+        #else
+            rowContent
+                .onTapGesture {
+                    openFile()
+                }
+                .simultaneousGesture(
+                    TapGesture(count: 2).onEnded {
+                        openInNewWindow()
+                    }
+                )
+                .draggable(DraggedFile(file: file, filesModel: filesModel))
+        #endif
+    }
+
+    @ViewBuilder
+    private var menuItems: some View {
+        if !file.isFolder, supportsMultipleWindows {
+            contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
+                openInNewWindow()
+            }
+
+            Divider()
+        }
+
+        if isRootShare {
+            contextMenuItem("Accept", systemImage: "checkmark.circle") {
+                filesModel.acceptShare(file: file)
+            }
+
+            contextMenuItem("Accept Into...", systemImage: "folder.badge.plus") {
+                showAcceptInto = true
+            }
+        }
+
+        ShareLink(item: DraggedFile(file: file, filesModel: filesModel), preview: SharePreview(file.name)) {
+            Label("Share Externally", systemImage: "square.and.arrow.up")
+        }
+
+        contextMenuItem("Copy Link", systemImage: "link") {
+            ClipboardHelper.copyFileLink(file.id)
+        }
+
+        if isRootShare {
+            Divider()
+
+            contextMenuItem("Reject", systemImage: "xmark.circle", role: .destructive) {
+                confirmRejection = true
+            }
+        }
+    }
+
+    private var supportsMultipleWindows: Bool {
+        #if os(iOS)
+            UIApplication.shared.supportsMultipleScenes
+        #else
+            true
+        #endif
+    }
+
+    private func openInNewWindow() {
+        guard !file.isFolder, supportsMultipleWindows else {
+            return
+        }
+
+        openWindow(id: documentWindowId, value: file.id)
     }
 
     func openFile() {

@@ -49,25 +49,23 @@ enum FileExporter {
     }
 }
 
-#if os(iOS)
-    struct DraggedFile: Transferable {
-        let file: File
-        let filesModel: FilesModel
+struct DraggedFile: Transferable {
+    let file: File
+    let filesModel: FilesModel
 
-        static var transferRepresentation: some TransferRepresentation {
-            FileRepresentation(exportedContentType: .item) { dragged in
-                SentTransferredFile(
-                    try FileExporter.exportToTemp(
-                        dragged.file, edit: false, filesModel: dragged.filesModel
-                    ),
-                    allowAccessingOriginalFile: false
-                )
-            }
-
-            ProxyRepresentation(exporting: \.file)
+    static var transferRepresentation: some TransferRepresentation {
+        FileRepresentation(exportedContentType: .item) { dragged in
+            SentTransferredFile(
+                try FileExporter.exportToTemp(
+                    dragged.file, edit: false, filesModel: dragged.filesModel
+                ),
+                allowAccessingOriginalFile: false
+            )
         }
+
+        ProxyRepresentation(exporting: \.file)
     }
-#endif
+}
 
 #if os(macOS)
     struct MacFileDragSource: NSViewRepresentable {

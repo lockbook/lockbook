@@ -17,6 +17,7 @@
         var currentOpenDoc: UUID?
 
         var redrawTask: DispatchWorkItem?
+        var redrawDeadline: DispatchTime?
 
         var lastCursor: NSCursor = .arrow
         var cursorHidden: Bool = false
@@ -26,6 +27,7 @@
         var modifierEventHandle: Any?
         var screenChangeObserver: NSObjectProtocol?
         var accentChangeObserver: NSObjectProtocol?
+        var appActiveObserver: NSObjectProtocol?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
@@ -97,7 +99,20 @@
             wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 
-            modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
+            if let wsHandle {
+                RepaintRelay.register(wsHandle) { [weak self] delayMs in
+                    DispatchQueue.main.async {
+                        self?.repaintRequested(inMs: delayMs)
+                    }
+                }
+                set_repaint_callback(wsHandle, wsHandle) { context, delayMs in
+                    RepaintRelay.fire(context, delayMs)
+                }
+            }
+
+            modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+                self?.modifiersChanged(event: event) ?? event
+            }
             registerForDraggedTypes([.png, .tiff, .fileURL, .string])
             becomeFirstResponder()
 
@@ -109,6 +124,52 @@
                 guard let self else { return }
                 setNeedsDisplay(frame)
             }
+
+            appActiveObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.syncModifiers()
+            }
+        }
+
+        func repaintRequested(inMs delayMs: UInt64) {
+            if delayMs == 0 {
+                setNeedsDisplay(frame)
+            } else {
+                scheduleRedraw(inMs: delayMs)
+            }
+        }
+
+        func scheduleRedraw(inMs delayMs: UInt64) {
+            let deadline = DispatchTime.now()
+                + .milliseconds(Int(min(delayMs, UInt64(Int32.max))))
+
+            if redrawTask != nil, let existing = redrawDeadline, existing <= deadline {
+                return
+            }
+
+            redrawTask?.cancel()
+            let task = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                setNeedsDisplay(frame)
+            }
+            redrawTask = task
+            redrawDeadline = deadline
+            DispatchQueue.main.asyncAfter(deadline: deadline, execute: task)
+        }
+
+        func syncModifiers() {
+            let flags = NSEvent.modifierFlags
+            modifier_event(
+                wsHandle,
+                flags.contains(.shift),
+                flags.contains(.control),
+                flags.contains(.option),
+                flags.contains(.command)
+            )
+            setNeedsDisplay(frame)
         }
 
         override public func draggingEntered(_: NSDraggingInfo) -> NSDragOperation {
@@ -376,6 +437,7 @@
         public func drawImmediately() {
             redrawTask?.cancel()
             redrawTask = nil
+            redrawDeadline = nil
 
             isPaused = true
             enableSetNeedsDisplay = false
@@ -479,16 +541,10 @@
 
             redrawTask?.cancel()
             redrawTask = nil
+            redrawDeadline = nil
             isPaused = output.redraw_in > 50
-            if isPaused {
-                let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
-                let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)))
-
-                let newRedrawTask = DispatchWorkItem {
-                    self.setNeedsDisplay(self.frame)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
-                redrawTask = newRedrawTask
+            if isPaused, output.redraw_in != UInt64.max {
+                scheduleRedraw(inMs: UInt64(truncatingIfNeeded: output.redraw_in))
             }
 
             enableSetNeedsDisplay = isPaused
@@ -496,6 +552,7 @@
 
         deinit {
             if let wsHandle {
+                RepaintRelay.unregister(wsHandle)
                 deinit_editor(wsHandle)
             }
 
@@ -513,6 +570,10 @@
 
             if let accentChangeObserver {
                 NotificationCenter.default.removeObserver(accentChangeObserver)
+            }
+
+            if let appActiveObserver {
+                NotificationCenter.default.removeObserver(appActiveObserver)
             }
         }
     }

@@ -33,29 +33,42 @@ struct WorkspaceTabsList: View {
     @State private var canNavForward = false
 
     var body: some View {
-        ScrollView {
-            LazyVStack(alignment: .leading, spacing: 2) {
-                ForEach(tabIds, id: \.self) { id in
-                    tabRow(id)
-                }
+        Group {
+            if tabIds.isEmpty, recentlyClosed.isEmpty {
+                emptyTabs
+                    .frame(maxWidth: .infinity, maxHeight: .infinity)
+            } else {
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 2) {
+                        if tabIds.isEmpty {
+                            emptyTabs
+                                .frame(maxWidth: .infinity)
+                                .padding(.vertical, 28)
+                        } else {
+                            ForEach(tabIds, id: \.self) { id in
+                                tabRow(id)
+                            }
+                        }
 
-                endDropZone
+                        endDropZone
 
-                if !recentlyClosed.isEmpty {
-                    Text("Recently Closed")
-                        .font(.caption)
-                        .fontWeight(.medium)
-                        .foregroundStyle(.secondary)
-                        .padding(.top, 14)
-                        .padding(.leading, 10)
+                        if !recentlyClosed.isEmpty {
+                            Text("Recently Closed")
+                                .font(.caption)
+                                .fontWeight(.medium)
+                                .foregroundStyle(.secondary)
+                                .padding(.top, 14)
+                                .padding(.leading, 10)
 
-                    ForEach(recentlyClosed, id: \.self) { id in
-                        recentlyClosedRow(id)
+                            ForEach(recentlyClosed, id: \.self) { id in
+                                recentlyClosedRow(id)
+                            }
+                        }
                     }
+                    .padding(.horizontal, 8)
+                    .padding(.top, 4)
                 }
             }
-            .padding(.horizontal, 8)
-            .padding(.top, 4)
         }
         .safeAreaInset(edge: .top) {
             header
@@ -125,7 +138,7 @@ struct WorkspaceTabsList: View {
             .disabled(selection.selectedIds.isEmpty)
             .padding(.bottom, 10)
             .transition(.move(edge: .bottom).combined(with: .opacity))
-        } else {
+        } else if !tabIds.isEmpty {
             Button {
                 workspaceInput.closeAllTabs()
             } label: {
@@ -135,6 +148,29 @@ struct WorkspaceTabsList: View {
             .buttonStyle(.bordered)
             .padding()
         }
+    }
+
+    private var emptyTabs: some View {
+        VStack(spacing: 6) {
+            Image(systemName: recentlyClosed.isEmpty ? "rectangle.on.rectangle" : "arrow.uturn.left")
+                .font(.system(size: 30, weight: .light))
+                .foregroundStyle(.tertiary)
+                .padding(.bottom, 6)
+
+            Text("No open tabs")
+                .font(.callout)
+                .fontWeight(.semibold)
+
+            Text(
+                recentlyClosed.isEmpty
+                    ? "Files you open will appear here."
+                    : "Reopen a recently closed tab below."
+            )
+            .font(.caption)
+            .foregroundStyle(.secondary)
+        }
+        .multilineTextAlignment(.center)
+        .padding(.horizontal, 20)
     }
 
     private func tabRow(_ id: UUID) -> some View {
@@ -192,6 +228,9 @@ struct WorkspaceTabsList: View {
             selection.handleTap(id: id, orderedIds: { tabIds }) {
                 workspaceInput.openFile(id: id)
             }
+        }
+        .onMiddleClick {
+            close([id])
         }
         .selectSwipe(selection, id: id)
         .contextMenu {

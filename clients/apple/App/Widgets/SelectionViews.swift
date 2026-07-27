@@ -82,6 +82,15 @@ struct SelectableRowModifier: ViewModifier {
         file.map { filesModel.pinnedIds.contains($0.id) } == true
     }
 
+    private var createLocation: LocationChoice {
+        guard let file else {
+            return .root
+        }
+
+        let folder = file.isFolder ? file : filesModel.idsToFiles[file.parent]
+        return folder.map(LocationChoice.init) ?? .root
+    }
+
     func body(content: Content) -> some View {
         macDraggable(
             swipeable(
@@ -112,18 +121,16 @@ struct SelectableRowModifier: ViewModifier {
                     }
                 }
             } else {
-                if file?.isFolder == true {
-                    contextMenuItem("New File Here", systemImage: "square.and.pencil") {
-                        showCreateFile = true
-                    }
-                }
-
                 if file?.isFolder == false, supportsMultipleWindows {
                     contextMenuItem("Open in New Window", systemImage: "macwindow.badge.plus") {
                         openInNewWindow()
                     }
 
                     Divider()
+                }
+
+                contextMenuItem("New File Here", systemImage: "square.and.pencil") {
+                    showCreateFile = true
                 }
 
                 contextMenuItem("Rename", systemImage: "pencil") {
@@ -134,12 +141,11 @@ struct SelectableRowModifier: ViewModifier {
                     showMovePicker = true
                 }
 
-                contextMenuItem(
-                    isPinned ? "Unpin" : "Pin",
-                    systemImage: isPinned ? "pin.slash" : "pin"
-                ) {
-                    if let file {
-                        filesModel.togglePin(file.id)
+                if file?.isFolder == false {
+                    contextMenuItem("Duplicate", systemImage: "plus.square.on.square") {
+                        if let file {
+                            filesModel.duplicateFile(file)
+                        }
                     }
                 }
 
@@ -147,9 +153,20 @@ struct SelectableRowModifier: ViewModifier {
                     showShare = true
                 }
 
+                Divider()
+
                 contextMenuItem("Select", systemImage: "checkmark.circle") {
                     withAnimation {
                         selection.toggle(id)
+                    }
+                }
+
+                contextMenuItem(
+                    isPinned ? "Unpin" : "Pin",
+                    systemImage: isPinned ? "pin.slash" : "pin"
+                ) {
+                    if let file {
+                        filesModel.togglePin(file.id)
                     }
                 }
 
@@ -163,7 +180,7 @@ struct SelectableRowModifier: ViewModifier {
         .sheet(isPresented: $showCreateFile) {
             CreateFileSheet(
                 fileTreeModel: fileTreeModel,
-                mode: .create(location: file.map(LocationChoice.init) ?? .root)
+                mode: .create(location: createLocation)
             )
         }
         .sheet(isPresented: $showRename) {

@@ -15,8 +15,10 @@ public protocol LbAPI {
     func exportAccountPhrase() -> Result<String, LbError>
     func createFile(name: String, parent: UUID, fileType: FileType) -> Result<File, LbError>
     func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError>
+    func nextName(parent: UUID, desired: String) -> Result<String, LbError>
     func getFile(id: UUID) -> Result<File, LbError>
     func deleteFile(id: UUID) -> Result<Void, LbError>
+    func duplicateFile(id: UUID) -> Result<File, LbError>
     func readDoc(id: UUID) -> Result<[UInt8], LbError>
     func listMetadatas() -> Result<[File], LbError>
     func renameFile(id: UUID, newName: String) -> Result<Void, LbError>
@@ -27,6 +29,7 @@ public protocol LbAPI {
     func deletePendingShare(id: UUID) -> Result<Void, LbError>
     func debugInfo() -> String
     func sync() -> Result<Void, LbError>
+    func appForegrounded()
     func pinFile(id: UUID) -> Result<Void, LbError>
     func unpinFile(id: UUID) -> Result<Void, LbError>
     func listPinned() -> Result<[UUID], LbError>
@@ -175,6 +178,17 @@ public class Lb: LbAPI {
         return .success(File(res.file))
     }
 
+    public func nextName(parent: UUID, desired: String) -> Result<String, LbError> {
+        let res = lb_next_name(lb, parent.toLbUuid(), desired)
+        defer { lb_free_next_name_res(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(String(cString: res.name))
+    }
+
     public func getFile(id: UUID) -> Result<File, LbError> {
         let res = lb_get_file(lb, id.toLbUuid())
         defer { lb_free_file_res(res) }
@@ -195,6 +209,17 @@ public class Lb: LbAPI {
         }
 
         return .success(())
+    }
+
+    public func duplicateFile(id: UUID) -> Result<File, LbError> {
+        let res = lb_duplicate_file(lb, id.toLbUuid())
+        defer { lb_free_file_res(res) }
+
+        guard res.err == nil else {
+            return .failure(LbError(res.err.pointee))
+        }
+
+        return .success(File(res.file))
     }
 
     public func readDoc(id: UUID) -> Result<[UInt8], LbError> {
@@ -319,6 +344,10 @@ public class Lb: LbAPI {
         }
 
         return .success(())
+    }
+
+    public func appForegrounded() {
+        lb_app_foregrounded(lb)
     }
 
     public func pinFile(id: UUID) -> Result<Void, LbError> {
@@ -529,8 +558,10 @@ public class MockLb: LbAPI {
     public func exportAccountPhrase() -> Result<String, LbError> { .success(accountPhrase) }
     public func createFile(name: String, parent: UUID, fileType: FileType) -> Result<File, LbError> { .success(file1) }
     public func createLink(name: String, parent: UUID, target: UUID) -> Result<File, LbError> { .success(File(id: UUID(), parent: UUID(), name: "about-link.md", type: .link(file2.id), lastModifiedBy: "smail", lastModified: 1735857215, shares: [])) }
+    public func nextName(parent: UUID, desired: String) -> Result<String, LbError> { .success(desired) }
     public func getFile(id: UUID) -> Result<File, LbError> { .success(file1) }
     public func deleteFile(id: UUID) -> Result<Void, LbError> { .success(()) }
+    public func duplicateFile(id: UUID) -> Result<File, LbError> { .success(file1) }
     public func readDoc(id: UUID) -> Result<[UInt8], LbError> { .success([]) }
     public func listMetadatas() -> Result<[File], LbError> { .success([file0, file1, file2, file3, file4, file5]) }
     public func renameFile(id: UUID, newName: String) -> Result<Void, LbError> { .success(()) }
@@ -541,6 +572,7 @@ public class MockLb: LbAPI {
     public func deletePendingShare(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func debugInfo() -> String { "No debug info. This is a preview." }
     public func sync() -> Result<Void, LbError> { .success(()) }
+    public func appForegrounded() {}
     public func pinFile(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func unpinFile(id: UUID) -> Result<Void, LbError> { .success(()) }
     public func listPinned() -> Result<[UUID], LbError> { .success([file1.id]) }

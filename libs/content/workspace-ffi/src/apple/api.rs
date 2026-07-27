@@ -303,6 +303,32 @@ pub unsafe extern "C" fn deinit_editor(obj: *mut c_void) {
     let _ = Box::from_raw(obj as *mut WgpuWorkspace);
 }
 
+pub type WSRepaintCallback = extern "C" fn(*mut c_void, u64);
+
+struct RepaintCallbackContext(*mut c_void);
+unsafe impl Send for RepaintCallbackContext {}
+unsafe impl Sync for RepaintCallbackContext {}
+
+impl RepaintCallbackContext {
+    fn get(&self) -> *mut c_void {
+        self.0
+    }
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn set_repaint_callback(
+    obj: *mut c_void, context: *mut c_void, callback: WSRepaintCallback,
+) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let context = RepaintCallbackContext(context);
+    obj.renderer
+        .context
+        .set_request_repaint_callback(move |info| {
+            callback(context.get(), info.delay.as_millis().min(u64::MAX as u128) as u64);
+        });
+}
+
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn mouse_moved(obj: *mut c_void, x: f32, y: f32) {

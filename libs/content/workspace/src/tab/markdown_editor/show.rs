@@ -696,7 +696,7 @@ impl MdEdit {
                     LinkMenuAction::Open => {
                         if t.is_wikilink {
                             if let Some(file_id) = self.renderer.resolve_wikilink(&t.url) {
-                                ui.ctx().open_file(file_id, false);
+                                ui.ctx().open_file(file_id, true);
                             }
                         } else {
                             self.renderer.open_resolved_link(&t.url, ui.ctx());

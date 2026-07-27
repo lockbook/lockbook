@@ -6,8 +6,11 @@ import SwiftUI
 
 #if os(iOS)
     import GameController
-    import ObjectiveC.runtime
     import UIKit
+
+    enum WorkspaceControllerRegistry {
+        static var controllers: [UnsafeMutableRawPointer: WorkspaceController] = [:]
+    }
 
     public struct WorkspaceView: UIViewControllerRepresentable {
         @Environment(WorkspaceInputState.self) private var workspaceInput
@@ -52,21 +55,16 @@ import SwiftUI
             override public func viewDidLoad() {
                 let workspaceController: WorkspaceController
 
-                if let wsHandle = workspaceInput.wsHandle {
-                    workspaceController =
-                        objc_getAssociatedObject(UIApplication.shared, wsHandle)
-                            as! WorkspaceController
+                if let wsHandle = workspaceInput.wsHandle,
+                   let existing = WorkspaceControllerRegistry.controllers[wsHandle]
+                {
+                    workspaceController = existing
                 } else {
                     let new = WorkspaceController(
                         workspaceInput: workspaceInput,
                         workspaceOutput: workspaceOutput
                     )
-                    objc_setAssociatedObject(
-                        UIApplication.shared,
-                        workspaceInput.wsHandle!,
-                        new,
-                        .OBJC_ASSOCIATION_RETAIN_NONATOMIC
-                    )
+                    WorkspaceControllerRegistry.controllers[workspaceInput.wsHandle!] = new
                     workspaceController = new
                 }
 

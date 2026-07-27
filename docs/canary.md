@@ -4,3 +4,4 @@
 + Lockbook has not been compelled to give any information to state actors in 2023.
 + Lockbook has not been compelled to give any information to state actors in 2024.
 + Lockbook has not been compelled to give any information to state actors in 2025.
++ Lockbook has not been compelled to give any information to state actors in 2026.

@@ -170,3 +170,64 @@ async fn delete_root() {
         LbErrKind::RootModificationInvalid
     );
 }
+
+#[tokio::test]
+async fn duplicate() {
+    let core = test_core_with_account().await;
+    let id = core.create_at_path("doc.md").await.unwrap().id;
+    core.write_document(id, b"content").await.unwrap();
+
+    let dupe = core.duplicate_file(&id).await.unwrap();
+
+    assert_eq!(dupe.name, "doc-1.md");
+    assert_ne!(dupe.id, id);
+    assert_eq!(core.read_document(dupe.id, false).await.unwrap(), b"content");
+
+    let original = core.get_file_by_id(id).await.unwrap();
+    assert_eq!(dupe.parent, original.parent);
+}
+
+#[tokio::test]
+async fn duplicate_repeatedly() {
+    let core = test_core_with_account().await;
+    let id = core.create_at_path("doc.md").await.unwrap().id;
+
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-1.md");
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-2.md");
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-3.md");
+}
+
+#[tokio::test]
+async fn duplicate_a_duplicate() {
+    let core = test_core_with_account().await;
+    core.create_at_path("doc.md").await.unwrap();
+    let id = core.create_at_path("doc-4.md").await.unwrap().id;
+
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-5.md");
+}
+
+#[tokio::test]
+async fn duplicate_no_extension() {
+    let core = test_core_with_account().await;
+    let id = core.create_at_path("doc").await.unwrap().id;
+
+    assert_eq!(core.duplicate_file(&id).await.unwrap().name, "doc-1");
+}
+
+#[tokio::test]
+async fn duplicate_folder() {
+    let core = test_core_with_account().await;
+    let id = core.create_at_path("folder/").await.unwrap().id;
+
+    assert_matches!(core.duplicate_file(&id).await.unwrap_err().kind, LbErrKind::FileNotDocument);
+}
+
+#[tokio::test]
+async fn duplicate_nonexistent() {
+    let core = test_core_with_account().await;
+
+    assert_matches!(
+        core.duplicate_file(&Uuid::new_v4()).await.unwrap_err().kind,
+        LbErrKind::FileNonexistent
+    );
+}

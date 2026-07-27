@@ -111,7 +111,7 @@ struct HomeView: View {
                         }
                     }
 
-                    if workspaceOutput.tabCount > 0, !keyboardObscuresToolbar {
+                    if !keyboardObscuresToolbar {
                         ToolbarItem(placement: sharePlacement) {
                             Button {
                                 showTabsSidebar.toggle()
@@ -256,11 +256,6 @@ struct HomeView: View {
                 #if os(macOS)
                     .frame(minWidth: 420, minHeight: 520)
                 #endif
-            }
-        }
-        .onChange(of: workspaceOutput.tabCount) { _, count in
-            if count == 0 {
-                showTabsSidebar = false
             }
         }
         .onReceive(NotificationCenter.default.publisher(for: .createNewFile)) { _ in
@@ -426,7 +421,7 @@ struct HomeView: View {
                 chrome += 58
             } else {
                 if openDocFile != nil { chrome += 50 }
-                if workspaceOutput.tabCount > 0 { chrome += 50 }
+                chrome += 50
                 if horizontalSizeClass == .regular, homeState.splitViewVisibility != .all {
                     chrome += 50
                 }
