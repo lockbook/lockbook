@@ -35,6 +35,7 @@ import com.google.android.material.textview.MaterialTextView
 import com.leinardi.android.speeddial.SpeedDialActionItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
 import net.lockbook.Lb
@@ -132,6 +133,20 @@ class FilesListFragment :
                         activityModel.launchTransientScreen(
                             TransientScreen.Move(selectedFiles.intoFileMetadata()),
                         )
+                    }
+
+                    R.id.menu_list_files_duplicate -> {
+                        lifecycleScope.launch(Dispatchers.IO) {
+                            try {
+                                selectedFiles.forEach { file -> Lb.duplicateFile(file.fileMetadata.id) }
+                                withContext(Dispatchers.Main) {
+                                    model.reloadFiles()
+                                }
+                            } catch (err: LbError) {
+                                alertModel.notifyError(err)
+                            }
+                        }
+                        unselectFiles()
                     }
 
                     R.id.menu_list_files_export -> {
@@ -798,6 +813,8 @@ class FilesListFragment :
             .toMutableList()
 
     private fun toggleMenuBar() {
+        val canDuplicateSelectedFiles = getSelectedFiles().all { it.fileMetadata.type != FileType.Folder }
+
         when (val selectionCount = selectedFileIds.size) {
             0 -> {
                 actionModeMenu?.finish()
@@ -812,6 +829,7 @@ class FilesListFragment :
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_share)?.isVisible = true
+                actionModeMenu?.menu?.findItem(R.id.menu_list_files_duplicate)?.isVisible = canDuplicateSelectedFiles
             }
 
             else -> {
@@ -823,6 +841,7 @@ class FilesListFragment :
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
                 actionModeMenu?.menu?.findItem(R.id.menu_list_files_share)?.isVisible = false
+                actionModeMenu?.menu?.findItem(R.id.menu_list_files_duplicate)?.isVisible = canDuplicateSelectedFiles
             }
         }
     }
