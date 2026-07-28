@@ -52,7 +52,7 @@
                 removeTrackingArea(trackingArea!)
             }
             let options: NSTrackingArea.Options =
-                [.mouseEnteredAndExited, .mouseMoved, .enabledDuringMouseDrag, .activeInKeyWindow]
+                [.mouseEnteredAndExited, .mouseMoved, .enabledDuringMouseDrag, .activeAlways]
             trackingArea = NSTrackingArea(rect: bounds, options: options,
                                           owner: self, userInfo: nil)
             addTrackingArea(trackingArea!)
@@ -181,20 +181,12 @@
         }
 
         override public func mouseDragged(with event: NSEvent) {
-            if window?.firstResponder != self {
-                return
-            }
-
             let local = viewCoordinates(event)
             mouse_moved(wsHandle, Float(local.x), Float(local.y))
             setNeedsDisplay(frame)
         }
 
         override public func mouseMoved(with event: NSEvent) {
-            if window?.firstResponder != self {
-                return
-            }
-
             let local = viewCoordinates(event)
             mouse_moved(wsHandle, Float(local.x), Float(local.y))
             setNeedsDisplay(frame)
