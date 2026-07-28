@@ -460,6 +460,22 @@ impl Workspace {
             if let Some(tab) = self.tabs.get(dest) {
                 if let Some(id) = tab.id() {
                     if tab.is_dirty(&self.tasks) {
+                        let (seq, sel, text_len) = tab
+                            .markdown()
+                            .map(|md| {
+                                let b = &md.edit.renderer.buffer.current;
+                                (b.seq, (b.selection.0 .0, b.selection.1 .0), b.text.len())
+                            })
+                            .unwrap_or((0, (0, 0), 0));
+                        info!(
+                            ?id,
+                            origin = ?tab.origin,
+                            seq,
+                            ?sel,
+                            text_len,
+                            dirty_for_ms = tab.last_changed.elapsed().as_millis(),
+                            "[mw-edit]/save-queue save_all_tabs"
+                        );
                         self.tasks
                             .queue_save(SaveRequest { id, origin: tab.origin });
                     }
@@ -475,6 +491,11 @@ impl Workspace {
         if let Some(tab) = self.tabs.get(&dest) {
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) {
+                    info!(
+                        ?id,
+                        origin = ?tab.origin,
+                        "[mw-edit]/save-queue save_tab idx={i}"
+                    );
                     self.tasks
                         .queue_save(SaveRequest { id, origin: tab.origin });
                 }
@@ -903,20 +924,68 @@ impl Workspace {
                                 }
                                 Actor::User(origin) => origin,
                             };
-                            let open_tab_origin = self
+                            let open_tab = self
                                 .tab_strip
                                 .iter()
                                 .find(|s| s.dest.id() == id)
-                                .and_then(|s| self.tabs.get(&s.dest))
-                                .map(|t| t.origin);
+                                .and_then(|s| self.tabs.get(&s.dest));
+                            let open_tab_origin = open_tab.map(|t| t.origin);
+                            let dirty = open_tab
+                                .map(|t| t.is_dirty(&self.tasks))
+                                .unwrap_or(false);
+                            let (seq, sel, text_len, hmac) = open_tab
+                                .and_then(|t| t.markdown())
+                                .map(|md| {
+                                    let b = &md.edit.renderer.buffer.current;
+                                    (
+                                        b.seq,
+                                        (b.selection.0 .0, b.selection.1 .0),
+                                        b.text.len(),
+                                        md.hmac,
+                                    )
+                                })
+                                .unwrap_or((0, (0, 0), 0, None));
+                            let will_reload = open_tab_origin
+                                .is_some_and(|tab_origin| event_origin != Some(tab_origin));
+                            info!(
+                                ?id,
+                                ?event_origin,
+                                ?open_tab_origin,
+                                dirty,
+                                seq,
+                                ?sel,
+                                text_len,
+                                ?hmac,
+                                will_reload,
+                                "[mw-edit]/doc-event DocumentWritten actor={actor:?} \
+                                 tab_open={} will_reload={will_reload} dirty={dirty} seq={seq} \
+                                 sel={sel:?} text_len={text_len}",
+                                open_tab.is_some(),
+                            );
                             if let Some(tab_origin) = open_tab_origin {
                                 if event_origin != Some(tab_origin) {
+                                    info!(
+                                        ?id,
+                                        ?event_origin,
+                                        ?tab_origin,
+                                        dirty,
+                                        seq,
+                                        ?sel,
+                                        "[mw-edit]/reload-queue DocumentWritten foreign write \
+                                         → queue_load (event_origin≠tab_origin)"
+                                    );
                                     self.tasks.queue_load(LoadRequest {
                                         id,
                                         tab_created: false,
                                         make_current: false,
                                         is_preview: false,
                                     });
+                                } else {
+                                    debug!(
+                                        ?id,
+                                        ?tab_origin,
+                                        "[mw-edit]/doc-event skip reload (own origin)"
+                                    );
                                 }
                             }
                             // A provider/prompt file's contents changed (edited
@@ -1157,6 +1226,14 @@ impl Workspace {
                             let reload =
                                 if tab.markdown().is_some() { !tab_created } else { false };
                             if !reload {
+                                info!(
+                                    ?id,
+                                    tab_created,
+                                    bytes = bytes.len(),
+                                    ?maybe_hmac,
+                                    origin = ?tab.origin,
+                                    "[mw-edit]/load fresh markdown open"
+                                );
                                 tab.content =
                                     ContentState::Open(TabContent::Markdown(Markdown::new(
                                         &String::from_utf8_lossy(&bytes),
@@ -1183,12 +1260,42 @@ impl Workspace {
                                         },
                                     )));
                             } else {
+                                let tab_origin = tab.origin;
+                                let dirty_before = tab.is_dirty(&self.tasks);
+                                let last_changed_gt_saved = tab.last_changed > tab.last_saved;
                                 let md = tab.markdown_mut().unwrap();
+                                let buf = &md.edit.renderer.buffer.current;
+                                let before_seq = buf.seq;
+                                let before_sel = (buf.selection.0 .0, buf.selection.1 .0);
+                                let before_len = buf.text.len();
+                                let before_hmac = md.hmac;
+                                info!(
+                                    ?id,
+                                    origin = ?tab_origin,
+                                    before_seq,
+                                    ?before_sel,
+                                    before_len,
+                                    ?before_hmac,
+                                    dirty_before,
+                                    new_bytes = bytes.len(),
+                                    ?maybe_hmac,
+                                    "[mw-edit]/reload apply markdown buffer.reload"
+                                );
                                 md.edit
                                     .renderer
                                     .buffer
                                     .reload(String::from_utf8_lossy(&bytes).into());
                                 md.hmac = maybe_hmac;
+                                // Ops are queued only — applied on next
+                                // handle_input/update. last_changed is NOT
+                                // cleared; a subsequent text_updated will
+                                // re-dirty the tab.
+                                info!(
+                                    ?id,
+                                    origin = ?tab_origin,
+                                    last_changed_gt_saved,
+                                    "[mw-edit]/reload apply done (ops queued, not yet applied)"
+                                );
                             }
                         }
                         _ => {
@@ -1229,7 +1336,7 @@ impl Workspace {
             {
                 {
                     let CompletedSave {
-                        request: SaveRequest { id, origin: _ },
+                        request: SaveRequest { id, origin },
                         seq,
                         content,
                         new_hmac_result,
@@ -1240,6 +1347,21 @@ impl Workspace {
                     if let Some(tab) = self.tabs.get_any_mut(&key) {
                         match new_hmac_result {
                             Ok(hmac) => {
+                                let content_len = match &content {
+                                    TabSaveContent::String(s) => s.len(),
+                                    TabSaveContent::Bytes(b) => b.len(),
+                                    TabSaveContent::Svg(_) => 0,
+                                };
+                                info!(
+                                    ?id,
+                                    ?origin,
+                                    tab_origin = ?tab.origin,
+                                    seq,
+                                    content_len,
+                                    ?hmac,
+                                    still_dirty = tab.last_changed > started_at,
+                                    "[mw-edit]/save ok"
+                                );
                                 tab.last_saved = started_at;
                                 if let Some(md) = tab.markdown_mut() {
                                     if let TabSaveContent::String(content) = content {
@@ -1262,9 +1384,12 @@ impl Workspace {
                             }
                             Err(err) => {
                                 if err.kind == LbErrKind::ReReadRequired {
-                                    debug!(
-                                        "reloading file after save failed with re-read required: {}",
-                                        id
+                                    warn!(
+                                        ?id,
+                                        ?origin,
+                                        tab_origin = ?tab.origin,
+                                        seq,
+                                        "[mw-edit]/save ReReadRequired → queue_load"
                                     );
                                     self.tasks.queue_load(LoadRequest {
                                         id,
@@ -1273,6 +1398,12 @@ impl Workspace {
                                         is_preview: false,
                                     });
                                 } else {
+                                    error!(
+                                        ?id,
+                                        ?origin,
+                                        ?err,
+                                        "[mw-edit]/save failed"
+                                    );
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
                                         format!("{err:?}"),
                                     ))

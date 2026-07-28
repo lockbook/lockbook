@@ -3,8 +3,12 @@ use super::operation_types::{InverseOperation, Operation, Replace};
 use super::unicode_segs::UnicodeSegs;
 use super::{diff, unicode_segs};
 use std::ops::Index;
+use tracing::{debug, info, warn};
 use unicode_segmentation::UnicodeSegmentation as _;
 use web_time::{Duration, Instant};
+
+/// Log-filter prefix for multi-window cursor/reload investigation.
+const MW: &str = "[mw-edit]";
 
 /// Long-lived state of the editor's text buffer. Factored into sub-structs for borrow-checking.
 /// # Operation algebra
@@ -84,6 +88,7 @@ impl Snapshot {
     fn apply_replace(&mut self, replace: &Replace) -> (Response, Graphemes) {
         let Replace { range, text } = replace;
         let byte_range = self.segs.range_to_byte(*range);
+        let sel_before = self.selection;
 
         // Capture pre-apply segs so `Graphemes::measure_replace` can compute
         // the buffer delta. It's the only construction path for an
@@ -99,6 +104,19 @@ impl Snapshot {
         let actual_len = Graphemes::measure_replace(&old_segs, &self.segs, *range);
 
         adjust_subsequent_range(*range, actual_len, false, &mut self.selection);
+
+        if sel_before != self.selection {
+            debug!(
+                target: "lb_rs::model::text::buffer",
+                "{MW}/buffer replace OT-shifted selection {:?} → {:?} \
+                 (range {:?}, insert_len {}, text_len {})",
+                (sel_before.0 .0, sel_before.1 .0),
+                (self.selection.0 .0, self.selection.1 .0),
+                (range.0 .0, range.1 .0),
+                actual_len.0,
+                self.text.len(),
+            );
+        }
 
         (Response { text_updated: true, ..Default::default() }, actual_len)
     }
@@ -368,6 +386,41 @@ impl Buffer {
         let timestamp = Instant::now();
         let base = self.external.seq;
         let ops = diff(&self.external.text, &text);
+        let unapplied = self.base.seq + self.ops.all.len() - self.ops.processed_seq;
+        let local_ahead = self.current.seq.saturating_sub(self.external.seq);
+
+        info!(
+            target: "lb_rs::model::text::buffer",
+            "{MW}/buffer reload queued: external_base={base} current_seq={} processed_seq={} \
+             local_ahead={local_ahead} unapplied_before={} diff_ops={} \
+             external_len={} new_len={} same_text={} sel=({},{})",
+            self.current.seq,
+            self.ops.processed_seq,
+            unapplied,
+            ops.len(),
+            self.external.text.len(),
+            text.len(),
+            self.external.text == text,
+            self.current.selection.0 .0,
+            self.current.selection.1 .0,
+        );
+        for (i, op) in ops.iter().enumerate().take(8) {
+            debug!(
+                target: "lb_rs::model::text::buffer",
+                "{MW}/buffer reload op[{i}]: range=({},{}) insert_chars={} insert_preview={:?}",
+                op.range.0 .0,
+                op.range.1 .0,
+                op.text.chars().count(),
+                truncate_for_log(&op.text, 40),
+            );
+        }
+        if ops.len() > 8 {
+            debug!(
+                target: "lb_rs::model::text::buffer",
+                "{MW}/buffer reload: …{} more diff ops",
+                ops.len() - 8
+            );
+        }
 
         self.ops
             .meta
@@ -382,6 +435,14 @@ impl Buffer {
     /// for merging external changes. The sequence number should be taken from `current.seq` of the buffer when the
     /// buffer's contents are read for saving.
     pub fn saved(&mut self, external_seq: usize, external_text: String) {
+        debug!(
+            target: "lb_rs::model::text::buffer",
+            "{MW}/buffer saved: external_seq={external_seq} current_seq={} text_len={} \
+             external_text_matches_current={}",
+            self.current.seq,
+            external_text.len(),
+            external_text == self.current.text,
+        );
         self.external.text = external_text;
         self.external.seq = external_seq;
     }
@@ -429,12 +490,83 @@ impl Buffer {
             return Response::default();
         }
 
+        let sel_before = self.current.selection;
+        let text_len_before = self.current.text.len();
+        let seq_before = self.current.seq;
+        let bases: Vec<usize> = (self.current_idx()..self.current_idx() + queue_len)
+            .map(|i| self.ops.meta[i].base)
+            .collect();
+        let mut replace_count = 0usize;
+        let mut select_count = 0usize;
+        for idx in self.current_idx()..self.current_idx() + queue_len {
+            match &self.ops.all[idx] {
+                Operation::Replace(_) => replace_count += 1,
+                Operation::Select(_) => select_count += 1,
+            }
+        }
+        let mixed_bases = bases.windows(2).any(|w| w[0] != w[1]);
+        if replace_count > 0 || mixed_bases || queue_len > 4 {
+            info!(
+                target: "lb_rs::model::text::buffer",
+                "{MW}/buffer update apply: queue_len={queue_len} replaces={replace_count} \
+                 selects={select_count} mixed_bases={mixed_bases} bases={bases:?} \
+                 seq={seq_before}→… sel_before=({},{}) text_len={text_len_before} \
+                 external_seq={}",
+                sel_before.0 .0,
+                sel_before.1 .0,
+                self.external.seq,
+            );
+        } else {
+            debug!(
+                target: "lb_rs::model::text::buffer",
+                "{MW}/buffer update apply: queue_len={queue_len} replaces={replace_count} \
+                 selects={select_count} seq={seq_before} sel=({},{})",
+                sel_before.0 .0,
+                sel_before.1 .0,
+            );
+        }
+
         // transform & apply
         let mut result = Response { seq_before: self.current.seq, ..Default::default() };
+        let mut conflicts = 0usize;
         for idx in self.current_idx()..self.current_idx() + queue_len {
             let mut op = self.ops.all[idx].clone();
             let meta = &self.ops.meta[idx];
-            self.transform(&mut op, meta);
+            let pre_transform = op.clone();
+            conflicts += self.transform(&mut op, meta);
+            if pre_transform != op {
+                if let (
+                    Operation::Replace(Replace { range: r0, text: t0 }),
+                    Operation::Replace(Replace { range: r1, text: t1 }),
+                ) = (&pre_transform, &op)
+                {
+                    if t0 != t1 || r0 != r1 {
+                        debug!(
+                            target: "lb_rs::model::text::buffer",
+                            "{MW}/buffer transform: base={} {:?} → {:?}",
+                            meta.base,
+                            op_summary(&pre_transform),
+                            op_summary(&op),
+                        );
+                    }
+                } else if let (
+                    Operation::Select(r0),
+                    Operation::Select(r1),
+                ) = (&pre_transform, &op)
+                {
+                    if r0 != r1 {
+                        debug!(
+                            target: "lb_rs::model::text::buffer",
+                            "{MW}/buffer transform Select: base={} ({},{}) → ({},{})",
+                            meta.base,
+                            r0.0 .0,
+                            r0.1 .0,
+                            r1.0 .0,
+                            r1.1 .0,
+                        );
+                    }
+                }
+            }
             // Capture inverse-relevant state before apply (it needs the
             // pre-apply text); finalize once redo's apply has measured the
             // actual contribution and stored it in `transformed_actual_len`.
@@ -452,10 +584,54 @@ impl Buffer {
         }
 
         result.seq_after = self.current.seq;
+
+        let sel_after = self.current.selection;
+        if sel_before != sel_after && !result.selection_user_moved {
+            // Selection moved purely as a side-effect of Replace OT (reload
+            // merge or concurrent remote edits) — the multi-window cursor jump
+            // symptom lives here.
+            info!(
+                target: "lb_rs::model::text::buffer",
+                "{MW}/buffer SEL-SIDE-EFFECT: {:?} → {:?} text_updated={} \
+                 seq {}→{} text_len {}→{} conflicts={conflicts} mixed_bases={mixed_bases}",
+                (sel_before.0 .0, sel_before.1 .0),
+                (sel_after.0 .0, sel_after.1 .0),
+                result.text_updated,
+                result.seq_before,
+                result.seq_after,
+                text_len_before,
+                self.current.text.len(),
+            );
+        } else if sel_before != sel_after {
+            debug!(
+                target: "lb_rs::model::text::buffer",
+                "{MW}/buffer sel user-moved: {:?} → {:?} text_updated={}",
+                (sel_before.0 .0, sel_before.1 .0),
+                (sel_after.0 .0, sel_after.1 .0),
+                result.text_updated,
+            );
+        }
+        if conflicts > 0 {
+            warn!(
+                target: "lb_rs::model::text::buffer",
+                "{MW}/buffer CONCURRENT-CONFLICT: cleared {conflicts} intersecting \
+                 replace(s) this update; seq {}→{} text_len {}→{} sel {:?}",
+                result.seq_before,
+                result.seq_after,
+                text_len_before,
+                self.current.text.len(),
+                (sel_after.0 .0, sel_after.1 .0),
+            );
+        }
+
         result
     }
 
-    fn transform(&self, op: &mut Operation, meta: &OpMeta) {
+    /// Transforms `op` against already-applied ops since `meta.base`.
+    /// Returns the number of concurrent intersecting replaces that were
+    /// zeroed (first/local wins).
+    fn transform(&self, op: &mut Operation, meta: &OpMeta) -> usize {
+        let mut conflicts = 0usize;
         let base_idx = meta.base - self.base.seq;
         for transforming_idx in base_idx..self.ops.processed_seq {
             let preceding_op = &self.ops.transformed[transforming_idx];
@@ -474,6 +650,20 @@ impl Buffer {
                         // this doesn't create self-conflicts for same-frame editor changes because our final condition
                         // is that we don't simultaneously insert text for both operations, which creates un-ideal
                         // behavior (see test buffer_merge_insert)
+                        if !text.is_empty() || !transformed_range.is_empty() {
+                            warn!(
+                                target: "lb_rs::model::text::buffer",
+                                "{MW}/buffer conflict: zeroing replace range=({},{}) \
+                                 insert_chars={} against preceding range=({},{}) actual_len={}",
+                                transformed_range.0 .0,
+                                transformed_range.1 .0,
+                                text.chars().count(),
+                                preceding_replaced_range.0 .0,
+                                preceding_replaced_range.1 .0,
+                                preceding_actual_len.0,
+                            );
+                            conflicts += 1;
+                        }
                         *text = "".into();
                         transformed_range.1 = transformed_range.0;
                     }
@@ -492,6 +682,7 @@ impl Buffer {
                 }
             }
         }
+        conflicts
     }
 
     pub fn can_redo(&self) -> bool {
@@ -585,6 +776,23 @@ impl Buffer {
     pub fn selection_text(&self) -> String {
         self[self.current.selection].to_string()
     }
+
+    /// Number of ops received but not yet applied (`update()` not run).
+    /// Used by multi-window instrumentation to detect reload ops sitting
+    /// in the queue alongside same-frame typing.
+    pub fn pending_ops(&self) -> usize {
+        (self.base.seq + self.ops.len()).saturating_sub(self.ops.processed_seq)
+    }
+
+    /// Sequence number of the last applied op (`processed_seq`).
+    pub fn processed_seq(&self) -> usize {
+        self.ops.processed_seq
+    }
+
+    /// Base sequence used for merging external reloads.
+    pub fn external_seq(&self) -> usize {
+        self.external.seq
+    }
 }
 
 impl From<&str> for Buffer {
@@ -594,6 +802,27 @@ impl From<&str> for Buffer {
         result.current.segs = unicode_segs::calc(value);
         result.external.text = value.to_string();
         result
+    }
+}
+
+fn truncate_for_log(s: &str, max_chars: usize) -> String {
+    let mut out: String = s.chars().take(max_chars).collect();
+    if s.chars().count() > max_chars {
+        out.push('…');
+    }
+    out
+}
+
+fn op_summary(op: &Operation) -> String {
+    match op {
+        Operation::Select(r) => format!("Select({},{})", r.0 .0, r.1 .0),
+        Operation::Replace(Replace { range, text }) => format!(
+            "Replace(({},{}), insert_chars={}, preview={:?})",
+            range.0 .0,
+            range.1 .0,
+            text.chars().count(),
+            truncate_for_log(text, 24),
+        ),
     }
 }
 

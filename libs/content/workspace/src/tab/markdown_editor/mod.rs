@@ -929,9 +929,48 @@ impl Editor {
         self.edit.event.internal_events.extend(workspace_events);
 
         let prior_selection = self.edit.renderer.buffer.current.selection;
+        let prior_seq = self.edit.renderer.buffer.current.seq;
+        let prior_text_len = self.edit.renderer.buffer.current.text.len();
         let prior_entered_atom = self.edit.renderer.entered_atom;
         let buf_resp = self.edit.handle_input(ui.ctx(), self.id());
         resp.open_camera = buf_resp.open_camera;
+
+        let after_selection = self
+            .edit
+            .in_progress_selection
+            .unwrap_or(self.edit.renderer.buffer.current.selection);
+        if prior_selection != after_selection {
+            // Large jumps or selection moves without a user Select are the
+            // multi-window/reload smoking gun. Small user-moved changes
+            // (typing) stay at debug.
+            let jump = prior_selection
+                .0
+                .0
+                .abs_diff(after_selection.0 .0)
+                .max(prior_selection.1 .0.abs_diff(after_selection.1 .0));
+            if !buf_resp.selection_user_moved || jump > 8 {
+                tracing::info!(
+                    file_id = ?self.edit.file_id,
+                    from = ?(prior_selection.0 .0, prior_selection.1 .0),
+                    to = ?(after_selection.0 .0, after_selection.1 .0),
+                    jump,
+                    selection_user_moved = buf_resp.selection_user_moved,
+                    text_updated = buf_resp.text_updated,
+                    seq = ?(prior_seq, self.edit.renderer.buffer.current.seq),
+                    text_len = ?(prior_text_len, self.edit.renderer.buffer.current.text.len()),
+                    initialized = self.initialized,
+                    "[mw-edit]/sel handle_input selection change"
+                );
+            } else {
+                tracing::debug!(
+                    file_id = ?self.edit.file_id,
+                    from = ?(prior_selection.0 .0, prior_selection.1 .0),
+                    to = ?(after_selection.0 .0, after_selection.1 .0),
+                    text_updated = buf_resp.text_updated,
+                    "[mw-edit]/sel handle_input selection change (user)"
+                );
+            }
+        }
 
         if !self.initialized || buf_resp.text_updated {
             resp.text_updated = true;
@@ -939,11 +978,7 @@ impl Editor {
                 .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
             ui.ctx().request_repaint();
         }
-        resp.selection_updated = prior_selection
-            != self
-                .edit
-                .in_progress_selection
-                .unwrap_or(self.edit.renderer.buffer.current.selection);
+        resp.selection_updated = prior_selection != after_selection;
         // Loads completing (embeds, link meta) and atom enter/exit reflow
         // layout, moving the selection's rects without moving the selection.
         // Report as a scroll: iOS re-fetches geometry on either signal, but a
@@ -959,6 +994,12 @@ impl Editor {
             && !all_selected
             && self.edit.in_progress_block_drag.is_none()
         {
+            let sel = self.edit.renderer.buffer.current.selection;
+            tracing::debug!(
+                file_id = ?self.edit.file_id,
+                sel = ?(sel.0 .0, sel.1 .0),
+                "[mw-edit]/scroll pending_scroll=Cursor (selection_user_moved)"
+            );
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
         }
 
@@ -1111,25 +1152,22 @@ impl Editor {
                 // events causes touch devices to scroll to cursor on 2nd
                 // frame
                 let (start, end) = persisted.selection;
-                let selection = (
-                    start.clamp(
-                        0.into(),
-                        self.edit
-                            .renderer
-                            .buffer
-                            .current
-                            .segs
-                            .last_cursor_position(),
-                    ),
-                    end.clamp(
-                        0.into(),
-                        self.edit
-                            .renderer
-                            .buffer
-                            .current
-                            .segs
-                            .last_cursor_position(),
-                    ),
+                let last = self
+                    .edit
+                    .renderer
+                    .buffer
+                    .current
+                    .segs
+                    .last_cursor_position();
+                let selection = (start.clamp(0.into(), last), end.clamp(0.into(), last));
+                tracing::info!(
+                    file_id = ?self.edit.file_id,
+                    raw_sel = ?(start.0, end.0),
+                    clamped_sel = ?(selection.0 .0, selection.1 .0),
+                    last = last.0,
+                    text_len = self.edit.renderer.buffer.current.text.len(),
+                    anchor = ?persisted.anchor,
+                    "[mw-edit]/persist restore selection on first frame"
                 );
                 self.edit
                     .renderer

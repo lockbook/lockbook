@@ -974,6 +974,10 @@ impl LocalLb {
         }
 
         for &doc in &state.pulled_docs {
+            tracing::info!(
+                ?doc,
+                "[mw-edit]/sync DocumentWritten Actor::Sync (pulled remote doc)"
+            );
             self.events.doc_written(doc, Actor::Sync);
         }
 
