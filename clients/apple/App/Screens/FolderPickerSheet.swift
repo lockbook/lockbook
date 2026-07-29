@@ -54,10 +54,14 @@ struct FolderPickerSheet: View {
 
             Spacer()
 
-            Button("Cancel") {
-                dismiss()
-            }
-            .keyboardShortcut(.cancelAction)
+            #if os(macOS)
+                SheetCloseButton()
+            #else
+                Button("Cancel") {
+                    dismiss()
+                }
+                .keyboardShortcut(.cancelAction)
+            #endif
         }
         .padding(.horizontal)
         .padding(.top, 14)

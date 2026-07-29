@@ -9,11 +9,7 @@ import SwiftWorkspace
     @ObservationIgnored private var loading: Set<UUID> = []
 
     func preview(for file: File) -> AttributedString? {
-        guard let preview = previews[file.id], preview.lastModified == file.lastModified else {
-            return nil
-        }
-
-        return preview.text
+        previews[file.id]?.text
     }
 
     func loadPreviewIfNeeded(_ file: File) {

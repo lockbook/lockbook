@@ -49,9 +49,12 @@ pub enum FetchError {
     /// The host answered 429/503 (or is still cooling down from one).
     /// `until` is the next desired retry time.
     RateLimited { until: Instant },
+    /// A bot wall: a challenge page (`cf-mitigated`) or 401/403. Another
+    /// user agent may pass, and the site's posture may change — eventually.
+    Blocked(String),
     /// Deterministic failure (blocked URL, 4xx, not HTML) — retrying won't help.
     Permanent(String),
-    /// Network-level failure (timeout, reset). Not currently retried.
+    /// Network-level failure (timeout, reset). Retryable after a backoff.
     Transient(String),
 }
 
@@ -59,7 +62,9 @@ impl fmt::Display for FetchError {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             FetchError::RateLimited { .. } => write!(f, "rate limited"),
-            FetchError::Permanent(msg) | FetchError::Transient(msg) => write!(f, "{msg}"),
+            FetchError::Blocked(msg) | FetchError::Permanent(msg) | FetchError::Transient(msg) => {
+                write!(f, "{msg}")
+            }
         }
     }
 }
@@ -264,6 +269,28 @@ mod imp {
         _client: &reqwest::blocking::Client, url: &str, user_agent: &str,
     ) -> Result<String, FetchError> {
         let resp = open(url, user_agent)?;
+        // Cloudflare marks challenge pages explicitly; they otherwise look
+        // like a normal HTML response with a junk <title>.
+        if resp
+            .headers()
+            .get("cf-mitigated")
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.eq_ignore_ascii_case("challenge"))
+        {
+            return Err(FetchError::Blocked("challenge page".into()));
+        }
+        let status = resp.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+            return Err(FetchError::Blocked(format!("{}", status.as_u16())));
+        }
+        // Error pages ship a <title> too ("404 Not Found") — status first.
+        if !status.is_success() {
+            return Err(FetchError::Permanent(format!(
+                "{} {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or("")
+            )));
+        }
         let is_html = resp
             .headers()
             .get(reqwest::header::CONTENT_TYPE)
@@ -393,6 +420,28 @@ mod imp {
         client: &reqwest::Client, url: &str, user_agent: &str,
     ) -> Result<String, FetchError> {
         let resp = open(client, url, user_agent).await?;
+        // Cloudflare marks challenge pages explicitly; they otherwise look
+        // like a normal HTML response with a junk <title>.
+        if resp
+            .headers()
+            .get("cf-mitigated")
+            .and_then(|v| v.to_str().ok())
+            .is_some_and(|v| v.eq_ignore_ascii_case("challenge"))
+        {
+            return Err(FetchError::Blocked("challenge page".into()));
+        }
+        let status = resp.status();
+        if status == reqwest::StatusCode::UNAUTHORIZED || status == reqwest::StatusCode::FORBIDDEN {
+            return Err(FetchError::Blocked(format!("{}", status.as_u16())));
+        }
+        // Error pages ship a <title> too ("404 Not Found") — status first.
+        if !status.is_success() {
+            return Err(FetchError::Permanent(format!(
+                "{} {}",
+                status.as_u16(),
+                status.canonical_reason().unwrap_or("")
+            )));
+        }
         let is_html = resp
             .headers()
             .get(reqwest::header::CONTENT_TYPE)

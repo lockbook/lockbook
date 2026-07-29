@@ -434,7 +434,11 @@ impl<'ast> MdRender {
         self.touch_consuming_rects.push(space);
 
         if self.fold(node).is_some() {
-            ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
+            // Non-advancing child: this paints for off-screen neighbor rows
+            // too, and advancing the layout cursor there displaces siblings
+            // laid out after the editor (the mobile toolbar, #4892).
+            let ui = &mut ui.new_child(UiBuilder::new().max_rect(space));
+            {
                 let theme = self.ctx.get_lb_theme();
                 let icon = Icon::CHEVRON_RIGHT.size(icon_size).color(if fold_reveal {
                     theme.neutral_fg_secondary()
@@ -449,9 +453,10 @@ impl<'ast> MdRender {
                 {
                     self.apply_fold(node, contents, true);
                 }
-            });
+            }
         } else if self.foldable(node).is_some() {
-            ui.scope_builder(UiBuilder::new().max_rect(space), |ui| {
+            let ui = &mut ui.new_child(UiBuilder::new().max_rect(space));
+            {
                 let icon = Icon::CHEVRON_DOWN
                     .size(icon_size)
                     .color(self.ctx.get_lb_theme().neutral_fg_secondary());
@@ -463,7 +468,7 @@ impl<'ast> MdRender {
                 {
                     self.apply_fold(node, contents, false);
                 }
-            });
+            }
         }
     }
 

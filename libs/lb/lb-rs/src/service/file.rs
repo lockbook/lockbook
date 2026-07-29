@@ -4,7 +4,7 @@ use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file::File;
 use crate::model::file_like::FileLike;
 use crate::model::file_metadata::{FileType, Owner};
-use crate::model::filename::MAX_FILENAME_LENGTH;
+use crate::model::filename::{MAX_FILENAME_LENGTH, NameComponents};
 use crate::model::symkey;
 use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
@@ -84,6 +84,29 @@ impl LocalLb {
         self.events.meta_changed(Actor::User(None));
 
         Ok(())
+    }
+
+    #[instrument(level = "debug", skip(self), err(Debug))]
+    pub async fn duplicate_file(&self, id: &Uuid) -> LbResult<File> {
+        let mut source = self.get_file_by_id(*id).await?;
+        if let FileType::Link { target } = source.file_type {
+            source = self.get_file_by_id(target).await?;
+        }
+        if !source.is_document() {
+            return Err(LbErrKind::FileNotDocument.into());
+        }
+
+        let content = self.read_document(source.id, false).await?;
+
+        let mut name = NameComponents::from(&source.name);
+        name.next_in_children(self.get_children(&source.parent).await?);
+
+        let new_file = self
+            .create_file(&name.to_name(), &source.parent, FileType::Document)
+            .await?;
+        self.write_document(new_file.id, &content).await?;
+
+        Ok(new_file)
     }
 
     #[instrument(level = "debug", skip(self), err(Debug))]

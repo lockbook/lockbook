@@ -25,9 +25,8 @@ pub struct EventState {
 
 impl MdEdit {
     /// Reorder a list item to the gap at `insert_offset` via
-    /// [`MdRender::plan_block_move`]. The post-move selection is
-    /// applied in a separate batch so it isn't transformed against the
-    /// edit and lands on the moved item.
+    /// [`MdRender::plan_block_move`]. The selection is left where the
+    /// edit transform lands it — a drop doesn't reselect the moved item.
     pub fn move_block(
         &mut self, section_range: (Grapheme, Grapheme), insert_offset: Grapheme,
     ) -> buffer::Response {
@@ -49,10 +48,8 @@ impl MdEdit {
         }
         self.renderer.bump_text_seq();
 
-        self.renderer
-            .buffer
-            .queue(vec![Operation::Select(plan.moved_range)]);
-        resp |= self.renderer.buffer.update();
+        // the drag already positioned the viewport; don't scroll-to-cursor
+        resp.selection_user_moved = false;
         resp
     }
 }

@@ -3,6 +3,10 @@ import SwiftWorkspace
 
 struct RecentsView: View {
     @Environment(FilesModel.self) private var filesModel
+    @Environment(WorkspaceInputState.self) private var workspaceInput
+    #if os(iOS)
+        @Environment(HomeState.self) private var homeState
+    #endif
 
     let model: RecentsModel
     let fileTreeModel: FileTreeModel
@@ -53,6 +57,12 @@ struct RecentsView: View {
                         }
                     }
                     .padding(.bottom, 20)
+                }
+                .refreshable {
+                    #if os(iOS)
+                        homeState.explicitSyncRequested()
+                    #endif
+                    workspaceInput.requestSync()
                 }
             }
         }
@@ -189,6 +199,9 @@ struct RecentDocRow: View {
             }
         )
         .onAppear {
+            model.loadPreviewIfNeeded(file)
+        }
+        .onChange(of: file.lastModified) {
             model.loadPreviewIfNeeded(file)
         }
     }

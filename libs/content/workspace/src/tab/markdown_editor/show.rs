@@ -29,6 +29,7 @@ use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
+use super::widget::inline::link::{LinkMenuAction, link_menu_buttons};
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
 pub struct PreRenderState {
@@ -166,6 +167,24 @@ impl MdEdit {
             });
         }
 
+        self.sync_reveal_selection(ctx, id, prior_entered_atom);
+        self.renderer.search_range = self
+            .emoji_completions
+            .search_term_range
+            .or(self.link_completions.search_term_range);
+
+        buf_resp
+    }
+
+    /// Sync `reveal_selection` to the buffer selection, bumping `reveal_seq`
+    /// (and requesting a repaint) when it or `entered_atom` changed. Runs in
+    /// `handle_input` and again after [`Self::pre_render`] applies
+    /// pointer/tap ops, so the frame that reports a selection change also
+    /// paints its reveal — iOS queries caret and selection geometry
+    /// synchronously on that report.
+    fn sync_reveal_selection(
+        &mut self, ctx: &Context, id: Id, prior_entered_atom: Option<(Grapheme, Grapheme)>,
+    ) {
         let new_reveal_selection = (!self.renderer.readonly && ctx.memory(|m| m.has_focus(id)))
             .then_some(self.renderer.buffer.current.selection);
         if self.renderer.reveal_selection != new_reveal_selection
@@ -178,12 +197,6 @@ impl MdEdit {
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
             ctx.request_repaint();
         }
-        self.renderer.search_range = self
-            .emoji_completions
-            .search_term_range
-            .or(self.link_completions.search_term_range);
-
-        buf_resp
     }
 
     /// Draw the document inline at `rect`: pointer + context menu via
@@ -199,12 +212,24 @@ impl MdEdit {
         // `single_line_scroll` shifts the layout to keep the cursor in view.
         let layout_width = if self.renderer.single_line { 100_000.0 } else { rect.width() };
         self.renderer.set_width(layout_width);
-        let origin = rect.min - egui::vec2(self.single_line_scroll, 0.0);
         let arena = Arena::new();
         let root = self.renderer.reparse(&arena);
-        // Composer entry point (chat); no keyboard-state plumbing — image
-        // taps there fall back to desktop/cmd gating via `touch_mode`.
-        let pre = self.pre_render(ui, rect, id, root, false);
+
+        // A multi-line field shorter than its content (the chat composer at
+        // max height) scrolls vertically: wheel here, cursor-follow at the
+        // bottom of this fn. `height` is memoized — computing it early is free.
+        let height = self.renderer.height(root);
+        let overflow =
+            if self.renderer.single_line { 0.0 } else { (height - rect.height()).max(0.0) };
+        if overflow > 0.0 && ui.rect_contains_pointer(rect) {
+            let delta = ui.input_mut(|i| std::mem::take(&mut i.smooth_scroll_delta.y));
+            self.overflow_scroll -= delta;
+        }
+        self.overflow_scroll = self.overflow_scroll.clamp(0.0, overflow);
+
+        let origin = rect.min - egui::vec2(self.single_line_scroll, self.overflow_scroll);
+        // Composer entry point (chat).
+        let pre = self.pre_render(ui, rect, id, root);
 
         self.renderer.fragments.clear();
         self.renderer.block_boxes.clear();
@@ -212,11 +237,10 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
-        let height = self.renderer.height(root);
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
-            // Clip the (possibly overflowing) one-line layout to the field.
-            if self.renderer.single_line {
+            // Clip the (possibly overflowing) layout to the field.
+            if self.renderer.single_line || overflow > 0.0 {
                 ui.set_clip_rect(rect.intersect(ui.clip_rect()));
             }
             self.renderer.show_block(ui, root, origin);
@@ -224,11 +248,14 @@ impl MdEdit {
         self.renderer.fragments.sort_by_key(|f| f.source_range);
 
         // Favicon + selection tint, over the opaque capsule pills.
-        self.renderer.show_capsule_overlays(ui, root, rect);
+        self.renderer.show_capsule_overlays(ui, root, rect, 0);
 
         self.handle_block_drag(ui);
         self.post_render(ui, rect, id, pre);
         self.draw_dragged_overlay(ui, root);
+        if overflow > 0.0 {
+            self.show_overflow_scrollbar(ui, rect, id, height, overflow);
+        }
 
         // Keep the cursor inside the rect: fragments (and so `cursor_line`)
         // are in shifted screen coords, so edge overshoot maps 1:1 onto a
@@ -254,6 +281,86 @@ impl MdEdit {
                 ui.ctx().request_repaint();
             }
         }
+
+        // The same correction vertically for a bounded multi-line field, but
+        // only when the buffer / rect changed or a drag-selection is in
+        // flight — a wheel scroll can move the cursor out of view.
+        let follow =
+            (self.renderer.buffer.current.seq, self.renderer.buffer.current.selection, rect);
+        if !self.renderer.single_line
+            && (follow != self.overflow_follow || self.in_progress_selection.is_some())
+        {
+            self.overflow_follow = follow;
+            let sel_end = self
+                .in_progress_selection
+                .unwrap_or(self.renderer.buffer.current.selection)
+                .1;
+            let mut scroll = self.overflow_scroll;
+            if let Some([top, bot]) = self.cursor_line(sel_end) {
+                if bot.y > rect.bottom() {
+                    scroll += bot.y - rect.bottom();
+                } else if top.y < rect.top() {
+                    scroll -= rect.top() - top.y;
+                }
+            }
+            let scroll = scroll.clamp(0.0, overflow);
+            if scroll != self.overflow_scroll {
+                self.overflow_scroll = scroll;
+                ui.ctx().request_repaint();
+            }
+        }
+    }
+
+    /// Overlay scrollbar on the right edge of an overflowing bounded field,
+    /// styled after the document scroll area's bar. Same semantics too: a
+    /// thumb grab drags relatively; any other press jumps the thumb to the
+    /// pointer.
+    fn show_overflow_scrollbar(
+        &mut self, ui: &mut Ui, rect: Rect, id: Id, height: f32, overflow: f32,
+    ) {
+        const BAR_WIDTH: f32 = 10.0;
+        const BAR_INSET: f32 = 3.0;
+        const MIN_THUMB: f32 = 12.0;
+        let track = Rect::from_min_max(
+            Pos2::new(rect.max.x - BAR_WIDTH - BAR_INSET, rect.min.y),
+            Pos2::new(rect.max.x - BAR_INSET, rect.max.y),
+        );
+        let thumb_h = (track.height() * rect.height() / height).max(MIN_THUMB);
+        let movable = track.height() - thumb_h;
+        let thumb_at = |scroll: f32| {
+            Rect::from_min_size(
+                Pos2::new(track.min.x, track.min.y + movable * (scroll / overflow)),
+                egui::Vec2::new(track.width(), thumb_h),
+            )
+        };
+
+        // Registered after the field's own interact so the bar wins the strip.
+        let resp = ui.interact(track, id.with("overflow_scrollbar"), Sense::click_and_drag());
+        if movable > 0.0 {
+            if let Some(pos) = resp.interact_pointer_pos() {
+                let on_thumb = thumb_at(self.overflow_scroll).contains(pos);
+                if (resp.drag_started() || resp.clicked()) && !on_thumb {
+                    let target = (pos.y - track.min.y - thumb_h / 2.0).clamp(0.0, movable);
+                    self.overflow_scroll = target / movable * overflow;
+                } else if resp.dragged() && !resp.drag_started() {
+                    self.overflow_scroll = (self.overflow_scroll
+                        + resp.drag_delta().y / movable * overflow)
+                        .clamp(0.0, overflow);
+                }
+                ui.ctx().request_repaint();
+            }
+        }
+
+        let theme = ui.ctx().get_lb_theme();
+        let track_color = theme.neutral_bg().lerp_to_gamma(theme.neutral(), 0.3);
+        ui.painter().rect_filled(track, 3.0, track_color);
+        ui.painter().rect(
+            thumb_at(self.overflow_scroll),
+            3.0,
+            theme.neutral(),
+            Stroke::NONE,
+            egui::epaint::StrokeKind::Inside,
+        );
     }
 
     /// Consume the marker's [`BlockDragAction`] for the frame and, on
@@ -390,55 +497,25 @@ impl MdEdit {
         let card_rect = src_rect.expand2(egui::Vec2::new(0.0, vpad));
         let hole = src_rect.expand2(egui::Vec2::new(0.0, vpad));
 
-        // Cutout with a CSS-`box-shadow: inset` on top + left edges:
-        // `Shadow::as_shape` only blurs outward, so place each source
-        // rect outside the hole, flush against it, and clip the
-        // painter — the blur fades from the rim inward.
-        let radius = egui::CornerRadius::same(3);
-        ui.painter()
-            .rect_filled(hole, radius, theme.neutral_bg_secondary());
-        let alpha_top: u8 = if self.renderer.dark_mode { 70 } else { 28 };
-        let alpha_left: u8 = if self.renderer.dark_mode { 45 } else { 18 };
-        let blur: u8 = 18;
-        let inset = ui.painter().with_clip_rect(hole);
-        let top_source = egui::Rect::from_min_max(
-            Pos2::new(hole.left() - 60.0, hole.top() - 60.0),
-            Pos2::new(hole.right() + 60.0, hole.top()),
-        );
-        inset.add(
-            egui::epaint::Shadow {
-                offset: [0, 0],
-                blur,
-                spread: 0,
-                color: egui::Color32::from_black_alpha(alpha_top),
-            }
-            .as_shape(top_source, egui::CornerRadius::ZERO),
-        );
-        let left_source = egui::Rect::from_min_max(
-            Pos2::new(hole.left() - 60.0, hole.top() - 60.0),
-            Pos2::new(hole.left(), hole.bottom() + 60.0),
-        );
-        inset.add(
-            egui::epaint::Shadow {
-                offset: [0, 0],
-                blur,
-                spread: 0,
-                color: egui::Color32::from_black_alpha(alpha_left),
-            }
-            .as_shape(left_source, egui::CornerRadius::ZERO),
+        // Fill tracks the editor background (pure black on OLED); border
+        // matches link preview cards.
+        let card_corner = egui::CornerRadius::same(4);
+        let fill = theme.neutral_bg();
+        let stroke_color = theme.neutral_bg_tertiary();
+
+        // Source slot: an empty ghost of the card.
+        ui.painter().rect_filled(hole, card_corner, fill);
+        ui.painter().rect_stroke(
+            hole,
+            card_corner,
+            Stroke::new(0.5, stroke_color),
+            egui::epaint::StrokeKind::Inside,
         );
 
         // Floating card translated so the grab-point stays under the
         // pointer regardless of mid-drag scroll.
         let offset = (p - src_rect.left_top()) - drag.grab_offset;
         let card = card_rect.translate(offset);
-        // Flat canvas-island styling; values match `svg_editor::mod.rs`.
-        let card_corner = egui::CornerRadius::same(4);
-        let (fill, stroke_color) = if self.renderer.dark_mode {
-            (egui::Color32::from_rgb(30, 30, 30), egui::Color32::from_rgb(56, 56, 56))
-        } else {
-            (ui.visuals().extreme_bg_color, egui::Color32::from_rgb(235, 235, 235))
-        };
         ui.painter().rect_filled(card, card_corner, fill);
         ui.painter().rect_stroke(
             card,
@@ -486,6 +563,11 @@ impl MdEdit {
             }
         });
         self.renderer.painting_drag_float = false;
+        // Favicons paint in a separate pass over `fragments`; the float's
+        // capsules live in `fragments[frag_len..]`, so re-run that pass
+        // scoped to them before they're truncated away.
+        self.renderer
+            .show_capsule_overlays(ui, root, ui.clip_rect(), frag_len);
         let floating_text = std::mem::take(&mut self.renderer.text_areas);
         let floating_deco = std::mem::take(&mut self.renderer.deco_lines);
         self.renderer.fragments.truncate(frag_len);
@@ -508,10 +590,10 @@ impl MdEdit {
     /// selection. Returns the focus state for [`MdEdit::post_render`].
     pub fn pre_render<'a>(
         &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
-        keyboard_visible: bool,
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
         self.renderer.viewport_height = ui.clip_rect().height();
+        let prior_entered_atom = self.renderer.entered_atom;
 
         ui.ctx().check_for_id_clash(id, rect, "");
         let prev_focused = ui.memory(|m| m.has_focus(id));
@@ -541,10 +623,11 @@ impl MdEdit {
 
         let mut ops = Vec::new();
 
-        // image / card taps → open (cmd / keyboard-hidden) or select
-        self.handle_image_interactions(root, ui, id, keyboard_visible, &mut ops);
-        self.handle_card_interactions(root, ui, id, keyboard_visible, &mut ops);
-        self.handle_link_capsule_interactions(root, ui, id, keyboard_visible, &mut ops);
+        // image / card / link taps → open (cmd) or select + menu (touch)
+        self.handle_image_interactions(root, ui, id, &mut ops);
+        self.handle_card_interactions(root, ui, id, &mut ops);
+        self.handle_link_capsule_interactions(root, ui, id, &mut ops);
+        self.handle_link_menu_taps(root, ui, id, &mut ops);
 
         // --- context menu (desktop only) -------------------------------------
         ui.ctx()
@@ -556,9 +639,24 @@ impl MdEdit {
         ui.ctx()
             .style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
         if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
+            // Capture the link under the click when it lands, so the menu's
+            // link section stays stable while the pointer moves over it.
+            if response.secondary_clicked() {
+                self.context_menu_link = response
+                    .interact_pointer_pos()
+                    .and_then(|pos| self.link_target_at_pos(root, pos));
+            }
+            let link_target = self.context_menu_link.clone();
+            let mut link_action = None;
+
             let readonly = self.renderer.readonly;
             let mut menu_events: Vec<Event> = Vec::new();
             response.context_menu(|ui| {
+                if let Some(t) = &link_target {
+                    // plain links never render a preview — nothing to refresh
+                    link_action = link_menu_buttons(ui, t.is_image, !readonly, false);
+                    ui.separator();
+                }
                 ui.horizontal(|ui| {
                     ui.set_min_height(30.);
                     ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
@@ -593,6 +691,32 @@ impl MdEdit {
                     }
                 });
             });
+            if let (Some(action), Some(t)) = (link_action, &link_target) {
+                match action {
+                    LinkMenuAction::Open => {
+                        if t.is_wikilink {
+                            if let Some(file_id) = self.renderer.resolve_wikilink(&t.url) {
+                                ui.ctx().open_file(file_id, true);
+                            }
+                        } else {
+                            self.renderer.open_resolved_link(&t.url, ui.ctx());
+                        }
+                    }
+                    LinkMenuAction::Copy => ui.ctx().copy_text(t.url.clone()),
+                    LinkMenuAction::Refresh => self.renderer.refresh_link_meta(&t.url),
+                    LinkMenuAction::Edit => {
+                        if t.force_reveal {
+                            self.renderer.entered_atom = Some(t.node_range);
+                        }
+                        menu_events.push(Event::Select {
+                            region: Region::BetweenLocations {
+                                start: Location::Grapheme(t.select.start()),
+                                end: Location::Grapheme(t.select.end()),
+                            },
+                        });
+                    }
+                }
+            }
             for ev in menu_events {
                 self.calc_operations(ui.ctx(), root, ev, &mut ops);
             }
@@ -637,11 +761,10 @@ impl MdEdit {
                     Some(Region::ToLocation(location))
                 } else if response.clicked() && self.scroll_area.momentum_cancel_press() {
                     None
-                } else if response.clicked()
-                    && matches!(self.touch_reorder, TouchReorder::Armed { .. })
-                {
-                    // Long-press that armed a reorder also lands as a click on
-                    // release — consume it so it doesn't place the cursor.
+                } else if matches!(self.touch_reorder, TouchReorder::Armed { .. }) {
+                    // An armed reorder owns the gesture: swallow both the release
+                    // click and egui's touch long-press (a `secondary_clicked`
+                    // below), so it can't also place the cursor or open a menu.
                     None
                 } else if response.clicked() {
                     if cfg!(target_os = "android") && self.selection_tap(pos) {
@@ -697,9 +820,10 @@ impl MdEdit {
         self.renderer.buffer.queue(ops);
         self.renderer.buffer.update();
         // Pointer only emits Select ops (no text change), so no re-parse
-        // needed. A pointer-driven selection change means reveal_ranges (set
-        // in handle_input) reflects the pre-click selection — the new
-        // selection appears in reveal_ranges next frame. Accepted lag.
+        // needed — but reveal must reflect the applied ops (and any
+        // `entered_atom` a menu "Edit" set) in this frame's paint: iOS
+        // queries geometry as soon as the change is reported.
+        self.sync_reveal_selection(ui.ctx(), id, prior_entered_atom);
 
         self.renderer.in_progress_selection = self.in_progress_selection;
 

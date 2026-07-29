@@ -13,8 +13,8 @@ android {
         minSdkVersion 24
         targetSdk=36
 
-        versionCode 4431
-        versionName "26.7.10"
+        versionCode 4435
+        versionName "26.7.24"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }
@@ -107,6 +107,7 @@ dependencies {
     implementation "androidx.lifecycle:lifecycle-viewmodel-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-livedata-ktx:$lifecycle_version"
     implementation "androidx.lifecycle:lifecycle-process:$lifecycle_version"
+    implementation "androidx.datastore:datastore-preferences:$datastore_version"
     implementation 'androidx.window:window:1.5.1'
     implementation 'androidx.input:input-motionprediction:1.0.0'
 

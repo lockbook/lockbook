@@ -220,8 +220,11 @@ impl<'ast> MdRender {
                 let m = self.card_metrics(rect.width(), &meta);
                 let origin = rect.min.to_vec2();
                 if let Some((img_rect, thumb, rounding)) = &m.image {
-                    self.embeds
-                        .show(ui, thumb, img_rect.translate(origin), *rounding);
+                    // non-advancing child ui — see the embed paint in
+                    // `show_wrap_layout` (#4892)
+                    let rect = img_rect.translate(origin);
+                    let thumb_ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(rect));
+                    self.embeds.show(thumb_ui, thumb, rect, *rounding);
                 }
                 for (pos, galley) in [&m.site, &m.title, &m.desc].into_iter().flatten() {
                     ui.painter()
@@ -244,10 +247,9 @@ impl<'ast> MdEdit {
     /// `Link` that `link_renders_as_card`); tap handling is shared via
     /// [`MdEdit::handle_embed_tap`].
     pub fn handle_card_interactions(
-        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
-        ops: &mut Vec<Operation>,
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
-        let open = self.embed_tap_opens(ui, keyboard_visible);
+        let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Link(link) => link.url.clone(),
@@ -256,9 +258,8 @@ impl<'ast> MdEdit {
             if !self.renderer.link_renders_as_card(node) {
                 continue;
             }
-            let node_range = self.renderer.node_range(node);
-            let salt = MdRender::card_interaction_id_salt(node_range);
-            self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
+            let salt = MdRender::card_interaction_id_salt(self.renderer.node_range(node));
+            self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
         }
     }
 
@@ -266,41 +267,39 @@ impl<'ast> MdEdit {
     /// counterpart to [`Self::handle_card_interactions`]. Only links that
     /// rendered as a capsule have a registered response.
     pub fn handle_link_capsule_interactions(
-        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
-        ops: &mut Vec<Operation>,
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
-        let open = self.embed_tap_opens(ui, keyboard_visible);
+        let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Link(link) => link.url.clone(),
                 _ => continue,
             };
-            let node_range = self.renderer.node_range(node);
-            let salt = MdRender::link_capsule_id_salt(node_range);
-            self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
+            let salt = MdRender::link_capsule_id_salt(self.renderer.node_range(node));
+            self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
         }
     }
 
-    /// If the selection exactly covers a link rendered as a preview atom (card
-    /// or capsule), keep the whole URL selected and force-reveal the source via
-    /// `entered_atom` — a bare autolink *is* its URL, so unlike an image there
-    /// is no interior sub-range to select. True if handled.
+    /// If the selection exactly covers a link or wikilink, move it inside
+    /// for editing via [`MdEdit::atom_edit_selection`]. The touch edit
+    /// menu's "Edit" lands here. True if handled.
     pub fn enter_at_link(
         &mut self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>,
     ) -> bool {
         let selection = self.renderer.buffer.current.selection;
         for node in root.descendants() {
-            if !matches!(node.data.borrow().value, NodeValue::Link(_)) {
+            if !matches!(node.data.borrow().value, NodeValue::Link(_) | NodeValue::WikiLink(_)) {
                 continue;
             }
-            let url = super::node_link_url(node);
             let node_range = self.renderer.node_range(node);
-            if selection != node_range || url.is_empty() || !self.renderer.link_is_auto(node, &url)
-            {
+            if selection != node_range {
                 continue;
             }
-            self.renderer.entered_atom = Some(node_range);
-            operations.push(Operation::Select(node_range));
+            let (select, force_reveal) = self.atom_edit_selection(node);
+            if force_reveal {
+                self.renderer.entered_atom = Some(node_range);
+            }
+            operations.push(Operation::Select(select));
             return true;
         }
         false

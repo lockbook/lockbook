@@ -629,6 +629,15 @@ fn match_title(docs: &[&File], title: &str) -> Option<Uuid> {
     }
 }
 
+/// A lockbook path split into its non-empty segments — the shared step
+/// behind every path-boundary comparison here (and `chat::tools::in_scope`):
+/// segment-vector equality is immune to the sibling-prefix trap raw string
+/// slicing invites (`/notes` is not a prefix-match for `/notes2/a.md` once
+/// paths are segments rather than characters).
+pub fn path_segments(path: &str) -> Vec<&str> {
+    path.split('/').filter(|s| !s.is_empty()).collect()
+}
+
 pub fn relative_path(from: &str, to: &str) -> String {
     if from == to {
         if from.ends_with('/') {
@@ -638,8 +647,8 @@ pub fn relative_path(from: &str, to: &str) -> String {
         }
     }
 
-    let from_parts: Vec<&str> = from.split('/').filter(|s| !s.is_empty()).collect();
-    let to_parts: Vec<&str> = to.split('/').filter(|s| !s.is_empty()).collect();
+    let from_parts = path_segments(from);
+    let to_parts = path_segments(to);
 
     let num_common = from_parts
         .iter()
@@ -660,12 +669,12 @@ pub fn relative_path(from: &str, to: &str) -> String {
 
 pub fn canonicalize(path: &str) -> String {
     let mut parts: Vec<&str> = Vec::new();
-    for component in path.split('/') {
+    for component in path_segments(path) {
         match component {
             ".." => {
                 parts.pop();
             }
-            "" | "." => {}
+            "." => {}
             _ => parts.push(component),
         }
     }
@@ -676,6 +685,16 @@ pub fn canonicalize(path: &str) -> String {
 mod tests {
     use super::*;
     use lb_rs::model::file_metadata::FileType;
+
+    #[test]
+    fn path_segments_tests() {
+        assert_eq!(path_segments("/"), Vec::<&str>::new());
+        assert_eq!(path_segments("/a"), vec!["a"]);
+        assert_eq!(path_segments("/a/"), vec!["a"]);
+        assert_eq!(path_segments("/a/b/c"), vec!["a", "b", "c"]);
+        // A doubled slash collapses rather than yielding an empty segment.
+        assert_eq!(path_segments("/a//b"), vec!["a", "b"]);
+    }
 
     #[test]
     fn relative_path_tests() {

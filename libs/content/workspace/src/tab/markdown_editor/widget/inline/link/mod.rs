@@ -9,18 +9,19 @@ use std::collections::hash_map::Entry;
 use std::sync::atomic::Ordering;
 use std::sync::{Arc, Mutex};
 
+use lb_rs::model::text::operation_types::Operation;
+
 use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
-use crate::tab::ExtendedOutput as _;
-use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
-    LinkMeta, LinkMetaState, extract_link_meta,
+    LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
 };
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{
-    FontFamily, Format, Layout, StyleInfo,
-};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
+use crate::tab::markdown_editor::{MdEdit, MdRender};
+use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
@@ -49,17 +50,6 @@ impl<'ast> MdRender {
     pub fn text_format_link_pill(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
         Format {
             background: self.ctx.get_lb_theme().neutral_bg_secondary(),
-            underline: false,
-            ..self.text_format_link(parent, state)
-        }
-    }
-
-    /// `Icon` glyph (no underline) used for the touch-mode "open link"
-    /// affordance appended after each link. Coloured to match the link's
-    /// state so the button doesn't read as healthy-blue on a warning link.
-    pub fn text_format_link_button(&self, parent: &AstNode<'_>, state: LinkState) -> Format {
-        Format {
-            family: FontFamily::Icons,
             underline: false,
             ..self.text_format_link(parent, state)
         }
@@ -129,9 +119,10 @@ impl<'ast> MdRender {
     /// swap the URL bytes for the title via `push_override`. Empty-text
     /// links (`[](url)`) are not autolinks and have nothing to show, so
     /// they render their raw source like other incomplete syntax.
-    /// With cmd held, opens a `Sense::click` interaction scope so egui
-    /// z-order routes cmd-click here; without cmd no scope is opened
-    /// and clicks fall through to the editor.
+    /// A `Sense::click` interaction scope routes clicks here when they
+    /// act on the link (cmd held, read-only, or unrevealed touch);
+    /// otherwise no scope is opened and clicks fall through to the
+    /// editor for cursor placement.
     pub fn layout_link(
         &self, layout: &mut Layout, node: &'ast AstNode<'ast>, range: (Grapheme, Grapheme),
     ) {
@@ -194,29 +185,18 @@ impl<'ast> MdRender {
 
         // Plain inline link (labeled, or an autolink whose title hasn't
         // resolved): cmd-click opens (desktop editor); read-only views have
-        // no cursor to place, so a plain click opens; touch gets a trailing
-        // open affordance.
-        let clickable = self.readonly || self.ctx.input(|i| i.modifiers.command);
+        // no cursor to place, so a plain click opens; touch taps select the
+        // link and pop the menu — unless revealed, when taps place the
+        // cursor in the raw source.
+        let clickable = self.readonly
+            || self.ctx.input(|i| i.modifiers.command)
+            || (self.touch_mode && !revealed);
         let salt = Self::link_interaction_id_salt(node_range);
         if clickable {
             layout.interaction_open(salt, egui::Sense::click());
         }
         self.layout_circumfix(layout, node, range, link_fmt.clone());
         if clickable {
-            layout.interaction_close();
-        }
-
-        let broken = matches!(state, LinkState::Broken { .. });
-        if self.touch_mode && !broken && range.contains_inclusive(node_range.end()) {
-            let anchor = (node_range.end(), node_range.end());
-            let parent_fmt = self.text_format(parent);
-            layout.push_override(anchor, " ", parent_fmt);
-            layout.interaction_open(salt, egui::Sense::click());
-            layout.push_override(
-                anchor,
-                Icon::OPEN_IN_NEW.icon,
-                self.text_format_link_button(parent, state),
-            );
             layout.interaction_close();
         }
     }
@@ -238,8 +218,13 @@ impl<'ast> MdRender {
     /// pass: the favicon over the title's em-space slot, then a selection tint on
     /// top of a selected capsule (the opaque pill hides the under-text rect —
     /// like images/cards).
+    /// `frag_start` bounds the pass to `fragments[frag_start..]`: the main
+    /// render passes `0`; the drag float passes its own fragment offset so
+    /// only the floated capsule's favicon is painted (its selection tint is
+    /// skipped — the card is already distinct).
     pub fn show_capsule_overlays(
         &mut self, ui: &mut egui::Ui, root: &'ast AstNode<'ast>, viewport: egui::Rect,
+        frag_start: usize,
     ) {
         // Clip favicon + tint to the editor viewport: this runs before
         // `post_render` installs its overlay clip, so a chip scrolled past the
@@ -256,8 +241,7 @@ impl<'ast> MdRender {
                 _ => continue,
             };
             let node_range = self.node_range(node);
-            let chip_rects: Vec<egui::Rect> = self
-                .fragments
+            let chip_rects: Vec<egui::Rect> = self.fragments[frag_start..]
                 .iter()
                 .filter(|f| {
                     f.source_range.intersects(&node_range, true)
@@ -269,17 +253,19 @@ impl<'ast> MdRender {
                 continue; // not rendered as a capsule
             }
 
-            // Favicon over the leading em-space slot, once its texture loads.
+            // Favicon over the leading em-space slot; a neutral link glyph
+            // holds the slot while the texture loads — or forever, if it
+            // never does — so the reserved space always reads as an icon.
             if let Some(favicon_url) = self.capsule_favicon_url(&url) {
+                let chip = chip_rects[0];
+                let size = chip.height() * 0.7;
+                let inset = chip.height() * 0.3;
+                let icon_rect = egui::Rect::from_min_size(
+                    egui::Pos2::new(chip.min.x + inset, chip.center().y - size * 0.5),
+                    egui::Vec2::splat(size),
+                );
                 self.embeds.prefetch(&favicon_url);
                 if self.embeds.is_loaded(&favicon_url) {
-                    let chip = chip_rects[0];
-                    let size = chip.height() * 0.7;
-                    let inset = chip.height() * 0.3;
-                    let icon_rect = egui::Rect::from_min_size(
-                        egui::Pos2::new(chip.min.x + inset, chip.center().y - size * 0.5),
-                        egui::Vec2::splat(size),
-                    );
                     // Dark mode: a near-white tile behind the icon so dark
                     // monochrome marks (e.g. GitHub) read against the dark pill;
                     // opaque favicons simply hide it.
@@ -287,12 +273,23 @@ impl<'ast> MdRender {
                         ui.painter()
                             .rect_filled(icon_rect, 3.0, egui::Color32::from_gray(235));
                     }
+                    // non-advancing child ui — see the embed paint in
+                    // `show_wrap_layout` (#4892)
+                    let ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(icon_rect));
                     self.embeds
                         .show(ui, &favicon_url, icon_rect, egui::CornerRadius::same(3));
+                } else {
+                    ui.painter().text(
+                        icon_rect.center(),
+                        egui::Align2::CENTER_CENTER,
+                        Icon::LINK.icon,
+                        egui::FontId::monospace(size),
+                        self.ctx.get_lb_theme().neutral_fg_secondary(),
+                    );
                 }
             }
 
-            if !sel.is_empty() && sel.contains_range(&node_range, true, true) {
+            if frag_start == 0 && !sel.is_empty() && sel.contains_range(&node_range, true, true) {
                 let theme = self.ctx.get_lb_theme();
                 let accent = theme.bg().get_color(theme.prefs().primary);
                 let tint =
@@ -339,8 +336,9 @@ impl<'ast> MdRender {
         self.link_resolver.wikilink_state(url)
     }
 
-    /// URL of the first link/image whose source range intersects the current
-    /// selection — what an "Open Link" affordance (the iOS edit menu) acts on.
+    /// URL (or wikilink target) of the first link-like node whose source range
+    /// intersects the current selection — gates and feeds the platform edit
+    /// menu's "Open Link" / "Copy Link".
     pub fn selection_open_target(&mut self) -> Option<String> {
         let arena = Arena::new();
         let root = self.reparse(&arena);
@@ -348,6 +346,7 @@ impl<'ast> MdRender {
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Link(l) | NodeValue::Image(l) => l.url.clone(),
+                NodeValue::WikiLink(nwl) => nwl.url.clone(),
                 _ => continue,
             };
             if !url.is_empty() && self.node_range(node).intersects(&selection, true) {
@@ -420,9 +419,9 @@ impl<'ast> MdRender {
     }
 
     /// Hover → `PointingHand` + Warning/Broken tooltip; click → open
-    /// in a new tab. The producer only opens an interaction scope when
-    /// cmd is held (desktop) or for the trailing open-link affordance
-    /// (touch); the response's presence is the gate.
+    /// in a new tab. The producer's interaction scope is the gate: cmd
+    /// held (desktop), read-only, or touch — where the click instead
+    /// selects the link and pops the menu ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.id();
         for node in root.descendants() {
@@ -432,14 +431,15 @@ impl<'ast> MdRender {
                 _ => continue,
             };
             let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
+
+            // iOS routes touches through `touch_consuming_rects` —
+            // without these entries a tap on the open-link button would
+            // place the cursor instead of reaching the click handler below.
+            self.touch_consume_interaction(id);
+
             let Some(response) = self.interaction_responses.get(&id) else {
                 continue;
             };
-
-            // iOS routes touches through `touch_consuming_rects` —
-            // without this entry a tap on the open-link button would
-            // place the cursor instead of reaching the click handler below.
-            self.touch_consuming_rects.push(response.rect);
 
             if response.hovered() {
                 ui.ctx()
@@ -464,7 +464,7 @@ impl<'ast> MdRender {
                 }
             }
 
-            if response.clicked() {
+            if response.clicked() && (self.readonly || !self.touch_mode) {
                 if is_wikilink {
                     if let Some(file_id) = self.resolve_wikilink(&url) {
                         ui.ctx().open_file(file_id, true);
@@ -522,19 +522,22 @@ impl<'ast> MdRender {
             .entry(resolved_url.clone())
         {
             Entry::Occupied(mut e) => {
-                // A rate-limited failure whose next-retry timestamp has passed
-                // is eligible again (still behind the fetch opt-in).
-                let retry_due = matches!(
-                    *e.get().lock().unwrap(),
-                    LinkMetaState::Failed { retry_at: Some(t) } if t <= now
-                );
-                if retry_due && self.contact_linked_sites {
-                    let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
-                    e.insert(arc.clone());
-                    self.spawn_meta_fetch(resolved_url, arc.clone());
-                    arc
-                } else {
-                    e.get().clone()
+                // A failure whose next-retry timestamp has passed is eligible
+                // again (still behind the fetch opt-in).
+                let retry_attempts = match &*e.get().lock().unwrap() {
+                    LinkMetaState::Failed { retry_at: Some(t), attempts } if *t <= now => {
+                        Some(*attempts)
+                    }
+                    _ => None,
+                };
+                match retry_attempts {
+                    Some(attempts) if self.contact_linked_sites => {
+                        let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
+                        e.insert(arc.clone());
+                        self.spawn_meta_fetch(resolved_url, arc.clone(), attempts);
+                        arc
+                    }
+                    _ => e.get().clone(),
                 }
             }
             Entry::Vacant(e) => {
@@ -545,7 +548,7 @@ impl<'ast> MdRender {
                 }
                 let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
                 e.insert(arc.clone());
-                self.spawn_meta_fetch(resolved_url, arc.clone());
+                self.spawn_meta_fetch(resolved_url, arc.clone(), 0);
                 arc
             }
         };
@@ -554,7 +557,7 @@ impl<'ast> MdRender {
         match &*state {
             LinkMetaState::Loaded(meta) => LinkMetaLookup::Loaded(meta.clone()),
             LinkMetaState::Loading => LinkMetaLookup::Loading,
-            LinkMetaState::Failed { retry_at: Some(until) } if *until > now => {
+            LinkMetaState::Failed { retry_at: Some(until), .. } if *until > now => {
                 // Wake a frame when the cooldown lapses — an idle editor never
                 // repaints, so without this the retry waits for user input.
                 self.ctx.request_repaint_after(*until - now);
@@ -565,8 +568,18 @@ impl<'ast> MdRender {
     }
 
     /// Fetch + scrape `resolved_url`'s metadata into `meta_state` off-thread,
-    /// then bump `link_seq` and request a repaint.
-    fn spawn_meta_fetch(&self, resolved_url: String, meta_state: Arc<Mutex<LinkMetaState>>) {
+    /// then bump `link_seq` and request a repaint. `attempts` counts prior
+    /// consecutive failures — it drives the transient-failure backoff.
+    fn spawn_meta_fetch(
+        &self, resolved_url: String, meta_state: Arc<Mutex<LinkMetaState>>, attempts: u32,
+    ) {
+        /// Self-assigned retry-after for network-level failures; doubles per
+        /// consecutive failure up to the cap.
+        const TRANSIENT_RETRY_BASE: std::time::Duration = std::time::Duration::from_secs(60);
+        const TRANSIENT_RETRY_CAP: std::time::Duration = std::time::Duration::from_secs(15 * 60);
+        /// Bot walls outlive short retries — a site's posture changes slowly.
+        const BLOCKED_RETRY: std::time::Duration = std::time::Duration::from_secs(6 * 60 * 60);
+
         let client = self.client.clone();
         let ctx = self.ctx.clone();
         let link_seq = self.layout_cache.link_seq.clone();
@@ -582,11 +595,14 @@ impl<'ast> MdRender {
             let mut html = fetch_html(&client, &resolved_url, CHROME).await;
 
             // Some sites (e.g. Twitter/X) only serve static content to known
-            // crawlers — but never burn a second request on a host that's
-            // rate-limiting us.
-            let parses = |h: &str| extract_link_meta(h, &resolved_url).is_some();
+            // crawlers, and bot walls often whitelist them — but never burn a
+            // second request on a host that's rate-limiting us.
+            let good = |h: &str| {
+                extract_link_meta(h, &resolved_url)
+                    .is_some_and(|m| !is_junk_meta(h, &m, &resolved_url))
+            };
             if !matches!(html, Err(FetchError::RateLimited { .. }))
-                && !html.as_deref().is_ok_and(parses)
+                && !html.as_deref().is_ok_and(good)
             {
                 #[cfg(not(target_arch = "wasm32"))]
                 {
@@ -598,18 +614,81 @@ impl<'ast> MdRender {
                 }
             }
 
+            let now = web_time::Instant::now();
             *meta_state.lock().unwrap() = match html {
-                Ok(h) => extract_link_meta(&h, &resolved_url)
-                    .map(LinkMetaState::Loaded)
-                    .unwrap_or(LinkMetaState::Failed { retry_at: None }),
+                Ok(h) => match extract_link_meta(&h, &resolved_url) {
+                    Some(meta) if !is_junk_meta(&h, &meta, &resolved_url) => {
+                        LinkMetaState::Loaded(meta)
+                    }
+                    // Junk describes the wall, not the page — treat like a
+                    // bot wall rather than rendering it.
+                    Some(_) => LinkMetaState::Failed {
+                        retry_at: Some(now + BLOCKED_RETRY),
+                        attempts: attempts + 1,
+                    },
+                    None => LinkMetaState::Failed { retry_at: None, attempts: attempts + 1 },
+                },
                 Err(FetchError::RateLimited { until }) => {
-                    LinkMetaState::Failed { retry_at: Some(until) }
+                    LinkMetaState::Failed { retry_at: Some(until), attempts: attempts + 1 }
                 }
-                Err(_) => LinkMetaState::Failed { retry_at: None },
+                Err(FetchError::Blocked(_)) => LinkMetaState::Failed {
+                    retry_at: Some(now + BLOCKED_RETRY),
+                    attempts: attempts + 1,
+                },
+                Err(FetchError::Transient(_)) => {
+                    let backoff =
+                        (TRANSIENT_RETRY_BASE * 2u32.pow(attempts.min(4))).min(TRANSIENT_RETRY_CAP);
+                    LinkMetaState::Failed { retry_at: Some(now + backoff), attempts: attempts + 1 }
+                }
+                Err(FetchError::Permanent(_)) => {
+                    LinkMetaState::Failed { retry_at: None, attempts: attempts + 1 }
+                }
             };
             link_seq.store(ws_seq.fetch_add(1, Ordering::Relaxed), Ordering::Relaxed);
             ctx.request_repaint();
         });
+    }
+
+    /// Drop `url`'s cached metadata and fetch it fresh — the context menu's
+    /// "Refresh Preview". Explicitly user-invoked, but still behind the
+    /// contact-linked-sites opt-in (previews don't render without it anyway).
+    pub fn refresh_link_meta(&self, url: &str) {
+        if !self.contact_linked_sites {
+            return;
+        }
+        let resolved_url = match self.resolve_link(url) {
+            Some(ResolvedLink::External(u))
+                if u.starts_with("http://") || u.starts_with("https://") =>
+            {
+                u
+            }
+            _ => return,
+        };
+        let arc = Arc::new(Mutex::new(LinkMetaState::Loading));
+        self.layout_cache
+            .link_meta
+            .borrow_mut()
+            .insert(resolved_url.clone(), arc.clone());
+        self.spawn_meta_fetch(resolved_url, arc, 0);
+    }
+
+    /// Re-fetch preview metadata for every link intersecting the selection —
+    /// the touch edit menu's "Refresh Preview".
+    pub fn refresh_selection_previews(&mut self) {
+        let arena = Arena::new();
+        let root = self.reparse(&arena);
+        let selection = self.buffer.current.selection;
+        let mut urls = vec![];
+        for node in root.descendants() {
+            if let NodeValue::Link(l) = &node.data.borrow().value {
+                if !l.url.is_empty() && self.node_range(node).intersects(&selection, true) {
+                    urls.push(l.url.clone());
+                }
+            }
+        }
+        for url in urls {
+            self.refresh_link_meta(&url);
+        }
     }
 }
 
@@ -649,4 +728,165 @@ fn alone_on_line<'a>(
         sib = next(s);
     }
     true
+}
+
+/// A choice from the desktop link context menu ([`link_menu_buttons`]).
+#[derive(Clone, Copy)]
+pub enum LinkMenuAction {
+    Open,
+    Copy,
+    Edit,
+    Refresh,
+}
+
+/// What a desktop context menu over a link-like node acts on.
+#[derive(Clone)]
+pub struct LinkMenuTarget {
+    pub url: String,
+    pub is_wikilink: bool,
+    pub is_image: bool,
+    pub node_range: (Grapheme, Grapheme),
+    /// See [`MdEdit::atom_edit_selection`].
+    pub select: (Grapheme, Grapheme),
+    pub force_reveal: bool,
+}
+
+/// The link section of a desktop context menu; `editable` gates "Edit",
+/// `refreshable` gates "Refresh Preview" (rendered previews only).
+pub fn link_menu_buttons(
+    ui: &mut egui::Ui, is_image: bool, editable: bool, refreshable: bool,
+) -> Option<LinkMenuAction> {
+    let mut action = None;
+    let (open, copy, edit) = if is_image {
+        ("Open Image", "Copy URL", "Edit Image")
+    } else {
+        ("Open Link", "Copy Link", "Edit Link")
+    };
+    if ui.button(open).clicked() {
+        action = Some(LinkMenuAction::Open);
+        ui.close();
+    }
+    if ui.button(copy).clicked() {
+        action = Some(LinkMenuAction::Copy);
+        ui.close();
+    }
+    if editable && ui.button(edit).clicked() {
+        action = Some(LinkMenuAction::Edit);
+        ui.close();
+    }
+    if refreshable && ui.button("Refresh Preview").clicked() {
+        action = Some(LinkMenuAction::Refresh);
+        ui.close();
+    }
+    action
+}
+
+impl<'ast> MdEdit {
+    /// The link-like node under `pos` for a desktop context menu, resolved
+    /// through the fragment actually painted there — no offset snapping
+    /// from empty space beside a link.
+    pub fn link_target_at_pos(
+        &self, root: &'ast AstNode<'ast>, pos: egui::Pos2,
+    ) -> Option<LinkMenuTarget> {
+        let frag = self.renderer.fragment_at_pos(pos)?;
+        let offset = frag.source_range.start();
+        for node in root.descendants() {
+            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::Image(l) => (l.url.clone(), false, true),
+                NodeValue::Link(l) => (l.url.clone(), false, false),
+                _ => continue,
+            };
+            let node_range = self.renderer.node_range(node);
+            if url.is_empty() || offset < node_range.start() || offset >= node_range.end() {
+                continue;
+            }
+            let (select, force_reveal) = self.atom_edit_selection(node);
+            return Some(LinkMenuTarget {
+                url,
+                is_wikilink,
+                is_image,
+                node_range,
+                select,
+                force_reveal,
+            });
+        }
+        None
+    }
+
+    /// The selection that edits a link-like node's hidden part: an image's
+    /// or labeled link's destination, a wikilink's interior, a bare
+    /// autolink's whole URL. `true` if acting on it should force-reveal via
+    /// `entered_atom` — a bare autolink *is* its URL, so there is no
+    /// interior sub-range whose selection would reveal the source.
+    pub fn atom_edit_selection(&self, node: &'ast AstNode<'ast>) -> ((Grapheme, Grapheme), bool) {
+        let node_range = self.renderer.node_range(node);
+        let is_image = matches!(node.data.borrow().value, NodeValue::Image(_));
+        match &node.data.borrow().value {
+            NodeValue::WikiLink(_) => ((node_range.start() + 2, node_range.end() - 2), false),
+            NodeValue::Link(_) | NodeValue::Image(_) => {
+                let url = node_link_url(node);
+                if !is_image && !url.is_empty() && self.renderer.link_is_auto(node, &url) {
+                    (node_range, true)
+                } else {
+                    // `[title](url)` / `![alt](url)` — the postfix is
+                    // `](url)`; without a label there are no children (no
+                    // postfix) and the url starts after the opening syntax.
+                    let open_len = if is_image { 4 } else { 3 };
+                    let url_range = match self.renderer.postfix_range(node) {
+                        Some(postfix) => (postfix.start() + 2, postfix.end() - 1),
+                        None => (node_range.start() + open_len, node_range.end() - 1),
+                    };
+                    if url_range.0 <= url_range.1 {
+                        (url_range, false)
+                    } else {
+                        // degenerate: interior caret
+                        let caret = node_range.start() + (open_len - 2);
+                        ((caret, caret), false)
+                    }
+                }
+            }
+            _ => (node_range, false),
+        }
+    }
+
+    /// Touch tap on a plain rendered link or wikilink: select the link and
+    /// pop the atom menu ("Open Link" / "Edit"), mirroring embed taps
+    /// ([`Self::handle_embed_tap`]). Applied via `ops` so the selection is
+    /// current when the platform builds the menu.
+    pub fn handle_link_menu_taps(
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
+    ) {
+        if !self.renderer.touch_mode || self.renderer.readonly {
+            return;
+        }
+        let parent_base = ui.id();
+        for node in root.descendants() {
+            match &node.data.borrow().value {
+                NodeValue::Link(_) | NodeValue::WikiLink(_) => {}
+                _ => continue,
+            }
+            let node_range = self.renderer.node_range(node);
+            let salt = MdRender::link_interaction_id_salt(node_range);
+            let response = match self
+                .renderer
+                .interaction_responses
+                .get(&parent_base.with(salt))
+            {
+                Some(r) => r.clone(), // clone to release the `renderer` borrow
+                None => continue,
+            };
+            if response.clicked() {
+                ui.memory_mut(|m| m.request_focus(id));
+                let region = Region::BetweenLocations {
+                    start: Location::Grapheme(node_range.start()),
+                    end: Location::Grapheme(node_range.end()),
+                };
+                self.calc_operations(ui.ctx(), root, Event::Select { region }, ops);
+                ui.ctx()
+                    .set_context_menu(response.rect.center_top(), ContextMenuTarget::Atom);
+                return;
+            }
+        }
+    }
 }

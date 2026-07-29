@@ -6,6 +6,7 @@ use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
+use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, link_menu_buttons};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -154,35 +155,33 @@ impl<'ast> MdRender {
 
 impl<'ast> MdEdit {
     /// The gesture that *opens* an embed rather than selecting it: a cmd-click
-    /// (desktop) or a keyboard-hidden tap (mobile). Shared by every embed kind.
-    pub fn embed_tap_opens(&self, ui: &egui::Ui, keyboard_visible: bool) -> bool {
-        if self.renderer.touch_mode {
-            !keyboard_visible
-        } else {
-            ui.ctx().input(|i| i.modifiers.command)
-        }
+    /// (desktop). Touch taps always select and pop the context menu, whose
+    /// "Open Link" action opens. Shared by every embed kind.
+    pub fn embed_tap_opens(&self, ui: &egui::Ui) -> bool {
+        !self.renderer.touch_mode && ui.ctx().input(|i| i.modifiers.command)
     }
 
     /// Shared tap handling for one embed fragment (inline image, link card, or
-    /// capsule): when `open`, a click opens `url`, else it selects `node_range`
-    /// and pops the touch edit menu as an `Atom` target, so the platform offers
-    /// "Edit" (`Event::EnterAtom`). Registers the rect in
+    /// capsule): when `open`, a click opens `url`, else it selects the node
+    /// and (touch) pops the edit menu as an `Atom` target, so the platform
+    /// offers "Edit" (`Event::EnterAtom`). Desktop right-click shows the link
+    /// menu ([`link_menu_buttons`]). Registers the fragment rects in
     /// `touch_consuming_rects` so iOS routes the tap here; `salt` identifies
     /// the fragment's `Sense::click` scope. No-op if the embed wasn't rendered
     /// this frame. The per-kind handlers differ only in node lookup.
     #[allow(clippy::too_many_arguments)]
     pub fn handle_embed_tap(
-        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id,
-        ops: &mut Vec<Operation>, node_range: (Grapheme, Grapheme), url: &str, salt: egui::Id,
-        open: bool,
+        &mut self, root: &'ast AstNode<'ast>, node: &'ast AstNode<'ast>, ui: &egui::Ui,
+        id: egui::Id, ops: &mut Vec<Operation>, url: &str, salt: egui::Id, open: bool,
     ) {
         let response = match self.renderer.interaction_responses.get(&ui.id().with(salt)) {
             Some(r) => r.clone(), // clone to release the `renderer` borrow
             None => return,
         };
 
-        self.renderer.touch_consuming_rects.push(response.rect);
+        self.renderer.touch_consume_interaction(ui.id().with(salt));
 
+        let node_range = self.renderer.node_range(node);
         if open && response.hovered() {
             ui.ctx()
                 .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
@@ -203,14 +202,41 @@ impl<'ast> MdEdit {
                 }
             }
         }
+
+        if !self.renderer.touch_mode {
+            let is_image = matches!(node.data.borrow().value, NodeValue::Image(_));
+            let editable = !self.renderer.readonly;
+            // cards/capsules render fetched previews; images don't
+            let refreshable = !is_image && self.renderer.contact_linked_sites;
+            let mut action = None;
+            response
+                .context_menu(|ui| action = link_menu_buttons(ui, is_image, editable, refreshable));
+            match action {
+                Some(LinkMenuAction::Open) => self.renderer.open_resolved_link(url, ui.ctx()),
+                Some(LinkMenuAction::Copy) => ui.ctx().copy_text(url.to_string()),
+                Some(LinkMenuAction::Refresh) => self.renderer.refresh_link_meta(url),
+                Some(LinkMenuAction::Edit) => {
+                    let (select, force_reveal) = self.atom_edit_selection(node);
+                    if force_reveal {
+                        self.renderer.entered_atom = Some(node_range);
+                    }
+                    ui.memory_mut(|m| m.request_focus(id));
+                    let region = Region::BetweenLocations {
+                        start: Location::Grapheme(select.start()),
+                        end: Location::Grapheme(select.end()),
+                    };
+                    self.calc_operations(ui.ctx(), root, Event::Select { region }, ops);
+                }
+                None => {}
+            }
+        }
     }
 
     /// Open or select an inline image clicked this frame (see [`Self::handle_embed_tap`]).
     pub fn handle_image_interactions(
-        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, keyboard_visible: bool,
-        ops: &mut Vec<Operation>,
+        &mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui, id: egui::Id, ops: &mut Vec<Operation>,
     ) {
-        let open = self.embed_tap_opens(ui, keyboard_visible);
+        let open = self.embed_tap_opens(ui);
         for node in root.descendants() {
             let url = match &node.data.borrow().value {
                 NodeValue::Image(link) => link.url.clone(),
@@ -218,16 +244,16 @@ impl<'ast> MdEdit {
             };
             let node_range = self.renderer.node_range(node);
             let salt = MdRender::image_interaction_id_salt(node_range);
-            self.handle_embed_tap(root, ui, id, ops, node_range, &url, salt, open);
+            self.handle_embed_tap(root, node, ui, id, ops, &url, salt, open);
         }
     }
 
     /// If the selection exactly covers a collapsed image (i.e. a tap-selected
-    /// atom), select its URL — the selection endpoints inside the syntax
-    /// reveal the source, and the likeliest edit becomes type-to-replace.
-    /// Touch platforms trigger this from the edit menu's "Edit" action — with
-    /// no arrow keys, there's otherwise no way to move the cursor into the
-    /// syntax. True if handled (op pushed).
+    /// atom), select its URL ([`Self::atom_edit_selection`]) — the selection
+    /// endpoints inside the syntax reveal the source, and the likeliest edit
+    /// becomes type-to-replace. Touch platforms trigger this from the edit
+    /// menu's "Edit" action — with no arrow keys, there's otherwise no way to
+    /// move the cursor into the syntax. True if handled (op pushed).
     pub fn enter_at_image(
         &self, root: &'ast AstNode<'ast>, operations: &mut Vec<Operation>,
     ) -> bool {
@@ -240,18 +266,7 @@ impl<'ast> MdEdit {
             if selection != img || self.renderer.range_revealed_interior(img) {
                 continue;
             }
-            // `![alt](url)` — the postfix is `](url)`; without an alt there
-            // are no children (no postfix) and the url starts after `![](`.
-            let url_range = match self.renderer.postfix_range(node) {
-                Some(postfix) => (postfix.start() + 2, postfix.end() - 1),
-                None => (img.start() + 4, img.end() - 1),
-            };
-            let url_range = if url_range.0 <= url_range.1 {
-                url_range
-            } else {
-                (img.start() + 2, img.start() + 2) // degenerate: interior caret
-            };
-            operations.push(Operation::Select(url_range));
+            operations.push(Operation::Select(self.atom_edit_selection(node).0));
             return true;
         }
         false

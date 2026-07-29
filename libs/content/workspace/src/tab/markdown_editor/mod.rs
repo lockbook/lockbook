@@ -93,6 +93,8 @@ pub struct Response {
     /// live — the editor viewport minus the find widget and toolbar. The
     /// single source of truth for positioning the `MdView` iOS overlay.
     pub text_interaction_rect: Option<egui::Rect>,
+
+    pub mobile_toolbar_shown: bool,
 }
 
 pub struct MdRender {
@@ -131,6 +133,9 @@ pub struct MdRender {
     /// Per-frame, keyed by `ui.id().with(salt)`; populated by
     /// `interact_fragments`, consumed by handlers in each node type.
     pub interaction_responses: std::collections::HashMap<egui::Id, egui::Response>,
+    /// Per-scope interact rects behind `interaction_responses`, whose merged
+    /// rect is only a bounding box; read by `touch_consume_interaction`.
+    pub interaction_rects: std::collections::HashMap<egui::Id, Vec<Rect>>,
     /// Spoilers the user has tapped to reveal. Persistent across frames;
     /// cleared by `bump_text_seq` whenever the doc text changes so a
     /// fresh edit re-hides every spoiler.
@@ -249,6 +254,16 @@ pub struct MdEdit {
     /// shown rect. Maintained by [`MdEdit::show`]; 0 outside single-line mode.
     pub single_line_scroll: f32,
 
+    /// Vertical scroll (px) of a multi-line field whose content outgrew its
+    /// rect (the chat composer at max height). Maintained by [`MdEdit::show`];
+    /// 0 while the content fits.
+    pub overflow_scroll: f32,
+
+    /// Buffer (seq, selection) and rect at the last cursor-follow of
+    /// `overflow_scroll` — the follow runs when these change, leaving a
+    /// wheel scroll free to move the cursor out of view.
+    overflow_follow: (usize, (Grapheme, Grapheme), Rect),
+
     /// Momentum from the last scroll-area frame; used by `will_consume_touch`
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
@@ -262,6 +277,11 @@ pub struct MdEdit {
 
     /// File link / wikilink / image-link completion popup (`[[`, `[`, `![`).
     pub link_completions: LinkCompletions,
+
+    /// The link-like node under the last desktop right-click, captured when
+    /// the click lands so the context menu's link section stays stable while
+    /// the menu is open and the pointer moves.
+    pub context_menu_link: Option<widget::inline::link::LinkMenuTarget>,
 
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
@@ -290,10 +310,13 @@ impl MdEdit {
             pending_block_move: None,
             pending_scroll: None,
             single_line_scroll: 0.0,
+            overflow_scroll: 0.0,
+            overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
             file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
+            context_menu_link: None,
             scroll_area: AffineScrollArea::new(file_id),
         }
     }
@@ -324,6 +347,9 @@ pub struct Editor {
     pub find: Find,
 
     // misc
+    /// Where the phone toolbar was allocated this frame — the layout-level
+    /// signal that embed painting hasn't dragged it off screen (#4892).
+    pub mobile_toolbar_rect: Option<egui::Rect>,
     pub virtual_keyboard_shown: bool,
     /// Real platform IME visibility, pushed by the client (Android inset
     /// listener, iOS keyboard callbacks). Unlike `virtual_keyboard_shown`
@@ -390,7 +416,7 @@ pub struct MdLayout {
 impl MdLayout {
     pub fn mobile() -> Self {
         Self {
-            margin: if cfg!(target_os = "android") { 32.0 } else { 45.0 },
+            margin: 32.0,
             max_width: 1000.0,
             inline_padding: 3.0,
             annotation_font_size: 12.0,
@@ -460,6 +486,7 @@ impl MdRender {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
             in_progress_selection: None,
             in_progress_block_drag: None,
@@ -534,6 +561,7 @@ impl MdRender {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
             reveal_selection: None,
             entered_atom: None,
@@ -691,6 +719,7 @@ impl Editor {
             render_events: Vec::new(),
             touch_consuming_rects: Default::default(),
             interaction_responses: Default::default(),
+            interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
 
             in_progress_selection: None,
@@ -742,10 +771,13 @@ impl Editor {
                 pending_block_move: None,
                 pending_scroll: None,
                 single_line_scroll: 0.0,
+                overflow_scroll: 0.0,
+                overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: Default::default(),
+                context_menu_link: None,
                 scroll_area: AffineScrollArea::new(file_id),
             },
 
@@ -762,6 +794,7 @@ impl Editor {
             find: Default::default(),
 
             // this is used to toggle the mobile toolbar
+            mobile_toolbar_rect: None,
             virtual_keyboard_shown: cfg!(target_os = "android"),
             keyboard_visible: false,
             unprocessed_scroll: Default::default(),
@@ -911,12 +944,11 @@ impl Editor {
                 .edit
                 .in_progress_selection
                 .unwrap_or(self.edit.renderer.buffer.current.selection);
-        // Loads completing (embed textures, link-preview metadata) reflow
-        // layout, moving the selection's on-screen rects without a selection
-        // change — signal so iOS re-queries its native selection/caret rects.
-        // Likewise entering/leaving an atom: Edit on a capsule re-selects the
-        // same range, but the reveal swaps the capsule for its raw source.
-        resp.selection_updated |= embeds_updated
+        // Loads completing (embeds, link meta) and atom enter/exit reflow
+        // layout, moving the selection's rects without moving the selection.
+        // Report as a scroll: iOS re-fetches geometry on either signal, but a
+        // selection report also resets the keyboard's QuickType context.
+        resp.scroll_updated |= embeds_updated
             || link_meta_updated
             || prior_entered_atom != self.edit.renderer.entered_atom;
 
@@ -976,6 +1008,7 @@ impl Editor {
                     } else {
                         0.
                     };
+                    self.next_resp.mobile_toolbar_shown = toolbar_height > 0.;
 
                     let avail = ui.available_rect_before_wrap();
                     self.next_resp.text_interaction_rect = Some(egui::Rect::from_min_max(
@@ -1014,6 +1047,7 @@ impl Editor {
                     {
                         let (_, rect) =
                             ui.allocate_space(egui::vec2(available_width, MOBILE_TOOL_BAR_SIZE));
+                        self.mobile_toolbar_rect = Some(rect);
                         ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                             self.show_toolbar(root, ui);
                         });
@@ -1257,8 +1291,10 @@ impl Editor {
             self.persistence.write_to_file();
         }
 
-        // focus editor when first shown or when nothing else has focus
-        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
+        // focus editor when first shown or when nothing else has focus — not
+        // while the menu covers it: egui re-drops the unshown editor's focus,
+        // and the flip-flop repaint-loops and flickers the menu (#4896)
+        if editor_shown && (!self.initialized || ui.memory(|m| m.focused().is_none())) {
             self.focus(ui.ctx());
         }
         if self.focused(ui.ctx()) {
@@ -1374,13 +1410,7 @@ impl Editor {
                         // the scrollbar (so taps on the bar don't).
                         let begun = self.edit.scroll_area.begin(ui);
 
-                        let pre = self.edit.pre_render(
-                            ui,
-                            canvas_rect,
-                            scroll_id,
-                            root,
-                            self.keyboard_visible,
-                        );
+                        let pre = self.edit.pre_render(ui, canvas_rect, scroll_id, root);
 
                         self.edit.renderer.fragments.clear();
                         self.edit.renderer.block_boxes.clear();
@@ -1514,7 +1544,7 @@ impl Editor {
                 // Favicon + selection tint, over the opaque capsule pills.
                 self.edit
                     .renderer
-                    .show_capsule_overlays(ui, root, canvas_rect);
+                    .show_capsule_overlays(ui, root, canvas_rect, 0);
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
@@ -1802,13 +1832,20 @@ fn print_recursive<'a>(node: &'a AstNode<'a>, indent: &str) {
 }
 
 pub fn register_fonts(fonts: &mut FontDefinitions) {
-    let (sans, mono, bold, base_scale) = if cfg!(target_vendor = "apple") {
-        (lb_fonts::SF_PRO_TEXT_REGULAR, lb_fonts::SF_MONO_REGULAR, lb_fonts::SF_PRO_TEXT_BOLD, 0.9)
+    let (sans, mono, bold, italic, base_scale) = if cfg!(target_vendor = "apple") {
+        (
+            lb_fonts::SF_PRO_TEXT_REGULAR,
+            lb_fonts::SF_MONO_REGULAR,
+            lb_fonts::SF_PRO_TEXT_BOLD,
+            lb_fonts::SF_PRO_TEXT_ITALIC,
+            0.9,
+        )
     } else {
         (
             lb_fonts::NOTO_SANS_REGULAR,
             lb_fonts::NOTO_SANS_MONO_REGULAR,
             lb_fonts::NOTO_SANS_BOLD,
+            lb_fonts::NOTO_SANS_ITALIC,
             1.,
         )
     };
@@ -1847,6 +1884,14 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         FontData {
             tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
             ..FontData::from_static(bold)
+        }
+        .into(),
+    );
+    fonts.font_data.insert(
+        "italic".to_string(),
+        FontData {
+            tweak: FontTweak { scale: base_scale, ..FontTweak::default() },
+            ..FontData::from_static(italic)
         }
         .into(),
     );
@@ -1932,6 +1977,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts
         .families
         .insert(FontFamily::Name(Arc::from("Bold")), vec!["bold".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("Italic")), vec!["italic".into()]);
     fonts
         .families
         .insert(FontFamily::Name(Arc::from("SansSuper")), vec!["sans_super".into()]);

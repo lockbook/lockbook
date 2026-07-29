@@ -1,6 +1,6 @@
 use std::ops::Deref as _;
 
-use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Stroke, Ui, UiBuilder, Vec2};
+use egui::{Align2, Color32, CornerRadius, FontId, Pos2, Rect, Stroke, Ui, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 
@@ -39,14 +39,14 @@ impl EmbedResolver for ImageEmbedResolver {
             ImageState::Loaded(texture_id) => {
                 // Paint only — interaction (open vs. select) is driven by the
                 // fragment's `Sense::click` scope via `handle_image_interactions`.
-                ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
-                    ui.painter().add(
-                        RectShape::filled(rect, rounding, Color32::WHITE).with_texture(
-                            texture_id,
-                            Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
-                        ),
-                    );
-                });
+                // No allocation: paint runs for off-screen neighbor rows too,
+                // and advancing the layout cursor there displaces siblings
+                // laid out after the editor (the mobile toolbar, #4892).
+                ui.painter()
+                    .add(RectShape::filled(rect, rounding, Color32::WHITE).with_texture(
+                        texture_id,
+                        Rect { min: Pos2 { x: 0.0, y: 0.0 }, max: Pos2 { x: 1.0, y: 1.0 } },
+                    ));
             }
             ImageState::Failed(message) => {
                 show_placeholder(ui, rect, Icon::NO_IMAGE, &message);

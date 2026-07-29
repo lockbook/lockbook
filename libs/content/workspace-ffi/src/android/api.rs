@@ -182,6 +182,49 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterSelectedAtom(
     obj.renderer.context.push_markdown_event(Event::EnterAtom);
 }
 
+/// URL (or wikilink target) of an openable link in the current selection, or
+/// null — gates and feeds the edit menu's "Open Link" / "Copy Link".
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionOpenTarget(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let target = obj
+        .workspace
+        .focused_mdedit_mut()
+        .and_then(|md| md.renderer.selection_open_target());
+    match target {
+        Some(url) => env
+            .new_string(url)
+            .expect("Couldn't create java string!")
+            .into_raw(),
+        None => std::ptr::null_mut(),
+    }
+}
+
+/// Edit-menu "Open Link": open every link/image in the current selection.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_openSelectionLinks(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.renderer.open_selection_links();
+    }
+}
+
+/// Edit-menu "Refresh Preview": re-fetch preview metadata for links in the
+/// current selection.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_refreshSelectionPreviews(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.renderer.refresh_selection_previews();
+    }
+}
+
 /// Push real IME visibility (from the Android inset listener) into the
 /// editor so touch long-press can pick drag-reorder vs text selection.
 #[no_mangle]
@@ -391,13 +434,16 @@ pub struct WsStatus {
 
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
-    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString, new_file: jboolean,
 ) -> jint {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
+    // Always open in a new tab (pre-#4918 / mobile strip behavior). `new_file`
+    // is retained for the JNI signature used by Kotlin callers.
+    let _ = new_file;
     obj.workspace.open_file(id, true, true);
     get_current_tab(obj)
 }
@@ -439,10 +485,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeAllTabs(
     mut _env: JNIEnv, _: JClass, obj: jlong,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
-    while !obj.workspace.tab_strip.is_empty() {
-        obj.workspace.close_tab(0);
-    }
+    obj.workspace.close_all_tabs();
 }
 
 #[no_mangle]

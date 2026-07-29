@@ -9,8 +9,8 @@ use crate::lb_file::LbFile;
 use crate::{
     LbAccountRes, LbContentSearcherResults, LbContentSearcherSnippet, LbDocRes,
     LbExportAccountQRRes, LbExportAccountRes, LbFileListRes, LbFileRes, LbGetFileLinkUrlRes,
-    LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbPathRes, LbPathSearcherResults,
-    LbPathsRes, LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
+    LbIdListRes, LbInitRes, LbLastSyncedHuman, LbLastSyncedi64, LbNextNameRes, LbPathRes,
+    LbPathSearcherResults, LbPathsRes, LbStatus, LbSubscriptionInfoRes, LbUsageMetricsRes,
 };
 
 #[unsafe(no_mangle)]
@@ -104,6 +104,17 @@ pub extern "C" fn lb_free_get_file_link_url_res(res: LbGetFileLinkUrlRes) {
 
     if !res.link_url.is_null() {
         unsafe { drop(CString::from_raw(res.link_url)) };
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_free_next_name_res(res: LbNextNameRes) {
+    if !res.err.is_null() {
+        lb_free_err(res.err);
+    }
+
+    if !res.name.is_null() {
+        unsafe { drop(CString::from_raw(res.name)) };
     }
 }
 

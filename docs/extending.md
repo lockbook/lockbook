@@ -3,11 +3,12 @@
 Lockbook is built to be extensible at every level. 
 
 ## CLI
-Lockbook's CLI is built around a sophisticated tab completion behavior. Install the cli using your favorite [package manager](installing.md) or reach out to us if yours isn't listed there. You can configure our CLI to open your favorite text editor allowing you to rapidly jump to your desired note and edit it quickly.
 
-`lockbook stream` subcommand can receive and send bytes to and from other terminal programs. See what you can do with [dmenu](https://www.youtube.com/watch?v=4JWeU78A95c) for inspiration.
-
-`lockbook export` can also be used to snapshot directories to disk, [this website](https://github.com/lockbook/lockbook/blob/master/docs/update.sh) is powered by such a script. Here is [another example](https://github.com/Parth/parth.cafe/tree/master/.github/workflows).
+See [cli](cli.md) for information on:
+* invoking your own text editor
+* building on top of standard streams
+* building on top of filesystem replication
+* building on top of a virtual filesystem
 
 # lb-rs
 All of our core functionality is packaged in a rust crate: [lb-rs](https://crates.io/crates/lb-rs). See api docs [here](https://docs.rs/lb-rs/). Use this library to perform any operation you can do with a lockbook client. View, edit and organize your content. 

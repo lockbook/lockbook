@@ -6,8 +6,11 @@ import SwiftUI
 
 #if os(iOS)
     import GameController
-    import ObjectiveC.runtime
     import UIKit
+
+    enum WorkspaceControllerRegistry {
+        static var controllers: [UnsafeMutableRawPointer: WorkspaceController] = [:]
+    }
 
     public struct WorkspaceView: UIViewControllerRepresentable {
         @Environment(WorkspaceInputState.self) private var workspaceInput
@@ -52,21 +55,16 @@ import SwiftUI
             override public func viewDidLoad() {
                 let workspaceController: WorkspaceController
 
-                if let wsHandle = workspaceInput.wsHandle {
-                    workspaceController =
-                        objc_getAssociatedObject(UIApplication.shared, wsHandle)
-                            as! WorkspaceController
+                if let wsHandle = workspaceInput.wsHandle,
+                   let existing = WorkspaceControllerRegistry.controllers[wsHandle]
+                {
+                    workspaceController = existing
                 } else {
                     let new = WorkspaceController(
                         workspaceInput: workspaceInput,
                         workspaceOutput: workspaceOutput
                     )
-                    objc_setAssociatedObject(
-                        UIApplication.shared,
-                        workspaceInput.wsHandle!,
-                        new,
-                        .OBJC_ASSOCIATION_RETAIN_NONATOMIC
-                    )
+                    WorkspaceControllerRegistry.controllers[workspaceInput.wsHandle!] = new
                     workspaceController = new
                 }
 
@@ -188,15 +186,20 @@ import SwiftUI
                     return
                 }
 
-                mtkView.onSelectionChanged = nil
-                mtkView.onTextChanged = nil
-
+                // Text callbacks are nulled only where the MdView they're
+                // wired to goes away (a fresh one rewires in init). A switch
+                // that keeps the wrapper — markdown ↔ chat — keeps them: they
+                // feed Rust-side changes to UIKit's inputDelegate, and a deaf
+                // delegate desyncs autocorrect and keyboard state.
                 switch newCurrentTab {
                 case .Welcome, .Pdf, .Loading, .SpaceInspector:
                     if currentWrapper == nil {
                         return
                     }
 
+                    mtkView.onSelectionChanged = nil
+                    mtkView.onSelectionGeometryChanged = nil
+                    mtkView.onTextChanged = nil
                     currentWrapper?.removeFromSuperview()
 
                     currentWrapper = nil
@@ -209,6 +212,9 @@ import SwiftUI
                         return
                     }
 
+                    mtkView.onSelectionChanged = nil
+                    mtkView.onSelectionGeometryChanged = nil
+                    mtkView.onTextChanged = nil
                     currentWrapper?.removeFromSuperview()
 
                     let drawingWrapper = SvgView(mtkView: mtkView)

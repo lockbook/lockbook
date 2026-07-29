@@ -17,16 +17,17 @@
         var currentOpenDoc: UUID?
 
         var redrawTask: DispatchWorkItem?
+        var redrawDeadline: DispatchTime?
 
         var lastCursor: NSCursor = .arrow
         var cursorHidden: Bool = false
 
-        var lastWindowBgColor: UInt32 = 0
         var lastAccentColors: UInt64 = 0
 
         var modifierEventHandle: Any?
         var screenChangeObserver: NSObjectProtocol?
         var accentChangeObserver: NSObjectProtocol?
+        var appActiveObserver: NSObjectProtocol?
 
         override init(frame frameRect: CGRect, device: MTLDevice?) {
             super.init(frame: frameRect, device: device)
@@ -98,7 +99,20 @@
             wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 
-            modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged, handler: modifiersChanged(event:))
+            if let wsHandle {
+                RepaintRelay.register(wsHandle) { [weak self] delayMs in
+                    DispatchQueue.main.async {
+                        self?.repaintRequested(inMs: delayMs)
+                    }
+                }
+                set_repaint_callback(wsHandle, wsHandle) { context, delayMs in
+                    RepaintRelay.fire(context, delayMs)
+                }
+            }
+
+            modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
+                self?.modifiersChanged(event: event) ?? event
+            }
             registerForDraggedTypes([.png, .tiff, .fileURL, .string])
             becomeFirstResponder()
 
@@ -110,6 +124,52 @@
                 guard let self else { return }
                 setNeedsDisplay(frame)
             }
+
+            appActiveObserver = NotificationCenter.default.addObserver(
+                forName: NSApplication.didBecomeActiveNotification,
+                object: nil,
+                queue: .main
+            ) { [weak self] _ in
+                self?.syncModifiers()
+            }
+        }
+
+        func repaintRequested(inMs delayMs: UInt64) {
+            if delayMs == 0 {
+                setNeedsDisplay(frame)
+            } else {
+                scheduleRedraw(inMs: delayMs)
+            }
+        }
+
+        func scheduleRedraw(inMs delayMs: UInt64) {
+            let deadline = DispatchTime.now()
+                + .milliseconds(Int(min(delayMs, UInt64(Int32.max))))
+
+            if redrawTask != nil, let existing = redrawDeadline, existing <= deadline {
+                return
+            }
+
+            redrawTask?.cancel()
+            let task = DispatchWorkItem { [weak self] in
+                guard let self else { return }
+                setNeedsDisplay(frame)
+            }
+            redrawTask = task
+            redrawDeadline = deadline
+            DispatchQueue.main.asyncAfter(deadline: deadline, execute: task)
+        }
+
+        func syncModifiers() {
+            let flags = NSEvent.modifierFlags
+            modifier_event(
+                wsHandle,
+                flags.contains(.shift),
+                flags.contains(.control),
+                flags.contains(.option),
+                flags.contains(.command)
+            )
+            setNeedsDisplay(frame)
         }
 
         override public func draggingEntered(_: NSDraggingInfo) -> NSDragOperation {
@@ -367,19 +427,6 @@
             return packed
         }
 
-        func syncWindowBackground() {
-            guard let wsHandle, let window else { return }
-            let packed = desired_sidebar_color(wsHandle)
-            guard packed != lastWindowBgColor else { return }
-            lastWindowBgColor = packed
-
-            let r = CGFloat((packed >> 24) & 0xFF) / 255
-            let g = CGFloat((packed >> 16) & 0xFF) / 255
-            let b = CGFloat((packed >> 8) & 0xFF) / 255
-            let a = CGFloat(packed & 0xFF) / 255
-            window.backgroundColor = NSColor(srgbRed: r, green: g, blue: b, alpha: a)
-        }
-
         public func mtkView(_: MTKView, drawableSizeWillChange size: CGSize) {
             // initially window is not set, this defaults to 1.0, initial frame comes from `init_editor`
             // we probably want a setNeedsDisplay here
@@ -390,6 +437,7 @@
         public func drawImmediately() {
             redrawTask?.cancel()
             redrawTask = nil
+            redrawDeadline = nil
 
             isPaused = true
             enableSetNeedsDisplay = false
@@ -412,8 +460,6 @@
             set_tab_strip_height(wsHandle, Float(tabStripMinHeight()))
 
             let output = macos_frame(wsHandle)
-
-            syncWindowBackground()
 
             if output.tabs_changed {
                 workspaceOutput?.tabCount = Int(tab_count(wsHandle))
@@ -446,7 +492,7 @@
 //      FIXME: Can we just do this in rust?
             let newFile = UUID(uuid: output.doc_created._0)
             if !newFile.isNil() {
-                workspaceInput?.openFile(id: newFile)
+                workspaceInput?.openFile(id: newFile, newTab: true)
             }
 
             if output.urls_opened.size > 0 {
@@ -495,16 +541,10 @@
 
             redrawTask?.cancel()
             redrawTask = nil
+            redrawDeadline = nil
             isPaused = output.redraw_in > 50
-            if isPaused {
-                let redrawIn = UInt64(truncatingIfNeeded: output.redraw_in)
-                let redrawInInterval = DispatchTimeInterval.milliseconds(Int(truncatingIfNeeded: min(500, redrawIn)))
-
-                let newRedrawTask = DispatchWorkItem {
-                    self.setNeedsDisplay(self.frame)
-                }
-                DispatchQueue.main.asyncAfter(deadline: .now() + redrawInInterval, execute: newRedrawTask)
-                redrawTask = newRedrawTask
+            if isPaused, output.redraw_in != UInt64.max {
+                scheduleRedraw(inMs: UInt64(truncatingIfNeeded: output.redraw_in))
             }
 
             enableSetNeedsDisplay = isPaused
@@ -512,6 +552,7 @@
 
         deinit {
             if let wsHandle {
+                RepaintRelay.unregister(wsHandle)
                 deinit_editor(wsHandle)
             }
 
@@ -529,6 +570,10 @@
 
             if let accentChangeObserver {
                 NotificationCenter.default.removeObserver(accentChangeObserver)
+            }
+
+            if let appActiveObserver {
+                NotificationCenter.default.removeObserver(appActiveObserver)
             }
         }
     }

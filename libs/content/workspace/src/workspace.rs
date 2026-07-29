@@ -54,12 +54,27 @@ use crate::mind_map::show::MindMap;
 #[cfg(not(target_family = "wasm"))]
 use tokio::sync::broadcast::error::TryRecvError;
 
+/// A tab removed from the strip, with enough context to reopen it near where
+/// it lived. Neighbors are destinations (URLs); resolved against the live
+/// strip at reopen time. `index` is a layout fallback when anchors are gone.
+struct ClosedTab {
+    slot: TabSlot,
+    left: Option<Destination>,
+    right: Option<Destination>,
+    index: usize,
+}
+
 pub struct Workspace {
     // User activity
     pub tabs: TabCache,
     pub tab_strip: Vec<TabSlot>,
-    pub recently_closed_tabs: Vec<Uuid>,
     pub current_tab: Option<Destination>,
+
+    /// Most-recently-active last; used to pick focus when the current tab closes.
+    activation_history: Vec<Destination>,
+    /// Closed tabs, most recent last (LIFO for `reopen_closed_tab`).
+    closed_tabs: Vec<ClosedTab>,
+
     pub landing_page: LandingPage,
     pub account: Account,
 
@@ -134,8 +149,9 @@ impl Workspace {
         let mut ws = Self {
             tabs: TabCache::new(),
             tab_strip: Vec::new(),
-            recently_closed_tabs: Vec::new(),
             current_tab: None,
+            activation_history: Vec::new(),
+            closed_tabs: Vec::new(),
             landing_page: cfg.get_landing_page(),
             account: core.get_account().expect("failed to get account"),
 
@@ -177,15 +193,20 @@ impl Workspace {
 
         let (open_tabs, current_tab) = ws.cfg.get_tabs();
 
-        open_tabs.iter().for_each(|&file_id| {
-            if core.get_file_by_id(file_id).is_ok() {
-                info!(id = ?file_id, "opening persisted tab");
-                ws.open_file(file_id, false, true);
+        open_tabs.into_iter().for_each(|dest| {
+            let exists = dest
+                .backing_file()
+                .is_none_or(|id| core.get_file_by_id(id).is_ok());
+            if exists {
+                info!(?dest, "opening persisted tab");
+                ws.create_tab(dest, false);
             }
         });
         if let Some(current_tab) = current_tab {
-            info!(id = ?current_tab, "setting persisted current tab");
-            ws.make_current_by_id(current_tab);
+            if let Some(pos) = ws.tab_strip.iter().position(|s| s.dest == current_tab) {
+                info!(?current_tab, "setting persisted current tab");
+                ws.make_current(pos);
+            }
         }
 
         let core = ws.core.clone();
@@ -201,11 +222,11 @@ impl Workspace {
     /// content from the destination variant. Does not add to tab_strip or
     /// make current — callers decide visibility.
     pub fn open_dest(&mut self, dest: &Destination) {
-        if let Destination::File(id) = dest {
-            self.recently_closed_tabs.retain(|&closed| closed != *id);
-        }
+        self.closed_tabs.retain(|c| c.slot.dest != *dest);
 
+        // Promote from the previous-frame buffer so make_current can see it.
         if self.tabs.contains_key(dest) {
+            self.tabs.promote(dest);
             return;
         }
         let id = dest.id();
@@ -263,10 +284,10 @@ impl Workspace {
         self.open_dest(&dest);
         if !self.tab_strip.iter().any(|s| s.dest == dest) {
             self.tab_strip.push(TabSlot::new(dest.clone()));
+            self.out.tabs_changed = true;
         }
         if make_current {
-            self.current_tab = Some(dest);
-            self.mark_current_tab_changed();
+            self.set_current_tab(Some(dest));
         }
     }
 
@@ -336,6 +357,17 @@ impl Workspace {
         self.out.selected_file = self.current_tab_id();
     }
 
+    fn set_current_tab(&mut self, dest: Option<Destination>) {
+        if let Some(old_dest) = self.current_tab.take() {
+            if Some(&old_dest) != dest.as_ref() {
+                self.activation_history.retain(|d| d != &old_dest);
+                self.activation_history.push(old_dest);
+            }
+        }
+        self.current_tab = dest;
+        self.mark_current_tab_changed();
+    }
+
     /// Reload every open chat's provider config off-thread. Called when an
     /// `/.agent` file changes (edited, deleted from the tree, or synced) so a
     /// chat reflects the change without needing a tab switch.
@@ -396,11 +428,12 @@ impl Workspace {
     pub fn make_current(&mut self, i: usize) -> bool {
         let Some(slot) = self.tab_strip.get(i) else { return false };
         let dest = slot.dest.clone();
+        // Tab content may only live in the previous-frame buffer after close.
+        self.tabs.promote(&dest);
         if self.tabs.get(&dest).is_none() {
             return false;
         };
-        self.current_tab = Some(dest.clone());
-        self.mark_current_tab_changed();
+        self.set_current_tab(Some(dest));
 
         if let Some(md) = self.current_tab_markdown() {
             md.focus(&self.ctx);
@@ -473,16 +506,17 @@ impl Workspace {
 
     pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
         let dest = Destination::File(id);
-        self.recently_closed_tabs.retain(|&closed| closed != id);
 
         // already in strip — just focus it
         if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
             if make_current {
                 self.make_current(pos);
             }
+            self.closed_tabs.retain(|c| c.slot.dest != dest);
             return;
         }
 
+        // new tab
         if in_new_tab {
             self.create_tab(dest, make_current);
             return;
@@ -500,8 +534,8 @@ impl Workspace {
             return;
         };
 
-        // Push old dest id to slot's back, clear forward
-        self.tab_strip[slot_idx].back.push(old_dest.id());
+        // Push old dest to slot's back, clear forward
+        self.tab_strip[slot_idx].back.push(old_dest);
         self.tab_strip[slot_idx].forward.clear();
         // Update the slot's dest to the new destination
         self.tab_strip[slot_idx].dest = dest.clone();
@@ -509,25 +543,11 @@ impl Workspace {
         // Ensure the tab exists in cache for the new destination
         self.open_dest(&dest);
 
-        self.current_tab = Some(dest);
-        self.mark_current_tab_changed();
-    }
-
-    /// Open `id`, consuming the search tab: the selected file takes the search
-    /// tab's place in the strip rather than opening alongside it.
-    pub fn reopen_last_closed_tab(&mut self) {
-        while let Some(id) = self.recently_closed_tabs.first().copied() {
-            if self.core.get_file_by_id(id).is_ok() {
-                self.open_file(id, true, true);
-                return;
-            }
-            self.recently_closed_tabs.remove(0);
-        }
+        self.set_current_tab(Some(dest));
     }
 
     pub fn open_file_replacing_search(&mut self, id: Uuid) {
         let dest = Destination::File(id);
-        self.recently_closed_tabs.retain(|&closed| closed != id);
         let search_idx = self
             .tab_strip
             .iter()
@@ -552,9 +572,8 @@ impl Workspace {
         self.tabs.remove(&Destination::Search);
         self.tab_strip[i] = TabSlot::new(dest.clone());
         self.open_dest(&dest);
-        self.current_tab = Some(dest);
         self.out.tabs_changed = true;
-        self.mark_current_tab_changed();
+        self.set_current_tab(Some(dest));
     }
 
     pub fn open_file_at_range(
@@ -581,15 +600,13 @@ impl Workspace {
         let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
             return;
         };
-        let Some(back_id) = self.tab_strip[slot_idx].back.pop() else { return };
-        self.tab_strip[slot_idx].forward.push(current_dest.id());
+        let Some(new_dest) = self.tab_strip[slot_idx].back.pop() else { return };
+        self.tab_strip[slot_idx].forward.push(current_dest);
 
-        let new_dest = Destination::File(back_id);
         self.tab_strip[slot_idx].dest = new_dest.clone();
 
         self.open_dest(&new_dest);
-        self.current_tab = Some(new_dest);
-        self.mark_current_tab_changed();
+        self.set_current_tab(Some(new_dest));
     }
 
     pub fn can_back(&self) -> bool {
@@ -606,15 +623,13 @@ impl Workspace {
         let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
             return;
         };
-        let Some(forward_id) = self.tab_strip[slot_idx].forward.pop() else { return };
-        self.tab_strip[slot_idx].back.push(current_dest.id());
+        let Some(new_dest) = self.tab_strip[slot_idx].forward.pop() else { return };
+        self.tab_strip[slot_idx].back.push(current_dest);
 
-        let new_dest = Destination::File(forward_id);
         self.tab_strip[slot_idx].dest = new_dest.clone();
 
         self.open_dest(&new_dest);
-        self.current_tab = Some(new_dest);
-        self.mark_current_tab_changed();
+        self.set_current_tab(Some(new_dest));
     }
 
     pub fn can_forward(&self) -> bool {
@@ -655,27 +670,179 @@ impl Workspace {
             }
         }
 
-        // Remove from tab_strip
-        self.tab_strip.remove(i);
-        self.out.tabs_changed = true;
+        // Capture placement before remove: adjacent destinations (URLs) + index.
+        let left = i
+            .checked_sub(1)
+            .and_then(|j| self.tab_strip.get(j))
+            .map(|s| s.dest.clone());
+        let right = self.tab_strip.get(i + 1).map(|s| s.dest.clone());
 
-        if let Destination::File(id) = dest {
-            self.recently_closed_tabs.retain(|&closed| closed != id);
-            self.recently_closed_tabs.insert(0, id);
-            self.recently_closed_tabs.truncate(20);
+        // Remove from tab_strip
+        let closed_slot = self.tab_strip.remove(i);
+        self.out.tabs_changed = true;
+        self.activation_history.retain(|d| d != &dest);
+        self.closed_tabs.retain(|c| c.slot.dest != dest);
+        self.closed_tabs
+            .push(ClosedTab { slot: closed_slot, left, right, index: i });
+        const MAX_CLOSED_TABS: usize = 20;
+        if self.closed_tabs.len() > MAX_CLOSED_TABS {
+            self.closed_tabs.remove(0);
         }
 
         // Update current_tab
         if self.current_tab.as_ref() == Some(&dest) {
-            // Pick a neighbor
-            if self.tab_strip.is_empty() {
-                self.current_tab = None;
-            } else {
-                let new_idx = i.min(self.tab_strip.len() - 1);
-                self.current_tab = Some(self.tab_strip[new_idx].dest.clone());
+            // Prefer the most recently active still-open tab; else a neighbor.
+            let mut previous = None;
+            while let Some(d) = self.activation_history.pop() {
+                if self.tab_strip.iter().any(|s| s.dest == d) {
+                    previous = Some(d);
+                    break;
+                }
+            }
+            let next = previous.or_else(|| {
+                if self.tab_strip.is_empty() {
+                    None
+                } else {
+                    let new_idx = i.min(self.tab_strip.len() - 1);
+                    Some(self.tab_strip[new_idx].dest.clone())
+                }
+            });
+            // Clear first so set_current_tab does not re-record the closed dest.
+            self.current_tab = None;
+            self.set_current_tab(next);
+        }
+    }
+
+    pub fn close_all_tabs(&mut self) {
+        while !self.tab_strip.is_empty() {
+            self.close_tab(0);
+        }
+    }
+
+    pub fn close_other_tabs(&mut self, keep: usize) {
+        let Some(keep_dest) = self.tab_strip.get(keep).map(|s| s.dest.clone()) else {
+            return;
+        };
+        for i in (0..self.tab_strip.len()).rev() {
+            if self.tab_strip.get(i).is_some_and(|s| s.dest != keep_dest) {
+                self.close_tab(i);
             }
         }
-        self.mark_current_tab_changed();
+    }
+
+    pub fn close_tabs_to_left(&mut self, i: usize) {
+        if i == 0 || i >= self.tab_strip.len() {
+            return;
+        }
+        for j in (0..i).rev() {
+            self.close_tab(j);
+        }
+    }
+
+    pub fn close_tabs_to_right(&mut self, i: usize) {
+        if i + 1 >= self.tab_strip.len() {
+            return;
+        }
+        for j in (i + 1..self.tab_strip.len()).rev() {
+            self.close_tab(j);
+        }
+    }
+
+    pub fn can_reopen_closed_tab(&self) -> bool {
+        !self.closed_tabs.is_empty()
+    }
+
+    /// Restores the most recently closed tab (with back/forward) near its
+    /// prior place in the strip, and focuses it.
+    pub fn reopen_closed_tab(&mut self) {
+        while let Some(closed) = self.closed_tabs.pop() {
+            if self.restore_closed_tab(closed) {
+                return;
+            }
+        }
+    }
+
+    /// Restores a closed file tab by id (most recent matching entry), preserving
+    /// its back/forward stack and strip placement. Falls back to opening the
+    /// file in a **new** tab if it is not in the closed stack.
+    pub fn reopen_closed_file(&mut self, id: Uuid) {
+        let dest = Destination::File(id);
+
+        if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
+            self.closed_tabs.retain(|c| c.slot.dest != dest);
+            self.make_current(pos);
+            return;
+        }
+
+        while let Some(i) = self.closed_tabs.iter().rposition(|c| c.slot.dest == dest) {
+            let closed = self.closed_tabs.remove(i);
+            if self.restore_closed_tab(closed) {
+                return;
+            }
+        }
+
+        // Not in history (or all entries invalid): always new tab, never in-place.
+        self.create_tab(dest, true);
+    }
+
+    /// Insert a closed slot back onto the strip and load content.
+    fn restore_closed_tab(&mut self, closed: ClosedTab) -> bool {
+        let dest = closed.slot.dest.clone();
+        if self.tab_strip.iter().any(|s| s.dest == dest) {
+            return false;
+        }
+        let exists = dest
+            .backing_file()
+            .is_none_or(|id| self.files.read().unwrap().get_by_id(id).is_some());
+        if !exists {
+            return false;
+        }
+
+        let at = self.reopen_insert_index(&closed);
+        self.open_dest(&dest);
+        self.tabs.promote(&dest);
+        self.tab_strip.insert(at, closed.slot);
+        self.out.tabs_changed = true;
+        if !self.make_current(at) {
+            // Content may only have been in the previous-frame buffer; still
+            // mark current so the strip entry is focused.
+            self.set_current_tab(Some(dest));
+        }
+        true
+    }
+
+    /// Resolve where a closed tab should land in the current strip.
+    /// Prefer adjacent destinations still open; else fall back to saved index.
+    fn reopen_insert_index(&self, closed: &ClosedTab) -> usize {
+        let pos = |d: &Destination| self.tab_strip.iter().position(|s| &s.dest == d);
+        let left = closed.left.as_ref().and_then(pos);
+        let right = closed.right.as_ref().and_then(pos);
+
+        if let (Some(l), Some(r)) = (left, right) {
+            if l < r {
+                return l + 1;
+            }
+            // Anchors inverted (strip reordered); fall through.
+        }
+        if let Some(l) = left {
+            return l + 1;
+        }
+        if let Some(r) = right {
+            return r;
+        }
+        closed.index.min(self.tab_strip.len())
+    }
+
+    /// File ids from `closed_tabs`, most recently closed first.
+    pub fn recently_closed_tabs(&self) -> Vec<Uuid> {
+        self.closed_tabs
+            .iter()
+            .rev()
+            .filter_map(|c| match c.slot.dest {
+                Destination::File(id) => Some(id),
+                _ => None,
+            })
+            .collect()
     }
 
     pub fn process_bg_tasks(&mut self) {
@@ -1036,6 +1203,12 @@ impl Workspace {
                             md.initialized = true;
                             md.id_salt = egui::Id::new("search_preview");
                         }
+                        // A chat's first frame would focus its composer,
+                        // stealing focus from the search query.
+                        #[cfg(not(target_family = "wasm"))]
+                        if let Some(chat) = tab.chat_mut() {
+                            chat.initialized = true;
+                        }
                     } else {
                         self.out.tabs_changed = true;
                     }
@@ -1378,8 +1551,8 @@ pub struct WsPersistentStore {
 
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct WsPresistentData {
-    open_tabs: Vec<Uuid>,
-    current_tab: Option<Uuid>,
+    open_tabs: Vec<Destination>,
+    current_tab: Option<Destination>,
     canvas: CanvasSettings,
     pub markdown: MdPersistence,
     auto_save: bool,
@@ -1443,21 +1616,16 @@ impl WsPersistentStore {
         store
     }
 
-    // todo: store non-file (mind map) tabs?
     pub fn set_tabs(&mut self, tab_strip: &[TabSlot], current_tab: &Option<Destination>) {
         let mut data_lock = self.data.write().unwrap();
-        data_lock.open_tabs = tab_strip
-            .iter()
-            .filter(|s| matches!(s.dest, Destination::File(_)))
-            .map(|s| s.dest.id())
-            .collect();
-        data_lock.current_tab = current_tab.as_ref().map(|d| d.id());
+        data_lock.open_tabs = tab_strip.iter().map(|s| s.dest.clone()).collect();
+        data_lock.current_tab = current_tab.clone();
         self.write_to_file();
     }
 
-    pub fn get_tabs(&self) -> (Vec<Uuid>, Option<Uuid>) {
+    pub fn get_tabs(&self) -> (Vec<Destination>, Option<Destination>) {
         let data_lock = self.data.read().unwrap();
-        (data_lock.open_tabs.clone(), data_lock.current_tab)
+        (data_lock.open_tabs.clone(), data_lock.current_tab.clone())
     }
 
     pub fn set_canvas_settings(&mut self, canvas_settings: CanvasSettings) {

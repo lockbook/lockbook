@@ -33,6 +33,7 @@ buildscript {
         safe_args_gradle_plugin = '2.9.6'
         fab_speed_dial = '3.3.0'
         billing_version = '7.0.0'
+        datastore_version = '1.1.7'
     }
 
     repositories {

@@ -4,6 +4,8 @@
 //! the reviewable state lives in the parent module and `config`.
 
 use super::*;
+use crate::file_cache::path_segments;
+use crate::show::InputStateExt as _;
 
 /// A vertically-stacked, horizontally-centered column painted as one block in
 /// a rect — the shared skeleton of the onboarding chooser, connect step,
@@ -277,7 +279,13 @@ impl Chat {
         };
 
         let composer_id = Id::new("chat_composer");
-        if !self.initialized {
+        // Focus when first shown or whenever nothing holds focus — the
+        // editor's policy, and load-bearing on iOS: typing arrives as egui
+        // events only a focused composer consumes, and taps place the cursor
+        // via the text FFI without touching egui focus, so lost focus must
+        // self-heal here. (The touch keyboard tracks UIKit first-responder
+        // state, not egui focus — the re-grab never summons it.)
+        if !self.initialized || ui.memory(|m| m.focused().is_none()) {
             ui.memory_mut(|m| m.request_focus(composer_id));
             self.initialized = true;
         }
@@ -307,7 +315,8 @@ impl Chat {
         // completion popup is up (which accepts with Enter itself), and not
         // while a turn is streaming: a send can't fire then, and consuming
         // the key would eat the stroke with no feedback. Left unconsumed it
-        // types a newline, which at least shows the key landed.
+        // types a newline, which at least shows the key landed. Exact match:
+        // `consume_key` ignores extra Shift, so it'd treat Shift+Enter as a send.
         let composer_focused = ui.memory(|m| m.has_focus(composer_id));
         let completions_open =
             self.composer.emoji_completions.active || self.composer.link_completions.active;
@@ -315,20 +324,23 @@ impl Chat {
             && !agent_busy
             && ui.ctx().input_mut(|i| {
                 i.consume_key(Modifiers::COMMAND, Key::Enter)
-                    || (!completions_open && i.consume_key(Modifiers::NONE, Key::Enter))
+                    || (!completions_open && i.consume_key_exact(Modifiers::NONE, Key::Enter))
             });
 
-        // ⌘A approve / ⌘D deny while a call awaits a decision. Consumed
-        // before the composer's input phase so ⌘A can't fall through to
-        // select-all while the card is up.
-        let approve_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::A);
-        let deny_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::D);
+        // ⌘Enter approve / Esc deny while a call awaits a decision. A send
+        // can't fire mid-turn, so the send stroke is free to mean "yes, go"
+        // while the card is up. Consumed before the composer's input phase
+        // so neither falls through to the editor; stood down while the
+        // chooser owns the canvas (its own Esc closes it).
+        let approve_shortcut = egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::Enter);
+        let deny_shortcut = egui::KeyboardShortcut::new(Modifiers::NONE, Key::Escape);
         let mut approve_clicked = false;
         let mut deny_clicked = false;
         if self
             .harness
             .as_ref()
             .is_some_and(|h| h.pending_tool.is_some())
+            && !self.chooser_open
         {
             ui.ctx().input_mut(|i| {
                 approve_clicked = i.consume_shortcut(&approve_shortcut);
@@ -343,7 +355,8 @@ impl Chat {
         // and tablet-width touch screens (iPad); not phones.
         let show_key_hints = !touch_os || available_width >= 600.0;
         let approve_hint = ui.ctx().format_shortcut(&approve_shortcut);
-        let deny_hint = ui.ctx().format_shortcut(&deny_shortcut);
+        // format_shortcut spells it "Escape" — every editor's label is "esc".
+        let deny_hint = "esc".to_string();
 
         // Return submits the key — the connect step has no Connect button.
         let mut key_submit = false;
@@ -386,10 +399,16 @@ impl Chat {
             let _ = self.composer.handle_input(ui.ctx(), composer_id);
         }
 
+        // Send/stop sits inside the text area at its trailing edge
+        // (messaging-app idiom) — the text column narrows to wrap clear of it.
+        let send_d = if touch_os { TOOLBAR_H - 2.0 } else { TOOLBAR_H - 8.0 };
+        let send_zone = send_d + H_PAD;
+
         // Measure at the exact render width so the composer bubble grows
         // same-frame. The re-parse inside `show` below hits the layout cache.
-        // `H_MARGIN` and `H_PAD` mirror the h_inset / shrink geometry below.
-        let composer_inner_w = (col_width - 2.0 * H_MARGIN - 2.0 * H_PAD).max(0.0);
+        // `H_MARGIN`, `H_PAD`, and `send_zone` mirror the h_inset / shrink
+        // geometry below.
+        let composer_inner_w = (col_width - 2.0 * H_MARGIN - 2.0 * H_PAD - send_zone).max(0.0);
         let measured_h = self.composer.measure_height(composer_inner_w);
 
         // Autogrow with a max cap, no lower floor — a lower floor makes a
@@ -435,7 +454,7 @@ impl Chat {
                 (
                     tools::detail_for(&p.name, &p.args),
                     tools::permission_prose(&p.name, &p.args, &provider_label),
-                    p.preview.clone(),
+                    tools::request_reason(&p.args),
                 )
             });
         // Soft washes behind rendered diffs' changed blocks.
@@ -842,130 +861,117 @@ impl Chat {
                             (galley, pos)
                         });
 
-                    // The trailing approval card, shaped like a tool container
-                    // pinned open: a header bar with the command summary, over
-                    // a bordered body holding the permission prose, the
-                    // proposed change, and Approve / Deny.
-                    let review_plan =
-                        pending_tool.as_ref().map(|(summary_text, prose, preview)| {
-                            y += TOOL_GROUP_PAD;
-                            let indent = TOOL_PAD_X;
+                    // The trailing approval card (request_access — the only
+                    // gated call), shaped like a tool container pinned open:
+                    // a header bar with the command summary, over a bordered
+                    // body holding the permission prose and Allow / Deny.
+                    let review_plan = pending_tool.as_ref().map(|(summary_text, prose, reason)| {
+                        y += TOOL_GROUP_PAD;
+                        let indent = TOOL_PAD_X;
 
-                            // Header bar: the command summary, left-aligned. No
-                            // right metric — the call hasn't been allowed to run.
-                            let summary = ui.fonts(|f| {
-                                f.layout_no_wrap(
-                                    summary_text.clone(),
-                                    egui::FontId::monospace(TOOL_FONT),
-                                    secondary_color,
-                                )
-                            });
-                            let header_h = summary.size().y + 2.0 * TOOL_PAD_Y;
-                            let header_rect =
-                                Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, header_h));
-                            let mut cy = y + header_h + TOOL_PAD_Y;
+                        // Header bar: the command summary, left-aligned. No
+                        // right metric — the call hasn't been allowed to run.
+                        let summary = ui.fonts(|f| {
+                            f.layout_no_wrap(
+                                summary_text.clone(),
+                                egui::FontId::monospace(TOOL_FONT),
+                                secondary_color,
+                            )
+                        });
+                        let header_h = summary.size().y + 2.0 * TOOL_PAD_Y;
+                        let header_rect =
+                            Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, header_h));
+                        let mut cy = y + header_h + TOOL_PAD_Y;
 
-                            // Body: the permission request, wrapping. Dimmed mono,
-                            // like the tool summary and result text.
-                            let body_w = note_wrap_w - 2.0 * indent;
-                            let prose = ui.fonts(|f| {
+                        // Body: the permission request, wrapping. Dimmed mono,
+                        // like the tool summary and result text.
+                        let body_w = note_wrap_w - 2.0 * indent;
+                        let prose = ui.fonts(|f| {
+                            f.layout(
+                                prose.clone(),
+                                egui::FontId::monospace(TOOL_FONT),
+                                secondary_color,
+                                body_w,
+                            )
+                        });
+                        let prose_pos = pos2(note_x + indent, cy);
+                        cy += prose.size().y;
+
+                        // The call's stated reason, in the model's own
+                        // words — italic sans sets it apart from the ask
+                        // sentence's dimmed mono.
+                        let reason_plan = reason.as_ref().map(|r| {
+                            let galley = ui.fonts(|f| {
                                 f.layout(
-                                    prose.clone(),
-                                    egui::FontId::monospace(TOOL_FONT),
+                                    format!("“{r}”"),
+                                    egui::FontId {
+                                        size: TOOL_FONT,
+                                        family: egui::FontFamily::Name("Italic".into()),
+                                    },
                                     secondary_color,
                                     body_w,
                                 )
                             });
-                            let prose_pos = pos2(note_x + indent, cy);
-                            cy += prose.size().y;
-
-                            // The proposed change, under the prose.
-                            let body = match preview {
-                                // An edit's diff, rendered with changed blocks
-                                // washed in place.
-                                Some(Ok(segs)) => {
-                                    self.review_label.renderer.layout.block_spacing =
-                                        DIFF_BLOCK_SPACING;
-                                    let h = segments_height(&mut self.review_label, segs, body_w);
-                                    let pos = pos2(note_x + indent, cy + ROW_GAP);
-                                    cy += ROW_GAP + h;
-                                    ReviewBody::Rendered {
-                                        segments: segs.clone(),
-                                        pos,
-                                        width: body_w,
-                                    }
-                                }
-                                // The steering error approval would hit.
-                                Some(Err(e)) => {
-                                    let galley = ui.fonts(|f| {
-                                        f.layout(
-                                            e.clone(),
-                                            egui::FontId::monospace(TOOL_FONT),
-                                            secondary_color,
-                                            body_w,
-                                        )
-                                    });
-                                    let pos = pos2(note_x + indent, cy + ROW_GAP);
-                                    cy += ROW_GAP + galley.size().y;
-                                    ReviewBody::Galley { galley, pos }
-                                }
-                                None => ReviewBody::None,
-                            };
-
-                            // Button row, right-aligned; Approve sits left of Deny
-                            // to match the ⌘A / ⌘D keys. Hints show where a
-                            // hardware keyboard is plausible (desktop, iPad).
-                            cy += V_PAD;
-                            let btn = |ui: &Ui, label: String, accent: bool| {
-                                ui.fonts(|f| {
-                                    f.layout_no_wrap(
-                                        label,
-                                        egui::FontId::proportional(13.0),
-                                        if accent { text_color } else { secondary_color },
-                                    )
-                                })
-                            };
-                            let approve_label = if show_key_hints {
-                                format!("Approve {approve_hint}")
-                            } else {
-                                "Approve".into()
-                            };
-                            let deny_label = if show_key_hints {
-                                format!("Deny {deny_hint}")
-                            } else {
-                                "Deny".into()
-                            };
-                            let approve = btn(ui, approve_label, true);
-                            let deny = btn(ui, deny_label, false);
-                            let btn_h = approve.size().y.max(deny.size().y) + 8.0;
-                            let bpad = 12.0;
-                            let approve_w = approve.size().x + bpad * 2.0;
-                            let deny_w = deny.size().x + bpad * 2.0;
-                            let right = note_x + note_wrap_w - indent;
-                            let deny_rect =
-                                Rect::from_min_size(pos2(right - deny_w, cy), vec2(deny_w, btn_h));
-                            let approve_rect = Rect::from_min_size(
-                                pos2(deny_rect.min.x - STRIP_GAP - approve_w, cy),
-                                vec2(approve_w, btn_h),
-                            );
-                            cy += btn_h + TOOL_PAD_Y;
-
-                            let border =
-                                Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, cy - y));
-                            y = cy + ROW_GAP + TOOL_GROUP_PAD;
-                            ReviewPlan {
-                                header_rect,
-                                summary,
-                                prose,
-                                prose_pos,
-                                body,
-                                approve,
-                                approve_rect,
-                                deny,
-                                deny_rect,
-                                border,
-                            }
+                            let pos = pos2(note_x + indent, cy + ROW_GAP);
+                            cy += ROW_GAP + galley.size().y;
+                            (galley, pos)
                         });
+
+                        // Button row, right-aligned. Hints show where a
+                        // hardware keyboard is plausible (desktop, iPad).
+                        cy += V_PAD;
+                        let btn = |ui: &Ui, label: String, accent: bool| {
+                            ui.fonts(|f| {
+                                f.layout_no_wrap(
+                                    label,
+                                    egui::FontId::proportional(13.0),
+                                    if accent { text_color } else { secondary_color },
+                                )
+                            })
+                        };
+                        // A grant reads as "Allow" — it confers standing
+                        // access, not a one-shot approval.
+                        let approve_label = if show_key_hints {
+                            format!("Allow {approve_hint}")
+                        } else {
+                            "Allow".into()
+                        };
+                        let deny_label = if show_key_hints {
+                            format!("Deny {deny_hint}")
+                        } else {
+                            "Deny".into()
+                        };
+                        let approve = btn(ui, approve_label, true);
+                        let deny = btn(ui, deny_label, false);
+                        let btn_h = approve.size().y.max(deny.size().y) + 8.0;
+                        let bpad = 12.0;
+                        let approve_w = approve.size().x + bpad * 2.0;
+                        let deny_w = deny.size().x + bpad * 2.0;
+                        let right = note_x + note_wrap_w - indent;
+                        let deny_rect =
+                            Rect::from_min_size(pos2(right - deny_w, cy), vec2(deny_w, btn_h));
+                        let approve_rect = Rect::from_min_size(
+                            pos2(deny_rect.min.x - STRIP_GAP - approve_w, cy),
+                            vec2(approve_w, btn_h),
+                        );
+                        cy += btn_h + TOOL_PAD_Y;
+
+                        let border =
+                            Rect::from_min_size(pos2(note_x, y), vec2(note_wrap_w, cy - y));
+                        y = cy + ROW_GAP + TOOL_GROUP_PAD;
+                        ReviewPlan {
+                            header_rect,
+                            summary,
+                            prose,
+                            prose_pos,
+                            reason: reason_plan,
+                            approve,
+                            approve_rect,
+                            deny,
+                            deny_rect,
+                            border,
+                        }
+                    });
 
                     // Keep the clicked arrows where they were: correct for
                     // any height change of the swapped fork row (content
@@ -1414,33 +1420,12 @@ impl Chat {
                         );
                         // The permission request.
                         ui.painter().galley(r.prose_pos, r.prose, secondary_color);
-                        match r.body {
-                            ReviewBody::None => {}
-                            ReviewBody::Galley { galley, pos } => {
-                                ui.painter().galley(pos, galley, secondary_color);
-                            }
-                            // The proposed change, rendered; changed blocks
-                            // washed in place. Washes paint after the layout
-                            // but under the glyphs — text rides the later
-                            // glyphon callback layer. Bands bleed to the
-                            // container edges (inset for its 1px border).
-                            ReviewBody::Rendered { segments, pos, width } => {
-                                let areas = paint_segments(
-                                    ui,
-                                    &mut self.review_label,
-                                    Id::new("review_body"),
-                                    &segments,
-                                    pos,
-                                    width,
-                                    (note_x + 1.0, note_x + note_wrap_w - 1.0),
-                                    add_wash,
-                                    del_wash,
-                                );
-                                text_areas.extend(areas);
-                            }
+                        // The agent's stated reason, italic, under the ask.
+                        if let Some((galley, pos)) = r.reason {
+                            ui.painter().galley(pos, galley, secondary_color);
                         }
 
-                        // Deny: bordered. Approve: accent-filled.
+                        // Deny: bordered. Allow: accent-filled.
                         let deny = ui
                             .interact(r.deny_rect, Id::new("chat_review_deny"), Sense::click())
                             .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -2153,9 +2138,10 @@ impl Chat {
         // bottom is purely the glyphon clip — insetting it by `V_PAD` pinned
         // the clip onto the last line's box and shaved descenders (g/y tails,
         // worst on hi-DPI). The empty space above the toolbar is the padding.
+        // The right side additionally clears the send button's zone.
         let inner_rect = Rect::from_min_max(
             text_rect.min + vec2(H_PAD, V_PAD),
-            pos2(text_rect.max.x - H_PAD, text_rect.max.y),
+            pos2(text_rect.max.x - H_PAD - send_zone, text_rect.max.y),
         );
         // When the key is broken the text field is replaced by an accent
         // "add key" button — a control, never a place to type a secret.
@@ -2202,6 +2188,58 @@ impl Chat {
             } else {
                 None
             };
+
+        // Send/stop at the text area's trailing edge, bottom-aligned so it
+        // tracks the newest line as the composer grows (centered while a
+        // single line leaves the area shorter than the button). While a turn
+        // streams the button is a stop square (the reply keeps what streamed
+        // so far).
+        let non_empty = !self.composer.renderer.buffer.current.text.trim().is_empty();
+        let mut send_clicked = false;
+        let mut stop_clicked = false;
+        // No send button while the field is the "add key" button.
+        if !hide_composer && need_key.is_none() {
+            let center = pos2(
+                text_rect.max.x - H_PAD - send_d / 2.0,
+                (text_rect.max.y - V_PAD - send_d / 2.0).max(text_rect.center().y),
+            );
+            let button_rect = Rect::from_center_size(center, vec2(send_d, send_d));
+            // Touch targets stay ~44pt even where the visual is smaller.
+            let hit_rect = if touch_os { button_rect.expand(7.0) } else { button_rect };
+            let active = (non_empty && send_block.is_none()) || agent_busy;
+            let resp = ui.interact(hit_rect, Id::new("chat_send"), Sense::click());
+            // A pointer cursor when it'll do something (send, or stop a turn).
+            let resp =
+                if active { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
+
+            let painter = ui.painter();
+            // The markdown-toolbar icon idiom — no filled disc, just the mark
+            // itself: accent when actionable, foreground when idle.
+            let mark = if active {
+                theme.fg().get_color(theme.prefs().primary)
+            } else {
+                theme.neutral_fg()
+            };
+            if agent_busy {
+                let side = send_d * 0.36;
+                painter.rect_filled(
+                    Rect::from_center_size(center, vec2(side, side)),
+                    CornerRadius::same(2),
+                    mark,
+                );
+                stop_clicked = resp.clicked();
+            } else {
+                let icon = ui.fonts(|f| {
+                    f.layout_no_wrap(
+                        Icon::SEND.icon.to_string(),
+                        egui::FontId::monospace(send_d * 0.55),
+                        mark,
+                    )
+                });
+                painter.galley(center - icon.size() / 2.0, icon, mark);
+                send_clicked = resp.clicked();
+            }
+        }
 
         // Ghosted placeholder over the empty composer (not while the field is
         // the "add key" button).
@@ -2298,38 +2336,61 @@ impl Chat {
                     .on_hover_text(format!("{used} / {window} tokens ({:.0}%)", ratio * 100.0));
             }
 
-            let mut dropdown = |ui: &mut Ui, id: &str, text: &str| -> egui::Response {
-                let galley = ui.fonts(|f| {
-                    f.layout_no_wrap(
+            // The ⋯ overflow anchors the strip's right end; chips lay against
+            // the budget it leaves. A chip that can't fit folds into its menu.
+            let more_d = TOOLBAR_H - 8.0;
+            let more_rect = Rect::from_center_size(
+                pos2(toolbar_rect.max.x - more_d / 2.0, toolbar_rect.center().y),
+                vec2(more_d, more_d),
+            );
+            let budget_max_x = more_rect.min.x - STRIP_GAP;
+
+            // Label ⌄ chip. Labels elide at a cap (model ids run long) and at
+            // the remaining budget; `must_fit` chips (provider, model — the
+            // strip's identity) draw regardless, eating what room remains,
+            // while the rest return None for the caller to fold into ⋯.
+            let mut dropdown =
+                |ui: &mut Ui, id: &str, text: &str, must_fit: bool| -> Option<egui::Response> {
+                    let chevron = ui.fonts(|f| {
+                        f.layout_no_wrap(
+                            Icon::CHEVRON_DOWN.icon.to_string(),
+                            egui::FontId::monospace(12.0),
+                            text_color,
+                        )
+                    });
+                    let avail = budget_max_x - cursor_x;
+                    let mut job = egui::text::LayoutJob::simple_singleline(
                         text.to_string(),
                         egui::FontId::proportional(NOTE_FONT),
                         text_color,
-                    )
-                });
-                let chevron = ui.fonts(|f| {
-                    f.layout_no_wrap(
-                        Icon::CHEVRON_DOWN.icon.to_string(),
-                        egui::FontId::monospace(12.0),
+                    );
+                    job.wrap = egui::text::TextWrapping {
+                        max_width: 140.0f32.min(avail - chevron.size().x - 6.0).max(0.0),
+                        max_rows: 1,
+                        break_anywhere: true,
+                        overflow_character: Some('…'),
+                    };
+                    let galley = ui.fonts(|f| f.layout_job(job));
+                    let w = galley.size().x + chevron.size().x + 6.0;
+                    if !must_fit && w > avail {
+                        return None;
+                    }
+                    let rect =
+                        Rect::from_min_size(pos2(cursor_x, toolbar_rect.min.y), vec2(w, TOOLBAR_H));
+                    cursor_x = rect.max.x + STRIP_GAP;
+                    let resp = ui
+                        .interact(rect, Id::new(id), Sense::click())
+                        .on_hover_cursor(egui::CursorIcon::PointingHand);
+                    let text_top = rect.min.y + (TOOLBAR_H - galley.size().y) / 2.0;
+                    ui.painter()
+                        .galley(pos2(rect.min.x, text_top), galley, text_color);
+                    ui.painter().galley(
+                        pos2(rect.max.x - chevron.size().x, text_top),
+                        chevron,
                         text_color,
-                    )
-                });
-                let w = galley.size().x + chevron.size().x + 6.0;
-                let rect =
-                    Rect::from_min_size(pos2(cursor_x, toolbar_rect.min.y), vec2(w, TOOLBAR_H));
-                cursor_x = rect.max.x + STRIP_GAP;
-                let resp = ui
-                    .interact(rect, Id::new(id), Sense::click())
-                    .on_hover_cursor(egui::CursorIcon::PointingHand);
-                let text_top = rect.min.y + (TOOLBAR_H - galley.size().y) / 2.0;
-                ui.painter()
-                    .galley(pos2(rect.min.x, text_top), galley, text_color);
-                ui.painter().galley(
-                    pos2(rect.max.x - chevron.size().x, text_top),
-                    chevron,
-                    text_color,
-                );
-                resp
-            };
+                    );
+                    Some(resp)
+                };
 
             let mut pick: Option<(String, String)> = None;
 
@@ -2348,7 +2409,8 @@ impl Chat {
             let provider_label = current
                 .map(|c| c.label())
                 .unwrap_or_else(|| "select provider".to_string());
-            let provider_resp = dropdown(ui, "chat_provider_btn", &provider_label);
+            let provider_resp =
+                dropdown(ui, "chat_provider_btn", &provider_label, true).expect("must_fit chip");
             let glyphs = &mut self.glyphs;
             // A row with the provider's brand mark, tinted like its text —
             // similar names in this space (Groq vs Grok) make a wordlist
@@ -2421,6 +2483,28 @@ impl Chat {
             // Model and effort need a resolved provider; the picker above is
             // the whole toolbar until one resolves.
             let mut effort_pick: Option<String> = None;
+            let mut revoke: Option<String> = None;
+            // Chips the budget folded into the ⋯ menu, where they reappear
+            // as submenus.
+            let mut effort_folded = false;
+            let mut access_folded = false;
+            let scope = latest_scope(&self.entries, &self.account.username);
+            // "/" subsumes any other listed root, so it reads as one grant
+            // rather than "N paths"; a single grant shows its leaf name —
+            // full paths overwhelm a chip, and the popover has them whole.
+            let access_label = if scope.iter().any(|g| g == "/") {
+                "access: everything".to_string()
+            } else {
+                match scope.as_slice() {
+                    [] => String::new(),
+                    [one] => {
+                        let name = path_segments(one).last().copied().unwrap_or_default();
+                        let slash = if one.ends_with('/') { "/" } else { "" };
+                        format!("access: {name}{slash}")
+                    }
+                    many => format!("access: {} paths", many.len()),
+                }
+            };
             if let Some(current) = current {
                 // The button shows the selected model's display name when the
                 // listing has landed; the id (what's actually configured) until
@@ -2439,7 +2523,8 @@ impl Chat {
                         .map(|m| m.label().to_string())
                         .unwrap_or_else(|| current.model.clone())
                 };
-                let model_resp = dropdown(ui, "chat_model_btn", &model_label);
+                let model_resp =
+                    dropdown(ui, "chat_model_btn", &model_label, true).expect("must_fit chip");
                 egui::Popup::menu(&model_resp)
                     .align(egui::RectAlign::TOP_START)
                     .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
@@ -2494,41 +2579,73 @@ impl Chat {
                     // read as an effort control next to provider/model names.
                     let label =
                         format!("effort: {}", current.effort.as_deref().unwrap_or(EFFORT_AUTO));
-                    let effort_resp = dropdown(ui, "chat_effort_btn", &label).on_hover_text(
-                        "how hard the model reasons before replying — auto uses its own default",
-                    );
-                    egui::Popup::menu(&effort_resp)
-                        .align(egui::RectAlign::TOP_START)
-                        .show(|ui| {
-                            ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
-                            ui.set_min_width(100.0);
-                            if ui
-                                .button(row_text(EFFORT_AUTO, current.effort.is_none()))
-                                .clicked()
-                            {
-                                effort_pick = Some(EFFORT_AUTO.into());
-                                ui.close();
-                            }
-                            for level in EFFORT_LEVELS {
-                                let selected = current.effort.as_deref() == Some(*level);
-                                if ui.button(row_text(level, selected)).clicked() {
-                                    effort_pick = Some((*level).into());
-                                    ui.close();
-                                }
-                            }
-                        });
+                    match dropdown(ui, "chat_effort_btn", &label, false) {
+                        Some(effort_resp) => {
+                            let effort_resp = effort_resp.on_hover_text(
+                                "how hard the model reasons before replying — auto uses its own \
+                                 default",
+                            );
+                            egui::Popup::menu(&effort_resp)
+                                .align(egui::RectAlign::TOP_START)
+                                .show(|ui| {
+                                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                    ui.set_min_width(100.0);
+                                    if ui
+                                        .button(row_text(EFFORT_AUTO, current.effort.is_none()))
+                                        .clicked()
+                                    {
+                                        effort_pick = Some(EFFORT_AUTO.into());
+                                        ui.close();
+                                    }
+                                    for level in EFFORT_LEVELS {
+                                        let selected = current.effort.as_deref() == Some(*level);
+                                        if ui.button(row_text(level, selected)).clicked() {
+                                            effort_pick = Some((*level).into());
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                        }
+                        None => effort_folded = true,
+                    }
+                }
+
+                // Access chip: what the agent can reach, granted strictly
+                // through its own request_access cards, no manual grant here
+                // — only revoke. Uniform regardless of provider: no chip
+                // until something's actually been granted.
+                if !scope.is_empty() {
+                    match dropdown(ui, "chat_access_btn", &access_label, false) {
+                        Some(access_resp) => {
+                            let access_resp = access_resp.on_hover_text(
+                                "the notes and folders this chat's agent can read and edit",
+                            );
+                            egui::Popup::menu(&access_resp)
+                                .align(egui::RectAlign::TOP_START)
+                                .show(|ui| {
+                                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                    ui.set_min_width(180.0);
+                                    ui.weak("click a grant to revoke it");
+                                    for g in &scope {
+                                        let label = if g == "/" { "everything" } else { g };
+                                        if ui.button(row_text(label, false)).clicked() {
+                                            revoke = Some(g.clone());
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                        }
+                        None => access_folded = true,
+                    }
                 }
             }
 
             // Conversation-scoped actions live in a ⋯ overflow at the
-            // toolbar's right, beside send — not in the provider picker,
-            // which stays a pure provider list. Right-aligned so the rare
-            // actions sit away from the per-message controls.
+            // toolbar's right end — not in the provider picker, which stays
+            // a pure provider list. Right-aligned so the rare actions sit
+            // away from the per-message controls. Chips the budget folded
+            // lead the menu as submenus, above the standing actions.
             {
-                let d = TOOLBAR_H - 8.0;
-                let center =
-                    pos2(toolbar_rect.max.x - d - STRIP_GAP - d / 2.0, toolbar_rect.center().y);
-                let more_rect = Rect::from_center_size(center, vec2(d, d));
                 let more_resp = ui
                     .interact(more_rect, Id::new("chat_more_btn"), Sense::click())
                     .on_hover_cursor(egui::CursorIcon::PointingHand);
@@ -2547,6 +2664,47 @@ impl Chat {
                     .show(|ui| {
                         ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
                         ui.set_min_width(140.0);
+                        if effort_folded {
+                            if let Some(current) = current {
+                                let label = format!(
+                                    "effort: {}",
+                                    current.effort.as_deref().unwrap_or(EFFORT_AUTO)
+                                );
+                                ui.menu_button(row_text(&label, false), |ui| {
+                                    ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                    if ui
+                                        .button(row_text(EFFORT_AUTO, current.effort.is_none()))
+                                        .clicked()
+                                    {
+                                        effort_pick = Some(EFFORT_AUTO.into());
+                                        ui.close();
+                                    }
+                                    for level in EFFORT_LEVELS {
+                                        let selected = current.effort.as_deref() == Some(*level);
+                                        if ui.button(row_text(level, selected)).clicked() {
+                                            effort_pick = Some((*level).into());
+                                            ui.close();
+                                        }
+                                    }
+                                });
+                            }
+                        }
+                        if access_folded {
+                            ui.menu_button(row_text(&access_label, false), |ui| {
+                                ui.spacing_mut().button_padding = egui::vec2(4.0, 4.0);
+                                ui.weak("tap a grant to revoke it");
+                                for g in &scope {
+                                    let label = if g == "/" { "everything" } else { g };
+                                    if ui.button(row_text(label, false)).clicked() {
+                                        revoke = Some(g.clone());
+                                        ui.close();
+                                    }
+                                }
+                            });
+                        }
+                        if effort_folded || access_folded {
+                            ui.separator();
+                        }
                         // The system prompt, as an editable file. "system
                         // prompt" is the real term and reads unambiguously to
                         // anyone who's used an agent; the tooltip covers the
@@ -2588,6 +2746,10 @@ impl Chat {
                 self.write_effort(effort);
                 changed = true;
             }
+            if let Some(path) = revoke {
+                self.revoke_grant(&path);
+                changed = true;
+            }
             if open_chooser {
                 self.chooser_open = true;
             }
@@ -2609,53 +2771,6 @@ impl Chat {
             if clear_chat {
                 self.clear_chat();
                 changed = true;
-            }
-        }
-
-        // Send/stop at the toolbar's right end. While a turn streams the
-        // button is a stop square (the reply keeps what streamed so far).
-        let non_empty = !self.composer.renderer.buffer.current.text.trim().is_empty();
-        let mut send_clicked = false;
-        let mut stop_clicked = false;
-        // No send button while the field is the "add key" button.
-        if !hide_composer && need_key.is_none() {
-            let d = if touch_os { TOOLBAR_H - 2.0 } else { TOOLBAR_H - 8.0 };
-            let center = pos2(toolbar_rect.max.x - d / 2.0, toolbar_rect.center().y);
-            let button_rect = Rect::from_center_size(center, vec2(d, d));
-            // Touch targets stay ~44pt even where the visual is smaller.
-            let hit_rect = if touch_os { button_rect.expand(7.0) } else { button_rect };
-            let active = (non_empty && send_block.is_none()) || agent_busy;
-            let resp = ui.interact(hit_rect, Id::new("chat_send"), Sense::click());
-            // A pointer cursor when it'll do something (send, or stop a turn).
-            let resp =
-                if active { resp.on_hover_cursor(egui::CursorIcon::PointingHand) } else { resp };
-
-            let painter = ui.painter();
-            // The markdown-toolbar icon idiom — no filled disc, just the mark
-            // itself: accent when actionable, foreground when idle.
-            let mark = if active {
-                theme.fg().get_color(theme.prefs().primary)
-            } else {
-                theme.neutral_fg()
-            };
-            if agent_busy {
-                let side = d * 0.36;
-                painter.rect_filled(
-                    Rect::from_center_size(center, vec2(side, side)),
-                    CornerRadius::same(2),
-                    mark,
-                );
-                stop_clicked = resp.clicked();
-            } else {
-                let icon = ui.fonts(|f| {
-                    f.layout_no_wrap(
-                        Icon::SEND.icon.to_string(),
-                        egui::FontId::monospace(d * 0.55),
-                        mark,
-                    )
-                });
-                painter.galley(center - icon.size() / 2.0, icon, mark);
-                send_clicked = resp.clicked();
             }
         }
 
@@ -2682,14 +2797,14 @@ impl Chat {
         // it doubles as the tap-to-focus / double-tap-to-select gesture
         // target, and the padding margins should be tappable too (touch→buffer
         // mapping is hit-tested separately, so a larger frame is safe). It
-        // stops at the toolbar so the dropdowns and send button keep their own
-        // egui taps.
+        // stops at the toolbar and short of the send button's zone so those
+        // keep their own egui taps.
         let interaction_rect = if self.key_entry.is_some() {
             self.key_field_hit_rect
         } else if hide_composer {
             Rect::NOTHING
         } else {
-            text_rect
+            Rect::from_min_max(text_rect.min, pos2(text_rect.max.x - send_zone, text_rect.max.y))
         };
         // The composer's `seq` bumps on any text/selection change. When it
         // moved but no native keystroke drove it (a send-clear, edit-prefill,

@@ -200,6 +200,7 @@ impl Workspace {
                 self.out.markdown_editor_selection_updated = true;
             }
             self.out.text_interaction_rect = resp.text_interaction_rect;
+            self.out.mobile_toolbar_shown = resp.mobile_toolbar_shown;
             if resp.scroll_updated {
                 self.out.markdown_editor_scroll_updated = true;
             }
@@ -274,14 +275,13 @@ impl Workspace {
 
                                 // handle responses after showing all tabs because closing a tab invalidates tab indexes
                                 for (i, resp) in responses {
-                                    let dest = self.tab_strip[i].dest.clone();
+                                    let dest = self.tab_strip.get(i).map(|s| s.dest.clone());
                                     match resp {
                                         TabLabelResponse::Clicked => {
+                                            let Some(dest) = dest else { continue };
                                             let is_current =
                                                 self.current_tab.as_ref() == Some(&dest);
                                             if is_current {
-                                                // we should rename the file.
-
                                                 self.out.tab_title_clicked = true;
                                                 let tab = self.tabs.get(&dest).unwrap();
                                                 let active_name = self.tab_title(tab);
@@ -294,7 +294,32 @@ impl Workspace {
                                         TabLabelResponse::Closed => {
                                             self.close_tab(i);
                                         }
+                                        TabLabelResponse::CloseOthers => {
+                                            self.close_other_tabs(i);
+                                        }
+                                        TabLabelResponse::CloseToLeft => {
+                                            self.close_tabs_to_left(i);
+                                        }
+                                        TabLabelResponse::CloseToRight => {
+                                            self.close_tabs_to_right(i);
+                                        }
+                                        TabLabelResponse::CloseAll => {
+                                            self.close_all_tabs();
+                                        }
+                                        TabLabelResponse::Rename => {
+                                            let Some(dest) = dest else { continue };
+                                            if let Some(tab) = self.tabs.get(&dest) {
+                                                let name = self.tab_title(tab);
+                                                self.tab_strip[i].rename = Some(name);
+                                                self.out.tab_title_clicked = true;
+                                            }
+                                        }
+                                        TabLabelResponse::ReopenClosed => {
+                                            self.reopen_closed_tab();
+                                            self.out.selected_file = self.current_tab_id();
+                                        }
                                         TabLabelResponse::Renamed(name) => {
+                                            let Some(dest) = dest else { continue };
                                             self.tab_strip[i].rename = None;
                                             let id = dest.id();
                                             self.rename_file((id, name.clone()), true);
@@ -435,10 +460,7 @@ impl Workspace {
             .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::W))
             && !self.is_empty()
         {
-            while !self.tab_strip.is_empty() {
-                self.close_tab(0);
-            }
-
+            self.close_all_tabs();
             self.out.selected_file = None;
         }
 
@@ -447,7 +469,7 @@ impl Workspace {
             .ctx
             .input_mut(|i| i.consume_key_exact(COMMAND | SHIFT, egui::Key::T))
         {
-            self.reopen_last_closed_tab();
+            self.reopen_closed_tab();
             self.out.selected_file = self.current_tab_id();
         }
 
@@ -735,12 +757,20 @@ impl Workspace {
                         Sense::click_and_drag(),
                     );
 
-                    let pointer_pos = ui.input(|i| i.pointer.interact_pos().unwrap_or_default());
+                    // Close gets its own interact *after* the tab-wide one so
+                    // it wins hit-testing. The old path (tab click + point-in-
+                    // rect) failed while the rename field held focus.
                     let close_button_interact_rect =
                         close_button_rect.expand(if touch_mode { 4. } else { 2. });
-                    let close_button_pointed = close_button_interact_rect.contains(pointer_pos);
-                    let close_button_hovered = tab_label_resp.hovered() && close_button_pointed;
-                    let close_button_clicked = tab_label_resp.clicked() && close_button_pointed;
+                    let close_resp = ui.interact(
+                        close_button_interact_rect,
+                        Id::new("tab close").with(t),
+                        Sense::click(),
+                    );
+
+                    let close_button_hovered = close_resp.hovered();
+                    let close_button_clicked =
+                        close_resp.clicked() || tab_label_resp.middle_clicked();
 
                     let text_color = if is_active {
                         ui.visuals().text_color()
@@ -764,7 +794,13 @@ impl Workspace {
                                     .select_on_focus(0, stem_end),
                             );
 
-                            if !res.has_focus() && !res.lost_focus() {
+                            // Keep focus while editing, but not while the user
+                            // is on the close control (or we re-steal focus and
+                            // the close click is lost).
+                            let on_close = close_resp.hovered()
+                                || close_resp.is_pointer_button_down_on()
+                                || close_button_clicked;
+                            if !res.has_focus() && !res.lost_focus() && !on_close {
                                 ui.memory_mut(|m| m.request_focus(res.id));
                             }
 
@@ -772,7 +808,7 @@ impl Workspace {
                                 result = Some(TabLabelResponse::Renamed(str.to_owned()));
                             }
 
-                            if res.lost_focus() {
+                            if res.lost_focus() && !close_button_clicked {
                                 self.tab_strip[t].rename = None;
                             }
                         }
@@ -786,7 +822,11 @@ impl Workspace {
                         );
                     }
 
-                    if close_button_clicked || tab_label_resp.middle_clicked() {
+                    if close_button_clicked {
+                        if is_renaming {
+                            ui.memory_mut(|m| m.surrender_focus(rename_id));
+                            self.tab_strip[t].rename = None;
+                        }
                         result = Some(TabLabelResponse::Closed);
                     }
                     if close_button_hovered {
@@ -799,7 +839,8 @@ impl Workspace {
                         );
                     }
 
-                    let show_close_button = touch_mode || tab_label_resp.hovered() || is_active;
+                    let show_close_button =
+                        touch_mode || tab_label_resp.hovered() || close_resp.hovered() || is_active;
                     if show_close_button {
                         ui.painter().galley(
                             close_button_rect.min,
@@ -807,14 +848,61 @@ impl Workspace {
                             ui.visuals().text_color(),
                         );
                     }
-                    if tab_label_resp.clicked() && !close_button_clicked {
+                    // Tab body click (not the X). While renaming, ignore so we
+                    // don't re-enter rename or fight the text field.
+                    if tab_label_resp.clicked() && !close_button_clicked && !is_renaming {
                         result = Some(TabLabelResponse::Clicked);
                     }
+                    let tab_count = self.tab_strip.len();
+                    let can_rename = matches!(dest, crate::tab::Destination::File(_));
+                    let can_reopen = self.can_reopen_closed_tab();
                     tab_label_resp.context_menu(|ui| {
-                        if ui.button("Close tab").clicked() {
+                        if ui.button("Close").clicked() {
                             result = Some(TabLabelResponse::Closed);
                             ui.close();
                         }
+
+                        ui.add_enabled_ui(tab_count >= 2, |ui| {
+                            if ui.button("Close Others").clicked() {
+                                result = Some(TabLabelResponse::CloseOthers);
+                                ui.close();
+                            }
+                        });
+
+                        ui.add_enabled_ui(t > 0, |ui| {
+                            if ui.button("Close to the Left").clicked() {
+                                result = Some(TabLabelResponse::CloseToLeft);
+                                ui.close();
+                            }
+                        });
+
+                        ui.add_enabled_ui(t + 1 < tab_count, |ui| {
+                            if ui.button("Close to the Right").clicked() {
+                                result = Some(TabLabelResponse::CloseToRight);
+                                ui.close();
+                            }
+                        });
+
+                        if ui.button("Close All").clicked() {
+                            result = Some(TabLabelResponse::CloseAll);
+                            ui.close();
+                        }
+
+                        ui.separator();
+
+                        ui.add_enabled_ui(can_rename, |ui| {
+                            if ui.button("Rename").clicked() {
+                                result = Some(TabLabelResponse::Rename);
+                                ui.close();
+                            }
+                        });
+
+                        ui.add_enabled_ui(can_reopen, |ui| {
+                            if ui.button("Reopen Closed Tab").clicked() {
+                                result = Some(TabLabelResponse::ReopenClosed);
+                                ui.close();
+                            }
+                        });
                     });
 
                     ui.advance_cursor_after_rect(text_rect.union(close_button_rect));
@@ -931,6 +1019,12 @@ fn centered_galley_rect(galley: &Galley) -> Rect {
 enum TabLabelResponse {
     Clicked,
     Closed,
+    CloseOthers,
+    CloseToLeft,
+    CloseToRight,
+    CloseAll,
+    Rename,
+    ReopenClosed,
     Renamed(String),
     Reordered { src: usize, dst: usize },
 }

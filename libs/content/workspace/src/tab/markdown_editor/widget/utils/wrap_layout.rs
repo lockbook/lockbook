@@ -1835,12 +1835,19 @@ impl MdRender {
                 }
 
                 if let FragmentContent::Embed { url, kind } = &frag.content {
+                    // Non-advancing child ui: embeds paint for off-screen
+                    // neighbor rows too, and any allocation there would drag
+                    // the layout cursor below the viewport, displacing
+                    // siblings laid out after the editor (#4892).
+                    let embed_ui = &mut ui.new_child(egui::UiBuilder::new().max_rect(screen_rect));
                     match kind {
-                        EmbedKind::Image => {
-                            self.embeds
-                                .show(ui, url, screen_rect, egui::CornerRadius::same(2))
-                        }
-                        EmbedKind::LinkCard => self.paint_link_card(ui, url, screen_rect),
+                        EmbedKind::Image => self.embeds.show(
+                            embed_ui,
+                            url,
+                            screen_rect,
+                            egui::CornerRadius::same(2),
+                        ),
+                        EmbedKind::LinkCard => self.paint_link_card(embed_ui, url, screen_rect),
                     }
 
                     // The embed's opaque fill hides the selection slot behind it,
@@ -1976,29 +1983,52 @@ impl MdRender {
     }
 
     /// Allocate `ui.interact` for every fragment tagged with
-    /// `(salt, sense)` and union the per-fragment responses by parent
-    /// id into `self.interaction_responses`. Consumers compute
-    /// `ui.id().with(salt)` to look up the merged response.
+    /// `(salt, sense)`; union the responses by parent id into
+    /// `self.interaction_responses` and record the per-fragment rects
+    /// into `self.interaction_rects`. Consumers compute
+    /// `ui.id().with(salt)` to look up either.
     ///
     /// Must run after the editor's own `ui.interact` so per-fragment
     /// rects sit on top in egui's z-order.
     pub fn interact_fragments(&mut self, ui: &mut egui::Ui) {
         let mut per_parent: std::collections::HashMap<egui::Id, egui::Response> =
             std::collections::HashMap::new();
+        let mut per_parent_rects: std::collections::HashMap<egui::Id, Vec<Rect>> =
+            std::collections::HashMap::new();
         let parent_base = ui.id();
         for (i, f) in self.fragments.iter().enumerate() {
             let Some((salt, sense)) = f.interaction else {
                 continue;
             };
+            // Chips paint their pill `inline_pad` (= row_spacing/2) beyond
+            // the text band; match the interact rect to the ink so a wrapped
+            // pill's rows meet across the gap and a tap between them hits it.
+            let rect = if f.style_stack.iter().any(|s| s.chip) {
+                f.rect
+                    .expand2(egui::vec2(0.0, self.layout.row_spacing / 2.0))
+            } else {
+                f.rect
+            };
             let parent_id = parent_base.with(salt);
-            let r = ui.interact(f.rect, parent_id.with(i), sense);
+            let r = ui.interact(rect, parent_id.with(i), sense);
             let merged = match per_parent.remove(&parent_id) {
                 Some(prev) => prev.union(r),
                 None => r,
             };
             per_parent.insert(parent_id, merged);
+            per_parent_rects.entry(parent_id).or_default().push(rect);
         }
         self.interaction_responses = per_parent;
+        self.interaction_rects = per_parent_rects;
+    }
+
+    /// Mark a scope's fragments touch-consuming (iOS routes taps there to
+    /// egui). Per-fragment rects, not the merged bounding box — a wrapped
+    /// scope's bbox would eat cursor taps in its gaps and trailing space.
+    pub fn touch_consume_interaction(&mut self, parent_id: egui::Id) {
+        if let Some(rects) = self.interaction_rects.get(&parent_id) {
+            self.touch_consuming_rects.extend_from_slice(rects);
+        }
     }
 
     /// Find the closest fragment to `pos` by (y_dist, x_dist), with

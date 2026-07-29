@@ -1,5 +1,6 @@
 use lb_rs::experiments::{WelcomeDoc, cohort};
 use lb_rs::model::account::{Account, MAX_USERNAME_LENGTH};
+use lb_rs::model::api::*;
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::pubkey;
 use test_utils::*;
@@ -217,6 +218,22 @@ async fn import_account_phrases() {
         .unwrap();
 
     assert_eq!(account1.private_key.serialize(), account2.private_key.serialize());
+}
+
+#[tokio::test]
+async fn delete_account_then_request() {
+    let core = test_core_with_account().await;
+    let account = core.get_account().unwrap();
+
+    core.delete_account().await.unwrap();
+
+    let result = local(&core)
+        .client
+        .request(&account, GetUpdatesRequestV2 { since_metadata_version: 0 })
+        .await
+        .unwrap();
+
+    assert!(result.file_metadata.is_empty());
 }
 
 #[tokio::test]

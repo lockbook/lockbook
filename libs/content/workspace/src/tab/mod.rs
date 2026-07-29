@@ -49,13 +49,21 @@ impl Destination {
             Self::Search => Uuid::nil(),
         }
     }
+
+    /// Underlying file id, if any (e.g. `None` for search).
+    pub fn backing_file(&self) -> Option<Uuid> {
+        match self {
+            Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => Some(*id),
+            Self::Search => None,
+        }
+    }
 }
 
 #[derive(Clone)]
 pub struct TabSlot {
     pub dest: Destination,
-    pub back: Vec<Uuid>,
-    pub forward: Vec<Uuid>,
+    pub back: Vec<Destination>,
+    pub forward: Vec<Destination>,
     pub rename: Option<String>,
 }
 
@@ -234,6 +242,7 @@ impl Tab {
                         resp.selection_updated = md_resp.selection_updated;
                         resp.scroll_updated = md_resp.scroll_updated;
                         resp.text_interaction_rect = md_resp.text_interaction_rect;
+                        resp.mobile_toolbar_shown = md_resp.mobile_toolbar_shown;
                     }
                     TabContent::Image(img) => img.show(ui),
                     TabContent::Pdf(pdf) => pdf.show(ui),
@@ -380,6 +389,7 @@ pub struct Response {
     pub scroll_updated: bool,
     pub open_camera: bool,
     pub text_interaction_rect: Option<egui::Rect>,
+    pub mobile_toolbar_shown: bool,
     pub open_file: Option<Uuid>,
 }
 

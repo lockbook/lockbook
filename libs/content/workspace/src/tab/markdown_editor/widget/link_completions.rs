@@ -18,7 +18,6 @@ use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::GlyphonLabel;
 
 const MAX_RESULTS: usize = 7;
-const MIN_QUERY_LEN: usize = 2;
 const POPUP_PADDING: f32 = 24.0; // 8 left + 8 gap + 8 right
 const TARGET_POPUP_WIDTH: f32 = 320.0; // soft target per row; popup grows to fit actual content
 const MIN_HINT_WIDTH: f32 = 60.0; // always leave at least this much room for the hint
@@ -32,6 +31,11 @@ pub enum CompletionMode {
     Link,
     /// `![alt text](path)` — image link, shows only image files.
     ImageLink,
+    /// `[display text](des...` — cursor in the destination; completes file
+    /// paths while the display text is kept as-is.
+    LinkDest,
+    /// `![alt text](des...` — destination of an image link.
+    ImageLinkDest,
 }
 
 #[derive(Default)]
@@ -67,12 +71,28 @@ impl LinkCompletions {
         }
 
         let Some((range, mode)) = detect_any(buffer) else { return };
+        let dest = matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest);
         let qr = query_range(buffer, range, mode);
         let query = &buffer[qr];
-        if query.len() < MIN_QUERY_LEN {
+        if self.suppressed.as_deref() == Some(query) {
             return;
         }
-        if self.suppressed.as_deref() == Some(query) {
+        // `- [` is far more likely a task item than a link: while the bracket
+        // content could still be a checkbox, hold the popup.
+        if mode == CompletionMode::Link
+            && (query.is_empty() || query == " " || query.eq_ignore_ascii_case("x"))
+            && follows_list_marker(buffer, range.0)
+        {
+            return;
+        }
+        // External and already-resolved destinations aren't file paths;
+        // anchors aren't completed (yet).
+        if dest
+            && (query.starts_with("http://")
+                || query.starts_with("https://")
+                || query.starts_with("lb://")
+                || query.starts_with('#'))
+        {
             return;
         }
 
@@ -80,16 +100,20 @@ impl LinkCompletions {
         let complete = match mode {
             CompletionMode::WikiLink => raw.ends_with("]]"),
             CompletionMode::Link | CompletionMode::ImageLink => raw.ends_with(')'),
+            // being inside complete syntax is the destination context
+            CompletionMode::LinkDest | CompletionMode::ImageLinkDest => false,
         };
         if complete {
             // cursor navigated into existing syntax
             return;
         }
 
-        // Only activate if there are actual results to show.
+        // Only activate if there are actual results to show — and not when
+        // the destination already is one of them (cursor parked on a valid
+        // link rather than mid-edit).
         let cache = files.read().unwrap();
-        let has_results = !search(&cache, file_id, query, mode).is_empty();
-        if !has_results {
+        let results = search(&cache, file_id, query, mode);
+        if results.is_empty() || (dest && results.iter().any(|r| r.insert == query)) {
             return;
         }
 
@@ -145,10 +169,25 @@ impl LinkCompletions {
             self.selected += 1;
         }
 
+        let display_for = |r: &FileResult| -> String {
+            if matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest) {
+                existing_title(&buffer[(bracket_start, replace_end)], mode)
+            } else {
+                r.name.clone()
+            }
+        };
+
         if ctx.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter)) {
             let idx = self.selected;
             let r = &results[idx];
-            self.apply_completion(events, bracket_start, replace_end, &r.name, &r.insert, mode);
+            self.apply_completion(
+                events,
+                bracket_start,
+                replace_end,
+                &display_for(r),
+                &r.insert,
+                mode,
+            );
             return;
         }
 
@@ -165,7 +204,14 @@ impl LinkCompletions {
         {
             if ctx.input_mut(|i| i.consume_key(num_modifier, *key)) {
                 let r = &results[idx];
-                self.apply_completion(events, bracket_start, replace_end, &r.name, &r.insert, mode);
+                self.apply_completion(
+                    events,
+                    bracket_start,
+                    replace_end,
+                    &display_for(r),
+                    &r.insert,
+                    mode,
+                );
                 return;
             }
         }
@@ -179,8 +225,12 @@ impl LinkCompletions {
     ) {
         let text = match mode {
             CompletionMode::WikiLink => format!("[[{}]]", path),
-            CompletionMode::Link => format!("[{}]({})", display, path),
-            CompletionMode::ImageLink => format!("![{}]({})", display, path),
+            CompletionMode::Link | CompletionMode::LinkDest => {
+                format!("[{}]({})", display, path)
+            }
+            CompletionMode::ImageLink | CompletionMode::ImageLinkDest => {
+                format!("![{}]({})", display, path)
+            }
         };
         events.push(Event::Replace {
             region: Region::BetweenLocations {
@@ -205,12 +255,150 @@ fn detect_any(buffer: &Buffer) -> Option<((Grapheme, Grapheme), CompletionMode)>
         let mode = if is_image { CompletionMode::ImageLink } else { CompletionMode::Link };
         return Some((range, mode));
     }
+    if let Some((range, is_image)) = detect_destination(buffer) {
+        let mode = if is_image { CompletionMode::ImageLinkDest } else { CompletionMode::LinkDest };
+        return Some((range, mode));
+    }
     None
+}
+
+/// Returns the range of a `[text](path...` link whose *destination* contains
+/// the cursor, plus whether it's an image link. The range spans the whole
+/// link (through the closing `)` when present) so a picked result replaces
+/// it wholesale, keeping the display text (#4893).
+fn detect_destination(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
+    let selection = buffer.current.selection;
+    if selection.0 != selection.1 {
+        return None;
+    }
+
+    let cursor_idx = selection.1.0;
+    let len = buffer.current.segs.last_cursor_position().0;
+
+    // Scan backward for the `(` that opened this destination; it must be
+    // preceded by `]` (i.e. we're in `](...`, not a bare paren).
+    let mut i = cursor_idx;
+    let open_paren;
+    loop {
+        if i == 0 {
+            return None;
+        }
+        i -= 1;
+        let g = grapheme_at(buffer, i);
+        if g == "\n" || g == ")" || g == "[" || g == "]" {
+            return None;
+        }
+        if g == "(" {
+            if i == 0 || grapheme_at(buffer, i - 1) != "]" {
+                return None;
+            }
+            open_paren = i;
+            break;
+        }
+        if cursor_idx - i > 200 {
+            return None;
+        }
+    }
+
+    // Scan backward from `](` for the display text's `[`.
+    let mut i = open_paren - 1; // at `]`
+    let open_bracket;
+    loop {
+        if i == 0 {
+            return None;
+        }
+        i -= 1;
+        let g = grapheme_at(buffer, i);
+        if g == "\n" || g == "]" || g == "(" || g == ")" {
+            return None;
+        }
+        if g == "[" {
+            if i > 0 && grapheme_at(buffer, i - 1) == "[" {
+                return None;
+            }
+            open_bracket = i;
+            break;
+        }
+        if open_paren - i > 200 {
+            return None;
+        }
+    }
+
+    let is_image = open_bracket > 0 && grapheme_at(buffer, open_bracket - 1) == "!";
+    let start = if is_image { open_bracket - 1 } else { open_bracket };
+
+    // Forward to the closing `)`; a space or newline ends the destination.
+    let mut j = cursor_idx;
+    while j < len {
+        let g = grapheme_at(buffer, j);
+        if g == ")" {
+            j += 1;
+            break;
+        }
+        if g == "\n" || g == " " || j - cursor_idx > 200 {
+            break;
+        }
+        j += 1;
+    }
+
+    Some(((Grapheme(start), Grapheme(j)), is_image))
+}
+
+/// The display text of the link under completion — preserved when a
+/// destination completion replaces the whole link.
+fn existing_title(raw: &str, mode: CompletionMode) -> String {
+    let start = match mode {
+        CompletionMode::ImageLink | CompletionMode::ImageLinkDest => 2,
+        _ => 1,
+    };
+    raw[start..]
+        .split(']')
+        .next()
+        .unwrap_or_default()
+        .to_string()
 }
 
 /// Returns the grapheme `&str` at the given char offset.
 fn grapheme_at(buffer: &Buffer, i: usize) -> &str {
     &buffer[(Grapheme(i), Grapheme(i + 1))]
+}
+
+/// Whether the `[` at `bracket` is the first content of a list item (after
+/// optional indentation and blockquote markers) — where it far more likely
+/// starts a task checkbox than a link.
+fn follows_list_marker(buffer: &Buffer, bracket: Grapheme) -> bool {
+    let mut i = bracket.0;
+    let mut prefix = String::new();
+    while i > 0 {
+        let g = grapheme_at(buffer, i - 1);
+        if g == "\n" {
+            break;
+        }
+        prefix.insert_str(0, g);
+        if prefix.len() > 40 {
+            return false; // marker prefixes are short
+        }
+        i -= 1;
+    }
+
+    let mut s = prefix.trim_start();
+    while let Some(rest) = s.strip_prefix('>') {
+        s = rest.trim_start();
+    }
+    let s = if let Some(rest) = s.strip_prefix(['-', '*', '+']) {
+        rest
+    } else {
+        let digits = s.len() - s.trim_start_matches(|c: char| c.is_ascii_digit()).len();
+        if digits == 0 {
+            return false;
+        }
+        match s[digits..].strip_prefix(['.', ')']) {
+            Some(rest) => rest,
+            None => return false,
+        }
+    };
+    // the marker needs trailing whitespace, and nothing else before the `[`
+    !s.is_empty() && s.chars().all(|c| c == ' ' || c == '\t')
 }
 
 /// Returns the range of a `[[...]]` wikilink token under the cursor.
@@ -332,10 +520,21 @@ fn detect_link(buffer: &Buffer) -> Option<((Grapheme, Grapheme), bool)> {
 fn query_range(
     buffer: &Buffer, range: (Grapheme, Grapheme), mode: CompletionMode,
 ) -> (Grapheme, Grapheme) {
+    let raw_full = &buffer[range];
+    if matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest) {
+        // query = the destination text: after `](`, before any closing `)`
+        let dest_byte_start = raw_full.find("](").map(|i| i + 2).unwrap_or(raw_full.len());
+        let start = Grapheme(range.0.0 + raw_full[..dest_byte_start].graphemes(true).count());
+        let dest = raw_full[dest_byte_start..].trim_end_matches(')');
+        let end = Grapheme(start.0 + dest.graphemes(true).count());
+        return (start, end);
+    }
+
     let prefix_len = match mode {
         CompletionMode::WikiLink => 2,  // [[
         CompletionMode::Link => 1,      // [
         CompletionMode::ImageLink => 2, // ![
+        CompletionMode::LinkDest | CompletionMode::ImageLinkDest => unreachable!(),
     };
     let start = Grapheme(range.0.0 + prefix_len);
 
@@ -353,6 +552,7 @@ fn query_range(
             let text_grapheme_count = after_prefix[..text_byte_len].graphemes(true).count();
             Grapheme(start.0 + text_grapheme_count)
         }
+        CompletionMode::LinkDest | CompletionMode::ImageLinkDest => unreachable!(),
     };
 
     (start, end)
@@ -396,12 +596,12 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
 
     let file_allowed = |name: &str| -> bool {
         match mode {
-            CompletionMode::ImageLink => name
+            CompletionMode::ImageLink | CompletionMode::ImageLinkDest => name
                 .rsplit('.')
                 .next()
                 .map(is_supported_image_fmt)
                 .unwrap_or(false),
-            CompletionMode::WikiLink | CompletionMode::Link => true,
+            CompletionMode::WikiLink | CompletionMode::Link | CompletionMode::LinkDest => true,
         }
     };
 
@@ -442,7 +642,7 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
     };
 
     if query.is_empty() {
-        if mode == CompletionMode::ImageLink {
+        if matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest) {
             // Images are rarely in the suggested list (they aren't opened like notes),
             // so for image links show all image files sorted by last_modified desc.
             let mut image_files: Vec<_> = cache
@@ -490,11 +690,12 @@ fn search(cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode) -
             if !file_matches(&f.name) {
                 return None;
             }
-            let display_name = if mode == CompletionMode::ImageLink {
-                f.name.clone()
-            } else {
-                strip_ext(&f.name).to_string()
-            };
+            let display_name =
+                if matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest) {
+                    f.name.clone()
+                } else {
+                    strip_ext(&f.name).to_string()
+                };
             // Rank exact name/stem matches first, then prefixes. A query with or
             // without the extension can match either.
             let lname = f.name.to_lowercase();
@@ -858,11 +1059,17 @@ impl MdEdit {
         // -- Apply clicked result --------------------------------------------------
         if let Some(idx) = clicked {
             let r = &results[idx];
+            let display =
+                if matches!(mode, CompletionMode::LinkDest | CompletionMode::ImageLinkDest) {
+                    existing_title(&self.renderer.buffer[(bracket_start, replace_end)], mode)
+                } else {
+                    r.name.clone()
+                };
             self.link_completions.apply_completion(
                 &mut self.event.internal_events,
                 bracket_start,
                 replace_end,
-                &r.name,
+                &display,
                 &r.insert,
                 mode,
             );
@@ -914,6 +1121,93 @@ mod tests {
     /// resolves back to the file it was for. Covers all three insert forms —
     /// bare stem (`todo`), full name when the stem collides (`Pancakes.md`),
     /// and a relative path when the full name collides across folders (`a/Spec`).
+    #[test]
+    fn list_markers_hold_the_popup() {
+        use lb_rs::model::text::buffer::Buffer;
+        use lb_rs::model::text::offset_types::Grapheme;
+
+        use super::follows_list_marker;
+
+        let at_bracket = |md: &str| {
+            let buffer = Buffer::from(md);
+            let bracket = md.rfind('[').unwrap();
+            follows_list_marker(&buffer, Grapheme(bracket))
+        };
+        assert!(at_bracket("- ["));
+        assert!(at_bracket("  * ["));
+        assert!(at_bracket("1. ["));
+        assert!(at_bracket("12) ["));
+        assert!(at_bracket("> - ["));
+        assert!(at_bracket("text\n- ["));
+        assert!(!at_bracket("some ["));
+        assert!(!at_bracket("-[")); // no space: not a list marker
+        assert!(!at_bracket("a - ["));
+        assert!(!at_bracket("["));
+    }
+
+    #[test]
+    fn destination_context_detected_and_title_kept() {
+        use lb_rs::model::text::buffer::Buffer;
+        use lb_rs::model::text::offset_types::Grapheme;
+
+        use super::{detect_any, existing_title, query_range};
+
+        // cursor mid-destination of a complete link
+        let mut buffer = Buffer::from("see [My Title](qu) after");
+        buffer.current.selection = (Grapheme(17), Grapheme(17));
+        let ((start, end), mode) = detect_any(&buffer).expect("destination context");
+        assert!(matches!(mode, CompletionMode::LinkDest));
+        assert_eq!(&buffer[(start, end)], "[My Title](qu)");
+        let qr = query_range(&buffer, (start, end), mode);
+        assert_eq!(&buffer[qr], "qu");
+        assert_eq!(existing_title(&buffer[(start, end)], mode), "My Title");
+
+        // image link, destination not yet closed
+        let mut buffer = Buffer::from("![alt](par");
+        buffer.current.selection = (Grapheme(10), Grapheme(10));
+        let ((start, end), mode) = detect_any(&buffer).expect("image destination context");
+        assert!(matches!(mode, CompletionMode::ImageLinkDest));
+        assert_eq!(&buffer[(start, end)], "![alt](par");
+        let qr = query_range(&buffer, (start, end), mode);
+        assert_eq!(&buffer[qr], "par");
+        assert_eq!(existing_title(&buffer[(start, end)], mode), "alt");
+
+        // cursor in the display text is the title context, not destination
+        let mut buffer = Buffer::from("[ti](dest)");
+        buffer.current.selection = (Grapheme(3), Grapheme(3));
+        let (_, mode) = detect_any(&buffer).expect("title context");
+        assert!(matches!(mode, CompletionMode::Link));
+
+        // a bare paren isn't a destination
+        let mut buffer = Buffer::from("just (parens");
+        buffer.current.selection = (Grapheme(9), Grapheme(9));
+        assert!(detect_any(&buffer).is_none());
+    }
+
+    #[test]
+    fn destination_completion_replaces_link_keeping_title() {
+        use super::LinkCompletions;
+        use crate::tab::markdown_editor::input::Event;
+        use lb_rs::model::text::offset_types::Grapheme;
+
+        let mut lc = LinkCompletions::default();
+        let mut events: Vec<Event> = vec![];
+        lc.apply_completion(
+            &mut events,
+            Grapheme(4),
+            Grapheme(18),
+            "My Title",
+            "notes/target.md",
+            CompletionMode::LinkDest,
+        );
+        match &events[..] {
+            [Event::Replace { text, .. }] => {
+                assert_eq!(text, "[My Title](notes/target.md)");
+            }
+            other => panic!("expected one replace, got {other:?}"),
+        }
+    }
+
     #[test]
     fn wikilink_completions_resolve_back() {
         let root_id = Uuid::new_v4();

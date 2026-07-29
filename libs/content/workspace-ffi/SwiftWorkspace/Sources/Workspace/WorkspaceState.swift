@@ -14,6 +14,8 @@ import Observation
 
     public var openCamera: Bool = false
 
+    public var mobileToolbarShown: Bool = false
+
     public init() {}
 }
 
@@ -45,6 +47,17 @@ import Observation
 
     public init() {}
 
+    #if os(iOS)
+        deinit {
+            guard let wsHandle else { return }
+            DispatchQueue.main.async {
+                WorkspaceControllerRegistry.controllers.removeValue(forKey: wsHandle)
+            }
+        }
+    #endif
+
+    /// Open a file. Default is a new tab. Pass `newTab: false` to navigate the
+    /// current tab in place (e.g. special surfaces that intentionally replace).
     public func openFile(id: UUID, newTab: Bool = true) {
         guard let wsHandle else {
             pendingOpens.append(id)
@@ -131,8 +144,10 @@ import Observation
     public func requestSync() {
         guard let wsHandle else { return }
 
-        request_sync(wsHandle)
         redraw.send(())
+        DispatchQueue.global(qos: .userInitiated).async {
+            request_sync(wsHandle)
+        }
     }
 
     public func closeDoc(id: UUID) {
@@ -185,6 +200,22 @@ import Observation
         guard let wsHandle else { return [] }
 
         return tabIds(from: get_recently_closed_tabs(wsHandle))
+    }
+
+    /// Restores the most recently closed tab with its back/forward history.
+    public func reopenLastClosedTab() {
+        guard let wsHandle else { return }
+
+        reopen_last_closed_tab(wsHandle)
+        redraw.send(())
+    }
+
+    /// Restores a closed file tab by id (full slot history + placement).
+    public func reopenClosedFile(id: UUID) {
+        guard let wsHandle else { return }
+
+        reopen_closed_file(wsHandle, CUuid(_0: id.uuid))
+        redraw.send(())
     }
 
     public func moveTab(from: Int, to: Int) {

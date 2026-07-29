@@ -5,16 +5,16 @@
 
 - [Installing](installing.md)
 - [File Management](file-management.md)
+- [Collaboration](collaboration.md)
 - [Editing Markdown](editor.md)
 - [Drawing](canvas.md)
-- [Multimedia]()
+
+# Advanced Lockbook
+
 - [CLI](cli.md)
-- [Self-Hosting Lockbook](self-hosting.md)
-
-# Extending Lockbook
-
 - [Extending Lockbook](extending.md)
 - [Themeing Lockbook](themes.md)
+- [Self-Hosting Lockbook](self-hosting.md)
 
 # Contributing To Lockbook
 
@@ -24,16 +24,12 @@
   - [As a hobbyist](contrib-hobbyist.md)
   - [As a programmer](contrib-programmer.md)
     - [lbdev](lbdev.md)
+    - [releasing](release.md)
+    - [prioritization](prioritization.md)
 
 # Technical Documentation
 
-- [Building](building/readme.md)
-  - [CLI](building/cli.md)
-  - [Linux](building/linux.md)
-  - [Apple](building/apple.md)
-  - [Android](building/android.md)
-  - [Windows](building/windows.md)
-  - [Lb-rs & Server](building/server.md)
+- [Building](building.md)
 - [System Architecture]()
 - [Data Model]()
 - [Sync](sync.md)

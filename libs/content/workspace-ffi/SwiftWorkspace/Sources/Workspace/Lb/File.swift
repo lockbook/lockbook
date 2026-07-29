@@ -46,6 +46,7 @@ public struct File: Codable, Identifiable, Equatable, Hashable, Comparable {
             lhs.shares == rhs.shares &&
             lhs.parent == rhs.parent &&
             lhs.lastModifiedBy == rhs.lastModifiedBy &&
+            lhs.lastModified == rhs.lastModified &&
             lhs.name == rhs.name
     }
 

@@ -12,6 +12,7 @@ use lb_file::{LbFile, LbFileList, LbFileType};
 pub use lb_rs::blocking::Lb;
 pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::ShareMode;
+use lb_rs::model::filename::NameComponents;
 use lb_rs::service::activity::RankingWeights;
 use lb_rs::service::debug::DebugInfoDisplay;
 use lb_rs::service::events::Event;
@@ -240,6 +241,31 @@ pub extern "C" fn lb_create_file(
     }
 }
 
+#[repr(C)]
+pub struct LbNextNameRes {
+    err: *mut LbFfiErr,
+    name: *mut c_char,
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_next_name(
+    lb: *mut Lb, parent: LbUuid, desired: *const c_char,
+) -> LbNextNameRes {
+    let lb = rlb(lb);
+
+    match lb.get_children(&parent.into()) {
+        Ok(children) => {
+            let mut name = NameComponents::from(rstr(desired));
+            if let Some(variant) = name.variant.take() {
+                name.name = format!("{}-{}", name.name, variant);
+            }
+            name.next_in_children(children);
+            LbNextNameRes { err: null_mut(), name: cstring(name.to_name()) }
+        }
+        Err(err) => LbNextNameRes { err: lb_err(err), name: null_mut() },
+    }
+}
+
 #[unsafe(no_mangle)]
 pub extern "C" fn lb_write_document(
     lb: *mut Lb, id: LbUuid, ptr: *mut u8, len: usize,
@@ -296,6 +322,12 @@ pub extern "C" fn lb_get_and_get_children_recursively(lb: *mut Lb, id: LbUuid) -
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn lb_app_foregrounded(lb: *mut Lb) {
+    let lb = rlb(lb);
+    lb.app_foregrounded();
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn lb_get_file(lb: *mut Lb, id: LbUuid) -> LbFileRes {
     let lb = rlb(lb);
 
@@ -315,6 +347,19 @@ pub extern "C" fn lb_delete_file(lb: *mut Lb, id: LbUuid) -> *mut LbFfiErr {
     match lb.delete_file(&id.into()) {
         Ok(_) => null_mut(),
         Err(err) => lb_err(err),
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn lb_duplicate_file(lb: *mut Lb, id: LbUuid) -> LbFileRes {
+    let lb = rlb(lb);
+
+    match lb.duplicate_file(&id.into()) {
+        Ok(f) => LbFileRes { err: null_mut(), file: f.into() },
+        Err(err) => {
+            let err = lb_err(err);
+            LbFileRes { err, file: Default::default() }
+        }
     }
 }
 
@@ -1116,6 +1161,8 @@ pub struct LbEvent {
     pub status_updated: bool,
     pub metadata_updated: bool,
     pub pending_shares_changed: bool,
+    pub doc_written: bool,
+    pub doc_written_id: LbUuid,
 }
 
 pub type LbNotify = extern "C" fn(*const c_void, LbEvent);
@@ -1139,6 +1186,11 @@ pub unsafe extern "C" fn lb_subscribe(lb: *mut Lb, notify_obj: *const c_void, no
                     Event::PendingSharesChanged => {
                         LbEvent { pending_shares_changed: true, ..Default::default() }
                     }
+                    Event::DocumentWritten(id, _) => LbEvent {
+                        doc_written: true,
+                        doc_written_id: id.into(),
+                        ..Default::default()
+                    },
                     _ => continue,
                 };
 
