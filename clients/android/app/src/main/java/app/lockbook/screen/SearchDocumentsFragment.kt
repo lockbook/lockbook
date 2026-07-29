@@ -33,6 +33,7 @@ class SearchDocumentsFragment : Fragment() {
 
     companion object {
         const val ARG_RETURN_TO_WORKSPACE = "return_to_workspace"
+        const val ARG_RESTORE_FOCUSED_DETAIL = "restore_focused_detail"
     }
 
     private val model: SearchDocumentsViewModel by viewModels(
@@ -201,7 +202,12 @@ class SearchDocumentsFragment : Fragment() {
 
     private fun openSearchResult(fileId: String) {
         binding.searchDocumentsSearch.clearFocus()
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(fileId))
+        activityModel.updateMainScreenUI(
+            UpdateMainScreenUI.OpenFileFromSearch(
+                id = fileId,
+                restoreFocusedDetail = arguments?.getBoolean(ARG_RESTORE_FOCUSED_DETAIL) ?: false,
+            ),
+        )
     }
 
     private fun updateSearchResultAppearance(
@@ -248,13 +254,13 @@ class SearchDocumentsFragment : Fragment() {
 
     private fun showFiles() {
         val returnToWorkspace = arguments?.getBoolean(ARG_RETURN_TO_WORKSPACE) ?: false
+        val restoreFocusedDetail = arguments?.getBoolean(ARG_RESTORE_FOCUSED_DETAIL) ?: false
         activityModel.updateMainScreenUI(
             if (returnToWorkspace) {
-                UpdateMainScreenUI.ShowDetailFromSearch
+                UpdateMainScreenUI.ShowDetailFromSearch(restoreFocusedDetail)
             } else {
                 UpdateMainScreenUI.ShowFiles
             },
         )
     }
-
 }

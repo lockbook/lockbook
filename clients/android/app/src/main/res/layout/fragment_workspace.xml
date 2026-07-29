@@ -21,7 +21,6 @@
             app:menu="@menu/menu_text_editor"
             app:elevation="0dp"
             android:elevation="0dp"
-            android:animateLayoutChanges="true"
             />
 
     </com.google.android.material.appbar.AppBarLayout>

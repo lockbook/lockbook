@@ -356,7 +356,7 @@ class FilesListFragment :
                 }
 
                 R.id.menu_files_list_open_ws -> {
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowDetail)
+                    activityModel.updateMainScreenUI(UpdateMainScreenUI.FocusDetail)
                 }
             }
 
@@ -374,11 +374,11 @@ class FilesListFragment :
             return
         }
 
-        val isSidebarOnly = (activity as? MainScreenActivity)?.isShowingSidebarOnly() == true
+        val isFocusingDetail = (activity as? MainScreenActivity)?.isFocusingDetail() == true
         val isWelcomeOpen = currentTab.type == WorkspaceTabType.Welcome
 
         menu.menu.findItem(R.id.menu_files_list_open_ws)?.isVisible =
-            isSidebarOnly && !isWelcomeOpen
+            !isFocusingDetail && !isWelcomeOpen
     }
 
     private fun observeFilesList() {

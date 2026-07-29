@@ -9,8 +9,8 @@
         app:showAsAction="always"/>
     <item
         android:id="@+id/menu_files_list_open_ws"
-        android:icon="@drawable/ic_baseline_right_panel_open_24"
-        android:title="@string/open_ws"
+        android:icon="@drawable/ic_baseline_fullscreen_24"
+        android:title="@string/focus_detail_view"
         app:showAsAction="always"/>
 
 </menu>

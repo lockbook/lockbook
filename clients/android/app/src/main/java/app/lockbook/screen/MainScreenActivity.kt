@@ -117,6 +117,11 @@ class MainScreenActivity : AppCompatActivity() {
                 },
             )
             (maybeGetFilesFragment() as? FilesListFragment)?.updateOpenDetailButtonVisibility()
+            (supportFragmentManager.findFragmentByTag(WORKSPACE_FRAGMENT_TAG) as? WorkspaceFragment)
+                ?.let { workspaceFragment ->
+                    workspaceFragment.updateRestoreSplitButtonVisibility(mode == WorkspaceShellMode.DetailOnly)
+                    workspaceFragment.updateWorkspaceSearchButtonVisibility(mode != WorkspaceShellMode.Split)
+                }
         }
         ensureWorkspaceFragment()
 
@@ -253,7 +258,7 @@ class MainScreenActivity : AppCompatActivity() {
                         workspaceModel.requestWorkspaceBack()
                     } else if (isSidebarSearchVisible()) {
                         println("LB_DEBUG back -> show detail from sidebar search")
-                        updateMainScreenUI(UpdateMainScreenUI.ShowDetailFromSearch)
+                        updateMainScreenUI(UpdateMainScreenUI.ShowDetailFromSearch())
                     } else if (maybeGetSearchFilesFragment() != null) {
                         println("LB_DEBUG back -> show files")
                         updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
@@ -275,7 +280,8 @@ class MainScreenActivity : AppCompatActivity() {
         binding.bottomNavigation.setupWithNavController(navController)
         navController.addOnDestinationChangedListener { _, destination, _ ->
             binding.bottomNavigation.isVisible =
-                destination.id in setOf(
+                destination.id in
+                setOf(
                     R.id.filesListFragment,
                     R.id.pendingSharesFragment,
                 )
@@ -309,7 +315,11 @@ class MainScreenActivity : AppCompatActivity() {
                 workspaceModel._openFile.value = Pair(update.id, false)
                 if (isSidebarSearchVisible()) {
                     showSidebarFiles()
-                    showWorkspaceDetail()
+                    if (update.restoreFocusedDetail) {
+                        workspaceShell.focusDetail()
+                    } else {
+                        showWorkspaceDetail()
+                    }
                 } else {
                     navHost().navController.popBackStack()
                 }
@@ -321,6 +331,14 @@ class MainScreenActivity : AppCompatActivity() {
 
             UpdateMainScreenUI.ShowDetail -> {
                 showWorkspaceDetail()
+            }
+
+            UpdateMainScreenUI.FocusDetail -> {
+                workspaceShell.focusDetail()
+            }
+
+            UpdateMainScreenUI.ShowSplitOrSidebar -> {
+                workspaceShell.showSplitOrSidebar()
             }
 
             is UpdateMainScreenUI.NotifyError -> {
@@ -354,6 +372,7 @@ class MainScreenActivity : AppCompatActivity() {
                 val args =
                     Bundle().apply {
                         putBoolean(SearchDocumentsFragment.ARG_RETURN_TO_WORKSPACE, update.returnToWorkspace)
+                        putBoolean(SearchDocumentsFragment.ARG_RESTORE_FOCUSED_DETAIL, workspaceShell.isDetailOnly)
                     }
 
                 if (update.returnToWorkspace) {
@@ -370,19 +389,26 @@ class MainScreenActivity : AppCompatActivity() {
                 navHost().navController.popBackStack()
             }
 
-            UpdateMainScreenUI.ShowDetailFromSearch -> {
+            is UpdateMainScreenUI.ShowDetailFromSearch -> {
                 if (isSidebarSearchVisible()) {
                     showSidebarFiles()
                 } else {
                     navHost().navController.popBackStack()
                 }
-                showWorkspaceDetail()
+                if (update.restoreFocusedDetail) {
+                    workspaceShell.focusDetail()
+                } else {
+                    showWorkspaceDetail()
+                }
             }
-
         }
     }
 
     fun isShowingSidebarOnly(): Boolean = workspaceShell.isSidebarOnly
+
+    fun isFocusingDetail(): Boolean = workspaceShell.isDetailOnly
+
+    fun isShowingSplit(): Boolean = workspaceShell.isSplit
 
     private fun ensureWorkspaceFragment() {
         if (supportFragmentManager.findFragmentByTag(WORKSPACE_FRAGMENT_TAG) != null) {

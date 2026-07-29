@@ -121,6 +121,7 @@ sealed class UpdateMainScreenUI {
 
     data class OpenFileFromSearch(
         val id: String,
+        val restoreFocusedDetail: Boolean = false,
     ) : UpdateMainScreenUI()
 
     data class ShowHideProgressOverlay(
@@ -143,11 +144,17 @@ sealed class UpdateMainScreenUI {
 
     object ShowFiles : UpdateMainScreenUI()
 
-    object ShowDetailFromSearch : UpdateMainScreenUI()
+    data class ShowDetailFromSearch(
+        val restoreFocusedDetail: Boolean = false,
+    ) : UpdateMainScreenUI()
 
     object PopBackstackToWorkspace : UpdateMainScreenUI()
 
     object ShowSidebar : UpdateMainScreenUI()
 
     object ShowDetail : UpdateMainScreenUI()
+
+    object FocusDetail : UpdateMainScreenUI()
+
+    object ShowSplitOrSidebar : UpdateMainScreenUI()
 }

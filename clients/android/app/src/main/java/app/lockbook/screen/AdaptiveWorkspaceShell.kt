@@ -21,6 +21,7 @@ private enum class WorkspaceShellRequest {
     DetailVisible,
     DetailOnly,
     Split,
+    SplitOrSidebar,
 }
 
 class AdaptiveWorkspaceShell
@@ -75,6 +76,11 @@ class AdaptiveWorkspaceShell
 
         fun showSplit() {
             request = WorkspaceShellRequest.Split
+            applyResolvedMode()
+        }
+
+        fun showSplitOrSidebar() {
+            request = WorkspaceShellRequest.SplitOrSidebar
             applyResolvedMode()
         }
 
@@ -161,6 +167,7 @@ class AdaptiveWorkspaceShell
                 WorkspaceShellRequest.DetailVisible -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.DetailOnly
                 WorkspaceShellRequest.DetailOnly -> WorkspaceShellMode.DetailOnly
                 WorkspaceShellRequest.Split -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.DetailOnly
+                WorkspaceShellRequest.SplitOrSidebar -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.SidebarOnly
             }
         }
 

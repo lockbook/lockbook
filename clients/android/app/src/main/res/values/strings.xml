@@ -225,6 +225,8 @@
     <string name="search">Search</string>
     <string name="back">Back</string>
     <string name="open_ws">Open workspace panel</string>
+    <string name="focus_detail_view">Focus detail view</string>
+    <string name="show_list_and_details">Show list and details</string>
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
 

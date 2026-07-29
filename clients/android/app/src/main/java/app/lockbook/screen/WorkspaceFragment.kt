@@ -59,6 +59,11 @@ import kotlin.math.abs
 
 private const val EXPANDED_BOTTOM_SHEET_HEIGHT = 600
 
+private data class PendingTabSwitchUiState(
+    val isTabListExpanded: Boolean,
+    val isDetailFocused: Boolean,
+)
+
 class WorkspaceFragment : Fragment() {
     private var _binding: FragmentWorkspaceBinding? = null
     val binding get() = _binding!!
@@ -67,6 +72,7 @@ class WorkspaceFragment : Fragment() {
     private val model: WorkspaceViewModel by activityViewModels()
 
     private var bottomSheetContractedHeight = 0
+    private var pendingTabSwitchUiState: PendingTabSwitchUiState? = null
 
     companion object {
         val TAG = "WorkspaceFragment"
@@ -101,10 +107,24 @@ class WorkspaceFragment : Fragment() {
         onCreateTabList(workspaceWrapper)
 
         model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
+            val tabSwitchUiState = pendingTabSwitchUiState
+            pendingTabSwitchUiState = null
+
             println("LB_DEBUG workspace openFile id=$id newFile=$newFile -> ShowDetail")
             model.isFileTreeSyncedToCurrentTab = true
             workspaceWrapper.workspaceView.openDoc(id, newFile)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowDetail)
+
+            if (tabSwitchUiState?.isDetailFocused == true) {
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.FocusDetail)
+            } else {
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowDetail)
+            }
+
+            tabSwitchUiState?.let { state ->
+                binding.root.post {
+                    model._tabListExpanded.value = state.isTabListExpanded
+                }
+            }
         }
 
         // Forward real IME visibility into the editor so touch long-press
@@ -142,8 +162,8 @@ class WorkspaceFragment : Fragment() {
             val navigatedBack = workspaceWrapper.workspaceView.back()
             println("LB_DEBUG workspaceBackRequested navigatedBack=$navigatedBack")
             if (!navigatedBack) {
-                println("LB_DEBUG workspaceBackRequested -> ShowSidebar")
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSidebar)
+                println("LB_DEBUG workspaceBackRequested -> ShowSplitOrSidebar")
+                activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSplitOrSidebar)
             }
         }
 
@@ -205,12 +225,12 @@ class WorkspaceFragment : Fragment() {
             true
         }
 
-        binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_arrow_back_24)
         binding.workspaceToolbar.setNavigationOnClickListener {
             (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                 .hideSoftInputFromWindow(view?.windowToken, 0)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSidebar)
+            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSplitOrSidebar)
         }
+        updateRestoreSplitButtonVisibility((activity as? MainScreenActivity)?.isFocusingDetail() == true)
 
         binding.workspaceToolbar.setOnClickListener {
             getCurrentFile()?.let {
@@ -236,6 +256,29 @@ class WorkspaceFragment : Fragment() {
                 showMaterialToolbar()
             }
         }
+    }
+
+    fun updateRestoreSplitButtonVisibility(isDetailFocused: Boolean) {
+        if (_binding == null) {
+            return
+        }
+
+        if (isDetailFocused) {
+            binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_fullscreen_exit_24)
+            binding.workspaceToolbar.setNavigationContentDescription(R.string.show_list_and_details)
+        } else {
+            binding.workspaceToolbar.navigationIcon = null
+            binding.workspaceToolbar.navigationContentDescription = null
+        }
+    }
+
+    fun updateWorkspaceSearchButtonVisibility(isSearchAvailable: Boolean) {
+        if (_binding == null) {
+            return
+        }
+
+        binding.searchWs.isVisible = isSearchAvailable
+        binding.searchWsCompact.isVisible = isSearchAvailable
     }
 
     override fun onDestroyView() {
@@ -523,6 +566,7 @@ class WorkspaceFragment : Fragment() {
         binding.searchWsCompact.setOnClickListener {
             activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch(returnToWorkspace = true))
         }
+        updateWorkspaceSearchButtonVisibility((activity as? MainScreenActivity)?.isShowingSplit() != true)
 
         binding.createWs.setOnClickListener {
             activityModel.launchTransientScreen(TransientScreen.Create(getCreateParentId()))
@@ -629,6 +673,11 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun switchTab(id: String) {
+        pendingTabSwitchUiState =
+            PendingTabSwitchUiState(
+                isTabListExpanded = model.tabListExpanded.value ?: false,
+                isDetailFocused = (activity as? MainScreenActivity)?.isFocusingDetail() == true,
+            )
         model._openFile.value = id to false
     }
 }
