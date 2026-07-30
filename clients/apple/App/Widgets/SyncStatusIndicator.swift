@@ -121,10 +121,7 @@ struct SyncStatusFooter: View {
             #endif
 
             Button(action: {
-                if !isSpinning {
-                    isSpinning = true
-                    spinStep()
-                }
+                isSpinning = true
                 action()
             }) {
                 HStack(spacing: 8) {
@@ -156,22 +153,23 @@ struct SyncStatusFooter: View {
                 stableMessage = status.message
             }
 
-            if status.syncing, !isSpinning {
+            if status.syncing {
                 isSpinning = true
-                spinStep()
             }
         }
-    }
+        .task(id: isSpinning) {
+            guard isSpinning else { return }
 
-    private func spinStep() {
-        withAnimation(.bouncy(duration: 0.50)) {
-            spinAngle += 180
-        } completion: {
-            if AppState.lb.events.status.syncing {
-                spinStep()
-            } else {
-                isSpinning = false
-            }
+            repeat {
+                withAnimation(.bouncy(duration: 0.50)) {
+                    spinAngle += 180
+                }
+
+                try? await Task.sleep(for: .milliseconds(500))
+                guard !Task.isCancelled else { return }
+            } while AppState.lb.events.status.syncing
+
+            isSpinning = false
         }
     }
 }
