@@ -2,38 +2,36 @@
 The Lockbook CLI is a terminal client for your encrypted files: edit notes, list and search the tree, sync with the server, and copy files between Lockbook and ordinary OS paths when you need plain files outside the app.
 
 Install via a [package manager](installing.md) or [build from source](building.md). Flags and arguments for any command are authoritative in the binary:
-```
+```sh
 lockbook --help
 lockbook <command> --help
 ```
 
 This page is a tour and task guide. Prefer `--help` when you need every option.
 
-Tab completion is a core part of the CLI: it completes subcommands and expands paths and IDs from your Lockbook tree. Spending a minute to [set completions up](#completions) for your shell is worth it—without them, the CLI is much harder to navigate.
-
 ## Quick start
 **New account**
-```
+```sh
 lockbook account new <username>
 lockbook sync
 lockbook list
 ```
 
 **Existing account** (account key or phrase on stdin, clipboard, or interactive prompt):
-```
+```sh
 lockbook account import
 lockbook sync
 ```
 
 **Edit a note**
-```
+```sh
 lockbook edit work/todo.md
 ```
 
 If the path does not exist yet, create it first with `lockbook new work/todo.md`, or pipe content with `lockbook write` (see below).
 
 **Who am I / status**
-```
+```sh
 lockbook debug whoami
 lockbook account status
 ```
@@ -48,18 +46,18 @@ The CLI keeps an encrypted local store. Edits apply locally first; `lockbook syn
 Point at a non-default server when creating or importing an account with `API_URL` or `--api_url` (see [Configuration](#configuration)).
 
 ## Common tasks
-List, edit, and sync notes. Prefer tab completion to expand paths as you type:
-```
+List, edit, and sync notes. Tab completions expand paths as you type:
+```sh
 lockbook list
 lockbook list -l /work
 lockbook edit /work/todo.md
 lockbook cat /work/todo.md
-echo "hi" | lockbook write /work/todo.md
+echo "take notes" | lockbook write /work/todo.md
 lockbook sync
 ```
 
 Print a document to stdout, or write stdin into Lockbook. `lockbook write` creates the path if it does not exist. Chain with familiar tools—search notes with `grep`/`rg`, fuzzy-pick a path with `fzf`, or grab local logs into a note:
-```
+```sh
 lockbook cat /work/todo.md | rg "TODO"
 lockbook list -p -R / | fzf | xargs lockbook edit
 journalctl -u myapp -n 50 --no-pager | lockbook write /ops/myapp-recent.log
@@ -68,14 +66,14 @@ echo "more" | lockbook write --append /work/todo.md
 ```
 
 Copy between Lockbook and ordinary OS paths. `--contents` puts a folder’s children in dest (not `dest/<folder>/`):
-```
+```sh
 lockbook import ./photo.png /media/
 lockbook export /media/photo.png ./photo.png
 lockbook export /notes ./backup --contents
 ```
 
 Accept a share into your tree (same idea as Shared with me → Files in the apps):
-```
+```sh
 lockbook share pending
 lockbook share accept <id> /work/
 ```
@@ -85,7 +83,7 @@ Automation examples: [this site’s update script](https://github.com/lockbook/l
 ## Virtual filesystem (experimental)
 `lockbook fs` mounts your Lockbook over NFS at `/tmp/lockbook` so ordinary tools can read and write notes as normal files. Experimental—expect rough edges; prefer the CLI commands above when you can.
 
-```
+```sh
 lockbook fs
 # then: ls /tmp/lockbook, edit files there, etc.
 ```
@@ -106,7 +104,7 @@ Tab completion is how you should drive the CLI day to day: static completions fo
 Install via your [package manager](installing.md) when possible (preferred). Design notes: [Creating a sick CLI](https://lockbook.net/blog/creating-a-sick-cli/). If shell completion is broken system-wide, see [Homebrew’s completion guide](https://docs.brew.sh/Shell-Completion).
 
 Generate scripts manually when your package manager does not ship them:
-```
+```sh
 # bash (lazy-loaded)
 lockbook completions bash > ${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/lockbook
 
