@@ -439,7 +439,6 @@ async fn rename(target: String, new_name: String) -> Result<(), CliError> {
     Ok(())
 }
 
-
 #[tokio::main]
 async fn duplicate(target: String) -> CliResult<()> {
     let lb = &core().await?;
