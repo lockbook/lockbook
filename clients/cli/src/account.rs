@@ -48,8 +48,9 @@ pub async fn import(api_url: ApiUrl) -> CliResult<()> {
     let config = rpassword::ConfigBuilder::new()
         .password_feedback_mask('*')
         .build();
-    let account_string = rpassword::prompt_password_with_config("paste your private key: ", config)
-        .map_err(|e| CliError::from(format!("failed to read from stdin: {e}")))?;
+    let account_string =
+        rpassword::prompt_password_with_config("paste your account key or phrase: ", config)
+            .map_err(|e| CliError::from(format!("failed to read from stdin: {e}")))?;
     import_key(lb, account_string.trim(), &api_url.0).await
 }
 
@@ -65,7 +66,7 @@ async fn import_key(lb: &Lb, key: &str, api_url: &str) -> CliResult<()> {
 }
 
 #[tokio::main]
-pub async fn export(skip_check: bool) -> CliResult<()> {
+pub async fn export(skip_check: bool, phrase: bool) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account(lb)?;
 
@@ -74,15 +75,23 @@ pub async fn export(skip_check: bool) -> CliResult<()> {
     let should_ask = interactive && !skip_check;
 
     if should_ask {
-        let answer: String = input::std_in(
-            "your private key is about to be visible. do you want to proceed? [y/n]: ",
-        )?;
+        // Keep "private key" in the compact-key warning — severity should stay sharp.
+        let prompt = if phrase {
+            "your account phrase is about to be visible. do you want to proceed? [y/n]: "
+        } else {
+            "your private key is about to be visible. do you want to proceed? [y/n]: "
+        };
+        let answer: String = input::std_in(prompt)?;
         if answer != "y" && answer != "Y" {
             return Ok(());
         }
     }
 
-    print!("{}", lb.export_account_private_key()?);
+    if phrase {
+        println!("{}", lb.export_account_phrase()?);
+    } else {
+        print!("{}", lb.export_account_private_key()?);
+    }
     Ok(())
 }
 

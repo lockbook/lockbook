@@ -44,7 +44,7 @@ fn run() -> CliResult<()> {
                         })
                 )
                 .subcommand(
-                    Command::name("import").description("import an existing account by piping in the account string")
+                    Command::name("import").description("import an existing account from a key or phrase")
                         .input(Flag::<ApiUrl>::new("api_url")
                         .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://app.lockbook.net"))
 
@@ -53,9 +53,10 @@ fn run() -> CliResult<()> {
                         })
                 )
                 .subcommand(
-                    Command::name("export").description("reveal your account's private key")
-                        .input(Flag::bool("skip-check").description("don't ask for confirmation to reveal the private key"))
-                        .handler(|skip_check| account::export(skip_check.get()))
+                    Command::name("export").description("reveal your account key or account phrase")
+                        .input(Flag::bool("skip-check").description("don't ask for confirmation to reveal the secret"))
+                        .input(Flag::bool("phrase").description("export the 24-word account phrase instead of the compact account key"))
+                        .handler(|skip_check, phrase| account::export(skip_check.get(), phrase.get()))
                 )
                 .subcommand(
                     Command::name("subscribe").description("start a monthly subscription for massively increased storage")
