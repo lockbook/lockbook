@@ -131,9 +131,9 @@ fn run() -> CliResult<()> {
         )
         .subcommand(
             Command::name("list").description("list files and file information")
-                .input(Flag::bool("long").description("'long listing format': displays id and sharee information in table format"))
-                .input(Flag::bool("recursive").description("include all children of the given directory, recursively. Implicitly enables --paths"))
-                .input(Flag::bool("paths").description("display the full path of any children"))
+                .input(Flag::bool("long").description("long listing: id, type, size, modified time, and share info (short: -l)"))
+                .input(Flag::bool("recursive").description("include all children recursively; implies --paths (short: -r/-R)"))
+                .input(Flag::bool("paths").description("display the full path of each entry (short: -p)"))
                 .input(Arg::str("target").description("file path location whose files will be listed")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly)))
                             .default("/".to_string()))
