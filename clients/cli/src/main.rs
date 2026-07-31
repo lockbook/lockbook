@@ -71,12 +71,12 @@ fn run() -> CliResult<()> {
                 )
         )
         .subcommand(
-            Command::name("copy").description("import files from your file system into lockbook")
+            Command::name("import").description("import files from your file system into lockbook")
                 .input(Arg::<PathBuf>::name("disk-path").description("path of file on disk"))
                 .input(Arg::str("dest")
                        .description("the path or id of a folder within lockbook to place the file.")
                        .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
-                .handler(|disk, parent| imex::copy(disk.get(), parent.get()))
+                .handler(|disk, parent| imex::import(disk.get(), parent.get()))
         )
         .subcommand(
             Command::name("debug").description("investigative commands")

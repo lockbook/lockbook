@@ -10,7 +10,7 @@ use crate::input::find_file;
 use crate::{core, ensure_account_and_root};
 
 #[tokio::main]
-pub async fn copy(disk: PathBuf, parent: String) -> CliResult<()> {
+pub async fn import(disk: PathBuf, parent: String) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account_and_root(lb).await?;
 
