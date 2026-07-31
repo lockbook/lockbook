@@ -111,6 +111,12 @@ fn run() -> CliResult<()> {
                 .handler(|force, target| delete(force.get(), target.get()))
         )
         .subcommand(
+            Command::name("duplicate").description("duplicate a document in place (same folder, auto-named copy)")
+                .input(Arg::str("target").description("path or id of document to duplicate")
+                            .completor(|prompt| input::file_completor(prompt, None)))
+                .handler(|target| duplicate(target.get()))
+        )
+        .subcommand(
             Command::name("edit").description("edit a document")
                 .input(edit::editor_flag())
                 .input(Arg::str("target").description("path or id of file to edit")
@@ -425,6 +431,19 @@ async fn rename(target: String, new_name: String) -> Result<(), CliError> {
 
     let id = find_file(lb, &target).await?.id;
     lb.rename_file(&id, &new_name).await?;
+    Ok(())
+}
+
+
+#[tokio::main]
+async fn duplicate(target: String) -> CliResult<()> {
+    let lb = &core().await?;
+    ensure_account_and_root(lb).await?;
+
+    let f = find_file(lb, &target).await?;
+    let copy = lb.duplicate_file(&f.id).await?;
+    let path = lb.get_path_by_id(copy.id).await?;
+    println!("duplicated to {path}");
     Ok(())
 }
 
