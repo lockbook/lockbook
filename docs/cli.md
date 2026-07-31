@@ -9,6 +9,8 @@ lockbook <command> --help
 
 This page is a tour and task guide. Prefer `--help` when you need every option.
 
+Tab completion is a core part of the CLI: it completes subcommands and expands paths and IDs from your Lockbook tree. Spending a minute to [set completions up](#completions) for your shell is worth it—without them, the CLI is much harder to navigate.
+
 ## Quick start
 **New account**
 ```
@@ -46,7 +48,7 @@ The CLI keeps an encrypted local store. Edits apply locally first; `lockbook syn
 Point at a non-default server when creating or importing an account with `API_URL` or `--api_url` (see [Configuration](#configuration)).
 
 ## Common tasks
-List, edit, print, and write notes. `lockbook write` creates the path if it does not exist; sync when you want the server updated:
+List, edit, and sync notes. Prefer tab completion to expand paths as you type:
 ```
 lockbook list
 lockbook list -l /work
@@ -54,6 +56,15 @@ lockbook edit /work/todo.md
 lockbook cat /work/todo.md
 echo "hi" | lockbook write /work/todo.md
 lockbook sync
+```
+
+Print a document to stdout, or write stdin into Lockbook. `lockbook write` creates the path if it does not exist. Chain with familiar tools—search notes with `grep`/`rg`, fuzzy-pick a path with `fzf`, or grab local logs into a note:
+```
+lockbook cat /work/todo.md | rg "TODO"
+lockbook list -p -R / | fzf | xargs lockbook edit
+journalctl -u myapp -n 50 --no-pager | lockbook write /ops/myapp-recent.log
+echo "hi" | lockbook write /work/todo.md
+echo "more" | lockbook write --append /work/todo.md
 ```
 
 Copy between Lockbook and ordinary OS paths. `--contents` puts a folder’s children in dest (not `dest/<folder>/`):
@@ -71,6 +82,14 @@ lockbook share accept <id> /work/
 
 Automation examples: [this site’s update script](https://github.com/lockbook/lockbook/blob/master/docs/update.sh), [another blog](https://github.com/Parth/parth.cafe/tree/master/.github/workflows).
 
+## Virtual filesystem (experimental)
+`lockbook fs` mounts your Lockbook over NFS at `/tmp/lockbook` so ordinary tools can read and write notes as normal files. Experimental—expect rough edges; prefer the CLI commands above when you can.
+
+```
+lockbook fs
+# then: ls /tmp/lockbook, edit files there, etc.
+```
+
 ## Configuration
 | Variable / setting | Purpose |
 |--------------------|---------|
@@ -82,9 +101,11 @@ Automation examples: [this site’s update script](https://github.com/lockbook/l
 Supported editors for `lockbook edit` include vim, nvim, emacs, helix, nano, sublime, and code; others fall back to the platform default. Inspect the active server and data path with `lockbook debug whereami`.
 
 ## Completions
-Tab completion covers subcommands and **dynamic paths/IDs** from your Lockbook. Install via your [package manager](installing.md) when possible. Design notes: [Creating a sick CLI](https://lockbook.net/blog/creating-a-sick-cli/). If shell completion is broken system-wide, see [Homebrew’s completion guide](https://docs.brew.sh/Shell-Completion).
+Tab completion is how you should drive the CLI day to day: static completions for every subcommand and flag, plus **dynamic** completions that pull file paths and IDs from your Lockbook. If something feels hard to type, completions are probably not installed correctly—fix them after install.
 
-Generate scripts manually:
+Install via your [package manager](installing.md) when possible (preferred). Design notes: [Creating a sick CLI](https://lockbook.net/blog/creating-a-sick-cli/). If shell completion is broken system-wide, see [Homebrew’s completion guide](https://docs.brew.sh/Shell-Completion).
+
+Generate scripts manually when your package manager does not ship them:
 ```
 # bash (lazy-loaded)
 lockbook completions bash > ${XDG_DATA_HOME:-~/.local/share}/bash-completion/completions/lockbook
@@ -95,32 +116,3 @@ lockbook completions fish > ~/.config/fish/completions/lockbook.fish
 # zsh (ensure this directory is on $fpath before compinit; with oh-my-zsh, adjust $FPATH before sourcing oh-my-zsh)
 lockbook completions zsh > /usr/local/share/zsh/site-functions/_lockbook
 ```
-
-## Command index
-Top-level commands. Nested groups list their subcommands. Details: `lockbook <command> --help`.
-
-| Command | Summary |
-|---------|---------|
-| `account new` | Create an account |
-| `account import` | Import an account from a key or phrase |
-| `account export` | Print account key or account phrase (`--phrase`) |
-| `account status` | Usage, plan, sync info |
-| `account subscribe` / `unsubscribe` | Billing |
-| `list` | List files (`-l`, `-R`/`--recursive`, `-p`/`--paths`) |
-| `new` | Create a file or folder at a path |
-| `edit` | Open a document in an editor |
-| `cat` | Print a document to stdout |
-| `write` | Write stdin to a document |
-| `move` | Move a file to a new parent |
-| `rename` | Rename a file |
-| `duplicate` | Duplicate a document in place |
-| `delete` | Delete a file |
-| `search` | Search paths and contents |
-| `sync` | Sync with the server |
-| `import` | Import files from disk into Lockbook |
-| `export` | Export Lockbook files to disk (`--force`, `--contents`) |
-| `share new` / `pending` / `accept` / `delete` | Sharing (accept places a share into your tree) |
-| `migrate-from bear` | Import a Bear export |
-| `fs` | Mount NFS at `/tmp/lockbook` (experimental) |
-| `debug whoami` / `whereami` / `info` / `validate` / `debuginfo` | Diagnostics |
-| `completions` | Emit shell completion scripts |
