@@ -127,8 +127,12 @@ fn run() -> CliResult<()> {
             Command::name("export").description("export a lockbook file to your file system")
                 .input(Arg::str("target")
                             .completor(|prompt| input::file_completor(prompt, None)))
-                .input(Arg::<PathBuf>::name("dest"))
-                .handler(|target, dest| imex::export(target.get(), dest.get()))
+                .input(Arg::<PathBuf>::name("dest").description("directory, or file path when exporting a single document"))
+                .input(Flag::bool("force").description("overwrite existing files on disk"))
+                .input(Flag::bool("contents").description("when exporting a folder, place its children in dest (rsync src/ semantics) instead of dest/<folder-name>"))
+                .handler(|target, dest, force, contents| {
+                    imex::export(target.get(), dest.get(), force.get(), contents.get())
+                })
         )
         .subcommand(
             Command::name("fs")
