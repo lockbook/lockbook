@@ -147,13 +147,24 @@ pub async fn status() -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account(lb)?;
 
+    println!("username: {}", lb.get_account()?.username);
+
     let last_synced = lb.get_last_synced_human().await?;
     println!("files last synced: {last_synced}");
 
-    // todo: consider having some way to communicate the status of files on the server
+    let unsynced = lb.local_changes().await;
+    match unsynced.len() {
+        0 => println!("unsynced changes: none"),
+        1 => println!("unsynced changes: 1 file"),
+        n => println!("unsynced changes: {n} files"),
+    }
 
     let cap = lb.get_usage().await?;
-    let pct = (cap.server_usage.exact * 100) / cap.data_cap.exact;
+    let pct = if cap.data_cap.exact == 0 {
+        0
+    } else {
+        (cap.server_usage.exact * 100) / cap.data_cap.exact
+    };
 
     if let Some(info) = lb.get_subscription_info().await? {
         match info.payment_platform {
@@ -176,9 +187,15 @@ pub async fn status() -> Result<(), CliError> {
             .unwrap_or_else(|| info.period_end.to_string());
         println!("renews on: {}", renewal_date);
     } else {
-        println!("trial tier");
+        println!("type: trial tier");
     }
-    println!("data cap: {}, {}% utilized", cap.data_cap.readable, pct);
+    println!(
+        "usage: {} / {} ({}% utilized)",
+        cap.server_usage.readable, cap.data_cap.readable, pct
+    );
+    if pct >= 90 {
+        println!("warning: storage is nearly full");
+    }
     Ok(())
 }
 
