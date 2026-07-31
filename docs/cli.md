@@ -116,32 +116,3 @@ lockbook completions fish > ~/.config/fish/completions/lockbook.fish
 # zsh (ensure this directory is on $fpath before compinit; with oh-my-zsh, adjust $FPATH before sourcing oh-my-zsh)
 lockbook completions zsh > /usr/local/share/zsh/site-functions/_lockbook
 ```
-
-## Command index
-Top-level commands. Nested groups list their subcommands. Details: `lockbook <command> --help`.
-
-| Command | Summary |
-|---------|---------|
-| `account new` | Create an account |
-| `account import` | Import an account from a key or phrase |
-| `account export` | Print account key or account phrase (`--phrase`) |
-| `account status` | Usage, plan, sync info |
-| `account subscribe` / `unsubscribe` | Billing |
-| `list` | List files (`-l`, `-R`/`--recursive`, `-p`/`--paths`) |
-| `new` | Create a file or folder at a path |
-| `edit` | Open a document in an editor |
-| `cat` | Print a document to stdout |
-| `write` | Write stdin to a document |
-| `move` | Move a file to a new parent |
-| `rename` | Rename a file |
-| `duplicate` | Duplicate a document in place |
-| `delete` | Delete a file |
-| `search` | Search paths and contents |
-| `sync` | Sync with the server |
-| `import` | Import files from disk into Lockbook |
-| `export` | Export Lockbook files to disk (`--force`, `--contents`) |
-| `share new` / `pending` / `accept` / `delete` | Sharing (accept places a share into your tree) |
-| `migrate-from bear` | Import a Bear export |
-| `fs` | Mount NFS at `/tmp/lockbook` (experimental) |
-| `debug whoami` / `whereami` / `info` / `validate` / `debuginfo` | Diagnostics |
-| `completions` | Emit shell completion scripts |
