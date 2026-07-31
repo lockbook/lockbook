@@ -1,8 +1,10 @@
 use std::cmp::Ordering;
 use std::path::Path;
 
+use chrono::{TimeZone, Utc};
 use cli_rs::cli_error::CliResult;
 use lb_rs::model::file::File;
+use lb_rs::model::usage::bytes_to_human;
 use lb_rs::{Lb, Uuid};
 
 use crate::input::{ID_PREFIX_LEN, find_file};
@@ -34,6 +36,7 @@ pub async fn list(long: bool, recursive: bool, mut paths: bool, target: String) 
         my_name: lb.get_account()?.username.clone(),
         w_id: ID_PREFIX_LEN,
         w_name: 0,
+        w_size: 0,
         long,
         paths,
     };
@@ -48,6 +51,7 @@ struct LsConfig {
     my_name: String,
     w_id: usize,
     w_name: usize,
+    w_size: usize,
     long: bool,
     paths: bool,
 }
@@ -57,6 +61,9 @@ struct FileNode {
     dirname: String,
     name: String,
     is_dir: bool,
+    size_bytes: u64,
+    last_modified: u64,
+    file_type: &'static str,
     shared_with_summary: String,
     shared_by: Option<String>,
     children: Vec<FileNode>,
@@ -74,6 +81,10 @@ fn node_string(node: &FileNode, cfg: &LsConfig) -> String {
     let mut txt = String::new();
     if cfg.long {
         txt += &format!("{:<w_id$}  ", &node.id.to_string()[..cfg.w_id], w_id = cfg.w_id,);
+        txt += &format!("{:<6}  ", node.file_type);
+        let size = if node.is_dir { "-".to_string() } else { bytes_to_human(node.size_bytes) };
+        txt += &format!("{:>w_size$}  ", size, w_size = cfg.w_size.max(4));
+        txt += &format!("{}  ", format_mtime(node.last_modified));
     }
     let mut np = String::new();
     if cfg.paths {
@@ -94,6 +105,24 @@ fn node_string(node: &FileNode, cfg: &LsConfig) -> String {
         }
     }
     txt
+}
+
+fn format_mtime(ts: u64) -> String {
+    // File::last_modified is milliseconds since epoch (same as subscription period_end usage).
+    Utc.timestamp_millis_opt(ts as i64)
+        .single()
+        .map(|dt| dt.format("%Y-%m-%d %H:%M").to_string())
+        .unwrap_or_else(|| ts.to_string())
+}
+
+fn file_type_label(f: &File) -> &'static str {
+    if f.is_folder() {
+        "dir"
+    } else if matches!(f.file_type, lb_rs::model::file_metadata::FileType::Link { .. }) {
+        "link"
+    } else {
+        "doc"
+    }
 }
 
 async fn get_children(
@@ -147,11 +176,20 @@ async fn get_children(
                     cfg.w_name = n;
                 }
             }
+            if cfg.long {
+                let size_w = if f.is_folder() { 1 } else { bytes_to_human(f.size_bytes).len() };
+                if size_w > cfg.w_size {
+                    cfg.w_size = size_w;
+                }
+            }
             let child = FileNode {
                 id: f.id,
                 dirname,
                 name,
                 is_dir: f.is_folder(),
+                size_bytes: f.size_bytes,
+                last_modified: f.last_modified,
+                file_type: file_type_label(f),
                 shared_with_summary,
                 shared_by,
                 children: Box::pin(get_children(lb, files, f.id, cfg)).await?,
