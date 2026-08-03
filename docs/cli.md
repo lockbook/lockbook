@@ -9,6 +9,8 @@ lockbook <command> --help
 
 This page is a tour and task guide. Prefer `--help` when you need every option.
 
+Tab completion is a core part of the CLI: it completes subcommands and expands paths and IDs from your Lockbook tree. Spending a minute to [set completions up](#completions) for your shell is worth it—without them, the CLI is much harder to navigate.
+
 ## Quick start
 **New account**
 ```sh
