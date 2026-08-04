@@ -9,7 +9,7 @@ lockbook <command> --help
 
 This page is a tour and task guide. Prefer `--help` when you need every option.
 
-Tab completion is a core part of the CLI: it completes subcommands and expands paths and IDs from your Lockbook tree. Spending a minute to [set completions up](#completions) for your shell is worth it—without them, the CLI is much harder to navigate.
+Tab completion is a core part of the CLI: it completes subcommands and expands paths and IDs from your Lockbook tree. Spending a minute to [set completions up](#completions) for your shell is worth it -- without them, the CLI is much harder to navigate.
 
 ## Quick start
 **New account**
@@ -62,7 +62,7 @@ Print a document to stdout, or write stdin into Lockbook. `lockbook write` creat
 ```sh
 lockbook cat /work/todo.md | rg "TODO"
 lockbook list -p -R / | fzf | xargs lockbook edit
-journalctl -u myapp -n 50 --no-pager | lockbook write /ops/myapp-recent.log
+cat /var/log/my-app-server.log | lockbook write /ops/myapp-recent.log
 echo "hi" | lockbook write /work/todo.md
 echo "more" | lockbook write --append /work/todo.md
 ```
