@@ -50,10 +50,10 @@
   <content_rating type="oars-1.1" />
 
   <releases>
-      <release version="26.8.4" date="2026-08-04">
+      <release version="26.8.5" date="2026-08-05">
           <description>
               <p>
-                  26.8.4 release
+                  26.8.5 release
               </p>
           </description>
       </release>
