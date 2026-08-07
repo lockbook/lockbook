@@ -72,9 +72,53 @@ impl LocalLb {
                         .await?;
                     self.sync().await?;
                 }
-                // WelcomeDoc::HypeWelcomeDoc => todo!(),
-                // WelcomeDoc::FramgentedArchetypes => todo!(),
-                _ => {}
+                WelcomeDoc::FramgentedArchetypes => {
+                    let samples = self
+                        .create_file("samples", &root_id, FileType::Folder)
+                        .await?;
+
+                    let todo = self
+                        .create_file("todo.md", &samples.id, FileType::Document)
+                        .await?;
+                    self.write_document(todo.id, include_bytes!("samples/todo.md"))
+                        .await?;
+
+                    let journal = self
+                        .create_file("journal.md", &samples.id, FileType::Document)
+                        .await?;
+                    let journal_content = include_str!("samples/journal.md")
+                        .replace("{date}", &chrono::Local::now().format("%y-%m-%d").to_string());
+                    self.write_document(journal.id, journal_content.as_bytes())
+                        .await?;
+
+                    let pdf = self
+                        .create_file("bitcoin.pdf", &samples.id, FileType::Document)
+                        .await?;
+                    self.write_document(pdf.id, include_bytes!("samples/bitcoin.pdf"))
+                        .await?;
+
+                    let drawing = self
+                        .create_file("drawing.svg", &samples.id, FileType::Document)
+                        .await?;
+                    self.write_document(drawing.id, include_bytes!("samples/drawing.svg"))
+                        .await?;
+
+                    let welcome = self
+                        .create_file("welcome.md", &root_id, FileType::Document)
+                        .await?;
+                    self.write_document(welcome.id, include_bytes!("samples/welcome.md"))
+                        .await?;
+
+                    self.sync().await?;
+                }
+                WelcomeDoc::HypeWelcomeDoc => {
+                    let welcome_doc = self
+                        .create_file("welcome.md", &root_id, FileType::Document)
+                        .await?;
+                    self.write_document(welcome_doc.id, include_bytes!("samples/hype_welcome.md"))
+                        .await?;
+                    self.sync().await?;
+                }
             };
         }
 
