@@ -168,7 +168,6 @@
                         android:text="@string/close_all_tabs"
                         app:shapeAppearanceOverlay="@style/ButtonGroupMiddleShape" />
 
-                    e
                     <com.google.android.material.button.MaterialButton
                         android:id="@+id/forward_ws"
                         style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"

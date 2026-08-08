@@ -9,7 +9,6 @@ import android.view.ViewGroup
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
-import androidx.navigation.fragment.findNavController
 import app.lockbook.R
 import app.lockbook.databinding.FragmentCreateLinkBinding
 import app.lockbook.model.*
@@ -35,7 +34,7 @@ class CreateLinkFragment : Fragment() {
         AlertModel(WeakReference(requireActivity()), view)
     }
 
-    private val activityModel: StateViewModel by activityViewModels()
+    private val mainScreenModel: MainScreenViewModel by activityViewModels()
 
     override fun onCreateView(
         inflater: LayoutInflater,
@@ -56,7 +55,7 @@ class CreateLinkFragment : Fragment() {
                     bind(
                         FileMetadataRowInfo(
                             file = item,
-                            title = item.getPrettyName(),
+                            title = item.name,
                             iconRes = item.getIconResource(),
                         ),
                     )
@@ -87,9 +86,14 @@ class CreateLinkFragment : Fragment() {
             }
         }
 
-        try {
-            val file = Lb.getFileById(requireArguments().getString(CREATE_LINK_FILE_ID_KEY)!!)
+        val fileId = arguments?.getString(CREATE_LINK_FILE_ID_KEY)
+        if (fileId == null) {
+            popBackStack()
+            return binding.root
+        }
 
+        try {
+            val file = Lb.getFileById(fileId)
             binding.createLinkFileFor.setText(getString(R.string.create_link_file_for, file.name))
             binding.createLinkName.setText(file.name)
 
@@ -106,6 +110,7 @@ class CreateLinkFragment : Fragment() {
             }
         } catch (err: LbError) {
             alertModel.notifyError(err)
+            popBackStack()
         }
 
         binding.createLinkCancel.setOnClickListener {
@@ -116,7 +121,7 @@ class CreateLinkFragment : Fragment() {
     }
 
     private fun popBackStack() {
-        findNavController().popBackStack()
+        mainScreenModel.navigate(MainNavigationAction.Back)
     }
 
     companion object {

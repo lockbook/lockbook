@@ -15,13 +15,28 @@ enum class WorkspaceShellMode {
     Split,
 }
 
-private enum class WorkspaceShellRequest {
+internal enum class WorkspaceShellRequest {
     Auto,
     SidebarOnly,
     DetailVisible,
     DetailOnly,
     Split,
     SplitOrSidebar,
+}
+
+internal fun resolveWorkspaceShellMode(
+    request: WorkspaceShellRequest,
+    widthDp: Float,
+): WorkspaceShellMode {
+    val isSplitAvailable = widthDp >= SPLIT_MIN_WIDTH_DP
+    return when (request) {
+        WorkspaceShellRequest.Auto -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.SidebarOnly
+        WorkspaceShellRequest.SidebarOnly -> WorkspaceShellMode.SidebarOnly
+        WorkspaceShellRequest.DetailVisible -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.DetailOnly
+        WorkspaceShellRequest.DetailOnly -> WorkspaceShellMode.DetailOnly
+        WorkspaceShellRequest.Split -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.DetailOnly
+        WorkspaceShellRequest.SplitOrSidebar -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.SidebarOnly
+    }
 }
 
 class AdaptiveWorkspaceShell
@@ -46,8 +61,8 @@ class AdaptiveWorkspaceShell
         val isSplit: Boolean
             get() = mode == WorkspaceShellMode.Split
 
-        private var request = WorkspaceShellRequest.Auto
         private var onModeChanged: ((WorkspaceShellMode) -> Unit)? = null
+        private var request = WorkspaceShellRequest.Auto
 
         private val sidebar: View
             get() = getChildAt(SIDEBAR_CHILD_INDEX)
@@ -59,29 +74,28 @@ class AdaptiveWorkspaceShell
             onModeChanged = listener
         }
 
+        fun showAutomatic() {
+            applyRequest(WorkspaceShellRequest.Auto)
+        }
+
         fun showSidebar() {
-            request = WorkspaceShellRequest.SidebarOnly
-            applyResolvedMode()
+            applyRequest(WorkspaceShellRequest.SidebarOnly)
         }
 
         fun showDetail() {
-            request = WorkspaceShellRequest.DetailVisible
-            applyResolvedMode()
+            applyRequest(WorkspaceShellRequest.DetailVisible)
         }
 
         fun focusDetail() {
-            request = WorkspaceShellRequest.DetailOnly
-            applyResolvedMode()
+            applyRequest(WorkspaceShellRequest.DetailOnly)
         }
 
         fun showSplit() {
-            request = WorkspaceShellRequest.Split
-            applyResolvedMode()
+            applyRequest(WorkspaceShellRequest.Split)
         }
 
         fun showSplitOrSidebar() {
-            request = WorkspaceShellRequest.SplitOrSidebar
-            applyResolvedMode()
+            applyRequest(WorkspaceShellRequest.SplitOrSidebar)
         }
 
         override fun onMeasure(
@@ -154,22 +168,13 @@ class AdaptiveWorkspaceShell
 
         override fun checkLayoutParams(params: LayoutParams?): Boolean = params is LayoutParams
 
-        private fun applyResolvedMode() {
+        private fun applyRequest(nextRequest: WorkspaceShellRequest) {
+            request = nextRequest
             applyMode(resolveMode(width))
             requestLayout()
         }
 
-        private fun resolveMode(widthPx: Int): WorkspaceShellMode {
-            val isSplitAvailable = widthPx.toDp() >= SPLIT_MIN_WIDTH_DP
-            return when (request) {
-                WorkspaceShellRequest.Auto -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.SidebarOnly
-                WorkspaceShellRequest.SidebarOnly -> WorkspaceShellMode.SidebarOnly
-                WorkspaceShellRequest.DetailVisible -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.DetailOnly
-                WorkspaceShellRequest.DetailOnly -> WorkspaceShellMode.DetailOnly
-                WorkspaceShellRequest.Split -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.DetailOnly
-                WorkspaceShellRequest.SplitOrSidebar -> if (isSplitAvailable) WorkspaceShellMode.Split else WorkspaceShellMode.SidebarOnly
-            }
-        }
+        private fun resolveMode(widthPx: Int): WorkspaceShellMode = resolveWorkspaceShellMode(request, widthPx.toDp())
 
         private fun applyMode(nextMode: WorkspaceShellMode) {
             val modeChanged = mode != nextMode
@@ -225,7 +230,7 @@ class AdaptiveWorkspaceShell
             }
         }
 
-        private fun Int.toDp(): Int = (this / resources.displayMetrics.density).roundToInt()
+        private fun Int.toDp(): Float = this / resources.displayMetrics.density
 
         private fun Int.toPx(): Int = (this * resources.displayMetrics.density).roundToInt()
 

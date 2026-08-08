@@ -31,6 +31,21 @@ pub struct NameComponents {
 }
 
 impl NameComponents {
+    /// Parses a requested filename as a literal name. Unlike [`Self::from`], a trailing
+    /// `-<number>` is not interpreted as an existing generated variant.
+    pub fn from_literal(file_name: &str) -> NameComponents {
+        let extension_location = file_name.rfind('.').and_then(|location| {
+            if location == file_name.len() - 1 { None } else { Some(location) }
+        });
+        let name = match extension_location {
+            Some(location) => file_name[..location].to_string(),
+            None => file_name.to_string(),
+        };
+        let extension = extension_location.map(|location| file_name[location + 1..].to_string());
+
+        NameComponents { name, variant: None, extension }
+    }
+
     pub fn from(file_name: &str) -> NameComponents {
         let extension_location = file_name.rfind('.').and_then(|location| {
             if location == file_name.len() - 1 { None } else { Some(location) }
@@ -174,5 +189,17 @@ mod unit_tests {
     fn test_next_variant() {
         assert_eq!(NameComponents::from("test.md").generate_next().to_name(), "test-1.md");
         assert_eq!(NameComponents::from("test-2.md").generate_next().to_name(), "test-3.md");
+    }
+
+    #[test]
+    fn literal_names_preserve_numeric_suffixes_and_leading_zeroes() {
+        assert_eq!(NameComponents::from_literal("test-2.md").to_name(), "test-2.md");
+        assert_eq!(NameComponents::from_literal("2026-08-03.md").to_name(), "2026-08-03.md");
+        assert_eq!(
+            NameComponents::from_literal("2026-08-03.md")
+                .generate_next()
+                .to_name(),
+            "2026-08-03-1.md"
+        );
     }
 }

@@ -4,20 +4,19 @@ package app.lockbook.screen
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.EditorInfo
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.widget.SearchView
-import androidx.core.content.getSystemService
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.RecyclerView
-import androidx.transition.Visibility
 import app.lockbook.R
 import app.lockbook.databinding.FragmentSearchDocumentsBinding
 import app.lockbook.model.*
@@ -32,15 +31,15 @@ import java.lang.ref.WeakReference
 
 class SearchDocumentsFragment : Fragment() {
     private lateinit var binding: FragmentSearchDocumentsBinding
+    private var searchTextWatcher: TextWatcher? = null
 
-    companion object {
-        const val ARG_RETURN_TO_WORKSPACE = "return_to_workspace"
-        const val ARG_RESTORE_FOCUSED_DETAIL = "restore_focused_detail"
-    }
+    private val searchView
+        get() = (requireActivity() as MainScreenActivity).sidebarSearchView
 
     private val model: SearchDocumentsViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(SearchDocumentsViewModel::class.java)) {
                         return SearchDocumentsViewModel(
@@ -53,7 +52,7 @@ class SearchDocumentsFragment : Fragment() {
             }
         },
     )
-    private val activityModel: StateViewModel by activityViewModels()
+    private val mainScreenModel: MainScreenViewModel by activityViewModels()
     private val fileTreeModel: FileTreeViewModel by activityViewModels()
 
     private val alertModel by lazy {
@@ -71,10 +70,6 @@ class SearchDocumentsFragment : Fragment() {
             MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorPrimaryContainer),
             MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorOnPrimaryContainer),
         )
-
-        binding.searchDocumentsBack.setOnClickListener {
-            showFiles()
-        }
 
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
@@ -176,48 +171,36 @@ class SearchDocumentsFragment : Fragment() {
             },
         )
 
-        binding.searchDocumentsSearch.setOnQueryTextFocusChangeListener { _, focus ->
-            if (focus) {
-                requireActivity().window.requestKeyboardFocus(binding.searchDocumentsSearch.findFocus())
+        searchView.toolbar.setNavigationOnClickListener {
+            navigateBack()
+        }
+        searchView.editText.imeOptions = EditorInfo.IME_ACTION_SEARCH or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+        searchTextWatcher =
+            searchView.editText.doAfterTextChanged { text ->
+                model.newSearch(text?.toString().orEmpty())
+            }
+        searchView.editText.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                model.newSearch(searchView.text.toString())
+                searchView.clearFocusAndHideKeyboard()
+                true
+            } else {
+                false
             }
         }
-
-        binding.searchDocumentsSearch.setOnQueryTextListener(
-            object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?): Boolean {
-                    model.newSearch(query ?: "")
-                    binding.searchDocumentsSearch.clearFocus()
-
-                    return true
-                }
-
-                override fun onQueryTextChange(newText: String?): Boolean {
-                    model.newSearch(newText ?: "")
-
-                    return true
-                }
-            },
-        )
-
-        binding.searchDocumentsSearch.requestFocus()
         return binding.root
     }
 
     private fun openSearchResult(file: File) {
-        binding.searchDocumentsSearch.clearFocus()
+        searchView.clearFocusAndHideKeyboard()
         when (file.type) {
             FileType.Document -> {
-                activityModel.updateMainScreenUI(
-                    UpdateMainScreenUI.OpenFileFromSearch(
-                        id = file.id,
-                        restoreFocusedDetail = arguments?.getBoolean(ARG_RESTORE_FOCUSED_DETAIL) ?: false,
-                    ),
-                )
+                mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false))
             }
 
             FileType.Folder -> {
                 fileTreeModel.enterFolder(file)
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSplitOrSidebar)
+                mainScreenModel.navigate(MainNavigationAction.OpenFolderFromSearch)
             }
 
             FileType.Link -> {} // shouldn't happen
@@ -254,10 +237,7 @@ class SearchDocumentsFragment : Fragment() {
     }
 
     private fun dismissKeyboard() {
-        binding.searchDocumentsSearch.clearFocus()
-        requireContext()
-            .getSystemService<InputMethodManager>()
-            ?.hideSoftInputFromWindow(binding.searchDocumentsSearch.windowToken, 0)
+        searchView.clearFocusAndHideKeyboard()
     }
 
     private fun navigateBack() {
@@ -267,14 +247,14 @@ class SearchDocumentsFragment : Fragment() {
     }
 
     private fun showFiles() {
-        val returnToWorkspace = arguments?.getBoolean(ARG_RETURN_TO_WORKSPACE) ?: false
-        val restoreFocusedDetail = arguments?.getBoolean(ARG_RESTORE_FOCUSED_DETAIL) ?: false
-        activityModel.updateMainScreenUI(
-            if (returnToWorkspace) {
-                UpdateMainScreenUI.ShowDetailFromSearch(restoreFocusedDetail)
-            } else {
-                UpdateMainScreenUI.ShowFiles
-            },
-        )
+        mainScreenModel.navigate(MainNavigationAction.CloseSearch)
+    }
+
+    override fun onDestroyView() {
+        searchTextWatcher?.let(searchView.editText::removeTextChangedListener)
+        searchTextWatcher = null
+        searchView.editText.setOnEditorActionListener(null)
+        binding.searchDocumentsResults.adapter = null
+        super.onDestroyView()
     }
 }

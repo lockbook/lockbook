@@ -36,9 +36,11 @@ import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
 import app.lockbook.model.FileTreeViewModel
 import app.lockbook.model.FinishedAction
-import app.lockbook.model.StateViewModel
+import app.lockbook.model.MainNavigationAction
+import app.lockbook.model.MainScreenViewModel
+import app.lockbook.model.OpenFilePresentation
+import app.lockbook.model.OpenFileRequest
 import app.lockbook.model.TransientScreen
-import app.lockbook.model.UpdateMainScreenUI
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
@@ -56,19 +58,19 @@ import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
 import kotlin.math.abs
+import kotlin.math.roundToInt
 
-private const val EXPANDED_BOTTOM_SHEET_HEIGHT = 600
+private const val EXPANDED_BOTTOM_SHEET_HEIGHT_DP = 600
 
 private data class PendingTabSwitchUiState(
     val isTabListExpanded: Boolean,
-    val isDetailFocused: Boolean,
 )
 
 class WorkspaceFragment : Fragment() {
     private var _binding: FragmentWorkspaceBinding? = null
     val binding get() = _binding!!
 
-    private val activityModel: StateViewModel by activityViewModels()
+    private val mainScreenModel: MainScreenViewModel by activityViewModels()
     private val model: WorkspaceViewModel by activityViewModels()
 
     private var bottomSheetContractedHeight = 0
@@ -106,18 +108,21 @@ class WorkspaceFragment : Fragment() {
         onCreateToolbar(workspaceWrapper)
         onCreateTabList(workspaceWrapper)
 
-        model.openFile.observe(viewLifecycleOwner) { (id, newFile) ->
+        model.openFile.observe(viewLifecycleOwner) { request ->
             val tabSwitchUiState = pendingTabSwitchUiState
             pendingTabSwitchUiState = null
 
-            println("LB_DEBUG workspace openFile id=$id newFile=$newFile -> ShowDetail")
             model.isFileTreeSyncedToCurrentTab = true
-            workspaceWrapper.workspaceView.openDoc(id, newFile)
+            workspaceWrapper.workspaceView.openDoc(request.id, request.newFile)
 
-            if (tabSwitchUiState?.isDetailFocused == true) {
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.FocusDetail)
-            } else {
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowDetail)
+            when (request.presentation) {
+                OpenFilePresentation.Preserve -> {
+                    // The initiating navigation or tab-switch flow already owns the pane layout.
+                }
+
+                OpenFilePresentation.ShowDetail -> {
+                    mainScreenModel.navigate(MainNavigationAction.ShowDetail)
+                }
             }
 
             tabSwitchUiState?.let { state ->
@@ -131,10 +136,6 @@ class WorkspaceFragment : Fragment() {
         // can pick drag-reorder (keyboard down) vs text selection (up).
         model.keyboardVisible.observe(viewLifecycleOwner) { visible ->
             workspaceWrapper.workspaceView.setKeyboardShown(visible)
-        }
-
-        model.createDocAt.observe(viewLifecycleOwner) { it ->
-            workspaceWrapper.workspaceView.createDocAt(it)
         }
 
         model.closeFile.observe(viewLifecycleOwner) { id ->
@@ -160,10 +161,8 @@ class WorkspaceFragment : Fragment() {
 
         model.workspaceBackRequested.observe(viewLifecycleOwner) {
             val navigatedBack = workspaceWrapper.workspaceView.back()
-            println("LB_DEBUG workspaceBackRequested navigatedBack=$navigatedBack")
             if (!navigatedBack) {
-                println("LB_DEBUG workspaceBackRequested -> ShowSplitOrSidebar")
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSplitOrSidebar)
+                mainScreenModel.navigate(MainNavigationAction.ShowSplitOrSidebar)
             }
         }
 
@@ -184,7 +183,6 @@ class WorkspaceFragment : Fragment() {
                 is FinishedAction.Rename -> {
                     workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
                     binding.workspaceToolbar.setTitle(action.name)
-                    // todo: why the surgical update, can i just rebuild state
                     val tabIndex = model.tabs.indexOfFirst { it.id == action.id }
                     if (tabIndex != -1) {
                         val updatedTab = model.tabs.get(tabIndex)
@@ -211,13 +209,13 @@ class WorkspaceFragment : Fragment() {
                         .hideSoftInputFromWindow(workspaceWrapper.windowToken, 0)
 
                     getCurrentFile()?.let {
-                        activityModel.launchTransientScreen(TransientScreen.ShareFile(it))
+                        mainScreenModel.launchTransientScreen(TransientScreen.Share(it))
                     }
                 }
 
                 R.id.menu_text_editor_share_externally -> {
                     getCurrentFile()?.let {
-                        activityModel.shareSelectedFiles(listOf(it), requireContext().cacheDir)
+                        mainScreenModel.shareSelectedFiles(listOf(it), requireContext().cacheDir)
                     }
                 }
             }
@@ -228,17 +226,16 @@ class WorkspaceFragment : Fragment() {
         binding.workspaceToolbar.setNavigationOnClickListener {
             (context?.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                 .hideSoftInputFromWindow(view?.windowToken, 0)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSplitOrSidebar)
+            mainScreenModel.navigate(MainNavigationAction.ShowSplitOrSidebar)
         }
         updateRestoreSplitButtonVisibility((activity as? MainScreenActivity)?.isFocusingDetail() == true)
 
         binding.workspaceToolbar.setOnClickListener {
             getCurrentFile()?.let {
-                activityModel.launchTransientScreen(TransientScreen.Rename(it))
+                mainScreenModel.launchTransientScreen(TransientScreen.Rename(it))
             }
         }
 
-        // is this needed
         getCurrentFile()?.let {
             binding.workspaceToolbar.setTitle(it.name)
         }
@@ -264,7 +261,7 @@ class WorkspaceFragment : Fragment() {
         }
 
         if (isDetailFocused) {
-            binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_fullscreen_exit_24)
+            binding.workspaceToolbar.setNavigationIcon(R.drawable.ic_baseline_view_sidebar_24)
             binding.workspaceToolbar.setNavigationContentDescription(R.string.show_list_and_details)
         } else {
             binding.workspaceToolbar.navigationIcon = null
@@ -293,7 +290,9 @@ class WorkspaceFragment : Fragment() {
 
         val newHeight =
             if (shouldExpand) {
-                EXPANDED_BOTTOM_SHEET_HEIGHT
+                val preferredHeight =
+                    (EXPANDED_BOTTOM_SHEET_HEIGHT_DP * resources.displayMetrics.density).roundToInt()
+                preferredHeight.coerceAtMost(binding.root.height)
             } else {
                 ViewGroup.LayoutParams.WRAP_CONTENT
             }
@@ -425,7 +424,6 @@ class WorkspaceFragment : Fragment() {
         }
 
         if (isMissingTab(tabTitle, newTab)) {
-            // todo: differentiate between startup nulls and legitimate nulls
             return
         }
 
@@ -560,27 +558,27 @@ class WorkspaceFragment : Fragment() {
         }
 
         binding.searchWs.setOnClickListener {
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch(returnToWorkspace = true))
+            mainScreenModel.navigate(MainNavigationAction.OpenSearch(fromWorkspace = true))
         }
 
         binding.searchWsCompact.setOnClickListener {
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch(returnToWorkspace = true))
+            mainScreenModel.navigate(MainNavigationAction.OpenSearch(fromWorkspace = true))
         }
         updateWorkspaceSearchButtonVisibility((activity as? MainScreenActivity)?.isShowingSplit() != true)
 
         binding.createWs.setOnClickListener {
-            activityModel.launchTransientScreen(TransientScreen.Create(getCreateParentId()))
+            mainScreenModel.launchTransientScreen(TransientScreen.Create(getCreateParentId()))
         }
 
         binding.createWsCompact.setOnClickListener {
-            activityModel.launchTransientScreen(TransientScreen.Create(getCreateParentId()))
+            mainScreenModel.launchTransientScreen(TransientScreen.Create(getCreateParentId()))
         }
 
         binding.closeAllTabs.setOnClickListener {
             workspaceWrapper.workspaceView.closeAllTabs()
             workspaceWrapper.workspaceView.invalidate()
             model._tabListExpanded.postValue(false)
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSidebar)
+            mainScreenModel.navigate(MainNavigationAction.ShowSidebar)
         }
     }
 
@@ -676,9 +674,14 @@ class WorkspaceFragment : Fragment() {
         pendingTabSwitchUiState =
             PendingTabSwitchUiState(
                 isTabListExpanded = model.tabListExpanded.value ?: false,
-                isDetailFocused = (activity as? MainScreenActivity)?.isFocusingDetail() == true,
             )
-        model._openFile.value = id to false
+        model.openFile(
+            OpenFileRequest(
+                id = id,
+                newFile = false,
+                presentation = OpenFilePresentation.Preserve,
+            ),
+        )
     }
 }
 
@@ -695,7 +698,6 @@ class WorkspaceWrapperView(
     companion object {
         const val TAB_BAR_HEIGHT = 50
         const val TEXT_TOOL_BAR_HEIGHT = 45
-//        val SVG_TOOL_BAR_HEIGHT = 50
     }
 
     val regLayoutParams =

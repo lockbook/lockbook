@@ -57,6 +57,23 @@ class FileModel(
         refreshChildren()
     }
 
+    fun ownedParentOf(fileId: String): File? {
+        val file = idsAndFiles[fileId] ?: return null
+        val directParent = idsAndFiles[file.parent] ?: return null
+        var ancestor = directParent
+        val visited = mutableSetOf<String>()
+
+        while (visited.add(ancestor.id)) {
+            if (ancestor.id == root.id) {
+                return directParent
+            }
+
+            ancestor = idsAndFiles[ancestor.parent] ?: return null
+        }
+
+        return null
+    }
+
     private fun refreshChildren() {
         children = sortFiles(idsAndFiles.values.filter { it.parent == parent.id && it.id != it.parent })
     }

@@ -7,11 +7,10 @@ import android.app.Dialog
 import android.os.Bundle
 import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import app.lockbook.model.FinishedAction
-import app.lockbook.model.StateViewModel
-import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceViewModel
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
@@ -20,9 +19,6 @@ import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class DeleteFilesDialogFragment : AppCompatDialogFragment() {
-    private val activityModel: StateViewModel by activityViewModels()
-    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
-
     private val workspaceModel: WorkspaceViewModel by activityViewModels()
 
     private val alertModel by lazy {
@@ -30,11 +26,17 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
     }
 
     val files by lazy {
-        (activityModel.transientScreen as TransientScreen.Delete).files
+        requireArguments().getStringArrayList(FILE_IDS_KEY).orEmpty().map(Lb::getFileById)
     }
 
     companion object {
         const val DELETE_FILES_DIALOG_FRAGMENT = "DeleteFilesDialogFragment"
+        private const val FILE_IDS_KEY = "file_ids"
+
+        fun newInstance(fileIds: List<String>): DeleteFilesDialogFragment =
+            DeleteFilesDialogFragment().apply {
+                arguments = Bundle().apply { putStringArrayList(FILE_IDS_KEY, ArrayList(fileIds)) }
+            }
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
@@ -58,7 +60,7 @@ class DeleteFilesDialogFragment : AppCompatDialogFragment() {
             }
 
     private fun onButtonPositive() {
-        uiScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(Dispatchers.IO) {
             for (file in files) {
                 try {
                     Lb.deleteFile(file.id)

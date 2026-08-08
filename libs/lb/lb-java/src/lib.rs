@@ -15,6 +15,7 @@ use lb_rs::model::api::{
 pub use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::file::{File, ShareMode};
 use lb_rs::model::file_metadata::FileType;
+use lb_rs::model::filename::NameComponents;
 use lb_rs::search::{
     ContentMatch as NativeContentMatch, ContentSearcher, PathSearcher,
     SearchResult as NativeSearcherResult,
@@ -339,6 +340,25 @@ pub extern "system" fn Java_net_lockbook_Lb_getFileById<'local>(
 }
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_nextName<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jparent_id: JString<'local>,
+    jdesired: JString<'local>,
+) -> jstring {
+    let lb = rlb(&mut env, &class);
+    let parent_id = Uuid::from_str(&rstring(&mut env, jparent_id)).unwrap();
+    let desired = rstring(&mut env, jdesired);
+
+    match lb.get_children(&parent_id) {
+        Ok(children) => {
+            let mut name = NameComponents::from_literal(&desired);
+            name.next_in_children(children);
+            jni_string(&mut env, name.to_name()).into_raw()
+        }
+        Err(err) => throw_err(&mut env, err).into_raw(),
+    }
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_net_lockbook_Lb_renameFile<'local>(
     mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>, jname: JString<'local>,
 ) {
@@ -350,6 +370,20 @@ pub extern "system" fn Java_net_lockbook_Lb_renameFile<'local>(
     if let Err(err) = lb.rename_file(&id, &name) {
         throw_err(&mut env, err);
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_net_lockbook_Lb_duplicateFile<'local>(
+    mut env: JNIEnv<'local>, class: JClass<'local>, jid: JString<'local>,
+) -> jobject {
+    let lb = rlb(&mut env, &class);
+    let id = Uuid::from_str(&rstring(&mut env, jid)).unwrap();
+
+    match lb.duplicate_file(&id) {
+        Ok(file) => jfile(&mut env, file),
+        Err(err) => throw_err(&mut env, err),
+    }
+    .into_raw()
 }
 
 #[unsafe(no_mangle)]
