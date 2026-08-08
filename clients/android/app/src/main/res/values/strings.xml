@@ -53,12 +53,12 @@
     <string name="menu_list_files_delete">Delete</string>
     <string name="menu_list_files_info">File info</string>
     <string name="menu_list_files_move">Move</string>
-    <string name="duplicate">Duplicate</string>
     <string name="menu_list_files_share">Share</string>
     <string name="workspace_share_externally">Share externally</string>
     <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
+    <string name="done">Done</string>
     <string name="move_file_title">Move File</string>
 
     <string name="cancel">Cancel</string>
@@ -74,13 +74,24 @@
 
     <string name="rename_file_rename">Rename</string>
     <string name="create">Create</string>
+    <string name="duplicate">Duplicate</string>
+    <string name="duplicated">Duplicated</string>
+    <string name="note">Note</string>
+    <string name="other">Other</string>
+    <string name="home">Home</string>
+    <string name="location">Location</string>
+    <string name="choose_location">Choose…</string>
+    <string name="search_folders">Search folders</string>
+    <string name="alongside_file">Alongside %s</string>
+    <string name="select_folder">Select “%s”</string>
+    <string name="expand_or_collapse_folder">Expand or collapse folder</string>
     <string name="dialog_file_extension">Ext.</string>
     <string name="empty_folder">No files</string>
     <string name="bread_crumb_folder">Folder</string>
 
     <string name="document">Document</string>
     <string name="folder">Folder</string>
-    <string name="drawing">SVG</string>
+    <string name="drawing">Drawing</string>
     <string name="file">File</string>
 
     <string name="create_file_title_folder">New Folder</string>
@@ -236,8 +247,18 @@
     <string name="document_action">Document action</string>
 
     <string name="search">Search</string>
-    <string name="back">Back</string>
-    <string name="open_ws">Open workspace panel</string>
+    <string name="search_in_lockbook">Search in Lockbook</string>
+    <string name="recents_navbar_item">Recents</string>
+    <string name="no_recent_documents">No recent documents</string>
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
+    <string name="previous_seven_days">Previous 7 Days</string>
+    <string name="older">Older</string>
+    <string name="expand_recent_group">Expand %1$s</string>
+    <string name="collapse_recent_group">Collapse %1$s</string>
+    <string name="shared_by">By %1$s</string>
+    <string name="focus_detail_view">Focus detail view</string>
+    <string name="show_list_and_details">Show list and details</string>
     <string name="no_search_results">No search results</string>
     <string name="exit_app">Exit App</string>
 
@@ -251,19 +272,19 @@
     <string name="pending_shares_empty_message">When others share files with you, they\'ll appear here.</string>
 
     <string name="export">Export</string>
-    <string name="write_access">Write access:</string>
-    <string name="read_access">Read access:</string>
+    <string name="write_access">Write access</string>
+    <string name="read_access">Read access</string>
     <string name="username">Username</string>
-    <string name="add">Add</string>
 
     <string name="share_mode_read">Read</string>
     <string name="share_mode_write">Write</string>
-    <string name="access_mode">Access Mode</string>
+    <string name="access_mode">Access mode</string>
+    <string name="people_with_access">People with access</string>
+    <string name="shared_with">Shared with %1$s</string>
     <string name="link_destination">Link destination</string>
     <string name="created_link">Created link!</string>
 
     <string name="no_username">Please enter a username.</string>
-    <string name="no_access_mode">Please choose an access mode.</string>
     <string name="open_pending_share_menu">Open pending share menu</string>
     <string name="accept_pending_share">Accept pending share</string>
     <string name="reject_pending_share">Reject pending share</string>
@@ -273,9 +294,10 @@
     <string name="shared_navbar_item">Shared</string>
 
     <string name="expand_tabs_list">View more info about your tabs</string>
+    <string name="collapse_tabs_list">Show fewer tabs controls</string>
     <string name="workspace_forward">Go forward in workspace</string>
     <string name="close_tab">Close a tab</string>
-    <string name="close_all_tabs">Close all tabs</string>
+    <string name="close_all_tabs">Clear tabs</string>
     <string name="server_onboarding_text">Server:</string>
     <string name="default_api_url">https://app.lockbook.net</string>
     <string name="server_url">Server URL</string>

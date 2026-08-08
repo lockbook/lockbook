@@ -13,29 +13,28 @@ import android.view.*
 import android.widget.EditText
 import androidx.annotation.StringRes
 import androidx.core.content.ContextCompat
+import androidx.core.view.doOnLayout
+import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
+import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
+import androidx.lifecycle.repeatOnLifecycle
 import androidx.preference.PreferenceManager
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.databinding.FragmentFilesListBinding
 import app.lockbook.model.*
-import app.lockbook.model.MoveFileViewModel.Companion.PARENT_ID
 import app.lockbook.ui.BreadCrumbItem
 import app.lockbook.util.*
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.snackbar.Snackbar
-import com.google.android.material.textview.MaterialTextView
-import com.leinardi.android.speeddial.SpeedDialActionItem
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
 import net.lockbook.Lb
@@ -57,13 +56,12 @@ class FilesListFragment :
     FilesFragment {
     private var _binding: FragmentFilesListBinding? = null
     val binding get() = _binding!!
-    private val menu get() = binding.filesToolbar
-    private var actionModeMenu: ActionMode? = null
+    private var fileActionDispatcher: FileSelectionActionDispatcher? = null
+    private var originalListPaddingBottom = 0
     private var folderTransition: Animator? = null
     private var folderTransitionId = 0
 
     private var currentTab: WorkspaceTab = WorkspaceTab.welcome
-    private val selectedFileIds: MutableSet<String> = mutableSetOf()
     private val fileTreeAdapter by lazy {
         FileTreeAdapter(
             onItemClick = ::onFileItemClicked,
@@ -77,108 +75,9 @@ class FilesListFragment :
         )
     }
 
-    private val actionModeMenuCallback: ActionMode.Callback by lazy {
-        object : ActionMode.Callback {
-            override fun onCreateActionMode(
-                mode: ActionMode?,
-                menu: Menu?,
-            ): Boolean {
-                mode?.menuInflater?.inflate(R.menu.menu_files_list_selected, menu)
-                return true
-            }
-
-            override fun onPrepareActionMode(
-                mode: ActionMode?,
-                menu: Menu?,
-            ): Boolean = false
-
-            override fun onActionItemClicked(
-                mode: ActionMode?,
-                item: MenuItem?,
-            ): Boolean {
-                val selectedFiles = getSelectedFiles()
-
-                when (item?.itemId) {
-                    R.id.menu_list_files_pin -> {
-                        val newlyPinned = model.pinFiles(selectedFiles.intoFileMetadata())
-                        if (newlyPinned.size == 1) {
-                            selectedFiles
-                                .firstOrNull { it.fileMetadata.id == newlyPinned.single().id }
-                                ?.let { showPinnedSnackbar(it.fileMetadata) }
-                        } else if (newlyPinned.isNotEmpty()) {
-                            Snackbar.make(binding.root, R.string.pinned, Snackbar.LENGTH_SHORT).show()
-                        } else {
-                            Snackbar.make(binding.root, R.string.already_pinned, Snackbar.LENGTH_SHORT).show()
-                        }
-                        unselectFiles()
-                    }
-
-                    R.id.menu_list_files_rename -> {
-                        if (selectedFiles.size == 1) {
-                            activityModel.launchTransientScreen(TransientScreen.Rename(selectedFiles[0].fileMetadata))
-                        }
-                    }
-
-                    R.id.menu_list_files_delete -> {
-                        activityModel.launchTransientScreen(TransientScreen.Delete(selectedFiles.intoFileMetadata()))
-                    }
-
-                    R.id.menu_list_files_info -> {
-                        if (selectedFileIds.size == 1) {
-                            activityModel.launchTransientScreen(TransientScreen.Info(selectedFiles[0].fileMetadata))
-                        }
-                    }
-
-                    R.id.menu_list_files_move -> {
-                        activityModel.launchTransientScreen(
-                            TransientScreen.Move(selectedFiles.intoFileMetadata()),
-                        )
-                    }
-
-                    R.id.menu_list_files_duplicate -> {
-                        lifecycleScope.launch(Dispatchers.IO) {
-                            try {
-                                selectedFiles.forEach { file -> Lb.duplicateFile(file.fileMetadata.id) }
-                                withContext(Dispatchers.Main) {
-                                    model.reloadFiles()
-                                }
-                            } catch (err: LbError) {
-                                alertModel.notifyError(err)
-                            }
-                        }
-                        unselectFiles()
-                    }
-
-                    R.id.menu_list_files_export -> {
-                        (activity as MainScreenActivity).apply {
-                            model.shareSelectedFiles(selectedFiles.intoFileMetadata(), cacheDir)
-                        }
-                    }
-
-                    R.id.menu_list_files_share -> {
-                        if (selectedFileIds.size == 1) {
-                            activityModel.launchTransientScreen(TransientScreen.ShareFile(selectedFiles[0].fileMetadata))
-                            unselectFiles()
-                        }
-                    }
-
-                    else -> {
-                        return false
-                    }
-                }
-
-                return true
-            }
-
-            override fun onDestroyActionMode(mode: ActionMode?) {
-                clearSelection()
-                actionModeMenu = null
-            }
-        }
-    }
-
-    private val activityModel: StateViewModel by activityViewModels()
+    private val mainScreenModel: MainScreenViewModel by activityViewModels()
     private val workspaceModel: WorkspaceViewModel by activityViewModels()
+    private val selectionModel: FileSelectionViewModel by activityViewModels()
 
     private val model: FileTreeViewModel by activityViewModels()
 
@@ -194,6 +93,7 @@ class FilesListFragment :
         savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentFilesListBinding.inflate(inflater, container, false)
+        originalListPaddingBottom = binding.filesList.paddingBottom
         model.notifyUpdateFilesUI.observe(
             viewLifecycleOwner,
         ) { uiUpdates ->
@@ -234,64 +134,6 @@ class FilesListFragment :
             }
         }
 
-        val fabBackgroundColor =
-            requireContext().getMaterialColorOrFallback(
-                com.google.android.material.R.attr.colorPrimaryFixed,
-                R.color.md_theme_primary,
-            )
-        val fabIconColor =
-            requireContext().getMaterialColorOrFallback(
-                com.google.android.material.R.attr.colorOnPrimary,
-                R.color.md_theme_onPrimary,
-            )
-
-        binding.fabSpeedDial.addAllActionItems(
-            listOf(
-                SpeedDialActionItem
-                    .Builder(R.id.fab_create_folder, R.drawable.ic_baseline_folder_24)
-                    .setLabel(R.string.folder)
-                    .setFabBackgroundColor(fabBackgroundColor)
-                    .setFabImageTintColor(fabIconColor)
-                    .create(),
-                SpeedDialActionItem
-                    .Builder(R.id.fab_create_document, R.drawable.ic_outline_insert_drive_file_24)
-                    .setLabel(R.string.document)
-                    .setFabBackgroundColor(fabBackgroundColor)
-                    .setFabImageTintColor(fabIconColor)
-                    .create(),
-                SpeedDialActionItem
-                    .Builder(R.id.fab_create_drawing, R.drawable.ic_outline_draw_24)
-                    .setLabel(R.string.drawing)
-                    .setFabBackgroundColor(fabBackgroundColor)
-                    .setFabImageTintColor(fabIconColor)
-                    .create(),
-            ),
-        )
-        binding.fabSpeedDial.setOnActionSelectedListener {
-            when (it.id) {
-                R.id.fab_create_drawing -> {
-                    createDocAtParent(true)
-                }
-
-                R.id.fab_create_document -> {
-                    createDocAtParent(false)
-                }
-
-                R.id.fab_create_folder -> {
-                    activityModel.launchTransientScreen(
-                        TransientScreen.Create(model.fileModel.parent.id),
-                    )
-                }
-
-                else -> {
-                    return@setOnActionSelectedListener false
-                }
-            }
-
-            binding.fabSpeedDial.close()
-            true
-        }
-
         binding.listFilesRefresh.setOnRefreshListener {
             model._notifyUpdateFilesUI.postValue(UpdateFilesUI.RequestSync)
         }
@@ -304,48 +146,12 @@ class FilesListFragment :
 
         workspaceModel.currentTab.observe(viewLifecycleOwner) {
             if (workspaceModel.isFileTreeSyncedToCurrentTab && currentTab != it) {
-                model.fileModel.idsAndFiles[it.id]?.let { child ->
-                    model.fileModel.idsAndFiles[child.parent]?.let { parent ->
-                        enterFolder(parent, animate = false)
-                    }
+                model.fileModel.ownedParentOf(it.id)?.let { parent ->
+                    enterFolder(parent, animate = false)
                 }
             }
 
             currentTab = it
-            updateOpenWorkspacePaneButtonVisibility()
-        }
-
-        val header = binding.navigationView.getHeaderView(0)
-
-        model.syncStatus.observe(viewLifecycleOwner) {
-            header.findViewById<MaterialTextView>(R.id.filesListLastSynced).text =
-                getString(R.string.last_sync, it)
-        }
-
-        val localDirty = header.findViewById<MaterialTextView>(R.id.filesListLocalDirty)
-        val serverDirty = header.findViewById<MaterialTextView>(R.id.filesListServerDirty)
-        var localDirtyCount = 0
-        var serverDirtyCount = 0
-
-        fun updateDirtyFileStatuses() {
-            localDirty.visibility = if (localDirtyCount == 0) View.GONE else View.VISIBLE
-            serverDirty.visibility = if (serverDirtyCount == 0) View.GONE else View.VISIBLE
-        }
-
-        updateDirtyFileStatuses()
-
-        model.dirtyLocally.observe(viewLifecycleOwner) {
-            localDirtyCount = it.size
-            localDirty.text =
-                resources.getQuantityString(R.plurals.files_to_push, localDirtyCount, localDirtyCount)
-            updateDirtyFileStatuses()
-        }
-
-        model.pushingFiles.observe(viewLifecycleOwner) {
-            serverDirtyCount = it.size
-            serverDirty.text =
-                resources.getQuantityString(R.plurals.files_to_pull, serverDirtyCount, serverDirtyCount)
-            updateDirtyFileStatuses()
         }
 
         return binding.root
@@ -357,89 +163,39 @@ class FilesListFragment :
     ) {
         super.onViewCreated(view, savedInstanceState)
 
-        setUpToolbar()
-
+        setUpFileActions()
+        viewLifecycleOwner.lifecycleScope.launch {
+            viewLifecycleOwner.repeatOnLifecycle(Lifecycle.State.STARTED) {
+                selectionModel.uiState.collect(::renderSelection)
+            }
+        }
         (requireActivity().application as App).billingClientLifecycle.showInAppMessaging(requireActivity())
     }
 
-    private fun createDocAtParent(isDrawing: Boolean) {
-        workspaceModel._createDocAt.value = isDrawing to model.fileModel.parent.id
-    }
-
-    private fun setUpToolbar() {
-        binding.filesToolbar.setNavigationOnClickListener {
-            binding.drawerLayout.open()
-        }
-
-        binding.root.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
-            updateOpenWorkspacePaneButtonVisibility()
-        }
-
-        binding.navigationView.getHeaderView(0).let { header ->
-
-            header.findViewById<MaterialButton>(R.id.set_theme).setOnClickListener {
-                var selected = ThemeMode.getSavedThemeIndex(requireContext())
-
-                MaterialAlertDialogBuilder(requireContext())
-                    .setTitle("Choose your theme")
-                    .setSingleChoiceItems(ThemeMode.getThemeModes(requireContext()), selected) { _, new ->
-                        selected = new
-                    }.setPositiveButton("Apply") { _, _ ->
-                        ThemeMode.saveAndSetThemeIndex(requireContext(), selected)
-                    }.setNegativeButton("Cancel") { dialog, _ ->
-                        dialog.dismiss()
-                    }.show()
-            }
-
-            header.findViewById<MaterialButton>(R.id.launch_settings).setOnClickListener {
-                activityModel.launchActivityScreen(ActivityScreen.Settings())
-                binding.drawerLayout.close()
-            }
-        }
-
-        binding.filesToolbar.setOnMenuItemClickListener { item ->
-            when (item.itemId) {
-                R.id.menu_files_list_search -> {
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowSearch)
-                }
-
-                R.id.menu_files_list_open_ws -> {
-                    activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenWorkspacePane)
-                }
-            }
-
-            toggleMenuBar()
-
-            true
-        }
-
-        toggleMenuBar()
-        updateOpenWorkspacePaneButtonVisibility()
-    }
-
-    private fun updateOpenWorkspacePaneButtonVisibility() {
-        val isWorkspacePaneSlideable =
-            (activity as? MainScreenActivity)
-                ?.binding
-                ?.slidingPaneLayout
-                ?.isSlideable == true
-        val isWelcomeOpen = currentTab.type == WorkspaceTabType.Welcome
-
-        menu.menu.findItem(R.id.menu_files_list_open_ws)?.isVisible =
-            isWorkspacePaneSlideable && !isWelcomeOpen
+    private fun setUpFileActions() {
+        fileActionDispatcher =
+            FileSelectionActionDispatcher(
+                fragment = this,
+                mainScreenModel = mainScreenModel,
+                fileTreeModel = model,
+                snackbarAnchor = (requireActivity() as MainScreenActivity).fileActionSnackbarAnchorView,
+                onClearSelection = ::unselectFiles,
+                onAddPinnedEmoji = { file -> showEmojiDialog(file.id, file.name, null) },
+            )
     }
 
     private fun observeFilesList() {
         model.files.observe(viewLifecycleOwner) { files ->
             val currentFiles = files.orEmpty()
-            val selectionChanged = pruneSelectionToVisibleFiles(currentFiles)
+            selectionModel.reconcile(
+                FileSelectionSource.Files,
+                currentFiles.map { item -> item.fileMetadata },
+            )
             fileTreeAdapter.submitList(currentFiles.toList()) {
-                fileTreeAdapter.setSelectedFileIds(selectedFileIds)
+                fileTreeAdapter.setSelectedFileIds(
+                    selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Files),
+                )
                 binding.filesEmptyFolder.visibility = if (currentFiles.isEmpty()) View.VISIBLE else View.GONE
-
-                if (selectionChanged) {
-                    toggleMenuBar()
-                }
             }
         }
     }
@@ -465,14 +221,6 @@ class FilesListFragment :
         }
     }
 
-    private fun showPinnedSnackbar(file: File) {
-        Snackbar
-            .make(binding.root, R.string.pinned, Snackbar.LENGTH_SHORT)
-            .setAction(R.string.add_emoji) {
-                showEmojiDialog(file.id, file.getPrettyName(), null)
-            }.show()
-    }
-
     private fun showPinnedFileActions(item: PinnedFileItem) {
         val actions =
             buildList {
@@ -485,11 +233,11 @@ class FilesListFragment :
             }
 
         MaterialAlertDialogBuilder(requireContext())
-            .setTitle(item.file.getPrettyName())
+            .setTitle(item.file.name)
             .setItems(actions.map { getString(it.titleRes) }.toTypedArray()) { _, which ->
                 when (actions[which]) {
                     PinnedFileAction.ChangeEmoji -> {
-                        showEmojiDialog(item.pin.id, item.file.getPrettyName(), item.pin.emoji)
+                        showEmojiDialog(item.pin.id, item.file.name, item.pin.emoji)
                     }
 
                     PinnedFileAction.RemoveEmoji -> {
@@ -539,54 +287,40 @@ class FilesListFragment :
     }
 
     private fun onFileItemClicked(item: FileViewHolderInfo) {
-        val fileId = item.fileMetadata.id
-        if (selectedFileIds.contains(fileId) || selectedFileIds.isNotEmpty()) {
-            toggleFileSelection(fileId)
-            toggleMenuBar()
+        if (selectionModel.uiState.value.isActive) {
+            selectionModel.toggle(FileSelectionSource.Files, item.fileMetadata)
         } else {
             enterFile(item.fileMetadata)
         }
     }
 
     private fun onFileItemLongClicked(item: FileViewHolderInfo) {
-        toggleFileSelection(item.fileMetadata.id)
-        toggleMenuBar()
+        selectionModel.toggle(FileSelectionSource.Files, item.fileMetadata)
     }
 
-    private fun toggleFileSelection(fileId: String) {
-        if (selectedFileIds.contains(fileId)) {
-            selectedFileIds.remove(fileId)
+    private fun renderSelection(state: FileSelectionUiState) {
+        val selectedIds = state.selectedIdsFor(FileSelectionSource.Files)
+        fileTreeAdapter.setSelectedFileIds(selectedIds)
+        if (selectedIds.isEmpty()) {
+            binding.filesList.updatePadding(bottom = originalListPaddingBottom)
         } else {
-            selectedFileIds.add(fileId)
+            (requireActivity() as MainScreenActivity).fileSelectionBottomBarView.doOnLayout { sheet ->
+                binding.filesList.updatePadding(bottom = originalListPaddingBottom + sheet.height)
+            }
         }
-        fileTreeAdapter.setSelectedFileIds(selectedFileIds)
     }
 
-    private fun clearSelection() {
-        if (selectedFileIds.isEmpty()) {
-            return
-        }
-        selectedFileIds.clear()
-        fileTreeAdapter.setSelectedFileIds(selectedFileIds)
-    }
-
-    private fun getSelectedFiles(): List<FileViewHolderInfo> {
-        val selectedIdsSnapshot = selectedFileIds.toSet()
-        return model.files.value
-            .orEmpty()
-            .filter { selectedIdsSnapshot.contains(it.fileMetadata.id) }
-    }
-
-    private fun pruneSelectionToVisibleFiles(files: List<FileViewHolderInfo>): Boolean {
-        val visibleIds = files.mapTo(mutableSetOf()) { it.fileMetadata.id }
-        return selectedFileIds.retainAll(visibleIds)
+    internal fun dispatchSelectionAction(
+        action: FileSelectionAction,
+        files: List<File>,
+    ) {
+        fileActionDispatcher?.dispatch(action, files)
     }
 
     private fun enterFile(item: File) {
         when (item.type) {
             FileType.Document -> {
-                // TODO: consider that not all updates to the screen may go through because of postVal
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
+                mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = true))
             }
 
             FileType.Folder -> {
@@ -723,10 +457,6 @@ class FilesListFragment :
                 model._breadcrumbItems.value = getBreadcrumbItems()
             }
 
-            UpdateFilesUI.ToggleMenuBar -> {
-                toggleMenuBar()
-            }
-
             UpdateFilesUI.RequestSync -> {
                 lifecycleScope.launch(Dispatchers.IO) {
                     try {
@@ -812,48 +542,11 @@ class FilesListFragment :
             .map { BreadCrumbItem(it) }
             .toMutableList()
 
-    private fun toggleMenuBar() {
-        val canDuplicateSelectedFiles = getSelectedFiles().all { it.fileMetadata.type != FileType.Folder }
-
-        when (val selectionCount = selectedFileIds.size) {
-            0 -> {
-                actionModeMenu?.finish()
-            }
-
-            1 -> {
-                if (actionModeMenu == null) {
-                    actionModeMenu = menu.startActionMode(actionModeMenuCallback)
-                }
-
-                actionModeMenu?.title = getString(R.string.files_list_items_selected, selectionCount)
-                actionModeMenu?.menu?.findItem(R.id.menu_list_files_info)?.isVisible = true
-                actionModeMenu?.menu?.findItem(R.id.menu_list_files_rename)?.isVisible = true
-                actionModeMenu?.menu?.findItem(R.id.menu_list_files_share)?.isVisible = true
-                actionModeMenu?.menu?.findItem(R.id.menu_list_files_duplicate)?.isVisible = canDuplicateSelectedFiles
-            }
-
-            else -> {
-                if (actionModeMenu == null) {
-                    actionModeMenu = menu.startActionMode(actionModeMenuCallback)
-                }
-
-                actionModeMenu?.title = getString(R.string.files_list_items_selected, selectionCount)
-                actionModeMenu?.menu?.findItem(R.id.menu_list_files_info)?.isVisible = false
-                actionModeMenu?.menu?.findItem(R.id.menu_list_files_rename)?.isVisible = false
-                actionModeMenu?.menu?.findItem(R.id.menu_list_files_share)?.isVisible = false
-                actionModeMenu?.menu?.findItem(R.id.menu_list_files_duplicate)?.isVisible = canDuplicateSelectedFiles
-            }
-        }
-    }
-
     override fun onBackPressed(): Boolean =
         when {
-            binding.fabSpeedDial.isOpen -> {
-                binding.fabSpeedDial.close()
-                false
-            }
-
-            selectedFileIds.isNotEmpty() -> {
+            selectionModel.uiState.value
+                .selectedIdsFor(FileSelectionSource.Files)
+                .isNotEmpty() -> {
                 unselectFiles()
                 false
             }
@@ -873,8 +566,7 @@ class FilesListFragment :
     }
 
     override fun unselectFiles() {
-        clearSelection()
-        toggleMenuBar()
+        selectionModel.clear()
     }
 
     override fun onNewFileCreated(newDocument: File?) {
@@ -893,13 +585,19 @@ class FilesListFragment :
             }
         }
     }
+
+    override fun onDestroyView() {
+        fileActionDispatcher = null
+        binding.filesList.adapter = null
+        binding.pinnedFilesList.adapter = null
+        _binding = null
+        super.onDestroyView()
+    }
 }
 
 private const val FOLDER_TRANSITION_FADE_OUT_DURATION = 70L
 private const val FOLDER_TRANSITION_FADE_IN_DURATION = 160L
 private const val FOLDER_TRANSITION_TRANSLATION_DP = 24f
-private const val ENABLE_DEBUG_FILES_SET_TICK = false
-private const val DEBUG_FILES_SET_TICK_MS = 1_000L
 
 sealed class UpdateFilesUI {
     object UpdateBreadcrumbBar : UpdateFilesUI()
@@ -907,8 +605,6 @@ sealed class UpdateFilesUI {
     data class NotifyError(
         val error: LbError,
     ) : UpdateFilesUI()
-
-    object ToggleMenuBar : UpdateFilesUI()
 
     object RequestSync : UpdateFilesUI()
 
@@ -923,11 +619,3 @@ sealed class UpdateFilesUI {
         val msg: String,
     ) : UpdateFilesUI()
 }
-
-fun File.getPrettyName(): String =
-    if (this.type == FileType.Document && this.id != PARENT_ID) {
-        // todo: consider removing the extension
-        this.name
-    } else {
-        this.name
-    }

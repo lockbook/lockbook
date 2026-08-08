@@ -122,8 +122,12 @@ class WorkspaceTextEditable(
     }
 
     override fun getSpanEnd(tag: Any?): Int {
-        if (tag == Selection.SELECTION_START || tag == Selection.SELECTION_END) {
-            TODO("not needed")
+        if (tag == Selection.SELECTION_START) {
+            return selectionStart
+        }
+
+        if (tag == Selection.SELECTION_END) {
+            return selectionEnd
         }
 
         if (tag == composingTag || ((tag ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {

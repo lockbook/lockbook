@@ -33,7 +33,7 @@ class PinnedFilesAdapter(
         position: Int,
     ) {
         val item = getItem(position)
-        holder.title.text = item.file.getPrettyName()
+        holder.title.text = item.file.name
         holder.emoji.text = item.pin.emoji
         holder.emoji.visibility = if (item.pin.emoji == null) View.GONE else View.VISIBLE
         holder.itemView.setOnClickListener { onItemClick(item) }

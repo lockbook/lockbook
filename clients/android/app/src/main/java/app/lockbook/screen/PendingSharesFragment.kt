@@ -2,7 +2,6 @@
 
 package app.lockbook.screen
 
-import android.annotation.SuppressLint
 import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
@@ -12,7 +11,8 @@ import androidx.appcompat.widget.PopupMenu
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.lifecycle.MutableLiveData
-import androidx.navigation.fragment.findNavController
+import androidx.lifecycle.lifecycleScope
+import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.viewpager2.adapter.FragmentStateAdapter
 import app.lockbook.R
 import app.lockbook.databinding.FragmentPendingSharesBinding
@@ -21,10 +21,6 @@ import app.lockbook.model.*
 import app.lockbook.model.MoveFileViewModel.Companion.PARENT_ID
 import app.lockbook.ui.*
 import app.lockbook.util.*
-import com.afollestad.recyclical.datasource.emptyDataSource
-import com.afollestad.recyclical.setup
-import com.afollestad.recyclical.withItem
-import com.google.android.material.listitem.ListItemLayout
 import com.google.android.material.tabs.TabLayout
 import com.google.android.material.tabs.TabLayoutMediator
 import kotlinx.coroutines.*
@@ -43,8 +39,6 @@ import kotlin.getValue
 class PendingSharesFragment : Fragment() {
     lateinit var binding: FragmentPendingSharesBinding
 
-    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
-
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()), view)
     }
@@ -58,8 +52,6 @@ class PendingSharesFragment : Fragment() {
         savedInstanceState: Bundle?,
     ): View {
         binding = FragmentPendingSharesBinding.inflate(inflater, container, false)
-
-        populatePendingShares()
 
         val tabLayout = binding.tabLayout
         val viewPager = binding.viewPager
@@ -94,10 +86,12 @@ class PendingSharesFragment : Fragment() {
 
                 if (sharers.isEmpty()) {
                     binding.pendingSharesEmptyState.visibility = View.VISIBLE
-                    binding.tabsContainer.visibility = View.GONE
+                    binding.tabLayout.visibility = View.GONE
+                    binding.viewPager.visibility = View.GONE
                 } else {
                     binding.pendingSharesEmptyState.visibility = View.GONE
-                    binding.tabsContainer.visibility = View.VISIBLE
+                    binding.tabLayout.visibility = View.VISIBLE
+                    binding.viewPager.visibility = View.VISIBLE
 
                     sharers.add(0, "All")
                     val existsTabChange =
@@ -122,13 +116,21 @@ class PendingSharesFragment : Fragment() {
         return binding.root
     }
 
+    override fun onViewCreated(
+        view: View,
+        savedInstanceState: Bundle?,
+    ) {
+        super.onViewCreated(view, savedInstanceState)
+        populatePendingShares()
+    }
+
     override fun onResume() {
         super.onResume()
         populatePendingShares()
     }
 
     private fun populatePendingShares() {
-        uiScope.launch(Dispatchers.IO) {
+        viewLifecycleOwner.lifecycleScope.launch(Dispatchers.IO) {
             try {
                 val pendingShares = Lb.getPendingShareFiles().toList()
 
@@ -145,10 +147,12 @@ class PendingSharesFragment : Fragment() {
         val currentMap = idsAndFiles.value?.toMutableMap() ?: return
 
         currentMap.remove(deletedFileId)
-        uiScope.launch {
-            idsAndFiles.value = currentMap
-        }
+        idsAndFiles.value = currentMap
     }
+
+    fun onBackPressed(): Boolean =
+        (childFragmentManager.findFragmentByTag("f${binding.viewPager.currentItem}") as? TabFragment)
+            ?.onBackPressed() ?: false
 }
 
 class TabPagerAdapter(
@@ -164,14 +168,12 @@ class TabFragment : Fragment() {
     private var _binding: FragmentTabBinding? = null
     val binding get() = _binding!!
 
-    private val activityModel: StateViewModel by activityViewModels()
+    private val mainScreenModel: MainScreenViewModel by activityViewModels()
 
     var currentParent: File? = null
 
-    /** Could be a file or a string that denotes the date group in which the file is **/
-    var files = emptyDataSource()
+    private lateinit var sharedFilesAdapter: SharedFilesAdapter
 
-    @SuppressLint("SetTextI18n")
     override fun onCreateView(
         inflater: LayoutInflater,
         container: ViewGroup?,
@@ -180,8 +182,6 @@ class TabFragment : Fragment() {
         _binding = FragmentTabBinding.inflate(inflater, container, false)
 
         val pendingSharesFragment = parentFragment as? PendingSharesFragment
-        val sharer = arguments?.getString("tab_name") ?: ""
-        val isAllTab = sharer == "All"
 
         pendingSharesFragment?.idsAndFiles?.observe(
             viewLifecycleOwner,
@@ -190,46 +190,14 @@ class TabFragment : Fragment() {
             },
         )
 
-        binding.sharedFilesList.setup {
-            withDataSource(files)
-            withItem<File, FileMetadataViewHolder>(R.layout.file_metadata_item) {
-                onBind(::FileMetadataViewHolder) { index, item ->
-                    updateSharedFileAppearance(itemView, index)
-                    bind(
-                        FileMetadataRowInfo(
-                            file = item,
-                            title = item.getPrettyName(),
-                            subtitle =
-                                if (currentParent == null && isAllTab && item.shares.isNotEmpty()) {
-                                    "by: " + item.shares[0]?.sharedBy
-                                } else {
-                                    null
-                                },
-                            iconRes = item.getIconResource(),
-                            trailingButton =
-                                if (currentParent == null) {
-                                    FileMetadataTrailingButton(
-                                        iconRes = R.drawable.ic_baseline_more_vert_24,
-                                        contentDescriptionRes = R.string.open_pending_share_menu,
-                                    ) { view ->
-                                        showPendingShareMenu(view, item)
-                                    }
-                                } else {
-                                    null
-                                },
-                        ),
-                    )
-                    fileItemHolder.setOnClickListener {
-                        openSharedFile(item)
-                    }
-                }
-            }
-            withItem<String, SeparatorViewHolder>(R.layout.share_seperator_item) {
-                onBind(::SeparatorViewHolder) { _, item ->
-                    date.text = item
-                }
-            }
-        }
+        sharedFilesAdapter =
+            SharedFilesAdapter(
+                onFileClick = ::openSharedFile,
+                onPendingMenuClick = ::showPendingShareMenu,
+            )
+        binding.sharedFilesList.layoutManager = LinearLayoutManager(requireContext())
+        binding.sharedFilesList.adapter = sharedFilesAdapter
+        binding.sharedFilesList.itemAnimator = null
 
         parentFragmentManager.setFragmentResultListener(DeleteSharedDialogFragment.DELETE_SHARE_REQUEST_KEY, this) { _, bundle ->
             val deletedFileId = bundle.getString(DeleteSharedDialogFragment.DELETE_SHARE_BUNDLE_KEY)
@@ -267,11 +235,7 @@ class TabFragment : Fragment() {
         popup.setOnMenuItemClickListener { menuItem ->
             when (menuItem.itemId) {
                 R.id.accept_share -> {
-                    val bundle = Bundle()
-                    bundle.putString(CreateLinkFragment.CREATE_LINK_FILE_ID_KEY, item.id)
-                    val parentNavController = requireParentFragment().findNavController()
-
-                    parentNavController.navigate(R.id.action_create_link, bundle)
+                    mainScreenModel.navigate(MainNavigationAction.CreateLink(item.id))
                     true
                 }
 
@@ -301,30 +265,12 @@ class TabFragment : Fragment() {
             }
             setFilesGroupedByDate()
         } else {
-            activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFile(item.id))
+            mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = true))
         }
-    }
-
-    private fun updateSharedFileAppearance(
-        itemView: View,
-        index: Int,
-    ) {
-        val rows = files.toList()
-        var sectionStart = index
-        var sectionEnd = index
-
-        while (sectionStart > 0 && rows[sectionStart - 1] is File) {
-            sectionStart--
-        }
-
-        while (sectionEnd < rows.lastIndex && rows[sectionEnd + 1] is File) {
-            sectionEnd++
-        }
-
-        (itemView as? ListItemLayout)?.updateAppearance(index - sectionStart, sectionEnd - sectionStart + 1)
     }
 
     override fun onDestroyView() {
+        binding.sharedFilesList.adapter = null
         super.onDestroyView()
         _binding = null
     }
@@ -351,13 +297,6 @@ class TabFragment : Fragment() {
         currentParent = grandparent
     }
 
-    /**
-     * group a list of files into 4 buckets:
-     * - this week
-     * - this month
-     * - this year
-     * - older
-     */
     fun setFilesGroupedByDate() {
         val sharer = arguments?.getString("tab_name") ?: ""
         val isAllTab = sharer == "All"
@@ -375,70 +314,53 @@ class TabFragment : Fragment() {
                 }
             } ?: emptyList()
 
-        val calendar = java.util.Calendar.getInstance()
-
-        val oneWeekAgo = calendar.clone() as java.util.Calendar
-        oneWeekAgo.add(java.util.Calendar.DAY_OF_YEAR, -7)
-        val oneWeekAgoMillis = oneWeekAgo.timeInMillis
-        val oneMonthAgo = calendar.clone() as java.util.Calendar
-        oneMonthAgo.add(java.util.Calendar.MONTH, -1)
-        val oneMonthAgoMillis = oneMonthAgo.timeInMillis
-
-        calendar.set(java.util.Calendar.MONTH, 0)
-        calendar.set(java.util.Calendar.DAY_OF_MONTH, 1)
-        calendar.set(java.util.Calendar.HOUR_OF_DAY, 0)
-        calendar.set(java.util.Calendar.MINUTE, 0)
-        calendar.set(java.util.Calendar.SECOND, 0)
-        calendar.set(java.util.Calendar.MILLISECOND, 0)
-        val startOfYear = calendar.timeInMillis
-
-        val lastWeek =
-            files
-                .filter { it.lastModified > oneWeekAgoMillis }
-                .sortedByDescending { it.lastModified }
-        val lastMonth =
-            files
-                .filter { it.lastModified in oneMonthAgoMillis..oneWeekAgoMillis }
-                .sortedByDescending { it.lastModified }
-        val earlierThisYear =
-            files
-                .filter { it.lastModified in startOfYear..oneMonthAgoMillis }
-                .sortedByDescending { it.lastModified }
-        val older =
-            files
-                .filter { it.lastModified < startOfYear }
-                .sortedByDescending { it.lastModified }
-
-        val filesGroupedByDate: MutableList<Any> = mutableListOf()
-        if (lastWeek.isNotEmpty()) {
-            filesGroupedByDate.add("This week")
-            filesGroupedByDate.addAll(lastWeek)
-        }
-        if (lastMonth.isNotEmpty()) {
-            filesGroupedByDate.add("This month")
-            filesGroupedByDate.addAll(lastMonth)
-        }
-        if (earlierThisYear.isNotEmpty()) {
-            filesGroupedByDate.add("This year")
-            filesGroupedByDate.addAll(earlierThisYear)
-        }
-        if (older.isNotEmpty()) {
-            filesGroupedByDate.add("Older")
-            filesGroupedByDate.addAll(older)
-        }
-
+        val rows = mutableListOf<SharedListItem>()
         if (currentParent != null) {
             val parent = File()
             parent.id = PARENT_ID
+            parent.parent = ""
             parent.type = FileType.Folder
             parent.name = "..."
-
-            val i = if (filesGroupedByDate.isEmpty()) 0 else 1
-
-            filesGroupedByDate.add(i, parent)
+            parent.lastModified = 0
+            parent.lastModifiedBy = ""
+            parent.shares = emptyArray()
+            rows +=
+                SharedListItem.FileItem(
+                    file = parent,
+                    positionInSection = 0,
+                    sectionSize = 1,
+                )
         }
 
-        this.files.set(filesGroupedByDate)
+        fun addSection(
+            period: RecentPeriod,
+            sectionFiles: List<File>,
+        ) {
+            if (sectionFiles.isEmpty()) {
+                return
+            }
+            rows += SharedListItem.Section(period, collapsed = false)
+            sectionFiles.forEachIndexed { index, file ->
+                rows +=
+                    SharedListItem.FileItem(
+                        file = file,
+                        subtitle =
+                            if (currentParent == null && isAllTab && file.shares.isNotEmpty()) {
+                                getString(R.string.shared_by, file.shares[0].sharedBy)
+                            } else {
+                                null
+                            },
+                        showPendingMenu = currentParent == null,
+                        positionInSection = index,
+                        sectionSize = sectionFiles.size,
+                    )
+            }
+        }
+
+        groupFilesByRecentPeriod(files).forEach { group ->
+            addSection(group.period, group.files)
+        }
+        sharedFilesAdapter.submitSharedFiles(rows)
     }
 
     companion object {

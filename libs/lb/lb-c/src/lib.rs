@@ -255,10 +255,7 @@ pub extern "C" fn lb_next_name(
 
     match lb.get_children(&parent.into()) {
         Ok(children) => {
-            let mut name = NameComponents::from(rstr(desired));
-            if let Some(variant) = name.variant.take() {
-                name.name = format!("{}-{}", name.name, variant);
-            }
+            let mut name = NameComponents::from_literal(rstr(desired));
             name.next_in_children(children);
             LbNextNameRes { err: null_mut(), name: cstring(name.to_name()) }
         }

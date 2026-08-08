@@ -8,11 +8,10 @@ import android.os.Bundle
 import android.view.inputmethod.EditorInfo
 import androidx.fragment.app.DialogFragment
 import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.DialogRenameFileBinding
 import app.lockbook.model.FinishedAction
-import app.lockbook.model.StateViewModel
-import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.requestKeyboardFocus
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -22,17 +21,20 @@ import net.lockbook.LbError
 
 class RenameFileDialogFragment : DialogFragment() {
     private lateinit var binding: DialogRenameFileBinding
-    private val activityModel: StateViewModel by activityViewModels()
     private val workspaceModel: WorkspaceViewModel by activityViewModels()
-
-    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
 
     companion object {
         const val TAG = "RenameFileDialogFragment"
+        private const val FILE_ID_KEY = "file_id"
+
+        fun newInstance(fileId: String): RenameFileDialogFragment =
+            RenameFileDialogFragment().apply {
+                arguments = Bundle().apply { putString(FILE_ID_KEY, fileId) }
+            }
     }
 
     val file by lazy {
-        (activityModel.transientScreen as TransientScreen.Rename).file
+        Lb.getFileById(requireArguments().getString(FILE_ID_KEY)!!)
     }
 
     override fun onCreateDialog(savedInstanceState: Bundle?): Dialog =
@@ -68,7 +70,7 @@ class RenameFileDialogFragment : DialogFragment() {
             }
 
     private fun onButtonPositive() {
-        uiScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
                 Lb.renameFile(file.id, binding.renameFile.text.toString())
                 withContext(Dispatchers.Main) {

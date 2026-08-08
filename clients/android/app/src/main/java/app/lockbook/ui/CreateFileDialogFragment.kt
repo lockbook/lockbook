@@ -9,11 +9,9 @@ import android.os.Bundle
 import android.view.View
 import android.view.inputmethod.EditorInfo
 import androidx.appcompat.app.AppCompatDialogFragment
-import androidx.fragment.app.activityViewModels
+import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.databinding.DialogCreateFileBinding
-import app.lockbook.model.StateViewModel
-import app.lockbook.model.TransientScreen
 import app.lockbook.util.requestKeyboardFocus
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import kotlinx.coroutines.*
@@ -24,16 +22,18 @@ import net.lockbook.LbError
 class CreateFileDialogFragment : AppCompatDialogFragment() {
     private lateinit var binding: DialogCreateFileBinding
 
-    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
-    private val activityModel: StateViewModel by activityViewModels()
-    private val info by lazy {
-        activityModel.transientScreen as TransientScreen.Create
-    }
+    private val parentId: String by lazy { requireArguments().getString(PARENT_ID_KEY)!! }
 
     var newFile: File? = null
 
     companion object {
         const val TAG = "CreateFileDialogFragment"
+        private const val PARENT_ID_KEY = "parent_id"
+
+        fun newInstance(parentId: String): CreateFileDialogFragment =
+            CreateFileDialogFragment().apply {
+                arguments = Bundle().apply { putString(PARENT_ID_KEY, parentId) }
+            }
     }
 
     @SuppressLint("SetTextI18n")
@@ -96,9 +96,9 @@ class CreateFileDialogFragment : AppCompatDialogFragment() {
     private fun onButtonPositive() {
         val fileName = binding.createFolder.text.toString()
 
-        uiScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch(Dispatchers.IO) {
             try {
-                newFile = Lb.createFile(fileName, info.parentId, false)
+                newFile = Lb.createFile(fileName, parentId, false)
                 withContext(Dispatchers.Main) {
                     dismiss()
                 }

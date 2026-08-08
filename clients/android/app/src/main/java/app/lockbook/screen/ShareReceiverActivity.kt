@@ -2,6 +2,7 @@ package app.lockbook.screen
 
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.Bundle
 import android.provider.OpenableColumns
 import android.view.View
@@ -19,8 +20,6 @@ import app.lockbook.R
 import app.lockbook.databinding.ActivityShareReceiverBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.MoveFileViewModel
-import app.lockbook.model.StateViewModel
-import app.lockbook.model.TransientScreen
 import app.lockbook.ui.CreateFileDialogFragment
 import app.lockbook.util.FileMetadataRowInfo
 import app.lockbook.util.FileMetadataViewHolder
@@ -46,8 +45,6 @@ class ShareReceiverActivity : AppCompatActivity() {
         AlertModel(WeakReference(this))
     }
 
-    private val activityModel: StateViewModel by viewModels()
-
     companion object {
         const val IMPORTED_FILE_KEY = "imported_dest_folder"
     }
@@ -55,6 +52,7 @@ class ShareReceiverActivity : AppCompatActivity() {
     private val model: MoveFileViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(MoveFileViewModel::class.java)) {
                         return MoveFileViewModel(
@@ -88,14 +86,14 @@ class ShareReceiverActivity : AppCompatActivity() {
 
         when (intent?.action) {
             Intent.ACTION_SEND_MULTIPLE -> {
-                val receivedUris = intent.getParcelableArrayListExtra<Uri>(Intent.EXTRA_STREAM)
+                val receivedUris = intent.receivedStreamUris()
                 if (receivedUris != null) {
                     uris = receivedUris
                 }
             }
 
             Intent.ACTION_SEND -> {
-                val receivedUri = intent.getParcelableExtra<Uri>(Intent.EXTRA_STREAM)
+                val receivedUri = intent.receivedStreamUri()
                 if (receivedUri != null) {
                     uris.add(receivedUri)
                 }
@@ -128,8 +126,7 @@ class ShareReceiverActivity : AppCompatActivity() {
         )
 
         binding.toolbar.setOnMenuItemClickListener {
-            activityModel.launchTransientScreen(TransientScreen.Create(model.currentParent.id))
-            CreateFileDialogFragment().show(
+            CreateFileDialogFragment.newInstance(model.currentParent.id).show(
                 supportFragmentManager,
                 CreateFileDialogFragment.TAG,
             )
@@ -153,6 +150,22 @@ class ShareReceiverActivity : AppCompatActivity() {
             finish()
         }
     }
+
+    @Suppress("DEPRECATION")
+    private fun Intent.receivedStreamUris(): ArrayList<Uri>? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getParcelableArrayListExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            getParcelableArrayListExtra(Intent.EXTRA_STREAM)
+        }
+
+    @Suppress("DEPRECATION")
+    private fun Intent.receivedStreamUri(): Uri? =
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            getParcelableExtra(Intent.EXTRA_STREAM, Uri::class.java)
+        } else {
+            getParcelableExtra(Intent.EXTRA_STREAM)
+        }
 
     private fun getUriFileName(uri: Uri): String? {
         var fileName = "untitled"
@@ -185,7 +198,6 @@ class ShareReceiverActivity : AppCompatActivity() {
             }
         }
 
-        // todo: when android supports multiple tabs. open all the imported files?
         return newFileId
     }
 
@@ -198,7 +210,7 @@ class ShareReceiverActivity : AppCompatActivity() {
                     bind(
                         FileMetadataRowInfo(
                             file = item,
-                            title = item.getPrettyName(),
+                            title = item.name,
                             iconRes = R.drawable.ic_baseline_folder_24,
                         ),
                     )

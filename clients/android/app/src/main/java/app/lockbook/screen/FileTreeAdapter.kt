@@ -122,7 +122,7 @@ class FileTreeAdapter(
             file = fileMetadata,
             title =
                 when (this) {
-                    is FileViewHolderInfo.DocumentViewHolderInfo -> fileMetadata.getPrettyName()
+                    is FileViewHolderInfo.DocumentViewHolderInfo -> fileMetadata.name
                     is FileViewHolderInfo.FolderViewHolderInfo -> fileMetadata.name
                 },
             subtitle =

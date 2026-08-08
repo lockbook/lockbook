@@ -59,9 +59,6 @@ import SwiftWorkspace
             }
             .navigationTitle("Settings")
             .navigationBarTitleDisplayMode(.large)
-            .onAppear {
-                model.load()
-            }
         }
     }
 
@@ -95,9 +92,6 @@ import SwiftWorkspace
                 .navigationTitle("Settings")
             }
             .frame(width: 500, height: 400)
-            .onAppear {
-                model.load()
-            }
         }
     }
 

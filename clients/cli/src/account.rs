@@ -48,9 +48,8 @@ pub async fn import(api_url: ApiUrl) -> CliResult<()> {
     let config = rpassword::ConfigBuilder::new()
         .password_feedback_mask('*')
         .build();
-    let account_string =
-        rpassword::prompt_password_with_config("paste your account key or phrase: ", config)
-            .map_err(|e| CliError::from(format!("failed to read from stdin: {e}")))?;
+    let account_string = rpassword::prompt_password_with_config("paste your private key: ", config)
+        .map_err(|e| CliError::from(format!("failed to read from stdin: {e}")))?;
     import_key(lb, account_string.trim(), &api_url.0).await
 }
 
@@ -66,7 +65,7 @@ async fn import_key(lb: &Lb, key: &str, api_url: &str) -> CliResult<()> {
 }
 
 #[tokio::main]
-pub async fn export(skip_check: bool, phrase: bool) -> CliResult<()> {
+pub async fn export(skip_check: bool) -> CliResult<()> {
     let lb = &core().await?;
     ensure_account(lb)?;
 
@@ -75,23 +74,15 @@ pub async fn export(skip_check: bool, phrase: bool) -> CliResult<()> {
     let should_ask = interactive && !skip_check;
 
     if should_ask {
-        // Keep "private key" in the compact-key warning — severity should stay sharp.
-        let prompt = if phrase {
-            "your account phrase is about to be visible. do you want to proceed? [y/n]: "
-        } else {
-            "your private key is about to be visible. do you want to proceed? [y/n]: "
-        };
-        let answer: String = input::std_in(prompt)?;
+        let answer: String = input::std_in(
+            "your private key is about to be visible. do you want to proceed? [y/n]: ",
+        )?;
         if answer != "y" && answer != "Y" {
             return Ok(());
         }
     }
 
-    if phrase {
-        println!("{}", lb.export_account_phrase()?);
-    } else {
-        print!("{}", lb.export_account_private_key()?);
-    }
+    print!("{}", lb.export_account_private_key()?);
     Ok(())
 }
 
@@ -156,24 +147,13 @@ pub async fn status() -> Result<(), CliError> {
     let lb = &core().await?;
     ensure_account(lb)?;
 
-    println!("username: {}", lb.get_account()?.username);
-
     let last_synced = lb.get_last_synced_human().await?;
     println!("files last synced: {last_synced}");
 
-    let unsynced = lb.local_changes().await;
-    match unsynced.len() {
-        0 => println!("unsynced changes: none"),
-        1 => println!("unsynced changes: 1 file"),
-        n => println!("unsynced changes: {n} files"),
-    }
+    // todo: consider having some way to communicate the status of files on the server
 
     let cap = lb.get_usage().await?;
-    let pct = if cap.data_cap.exact == 0 {
-        0
-    } else {
-        (cap.server_usage.exact * 100) / cap.data_cap.exact
-    };
+    let pct = (cap.server_usage.exact * 100) / cap.data_cap.exact;
 
     if let Some(info) = lb.get_subscription_info().await? {
         match info.payment_platform {
@@ -196,15 +176,9 @@ pub async fn status() -> Result<(), CliError> {
             .unwrap_or_else(|| info.period_end.to_string());
         println!("renews on: {}", renewal_date);
     } else {
-        println!("type: trial tier");
+        println!("trial tier");
     }
-    println!(
-        "usage: {} / {} ({}% utilized)",
-        cap.server_usage.readable, cap.data_cap.readable, pct
-    );
-    if pct >= 90 {
-        println!("warning: storage is nearly full");
-    }
+    println!("data cap: {}, {}% utilized", cap.data_cap.readable, pct);
     Ok(())
 }
 
