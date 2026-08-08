@@ -9,7 +9,7 @@ use lb_rs::model::crypto::DecryptedDocument;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::{Uuid, spawn};
-use tracing::{Level, debug, error, instrument, span, trace, warn};
+use tracing::{Level, debug, error, info, instrument, span, warn};
 
 use crate::tab::{Destination, TabSaveContent};
 use crate::widgets::tab_cache::TabCache;
@@ -200,7 +200,13 @@ impl TaskManager {
     }
 
     pub fn queue_load(&mut self, request: LoadRequest) {
-        trace!("queued load of file {}", request.id);
+        info!(
+            id = ?request.id,
+            tab_created = request.tab_created,
+            make_current = request.make_current,
+            is_preview = request.is_preview,
+            "[mw-edit]/task queue_load"
+        );
         self.tasks
             .lock()
             .unwrap()
@@ -216,7 +222,11 @@ impl TaskManager {
     }
 
     pub fn queue_save(&mut self, request: SaveRequest) {
-        trace!("queued save of file {}", request.id);
+        info!(
+            id = ?request.id,
+            origin = ?request.origin,
+            "[mw-edit]/task queue_save"
+        );
         self.tasks
             .lock()
             .unwrap()
@@ -290,6 +300,10 @@ impl TaskManager {
         for queued_load in &tasks.queued_loads {
             let id = queued_load.request.id;
             if tasks.load_or_save_in_progress(id) {
+                debug!(
+                    ?id,
+                    "[mw-edit]/task load blocked (load/save already in progress)"
+                );
                 continue;
             }
             ids_to_load.push(id);
@@ -299,6 +313,11 @@ impl TaskManager {
         for queued_save in &tasks.queued_saves {
             let id = queued_save.request.id;
             if tasks.load_or_save_in_progress(id) {
+                debug!(
+                    ?id,
+                    origin = ?queued_save.request.origin,
+                    "[mw-edit]/task save blocked (load/save already in progress)"
+                );
                 continue;
             }
             if tasks
@@ -308,6 +327,11 @@ impl TaskManager {
             {
                 // result of completed save must be processed before another save to the same file; this guarantees
                 // that the hmac from the completed save is used for the next, preventing a ReReadRequired error
+                debug!(
+                    ?id,
+                    origin = ?queued_save.request.origin,
+                    "[mw-edit]/task save blocked (awaiting completed_save processing)"
+                );
                 continue;
             }
             ids_to_save.push(id);
@@ -366,7 +390,10 @@ impl TaskManager {
             let (old_hmac, seq, content) = {
                 let key = Destination::File(request.id);
                 let Some(tab) = tabs.get_any(&key) else {
-                    error!("could not launch save because its tab does not exist");
+                    error!(
+                        id = ?request.id,
+                        "[mw-edit]/task could not launch save because its tab does not exist"
+                    );
                     continue;
                 };
 
@@ -377,6 +404,21 @@ impl TaskManager {
                 let Some(content) = tab.clone_content() else {
                     break;
                 };
+
+                let content_len = match &content {
+                    crate::tab::TabSaveContent::String(s) => s.len(),
+                    crate::tab::TabSaveContent::Bytes(b) => b.len(),
+                    crate::tab::TabSaveContent::Svg(_) => 0,
+                };
+                info!(
+                    id = ?request.id,
+                    origin = ?request.origin,
+                    tab_origin = ?tab.origin,
+                    seq,
+                    ?old_hmac,
+                    content_len,
+                    "[mw-edit]/task save launch"
+                );
 
                 let time = Instant::now().duration_since(start);
                 if time > Duration::from_millis(100) {

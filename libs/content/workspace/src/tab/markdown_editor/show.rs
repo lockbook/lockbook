@@ -129,6 +129,39 @@ impl MdEdit {
             }
         }
 
+        let queued_ops = ops.len();
+        let pending_before = self.renderer.buffer.pending_ops();
+        // Pending external reload ops (if any) are applied in the same
+        // update() as this frame's typing — that interleaving is a prime
+        // multi-window mangling candidate.
+        if pending_before > 0 && queued_ops > 0 {
+            tracing::info!(
+                file_id = ?self.file_id,
+                queued_ops,
+                pending_before,
+                focused,
+                sel = ?(
+                    self.renderer.buffer.current.selection.0 .0,
+                    self.renderer.buffer.current.selection.1 .0
+                ),
+                seq = self.renderer.buffer.current.seq,
+                external_seq = self.renderer.buffer.external_seq(),
+                "[mw-edit]/input INTERLEAVE local ops + pending reload ops same update()"
+            );
+        } else if queued_ops > 0 || pending_before > 0 {
+            tracing::debug!(
+                file_id = ?self.file_id,
+                queued_ops,
+                pending_before,
+                focused,
+                sel = ?(
+                    self.renderer.buffer.current.selection.0 .0,
+                    self.renderer.buffer.current.selection.1 .0
+                ),
+                seq = self.renderer.buffer.current.seq,
+                "[mw-edit]/input handle_input queueing ops before update"
+            );
+        }
         self.renderer.buffer.queue(ops);
         let mut buf_resp = direct_resp;
         buf_resp |= self.renderer.buffer.update();
