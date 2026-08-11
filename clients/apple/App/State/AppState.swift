@@ -14,6 +14,7 @@ import SwiftWorkspace
     var account: Account? = nil
     var isLoggedIn: Bool = false
     var error: UIError? = nil
+    var accountCreatedThisSession = false
 
     private init() {
         checkIfLoggedIn()
@@ -84,7 +85,7 @@ import SwiftWorkspace
     #endif
 
     static let defaultApiUrl: String =
-        ProcessInfo.processInfo.environment["API_LOCATION"] ?? "https://app.lockbook.net"
+        ProcessInfo.processInfo.environment["API_LOCATION"] ?? "http://localhost:8000"
 
     static let lb: LbAPI = {
         if isPreviewEnvironmentKey.defaultValue {

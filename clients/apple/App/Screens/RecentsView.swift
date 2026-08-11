@@ -34,6 +34,9 @@ struct RecentsView: View {
                     title: "No documents yet",
                     subtitle: "Documents you edit will appear here."
                 )
+                .overlay(alignment: CreateButtonArrow.alignment) {
+                    CreateButtonArrow()
+                }
             } else {
                 ScrollView {
                     LazyVStack(alignment: .leading, spacing: 0) {
@@ -47,6 +50,12 @@ struct RecentsView: View {
                             ForEach(section.files) { file in
                                 VStack(spacing: 0) {
                                     RecentDocRow(file: file, model: model, orderedIds: orderedIds)
+
+                                    if file.id == orderedIds.first, AppState.shared.accountCreatedThisSession {
+                                        StartHereHint(leadingInset: 16)
+                                            .padding(.top, -6)
+                                            .padding(.bottom, 8)
+                                    }
 
                                     if file.id != section.files.last?.id {
                                         Divider()
