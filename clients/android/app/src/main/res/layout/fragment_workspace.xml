@@ -21,77 +21,179 @@
             app:menu="@menu/menu_text_editor"
             app:elevation="0dp"
             android:elevation="0dp"
-            android:animateLayoutChanges="true"
             />
 
     </com.google.android.material.appbar.AppBarLayout>
 
-    <androidx.constraintlayout.widget.ConstraintLayout
+    <LinearLayout
         android:id="@+id/standard_bottom_sheet"
         android:background="?attr/colorSurface"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:layout_gravity="bottom"
+        android:orientation="vertical"
         android:translationZ="4dp"
         >
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/close_all_tabs"
+        <androidx.constraintlayout.widget.ConstraintLayout
+            android:id="@+id/collapsed_bottom_sheet_content"
             android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:text="@string/close_all_tabs"
-            android:layout_marginStart="?android:listPreferredItemPaddingStart"
-            android:layout_marginEnd="?android:listPreferredItemPaddingEnd"
-            android:layout_marginVertical="10dp"
-            android:visibility="gone"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toTopOf="parent"
-            />
+            android:layout_height="64dp">
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/expand_list"
-            style="@style/Widget.Material3.Button.IconButton.Filled"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="?android:listPreferredItemPaddingStart"
-            app:icon="@drawable/ic_outline_menu_24"
-            android:contentDescription="@string/expand_tabs_list"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/close_all_tabs"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:shapeAppearanceOverlay="@style/MyShapeAppearance"
-            />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/expand_list"
+                style="@style/Widget.Material3.Button.IconButton.Filled"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="?android:listPreferredItemPaddingStart"
+                android:contentDescription="@string/expand_tabs_list"
+                app:icon="@drawable/ic_outline_menu_24"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toStartOf="parent"
+                app:layout_constraintTop_toTopOf="parent"
+                app:shapeAppearanceOverlay="@style/ButtonGroupStartShape" />
 
-        <com.google.android.material.button.MaterialButton
-            android:id="@+id/forward_ws"
-            style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:contentDescription="@string/workspace_forward"
-            app:icon="@drawable/ic_baseline_arrow_forward_24"
-            app:layout_constraintStart_toEndOf="@+id/expand_list"
-            app:layout_constraintTop_toBottomOf="@+id/close_all_tabs"
-            app:layout_constraintBottom_toBottomOf="parent"
-            android:insetLeft="0dp"
-            app:shapeAppearanceOverlay="@style/MyQRShapeAppearance"
-            />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/search_ws_compact"
+                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="4dp"
+                android:contentDescription="@string/search"
+                android:insetLeft="0dp"
+                app:icon="@drawable/ic_round_search_24"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/expand_list"
+                app:layout_constraintTop_toTopOf="parent"
+                app:shapeAppearanceOverlay="@style/ButtonGroupMiddleShape" />
 
-        <androidx.recyclerview.widget.RecyclerView
-            android:id="@+id/tabs_list"
-            android:layout_height="0dp"
-            android:layout_width="0dp"
-            android:orientation="horizontal"
-            app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
-            android:scrollbars="vertical"
-            android:insetRight="0dp"
-            app:layout_constraintStart_toEndOf="@+id/forward_ws"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintTop_toBottomOf="@+id/close_all_tabs"
-            app:layout_constraintBottom_toBottomOf="parent"
-            />
+            <com.google.android.material.button.MaterialButton
+                android:id="@+id/create_ws_compact"
+                style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="4dp"
+                android:layout_marginEnd="?android:listPreferredItemPaddingEnd"
+                android:contentDescription="@string/create"
+                android:insetLeft="0dp"
+                app:icon="@drawable/ic_baseline_add_24"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/search_ws_compact"
+                app:layout_constraintTop_toTopOf="parent"
+                app:shapeAppearanceOverlay="@style/ButtonGroupEndShape" />
 
-    </androidx.constraintlayout.widget.ConstraintLayout>
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/compact_tabs_list"
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:insetRight="0dp"
+                android:orientation="horizontal"
+                android:overScrollMode="never"
+                android:scrollbars="none"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager"
+                app:layout_constraintBottom_toBottomOf="parent"
+                app:layout_constraintEnd_toEndOf="parent"
+                app:layout_constraintStart_toEndOf="@+id/create_ws_compact"
+                app:layout_constraintTop_toTopOf="parent" />
+
+        </androidx.constraintlayout.widget.ConstraintLayout>
+
+        <LinearLayout
+            android:id="@+id/expanded_bottom_sheet_content"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:orientation="vertical"
+            android:visibility="gone">
+
+            <HorizontalScrollView
+                android:layout_width="match_parent"
+                android:layout_height="64dp"
+                android:fillViewport="false"
+                android:overScrollMode="never"
+                android:scrollbars="none">
+
+                <LinearLayout
+                    android:layout_width="wrap_content"
+                    android:layout_height="match_parent"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="?android:listPreferredItemPaddingStart"
+                    android:paddingEnd="?android:listPreferredItemPaddingEnd">
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/collapse_list"
+                        style="@style/Widget.Material3.Button.IconButton.Filled"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:contentDescription="@string/collapse_tabs_list"
+                        app:icon="@drawable/ic_outline_menu_24"
+                        app:shapeAppearanceOverlay="@style/ButtonGroupStartShape" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/search_ws"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:text="@string/search"
+                        app:icon="@drawable/ic_round_search_24"
+                        app:shapeAppearanceOverlay="@style/ButtonGroupMiddleShape" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/create_ws"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:text="@string/create"
+                        app:icon="@drawable/ic_baseline_add_24"
+                        app:shapeAppearanceOverlay="@style/ButtonGroupMiddleShape" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/close_all_tabs"
+                        style="@style/Widget.Material3.Button.TonalButton"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginEnd="8dp"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        android:text="@string/close_all_tabs"
+                        app:shapeAppearanceOverlay="@style/ButtonGroupMiddleShape" />
+
+                    <com.google.android.material.button.MaterialButton
+                        android:id="@+id/forward_ws"
+                        style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:contentDescription="@string/workspace_forward"
+                        android:insetLeft="0dp"
+                        android:insetRight="0dp"
+                        app:icon="@drawable/ic_baseline_arrow_forward_24"
+                        app:shapeAppearanceOverlay="@style/ButtonGroupEndShape" />
+
+                </LinearLayout>
+            </HorizontalScrollView>
+
+            <androidx.recyclerview.widget.RecyclerView
+                android:id="@+id/expanded_tabs_list"
+                android:layout_width="match_parent"
+                android:layout_height="0dp"
+                android:layout_weight="1"
+                android:orientation="vertical"
+                android:scrollbars="vertical"
+                app:layoutManager="androidx.recyclerview.widget.LinearLayoutManager" />
+
+        </LinearLayout>
+
+    </LinearLayout>
 
     <androidx.constraintlayout.widget.ConstraintLayout
         android:layout_width="match_parent"

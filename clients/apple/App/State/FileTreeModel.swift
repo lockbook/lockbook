@@ -6,11 +6,6 @@ import SwiftWorkspace
     var openFolders: Set<UUID> = []
     var dropTarget: File? = nil
 
-    var createTarget: File? = nil
-    var renameTarget: File? = nil
-    var shareTarget: File? = nil
-    var moveTarget: File? = nil
-
     let selection = SelectionModel()
 
     private let filesModel: FilesModel

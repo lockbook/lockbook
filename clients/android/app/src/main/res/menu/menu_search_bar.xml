@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <item
+        android:id="@+id/menu_files_list_open_ws"
+        android:icon="@drawable/ic_baseline_view_sidebar_24"
+        android:title="@string/focus_detail_view"
+        app:showAsAction="always" />
+
+</menu>

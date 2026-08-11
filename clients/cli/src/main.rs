@@ -44,7 +44,7 @@ fn run() -> CliResult<()> {
                         })
                 )
                 .subcommand(
-                    Command::name("import").description("import an existing account from a key or phrase")
+                    Command::name("import").description("import an existing account by piping in the account string")
                         .input(Flag::<ApiUrl>::new("api_url")
                         .description("location of the lockbook server you're trying to use. If not provided will check the API_URL env var, and then fall back to https://app.lockbook.net"))
 
@@ -53,10 +53,9 @@ fn run() -> CliResult<()> {
                         })
                 )
                 .subcommand(
-                    Command::name("export").description("reveal your account key or account phrase")
-                        .input(Flag::bool("skip-check").description("don't ask for confirmation to reveal the secret"))
-                        .input(Flag::bool("phrase").description("export the 24-word account phrase instead of the compact account key"))
-                        .handler(|skip_check, phrase| account::export(skip_check.get(), phrase.get()))
+                    Command::name("export").description("reveal your account's private key")
+                        .input(Flag::bool("skip-check").description("don't ask for confirmation to reveal the private key"))
+                        .handler(|skip_check| account::export(skip_check.get()))
                 )
                 .subcommand(
                     Command::name("subscribe").description("start a monthly subscription for massively increased storage")
@@ -72,12 +71,12 @@ fn run() -> CliResult<()> {
                 )
         )
         .subcommand(
-            Command::name("import").description("import files from your file system into lockbook")
+            Command::name("copy").description("import files from your file system into lockbook")
                 .input(Arg::<PathBuf>::name("disk-path").description("path of file on disk"))
                 .input(Arg::str("dest")
                        .description("the path or id of a folder within lockbook to place the file.")
                        .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
-                .handler(|disk, parent| imex::import(disk.get(), parent.get()))
+                .handler(|disk, parent| imex::copy(disk.get(), parent.get()))
         )
         .subcommand(
             Command::name("debug").description("investigative commands")
@@ -112,12 +111,6 @@ fn run() -> CliResult<()> {
                 .handler(|force, target| delete(force.get(), target.get()))
         )
         .subcommand(
-            Command::name("duplicate").description("duplicate a document in place (same folder, auto-named copy)")
-                .input(Arg::str("target").description("path or id of document to duplicate")
-                            .completor(|prompt| input::file_completor(prompt, None)))
-                .handler(|target| duplicate(target.get()))
-        )
-        .subcommand(
             Command::name("edit").description("edit a document")
                 .input(edit::editor_flag())
                 .input(Arg::str("target").description("path or id of file to edit")
@@ -128,12 +121,8 @@ fn run() -> CliResult<()> {
             Command::name("export").description("export a lockbook file to your file system")
                 .input(Arg::str("target")
                             .completor(|prompt| input::file_completor(prompt, None)))
-                .input(Arg::<PathBuf>::name("dest").description("directory, or file path when exporting a single document"))
-                .input(Flag::bool("force").description("overwrite existing files on disk"))
-                .input(Flag::bool("contents").description("when exporting a folder, place its children in dest (rsync src/ semantics) instead of dest/<folder-name>"))
-                .handler(|target, dest, force, contents| {
-                    imex::export(target.get(), dest.get(), force.get(), contents.get())
-                })
+                .input(Arg::<PathBuf>::name("dest"))
+                .handler(|target, dest| imex::export(target.get(), dest.get()))
         )
         .subcommand(
             Command::name("fs")
@@ -142,9 +131,9 @@ fn run() -> CliResult<()> {
         )
         .subcommand(
             Command::name("list").description("list files and file information")
-                .input(Flag::bool("long").description("long listing: id, type, size, modified time, and share info (short: -l)"))
-                .input(Flag::bool("recursive").description("include all children recursively; implies --paths (short: -r/-R)"))
-                .input(Flag::bool("paths").description("display the full path of each entry (short: -p)"))
+                .input(Flag::bool("long").description("'long listing format': displays id and sharee information in table format"))
+                .input(Flag::bool("recursive").description("include all children of the given directory, recursively. Implicitly enables --paths"))
+                .input(Flag::bool("paths").description("display the full path of any children"))
                 .input(Arg::str("target").description("file path location whose files will be listed")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly)))
                             .default("/".to_string()))
@@ -165,19 +154,22 @@ fn run() -> CliResult<()> {
                 .handler(|target| create_file(target.get()))
         )
         .subcommand(
-            Command::name("cat")
-                .description("print a document to stdout")
-                .input(Arg::str("target").description("lockbook file path or ID")
-                    .completor(|prompt| input::file_completor(prompt, None)))
-                .handler(|target| stream::stdout(target.get()))
-        )
-        .subcommand(
-            Command::name("write")
-                .description("write stdin to a document, creating it if it does not exist")
-                .input(Arg::str("target").description("lockbook file path or ID")
-                    .completor(|prompt| input::file_completor(prompt, None)))
-                .input(Flag::bool("append").description("don't overwrite the specified lb file, append to it"))
-                .handler(|target, append| stream::stdin(target.get(), append.get()))
+            Command::name("stream").description("interact with stdout and stdin")
+                .subcommand(
+                    Command::name("out")
+                        .description("print a document to stdout")
+                        .input(Arg::str("target").description("lockbook file path or ID")
+                            .completor(|prompt| input::file_completor(prompt, None)))
+                        .handler(|target| stream::stdout(target.get()))
+                )
+                .subcommand(
+                    Command::name("in")
+                        .description("write stdin to a document")
+                        .input(Arg::str("target").description("lockbook file path or ID")
+                            .completor(|prompt| input::file_completor(prompt, None)))
+                        .input(Flag::bool("append").description("don't overwrite the specified lb file, append to it"))
+                        .handler(|target, append| stream::stdin(target.get(), append.get()))
+                )
         )
         .subcommand(
             Command::name("rename").description("rename a file")
@@ -436,18 +428,6 @@ async fn rename(target: String, new_name: String) -> Result<(), CliError> {
 
     let id = find_file(lb, &target).await?.id;
     lb.rename_file(&id, &new_name).await?;
-    Ok(())
-}
-
-#[tokio::main]
-async fn duplicate(target: String) -> CliResult<()> {
-    let lb = &core().await?;
-    ensure_account_and_root(lb).await?;
-
-    let f = find_file(lb, &target).await?;
-    let copy = lb.duplicate_file(&f.id).await?;
-    let path = lb.get_path_by_id(copy.id).await?;
-    println!("duplicated to {path}");
     Ok(())
 }
 

@@ -64,6 +64,10 @@ class FileTreeViewModel(
     val files: LiveData<List<FileViewHolderInfo>>
         get() = _files
 
+    private val _recentFiles = MutableLiveData<List<File>>(emptyList())
+    val recentFiles: LiveData<List<File>>
+        get() = _recentFiles
+
     private var pinnedFileEntries = mutableListOf<PinnedFile>()
     private var persistPinnedFilesJob: Job? = null
     val _pinnedFiles = MutableLiveData<List<PinnedFile>>(emptyList())
@@ -190,12 +194,11 @@ class FileTreeViewModel(
         fileModel.refreshFiles()
 
         refreshFilesDataSource()
-
-        _notifyUpdateFilesUI.value = UpdateFilesUI.ToggleMenuBar
     }
 
     private fun refreshFilesDataSource() {
         _files.value = fileModel.children.intoViewHolderInfo(dirtyLocally.value, pullingFiles.value)
+        _recentFiles.value = recentDocuments(fileModel.idsAndFiles.values)
         refreshPinnedFiles()
     }
 

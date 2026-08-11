@@ -6,6 +6,11 @@
         android:icon="@drawable/ic_baseline_home_24"
         android:title="@string/home_navbar_item"/>
     <item
+        android:id="@+id/recentFilesFragment"
+        android:enabled="true"
+        android:icon="@drawable/ic_baseline_history_24"
+        android:title="@string/recents_navbar_item"/>
+    <item
         android:id="@+id/pendingSharesFragment"
         android:enabled="true"
         android:icon="@drawable/ic_baseline_group_24"

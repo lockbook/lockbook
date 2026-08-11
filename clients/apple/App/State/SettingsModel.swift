@@ -5,7 +5,7 @@ import SwiftWorkspace
     var usage: UsageMetrics? = nil
     var isPremium: Bool? = nil
 
-    func load() {
+    init() {
         loadTier()
         loadUsages()
     }

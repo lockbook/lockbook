@@ -69,7 +69,7 @@
             android:layout_height="60dp"
             android:layout_weight="1"
             android:text="@string/lockbook_import"
-            app:shapeAppearanceOverlay="@style/MyShapeAppearance" />
+            app:shapeAppearanceOverlay="@style/ButtonGroupStartShape" />
 
         <com.google.android.material.button.MaterialButton
             android:id="@+id/on_boarding_qr_code_import"
@@ -78,7 +78,7 @@
             android:layout_height="60dp"
             app:icon="@drawable/ic_baseline_qr_code_scanner_24"
             app:iconGravity="textStart"
-            app:shapeAppearanceOverlay="@style/MyQRShapeAppearance" />
+            app:shapeAppearanceOverlay="@style/ButtonGroupEndShape" />
     </LinearLayout>
 
 </androidx.constraintlayout.widget.ConstraintLayout>

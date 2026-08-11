@@ -15,19 +15,14 @@ import net.lockbook.File
 
 class WorkspaceViewModel : ViewModel() {
     /** request workspace to  open a file **/
-    val _openFile = SingleMutableLiveData<Pair<String, Boolean>>()
-    val openFile: LiveData<Pair<String, Boolean>>
+    private val _openFile = SingleMutableLiveData<OpenFileRequest>()
+    val openFile: LiveData<OpenFileRequest>
         get() = _openFile
 
     /** request workspace to  close a file **/
     val _closeFile = SingleMutableLiveData<String>()
     val closeFile: LiveData<String>
         get() = _closeFile
-
-    /** request workspace to create a new file (isDrawing, parentId) **/
-    val _createDocAt = MutableLiveData<Pair<Boolean, String>>()
-    val createDocAt: LiveData<Pair<Boolean, String>>
-        get() = _createDocAt
 
     val _currentTab = MutableLiveData<WorkspaceTab>()
     val currentTab: LiveData<WorkspaceTab>
@@ -86,6 +81,25 @@ class WorkspaceViewModel : ViewModel() {
     fun notifyBackGestureStarted() {
         _backGestureStarted.postValue(Unit)
     }
+
+    fun openFile(request: OpenFileRequest) {
+        _openFile.value = request
+    }
+
+    fun postOpenFile(request: OpenFileRequest) {
+        _openFile.postValue(request)
+    }
+}
+
+data class OpenFileRequest(
+    val id: String,
+    val newFile: Boolean,
+    val presentation: OpenFilePresentation,
+)
+
+enum class OpenFilePresentation {
+    Preserve,
+    ShowDetail,
 }
 
 data class WorkspaceTab(

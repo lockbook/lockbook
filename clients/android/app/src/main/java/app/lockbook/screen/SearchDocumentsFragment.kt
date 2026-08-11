@@ -4,20 +4,20 @@ package app.lockbook.screen
 
 import android.annotation.SuppressLint
 import android.os.Bundle
+import android.text.TextWatcher
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
-import android.view.inputmethod.InputMethodManager
+import android.view.inputmethod.EditorInfo
+import androidx.activity.BackEventCompat
 import androidx.activity.OnBackPressedCallback
-import androidx.appcompat.widget.SearchView
-import androidx.core.content.getSystemService
+import androidx.core.widget.doAfterTextChanged
 import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.fragment.app.viewModels
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.recyclerview.widget.RecyclerView
-import androidx.transition.Visibility
 import app.lockbook.R
 import app.lockbook.databinding.FragmentSearchDocumentsBinding
 import app.lockbook.model.*
@@ -26,16 +26,42 @@ import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.listitem.ListItemLayout
+import com.google.android.material.search.SearchView
+import com.google.android.material.transition.MaterialFadeThrough
 import net.lockbook.File
 import net.lockbook.File.FileType
 import java.lang.ref.WeakReference
 
 class SearchDocumentsFragment : Fragment() {
     private lateinit var binding: FragmentSearchDocumentsBinding
+    private var searchTextWatcher: TextWatcher? = null
+
+    val presentation: SearchPresentation
+        get() =
+            arguments
+                ?.getString(PRESENTATION_KEY)
+                ?.let { value -> SearchPresentation.entries.firstOrNull { it.name == value } }
+                ?: SearchPresentation.FullScreen
+
+    private val isSidebarMorph: Boolean
+        get() = presentation == SearchPresentation.SidebarMorph
+
+    private val searchView
+        get() = binding.searchDocumentsSearchView
+
+    companion object {
+        private const val PRESENTATION_KEY = "presentation"
+
+        fun newInstance(presentation: SearchPresentation): SearchDocumentsFragment =
+            SearchDocumentsFragment().apply {
+                arguments = Bundle().apply { putString(PRESENTATION_KEY, presentation.name) }
+            }
+    }
 
     private val model: SearchDocumentsViewModel by viewModels(
         factoryProducer = {
             object : ViewModelProvider.Factory {
+                @Suppress("UNCHECKED_CAST")
                 override fun <T : ViewModel> create(modelClass: Class<T>): T {
                     if (modelClass.isAssignableFrom(SearchDocumentsViewModel::class.java)) {
                         return SearchDocumentsViewModel(
@@ -48,11 +74,19 @@ class SearchDocumentsFragment : Fragment() {
             }
         },
     )
-    private val activityModel: StateViewModel by activityViewModels()
+    private val mainScreenModel: MainScreenViewModel by activityViewModels()
     private val fileTreeModel: FileTreeViewModel by activityViewModels()
 
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
+    }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        if (!isSidebarMorph) {
+            enterTransition = MaterialFadeThrough()
+            exitTransition = MaterialFadeThrough()
+        }
     }
 
     @SuppressLint("SetTextI18n")
@@ -61,15 +95,20 @@ class SearchDocumentsFragment : Fragment() {
         container: ViewGroup?,
         savedInstanceState: Bundle?,
     ): View {
-        binding = FragmentSearchDocumentsBinding.inflate(layoutInflater)
+        binding = FragmentSearchDocumentsBinding.inflate(inflater, container, false)
+        if (isSidebarMorph) {
+            val activity = requireActivity() as MainScreenActivity
+            searchView.setupWithSearchBar(activity.binding.sidebarSearchBar)
+            // setupWithSearchBar installs its own click listener. Keep opening search
+            // routed through navigation state instead of directly showing this view.
+            activity.configureSidebarSearchLauncher()
+        } else {
+            searchView.setVisible(true)
+        }
         model.setHighlightColors(
             MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorPrimaryContainer),
             MaterialColors.getColor(binding.root, com.google.android.material.R.attr.colorOnPrimaryContainer),
         )
-
-        binding.searchDocumentsBack.setOnClickListener {
-            showFiles()
-        }
 
         requireActivity().onBackPressedDispatcher.addCallback(
             viewLifecycleOwner,
@@ -77,8 +116,34 @@ class SearchDocumentsFragment : Fragment() {
                 override fun handleOnBackPressed() {
                     navigateBack()
                 }
+
+                override fun handleOnBackStarted(backEvent: BackEventCompat) {
+                    if (isSidebarMorph && !model.canNavigateBackWithinSearch()) {
+                        searchView.startBackProgress(backEvent)
+                    }
+                }
+
+                override fun handleOnBackProgressed(backEvent: BackEventCompat) {
+                    if (isSidebarMorph && !model.canNavigateBackWithinSearch()) {
+                        searchView.updateBackProgress(backEvent)
+                    }
+                }
+
+                override fun handleOnBackCancelled() {
+                    if (isSidebarMorph && !model.canNavigateBackWithinSearch()) {
+                        searchView.cancelBackProgress()
+                    }
+                }
             },
         )
+
+        if (isSidebarMorph) {
+            searchView.addTransitionListener { _, _, newState ->
+                if (newState == SearchView.TransitionState.HIDDEN) {
+                    showFiles()
+                }
+            }
+        }
 
         model.updateSearchUI.observe(viewLifecycleOwner) { uiUpdate ->
             updateSearchUI(uiUpdate)
@@ -171,43 +236,42 @@ class SearchDocumentsFragment : Fragment() {
             },
         )
 
-        binding.searchDocumentsSearch.setOnQueryTextFocusChangeListener { _, focus ->
-            if (focus) {
-                requireActivity().window.requestKeyboardFocus(binding.searchDocumentsSearch.findFocus())
+        searchView.toolbar.setNavigationOnClickListener {
+            navigateBack()
+        }
+        searchView.toolbar.menu.clear()
+        searchView.editText.imeOptions = EditorInfo.IME_ACTION_SEARCH or EditorInfo.IME_FLAG_NO_EXTRACT_UI
+        searchTextWatcher =
+            searchView.editText.doAfterTextChanged { text ->
+                model.newSearch(text?.toString().orEmpty())
+            }
+        searchView.editText.setOnEditorActionListener { _, actionId, _ ->
+            if (actionId == EditorInfo.IME_ACTION_SEARCH) {
+                model.newSearch(searchView.text.toString())
+                searchView.clearFocusAndHideKeyboard()
+                true
+            } else {
+                false
             }
         }
-
-        binding.searchDocumentsSearch.setOnQueryTextListener(
-            object : SearchView.OnQueryTextListener {
-                override fun onQueryTextSubmit(query: String?): Boolean {
-                    model.newSearch(query ?: "")
-                    binding.searchDocumentsSearch.clearFocus()
-
-                    return true
-                }
-
-                override fun onQueryTextChange(newText: String?): Boolean {
-                    model.newSearch(newText ?: "")
-
-                    return true
-                }
-            },
-        )
-
-        binding.searchDocumentsSearch.requestFocus()
+        if (isSidebarMorph) {
+            searchView.post(searchView::show)
+        } else {
+            searchView.post(searchView::requestFocusAndShowKeyboard)
+        }
         return binding.root
     }
 
     private fun openSearchResult(file: File) {
-        binding.searchDocumentsSearch.clearFocus()
+        searchView.clearFocusAndHideKeyboard()
         when (file.type) {
             FileType.Document -> {
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.OpenFileFromSearch(file.id))
+                mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false))
             }
 
             FileType.Folder -> {
                 fileTreeModel.enterFolder(file)
-                activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+                mainScreenModel.navigate(MainNavigationAction.OpenFolderFromSearch)
             }
 
             FileType.Link -> {} // shouldn't happen
@@ -244,29 +308,32 @@ class SearchDocumentsFragment : Fragment() {
     }
 
     private fun dismissKeyboard() {
-        binding.searchDocumentsSearch.clearFocus()
-        requireContext()
-            .getSystemService<InputMethodManager>()
-            ?.hideSoftInputFromWindow(binding.searchDocumentsSearch.windowToken, 0)
+        searchView.clearFocusAndHideKeyboard()
     }
 
     private fun navigateBack() {
         if (!model.navigateBackWithinSearch()) {
-            showFiles()
+            if (isSidebarMorph) {
+                searchView.handleBackInvoked()
+            } else {
+                showFiles()
+            }
         }
     }
 
     private fun showFiles() {
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ShowFiles)
+        mainScreenModel.navigate(MainNavigationAction.CloseSearch)
     }
 
-    override fun onResume() {
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
-        super.onResume()
-    }
-
-    override fun onStop() {
-        activityModel.updateMainScreenUI(UpdateMainScreenUI.ToggleBottomViewNavigation)
-        super.onStop()
+    override fun onDestroyView() {
+        searchTextWatcher?.let(searchView.editText::removeTextChangedListener)
+        searchTextWatcher = null
+        searchView.editText.setOnEditorActionListener(null)
+        binding.searchDocumentsResults.adapter = null
+        if (isSidebarMorph) {
+            searchView.setupWithSearchBar(null)
+            (activity as? MainScreenActivity)?.configureSidebarSearchLauncher()
+        }
+        super.onDestroyView()
     }
 }

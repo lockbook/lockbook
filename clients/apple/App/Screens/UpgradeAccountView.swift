@@ -70,11 +70,6 @@ struct UpgradeAccountView: View {
         .largeNavigationTitle()
         .padding(.vertical, 10)
         .padding(.horizontal, 20)
-        .onAppear {
-            if settingsModel.usage == nil {
-                settingsModel.load()
-            }
-        }
     }
 }
 

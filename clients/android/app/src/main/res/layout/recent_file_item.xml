@@ -1,0 +1,135 @@
+<?xml version="1.0" encoding="utf-8"?>
+<com.google.android.material.listitem.ListItemLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    xmlns:tools="http://schemas.android.com/tools"
+    android:layout_width="match_parent"
+    android:layout_height="wrap_content"
+    android:layout_marginHorizontal="12dp"
+    android:layout_marginVertical="1dp"
+    tools:ignore="UnusedAttribute">
+
+    <com.google.android.material.listitem.ListItemCardView
+        android:id="@+id/recent_file_control"
+        style="?attr/listItemCardViewSegmentedStyle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:checkable="true"
+        android:clickable="true"
+        android:duplicateParentState="true"
+        android:focusable="true"
+        app:cardBackgroundColor="@color/file_tree_list_item_background">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:baselineAligned="false"
+            android:duplicateParentState="true"
+            android:gravity="top"
+            android:orientation="horizontal">
+
+            <FrameLayout
+                android:layout_width="30dp"
+                android:layout_height="45dp"
+                android:duplicateParentState="true">
+
+                <ImageView
+                    android:id="@+id/recent_file_icon"
+                    android:layout_width="match_parent"
+                    android:layout_height="match_parent"
+                    android:contentDescription="@string/file"
+                    android:duplicateParentState="true"
+                    app:tint="?attr/colorSecondary" />
+
+                <ImageView
+                    android:id="@+id/recent_file_selected_badge"
+                    android:layout_width="20dp"
+                    android:layout_height="20dp"
+                    android:layout_gravity="end|bottom"
+                    android:background="@drawable/file_tree_action_icon_background"
+                    android:contentDescription="@string/document_action"
+                    android:duplicateParentState="true"
+                    android:padding="3dp"
+                    android:src="@drawable/ic_baseline_check_small_24"
+                    android:visibility="gone"
+                    app:tint="@color/file_tree_action_icon_tint" />
+
+            </FrameLayout>
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="20dp"
+                android:layout_marginEnd="10dp"
+                android:layout_weight="1"
+                android:duplicateParentState="true"
+                android:orientation="vertical">
+
+                <androidx.constraintlayout.widget.ConstraintLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:duplicateParentState="true">
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/recent_file_title"
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:duplicateParentState="true"
+                        android:ellipsize="end"
+                        android:maxLines="1"
+                        android:textAppearance="?attr/textAppearanceTitleSmall"
+                        android:textColor="@color/file_tree_item_text_color"
+                        app:layout_constraintEnd_toStartOf="@id/recent_file_modified"
+                        app:layout_constraintStart_toStartOf="parent"
+                        app:layout_constraintTop_toTopOf="parent" />
+
+                    <com.google.android.material.textview.MaterialTextView
+                        android:id="@+id/recent_file_modified"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:layout_marginStart="8dp"
+                        android:duplicateParentState="true"
+                        android:maxLines="1"
+                        android:textAppearance="?attr/textAppearanceLabelMedium"
+                        android:textColor="@color/file_tree_item_description_color"
+                        app:layout_constraintBaseline_toBaselineOf="@id/recent_file_title"
+                        app:layout_constraintEnd_toEndOf="parent" />
+
+                </androidx.constraintlayout.widget.ConstraintLayout>
+
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/recent_file_path"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="6dp"
+                    android:duplicateParentState="true"
+                    android:ellipsize="middle"
+                    android:maxLines="1"
+                    android:textAppearance="?attr/textAppearanceBodyMedium"
+                    android:textColor="@color/file_tree_item_description_color" />
+
+                <com.google.android.material.chip.Chip
+                    android:id="@+id/recent_file_editor"
+                    style="@style/Widget.Material3.Chip.Assist"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:layout_marginBottom="8dp"
+                    android:clickable="false"
+                    android:focusable="false"
+                    android:minHeight="32dp"
+                    android:textColor="?attr/colorPrimary"
+                    app:chipBackgroundColor="?attr/colorPrimaryContainer"
+                    app:chipIcon="@drawable/ic_baseline_person_24"
+                    app:chipIconSize="18dp"
+                    app:chipIconTint="?attr/colorPrimary"
+                    app:chipMinHeight="32dp"
+                    app:chipStrokeWidth="0dp"
+                    app:ensureMinTouchTargetSize="false" />
+
+            </LinearLayout>
+
+        </LinearLayout>
+
+    </com.google.android.material.listitem.ListItemCardView>
+
+</com.google.android.material.listitem.ListItemLayout>
