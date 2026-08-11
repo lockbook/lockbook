@@ -165,6 +165,8 @@ class SearchDocumentsViewModel(
         renderCurrentState()
     }
 
+    fun canNavigateBackWithinSearch(): Boolean = focusedContentSearchResultId != null || isFilenameSearchFocused
+
     fun navigateBackWithinSearch(): Boolean {
         if (focusedContentSearchResultId != null) {
             focusedContentSearchResultId = null

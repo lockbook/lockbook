@@ -40,6 +40,7 @@ import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.model.OpenFilePresentation
 import app.lockbook.model.OpenFileRequest
+import app.lockbook.model.SearchPresentation
 import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
@@ -60,7 +61,7 @@ import net.lockbook.File.FileType
 import kotlin.math.abs
 import kotlin.math.roundToInt
 
-private const val EXPANDED_BOTTOM_SHEET_HEIGHT_DP = 600
+private const val EXPANDED_BOTTOM_SHEET_HEIGHT_DP = 300
 
 private data class PendingTabSwitchUiState(
     val isTabListExpanded: Boolean,
@@ -558,11 +559,11 @@ class WorkspaceFragment : Fragment() {
         }
 
         binding.searchWs.setOnClickListener {
-            mainScreenModel.navigate(MainNavigationAction.OpenSearch(fromWorkspace = true))
+            mainScreenModel.navigate(MainNavigationAction.OpenSearch(SearchPresentation.FullScreen))
         }
 
         binding.searchWsCompact.setOnClickListener {
-            mainScreenModel.navigate(MainNavigationAction.OpenSearch(fromWorkspace = true))
+            mainScreenModel.navigate(MainNavigationAction.OpenSearch(SearchPresentation.FullScreen))
         }
         updateWorkspaceSearchButtonVisibility((activity as? MainScreenActivity)?.isShowingSplit() != true)
 

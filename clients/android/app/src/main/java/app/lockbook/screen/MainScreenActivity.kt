@@ -36,7 +36,6 @@ import app.lockbook.ui.*
 import app.lockbook.util.*
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
-import com.google.android.material.search.SearchView
 import com.google.android.material.textview.MaterialTextView
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -51,7 +50,6 @@ class MainScreenActivity : AppCompatActivity() {
     val binding get() = _binding!!
     private lateinit var workspaceShell: AdaptiveWorkspaceShell
     private lateinit var fileSelectionBottomBarController: FileSelectionBottomBarController
-    private var renderedSearchOpenedFromWorkspace = false
 
     private var isFileSelectionActive = false
 
@@ -60,9 +58,6 @@ class MainScreenActivity : AppCompatActivity() {
 
     internal val fileActionSnackbarAnchorView: View
         get() = binding.createFileFab
-
-    internal val sidebarSearchView: SearchView
-        get() = binding.sidebarSearchView
 
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
@@ -380,19 +375,10 @@ class MainScreenActivity : AppCompatActivity() {
     }
 
     private fun setUpSearch() {
-        binding.sidebarSearchView.setupWithSearchBar(binding.sidebarSearchBar)
-        binding.sidebarSearchView
-            .toolbar
-            .menu
-            .clear()
         binding.sidebarSearchBar.setNavigationOnClickListener {
             if (!isFileSelectionActive) openNavigationDrawer()
         }
-        binding.sidebarSearchBar.setOnClickListener {
-            if (!isFileSelectionActive) {
-                mainScreenModel.navigate(MainNavigationAction.OpenSearch(fromWorkspace = false))
-            }
-        }
+        configureSidebarSearchLauncher()
         binding.sidebarSearchBar.setOnMenuItemClickListener { item ->
             if (item.itemId == R.id.menu_files_list_open_ws && !isFileSelectionActive) {
                 mainScreenModel.navigate(MainNavigationAction.FocusDetail)
@@ -404,17 +390,15 @@ class MainScreenActivity : AppCompatActivity() {
         binding.sidebarSearchBar.addOnLayoutChangeListener { _, _, _, _, _, _, _, _, _ ->
             updateSearchBarDetailAction()
         }
-        binding.sidebarSearchView.addTransitionListener { _, _, newState ->
-            if (newState == SearchView.TransitionState.HIDDEN) {
-                if (mainScreenModel.navigationState.value.searchOverlay != null) {
-                    mainScreenModel.navigate(MainNavigationAction.CloseSearch)
-                }
-                binding.sidebarSearchView.clearText()
-                binding.sidebarSearchBar.clearText()
-                removeSearchResultsFragment()
+        updateSearchBarDetailAction()
+    }
+
+    internal fun configureSidebarSearchLauncher() {
+        binding.sidebarSearchBar.setOnClickListener {
+            if (!isFileSelectionActive) {
+                mainScreenModel.navigate(MainNavigationAction.OpenSearch(SearchPresentation.SidebarMorph))
             }
         }
-        updateSearchBarDetailAction()
     }
 
     private fun updateSearchBarDetailAction() {
@@ -639,45 +623,36 @@ class MainScreenActivity : AppCompatActivity() {
 
     private fun renderSearchOverlay(searchOverlay: SearchOverlay?) {
         if (searchOverlay != null) {
-            ensureSearchResultsFragment()
-            renderedSearchOpenedFromWorkspace = searchOverlay.openedFromWorkspace
-            if (!binding.sidebarSearchView.isShowing) {
-                if (searchOverlay.openedFromWorkspace) {
-                    binding.sidebarSearchView.setVisible(true)
-                    binding.sidebarSearchView.post {
-                        binding.sidebarSearchView.requestFocusAndShowKeyboard()
-                    }
-                } else {
-                    binding.sidebarSearchView.show()
-                }
-            }
-        } else if (binding.sidebarSearchView.isShowing) {
-            if (renderedSearchOpenedFromWorkspace) {
-                binding.sidebarSearchView.setVisible(false)
-            } else {
-                binding.sidebarSearchView.hide()
-            }
-            renderedSearchOpenedFromWorkspace = false
+            ensureSearchFragment(searchOverlay.presentation)
+        } else {
+            removeSearchFragment()
         }
     }
 
-    private fun ensureSearchResultsFragment() {
+    private fun ensureSearchFragment(presentation: SearchPresentation) {
         val existing = supportFragmentManager.findFragmentByTag(SIDEBAR_SEARCH_FRAGMENT_TAG)
-        if (existing?.id == R.id.search_results_container) {
+        if (
+            existing?.id == R.id.search_overlay_container &&
+            (existing as? SearchDocumentsFragment)?.presentation == presentation
+        ) {
             return
         }
 
         supportFragmentManager.commitNow {
             setReorderingAllowed(true)
             existing?.let(::remove)
-            add<SearchDocumentsFragment>(R.id.search_results_container, SIDEBAR_SEARCH_FRAGMENT_TAG)
+            add(
+                R.id.search_overlay_container,
+                SearchDocumentsFragment.newInstance(presentation),
+                SIDEBAR_SEARCH_FRAGMENT_TAG,
+            )
         }
     }
 
-    private fun removeSearchResultsFragment() {
+    private fun removeSearchFragment() {
         supportFragmentManager
             .findFragmentByTag(SIDEBAR_SEARCH_FRAGMENT_TAG)
-            ?.takeIf { it.id == R.id.search_results_container }
+            ?.takeIf { it.id == R.id.search_overlay_container }
             ?.let { fragment ->
                 supportFragmentManager.commitNow {
                     setReorderingAllowed(true)
