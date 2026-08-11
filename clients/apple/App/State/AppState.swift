@@ -85,7 +85,7 @@ import SwiftWorkspace
     #endif
 
     static let defaultApiUrl: String =
-        ProcessInfo.processInfo.environment["API_LOCATION"] ?? "http://localhost:8000"
+        ProcessInfo.processInfo.environment["API_LOCATION"] ?? "https://app.lockbook.net"
 
     static let lb: LbAPI = {
         if isPreviewEnvironmentKey.defaultValue {
