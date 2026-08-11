@@ -62,11 +62,7 @@ struct SelectableRowModifier: ViewModifier {
     @State private var swipeHorizontal: Bool? = nil
     @State private var swipePastThreshold = false
     @State private var actionsRevealed = false
-    @State private var showMovePicker = false
     @State private var confirmDelete = false
-    @State private var showCreateFile = false
-    @State private var showShare = false
-    @State private var showRename = false
 
     private static let actionsWidth: CGFloat = 168
 
@@ -80,15 +76,6 @@ struct SelectableRowModifier: ViewModifier {
 
     var isPinned: Bool {
         file.map { filesModel.pinnedIds.contains($0.id) } == true
-    }
-
-    private var createLocation: LocationChoice {
-        guard let file else {
-            return .root
-        }
-
-        let folder = file.isFolder ? file : filesModel.idsToFiles[file.parent]
-        return folder.map(LocationChoice.init) ?? .root
     }
 
     func body(content: Content) -> some View {
@@ -130,15 +117,15 @@ struct SelectableRowModifier: ViewModifier {
                 }
 
                 contextMenuItem("New File Here", systemImage: "square.and.pencil") {
-                    showCreateFile = true
+                    fileTreeModel.createTarget = file
                 }
 
                 contextMenuItem("Rename", systemImage: "pencil") {
-                    showRename = true
+                    fileTreeModel.renameTarget = file
                 }
 
                 contextMenuItem("Move", systemImage: "folder") {
-                    showMovePicker = true
+                    fileTreeModel.moveTarget = file
                 }
 
                 if file?.isFolder == false {
@@ -150,7 +137,7 @@ struct SelectableRowModifier: ViewModifier {
                 }
 
                 contextMenuItem("Share", systemImage: "square.and.arrow.up") {
-                    showShare = true
+                    fileTreeModel.shareTarget = file
                 }
 
                 Divider()
@@ -175,29 +162,6 @@ struct SelectableRowModifier: ViewModifier {
                 contextMenuItem("Delete", systemImage: "trash", role: .destructive) {
                     confirmDelete = true
                 }
-            }
-        }
-        .sheet(isPresented: $showCreateFile) {
-            CreateFileSheet(
-                fileTreeModel: fileTreeModel,
-                mode: .create(location: createLocation)
-            )
-        }
-        .sheet(isPresented: $showRename) {
-            if let file {
-                CreateFileSheet(fileTreeModel: fileTreeModel, mode: .rename(file))
-            }
-        }
-        .sheet(isPresented: $showShare) {
-            ShareFileSheet(id: id)
-        }
-        .sheet(isPresented: $showMovePicker) {
-            FolderPickerSheet(fileTreeModel: fileTreeModel, selection: nil) { folder in
-                guard let file else {
-                    return
-                }
-
-                _ = fileTreeModel.moveAndReveal([file], into: folder)
             }
         }
         .confirmationDialog(
@@ -272,7 +236,7 @@ struct SelectableRowModifier: ViewModifier {
         HStack(spacing: 0) {
             swipeAction("folder.fill", .purple) {
                 closeActions()
-                showMovePicker = true
+                fileTreeModel.moveTarget = file
             }
 
             swipeAction(isPinned ? "pin.slash.fill" : "pin.fill", .orange) {
@@ -436,6 +400,8 @@ struct SelectionCommandsModifier: ViewModifier {
     @State private var showMovePicker = false
 
     func body(content: Content) -> some View {
+        @Bindable var fileTreeModel = fileTreeModel
+
         content
             .toolbar {
                 if selection.selecting {
@@ -459,6 +425,28 @@ struct SelectionCommandsModifier: ViewModifier {
                     moveSelectedFiles(into: folder)
                 }
             }
+            .sheet(item: $fileTreeModel.createTarget) { file in
+                CreateFileSheet(
+                    fileTreeModel: fileTreeModel,
+                    mode: .create(location: createLocation(for: file))
+                )
+            }
+            .sheet(item: $fileTreeModel.renameTarget) { file in
+                CreateFileSheet(fileTreeModel: fileTreeModel, mode: .rename(file))
+            }
+            .sheet(item: $fileTreeModel.shareTarget) { file in
+                ShareFileSheet(id: file.id)
+            }
+            .sheet(item: $fileTreeModel.moveTarget) { file in
+                FolderPickerSheet(fileTreeModel: fileTreeModel, selection: nil) { folder in
+                    _ = fileTreeModel.moveAndReveal([file], into: folder)
+                }
+            }
+    }
+
+    private func createLocation(for file: File) -> LocationChoice {
+        let folder = file.isFolder ? file : filesModel.idsToFiles[file.parent]
+        return folder.map(LocationChoice.init) ?? .root
     }
 
     private var commandBar: some View {

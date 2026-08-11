@@ -1752,9 +1752,13 @@ pub fn lb_bg_worker(ctx: Context, lb: Lb, ws_tx: Sender<WsUpdates>) {
         match events.blocking_recv() {
             Ok(evt) => match evt {
                 Event::MetadataChanged(_) => {
-                    ws_tx
+                    if ws_tx
                         .send(WsUpdates::FileCacheComputed(FileCache::new(&lb)))
-                        .unwrap();
+                        .is_err()
+                    {
+                        info!("workspace dropped, lb_bg_worker exiting");
+                        return;
+                    }
                     ctx.request_repaint();
                 }
                 Event::Sync(events::SyncIncrement::SyncFinished(_)) => {

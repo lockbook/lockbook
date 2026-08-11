@@ -25,6 +25,21 @@ async fn create_account_success_with_welcome() {
 }
 
 #[tokio::test]
+async fn create_account_success_with_fragmented_archetypes() {
+    let core = test_core().await;
+    let mut name = random_name();
+    while !matches!(cohort::<WelcomeDoc>(&name), WelcomeDoc::FramgentedArchetypes) {
+        name = random_name();
+    }
+    core.create_account(&name, &url(), true).await.unwrap();
+    core.get_by_path("welcome.md").await.unwrap();
+    core.get_by_path("samples/todo.md").await.unwrap();
+    core.get_by_path("samples/journal.md").await.unwrap();
+    core.get_by_path("samples/bitcoin.pdf").await.unwrap();
+    core.get_by_path("samples/drawing.svg").await.unwrap();
+}
+
+#[tokio::test]
 async fn create_account_invalid_url() {
     let core = test_core().await;
     let result = core
