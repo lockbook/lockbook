@@ -173,6 +173,7 @@ private struct OnboardingTwoView: View {
             DispatchQueue.main.async {
                 switch operation {
                 case .success:
+                    AppState.shared.accountCreatedThisSession = true
                     createdAccount = true
                 case let .failure(err):
                     working = false

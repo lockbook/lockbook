@@ -11,6 +11,9 @@ struct FileTreeView: View {
 
     let fileTreeModel: FileTreeModel
 
+    #if os(iOS)
+        @Environment(\.horizontalSizeClass) private var horizontalSizeClass
+    #endif
     @State private var isRootDropTargeted = false
     @State private var topZoneTargeted = false
     @State private var bottomZoneTargeted = false
@@ -26,13 +29,26 @@ struct FileTreeView: View {
     var body: some View {
         if let root = filesModel.root {
             ScrollView {
-                LazyVStack(alignment: .leading, spacing: 2) {
-                    ForEach(fileTreeModel.visibleRows) { row in
-                        FileRowView(file: row.file, level: row.level)
+                if fileTreeModel.visibleRows.isEmpty {
+                    emptyState
+                } else {
+                    LazyVStack(alignment: .leading, spacing: 2) {
+                        ForEach(fileTreeModel.visibleRows) { row in
+                            FileRowView(file: row.file, level: row.level)
+                        }
+                    }
+                    .scrollTargetLayout()
+                    .padding(.horizontal)
+
+                    if showStartHereHint {
+                        startHereHint
                     }
                 }
-                .scrollTargetLayout()
-                .padding(.horizontal)
+            }
+            .overlay(alignment: CreateButtonArrow.alignment) {
+                if fileTreeModel.visibleRows.isEmpty {
+                    CreateButtonArrow()
+                }
             }
             .contextMenu {
                 contextMenuItem("New File", systemImage: "square.and.pencil") {
@@ -126,6 +142,46 @@ struct FileTreeView: View {
         } else {
             ProgressView()
         }
+    }
+
+    private var showStartHereHint: Bool {
+        AppState.shared.accountCreatedThisSession
+    }
+
+    private var startHereHint: some View {
+        StartHereHint(leadingInset: 21)
+            .padding(.top, -10)
+    }
+
+    private var emptyState: some View {
+        VStack(spacing: 12) {
+            Image(systemName: "sparkles")
+                .font(.system(size: 34))
+                .foregroundStyle(Color.accentColor.opacity(0.5))
+
+            Text("Nothing here yet")
+                .font(.headline)
+
+            Text(emptySubtext)
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .multilineTextAlignment(.center)
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.horizontal, 32)
+        .containerRelativeFrame(.vertical) { height, _ in height * 0.6 }
+    }
+
+    private var emptySubtext: String {
+        #if os(iOS)
+            if horizontalSizeClass == .compact {
+                "Notes, drawings, folders — create your first below."
+            } else {
+                "Tap the pencil in the corner to create your first note."
+            }
+        #else
+            "Notes, drawings, folders — create your first with New."
+        #endif
     }
 
     private func scrollToOpenDoc() {
