@@ -8,7 +8,7 @@ import org.junit.Test
 
 class MainNavigationTest {
     @Test
-    fun workspaceSearchRestoresFocusedDetail() {
+    fun searchPreservesFocusedDetail() {
         val focused =
             MainNavigationState(
                 paneIntent = PaneIntent.FocusDetail,
@@ -17,11 +17,17 @@ class MainNavigationTest {
         val searching =
             reduceMainNavigation(
                 focused,
-                MainNavigationAction.OpenSearch(fromWorkspace = true),
+                MainNavigationAction.OpenSearch(SearchPresentation.FullScreen),
             ).state
         assertEquals(SidebarDestination.Files, searching.sidebar)
         assertEquals(PaneIntent.FocusDetail, searching.paneIntent)
-        assertEquals(SearchOverlay(openedFromWorkspace = true, originPaneIntent = PaneIntent.FocusDetail), searching.searchOverlay)
+        assertEquals(
+            SearchOverlay(
+                originPaneIntent = PaneIntent.FocusDetail,
+                presentation = SearchPresentation.FullScreen,
+            ),
+            searching.searchOverlay,
+        )
 
         val restored = reduceMainNavigation(searching, MainNavigationAction.CloseSearch)
         assertEquals(SidebarDestination.Files, restored.state.sidebar)
@@ -34,7 +40,7 @@ class MainNavigationTest {
         val searching =
             reduceMainNavigation(
                 MainNavigationState(),
-                MainNavigationAction.OpenSearch(fromWorkspace = false),
+                MainNavigationAction.OpenSearch(SearchPresentation.SidebarMorph),
             ).state
 
         val transition =
@@ -57,7 +63,11 @@ class MainNavigationTest {
         val state =
             MainNavigationState(
                 sidebar = SidebarDestination.CreateLink("file-id"),
-                searchOverlay = SearchOverlay(openedFromWorkspace = false, originPaneIntent = PaneIntent.Automatic),
+                searchOverlay =
+                    SearchOverlay(
+                        originPaneIntent = PaneIntent.Automatic,
+                        presentation = SearchPresentation.SidebarMorph,
+                    ),
             )
 
         val searchBack = reduceMainNavigation(state, MainNavigationAction.Back)
@@ -80,7 +90,7 @@ class MainNavigationTest {
                     sidebar = SidebarDestination.Recents,
                     paneIntent = PaneIntent.Detail,
                 ),
-                MainNavigationAction.OpenSearch(fromWorkspace = true),
+                MainNavigationAction.OpenSearch(SearchPresentation.FullScreen),
             ).state
 
         val result = reduceMainNavigation(searching, MainNavigationAction.OpenFolderFromSearch)
@@ -115,7 +125,11 @@ class MainNavigationTest {
                 MainNavigationState(
                     sidebar = SidebarDestination.Recents,
                     paneIntent = PaneIntent.FocusDetail,
-                    searchOverlay = SearchOverlay(openedFromWorkspace = true, originPaneIntent = PaneIntent.FocusDetail),
+                    searchOverlay =
+                        SearchOverlay(
+                            originPaneIntent = PaneIntent.FocusDetail,
+                            presentation = SearchPresentation.FullScreen,
+                        ),
                 ) to SidebarDestination.Recents,
                 MainNavigationState(
                     sidebar = SidebarDestination.CreateLink("link-file"),

@@ -106,21 +106,10 @@
 
         </app.lockbook.screen.AdaptiveWorkspaceShell>
 
-        <com.google.android.material.search.SearchView
-            android:id="@+id/sidebar_search_view"
-            style="@style/Widget.Material3.SearchView"
+        <androidx.fragment.app.FragmentContainerView
+            android:id="@+id/search_overlay_container"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:hint="@string/search_in_lockbook"
-            app:autoShowKeyboard="true"
-            app:backHandlingEnabled="true">
-
-            <androidx.fragment.app.FragmentContainerView
-                android:id="@+id/search_results_container"
-                android:layout_width="match_parent"
-                android:layout_height="match_parent" />
-
-        </com.google.android.material.search.SearchView>
+            android:layout_height="match_parent" />
 
     </FrameLayout>
 

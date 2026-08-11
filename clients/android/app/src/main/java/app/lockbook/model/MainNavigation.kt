@@ -27,9 +27,14 @@ sealed interface SidebarDestination {
 }
 
 data class SearchOverlay(
-    val openedFromWorkspace: Boolean,
     val originPaneIntent: PaneIntent,
+    val presentation: SearchPresentation,
 )
+
+enum class SearchPresentation {
+    SidebarMorph,
+    FullScreen,
+}
 
 data class MainNavigationState(
     val sidebar: SidebarDestination = SidebarDestination.Files,
@@ -43,7 +48,7 @@ sealed interface MainNavigationAction {
     ) : MainNavigationAction
 
     data class OpenSearch(
-        val fromWorkspace: Boolean,
+        val presentation: SearchPresentation,
     ) : MainNavigationAction
 
     data object CloseSearch : MainNavigationAction
@@ -102,8 +107,8 @@ fun reduceMainNavigation(
                 state.copy(
                     searchOverlay =
                         SearchOverlay(
-                            openedFromWorkspace = action.fromWorkspace,
                             originPaneIntent = state.paneIntent,
+                            presentation = action.presentation,
                         ),
                 ),
             )
