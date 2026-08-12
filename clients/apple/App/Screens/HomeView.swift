@@ -195,6 +195,7 @@ struct HomeView: View {
         .environment(workspaceOutput)
         .onChange(of: workspaceOutput.openDoc) { _, openDoc in
             guard let openDoc else { return }
+            AppState.shared.accountCreatedThisSession = false
             fileTreeModel.docOpened(openDoc)
             sharedTreeModel.docOpened(openDoc)
         }

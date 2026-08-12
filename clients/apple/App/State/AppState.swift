@@ -14,6 +14,7 @@ import SwiftWorkspace
     var account: Account? = nil
     var isLoggedIn: Bool = false
     var error: UIError? = nil
+    var accountCreatedThisSession = false
 
     private init() {
         checkIfLoggedIn()
