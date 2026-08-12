@@ -19,7 +19,6 @@ struct FileTreeView: View {
     @State private var atBottom = false
     @State private var zoneDecayTask: Task<Void, Never>?
     @State private var stickyHeaders: [File] = []
-    @State private var showRootCreate = false
     @State private var dragScrollTop: CGFloat = 0
     @State private var scrollPosition = ScrollPosition()
     @State private var autoScroll = AutoScrollDriver()
@@ -37,11 +36,8 @@ struct FileTreeView: View {
             }
             .contextMenu {
                 contextMenuItem("New File", systemImage: "square.and.pencil") {
-                    showRootCreate = true
+                    fileTreeModel.createTarget = root
                 }
-            }
-            .sheet(isPresented: $showRootCreate) {
-                CreateFileSheet(fileTreeModel: fileTreeModel)
             }
             .scrollPosition($scrollPosition)
             .onAppear {
