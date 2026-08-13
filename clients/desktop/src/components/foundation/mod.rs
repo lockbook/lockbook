@@ -16,7 +16,7 @@ pub use chrome::{
     paint_plate_stroke, phosphor, phosphor_ui_font_id, plate_content, shortcut_cmd_i,
     shortcut_cmd_n, shortcut_enter, shortcut_esc, shortcut_return,
 };
-pub use color::Theme;
+pub use color::{FG_HOVER, FG_PRESS, Theme, ThemeExt};
 pub use interact::sense_click;
 pub use layout::{
     FixedPadContent, claim, origin, place_at, remaining_height, ui_width, with_h_pad,

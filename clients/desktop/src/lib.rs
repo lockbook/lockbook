@@ -1,4 +1,14 @@
+//! Lockbook desktop — component library + product shell (host still lockbook-egui).
+
 pub mod components;
+mod settings;
+pub mod shell;
+mod util;
+
+pub use crate::settings::Settings;
+pub use crate::shell::ShellApp;
+
+pub const DEV_USERS: &[&str] = &["parth", "adam", "travis", "at"];
 
 struct App {
     state: Option<AppState>,
