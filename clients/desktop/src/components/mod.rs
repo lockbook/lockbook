@@ -7,7 +7,11 @@ pub use foundation::{FixedPadContent, ModePreference, ROW_H, Radius, STROKE_HAIR
 #[cfg(test)]
 pub use foundation::{begin_spacer_record, take_spacer_record};
 
-pub use atoms::{Button, Field, icon_button, icon_button_hit};
+pub use atoms::{
+    Button, Chip, ChipHue, EqualCells, Field, QuietChipAlign, QuietChipLabel, icon_button,
+    icon_button_hit, measure_file_name, paint_file_name, quiet_chip, quiet_chip_height,
+    quiet_chip_labeled_min_width, segmented, segmented_h,
+};
 
 pub mod interact {
     pub use super::foundation::interact::*;
