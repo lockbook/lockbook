@@ -16,9 +16,9 @@ use egui::{Sense, Ui};
 
 #[cfg(not(target_os = "macos"))]
 use crate::components::phosphor;
-use crate::components::{Space, Theme, claim, control_height, icon_button_hit, place_at, tip_text};
 #[cfg(not(target_os = "macos"))]
 use crate::components::{FG_HOVER, FG_PRESS};
+use crate::components::{Space, Theme, claim, control_height, icon_button_hit, place_at, tip_text};
 use egui::{Align, Layout};
 
 use super::ShellApp;
