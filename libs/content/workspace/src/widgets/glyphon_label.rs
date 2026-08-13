@@ -452,9 +452,9 @@ fn end_ellipsis_candidate(chars: &[char], keep: usize) -> String {
 impl egui::Widget for GlyphonLabel<'_> {
     fn ui(self, ui: &mut Ui) -> Response {
         let shaped = self.build(ui.ctx());
-        let alloc_height = self.line_height.unwrap_or(self.font_size * 1.4);
-        let (rect, response) =
-            ui.allocate_exact_size(egui::vec2(shaped.size.x, alloc_height), self.sense);
+        // Use full shaped size — wrapping (`max_width`) can be multi-line; a
+        // single line_height allocation clipped second+ lines (share summary).
+        let (rect, response) = ui.allocate_exact_size(shaped.size, self.sense);
 
         if ui.is_rect_visible(rect) {
             let areas = shaped.text_areas(rect, ui.ctx(), rect);
