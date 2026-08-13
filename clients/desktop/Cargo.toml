@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-desktop"
-version = "26.4.22"
+version = "26.8.12"
 edition = "2021"
 
 [dependencies]
@@ -21,12 +21,10 @@ image = { version = "0.25", default-features = false, features = [
     "ico",
 ] }
 lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false }
-lbeguiapp = { package = "lockbook-egui", path = "../egui", default-features = false, features = ["egui_wgpu_renderer"] }
 log = "0.4"
 rfd = { version = "0.11.4", default-features = false, features = ["xdg-portal"] }
 serde = { version = "1.0.140", features = ["derive"] }
 serde_json = "1.0.82"
-pollster = "0.4"
 wgpu = "25"
 workspace = { path = "../../libs/content/workspace" }
 winit = "0.30"
