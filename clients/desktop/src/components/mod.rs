@@ -1,4 +1,9 @@
 //! Lockbook desktop component library.
+//!
+//! Layers:
+//! - [`foundation`] — space, color, type, layout, interact, chrome
+//! - [`atoms`] — button, chip, field, file row, nav, person
+//! - [`compounds`] — form, sheet, list, scroll, menu, tips
 
 pub mod atoms;
 pub mod compounds;
@@ -15,8 +20,17 @@ pub use atoms::{
     quiet_chip_labeled_min_width, segmented, segmented_h,
 };
 
-pub use compounds::{tip_card_placed, tip_text};
+pub use compounds::{
+    LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, SheetFooterOpts, fixed_height_list, footnote,
+    form_group, form_picker, form_row, form_row_detail, form_segmented, form_toggle,
+    form_toggle_detail, form_value, list_section_header, section_label, sheet_band,
+    sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer, sheet_panel_fit,
+    sheet_panel_fixed, sheet_title_muted, tip_card_placed, tip_text, with_overlay_scroll,
+};
 
 pub mod interact {
     pub use super::foundation::interact::*;
+}
+pub mod context_menu {
+    pub use super::compounds::context_menu::*;
 }
