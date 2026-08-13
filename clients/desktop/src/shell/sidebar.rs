@@ -6,7 +6,10 @@
 use egui::{Frame, Id, Rect, Sense, Ui, vec2};
 
 use crate::components::domain::chips;
-use crate::components::{FixedPadContent, STROKE_HAIRLINE, Space, Spacer, Theme, control_height, show_recents, show_shared, show_sync_footer, show_tree, ui_width, with_h_pad_in};
+use crate::components::{
+    FixedPadContent, STROKE_HAIRLINE, Space, Spacer, Theme, control_height, show_recents,
+    show_shared, show_sync_footer, show_tree, ui_width, with_h_pad_in,
+};
 
 use super::ShellApp;
 use super::action::Action as A;

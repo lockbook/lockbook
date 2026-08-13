@@ -12,7 +12,10 @@ use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 use workspace_rs::tab::Destination;
 
-use crate::components::{Radius, STROKE_HAIRLINE, Space, Theme, TypeRole, claim, context_menu, file_row_icon, fit_outside_stroke_fill, phosphor, place_at, ui_width, FG_HOVER, FG_PRESS};
+use crate::components::{
+    FG_HOVER, FG_PRESS, Radius, STROKE_HAIRLINE, Space, Theme, TypeRole, claim, context_menu,
+    file_row_icon, fit_outside_stroke_fill, phosphor, place_at, ui_width,
+};
 
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
@@ -325,9 +328,7 @@ fn tab_chrome_rect(ui: &Ui, body: egui::Rect, active: bool) -> egui::Rect {
     fit_outside_stroke_fill(desired, clip)
 }
 
-fn tab_button(
-    ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reopen: bool,
-) -> TabOut {
+fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reopen: bool) -> TabOut {
     let name = &tab.title;
     let active = tab.active;
     let index = tab.idx;
@@ -423,11 +424,8 @@ fn tab_button(
             t.wash_toward_neutral_fg(t.neutral_bg_secondary(), FG_HOVER * hover_t)
         };
         if close_h > 0.0 || close_over {
-            let amount = if close_resp.is_pointer_button_down_on() {
-                FG_PRESS
-            } else {
-                FG_HOVER * close_h
-            };
+            let amount =
+                if close_resp.is_pointer_button_down_on() { FG_PRESS } else { FG_HOVER * close_h };
             ui.painter().rect_filled(
                 close_rect,
                 Radius::Sm.corner(),

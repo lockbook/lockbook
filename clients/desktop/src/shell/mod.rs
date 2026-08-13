@@ -16,11 +16,11 @@ pub mod prefs;
 pub mod session;
 pub mod settings;
 mod settings_account;
-mod sheets;
-mod sheet_share;
 mod sheet_create;
 mod sheet_folder;
 mod sheet_onboard;
+mod sheet_share;
+mod sheets;
 pub mod sidebar;
 pub mod titlebar;
 pub mod toasts;
@@ -40,7 +40,10 @@ use lb::Uuid;
 use lb::service::events::{self, Event};
 use workspace_rs::file_cache::FilesExt;
 
-use crate::components::{self, Space, Spacer, ThemeFamily, Theme, TypeRole, handle_toggle_shortcut, set_mode_preference, set_theme_family, sheet_panel_fit, ThemeExt};
+use crate::components::{
+    self, Space, Spacer, Theme, ThemeExt, ThemeFamily, TypeRole, handle_toggle_shortcut,
+    set_mode_preference, set_theme_family, sheet_panel_fit,
+};
 use crate::settings::Settings;
 
 use action::Action as A;

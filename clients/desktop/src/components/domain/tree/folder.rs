@@ -1,14 +1,11 @@
 //! Delete-preview and folder-picker trees (sheet-facing).
 
-
 use egui::{Id, Layout, Rect, ScrollArea, Ui, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
 use crate::components::interact::sense_click;
-use crate::components::{
-    ROW_H, Theme, with_overlay_scroll,
-};
+use crate::components::{ROW_H, Theme, with_overlay_scroll};
 use crate::shell::ShellApp;
 
 use super::{

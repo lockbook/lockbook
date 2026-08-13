@@ -13,7 +13,7 @@ use egui::{
 use std::sync::Arc;
 
 use crate::components::foundation::chrome::{Radius, STROKE_HAIRLINE, control_height};
-use crate::components::foundation::color::{Theme, FG_HOVER};
+use crate::components::foundation::color::{FG_HOVER, Theme};
 use crate::components::foundation::space::Space;
 use crate::components::foundation::space::control as control_space;
 use crate::components::foundation::spacer::Spacer;

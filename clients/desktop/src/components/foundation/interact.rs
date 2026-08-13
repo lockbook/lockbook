@@ -21,7 +21,7 @@
 use egui::{Color32, Context, Id, Response, Sense};
 
 use super::chrome::HOVER_ANIM_SECS;
-use super::color::{Theme, FG_HOVER, FG_PRESS};
+use super::color::{FG_HOVER, FG_PRESS, Theme};
 
 /// Click + hover, **not** keyboard-focusable.
 ///

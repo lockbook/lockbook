@@ -9,7 +9,9 @@ use workspace_rs::widgets::GlyphonTextEdit;
 use crate::components::foundation::chrome::{
     Radius, STROKE_HAIRLINE, control_height, control_line_height, phosphor_ui_font_id,
 };
-use crate::components::foundation::color::{Theme, FG_HOVER, FG_PRESS, QUIET_PLATE_HOVER, QUIET_PLATE_PRESS};
+use crate::components::foundation::color::{
+    FG_HOVER, FG_PRESS, QUIET_PLATE_HOVER, QUIET_PLATE_PRESS, Theme,
+};
 use crate::components::foundation::interact::{ControlFills, interact_fill, sense_click};
 use crate::components::foundation::layout::{inset, paint_control_pads, place_at};
 use crate::components::foundation::space::control as control_space;
@@ -322,11 +324,8 @@ impl<'a> Field<'a> {
             let cresp = ui.interact(cr, host.with("clear_hit"), sense_click());
             let over = ui.ctx().rect_contains_pointer(ui.layer_id(), cr);
             let ground = if focused { t.neutral_bg() } else { t.neutral_bg_secondary() };
-            let (h_amt, p_amt) = if focused {
-                (FG_HOVER, FG_PRESS)
-            } else {
-                (QUIET_PLATE_HOVER, QUIET_PLATE_PRESS)
-            };
+            let (h_amt, p_amt) =
+                if focused { (FG_HOVER, FG_PRESS) } else { (QUIET_PLATE_HOVER, QUIET_PLATE_PRESS) };
             let fills = ControlFills {
                 rest: ground,
                 hover: t.wash_toward_neutral_fg(ground, h_amt),

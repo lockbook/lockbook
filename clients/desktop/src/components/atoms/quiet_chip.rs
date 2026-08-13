@@ -8,7 +8,7 @@ use egui::{Color32, Response, Ui, pos2, vec2};
 use crate::components::foundation::chrome::{
     HOVER_ANIM_SECS, Radius, control_height, phosphor_ui_font_id,
 };
-use crate::components::foundation::color::{Theme, FG_HOVER, FG_PRESS};
+use crate::components::foundation::color::{FG_HOVER, FG_PRESS, Theme};
 use crate::components::foundation::layout::ui_width;
 use crate::components::foundation::space::Space;
 use crate::components::foundation::typography::TypeRole;

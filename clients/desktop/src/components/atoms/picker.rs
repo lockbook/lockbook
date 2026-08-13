@@ -9,7 +9,7 @@ use egui::{Color32, Key, Modifiers, Popup, PopupCloseBehavior, Response, Stroke,
 use crate::components::foundation::chrome::{
     Radius, STROKE_HAIRLINE, canvas_overlay_frame, control_height, phosphor, phosphor_ui_font_id,
 };
-use crate::components::foundation::color::{Theme, STROKE_EMPHASIS};
+use crate::components::foundation::color::{STROKE_EMPHASIS, Theme};
 use crate::components::foundation::interact::{
     canvas_selected_fills, interact_fill, quiet_canvas_fills,
 };

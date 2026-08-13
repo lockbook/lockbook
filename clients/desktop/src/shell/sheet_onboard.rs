@@ -1,14 +1,18 @@
 use egui::{Align, Area, Id, Layout, Order};
 
-use crate::components::{Button, Field, SheetFooterOpts, Space, Spacer, Theme, TypeRole, phosphor, segmented, sheet_band_centered, sheet_dim, sheet_footer, sheet_panel_fit, shortcut_cmd_i, shortcut_cmd_n, shortcut_return};
+use crate::components::{
+    Button, Field, SheetFooterOpts, Space, Spacer, Theme, TypeRole, phosphor, segmented,
+    sheet_band_centered, sheet_dim, sheet_footer, sheet_panel_fit, shortcut_cmd_i, shortcut_cmd_n,
+    shortcut_return,
+};
 
 use super::ShellApp;
 use super::action::Action as A;
-use super::action::{
-    Action, Modal, OnboardImportKind, OnboardLookup, OnboardMode,
-};
+use super::action::{Action, Modal, OnboardImportKind, OnboardLookup, OnboardMode};
 
-pub(crate) fn show_onboard(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+pub(crate) fn show_onboard(
+    app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     let (mode, uname_lookup, uname_lookup_for, import_kind, busy, err) = match &app.modal {
         Some(Modal::Onboard {
             mode,

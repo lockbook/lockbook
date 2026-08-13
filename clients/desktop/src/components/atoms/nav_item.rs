@@ -13,7 +13,7 @@ use egui::{
 };
 
 use crate::components::foundation::chrome::{Radius, control_height, phosphor_ui_font_id};
-use crate::components::foundation::color::{Theme, QUIET_PLATE_HOVER, QUIET_PLATE_PRESS};
+use crate::components::foundation::color::{QUIET_PLATE_HOVER, QUIET_PLATE_PRESS, Theme};
 use crate::components::foundation::interact::ControlFills;
 use crate::components::foundation::layout::{inset, paint_control_pads};
 use crate::components::foundation::space::control as control_space;

@@ -6,9 +6,8 @@ use workspace_rs::file_cache::FilesExt;
 
 use crate::components::interact::sense_click;
 use crate::components::{
-    FileRow, LIST_PAD, Space, Spacer, Theme, TypeRole, context_menu,
-    control_height, icon_button_hit, list_section_header, phosphor, tip_text,
-    with_overlay_scroll,
+    FileRow, LIST_PAD, Space, Spacer, Theme, TypeRole, context_menu, control_height,
+    icon_button_hit, list_section_header, phosphor, tip_text, with_overlay_scroll,
 };
 use crate::shell::ShellApp;
 use crate::shell::action::Action;

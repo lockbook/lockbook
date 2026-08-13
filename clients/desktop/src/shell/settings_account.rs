@@ -3,10 +3,10 @@
 use egui::{Id, Stroke, Ui};
 
 use crate::components::{
-    Button, Field, FG_HOVER, Radius, STROKE_HAIRLINE, SheetFooterOpts, Space, Spacer, Theme,
-    TypeRole, control_height, footnote, form_group, form_row, form_row_detail,
-    form_value, phosphor, phosphor_ui_font_id, plate_content, section_label,
-    sense_click, sheet_band_centered, sheet_footer, shortcut_enter, shortcut_return, ui_width,
+    Button, FG_HOVER, Field, Radius, STROKE_HAIRLINE, SheetFooterOpts, Space, Spacer, Theme,
+    TypeRole, control_height, footnote, form_group, form_row, form_row_detail, form_value,
+    phosphor, phosphor_ui_font_id, plate_content, section_label, sense_click, sheet_band_centered,
+    sheet_footer, shortcut_enter, shortcut_return, ui_width,
 };
 use crate::shell::ShellApp;
 use crate::shell::action::{Action, Action as A, UpgradeStage};
@@ -694,4 +694,3 @@ fn page_plan_body(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Ac
         );
     }
 }
-

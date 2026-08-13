@@ -2,7 +2,10 @@ use egui::{Area, Id, Order};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
-use crate::components::{SheetFooterOpts, Space, Spacer, Theme, TypeRole, sheet_dim, sheet_footer, sheet_panel_fit, sheet_title_muted, shortcut_enter, shortcut_return};
+use crate::components::{
+    SheetFooterOpts, Space, Spacer, Theme, TypeRole, sheet_dim, sheet_footer, sheet_panel_fit,
+    sheet_title_muted, shortcut_enter, shortcut_return,
+};
 
 use super::ShellApp;
 use super::action::Action as A;
@@ -125,8 +128,10 @@ pub(crate) fn move_summary_line(
             paint_path_line(ui);
         }
     } else {
-        let head =
-            format!("These {} will be moved to ", super::sheets::delete_count_noun(n_items, "item", "items"));
+        let head = format!(
+            "These {} will be moved to ",
+            super::sheets::delete_count_noun(n_items, "item", "items")
+        );
         let head_w = mw(ui, &head, false);
         let one_line = head_w + path_w + tail_w <= max_w;
         if one_line {
@@ -162,8 +167,9 @@ fn move_cascade_stats(app: &ShellApp, ids: &[Uuid]) -> (Option<String>, usize, u
         .iter()
         .copied()
         .filter(|&id| {
-            !ids.iter()
-                .any(|&other| other != id && super::sheets::delete_is_strict_ancestor(&*files, other, id))
+            !ids.iter().any(|&other| {
+                other != id && super::sheets::delete_is_strict_ancestor(&*files, other, id)
+            })
         })
         .collect();
     if roots.is_empty() {
@@ -562,4 +568,3 @@ fn dest_action_summary(
         .max_width(max_w),
     );
 }
-

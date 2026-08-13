@@ -5,7 +5,9 @@ use egui::{Color32, Sense, Stroke, StrokeKind, Ui, pos2, vec2};
 use workspace_rs::theme::palette_v2::Palette;
 
 use crate::components::foundation::chrome::{Radius, STROKE_HAIRLINE};
-use crate::components::foundation::color::{Theme, hue_wash, QUIET_PLATE_PRESS, CHIP_DISMISS_PRESS};
+use crate::components::foundation::color::{
+    CHIP_DISMISS_PRESS, QUIET_PLATE_PRESS, Theme, hue_wash,
+};
 use crate::components::foundation::interact::{ControlFills, interact_fill, sense_click};
 use crate::components::foundation::layout::{inset, paint_control_pads};
 use crate::components::foundation::space::Space;

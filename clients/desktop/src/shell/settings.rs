@@ -17,7 +17,12 @@
 //!           sections: Lg between groups
 //! ```
 
-use crate::components::{Button, FixedPadContent, NavItem, Radius, STROKE_HAIRLINE, Space, Spacer, ThemeFamily, Theme, TypeRole, control_height, form_group, form_picker, form_row, form_segmented, form_toggle, form_toggle_detail, form_value, icon_button, paint_plate, phosphor, section_label, sheet_dim, ui_width, with_h_pad, with_overlay_scroll};
+use crate::components::{
+    Button, FixedPadContent, NavItem, Radius, STROKE_HAIRLINE, Space, Spacer, Theme, ThemeFamily,
+    TypeRole, control_height, form_group, form_picker, form_row, form_segmented, form_toggle,
+    form_toggle_detail, form_value, icon_button, paint_plate, phosphor, section_label, sheet_dim,
+    ui_width, with_h_pad, with_overlay_scroll,
+};
 use egui::{
     Align, Area, CornerRadius, Id, Label, Layout, Order, Pos2, Rect, ScrollArea, Sense, Stroke,
     TextWrapMode, Ui, UiBuilder, vec2,
@@ -288,7 +293,9 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
                                 readout.page_heading = Some(heading.rect);
                                 ui.add(Spacer::new(Space::Md));
                                 match cat {
-                                    SettingsCat::Account => super::settings_account::page_account(app, ui, t, queue),
+                                    SettingsCat::Account => {
+                                        super::settings_account::page_account(app, ui, t, queue)
+                                    }
                                     SettingsCat::App => page_app(app, ui, t, queue),
                                     SettingsCat::Editor => page_editor(app, ui, t, queue),
                                     SettingsCat::Debug => page_debug(app, ui, t, queue),

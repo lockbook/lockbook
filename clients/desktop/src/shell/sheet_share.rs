@@ -2,17 +2,20 @@ use egui::{Area, Id, Order};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
-use crate::components::{Chip, ChipHue, EqualCells, Field, PersonRow, PersonTone, SheetFooterOpts, Space, Spacer, Theme, TypeRole, fixed_height_list, person_row_height, phosphor, sheet_dim, sheet_footer, sheet_panel_fit, sheet_title_muted, shortcut_return};
+use crate::components::{
+    Chip, ChipHue, EqualCells, Field, PersonRow, PersonTone, SheetFooterOpts, Space, Spacer, Theme,
+    TypeRole, fixed_height_list, person_row_height, phosphor, sheet_dim, sheet_footer,
+    sheet_panel_fit, sheet_title_muted, shortcut_return,
+};
 
 use super::ShellApp;
 use super::action::Action as A;
-use super::action::{
-    Action, Modal,
-    ShareLookup, ShareStaged,
-};
+use super::action::{Action, Modal, ShareLookup, ShareStaged};
 use lb::model::file::ShareMode;
 
-pub(crate) fn show_share(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+pub(crate) fn show_share(
+    app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     // Drain background username checks (never block the UI thread on network).
     super::apply::share_poll_network(app, ctx);
 

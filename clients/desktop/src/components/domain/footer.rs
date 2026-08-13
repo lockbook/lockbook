@@ -12,7 +12,10 @@ use egui::{Align2, Sense, Ui, pos2, vec2};
 use lb::model::api::FREE_TIER_USAGE_SIZE;
 use lb::subscribers::status::Status;
 
-use crate::components::{Radius, Space, Spacer, Theme, TypeRole, control_height, icon_button, phosphor, phosphor_ui_font_id, tip_card_placed, tip_text, FG_HOVER, ThemeExt};
+use crate::components::{
+    FG_HOVER, Radius, Space, Spacer, Theme, ThemeExt, TypeRole, control_height, icon_button,
+    phosphor, phosphor_ui_font_id, tip_card_placed, tip_text,
+};
 
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
@@ -143,7 +146,8 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     if show_usage {
         if let Some((_, _, frac)) = &usage_info {
             let bar_color = if *frac >= BAR_WARN_FRAC {
-                t.fg().get_color(workspace_rs::theme::palette_v2::Palette::Yellow)
+                t.fg()
+                    .get_color(workspace_rs::theme::palette_v2::Palette::Yellow)
             } else {
                 t.accent()
             };

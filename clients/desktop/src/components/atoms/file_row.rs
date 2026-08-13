@@ -19,7 +19,7 @@ use super::file_name;
 use crate::components::foundation::chrome::{
     HOVER_ANIM_SECS, Radius, phosphor, phosphor_ui_font_id, row_wash_inset,
 };
-use crate::components::foundation::color::{Theme, FG_HOVER, FG_PRESS};
+use crate::components::foundation::color::{FG_HOVER, FG_PRESS, Theme};
 use crate::components::foundation::interact::sense_click;
 use crate::components::foundation::space::Space;
 use crate::components::foundation::tree_metrics::{ICON_SLOT, INDENT_BASE, INDENT_STEP, ROW_H};

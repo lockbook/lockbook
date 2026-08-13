@@ -5,17 +5,14 @@ use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
 use crate::components::{
-    FileRow, LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, Theme, TypeRole,
-    context_menu, phosphor, with_overlay_scroll,
+    FileRow, LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, Theme, TypeRole, context_menu, phosphor,
+    with_overlay_scroll,
 };
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
 use crate::shell::prefs::recents_bucket;
 
-use super::{
-    FileCmd, RowGeom, TreeRowChrome, empty_state,
-    paint_tree_file_row, row_type_icon,
-};
+use super::{FileCmd, RowGeom, TreeRowChrome, empty_state, paint_tree_file_row, row_type_icon};
 
 pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     app.ensure_recents_cache();
@@ -219,4 +216,3 @@ impl RecentItem {
         }
     }
 }
-

@@ -3,13 +3,16 @@ use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
 use crate::components::interact::{ControlFills, interact_fill, sense_click};
-use crate::components::{Button, EqualCells, Field, Radius, SheetFooterOpts, Space, Spacer, Theme, TypeRole, file_row_icon, measure_file_name, paint_file_name, phosphor, phosphor_ui_font_id, segmented, sheet_band, sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer, sheet_panel_fixed, sheet_title_muted, shortcut_enter, FG_HOVER, FG_PRESS};
+use crate::components::{
+    Button, EqualCells, FG_HOVER, FG_PRESS, Field, Radius, SheetFooterOpts, Space, Spacer, Theme,
+    TypeRole, file_row_icon, measure_file_name, paint_file_name, phosphor, phosphor_ui_font_id,
+    segmented, sheet_band, sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer,
+    sheet_panel_fixed, sheet_title_muted, shortcut_enter,
+};
 
 use super::ShellApp;
 use super::action::Action as A;
-use super::action::{
-    Action, CreateKind, CreateLoc, Modal,
-};
+use super::action::{Action, CreateKind, CreateLoc, Modal};
 
 /// Wide enough for location plates (username · Alongside {note} · Choose…).
 const CREATE_SHEET_W: f32 = 420.0;
@@ -30,7 +33,9 @@ fn create_footer_band_h() -> f32 {
 /// inner height once. Later frames draw into a fixed slot:
 /// `body (exact residual) · Space::Md · footer (control_height)`.
 /// Form and Choose… swap only the body; plate size stays put.
-pub(crate) fn show_create(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
+pub(crate) fn show_create(
+    app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
+) {
     let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_create"));
     if sheet_dim(ctx, Id::new("shell_create_dim"), layer) {
         queue.push(A::CloseModal);
