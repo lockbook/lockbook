@@ -1,5 +1,5 @@
 use egui::{
-    Color32, Id, Visuals,
+    Color32, Id, Stroke, Visuals,
     style::{self},
 };
 use epaint::hex_color;
@@ -119,6 +119,16 @@ impl Theme {
         }
     }
 
+    /// Theme primary hue (selection, folders).
+    pub fn accent(&self) -> Color32 {
+        self.fg().get_color(self.prefs().primary)
+    }
+
+    /// Destructive ink — theme red.
+    pub fn danger(&self) -> Color32 {
+        self.fg().red
+    }
+
     pub fn bg(&self) -> ThemeVariant {
         match self.current {
             Mode::Light => self.bright,
@@ -163,8 +173,7 @@ impl Theme {
         }
     }
 
-    /// Returns the true neutral color i.e. grey in either mode. Used for
-    /// greyed-out text, borders and strokes, and hovered widget backgrounds.
+    /// Mid neutral (grey) — borders / strokes.
     pub fn neutral(&self) -> Color32 {
         match self.current {
             Mode::Light => self.bright.grey.lerp_to_gamma(self.bright.black, 0.3),
@@ -172,9 +181,17 @@ impl Theme {
         }
     }
 
-    /// Returns the tertiary foreground neutral color i.e. off-white in light
-    /// mode, off-black in dark mode. Used for buttons and other widgets that
-    /// need a background distinct from the UI background.
+    /// Wash amount: rest → `neutral_fg` on hover.
+    pub const HOVER_WASH: f32 = 0.05;
+    /// Wash amount: rest → `neutral_fg` while pressed.
+    pub const PRESS_WASH: f32 = 0.10;
+
+    /// `rest` blended toward `neutral_fg` by `amount` (clamped 0..=1).
+    pub fn wash_toward_neutral_fg(&self, rest: Color32, amount: f32) -> Color32 {
+        rest.lerp_to_gamma(self.neutral_fg(), amount.clamp(0.0, 1.0))
+    }
+
+    /// Tertiary background — controls / raised plates on secondary bg.
     pub fn neutral_bg_tertiary(&self) -> Color32 {
         match self.current {
             Mode::Light => self.bright.grey.lerp_to_gamma(self.bright.black, 0.15),
@@ -182,8 +199,7 @@ impl Theme {
         }
     }
 
-    /// Returns the secondary foreground neutral color i.e. off-white in light
-    /// mode, off-black in dark mode. Used for UI background in most places.
+    /// Secondary background — panels / chrome.
     pub fn neutral_bg_secondary(&self) -> Color32 {
         match self.current {
             Mode::Light => self.bright.grey,
@@ -191,9 +207,7 @@ impl Theme {
         }
     }
 
-    /// Returns the background neutral color i.e. white in light mode,
-    /// near-black in dark mode. Used for areas with editable content, similar
-    /// to egui's `extreme_bg_color`.
+    /// Primary background — editable content / extreme bg.
     pub fn neutral_bg(&self) -> Color32 {
         match self.current {
             Mode::Light => self.bright.white,
@@ -660,9 +674,13 @@ impl Theme {
             override_text_color: None,
             window_fill: self.neutral_bg_secondary(),
             extreme_bg_color: self.neutral_bg(),
-            selection: style::Selection {
-                bg_fill: self.bg().get_color(self.prefs().primary),
-                ..Default::default()
+            selection: {
+                let accent = self.fg().get_color(self.prefs().primary);
+                let paper = self.neutral_bg();
+                style::Selection {
+                    bg_fill: paper.lerp_to_gamma(accent, 0.18),
+                    stroke: Stroke::new(1.0, paper.lerp_to_gamma(accent, 0.45)),
+                }
             },
             hyperlink_color: self.fg().get_color(self.prefs().secondary),
             faint_bg_color: self.neutral_bg_secondary(),
@@ -683,13 +701,18 @@ impl Theme {
         base.widgets.inactive.fg_stroke.color = self.neutral_fg();
         base.widgets.inactive.bg_stroke.color = self.neutral();
 
-        base.widgets.hovered.bg_fill = self.neutral();
-        base.widgets.hovered.weak_bg_fill = self.neutral();
+        // Hover/press are programmatic ink washes on the resting control plate
+        // (tertiary), not a jump to `neutral()` hairline grey.
+        let control_rest = self.neutral_bg_tertiary();
+        base.widgets.hovered.bg_fill = self.wash_toward_neutral_fg(control_rest, Self::HOVER_WASH);
+        base.widgets.hovered.weak_bg_fill =
+            self.wash_toward_neutral_fg(control_rest, Self::HOVER_WASH);
         base.widgets.hovered.fg_stroke.color = self.neutral_fg();
         base.widgets.hovered.bg_stroke.color = self.neutral();
 
-        base.widgets.active.bg_fill = self.bg().get_color(self.prefs().primary);
-        base.widgets.active.weak_bg_fill = self.neutral_bg_tertiary();
+        base.widgets.active.bg_fill = self.wash_toward_neutral_fg(control_rest, Self::PRESS_WASH);
+        base.widgets.active.weak_bg_fill =
+            self.wash_toward_neutral_fg(control_rest, Self::PRESS_WASH);
         base.widgets.active.fg_stroke.color = self.neutral_fg();
         base.widgets.active.bg_stroke.color = self.neutral();
 
