@@ -16,7 +16,7 @@ use egui::{
 };
 
 use crate::components::foundation::chrome::{Radius, STROKE_HAIRLINE, TIP_CHAIN_GRACE_SECS};
-use crate::components::foundation::color::{Theme, ThemeExt};
+use crate::components::foundation::color::ThemeExt;
 use crate::components::foundation::space::Space;
 use crate::components::foundation::typography::TypeRole;
 

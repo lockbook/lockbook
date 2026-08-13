@@ -6,7 +6,7 @@
 use egui::{Frame, Id, Rect, Sense, Ui, vec2};
 
 use crate::components::domain::chips;
-use crate::components::{FixedPadContent, STROKE_HAIRLINE, Space, Spacer, Theme, control_height, show_recents, show_shared, show_sync_footer, show_tree, ui_width, with_h_pad_in, ThemeExt};
+use crate::components::{FixedPadContent, STROKE_HAIRLINE, Space, Spacer, Theme, control_height, show_recents, show_shared, show_sync_footer, show_tree, ui_width, with_h_pad_in};
 
 use super::ShellApp;
 use super::action::Action as A;
@@ -135,7 +135,7 @@ mod head_diag {
     use super::*;
     use crate::components::domain::sidebar_resize::{PANEL_ID, WIDTH_MAX, WIDTH_MIN};
     use crate::components::{
-        Space, Theme, begin_spacer_record, control_height, install, take_spacer_record,
+        Space, ThemeExt, begin_spacer_record, control_height, install, take_spacer_record,
     };
     use crate::shell::ShellApp;
     use egui::{Context, FullOutput, Pos2, RawInput, SidePanel, Vec2};

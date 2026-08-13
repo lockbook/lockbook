@@ -35,6 +35,7 @@ pub enum CoreLoad {
     Ready {
         core: Lb,
         files: FileCache,
+        sub_info: Option<SubscriptionInfo>,
     },
     SignedOut {
         core: Lb,
@@ -103,7 +104,9 @@ pub struct Ready {
 }
 
 impl Ready {
-    pub fn new(core: Lb, files: FileCache, ctx: &Context) -> Self {
+    pub fn new(
+        core: Lb, files: FileCache, ctx: &Context, sub_info: Option<SubscriptionInfo>,
+    ) -> Self {
         let file_cache = Arc::new(RwLock::new(files));
         let root = file_cache.read().unwrap().root.id;
         let mut workspace = Workspace::new(&core, ctx, false, true, Some(file_cache));
@@ -112,7 +115,6 @@ impl Ready {
 
         let status = core.status();
         let pinned = core.list_pinned().unwrap_or_default();
-        let sub_info = core.get_subscription_info().ok().flatten();
         let known_usernames = core.known_usernames().unwrap_or_default();
         Self {
             workspace,
@@ -277,7 +279,7 @@ impl Session {
                 // Local open only — no sync. Create/import syncs on its own worker.
                 match FileCache::new(&core) {
                     Ok(files) => {
-                        let _ = tx.send(CoreLoad::Ready { core, files });
+                        let _ = tx.send(prepare_ready(core, files));
                     }
                     Err(e) => {
                         let _ = tx.send(CoreLoad::Failed(format!("{e:?}")));
@@ -299,8 +301,8 @@ impl Session {
         };
         let load = rx.try_recv().ok()?;
         match load {
-            CoreLoad::Ready { core, files } => {
-                *self = Session::Ready(Box::new(Ready::new(core, files, ctx)));
+            CoreLoad::Ready { core, files, sub_info } => {
+                *self = Session::Ready(Box::new(Ready::new(core, files, ctx, sub_info)));
                 None
             }
             CoreLoad::SignedOut { core } => {
@@ -338,4 +340,9 @@ impl Session {
             _ => None,
         }
     }
+}
+
+pub(crate) fn prepare_ready(core: Lb, files: FileCache) -> CoreLoad {
+    let sub_info = core.get_subscription_info().ok().flatten();
+    CoreLoad::Ready { core, files, sub_info }
 }

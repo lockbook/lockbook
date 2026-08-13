@@ -7,6 +7,7 @@ use egui::{Context, Id};
 use egui::{Pos2, Rect, Response, Sense, Stroke, Ui, Vec2, Widget};
 
 use super::chrome::STROKE_HAIRLINE;
+use super::color::ThemeExt;
 use super::overlay;
 use super::space::Space;
 
@@ -96,7 +97,7 @@ impl Spacer {
             return;
         }
         if overlay::is_enabled(ui.ctx()) {
-            let t = super::color::ui.ctx().get_lb_theme();
+            let t = ui.ctx().get_lb_theme();
             ui.painter().rect_filled(rect, 0.0, token.overlay_fill(&t));
         }
         #[cfg(test)]
@@ -159,7 +160,7 @@ impl Widget for Rule {
         };
 
         let (rect, response) = ui.allocate_exact_size(desired, Sense::hover());
-        let t = super::color::ui.ctx().get_lb_theme();
+        let t = ui.ctx().get_lb_theme();
         let stroke = Stroke::new(STROKE_HAIRLINE, t.neutral());
 
         if horizontal {

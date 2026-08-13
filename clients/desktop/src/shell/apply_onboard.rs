@@ -300,7 +300,7 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         ctx.request_repaint();
         match FileCache::new(&core) {
             Ok(files) => {
-                let _ = tx.send(CoreLoad::Ready { core, files });
+                let _ = tx.send(super::session::prepare_ready(core, files));
             }
             Err(e) => {
                 let _ = tx.send(CoreLoad::OnboardFailed {

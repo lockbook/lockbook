@@ -12,7 +12,7 @@ use crate::components::foundation::chrome::{
     HOVER_ANIM_SECS, KbdPart, Radius, STROKE_HAIRLINE, Shortcut, control_height, phosphor,
     phosphor_ui_font_id,
 };
-use crate::components::foundation::color::{Theme, FG_HOVER, FG_PRESS, BG_HOVER, BG_PRESS};
+use crate::components::foundation::color::{Theme, BG_HOVER, BG_PRESS, FG_HOVER, FG_PRESS};
 use crate::components::foundation::interact::{ControlFills, sense_click};
 use crate::components::foundation::layout::{inset, paint_control_pads};
 use crate::components::foundation::space::control as control_space;
