@@ -1,3 +1,5 @@
+pub mod components;
+
 struct App {
     state: Option<AppState>,
     proxy: EventLoopProxy<UserEvent>,
