@@ -11,7 +11,7 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::{Uuid, spawn};
 use tracing::{Level, debug, error, instrument, span, trace, warn};
 
-use crate::tab::{Destination, TabSaveContent};
+use crate::tab::{Destination, SessionId, TabSaveContent};
 use crate::widgets::tab_cache::TabCache;
 
 #[derive(Default)]
@@ -88,7 +88,7 @@ pub struct LoadRequest {
 #[derive(Clone, Debug)]
 pub struct SaveRequest {
     pub id: Uuid,
-    pub origin: Uuid,
+    pub origin: SessionId,
 }
 
 // Timing
@@ -465,7 +465,7 @@ impl TaskManager {
             request.id,
             old_hmac,
             content.clone().into_bytes(), // todo: unnecessary clone
-            Some(request.origin),
+            Some(request.origin.as_uuid()),
         );
 
         {

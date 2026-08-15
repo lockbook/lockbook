@@ -1080,8 +1080,8 @@ pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if let Some(dest) = obj.workspace.current_tab.clone() {
-        if let Some(slot) = obj.workspace.tab_strip.iter_mut().find(|s| s.dest == dest) {
-            slot.rename = None;
+        if let Some(tab) = obj.workspace.tabs.get_mut(&dest) {
+            tab.rename = None;
         }
     }
 }

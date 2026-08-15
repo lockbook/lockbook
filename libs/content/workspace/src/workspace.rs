@@ -39,8 +39,8 @@ use crate::tab::markdown_editor::{
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
-    ContentState, Destination, ExtendedInput as _, Tab, TabContent, TabFailure, TabSaveContent,
-    TabSlot,
+    ContentState, Destination, ExtendedInput as _, Session, Tab, TabContent, TabFailure,
+    TabSaveContent,
 };
 use crate::task_manager;
 use crate::task_manager::{
@@ -58,7 +58,7 @@ use tokio::sync::broadcast::error::TryRecvError;
 /// it lived. Neighbors are destinations (URLs); resolved against the live
 /// strip at reopen time. `index` is a layout fallback when anchors are gone.
 struct ClosedTab {
-    slot: TabSlot,
+    slot: Session,
     left: Option<Destination>,
     right: Option<Destination>,
     index: usize,
@@ -67,7 +67,7 @@ struct ClosedTab {
 pub struct Workspace {
     // User activity
     pub tabs: TabCache,
-    pub tab_strip: Vec<TabSlot>,
+    pub tab_strip: Vec<Session>,
     pub current_tab: Option<Destination>,
 
     /// Most-recently-active last; used to pick focus when the current tab closes.
@@ -264,10 +264,10 @@ impl Workspace {
             Tab {
                 destination: dest.clone(),
                 content,
-                origin: Uuid::new_v4(),
                 last_changed: now,
                 last_saved: now,
                 read_only: false,
+                rename: None,
             },
         );
         if needs_load {
@@ -283,7 +283,7 @@ impl Workspace {
     pub fn create_tab(&mut self, dest: Destination, make_current: bool) {
         self.open_dest(&dest);
         if !self.tab_strip.iter().any(|s| s.dest == dest) {
-            self.tab_strip.push(TabSlot::new(dest.clone()));
+            self.tab_strip.push(Session::new(dest.clone()));
             self.out.tabs_changed = true;
         }
         if make_current {
@@ -310,10 +310,10 @@ impl Workspace {
                 self.preview = Some(Tab {
                     destination: Destination::File(id),
                     content: ContentState::Loading(id),
-                    origin: Uuid::new_v4(),
                     last_changed: now,
                     last_saved: now,
                     read_only: true,
+                    rename: None,
                 });
                 self.tasks.queue_load(LoadRequest {
                     id,
@@ -460,8 +460,7 @@ impl Workspace {
             if let Some(tab) = self.tabs.get(dest) {
                 if let Some(id) = tab.id() {
                     if tab.is_dirty(&self.tasks) {
-                        self.tasks
-                            .queue_save(SaveRequest { id, origin: tab.origin });
+                        self.tasks.queue_save(SaveRequest { id, origin: slot.id });
                     }
                 }
             }
@@ -472,11 +471,12 @@ impl Workspace {
     pub fn save_tab(&mut self, i: usize) {
         let Some(slot) = self.tab_strip.get(i) else { return };
         let dest = slot.dest.clone();
+        let session_id = slot.id;
         if let Some(tab) = self.tabs.get(&dest) {
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) {
                     self.tasks
-                        .queue_save(SaveRequest { id, origin: tab.origin });
+                        .queue_save(SaveRequest { id, origin: session_id });
                 }
             }
         }
@@ -570,7 +570,7 @@ impl Workspace {
             return;
         };
         self.tabs.remove(&Destination::Search);
-        self.tab_strip[i] = TabSlot::new(dest.clone());
+        self.tab_strip[i] = Session::new(dest.clone());
         self.open_dest(&dest);
         self.out.tabs_changed = true;
         self.set_current_tab(Some(dest));
@@ -903,14 +903,12 @@ impl Workspace {
                                 }
                                 Actor::User(origin) => origin,
                             };
-                            let open_tab_origin = self
+                            let open_session = self
                                 .tab_strip
                                 .iter()
-                                .find(|s| s.dest.id() == id)
-                                .and_then(|s| self.tabs.get(&s.dest))
-                                .map(|t| t.origin);
-                            if let Some(tab_origin) = open_tab_origin {
-                                if event_origin != Some(tab_origin) {
+                                .find(|s| s.dest.backing_file() == Some(id));
+                            if let Some(session) = open_session {
+                                if event_origin != Some(session.id.as_uuid()) {
                                     self.tasks.queue_load(LoadRequest {
                                         id,
                                         tab_created: false,
@@ -1616,7 +1614,7 @@ impl WsPersistentStore {
         store
     }
 
-    pub fn set_tabs(&mut self, tab_strip: &[TabSlot], current_tab: &Option<Destination>) {
+    pub fn set_tabs(&mut self, tab_strip: &[Session], current_tab: &Option<Destination>) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.open_tabs = tab_strip.iter().map(|s| s.dest.clone()).collect();
         data_lock.current_tab = current_tab.clone();
