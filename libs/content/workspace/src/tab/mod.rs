@@ -165,11 +165,13 @@ pub enum TabAction {
     Activate,
     Replace,
     Create,
+    Navigate,
 }
 
 /// `in_new_tab` is the explicit menu/cmd-click request. `desktop_tab_policy`
 /// is activate-if-open / honor the open-in-new-tab setting. Distinct from
-/// drawing the egui tab strip (`Workspace::show_tabs`).
+/// drawing the egui tab strip (`Workspace::show_tabs`). Desktop with the
+/// setting off navigates in the current session so back still works.
 pub fn tab_action_for_open(
     dest_already_open: bool, in_new_tab: bool, desktop_tab_policy: bool, open_in_new_tab: bool,
 ) -> TabAction {
@@ -181,6 +183,9 @@ pub fn tab_action_for_open(
     }
     if desktop_tab_policy && open_in_new_tab {
         return TabAction::Create;
+    }
+    if desktop_tab_policy {
+        return TabAction::Navigate;
     }
     TabAction::Replace
 }
@@ -963,13 +968,29 @@ mod nav_tests {
     }
 
     #[test]
-    fn tab_action_desktop_setting_off_replaces() {
-        assert_eq!(tab_action_for_open(false, false, true, false), TabAction::Replace);
+    fn tab_action_desktop_setting_off_navigates() {
+        assert_eq!(tab_action_for_open(false, false, true, false), TabAction::Navigate);
     }
 
     #[test]
     fn tab_action_mobile_replaces_even_if_dest_open() {
         assert_eq!(tab_action_for_open(true, false, false, true), TabAction::Replace);
+    }
+
+    #[test]
+    fn replace_is_not_fresh_if_forward_remains() {
+        let a = file(1);
+        let b = file(2);
+        let mut session = Session::new(a.clone());
+        session.navigate(b.clone());
+        assert!(session.go_back());
+        assert_eq!(session.dest, a);
+        assert!(!session.forward.is_empty());
+        let id = session.id;
+        session.replace(a.clone());
+        assert_eq!(session.id, id);
+        assert!(session.forward.is_empty());
+        assert!(session.back.is_empty());
     }
 
     #[test]

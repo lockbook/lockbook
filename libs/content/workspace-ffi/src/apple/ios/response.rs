@@ -139,14 +139,6 @@ pub struct UITextSelectionRects {
 }
 
 #[repr(C)]
-#[derive(Debug)]
-pub struct TabsIds {
-    pub size: i32,
-    pub ids: *const CUuid,
-}
-
-/// One row of the native tab list: session identity plus dest for display.
-#[repr(C)]
 #[derive(Debug, Clone)]
 pub struct CTabInfo {
     pub session_id: CUuid,

@@ -197,6 +197,9 @@ impl Workspace {
         }
 
         let (open_sessions, current_tab_index) = ws.cfg.get_sessions();
+        let current_session_id = current_tab_index
+            .and_then(|i| open_sessions.get(i))
+            .map(|s| s.id);
 
         open_sessions.into_iter().for_each(|session| {
             let exists = session
@@ -208,10 +211,10 @@ impl Workspace {
                 ws.resume_session(session, false);
             }
         });
-        if let Some(idx) = current_tab_index {
-            if idx < ws.tab_strip.len() {
-                info!(idx, "setting persisted current tab");
-                ws.make_current(idx);
+        if let Some(id) = current_session_id {
+            if let Some(pos) = ws.tab_strip.iter().position(|s| s.id == id) {
+                info!(?id, "setting persisted current tab");
+                ws.make_current(pos);
             }
         }
 
@@ -239,6 +242,7 @@ impl Workspace {
             {
                 return;
             }
+            self.persist_tab_content(tab_id);
         }
         let file_id = dest.id();
         let mut needs_load = false;
@@ -287,6 +291,7 @@ impl Workspace {
                 tab_created: true,
                 make_current: false,
                 is_preview: false,
+                target: Some(tab_id),
             });
         }
     }
@@ -348,6 +353,7 @@ impl Workspace {
                     tab_created: true,
                     make_current: false,
                     is_preview: true,
+                    target: None,
                 });
             }
             None => self.preview = None,
@@ -357,10 +363,6 @@ impl Workspace {
     pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
         let tab_id = self.tab_strip.iter().find(|s| s.dest.id() == id)?.id;
         self.tabs.get_mut(&tab_id)
-    }
-
-    pub fn get_idx_by_id(&mut self, id: Uuid) -> Option<usize> {
-        self.tab_strip.iter().position(|s| s.dest.id() == id)
     }
 
     pub fn current_slot_index(&self) -> Option<usize> {
@@ -479,8 +481,8 @@ impl Workspace {
         true
     }
 
-    /// Makes the tab with the given dest file id the current tab, if it exists.
-    /// First match if several sessions share the dest.
+    /// Makes a tab whose dest is this file id current, if one exists.
+    /// Prefers the current session, then the most recently activated match.
     pub fn make_current_by_id(&mut self, id: Uuid) -> bool {
         let dest = Destination::File(id);
         if let Some(i) = index_of_dest_to_activate(
@@ -541,7 +543,10 @@ impl Workspace {
 
     pub fn save_tab(&mut self, i: usize) {
         let Some(slot) = self.tab_strip.get(i) else { return };
-        let tab_id = slot.id;
+        self.queue_save_for_session(slot.id);
+    }
+
+    fn queue_save_for_session(&mut self, tab_id: SessionId) {
         if let Some(tab) = self.tabs.get(&tab_id) {
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) {
@@ -549,6 +554,18 @@ impl Workspace {
                 }
             }
         }
+    }
+
+    /// Persist (and stop) the current content before this session's dest changes.
+    fn persist_tab_content(&mut self, tab_id: SessionId) {
+        #[cfg(not(target_family = "wasm"))]
+        if let Some(tab) = self.tabs.get_mut(&tab_id) {
+            if let ContentState::Open(TabContent::MindMap(mm)) = &mut tab.content {
+                mm.stop();
+            }
+        }
+        self.queue_save_for_session(tab_id);
+        self.tasks.check_launch(&self.tabs);
     }
 
     fn image_content(&self, id: Uuid) -> ContentState {
@@ -584,9 +601,7 @@ impl Workspace {
         )
     }
 
-    /// Create a session for `dest` (file tree, pins, recents, create file).
-    /// Tab policy: activate / replace / create based on platform, settings,
-    /// and the explicit `in_new_tab` flag.
+    /// Open `dest` from the file tree, pins, recents, or create-file.
     pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
         self.open_dest_as_session(Destination::File(id), make_current, in_new_tab);
     }
@@ -605,13 +620,13 @@ impl Workspace {
                     if make_current {
                         self.make_current(pos);
                     }
-                    self.closed_tabs.retain(|c| c.slot.dest != dest);
                 } else {
                     self.create_tab(dest, make_current);
                 }
             }
             TabAction::Create => self.create_tab(dest, make_current),
             TabAction::Replace => self.replace_current_session(dest, make_current),
+            TabAction::Navigate => self.navigate_to(dest),
         }
     }
 
@@ -623,7 +638,10 @@ impl Workspace {
             return;
         };
         let tab_id = self.tab_strip[slot_idx].id;
-        if self.tab_strip[slot_idx].dest == dest && self.tab_strip[slot_idx].back.is_empty() {
+        if self.tab_strip[slot_idx].dest == dest
+            && self.tab_strip[slot_idx].back.is_empty()
+            && self.tab_strip[slot_idx].forward.is_empty()
+        {
             if make_current {
                 self.make_current(slot_idx);
             }
@@ -638,7 +656,7 @@ impl Workspace {
     }
 
     /// Navigate the current tab to `dest`, pushing the previous dest onto
-    /// its back stack. Used for links, search results, mind map, space inspector.
+    /// its back stack. Used for links and setting-off chrome.
     pub fn navigate_to(&mut self, dest: Destination) {
         let Some(slot_idx) = self.current_slot_index() else {
             self.create_tab(dest, true);
@@ -655,9 +673,8 @@ impl Workspace {
         self.set_current_tab(Some(tab_id));
     }
 
-    /// Replace the Search tab with `dest`. If that dest is already open,
-    /// focus it and close Search instead. Desktop result clicks use this so
-    /// they do not follow the open-in-new-tab setting.
+    /// Replace the current Search session with `dest`. If that dest is already
+    /// open, focus it and close this Search session instead.
     pub fn open_file_replacing_search(&mut self, id: Uuid) {
         let dest = Destination::File(id);
         let current_search = self.current_slot_index().filter(|&i| {
@@ -669,7 +686,12 @@ impl Workspace {
             if let Some(i) = current_search {
                 self.close_tab(i);
             }
-            if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
+            if let Some(pos) = index_of_dest_to_activate(
+                &self.tab_strip,
+                self.current_tab,
+                &self.activation_history,
+                &dest,
+            ) {
                 self.make_current(pos);
             }
             return;
@@ -858,8 +880,6 @@ impl Workspace {
         }
     }
 
-    /// Restore the closed session with this id (history + placement). No-op if
-    /// the session is already open or not in the closed stack.
     pub fn reopen_closed_session(&mut self, id: SessionId) {
         if self.make_current_by_session(id) {
             return;
@@ -870,30 +890,6 @@ impl Workspace {
         }
     }
 
-    /// Restores a closed file tab by dest (most recent matching entry), preserving
-    /// its back/forward stack and strip placement. Falls back to opening the
-    /// file in a **new** tab if it is not in the closed stack.
-    pub fn reopen_closed_file(&mut self, id: Uuid) {
-        let dest = Destination::File(id);
-
-        if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
-            self.closed_tabs.retain(|c| c.slot.dest != dest);
-            self.make_current(pos);
-            return;
-        }
-
-        while let Some(i) = self.closed_tabs.iter().rposition(|c| c.slot.dest == dest) {
-            let closed = self.closed_tabs.remove(i);
-            if self.restore_closed_tab(closed) {
-                return;
-            }
-        }
-
-        // Not in history (or all entries invalid): always new tab, never in-place.
-        self.create_tab(dest, true);
-    }
-
-    /// Insert a closed slot back onto the strip and load content.
     fn restore_closed_tab(&mut self, closed: ClosedTab) -> bool {
         let dest = closed.slot.dest.clone();
         let tab_id = closed.slot.id;
@@ -909,12 +905,9 @@ impl Workspace {
 
         let at = self.reopen_insert_index(&closed);
         self.open_dest(tab_id, &dest);
-        self.tabs.promote(&tab_id);
         self.tab_strip.insert(at, closed.slot);
         self.out.tabs_changed = true;
-        if !self.make_current(at) {
-            self.set_current_tab(Some(tab_id));
-        }
+        self.make_current(at);
         true
     }
 
@@ -1002,19 +995,20 @@ impl Workspace {
                                 }
                                 Actor::User(origin) => origin,
                             };
-                            let open_session = self
-                                .tab_strip
-                                .iter()
-                                .find(|s| s.dest.backing_file() == Some(id));
-                            if let Some(session) = open_session {
-                                if event_origin != Some(session.id.as_uuid()) {
-                                    self.tasks.queue_load(LoadRequest {
-                                        id,
-                                        tab_created: false,
-                                        make_current: false,
-                                        is_preview: false,
-                                    });
+                            for session in &self.tab_strip {
+                                if session.dest.backing_file() != Some(id) {
+                                    continue;
                                 }
+                                if event_origin == Some(session.id.as_uuid()) {
+                                    continue;
+                                }
+                                self.tasks.queue_load(LoadRequest {
+                                    id,
+                                    tab_created: false,
+                                    make_current: false,
+                                    is_preview: false,
+                                    target: Some(session.id),
+                                });
                             }
                             // A provider/prompt file's contents changed (edited
                             // here or synced) — refresh the chats that read it.
@@ -1130,7 +1124,7 @@ impl Workspace {
             // scope indentation preserves git history
             {
                 let CompletedLoad {
-                    request: LoadRequest { id, tab_created, make_current, is_preview },
+                    request: LoadRequest { id, tab_created, make_current, is_preview, target },
                     content_result,
                     timing: _,
                 } = load;
@@ -1142,7 +1136,7 @@ impl Workspace {
                 let tab_opt = if is_preview {
                     self.preview.as_mut().filter(|t| t.id() == Some(id))
                 } else {
-                    self.tabs.find_for_load_mut(id)
+                    self.tabs.find_for_load_mut(id, target)
                 };
                 if let Some(tab) = tab_opt {
                     let files_clone = self.files.clone();
@@ -1313,7 +1307,11 @@ impl Workspace {
                 };
 
                 if make_current {
-                    self.make_current_by_id(id);
+                    if let Some(sid) = target {
+                        self.make_current_by_session(sid);
+                    } else {
+                        self.make_current_by_id(id);
+                    }
                 }
             }
         }
@@ -1325,14 +1323,18 @@ impl Workspace {
             {
                 {
                     let CompletedSave {
-                        request: SaveRequest { id, origin: _ },
+                        request: SaveRequest { id, origin },
                         seq,
                         content,
                         new_hmac_result,
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
-                    if let Some(tab) = self.tabs.find_any_by_file_mut(id) {
+                    let tab = self
+                        .tabs
+                        .get_any_mut(&origin)
+                        .filter(|t| t.destination.backing_file() == Some(id));
+                    if let Some(tab) = tab {
                         match new_hmac_result {
                             Ok(hmac) => {
                                 tab.last_saved = started_at;
@@ -1366,6 +1368,7 @@ impl Workspace {
                                         tab_created: false,
                                         make_current: false,
                                         is_preview: false,
+                                        target: Some(origin),
                                     });
                                 } else {
                                     tab.content = ContentState::Failed(TabFailure::Unexpected(
@@ -1426,6 +1429,7 @@ impl Workspace {
                 .unwrap()
                 .insert_created_file(file.clone());
             self.out.file_cache_updated = true;
+            self.open_file(file.id, true, false);
         }
         self.out.file_created = Some(result);
         self.ctx.request_repaint();
@@ -1497,7 +1501,8 @@ impl Workspace {
         self.create_folder_at(focused_parent);
     }
 
-    /// Opens or focuses the tab for the mind map
+    /// Opens or focuses the mind map. Reuses an existing mind-map session;
+    /// otherwise follows the same open policy as the file tree.
     #[cfg(not(target_family = "wasm"))]
     pub fn upsert_mind_map(&mut self, _core: Lb) {
         if let Some(i) = self
@@ -1508,7 +1513,7 @@ impl Workspace {
             self.make_current(i);
         } else {
             let root_id = self.core.get_root().map(|r| r.id).unwrap_or_default();
-            self.create_tab(Destination::MindMap(root_id), true);
+            self.open_dest_as_session(Destination::MindMap(root_id), true, false);
         };
     }
     #[cfg(target_family = "wasm")]
@@ -1527,7 +1532,7 @@ impl Workspace {
         {
             self.make_current(i);
         } else {
-            self.create_tab(Destination::Search, true);
+            self.open_dest_as_session(Destination::Search, true, false);
         }
         // refocus the query field each time the tab is opened/focused
         if let Some(tab) = self.current_tab_mut() {
@@ -1553,17 +1558,20 @@ impl Workspace {
     }
 
     pub fn start_space_inspector(&mut self, _core: Lb, folder: Option<File>) {
+        let root_id = folder
+            .map(|f| f.id)
+            .unwrap_or_else(|| self.core.get_root().map(|r| r.id).unwrap_or_default());
+        let dest = Destination::SpaceInspector(root_id);
         if let Some(i) = self
             .tab_strip
             .iter()
             .position(|s| matches!(s.dest, Destination::SpaceInspector(_)))
         {
-            self.close_tab(i);
+            self.make_current(i);
+            self.navigate_to(dest);
+            return;
         }
-        let root_id = folder
-            .map(|f| f.id)
-            .unwrap_or_else(|| self.core.get_root().map(|r| r.id).unwrap_or_default());
-        self.create_tab(Destination::SpaceInspector(root_id), true);
+        self.open_dest_as_session(dest, true, false);
     }
 
     pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
@@ -1675,8 +1683,9 @@ pub struct WsPresistentData {
     /// arrived via a shared note). Routed through `crate::egress`.
     #[serde(default)]
     contact_linked_sites: bool,
-    /// Desktop: file tree / pins / recents / create open in a new tab.
-    /// Ignored when `desktop_tab_policy` is false, which always replaces.
+    /// Desktop: file tree / pins / recents / shared-with-me / create open in
+    /// a new tab. Ignored when `desktop_tab_policy` is false, which always
+    /// replaces.
     #[serde(default = "default_open_in_new_tab")]
     open_in_new_tab: bool,
 }

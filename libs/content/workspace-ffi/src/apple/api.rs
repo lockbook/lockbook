@@ -52,12 +52,6 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_tab: bool) {
 }
 
 #[no_mangle]
-pub extern "C" fn activate_file(obj: *mut c_void, id: CUuid) {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.make_current_by_id(id.into());
-}
-
-#[no_mangle]
 pub extern "C" fn activate_tab(obj: *mut c_void, id: CUuid) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.workspace
@@ -73,6 +67,22 @@ pub extern "C" fn open_file_at(
 
     obj.workspace
         .open_file_at_range(id, range_start..range_end, new_tab);
+}
+
+#[no_mangle]
+pub extern "C" fn navigate_to_file(obj: *mut c_void, id: CUuid) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .navigate_to(workspace_rs::tab::Destination::File(id.into()));
+}
+
+#[no_mangle]
+pub extern "C" fn navigate_to_file_at(
+    obj: *mut c_void, id: CUuid, range_start: usize, range_end: usize,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .navigate_to_range(id.into(), range_start..range_end);
 }
 
 #[no_mangle]

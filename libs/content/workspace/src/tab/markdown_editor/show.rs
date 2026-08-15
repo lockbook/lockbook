@@ -696,10 +696,10 @@ impl MdEdit {
                     LinkMenuAction::Open => {
                         if t.is_wikilink {
                             if let Some(file_id) = self.renderer.resolve_wikilink(&t.url) {
-                                ui.ctx().open_file(file_id, true);
+                                ui.ctx().open_file(file_id, false);
                             }
                         } else {
-                            self.renderer.open_resolved_link(&t.url, ui.ctx());
+                            self.renderer.open_resolved_link(&t.url, ui.ctx(), false);
                         }
                     }
                     LinkMenuAction::Copy => ui.ctx().copy_text(t.url.clone()),

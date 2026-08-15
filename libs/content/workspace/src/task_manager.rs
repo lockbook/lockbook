@@ -83,6 +83,10 @@ pub struct LoadRequest {
     pub make_current: bool,
 
     pub is_preview: bool,
+
+    /// When set, the completed load updates this session instead of the first
+    /// dest match (needed when two sessions share a file).
+    pub target: Option<crate::tab::SessionId>,
 }
 
 #[derive(Clone, Debug)]
@@ -364,7 +368,7 @@ impl TaskManager {
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
             let (old_hmac, seq, content) = {
-                let Some(tab) = tabs.find_any_by_file(request.id) else {
+                let Some(tab) = tabs.get_any(&request.origin) else {
                     error!("could not launch save because its tab does not exist");
                     continue;
                 };

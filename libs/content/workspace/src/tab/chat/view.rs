@@ -1997,7 +1997,7 @@ impl Chat {
                 .filter(|f| f.is_document())
                 .map(|f| f.id);
             if let Some(id) = target {
-                ui.ctx().open_file(id, true);
+                ui.ctx().open_file(id, false);
             }
         }
 

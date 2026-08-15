@@ -2,7 +2,7 @@ use std::collections::HashMap;
 
 use lb_rs::Uuid;
 
-use crate::tab::{Destination, SessionId, Tab};
+use crate::tab::{SessionId, Tab};
 
 /// Double-buffered tab cache, keyed by session id (not destination). Tabs
 /// accessed during a frame (via promote) survive; unaccessed tabs are
@@ -112,41 +112,13 @@ impl TabCache {
         self.current.retain(f);
     }
 
-    pub fn find_by_dest(&self, dest: &Destination) -> Option<&Tab> {
-        self.values().find(|t| &t.destination == dest)
-    }
-
-    pub fn find_by_file(&self, id: Uuid) -> Option<&Tab> {
-        self.values()
-            .find(|t| t.destination.backing_file() == Some(id))
-    }
-
-    pub fn find_by_file_mut(&mut self, id: Uuid) -> Option<&mut Tab> {
-        self.values_mut()
-            .find(|t| t.destination.backing_file() == Some(id))
-    }
-
-    pub fn find_any_by_file_mut(&mut self, id: Uuid) -> Option<&mut Tab> {
-        if let Some(tab) = self
-            .current
-            .values_mut()
-            .find(|t| t.destination.backing_file() == Some(id))
-        {
-            return Some(tab);
+    /// Prefer `target` when set. Otherwise prefer a tab still waiting on this
+    /// file so a second tab of the same dest receives its load instead of
+    /// replacing an already-open sibling.
+    pub fn find_for_load_mut(&mut self, id: Uuid, target: Option<SessionId>) -> Option<&mut Tab> {
+        if let Some(sid) = target {
+            return self.get_any_mut(&sid);
         }
-        self.previous
-            .values_mut()
-            .find(|t| t.destination.backing_file() == Some(id))
-    }
-
-    pub fn find_any_by_file(&self, id: Uuid) -> Option<&Tab> {
-        self.values()
-            .find(|t| t.destination.backing_file() == Some(id))
-    }
-
-    /// Prefer a tab still waiting on this file so a second tab of the same dest
-    /// receives its load instead of replacing an already-open sibling.
-    pub fn find_for_load_mut(&mut self, id: Uuid) -> Option<&mut Tab> {
         let is_loading_file = |t: &Tab| {
             t.destination.backing_file() == Some(id)
                 && matches!(t.content, crate::tab::ContentState::Loading(_))

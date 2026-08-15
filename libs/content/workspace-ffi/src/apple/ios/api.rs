@@ -875,21 +875,6 @@ pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
     ));
 }
 
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn get_tabs_ids(obj: *mut c_void) -> TabsIds {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let ids: Vec<CUuid> = obj
-        .workspace
-        .tab_strip
-        .iter()
-        .map(|s| s.dest.id().into())
-        .collect();
-
-    TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
-}
-
 fn tab_info(session: &workspace_rs::tab::Session) -> CTabInfo {
     CTabInfo {
         session_id: session.id.as_uuid().into(),
@@ -898,10 +883,7 @@ fn tab_info(session: &workspace_rs::tab::Session) -> CTabInfo {
     }
 }
 
-/// Session-keyed tab strip for the native list.
-///
 /// # Safety
-/// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn get_tabs(obj: *mut c_void) -> CTabs {
     let obj = &mut *(obj as *mut WgpuWorkspace);
@@ -920,13 +902,6 @@ pub unsafe extern "C" fn free_tabs(tabs: CTabs) {
         tabs.tabs as *mut CTabInfo,
         tabs.size as usize,
     ));
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn free_tab_ids(ids: TabsIds) {
-    let _ = Box::from_raw(std::slice::from_raw_parts_mut(ids.ids as *mut CUuid, ids.size as usize));
 }
 
 /// # Safety
@@ -963,16 +938,6 @@ pub unsafe extern "C" fn reopen_last_closed_tab(obj: *mut c_void) {
     obj.workspace.reopen_closed_tab();
 }
 
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn reopen_closed_file(obj: *mut c_void, id: CUuid) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.workspace.reopen_closed_file(id.into());
-}
-
-/// Restore a closed session by session id.
-///
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn reopen_closed_tab(obj: *mut c_void, id: CUuid) {
