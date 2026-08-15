@@ -52,6 +52,19 @@ pub extern "C" fn open_file(obj: *mut c_void, id: CUuid, new_tab: bool) {
 }
 
 #[no_mangle]
+pub extern "C" fn activate_file(obj: *mut c_void, id: CUuid) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace.make_current_by_id(id.into());
+}
+
+#[no_mangle]
+pub extern "C" fn activate_tab(obj: *mut c_void, id: CUuid) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .make_current_by_session(workspace_rs::tab::SessionId::from_uuid(id.into()));
+}
+
+#[no_mangle]
 pub extern "C" fn open_file_at(
     obj: *mut c_void, id: CUuid, range_start: usize, range_end: usize, new_tab: bool,
 ) {
@@ -130,6 +143,29 @@ pub extern "C" fn set_scale(obj: *mut c_void, scale: f32) {
 pub unsafe extern "C" fn set_contact_linked_sites(obj: *mut c_void, value: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.workspace.cfg.set_contact_linked_sites(value);
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn set_open_in_new_tab(obj: *mut c_void, value: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.cfg.set_open_in_new_tab(value);
+}
+
+/// Honor activate-if-open / open-in-new-tab without drawing the egui strip.
+///
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn set_desktop_tab_policy(obj: *mut c_void, value: bool) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.desktop_tab_policy = value;
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn get_open_in_new_tab(obj: *mut c_void) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.cfg.get_open_in_new_tab()
 }
 
 /// # Safety
@@ -375,12 +411,15 @@ pub unsafe extern "C" fn close_tab(obj: *mut c_void, id: *const c_char) {
         .parse()
         .expect("Could not String -> Uuid");
 
-    if let Some(tab_id) = obj
-        .workspace
-        .tab_strip
-        .iter()
-        .position(|s| s.dest.id() == id)
-    {
-        obj.workspace.close_tab(tab_id);
-    }
+    obj.workspace.close_tabs_for_dest(id);
+}
+
+/// Close the session/tab instance with this id.
+///
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn close_session(obj: *mut c_void, id: CUuid) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .close_session(workspace_rs::tab::SessionId::from_uuid(id.into()));
 }

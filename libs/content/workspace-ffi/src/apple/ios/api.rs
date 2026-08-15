@@ -890,6 +890,38 @@ pub unsafe extern "C" fn get_tabs_ids(obj: *mut c_void) -> TabsIds {
     TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
 }
 
+fn tab_info(session: &workspace_rs::tab::Session) -> CTabInfo {
+    CTabInfo {
+        session_id: session.id.as_uuid().into(),
+        dest_kind: session.dest.kind_code(),
+        dest_file: session.dest.backing_file().unwrap_or_default().into(),
+    }
+}
+
+/// Session-keyed tab strip for the native list.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn get_tabs(obj: *mut c_void) -> CTabs {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let tabs: Vec<CTabInfo> = obj.workspace.tab_strip.iter().map(tab_info).collect();
+
+    CTabs {
+        size: tabs.len() as i32,
+        tabs: Box::into_raw(tabs.into_boxed_slice()) as *const CTabInfo,
+    }
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn free_tabs(tabs: CTabs) {
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(
+        tabs.tabs as *mut CTabInfo,
+        tabs.size as usize,
+    ));
+}
+
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
@@ -908,16 +940,19 @@ pub unsafe extern "C" fn reorder_tab(obj: *mut c_void, from: usize, to: usize) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn get_recently_closed_tabs(obj: *mut c_void) -> TabsIds {
+pub unsafe extern "C" fn get_recently_closed_tabs(obj: *mut c_void) -> CTabs {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let ids: Vec<CUuid> = obj
+    let tabs: Vec<CTabInfo> = obj
         .workspace
         .recently_closed_tabs()
         .into_iter()
-        .map(Into::into)
+        .map(tab_info)
         .collect();
 
-    TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
+    CTabs {
+        size: tabs.len() as i32,
+        tabs: Box::into_raw(tabs.into_boxed_slice()) as *const CTabInfo,
+    }
 }
 
 /// # Safety
@@ -934,6 +969,16 @@ pub unsafe extern "C" fn reopen_last_closed_tab(obj: *mut c_void) {
 pub unsafe extern "C" fn reopen_closed_file(obj: *mut c_void, id: CUuid) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.workspace.reopen_closed_file(id.into());
+}
+
+/// Restore a closed session by session id.
+///
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn reopen_closed_tab(obj: *mut c_void, id: CUuid) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace
+        .reopen_closed_session(workspace_rs::tab::SessionId::from_uuid(id.into()));
 }
 
 /// # Safety

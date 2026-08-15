@@ -57,6 +57,16 @@ impl Destination {
             Self::Search => None,
         }
     }
+
+    /// Stable integer for FFI tab records. Not a file id.
+    pub fn kind_code(&self) -> i32 {
+        match self {
+            Self::File(_) => 0,
+            Self::Search => 1,
+            Self::MindMap(_) => 2,
+            Self::SpaceInspector(_) => 3,
+        }
+    }
 }
 
 /// Identity of a session/tab instance. Distinct from dest file ids and from
@@ -76,6 +86,10 @@ impl SessionId {
     /// Token for `Actor::User` / `safe_write` so other surfaces skip or reload.
     pub fn as_uuid(self) -> Uuid {
         self.0
+    }
+
+    pub fn from_uuid(id: Uuid) -> Self {
+        Self(id)
     }
 }
 
@@ -153,19 +167,19 @@ pub enum TabAction {
     Create,
 }
 
-/// `in_new_tab` is the explicit menu/cmd-click request. `show_tabs` is the
-/// desktop-like (tab strip visible) signal. `open_in_new_tab` is the desktop
-/// setting, ignored on mobile.
+/// `in_new_tab` is the explicit menu/cmd-click request. `desktop_tab_policy`
+/// is activate-if-open / honor the open-in-new-tab setting. Distinct from
+/// drawing the egui tab strip (`Workspace::show_tabs`).
 pub fn tab_action_for_open(
-    dest_already_open: bool, in_new_tab: bool, show_tabs: bool, open_in_new_tab: bool,
+    dest_already_open: bool, in_new_tab: bool, desktop_tab_policy: bool, open_in_new_tab: bool,
 ) -> TabAction {
     if in_new_tab {
         return TabAction::Create;
     }
-    if show_tabs && dest_already_open {
+    if desktop_tab_policy && dest_already_open {
         return TabAction::Activate;
     }
-    if show_tabs && open_in_new_tab {
+    if desktop_tab_policy && open_in_new_tab {
         return TabAction::Create;
     }
     TabAction::Replace
@@ -956,6 +970,14 @@ mod nav_tests {
     #[test]
     fn tab_action_mobile_replaces_even_if_dest_open() {
         assert_eq!(tab_action_for_open(true, false, false, true), TabAction::Replace);
+    }
+
+    #[test]
+    fn dest_kind_codes_are_stable() {
+        assert_eq!(file(1).kind_code(), 0);
+        assert_eq!(Destination::Search.kind_code(), 1);
+        assert_eq!(Destination::MindMap(Uuid::nil()).kind_code(), 2);
+        assert_eq!(Destination::SpaceInspector(Uuid::nil()).kind_code(), 3);
     }
 
     #[test]

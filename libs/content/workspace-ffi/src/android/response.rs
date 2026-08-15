@@ -35,6 +35,7 @@ impl From<crate::Response> for AndroidResponse {
             workspace:
                 workspace_rs::Response {
                     selected_file,
+                    selected_session: _,
                     file_renamed: _,
                     file_moved: _,
                     file_deleted: _,

@@ -100,7 +100,10 @@ pub struct Workspace {
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
 
-    pub show_tabs: bool, // set on mobile to hide the tab strip
+    pub show_tabs: bool, // draw the egui tab strip
+    /// Activate-if-open / honor open-in-new-tab. Independent of `show_tabs`
+    /// so Apple can keep its own strip while using desktop policy.
+    pub desktop_tab_policy: bool,
     pub tab_strip_left_inset: f32,
     pub tab_strip_min_height: f32,
     pub sidebar_open: bool,
@@ -169,6 +172,7 @@ impl Workspace {
             core: core.clone(),
 
             show_tabs,
+            desktop_tab_policy: show_tabs,
             tab_strip_left_inset: 0.0,
             tab_strip_min_height: 0.0,
             sidebar_open: false,
@@ -384,6 +388,7 @@ impl Workspace {
     fn mark_current_tab_changed(&mut self) {
         self.current_tab_changed = true;
         self.out.selected_file = self.current_tab_id();
+        self.out.selected_session = self.current_tab;
     }
 
     fn set_current_tab(&mut self, tab_id: Option<SessionId>) {
@@ -474,7 +479,8 @@ impl Workspace {
         true
     }
 
-    /// Makes the tab with the given id the current tab, if it exists. Returns true if the tab exists.
+    /// Makes the tab with the given dest file id the current tab, if it exists.
+    /// First match if several sessions share the dest.
     pub fn make_current_by_id(&mut self, id: Uuid) -> bool {
         let dest = Destination::File(id);
         if let Some(i) = index_of_dest_to_activate(
@@ -486,6 +492,36 @@ impl Workspace {
             self.make_current(i)
         } else {
             false
+        }
+    }
+
+    /// Focus the session/tab instance with this id.
+    pub fn make_current_by_session(&mut self, id: SessionId) -> bool {
+        if let Some(i) = self.tab_strip.iter().position(|s| s.id == id) {
+            self.make_current(i)
+        } else {
+            false
+        }
+    }
+
+    /// Close every session whose dest is this file id (e.g. the file was deleted).
+    pub fn close_tabs_for_dest(&mut self, dest_id: Uuid) {
+        let idxs: Vec<usize> = self
+            .tab_strip
+            .iter()
+            .enumerate()
+            .filter(|(_, s)| s.dest.id() == dest_id)
+            .map(|(i, _)| i)
+            .rev()
+            .collect();
+        for i in idxs {
+            self.close_tab(i);
+        }
+    }
+
+    pub fn close_session(&mut self, id: SessionId) {
+        if let Some(i) = self.tab_strip.iter().position(|s| s.id == id) {
+            self.close_tab(i);
         }
     }
 
@@ -543,7 +579,7 @@ impl Workspace {
         tab_action_for_open(
             self.tab_strip.iter().any(|s| &s.dest == dest),
             in_new_tab,
-            self.show_tabs,
+            self.desktop_tab_policy,
             self.cfg.get_open_in_new_tab(),
         )
     }
@@ -822,7 +858,19 @@ impl Workspace {
         }
     }
 
-    /// Restores a closed file tab by id (most recent matching entry), preserving
+    /// Restore the closed session with this id (history + placement). No-op if
+    /// the session is already open or not in the closed stack.
+    pub fn reopen_closed_session(&mut self, id: SessionId) {
+        if self.make_current_by_session(id) {
+            return;
+        }
+        if let Some(i) = self.closed_tabs.iter().rposition(|c| c.slot.id == id) {
+            let closed = self.closed_tabs.remove(i);
+            self.restore_closed_tab(closed);
+        }
+    }
+
+    /// Restores a closed file tab by dest (most recent matching entry), preserving
     /// its back/forward stack and strip placement. Falls back to opening the
     /// file in a **new** tab if it is not in the closed stack.
     pub fn reopen_closed_file(&mut self, id: Uuid) {
@@ -891,16 +939,9 @@ impl Workspace {
         closed.index.min(self.tab_strip.len())
     }
 
-    /// File ids from `closed_tabs`, most recently closed first.
-    pub fn recently_closed_tabs(&self) -> Vec<Uuid> {
-        self.closed_tabs
-            .iter()
-            .rev()
-            .filter_map(|c| match c.slot.dest {
-                Destination::File(id) => Some(id),
-                _ => None,
-            })
-            .collect()
+    /// Closed sessions, most recently closed first.
+    pub fn recently_closed_tabs(&self) -> Vec<&Session> {
+        self.closed_tabs.iter().rev().map(|c| &c.slot).collect()
     }
 
     pub fn process_bg_tasks(&mut self) {
@@ -1635,7 +1676,7 @@ pub struct WsPresistentData {
     #[serde(default)]
     contact_linked_sites: bool,
     /// Desktop: file tree / pins / recents / create open in a new tab.
-    /// Ignored on mobile (`show_tabs == false`), which always replaces.
+    /// Ignored when `desktop_tab_policy` is false, which always replaces.
     #[serde(default = "default_open_in_new_tab")]
     open_in_new_tab: bool,
 }
