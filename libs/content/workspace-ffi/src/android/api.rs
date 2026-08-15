@@ -599,10 +599,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_unfocusTitle(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    if let Some(dest) = obj.workspace.current_tab.clone() {
-        if let Some(tab) = obj.workspace.tabs.get_mut(&dest) {
-            tab.rename = None;
-        }
+    if let Some(tab_id) = obj.workspace.current_tab {
+        obj.workspace.clear_tab_rename(tab_id);
     }
 }
 

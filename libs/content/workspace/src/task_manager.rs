@@ -11,7 +11,7 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::{Uuid, spawn};
 use tracing::{Level, debug, error, instrument, span, trace, warn};
 
-use crate::tab::{Destination, SessionId, TabSaveContent};
+use crate::tab::{SessionId, TabSaveContent};
 use crate::widgets::tab_cache::TabCache;
 
 #[derive(Default)]
@@ -364,8 +364,7 @@ impl TaskManager {
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
             let (old_hmac, seq, content) = {
-                let key = Destination::File(request.id);
-                let Some(tab) = tabs.get_any(&key) else {
+                let Some(tab) = tabs.find_any_by_file(request.id) else {
                     error!("could not launch save because its tab does not exist");
                     continue;
                 };

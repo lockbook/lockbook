@@ -1079,10 +1079,8 @@ pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
 pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    if let Some(dest) = obj.workspace.current_tab.clone() {
-        if let Some(tab) = obj.workspace.tabs.get_mut(&dest) {
-            tab.rename = None;
-        }
+    if let Some(tab_id) = obj.workspace.current_tab {
+        obj.workspace.clear_tab_rename(tab_id);
     }
 }
 
@@ -1102,12 +1100,7 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if !obj.workspace.tab_strip.is_empty() {
-        if let Some(idx) = obj
-            .workspace
-            .current_tab
-            .as_ref()
-            .and_then(|d| obj.workspace.tab_strip.iter().position(|s| s.dest == *d))
-        {
+        if let Some(idx) = obj.workspace.current_slot_index() {
             obj.workspace.close_tab(idx);
         }
     }

@@ -171,6 +171,24 @@ pub fn tab_action_for_open(
     TabAction::Replace
 }
 
+/// Which session to Activate when several share `dest`. Prefer the current
+/// session, then the most recently activated match, then strip order.
+pub fn index_of_dest_to_activate(
+    strip: &[Session], current: Option<SessionId>, recents: &[SessionId], dest: &Destination,
+) -> Option<usize> {
+    if let Some(id) = current {
+        if let Some(i) = strip.iter().position(|s| s.id == id && s.dest == *dest) {
+            return Some(i);
+        }
+    }
+    for id in recents.iter().rev() {
+        if let Some(i) = strip.iter().position(|s| s.id == *id && s.dest == *dest) {
+            return Some(i);
+        }
+    }
+    strip.iter().position(|s| s.dest == *dest)
+}
+
 pub struct Tab {
     pub destination: Destination,
     pub content: ContentState,
@@ -582,7 +600,7 @@ impl TabStatus {
 
 impl Workspace {
     pub fn tab_status(&self, i: usize) -> TabStatus {
-        let tab = self.tab_strip.get(i).and_then(|s| self.tabs.get(&s.dest));
+        let tab = self.tab_strip.get(i).and_then(|s| self.tabs.get(&s.id));
         if let Some(tab) = tab {
             if let Some(id) = tab.id() {
                 if self.tasks.load_in_progress(id) {
@@ -901,6 +919,28 @@ mod nav_tests {
     #[test]
     fn tab_action_desktop_activates_open_dest() {
         assert_eq!(tab_action_for_open(true, false, true, true), TabAction::Activate);
+    }
+
+    #[test]
+    fn activate_prefers_current_session_of_same_dest() {
+        let dest = file(1);
+        let a = Session::new(dest.clone());
+        let b = Session::new(dest.clone());
+        let strip = vec![a.clone(), b.clone()];
+        assert_eq!(index_of_dest_to_activate(&strip, Some(b.id), &[], &dest), Some(1));
+    }
+
+    #[test]
+    fn activate_prefers_most_recently_activated_match() {
+        let dest = file(1);
+        let a = Session::new(dest.clone());
+        let b = Session::new(dest.clone());
+        let other = Session::new(file(2));
+        let strip = vec![a.clone(), other.clone(), b.clone()];
+        assert_eq!(
+            index_of_dest_to_activate(&strip, Some(other.id), &[a.id, b.id], &dest),
+            Some(2)
+        );
     }
 
     #[test]

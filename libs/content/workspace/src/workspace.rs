@@ -39,8 +39,8 @@ use crate::tab::markdown_editor::{
 use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
-    ContentState, Destination, ExtendedInput as _, Session, Tab, TabContent, TabFailure,
-    TabSaveContent,
+    ContentState, Destination, ExtendedInput as _, Session, SessionId, Tab, TabAction, TabContent,
+    TabFailure, TabSaveContent, index_of_dest_to_activate, tab_action_for_open,
 };
 use crate::task_manager;
 use crate::task_manager::{
@@ -55,12 +55,12 @@ use crate::mind_map::show::MindMap;
 use tokio::sync::broadcast::error::TryRecvError;
 
 /// A tab removed from the strip, with enough context to reopen it near where
-/// it lived. Neighbors are destinations (URLs); resolved against the live
-/// strip at reopen time. `index` is a layout fallback when anchors are gone.
+/// it lived. Neighbors are session ids; resolved against the live strip at
+/// reopen time. `index` is a layout fallback when anchors are gone.
 struct ClosedTab {
     slot: Session,
-    left: Option<Destination>,
-    right: Option<Destination>,
+    left: Option<SessionId>,
+    right: Option<SessionId>,
     index: usize,
 }
 
@@ -68,10 +68,11 @@ pub struct Workspace {
     // User activity
     pub tabs: TabCache,
     pub tab_strip: Vec<Session>,
-    pub current_tab: Option<Destination>,
+    /// Active session (not its destination — two sessions may share a dest).
+    pub current_tab: Option<SessionId>,
 
     /// Most-recently-active last; used to pick focus when the current tab closes.
-    activation_history: Vec<Destination>,
+    activation_history: Vec<SessionId>,
     /// Closed tabs, most recent last (LIFO for `reopen_closed_tab`).
     closed_tabs: Vec<ClosedTab>,
 
@@ -191,21 +192,22 @@ impl Workspace {
             ws.landing_page.update_recent_files(&files);
         }
 
-        let (open_tabs, current_tab) = ws.cfg.get_tabs();
+        let (open_sessions, current_tab_index) = ws.cfg.get_sessions();
 
-        open_tabs.into_iter().for_each(|dest| {
-            let exists = dest
+        open_sessions.into_iter().for_each(|session| {
+            let exists = session
+                .dest
                 .backing_file()
                 .is_none_or(|id| core.get_file_by_id(id).is_ok());
             if exists {
-                info!(?dest, "opening persisted tab");
-                ws.create_tab(dest, false);
+                info!(dest = ?session.dest, "opening persisted session");
+                ws.resume_session(session, false);
             }
         });
-        if let Some(current_tab) = current_tab {
-            if let Some(pos) = ws.tab_strip.iter().position(|s| s.dest == current_tab) {
-                info!(?current_tab, "setting persisted current tab");
-                ws.make_current(pos);
+        if let Some(idx) = current_tab_index {
+            if idx < ws.tab_strip.len() {
+                info!(idx, "setting persisted current tab");
+                ws.make_current(idx);
             }
         }
 
@@ -218,18 +220,23 @@ impl Workspace {
         ws
     }
 
-    /// Ensure a tab exists for `dest`. Creates it if absent, determining
-    /// content from the destination variant. Does not add to tab_strip or
-    /// make current — callers decide visibility.
-    pub fn open_dest(&mut self, dest: &Destination) {
-        self.closed_tabs.retain(|c| c.slot.dest != *dest);
+    /// Ensure tab `tab_id` has loaded content for `dest`. Creates content if
+    /// absent. Does not add to tab_strip or make current — callers decide
+    /// visibility.
+    pub fn open_dest(&mut self, tab_id: SessionId, dest: &Destination) {
+        self.closed_tabs.retain(|c| c.slot.id != tab_id);
 
-        // Promote from the previous-frame buffer so make_current can see it.
-        if self.tabs.contains_key(dest) {
-            self.tabs.promote(dest);
-            return;
+        if self.tabs.contains_key(&tab_id) {
+            self.tabs.promote(&tab_id);
+            if self
+                .tabs
+                .get(&tab_id)
+                .is_some_and(|t| &t.destination == dest)
+            {
+                return;
+            }
         }
-        let id = dest.id();
+        let file_id = dest.id();
         let mut needs_load = false;
         let content = match dest {
             Destination::File(id) => {
@@ -260,7 +267,7 @@ impl Workspace {
         };
         let now = Instant::now();
         self.tabs.insert(
-            dest.clone(),
+            tab_id,
             Tab {
                 destination: dest.clone(),
                 content,
@@ -272,7 +279,7 @@ impl Workspace {
         );
         if needs_load {
             self.tasks.queue_load(LoadRequest {
-                id,
+                id: file_id,
                 tab_created: true,
                 make_current: false,
                 is_preview: false,
@@ -280,14 +287,31 @@ impl Workspace {
         }
     }
 
-    pub fn create_tab(&mut self, dest: Destination, make_current: bool) {
-        self.open_dest(&dest);
-        if !self.tab_strip.iter().any(|s| s.dest == dest) {
-            self.tab_strip.push(Session::new(dest.clone()));
-            self.out.tabs_changed = true;
-        }
+    /// Resume a persisted or recently-closed session in a new tab.
+    pub fn resume_session(&mut self, session: Session, make_current: bool) {
+        let dest = session.dest.clone();
+        let tab_id = session.id;
+        self.open_dest(tab_id, &dest);
+        self.tab_strip.push(session);
+        self.out.tabs_changed = true;
         if make_current {
-            self.set_current_tab(Some(dest));
+            self.set_current_tab(Some(tab_id));
+        }
+    }
+
+    pub fn create_tab(&mut self, dest: Destination, make_current: bool) {
+        self.resume_session(Session::new(dest), make_current);
+    }
+
+    pub fn begin_tab_rename(&mut self, tab_id: SessionId, name: String) {
+        if let Some(tab) = self.tabs.get_mut(&tab_id) {
+            tab.rename = Some(name);
+        }
+    }
+
+    pub fn clear_tab_rename(&mut self, tab_id: SessionId) {
+        if let Some(tab) = self.tabs.get_mut(&tab_id) {
+            tab.rename = None;
         }
     }
 
@@ -327,17 +351,22 @@ impl Workspace {
     }
 
     pub fn get_mut_tab_by_id(&mut self, id: Uuid) -> Option<&mut Tab> {
-        let dest = self
-            .tab_strip
-            .iter()
-            .find(|s| s.dest.id() == id)?
-            .dest
-            .clone();
-        self.tabs.get_mut(&dest)
+        let tab_id = self.tab_strip.iter().find(|s| s.dest.id() == id)?.id;
+        self.tabs.get_mut(&tab_id)
     }
 
     pub fn get_idx_by_id(&mut self, id: Uuid) -> Option<usize> {
         self.tab_strip.iter().position(|s| s.dest.id() == id)
+    }
+
+    pub fn current_slot_index(&self) -> Option<usize> {
+        let id = self.current_tab?;
+        self.tab_strip.iter().position(|s| s.id == id)
+    }
+
+    pub fn current_dest(&self) -> Option<&Destination> {
+        let id = self.current_tab?;
+        self.tab_strip.iter().find(|s| s.id == id).map(|s| &s.dest)
     }
 
     pub fn is_empty(&self) -> bool {
@@ -345,7 +374,7 @@ impl Workspace {
     }
 
     pub fn current_tab(&self) -> Option<&Tab> {
-        self.current_tab.as_ref().and_then(|d| self.tabs.get(d))
+        self.current_tab.as_ref().and_then(|id| self.tabs.get(id))
     }
 
     pub fn current_tab_id(&self) -> Option<Uuid> {
@@ -357,14 +386,14 @@ impl Workspace {
         self.out.selected_file = self.current_tab_id();
     }
 
-    fn set_current_tab(&mut self, dest: Option<Destination>) {
-        if let Some(old_dest) = self.current_tab.take() {
-            if Some(&old_dest) != dest.as_ref() {
-                self.activation_history.retain(|d| d != &old_dest);
-                self.activation_history.push(old_dest);
+    fn set_current_tab(&mut self, tab_id: Option<SessionId>) {
+        if let Some(old_id) = self.current_tab.take() {
+            if Some(old_id) != tab_id {
+                self.activation_history.retain(|id| *id != old_id);
+                self.activation_history.push(old_id);
             }
         }
-        self.current_tab = dest;
+        self.current_tab = tab_id;
         self.mark_current_tab_changed();
     }
 
@@ -385,10 +414,7 @@ impl Workspace {
     }
 
     pub fn current_tab_mut(&mut self) -> Option<&mut Tab> {
-        self.current_tab
-            .as_ref()
-            .cloned()
-            .and_then(|d| self.tabs.get_mut(&d))
+        self.current_tab.and_then(|id| self.tabs.get_mut(&id))
     }
 
     pub fn current_tab_markdown(&self) -> Option<&Markdown> {
@@ -427,13 +453,17 @@ impl Workspace {
 
     pub fn make_current(&mut self, i: usize) -> bool {
         let Some(slot) = self.tab_strip.get(i) else { return false };
+        let tab_id = slot.id;
         let dest = slot.dest.clone();
         // Tab content may only live in the previous-frame buffer after close.
-        self.tabs.promote(&dest);
-        if self.tabs.get(&dest).is_none() {
+        self.tabs.promote(&tab_id);
+        if self.tabs.get(&tab_id).is_none() {
+            self.open_dest(tab_id, &dest);
+        }
+        if self.tabs.get(&tab_id).is_none() {
             return false;
         };
-        self.set_current_tab(Some(dest));
+        self.set_current_tab(Some(tab_id));
 
         if let Some(md) = self.current_tab_markdown() {
             md.focus(&self.ctx);
@@ -446,7 +476,13 @@ impl Workspace {
 
     /// Makes the tab with the given id the current tab, if it exists. Returns true if the tab exists.
     pub fn make_current_by_id(&mut self, id: Uuid) -> bool {
-        if let Some(i) = self.tab_strip.iter().position(|s| s.dest.id() == id) {
+        let dest = Destination::File(id);
+        if let Some(i) = index_of_dest_to_activate(
+            &self.tab_strip,
+            self.current_tab,
+            &self.activation_history,
+            &dest,
+        ) {
             self.make_current(i)
         } else {
             false
@@ -456,8 +492,7 @@ impl Workspace {
     pub fn save_all_tabs(&mut self) {
         let slots: Vec<_> = self.tab_strip.clone();
         for slot in &slots {
-            let dest = &slot.dest;
-            if let Some(tab) = self.tabs.get(dest) {
+            if let Some(tab) = self.tabs.get(&slot.id) {
                 if let Some(id) = tab.id() {
                     if tab.is_dirty(&self.tasks) {
                         self.tasks.queue_save(SaveRequest { id, origin: slot.id });
@@ -470,13 +505,11 @@ impl Workspace {
 
     pub fn save_tab(&mut self, i: usize) {
         let Some(slot) = self.tab_strip.get(i) else { return };
-        let dest = slot.dest.clone();
-        let session_id = slot.id;
-        if let Some(tab) = self.tabs.get(&dest) {
+        let tab_id = slot.id;
+        if let Some(tab) = self.tabs.get(&tab_id) {
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) {
-                    self.tasks
-                        .queue_save(SaveRequest { id, origin: session_id });
+                    self.tasks.queue_save(SaveRequest { id, origin: tab_id });
                 }
             }
         }
@@ -504,58 +537,100 @@ impl Workspace {
             .unwrap_or(false)
     }
 
-    pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
-        let dest = Destination::File(id);
-
-        // already in strip — just focus it
-        if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
-            if make_current {
-                self.make_current(pos);
-            }
-            self.closed_tabs.retain(|c| c.slot.dest != dest);
-            return;
-        }
-
-        // new tab
-        if in_new_tab {
-            self.create_tab(dest, make_current);
-            return;
-        }
-
-        // navigate within current tab
-        let Some(old_dest) = self.current_tab.clone() else {
-            self.create_tab(dest, make_current);
-            return;
-        };
-
-        // Find the slot index for the current tab
-        let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == old_dest) else {
-            self.create_tab(dest, make_current);
-            return;
-        };
-
-        // Push old dest to slot's back, clear forward
-        self.tab_strip[slot_idx].back.push(old_dest);
-        self.tab_strip[slot_idx].forward.clear();
-        // Update the slot's dest to the new destination
-        self.tab_strip[slot_idx].dest = dest.clone();
-
-        // Ensure the tab exists in cache for the new destination
-        self.open_dest(&dest);
-
-        self.set_current_tab(Some(dest));
+    /// How a file-tree / pins / recents / create-file open should treat tabs.
+    /// `in_new_tab` is the explicit "open in new tab" request.
+    fn tab_action_for_open(&self, dest: &Destination, in_new_tab: bool) -> TabAction {
+        tab_action_for_open(
+            self.tab_strip.iter().any(|s| &s.dest == dest),
+            in_new_tab,
+            self.show_tabs,
+            self.cfg.get_open_in_new_tab(),
+        )
     }
 
+    /// Create a session for `dest` (file tree, pins, recents, create file).
+    /// Tab policy: activate / replace / create based on platform, settings,
+    /// and the explicit `in_new_tab` flag.
+    pub fn open_file(&mut self, id: Uuid, make_current: bool, in_new_tab: bool) {
+        self.open_dest_as_session(Destination::File(id), make_current, in_new_tab);
+    }
+
+    pub fn open_dest_as_session(
+        &mut self, dest: Destination, make_current: bool, in_new_tab: bool,
+    ) {
+        match self.tab_action_for_open(&dest, in_new_tab) {
+            TabAction::Activate => {
+                if let Some(pos) = index_of_dest_to_activate(
+                    &self.tab_strip,
+                    self.current_tab,
+                    &self.activation_history,
+                    &dest,
+                ) {
+                    if make_current {
+                        self.make_current(pos);
+                    }
+                    self.closed_tabs.retain(|c| c.slot.dest != dest);
+                } else {
+                    self.create_tab(dest, make_current);
+                }
+            }
+            TabAction::Create => self.create_tab(dest, make_current),
+            TabAction::Replace => self.replace_current_session(dest, make_current),
+        }
+    }
+
+    /// Reuse the current tab for a fresh session at `dest` (empty history).
+    /// Creates a tab if the strip is empty.
+    pub fn replace_current_session(&mut self, dest: Destination, make_current: bool) {
+        let Some(slot_idx) = self.current_slot_index() else {
+            self.create_tab(dest, make_current);
+            return;
+        };
+        let tab_id = self.tab_strip[slot_idx].id;
+        if self.tab_strip[slot_idx].dest == dest && self.tab_strip[slot_idx].back.is_empty() {
+            if make_current {
+                self.make_current(slot_idx);
+            }
+            return;
+        }
+        self.tab_strip[slot_idx].replace(dest.clone());
+        self.open_dest(tab_id, &dest);
+        self.out.tabs_changed = true;
+        if make_current {
+            self.set_current_tab(Some(tab_id));
+        }
+    }
+
+    /// Navigate the current tab to `dest`, pushing the previous dest onto
+    /// its back stack. Used for links, search results, mind map, space inspector.
+    pub fn navigate_to(&mut self, dest: Destination) {
+        let Some(slot_idx) = self.current_slot_index() else {
+            self.create_tab(dest, true);
+            return;
+        };
+        if self.tab_strip[slot_idx].dest == dest {
+            self.make_current(slot_idx);
+            return;
+        }
+        let tab_id = self.tab_strip[slot_idx].id;
+        self.tab_strip[slot_idx].navigate(dest.clone());
+        self.open_dest(tab_id, &dest);
+        self.out.tabs_changed = true;
+        self.set_current_tab(Some(tab_id));
+    }
+
+    /// Replace the Search tab with `dest`. If that dest is already open,
+    /// focus it and close Search instead. Desktop result clicks use this so
+    /// they do not follow the open-in-new-tab setting.
     pub fn open_file_replacing_search(&mut self, id: Uuid) {
         let dest = Destination::File(id);
-        let search_idx = self
-            .tab_strip
-            .iter()
-            .position(|s| matches!(s.dest, Destination::Search));
-
-        // Already open elsewhere: focus that tab and drop the search tab.
+        let current_search = self.current_slot_index().filter(|&i| {
+            self.tab_strip
+                .get(i)
+                .is_some_and(|s| matches!(s.dest, Destination::Search))
+        });
         if self.tab_strip.iter().any(|s| s.dest == dest) {
-            if let Some(i) = search_idx {
+            if let Some(i) = current_search {
                 self.close_tab(i);
             }
             if let Some(pos) = self.tab_strip.iter().position(|s| s.dest == dest) {
@@ -563,23 +638,22 @@ impl Workspace {
             }
             return;
         }
-
-        // Otherwise replace the search slot in place.
-        let Some(i) = search_idx else {
-            self.create_tab(dest, true);
+        if current_search.is_some() {
+            self.replace_current_session(dest, true);
             return;
-        };
-        self.tabs.remove(&Destination::Search);
-        self.tab_strip[i] = Session::new(dest.clone());
-        self.open_dest(&dest);
-        self.out.tabs_changed = true;
-        self.set_current_tab(Some(dest));
+        }
+        self.create_tab(dest, true);
     }
 
     pub fn open_file_at_range(
         &mut self, id: Uuid, byte_range: std::ops::Range<usize>, in_new_tab: bool,
     ) {
         self.open_file(id, true, in_new_tab);
+        self.pending_open_range = Some((id, byte_range));
+    }
+
+    pub fn navigate_to_range(&mut self, id: Uuid, byte_range: std::ops::Range<usize>) {
+        self.navigate_to(Destination::File(id));
         self.pending_open_range = Some((id, byte_range));
     }
 
@@ -596,49 +670,39 @@ impl Workspace {
     }
 
     pub fn back(&mut self) {
-        let Some(current_dest) = self.current_tab.clone() else { return };
-        let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
+        let Some(slot_idx) = self.current_slot_index() else { return };
+        if !self.tab_strip[slot_idx].go_back() {
             return;
-        };
-        let Some(new_dest) = self.tab_strip[slot_idx].back.pop() else { return };
-        self.tab_strip[slot_idx].forward.push(current_dest);
-
-        self.tab_strip[slot_idx].dest = new_dest.clone();
-
-        self.open_dest(&new_dest);
-        self.set_current_tab(Some(new_dest));
+        }
+        let tab_id = self.tab_strip[slot_idx].id;
+        let dest = self.tab_strip[slot_idx].dest.clone();
+        self.open_dest(tab_id, &dest);
+        self.out.tabs_changed = true;
+        self.set_current_tab(Some(tab_id));
     }
 
     pub fn can_back(&self) -> bool {
-        let Some(current_dest) = self.current_tab.as_ref() else { return false };
-        self.tab_strip
-            .iter()
-            .find(|s| &s.dest == current_dest)
-            .map(|slot| !slot.back.is_empty())
-            .unwrap_or(false)
+        self.current_slot_index()
+            .and_then(|i| self.tab_strip.get(i))
+            .is_some_and(|s| !s.back.is_empty())
     }
 
     pub fn forward(&mut self) {
-        let Some(current_dest) = self.current_tab.clone() else { return };
-        let Some(slot_idx) = self.tab_strip.iter().position(|s| s.dest == current_dest) else {
+        let Some(slot_idx) = self.current_slot_index() else { return };
+        if !self.tab_strip[slot_idx].go_forward() {
             return;
-        };
-        let Some(new_dest) = self.tab_strip[slot_idx].forward.pop() else { return };
-        self.tab_strip[slot_idx].back.push(current_dest);
-
-        self.tab_strip[slot_idx].dest = new_dest.clone();
-
-        self.open_dest(&new_dest);
-        self.set_current_tab(Some(new_dest));
+        }
+        let tab_id = self.tab_strip[slot_idx].id;
+        let dest = self.tab_strip[slot_idx].dest.clone();
+        self.open_dest(tab_id, &dest);
+        self.out.tabs_changed = true;
+        self.set_current_tab(Some(tab_id));
     }
 
     pub fn can_forward(&self) -> bool {
-        let Some(current_dest) = self.current_tab.as_ref() else { return false };
-        self.tab_strip
-            .iter()
-            .find(|s| &s.dest == current_dest)
-            .map(|slot| !slot.forward.is_empty())
-            .unwrap_or(false)
+        self.current_slot_index()
+            .and_then(|i| self.tab_strip.get(i))
+            .is_some_and(|s| !s.forward.is_empty())
     }
 
     pub fn move_tab(&mut self, from: usize, to: usize) {
@@ -654,9 +718,9 @@ impl Workspace {
 
     pub fn close_tab(&mut self, i: usize) {
         let Some(slot) = self.tab_strip.get(i) else { return };
-        let dest = slot.dest.clone();
+        let tab_id = slot.id;
         #[cfg(not(target_family = "wasm"))]
-        if let Some(tab) = self.tabs.get_mut(&dest) {
+        if let Some(tab) = self.tabs.get_mut(&tab_id) {
             if let ContentState::Open(TabContent::MindMap(mm)) = &mut tab.content {
                 mm.stop();
             }
@@ -664,24 +728,23 @@ impl Workspace {
 
         self.save_tab(i);
 
-        if let Some(tab) = self.tabs.get_mut(&dest) {
+        if let Some(tab) = self.tabs.get_mut(&tab_id) {
             if let Some(md) = tab.markdown_mut() {
                 md.surrender_focus(&self.ctx);
             }
         }
 
-        // Capture placement before remove: adjacent destinations (URLs) + index.
+        // Capture placement before remove: adjacent tab ids + index.
         let left = i
             .checked_sub(1)
             .and_then(|j| self.tab_strip.get(j))
-            .map(|s| s.dest.clone());
-        let right = self.tab_strip.get(i + 1).map(|s| s.dest.clone());
+            .map(|s| s.id);
+        let right = self.tab_strip.get(i + 1).map(|s| s.id);
 
-        // Remove from tab_strip
         let closed_slot = self.tab_strip.remove(i);
         self.out.tabs_changed = true;
-        self.activation_history.retain(|d| d != &dest);
-        self.closed_tabs.retain(|c| c.slot.dest != dest);
+        self.activation_history.retain(|id| *id != tab_id);
+        self.closed_tabs.retain(|c| c.slot.id != tab_id);
         self.closed_tabs
             .push(ClosedTab { slot: closed_slot, left, right, index: i });
         const MAX_CLOSED_TABS: usize = 20;
@@ -689,13 +752,11 @@ impl Workspace {
             self.closed_tabs.remove(0);
         }
 
-        // Update current_tab
-        if self.current_tab.as_ref() == Some(&dest) {
-            // Prefer the most recently active still-open tab; else a neighbor.
+        if self.current_tab == Some(tab_id) {
             let mut previous = None;
-            while let Some(d) = self.activation_history.pop() {
-                if self.tab_strip.iter().any(|s| s.dest == d) {
-                    previous = Some(d);
+            while let Some(id) = self.activation_history.pop() {
+                if self.tab_strip.iter().any(|s| s.id == id) {
+                    previous = Some(id);
                     break;
                 }
             }
@@ -704,10 +765,9 @@ impl Workspace {
                     None
                 } else {
                     let new_idx = i.min(self.tab_strip.len() - 1);
-                    Some(self.tab_strip[new_idx].dest.clone())
+                    Some(self.tab_strip[new_idx].id)
                 }
             });
-            // Clear first so set_current_tab does not re-record the closed dest.
             self.current_tab = None;
             self.set_current_tab(next);
         }
@@ -720,11 +780,11 @@ impl Workspace {
     }
 
     pub fn close_other_tabs(&mut self, keep: usize) {
-        let Some(keep_dest) = self.tab_strip.get(keep).map(|s| s.dest.clone()) else {
+        let Some(keep_id) = self.tab_strip.get(keep).map(|s| s.id) else {
             return;
         };
         for i in (0..self.tab_strip.len()).rev() {
-            if self.tab_strip.get(i).is_some_and(|s| s.dest != keep_dest) {
+            if self.tab_strip.get(i).is_some_and(|s| s.id != keep_id) {
                 self.close_tab(i);
             }
         }
@@ -788,7 +848,8 @@ impl Workspace {
     /// Insert a closed slot back onto the strip and load content.
     fn restore_closed_tab(&mut self, closed: ClosedTab) -> bool {
         let dest = closed.slot.dest.clone();
-        if self.tab_strip.iter().any(|s| s.dest == dest) {
+        let tab_id = closed.slot.id;
+        if self.tab_strip.iter().any(|s| s.id == tab_id) {
             return false;
         }
         let exists = dest
@@ -799,22 +860,20 @@ impl Workspace {
         }
 
         let at = self.reopen_insert_index(&closed);
-        self.open_dest(&dest);
-        self.tabs.promote(&dest);
+        self.open_dest(tab_id, &dest);
+        self.tabs.promote(&tab_id);
         self.tab_strip.insert(at, closed.slot);
         self.out.tabs_changed = true;
         if !self.make_current(at) {
-            // Content may only have been in the previous-frame buffer; still
-            // mark current so the strip entry is focused.
-            self.set_current_tab(Some(dest));
+            self.set_current_tab(Some(tab_id));
         }
         true
     }
 
     /// Resolve where a closed tab should land in the current strip.
-    /// Prefer adjacent destinations still open; else fall back to saved index.
+    /// Prefer adjacent tab ids still open; else fall back to saved index.
     fn reopen_insert_index(&self, closed: &ClosedTab) -> usize {
-        let pos = |d: &Destination| self.tab_strip.iter().position(|s| &s.dest == d);
+        let pos = |id: &SessionId| self.tab_strip.iter().position(|s| &s.id == id);
         let left = closed.left.as_ref().and_then(pos);
         let right = closed.right.as_ref().and_then(pos);
 
@@ -822,7 +881,6 @@ impl Workspace {
             if l < r {
                 return l + 1;
             }
-            // Anchors inverted (strip reordered); fall through.
         }
         if let Some(l) = left {
             return l + 1;
@@ -864,18 +922,18 @@ impl Workspace {
                         }
                     }
                     let files = self.files.read().unwrap();
-                    let mut dests_to_delete = vec![];
+                    let mut ids_to_delete = vec![];
                     for slot in &self.tab_strip {
                         if let Destination::File(id) = slot.dest {
                             if files.get_by_id(id).is_none() {
-                                dests_to_delete.push(slot.dest.clone());
+                                ids_to_delete.push(slot.id);
                             }
                         }
                     }
                     drop(files);
 
-                    for dest in dests_to_delete {
-                        if let Some(idx) = self.tab_strip.iter().position(|s| s.dest == dest) {
+                    for tab_id in ids_to_delete {
+                        if let Some(idx) = self.tab_strip.iter().position(|s| s.id == tab_id) {
                             self.close_tab(idx);
                         }
                     }
@@ -1040,11 +1098,10 @@ impl Workspace {
                 let core = self.core.clone();
                 let show_tabs = self.show_tabs;
 
-                let key = Destination::File(id);
                 let tab_opt = if is_preview {
                     self.preview.as_mut().filter(|t| t.id() == Some(id))
                 } else {
-                    self.tabs.get_mut(&key)
+                    self.tabs.find_for_load_mut(id)
                 };
                 if let Some(tab) = tab_opt {
                     let files_clone = self.files.clone();
@@ -1234,8 +1291,7 @@ impl Workspace {
                         timing: CompletedTiming { queued_at: _, started_at, completed_at: _ },
                     } = save;
 
-                    let key = Destination::File(id);
-                    if let Some(tab) = self.tabs.get_any_mut(&key) {
+                    if let Some(tab) = self.tabs.find_any_by_file_mut(id) {
                         match new_hmac_result {
                             Ok(hmac) => {
                                 tab.last_saved = started_at;
@@ -1433,7 +1489,7 @@ impl Workspace {
             self.create_tab(Destination::Search, true);
         }
         // refocus the query field each time the tab is opened/focused
-        if let Some(tab) = self.tabs.get_mut(&Destination::Search) {
+        if let Some(tab) = self.current_tab_mut() {
             if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
                 if let Some(search_type) = search_type {
                     search.search_type = search_type;
@@ -1446,7 +1502,7 @@ impl Workspace {
     pub fn search_in_folder(&mut self, folder_id: Uuid) {
         self.upsert_search(Some(SearchType::Content));
         let path = self.files.read().unwrap().path(folder_id);
-        if let Some(tab) = self.tabs.get_mut(&Destination::Search) {
+        if let Some(tab) = self.current_tab_mut() {
             if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
                 search.scope_path = path;
                 search.filters_open = true;
@@ -1488,12 +1544,12 @@ impl Workspace {
 
     pub fn file_renamed(&mut self, id: Uuid, new_name: String) {
         let mut different_file_type = false;
-        let dest = self
+        let tab_id = self
             .tab_strip
             .iter()
             .find(|s| s.dest.id() == id)
-            .map(|s| s.dest.clone());
-        if let Some(tab) = dest.as_ref().and_then(|d| self.tabs.get(d)) {
+            .map(|s| s.id);
+        if let Some(tab) = tab_id.and_then(|tid| self.tabs.get(&tid)) {
             different_file_type = !NameComponents::from(&new_name)
                 .extension
                 .eq(&NameComponents::from(&self.tab_title(tab)).extension);
@@ -1502,8 +1558,10 @@ impl Workspace {
         if different_file_type {
             // `ext`/`plaintext` are baked at editor construction; drop and re-open.
             let dest = Destination::File(id);
-            self.tabs.remove(&dest);
-            self.open_dest(&dest);
+            if let Some(tab_id) = tab_id {
+                self.tabs.remove(&tab_id);
+                self.open_dest(tab_id, &dest);
+            }
         }
 
         self.ctx.request_repaint();
@@ -1547,10 +1605,21 @@ pub struct WsPersistentStore {
     enabled: bool,
 }
 
+fn default_open_in_new_tab() -> bool {
+    true
+}
+
 #[derive(Clone, Serialize, Deserialize, PartialEq)]
 pub struct WsPresistentData {
+    /// Legacy dest-only list. Kept so older builds can still read this file;
+    /// new writes populate `sessions` as the source of truth.
+    #[serde(default)]
     open_tabs: Vec<Destination>,
+    #[serde(default)]
+    sessions: Vec<Session>,
     current_tab: Option<Destination>,
+    #[serde(default)]
+    current_tab_index: Option<usize>,
     canvas: CanvasSettings,
     pub markdown: MdPersistence,
     auto_save: bool,
@@ -1565,6 +1634,10 @@ pub struct WsPresistentData {
     /// arrived via a shared note). Routed through `crate::egress`.
     #[serde(default)]
     contact_linked_sites: bool,
+    /// Desktop: file tree / pins / recents / create open in a new tab.
+    /// Ignored on mobile (`show_tabs == false`), which always replaces.
+    #[serde(default = "default_open_in_new_tab")]
+    open_in_new_tab: bool,
 }
 
 impl Default for WsPresistentData {
@@ -1573,7 +1646,10 @@ impl Default for WsPresistentData {
             auto_save: true,
             auto_sync: true,
             open_tabs: Vec::default(),
+            sessions: Vec::default(),
             current_tab: None,
+            current_tab_index: None,
+            open_in_new_tab: true,
             canvas: CanvasSettings::default(),
             markdown: MdPersistence::default(),
             landing_page: LandingPage::default(),
@@ -1608,22 +1684,60 @@ impl WsPersistentStore {
         if !store.enabled {
             let mut data_lock = store.data.write().unwrap();
             data_lock.open_tabs.clear();
+            data_lock.sessions.clear();
             data_lock.current_tab = None;
+            data_lock.current_tab_index = None;
         }
 
         store
     }
 
-    pub fn set_tabs(&mut self, tab_strip: &[Session], current_tab: &Option<Destination>) {
+    pub fn set_tabs(&mut self, tab_strip: &[Session], current_tab: &Option<SessionId>) {
         let mut data_lock = self.data.write().unwrap();
+        data_lock.sessions = tab_strip.to_vec();
         data_lock.open_tabs = tab_strip.iter().map(|s| s.dest.clone()).collect();
-        data_lock.current_tab = current_tab.clone();
+        data_lock.current_tab_index =
+            current_tab.and_then(|id| tab_strip.iter().position(|s| s.id == id));
+        data_lock.current_tab = data_lock
+            .current_tab_index
+            .and_then(|i| tab_strip.get(i))
+            .map(|s| s.dest.clone());
         self.write_to_file();
     }
 
-    pub fn get_tabs(&self) -> (Vec<Destination>, Option<Destination>) {
+    pub fn get_sessions(&self) -> (Vec<Session>, Option<usize>) {
         let data_lock = self.data.read().unwrap();
-        (data_lock.open_tabs.clone(), data_lock.current_tab.clone())
+        let sessions = if !data_lock.sessions.is_empty() {
+            data_lock.sessions.clone()
+        } else {
+            data_lock
+                .open_tabs
+                .iter()
+                .cloned()
+                .map(Session::new)
+                .collect()
+        };
+        let current_index = data_lock.current_tab_index.or_else(|| {
+            data_lock
+                .current_tab
+                .as_ref()
+                .and_then(|d| sessions.iter().position(|s| &s.dest == d))
+        });
+        (sessions, current_index)
+    }
+
+    pub fn get_open_in_new_tab(&self) -> bool {
+        self.data.read().unwrap().open_in_new_tab
+    }
+
+    pub fn set_open_in_new_tab(&mut self, open_in_new_tab: bool) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.open_in_new_tab == open_in_new_tab {
+            return;
+        }
+        data_lock.open_in_new_tab = open_in_new_tab;
+        drop(data_lock);
+        self.write_to_file();
     }
 
     pub fn set_canvas_settings(&mut self, canvas_settings: CanvasSettings) {
