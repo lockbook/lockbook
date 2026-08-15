@@ -1451,6 +1451,7 @@
             dark_mode(wsHandle, mtkView.isDarkMode())
             syncAccentColor(mtkView)
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
+            set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
 
             set_scale(wsHandle, Float(scale()))
             let keyboardTop = mtkView.keyboardLayoutGuide.layoutFrame.minY
@@ -1481,6 +1482,11 @@
             }
 
             let selectedFile = UUID(uuid: output.selected_file._0)
+            let selectedSession = UUID(uuid: output.selected_tab._0)
+            // selected_file / selected_tab are one-frame events.
+            if !selectedSession.isNil() {
+                mtkView.workspaceOutput?.currentSession = selectedSession
+            }
             if !selectedFile.isNil() {
                 if mtkView.currentOpenDoc != selectedFile {
                     mtkView.onSelectionChanged?()
@@ -1494,7 +1500,14 @@
                 }
             }
 
-            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle)))!
+            let currentTab = WorkspaceTab(rawValue: Int(current_tab(wsHandle))) ?? .Welcome
+            if currentTab == .Welcome {
+                mtkView.workspaceOutput?.currentSession = nil
+            }
+            if currentTab == .Welcome || currentTab == .Search, mtkView.currentOpenDoc != nil {
+                mtkView.currentOpenDoc = nil
+                mtkView.workspaceOutput?.openDoc = nil
+            }
 
             if currentTab != mtkView.workspaceOutput!.currentTab {
                 if let currentWrapper = mtkView.currentWrapper as? SvgView {
@@ -1505,11 +1518,6 @@
                     mtkView.workspaceOutput!.currentTab = currentTab
                     mtkView.currentTabChanged?(currentTab)
                 }
-            }
-
-            if currentTab == .Welcome, mtkView.currentOpenDoc != nil {
-                mtkView.currentOpenDoc = nil
-                mtkView.workspaceOutput?.openDoc = nil
             }
 
             if let currentWrapper = mtkView.currentWrapper as? MdView,
@@ -1570,12 +1578,6 @@
 
                 let keyboard_shown = currentWrapper.isFirstResponder && GCKeyboard.coalesced == nil
                 update_virtual_keyboard(wsHandle, keyboard_shown)
-            }
-
-            //      FIXME: Can we just do this in rust?
-            let newFile = UUID(uuid: output.doc_created._0)
-            if !newFile.isNil() {
-                mtkView.workspaceInput?.openFile(id: newFile, newTab: true)
             }
 
             if output.urls_opened.size > 0 {
@@ -2467,10 +2469,11 @@ public enum WorkspaceTab: Int {
     case Graph = 7
     case SpaceInspector = 8
     case Chat = 9
+    case Search = 10
 
     func viewWrapperId() -> Int {
         switch self {
-        case .Welcome, .Pdf, .Loading, .SpaceInspector:
+        case .Welcome, .Pdf, .Loading, .SpaceInspector, .Search:
             1
         case .Svg, .Image, .Graph:
             2
