@@ -585,6 +585,17 @@ impl Lb {
         self.call(Request::KnownUsernames).await
     }
 
+    /// Local cache, then server public-key lookup. `false` = no such user.
+    pub async fn username_exists(&self, username: &str) -> LbResult<bool> {
+        if let Some(local) = self.local.get() {
+            return local.username_exists(username).await;
+        }
+        let names = self.known_usernames().await?;
+        Ok(names
+            .iter()
+            .any(|u| u.eq_ignore_ascii_case(username.trim())))
+    }
+
     pub async fn reject_share(&self, id: &Uuid) -> LbResult<()> {
         if let Some(local) = self.local.get() {
             return local.reject_share(id).await;

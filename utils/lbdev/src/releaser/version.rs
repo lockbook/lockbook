@@ -69,7 +69,7 @@ fn handle_cargo_tomls(version: &str) {
         "libs/lb-fs",
         "server",
         "clients/cli",
-        "clients/egui",
+        "clients/desktop",
         "clients/linux",
         "clients/windows",
         "clients/admin",

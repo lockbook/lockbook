@@ -10,7 +10,6 @@ members = [
     "libs/lb-fs",
     "server",
     "clients/cli",
-    "clients/egui",
     "clients/linux",
     "clients/windows",
     "clients/desktop",

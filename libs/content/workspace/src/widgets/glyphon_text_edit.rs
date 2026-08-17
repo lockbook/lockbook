@@ -3,11 +3,14 @@ use std::sync::{Arc, Mutex};
 use egui::{Context, Event, EventFilter, Id, ImeEvent, Key, Rect, Response, Sense, Ui};
 use glyphon::{Attrs, Family, FontSystem, Metrics, Shaping};
 
-use crate::theme::palette_v2::ThemeExt as _;
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
-const EVENT_FILTER: EventFilter =
-    EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: false, escape: false };
+// Base filter for arrows / text. Tab is claimed only when the buffer is
+// non-empty (complete or no-op in-place). Empty field leaves Tab for focus
+// navigation (tab into the field → type → Enter → Tab out).
+fn event_filter(claim_tab: bool) -> EventFilter {
+    EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: claim_tab, escape: false }
+}
 
 /// Apply one editor event to `state` and `text`.
 ///
@@ -167,6 +170,13 @@ pub struct GlyphonTextEdit<'a> {
     focus_selection: Option<(usize, usize)>,
     id: Option<Id>,
     hint_text: Option<String>,
+    /// Muted suffix after the typed buffer (autocomplete ghost). Not editable.
+    completion_suffix: Option<String>,
+    /// Paint `*` per character (real buffer unchanged). Cursor maps via char index.
+    password: bool,
+    /// When true (default), non-empty buffer claims Tab (complete / stay).
+    /// When false, Tab is left for focus navigation (multi-field grids).
+    claim_tab_when_nonempty: bool,
 }
 
 impl<'a> GlyphonTextEdit<'a> {
@@ -179,6 +189,9 @@ impl<'a> GlyphonTextEdit<'a> {
             focus_selection: None,
             id: None,
             hint_text: None,
+            completion_suffix: None,
+            password: false,
+            claim_tab_when_nonempty: true,
         }
     }
 
@@ -211,13 +224,80 @@ impl<'a> GlyphonTextEdit<'a> {
         Self { hint_text: Some(hint.into()), ..self }
     }
 
+    /// Ghost autocomplete after the typed text (empty-buffer hint is separate).
+    pub fn completion_suffix(self, suffix: impl Into<String>) -> Self {
+        let suffix = suffix.into();
+        Self { completion_suffix: if suffix.is_empty() { None } else { Some(suffix) }, ..self }
+    }
+
+    /// Mask painted glyphs as `*` (one per Unicode scalar). Real `text` is unchanged.
+    pub fn password(self, on: bool) -> Self {
+        Self { password: on, ..self }
+    }
+
+    /// When false, Tab is never claimed — egui focus can leave this widget
+    /// (phrase word grid). Default true: non-empty claims Tab for completion.
+    pub fn claim_tab_when_nonempty(self, on: bool) -> Self {
+        Self { claim_tab_when_nonempty: on, ..self }
+    }
+
+    /// Set caret (and selection anchor) to the end of the buffer for `id`.
+    /// Call after programmatic focus (e.g. paste into a multi-field grid).
+    pub fn place_cursor_at_end(ui: &Ui, id: Id, text_len: usize) {
+        Self::place_cursor(ui, id, text_len, text_len);
+    }
+
+    /// Set caret + selection anchor (byte offsets) for a focused edit `id`.
+    pub fn place_cursor(ui: &Ui, id: Id, cursor: usize, anchor: usize) {
+        let mut state: State = ui.data(|d| d.get_temp(id)).unwrap_or_default();
+        state.cursor = cursor;
+        state.anchor = anchor;
+        ui.data_mut(|d| d.insert_temp(id, state));
+    }
+
+    /// After events have updated `text`, rewrite the buffer and remap caret.
+    /// Call between [`Self::process_events_ex`] and paint so the frame never
+    /// shows the pre-rewrite string (mask / group / strip invalid chars).
+    pub fn rewrite_buffer(
+        ui: &Ui, id: Id, text: &mut String,
+        rewrite: impl FnOnce(&str, usize, usize) -> (String, usize, usize),
+    ) {
+        let mut state: State = ui.data(|d| d.get_temp(id)).unwrap_or_default();
+        let cursor = state.cursor.min(text.len());
+        let anchor = state.anchor.min(text.len());
+        let (new_text, new_cursor, new_anchor) = rewrite(text.as_str(), cursor, anchor);
+        *text = new_text;
+        let len = text.len();
+        state.cursor = new_cursor.min(len);
+        state.anchor = new_anchor.min(len);
+        ui.data_mut(|d| d.insert_temp(id, state));
+    }
+
     /// Process keyboard/text events for this widget id without rendering.
     ///
     /// Call this before any sizing that depends on the current text so that
     /// the buffer is up-to-date when the rect is measured.
     ///
     /// Returns `true` if Enter was pressed.
+    ///
+    /// `tab_complete`: if `Some(full)`, Tab replaces `text` with `full` when
+    /// longer. Tab is only locked while the buffer is **non-empty** (unless
+    /// `claim_tab` is false).
     pub fn process_events(ui: &mut Ui, id: Id, text: &mut String) -> bool {
+        Self::process_events_with_complete(ui, id, text, None)
+    }
+
+    pub fn process_events_with_complete(
+        ui: &mut Ui, id: Id, text: &mut String, tab_complete: Option<&str>,
+    ) -> bool {
+        Self::process_events_ex(ui, id, text, tab_complete, true)
+    }
+
+    /// Like [`process_events_with_complete`], with explicit Tab claim policy.
+    pub fn process_events_ex(
+        ui: &mut Ui, id: Id, text: &mut String, tab_complete: Option<&str>,
+        claim_tab_when_nonempty: bool,
+    ) -> bool {
         if !ui.memory(|m| m.has_focus(id)) {
             return false;
         }
@@ -226,18 +306,32 @@ impl<'a> GlyphonTextEdit<'a> {
         state.cursor = state.cursor.min(text.len());
         state.anchor = state.anchor.min(text.len());
 
-        ui.memory_mut(|m| m.set_focus_lock_filter(id, EVENT_FILTER));
+        // Non-empty → claim Tab (complete / stay). Empty / grid → let egui Tab-focus.
+        let claim_tab = claim_tab_when_nonempty && !text.trim().is_empty();
+        let filter = event_filter(claim_tab);
+        ui.memory_mut(|m| m.set_focus_lock_filter(id, filter));
 
         let events = ui.input_mut(|i| {
             let (matching, remaining): (Vec<_>, Vec<_>) = std::mem::take(&mut i.events)
                 .into_iter()
-                .partition(|e| EVENT_FILTER.matches(e));
+                .partition(|e| filter.matches(e));
             i.events = remaining;
             matching
         });
 
         let mut submitted = false;
         for event in events {
+            if matches!(event, Event::Key { key: Key::Tab, pressed: true, .. }) {
+                // Only reached when claim_tab (non-empty).
+                if let Some(full) = tab_complete {
+                    if !text.trim().eq_ignore_ascii_case(full) {
+                        *text = full.to_owned();
+                        state.cursor = text.len();
+                        state.anchor = text.len();
+                    }
+                }
+                continue;
+            }
             let (_, sub) = apply_event(event, &mut state, text, ui.ctx());
             if sub {
                 ui.memory_mut(|m| m.surrender_focus(id));
@@ -281,17 +375,28 @@ impl<'a> GlyphonTextEdit<'a> {
             if let Some((anchor, cursor)) = self.focus_selection {
                 state.anchor = anchor.min(self.text.len());
                 state.cursor = cursor.min(self.text.len());
+            } else if self.cursor_at_end {
+                let len = self.text.len();
+                state.cursor = len;
+                state.anchor = len;
             }
         }
         state.was_focused = focused;
 
-        // Keyboard / text input
+        // Keyboard / text input. Completion Tab is applied in
+        // `process_events_*` before show; filter re-asserted here.
         let mut text_changed = false;
         if focused {
-            ui.memory_mut(|m| m.set_focus_lock_filter(id, EVENT_FILTER));
+            let claim_tab = self.claim_tab_when_nonempty && !self.text.trim().is_empty();
+            let filter = event_filter(claim_tab);
+            ui.memory_mut(|m| m.set_focus_lock_filter(id, filter));
 
-            let events = ui.input_mut(|i| i.filtered_events(&EVENT_FILTER));
+            let events = ui.input_mut(|i| i.filtered_events(&filter));
             for event in events {
+                if matches!(event, Event::Key { key: Key::Tab, pressed: true, .. }) {
+                    // Non-empty only (filter claimed Tab). Stay put if already full.
+                    continue;
+                }
                 let (changed, submitted) = apply_event(event, &mut state, self.text, ui.ctx());
                 if changed {
                     text_changed = true;
@@ -307,10 +412,34 @@ impl<'a> GlyphonTextEdit<'a> {
             .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
             .expect("glyphon cache used before registered");
 
+        // Shape display string (password = one `*` per char; real buffer is secret).
+        let paint_owned: Option<String> =
+            if self.password { Some("*".repeat(self.text.chars().count())) } else { None };
+        let paint_str: &str = paint_owned.as_deref().unwrap_or(self.text.as_str());
+        // Cursor / selection in real-text byte offsets → mask byte offsets (`*` is 1 byte).
+        let to_paint_byte = |real_byte: usize| -> usize {
+            if self.password {
+                self.text[..real_byte.min(self.text.len())].chars().count()
+            } else {
+                real_byte.min(paint_str.len())
+            }
+        };
+        let from_paint_byte = |paint_byte: usize| -> usize {
+            if self.password {
+                self.text
+                    .char_indices()
+                    .nth(paint_byte)
+                    .map(|(i, _)| i)
+                    .unwrap_or(self.text.len())
+            } else {
+                paint_byte.min(self.text.len())
+            }
+        };
+
         // Shape the full text on a single unbounded line; singleline_offset scrolls the view
         let buffer = glyphon_cache.lock().unwrap().get_or_shape(
             GlyphonCacheKey::single(
-                self.text.as_str(),
+                paint_str,
                 GlyphonFontFamily::SansSerif,
                 false,
                 false,
@@ -328,7 +457,7 @@ impl<'a> GlyphonTextEdit<'a> {
                 buf.set_size(&mut fs, Some(f32::MAX), None);
                 buf.set_text(
                     &mut fs,
-                    self.text,
+                    paint_str,
                     &Attrs::new().family(Family::SansSerif),
                     Shaping::Advanced,
                 );
@@ -343,7 +472,7 @@ impl<'a> GlyphonTextEdit<'a> {
             .map(|r| r.line_w)
             .fold(0.0f32, f32::max)
             / ppi;
-        let cursor_x = cursor_x_from_buffer(&buf_read, state.cursor, ppi);
+        let cursor_x = cursor_x_from_buffer(&buf_read, to_paint_byte(state.cursor), ppi);
 
         let visible_width = ui.available_width();
         let (rect, _) =
@@ -358,7 +487,8 @@ impl<'a> GlyphonTextEdit<'a> {
             if let Some(pos) = ui.input(|i| i.pointer.interact_pos()) {
                 let buf_x = (pos.x - rect.min.x + state.singleline_offset) * ppi;
                 let buf_y = line_height * ppi * 0.5;
-                let byte = hit_test_buffer(&buf_read, buf_x, buf_y);
+                let paint_byte = hit_test_buffer(&buf_read, buf_x, buf_y);
+                let byte = from_paint_byte(paint_byte);
                 if response.drag_started() || response.clicked() {
                     state.move_cursor(byte, false);
                 } else {
@@ -404,15 +534,13 @@ impl<'a> GlyphonTextEdit<'a> {
 
             if state.has_selection() {
                 let (lo, hi) = state.selection();
-                let x0 = (cursor_x_from_buffer(&buf_read, lo, ppi) - state.singleline_offset)
+                let x0 = (cursor_x_from_buffer(&buf_read, to_paint_byte(lo), ppi)
+                    - state.singleline_offset)
                     .clamp(0.0, visible_width);
-                let x1 = (cursor_x_from_buffer(&buf_read, hi, ppi) - state.singleline_offset)
+                let x1 = (cursor_x_from_buffer(&buf_read, to_paint_byte(hi), ppi)
+                    - state.singleline_offset)
                     .clamp(0.0, visible_width);
-                let theme = ui.ctx().get_lb_theme();
-                let sel_color = theme
-                    .bg()
-                    .get_color(theme.prefs().primary)
-                    .lerp_to_gamma(theme.neutral_bg(), 0.7);
+                let sel_color = ui.visuals().selection.bg_fill;
                 ui.painter().rect_filled(
                     Rect::from_min_max(
                         egui::pos2(rect.min.x + x0, rect.min.y + 2.0),
@@ -483,6 +611,65 @@ impl<'a> GlyphonTextEdit<'a> {
                 ui.ctx(),
                 rect,
             ));
+
+            // Ghost completion suffix sits after the typed buffer (same line scroll).
+            // Skip when password — no completion ghosts on secrets.
+            if !self.password && !self.text.is_empty() {
+                if let Some(ref suffix) = self.completion_suffix {
+                    let ghost_buf = glyphon_cache.lock().unwrap().get_or_shape(
+                        GlyphonCacheKey::single(
+                            suffix.as_str(),
+                            GlyphonFontFamily::SansSerif,
+                            false,
+                            false,
+                            None,
+                            (self.font_size * ppi).to_bits(),
+                            (line_height * ppi).to_bits(),
+                            f32::MAX.to_bits(),
+                        ),
+                        || {
+                            let mut fs = font_system.lock().unwrap();
+                            let mut buf = glyphon::Buffer::new(
+                                &mut fs,
+                                Metrics::new(self.font_size * ppi, line_height * ppi),
+                            );
+                            buf.set_size(&mut fs, Some(f32::MAX), None);
+                            buf.set_text(
+                                &mut fs,
+                                suffix,
+                                &Attrs::new().family(Family::SansSerif),
+                                Shaping::Advanced,
+                            );
+                            buf.shape_until_scroll(&mut fs, false);
+                            buf
+                        },
+                    );
+                    let ghost_w = ghost_buf
+                        .read()
+                        .unwrap()
+                        .layout_runs()
+                        .map(|r| r.line_w)
+                        .fold(0.0f32, f32::max)
+                        / ppi;
+                    let ghost_origin = egui::pos2(
+                        rect.min.x + total_text_width - state.singleline_offset,
+                        rect.min.y,
+                    );
+                    let ghost_rect = Rect::from_min_size(
+                        ghost_origin,
+                        egui::vec2(ghost_w.max(1.0), line_height),
+                    );
+                    let gc = ui.visuals().weak_text_color();
+                    areas.push(crate::TextBufferArea::new(
+                        ghost_buf,
+                        ghost_rect,
+                        glyphon::Color::rgba(gc.r(), gc.g(), gc.b(), gc.a()),
+                        ui.ctx(),
+                        rect,
+                    ));
+                }
+            }
+
             // egui_wgpu clamps the callback rect to the screen and drops a zero-area result.
             let callback_rect = rect.intersect(ui.clip_rect());
             ui.painter()
