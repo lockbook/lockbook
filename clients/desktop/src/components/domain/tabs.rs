@@ -54,7 +54,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         .session
         .ready()
         .map(|ready| {
-            let current = ready.workspace.current_tab.clone();
+            let current = ready.workspace.current_tab;
             let can_reopen = ready.workspace.can_reopen_closed_tab();
             let tabs: Vec<TabInfo> = ready
                 .workspace
@@ -63,7 +63,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                 .enumerate()
                 .map(|(i, slot)| {
                     let title = tab_label(ready, &slot.dest);
-                    let active = current.as_ref() == Some(&slot.dest);
+                    let active = current == Some(slot.id);
                     let file_id = match &slot.dest {
                         Destination::File(id) => Some(*id),
                         _ => None,

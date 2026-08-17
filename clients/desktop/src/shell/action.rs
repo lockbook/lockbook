@@ -417,6 +417,7 @@ pub enum Action {
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
     SetPrefLinkPreviews(bool),
+    SetPrefOpenInNewTab(bool),
     SetPrefSidebarUsage(bool),
 
     /// Linux only — persisted; takes effect after restart.

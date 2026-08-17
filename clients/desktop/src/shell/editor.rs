@@ -1,4 +1,4 @@
-//! Shell tab strip + Workspace content (`show_tabs = false`).
+//! Shell tab strip + Workspace content (`show_tabs = false`, desktop tab policy).
 
 use egui::Ui;
 use workspace_rs::file_cache::FilesExt;
@@ -21,6 +21,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
         };
 
         ready.workspace.show_tabs = false;
+        ready.workspace.desktop_tab_policy = true;
         ready.workspace.sidebar_open = sidebar_open;
         if let Some(id) = ready.cursor {
             let parent = {
@@ -40,9 +41,8 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
 
         if let Some(Ok(file)) = out.file_created {
             if file.is_document() {
-                ready.workspace.open_file(file.id, true, true);
                 ready.select_only(file.id);
-                // Workspace created → expand + animate center in sidebar.
+                // Workspace already opened the doc; expand + animate in sidebar.
                 super::reveal_and_scroll(ready, file.id);
             }
         }
