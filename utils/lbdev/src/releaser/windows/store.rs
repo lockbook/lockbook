@@ -134,9 +134,7 @@ const MANIFEST_TEMPLATE: &str = r##"<?xml version="1.0" encoding="utf-8"?>
         BackgroundColor="#207FDF"
         Square150x150Logo="Assets\Square150x150Logo.png"
         Square44x44Logo="Assets\Square44x44Logo.png">
-        <uap:DefaultTile
-          Square71x71Logo="Assets\Square71x71Logo.png"
-          Square310x310Logo="Assets\Square310x310Logo.png" />
+        <uap:DefaultTile Square71x71Logo="Assets\Square71x71Logo.png" />
       </uap:VisualElements>
     </Application>
   </Applications>
