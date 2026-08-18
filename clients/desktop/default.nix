@@ -27,27 +27,26 @@ pkgs.mkShell rec {
     # necessary for building wgpu in 3rd party packages (in most cases)
     libxkbcommon
     wayland xorg.libX11 xorg.libXcursor xorg.libXrandr xorg.libXi
-    alsa-lib
     fontconfig freetype
-    shaderc directx-shader-compiler
     pkg-config cmake
     mold # could use any linker, needed for rustix (but mold is fast)
 
     libGL
     vulkan-headers vulkan-loader
-    vulkan-tools vulkan-tools-lunarg
-    vulkan-extension-layer
+    vulkan-tools
     vulkan-validation-layers # don't need them *strictly* but immensely helpful
 
+    # rfd file dialogs
     gtk3
     glib
     gobject-introspection
     gdk-pixbuf
+
     # necessary for developing (all of) wgpu itself
     # cargo-nextest cargo-fuzz
 
     # nice for developing wgpu itself
-    # typos 
+    # typos
 
     # # if you don't already have rust installed through other means,
     # # this shell.nix can do that for you with this below

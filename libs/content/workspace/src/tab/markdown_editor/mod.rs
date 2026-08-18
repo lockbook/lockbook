@@ -1974,6 +1974,13 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .into()
     });
 
+    // Phosphor UI icons — family name `"phosphor"`. No global scale tweak:
+    // design chrome sizes glyphs via FontId. File **names** (emoji-capable)
+    // paint via GlyphonLabel/GlyphonTextEdit, not egui proportional + Twemoji.
+    fonts
+        .font_data
+        .insert("phosphor".into(), FontData::from_static(lb_fonts::PHOSPHOR).into());
+
     fonts
         .families
         .insert(FontFamily::Name(Arc::from("Bold")), vec!["bold".into()]);
@@ -2001,6 +2008,9 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
     fonts
         .families
         .insert(FontFamily::Name(Arc::from("Icons")), vec!["icons".into()]);
+    fonts
+        .families
+        .insert(FontFamily::Name(Arc::from("phosphor")), vec!["phosphor".into()]);
 
     fonts
         .families
@@ -2019,6 +2029,16 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
         .get_mut(&FontFamily::Monospace)
         .unwrap()
         .push("icons".to_owned());
+
+    // Icon codepoints in labels resolve without an explicit phosphor FontId
+    // (toolbar mixed Latin + PUA in one run).
+    for family in [FontFamily::Proportional, FontFamily::Monospace] {
+        fonts
+            .families
+            .get_mut(&family)
+            .unwrap()
+            .push("phosphor".to_owned());
+    }
 }
 
 /// Headless editor harness matching the Android FFI surface so tests read

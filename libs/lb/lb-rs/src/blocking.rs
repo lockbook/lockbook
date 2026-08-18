@@ -177,6 +177,16 @@ impl Lb {
         self.block_on(async { self.lb.reject_share(id).await })
     }
 
+    /// Usernames we've seen (pub key lookup cache) — suggestions + offline hits.
+    pub fn known_usernames(&self) -> LbResult<Vec<String>> {
+        self.block_on(self.lb.known_usernames())
+    }
+
+    /// Whether `username` exists (cache + server). May hit the network.
+    pub fn username_exists(&self, username: &str) -> LbResult<bool> {
+        self.block_on(self.lb.username_exists(username))
+    }
+
     pub fn create_link_at_path(&self, path_and_name: &str, target_id: Uuid) -> LbResult<File> {
         self.block_on(self.lb.create_link_at_path(path_and_name, target_id))
     }

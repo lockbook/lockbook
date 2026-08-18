@@ -156,7 +156,7 @@ async fn clear_docs() {
         .suggested_docs(RankingWeights { temporality: 0, io: 100 })
         .await
         .unwrap();
-    let expected_suggestions = vec![];
+    let expected_suggestions: Vec<Uuid> = vec![];
 
     assert_eq!(actual_suggestions, expected_suggestions);
 }
