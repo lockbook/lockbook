@@ -93,8 +93,10 @@ fn sdk_tool(name: &str) -> CliResult<PathBuf> {
         .collect();
     kits.sort();
 
+    let hosts = if std::env::consts::ARCH == "aarch64" { ["arm64", "x64"] } else { ["x64", "x86"] };
+
     for kit in kits.iter().rev() {
-        for host in ["arm64", "x64"] {
+        for host in hosts {
             let tool = kit.join(host).join(name);
             if tool.exists() {
                 return Ok(tool);
