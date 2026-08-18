@@ -4,6 +4,7 @@ use egui::{self, Color32, Pos2, Rect, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
+use tracing::error;
 
 use crate::tab::ExtendedInput as _;
 use crate::tab::input_controller::{
@@ -15,7 +16,7 @@ use crate::widgets::image_cache::{ImageCache, ImageState};
 
 const MIN_ZOOM_LEVEL: f32 = 0.1;
 const ZOOM_STEP: f32 = 10.0;
-const VIEWPORT_ISLAND_FALLBACK_WIDTH: f32 = 136.0;
+const VIEWPORT_ISLAND_FALLBACK_WIDTH: f32 = 178.0;
 const ZOOM_STOPS_POPOVER_WIDTH: f32 = 80.0;
 const BRING_BACK_FALLBACK_WIDTH: f32 = 220.0;
 const SCREEN_PADDING: egui::Pos2 =
@@ -84,6 +85,7 @@ impl ImageViewer {
                     Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
                 ));
 
+                self.show_image_context_menu(ui, available, rect);
                 self.show_viewport_controls(ui, available, rect);
             }
             ImageState::Failed(ref msg) => {
@@ -217,7 +219,48 @@ impl ImageViewer {
             };
 
             ui.add_space((50.0 - zoom_pct_btn.rect.width()).max(0.0));
+
+            ui.add(egui::Separator::default().vertical().shrink(4.0));
+
+            if Button::default()
+                .icon(&Icon::CONTENT_COPY.size(size))
+                .show(ui)
+                .on_hover_text("Copy image")
+                .clicked()
+            {
+                self.copy_image(ui);
+            }
         });
+    }
+
+    fn show_image_context_menu(&mut self, ui: &mut egui::Ui, available: Rect, image_rect: Rect) {
+        if !available.intersects(image_rect) {
+            return;
+        }
+
+        let response = ui.interact(
+            available.intersect(image_rect),
+            ui.id().with("image_viewer_image"),
+            egui::Sense::click(),
+        );
+
+        let mut copy = false;
+        response.context_menu(|ui| {
+            if ui.button("Copy image").clicked() {
+                copy = true;
+                ui.close();
+            }
+        });
+        if copy {
+            self.copy_image(ui);
+        }
+    }
+
+    fn copy_image(&self, ui: &egui::Ui) {
+        match self.images.color_image(self.id) {
+            Ok(image) => ui.ctx().copy_image(image),
+            Err(err) => error!("failed to copy image to clipboard: {err}"),
+        }
     }
 
     fn show_popovers(&mut self, ui: &mut egui::Ui, available: Rect, viewport_island_rect: Rect) {
