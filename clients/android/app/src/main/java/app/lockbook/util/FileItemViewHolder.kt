@@ -207,9 +207,3 @@ class SearchedDocumentContentViewHolder(
     val content: TextView = itemView.findViewById(R.id.searched_document_content)
     val showMore: MaterialButton = itemView.findViewById(R.id.searched_document_content_show_more)
 }
-
-class SeparatorViewHolder(
-    itemView: View,
-) : com.afollestad.recyclical.ViewHolder(itemView) {
-    val date: TextView = itemView.findViewById(R.id.separator_date)
-}

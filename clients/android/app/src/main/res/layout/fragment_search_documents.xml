@@ -1,96 +1,55 @@
 <?xml version="1.0" encoding="utf-8"?>
-<androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<com.google.android.material.search.SearchView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
+    android:id="@+id/search_documents_search_view"
+    style="@style/Widget.Material3.SearchView"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="?attr/colorSurface"
-    android:fitsSystemWindows="true"
-    tools:ignore="Overdraw">
+    android:hint="@string/search_in_lockbook"
+    app:autoShowKeyboard="true"
+    app:backHandlingEnabled="false">
 
-    <com.google.android.material.card.MaterialCardView
-        android:id="@+id/search_documents_search_container"
-        android:layout_width="0dp"
-        android:layout_height="wrap_content"
-        android:layout_marginHorizontal="12dp"
-        android:layout_marginTop="6dp"
-        app:cardBackgroundColor="?attr/colorSurfaceContainerLowest"
-        app:cardCornerRadius="28dp"
-        app:cardElevation="0dp"
-        app:strokeWidth="0dp"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toTopOf="parent">
+    <androidx.constraintlayout.widget.ConstraintLayout
+        android:layout_width="match_parent"
+        android:layout_height="match_parent"
+        android:background="?attr/colorSurface"
+        tools:ignore="Overdraw">
 
-        <LinearLayout
+        <com.google.android.material.progressindicator.LinearProgressIndicator
+            android:id="@+id/search_documents_loader"
             android:layout_width="match_parent"
-            android:layout_height="match_parent"
-            android:gravity="center_vertical"
-            android:orientation="horizontal">
+            android:layout_height="wrap_content"
+            android:indeterminate="true"
+            android:visibility="gone"
+            app:layout_constraintBottom_toTopOf="@+id/search_documents_results"
+            app:layout_constraintTop_toTopOf="parent" />
 
-            <com.google.android.material.button.MaterialButton
-                android:id="@+id/search_documents_back"
-                style="@style/Widget.MaterialComponents.Button.TextButton.Icon"
-                android:layout_width="48dp"
-                android:layout_height="match_parent"
-                android:contentDescription="@string/back"
-                android:insetLeft="0dp"
-                android:insetTop="0dp"
-                android:insetRight="0dp"
-                android:insetBottom="0dp"
-                app:icon="@drawable/ic_baseline_arrow_back_24"
-                app:iconGravity="textStart"
-                app:iconTint="?attr/colorOnSurfaceVariant"
-                app:iconPadding="0dp" />
+        <androidx.recyclerview.widget.RecyclerView
+            android:id="@+id/search_documents_results"
+            android:layout_width="match_parent"
+            android:layout_height="0dp"
+            android:layout_marginTop="16dp"
+            android:background="?attr/colorSurface"
+            android:scrollbars="vertical"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toBottomOf="@+id/search_documents_loader" />
 
-            <androidx.appcompat.widget.SearchView
-                android:id="@+id/search_documents_search"
-                style="@style/Widget.AppCompat.SearchView.ActionBar"
-                android:layout_width="0dp"
-                android:layout_height="wrap_content"
-                android:layout_marginEnd="12dp"
-                android:layout_weight="1"
-                android:background="@android:color/transparent"
-                android:imeOptions="flagNoExtractUi"
-                app:iconifiedByDefault="false"
-                app:searchIcon="@null" />
+        <com.google.android.material.textview.MaterialTextView
+            android:id="@+id/search_documents_none"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:background="?attr/colorSurface"
+            android:text="@string/no_search_results"
+            android:textAppearance="?attr/textAppearanceLabelLarge"
+            android:visibility="gone"
+            app:layout_constraintBottom_toBottomOf="parent"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent" />
 
-        </LinearLayout>
+    </androidx.constraintlayout.widget.ConstraintLayout>
 
-    </com.google.android.material.card.MaterialCardView>
-
-    <com.google.android.material.progressindicator.LinearProgressIndicator
-        android:id="@+id/search_documents_loader"
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:indeterminate="true"
-        android:visibility="gone"
-        app:layout_constraintTop_toBottomOf="@+id/search_documents_search_container"
-        app:layout_constraintBottom_toTopOf="@+id/search_documents_results" />
-
-    <androidx.recyclerview.widget.RecyclerView
-        android:id="@+id/search_documents_results"
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_marginTop="16dp"
-        android:background="?attr/colorSurface"
-        android:scrollbars="vertical"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/search_documents_loader" />
-
-    <com.google.android.material.textview.MaterialTextView
-        android:id="@+id/search_documents_none"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:background="?attr/colorSurface"
-        android:visibility="gone"
-        android:text="@string/no_search_results"
-        android:textAppearance="?attr/textAppearanceLabelLarge"
-        app:layout_constraintBottom_toBottomOf="parent"
-        app:layout_constraintEnd_toEndOf="parent"
-        app:layout_constraintStart_toStartOf="parent"
-        app:layout_constraintTop_toBottomOf="@+id/search_documents_search_container"/>
-
-</androidx.constraintlayout.widget.ConstraintLayout>
+</com.google.android.material.search.SearchView>

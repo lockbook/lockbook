@@ -29,6 +29,8 @@ import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
+import app.lockbook.model.OpenFilePresentation
+import app.lockbook.model.OpenFileRequest
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -355,7 +357,13 @@ class WorkspaceView(
         }
 
         if (!response.docCreated.isNullUUID()) {
-            model._openFile.postValue(response.docCreated to true)
+            model.postOpenFile(
+                OpenFileRequest(
+                    id = response.docCreated,
+                    newFile = true,
+                    presentation = OpenFilePresentation.ShowDetail,
+                ),
+            )
         }
 
         if (response.copiedText.isNotEmpty()) {
@@ -428,15 +436,6 @@ class WorkspaceView(
 
     fun launchIo(block: suspend () -> Unit) {
         ioScope.launch { block() }
-    }
-
-    fun createDocAt(payload: Pair<Boolean, String>) {
-        if (wgpuObj == Long.MAX_VALUE || surface == null) {
-            return
-        }
-        Workspace.createDocAt(wgpuObj, payload.first, payload.second)
-
-        invalidate()
     }
 
     fun canForwardTouches(): Boolean = wgpuObj != Long.MAX_VALUE && surface != null

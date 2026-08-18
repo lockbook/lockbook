@@ -44,7 +44,7 @@
     </style>
 
 
-    <style name="MyShapeAppearance">
+    <style name="ButtonGroupStartShape">
         <item name="cornerFamilyTopLeft">rounded</item>
         <item name="cornerSizeTopLeft">20dp</item>
         <item name="cornerFamilyTopRight">rounded</item>
@@ -55,7 +55,7 @@
         <item name="cornerSizeBottomRight">8dp</item>
     </style>
 
-    <style name="MyQRShapeAppearance">
+    <style name="ButtonGroupEndShape">
         <item name="cornerFamilyTopLeft">rounded</item>
         <item name="cornerSizeTopLeft">8dp</item>
         <item name="cornerFamilyTopRight">rounded</item>
@@ -64,6 +64,28 @@
         <item name="cornerSizeBottomLeft">8dp</item>
         <item name="cornerFamilyBottomRight">rounded</item>
         <item name="cornerSizeBottomRight">20dp</item>
+    </style>
+
+    <style name="ButtonGroupMiddleShape">
+        <item name="cornerFamilyTopLeft">rounded</item>
+        <item name="cornerSizeTopLeft">8dp</item>
+        <item name="cornerFamilyTopRight">rounded</item>
+        <item name="cornerSizeTopRight">8dp</item>
+        <item name="cornerFamilyBottomLeft">rounded</item>
+        <item name="cornerSizeBottomLeft">8dp</item>
+        <item name="cornerFamilyBottomRight">rounded</item>
+        <item name="cornerSizeBottomRight">8dp</item>
+    </style>
+
+    <style name="FileSelectionBottomSheetShape">
+        <item name="cornerFamilyTopLeft">rounded</item>
+        <item name="cornerFamilyTopRight">rounded</item>
+        <item name="cornerFamilyBottomLeft">rounded</item>
+        <item name="cornerFamilyBottomRight">rounded</item>
+        <item name="cornerSizeTopLeft">28dp</item>
+        <item name="cornerSizeTopRight">28dp</item>
+        <item name="cornerSizeBottomLeft">0dp</item>
+        <item name="cornerSizeBottomRight">0dp</item>
     </style>
 
 </resources>

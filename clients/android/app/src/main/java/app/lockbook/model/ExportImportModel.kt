@@ -11,7 +11,7 @@ import java.io.File
 import kotlin.collections.ArrayList
 
 class ExportImportModel(
-    private val _updateMainScreenUI: SingleMutableLiveData<UpdateMainScreenUI>,
+    private val _mainUiEffect: SingleMutableLiveData<MainUiEffect>,
 ) {
     var isLoadingOverlayVisible = false
 
@@ -44,7 +44,7 @@ class ExportImportModel(
         val cacheDir = getMainShareFolder(appDataDir)
 
         isLoadingOverlayVisible = true
-        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShowHideProgressOverlay(isLoadingOverlayVisible))
+        _mainUiEffect.postValue(MainUiEffect.ShowHideProgressOverlay(isLoadingOverlayVisible))
 
         clearShareStorage(cacheDir)
 
@@ -75,8 +75,8 @@ class ExportImportModel(
                 )
             } catch (err: LbError) {
                 isLoadingOverlayVisible = false
-                _updateMainScreenUI.postValue(
-                    UpdateMainScreenUI.ShowHideProgressOverlay(
+                _mainUiEffect.postValue(
+                    MainUiEffect.ShowHideProgressOverlay(
                         isLoadingOverlayVisible,
                     ),
                 )
@@ -84,7 +84,7 @@ class ExportImportModel(
             }
         }
 
-        _updateMainScreenUI.postValue(UpdateMainScreenUI.ShareDocuments(filesToShare))
+        _mainUiEffect.postValue(MainUiEffect.ShareDocuments(filesToShare))
     }
 
     private fun retrieveSelectedDocuments(

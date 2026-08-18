@@ -1,5 +1,4 @@
 apply plugin: 'com.android.application'
-apply plugin: 'androidx.navigation.safeargs'
 apply plugin: 'org.jmailen.kotlinter'
 apply plugin: 'kotlinx-serialization'
 apply plugin: 'kotlin-parcelize'
@@ -82,7 +81,6 @@ dependencies {
     implementation "androidx.fragment:fragment-ktx:$fragment_version"
     implementation "androidx.slidingpanelayout:slidingpanelayout:$sliding_pane_layout_version"
     implementation "com.afollestad:recyclical:$recyclical_version"
-    implementation "com.leinardi.android:speed-dial:$fab_speed_dial"
     implementation "androidx.constraintlayout:constraintlayout:$constraint_layout_version"
     implementation "androidx.appcompat:appcompat:$appcompat_version"
     implementation "androidx.biometric:biometric:$fingerprint_version"
@@ -95,9 +93,6 @@ dependencies {
     // Android KTX
     implementation "androidx.core:core-ktx:$core_ktx_version"
 
-    // Navigation
-    implementation "androidx.navigation:navigation-fragment-ktx:$navigation_version"
-    implementation "androidx.navigation:navigation-ui-ktx:$navigation_version"
     implementation "androidx.swiperefreshlayout:swiperefreshlayout:$refresh_version"
 
     // Coroutines
