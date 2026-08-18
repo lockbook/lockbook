@@ -8,6 +8,7 @@ import android.os.Bundle
 import androidx.appcompat.app.AppCompatDialogFragment
 import androidx.core.os.bundleOf
 import androidx.fragment.app.setFragmentResult
+import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
 import app.lockbook.model.AlertModel
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
@@ -18,8 +19,6 @@ import net.lockbook.LbError
 import java.lang.ref.WeakReference
 
 class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment() {
-    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
-
     private val alertModel by lazy {
         AlertModel(WeakReference(requireActivity()))
     }
@@ -67,19 +66,19 @@ class DeleteSharedDialogFragment private constructor() : AppCompatDialogFragment
     }
 
     private fun onButtonPositive(files: List<File>) {
-        uiScope.launch(Dispatchers.IO) {
+        lifecycleScope.launch {
             for (file in files) {
                 try {
-                    Lb.deletePendingShare(file.id)
+                    withContext(Dispatchers.IO) {
+                        Lb.deletePendingShare(file.id)
+                    }
                     setFragmentResult(DELETE_SHARE_REQUEST_KEY, bundleOf(DELETE_SHARE_BUNDLE_KEY to file.id))
                 } catch (err: LbError) {
                     alertModel.notifyError(err)
                 }
             }
 
-            withContext(Dispatchers.Main) {
-                dismiss()
-            }
+            dismiss()
         }
     }
 }
