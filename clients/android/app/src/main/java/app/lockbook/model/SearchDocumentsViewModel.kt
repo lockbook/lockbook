@@ -24,7 +24,6 @@ import kotlinx.coroutines.asCoroutineDispatcher
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.withContext
 import net.lockbook.ContentSearcher
 import net.lockbook.ContentSearcherMatch
@@ -57,8 +56,8 @@ class SearchDocumentsViewModel(
 
     private var pathSearcher: PathSearcher? = null
     private var contentSearcher: ContentSearcher? = null
-    private val searchDispatcher: ExecutorCoroutineDispatcher =
-        Executors.newSingleThreadExecutor().asCoroutineDispatcher()
+    private val searchExecutor = Executors.newSingleThreadExecutor()
+    private val searchDispatcher: ExecutorCoroutineDispatcher = searchExecutor.asCoroutineDispatcher()
     private var searchJob: Job? = null
     private var progressSpinnerJob: Job? = null
 
@@ -186,16 +185,28 @@ class SearchDocumentsViewModel(
 
     private fun renderCurrentState() {
         viewModelScope.launch(searchDispatcher) {
-            if (input.isBlank()) {
-                val suggestedResults = loadSuggestedResults()
-                withContext(Dispatchers.Main) {
-                    renderInitialState(suggestedResults)
+            try {
+                if (input.isBlank()) {
+                    val suggestedResults = loadSuggestedResults()
+                    withContext(Dispatchers.Main) {
+                        renderInitialState(suggestedResults)
+                    }
+                } else {
+                    val (pathResults, contentResults) = querySearch(input)
+                    val rows = buildSearchRows(pathResults, contentResults)
+                    withContext(Dispatchers.Main) {
+                        fileResults.set(rows) { left, right -> left == right }
+                    }
                 }
-            } else {
-                val (pathResults, contentResults) = querySearch(input)
-                val rows = buildSearchRows(pathResults, contentResults)
-                withContext(Dispatchers.Main) {
-                    fileResults.set(rows) { left, right -> left == right }
+            } catch (_: CancellationException) {
+                // Expected when the user leaves search or starts another render.
+            } catch (err: LbError) {
+                if (isActive) {
+                    _updateSearchUI.postValue(UpdateSearchUI.Error(err))
+                }
+            } catch (err: IllegalStateException) {
+                if (isActive) {
+                    _updateSearchUI.postValue(UpdateSearchUI.Error(LbError().apply { msg = err.message ?: "Search is closed" }))
                 }
             }
         }
@@ -442,10 +453,15 @@ class SearchDocumentsViewModel(
     }
 
     override fun onCleared() {
-        runBlocking(searchDispatcher) {
-            closeSearchers()
+        searchJob?.cancel()
+        progressSpinnerJob?.cancel()
+        searchExecutor.execute {
+            try {
+                closeSearchers()
+            } finally {
+                searchDispatcher.close()
+            }
         }
-        searchDispatcher.close()
         super.onCleared()
     }
 

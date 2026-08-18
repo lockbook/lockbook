@@ -350,7 +350,10 @@ pub extern "system" fn Java_net_lockbook_Lb_nextName<'local>(
 
     match lb.get_children(&parent_id) {
         Ok(children) => {
-            let mut name = NameComponents::from_literal(&desired);
+            let mut name = NameComponents::from(&desired);
+            if let Some(variant) = name.variant.take() {
+                name.name = format!("{}-{}", name.name, variant);
+            }
             name.next_in_children(children);
             jni_string(&mut env, name.to_name()).into_raw()
         }
