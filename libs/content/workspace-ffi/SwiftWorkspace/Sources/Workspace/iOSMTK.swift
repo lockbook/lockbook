@@ -1601,6 +1601,10 @@
                 }
             }
 
+            if let png = dataFromBytes(b: output.copied_image) {
+                UIPasteboard.general.setData(png, forPasteboardType: UTType.png.identifier)
+            }
+
             mtkView.redrawTask?.cancel()
             mtkView.redrawTask = nil
             mtkView.redrawDeadline = nil

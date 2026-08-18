@@ -3,7 +3,7 @@ use lb_c::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::ffi::{CString, c_char};
 use workspace_rs::tab::markdown_editor::input::{Bound, Location, Region};
 
-use super::super::macos::response::CUrls;
+use super::super::macos::response::{CBytes, CUrls};
 use super::super::response::*;
 
 #[repr(C)]
@@ -11,6 +11,7 @@ pub struct IOSResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: *mut c_char,
+    pub copied_image: CBytes,
     pub urls_opened: CUrls,
     pub open_camera: bool,
     pub has_virtual_keyboard_shown: bool,
@@ -69,6 +70,7 @@ impl From<crate::Response> for IOSResponse {
                 },
             redraw_in,
             copied_text,
+            copied_image,
             urls_opened,
             cursor: _,
             virtual_keyboard_shown,
@@ -95,6 +97,7 @@ impl From<crate::Response> for IOSResponse {
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text: CString::new(copied_text).unwrap().into_raw(),
+            copied_image: copied_image.into(),
             urls_opened,
             open_camera,
             text_updated: markdown_editor_text_updated,
