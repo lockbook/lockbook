@@ -47,6 +47,22 @@ fn pack_for_target(target: &str, arch: &str) -> CliResult<()> {
     )
     .unwrap();
 
+    let priconfig = PathBuf::from(format!("windows-build/priconfig-{arch}.xml"));
+
+    Command::new(sdk_tool("makepri.exe")?)
+        .args(["createconfig", "/o", "/dq", "en-US", "/cf"])
+        .arg(&priconfig)
+        .assert_success()?;
+
+    Command::new(sdk_tool("makepri.exe")?)
+        .args(["new", "/o", "/pr"])
+        .arg(&layout)
+        .arg("/cf")
+        .arg(&priconfig)
+        .arg("/of")
+        .arg(layout.join("resources.pri"))
+        .assert_success()?;
+
     fs::create_dir_all(PACKAGES).unwrap();
 
     Command::new(sdk_tool("makeappx.exe")?)
