@@ -320,7 +320,7 @@ class FilesListFragment :
     private fun enterFile(item: File) {
         when (item.type) {
             FileType.Document -> {
-                mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = true))
+                mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = false))
             }
 
             FileType.Folder -> {

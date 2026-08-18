@@ -441,10 +441,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    // `new_file` is retained for the JNI signature. Mobile file-tree opens
-    // create a session and replace the current tab (RFC #4931).
-    let _ = new_file;
-    obj.workspace.open_file(id, true, false);
+    obj.workspace.open_file(id, true, new_file == 1);
     get_current_tab(obj)
 }
 

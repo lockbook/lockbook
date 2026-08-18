@@ -20,6 +20,7 @@ class FileSelectionActionTest {
         assertEquals(2, selected.selectedCount)
         assertEquals(
             setOf(
+                FileSelectionAction.OpenInNewTab,
                 FileSelectionAction.Move,
                 FileSelectionAction.Pin,
                 FileSelectionAction.Export,
@@ -43,6 +44,7 @@ class FileSelectionActionTest {
 
         assertEquals(
             listOf(
+                FileSelectionAction.OpenInNewTab,
                 FileSelectionAction.Move,
                 FileSelectionAction.Pin,
                 FileSelectionAction.Export,
