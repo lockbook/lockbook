@@ -352,7 +352,7 @@ fn flatten_folders_only(
     if !f.is_folder() {
         return;
     }
-    out.push(FlatRow { id, depth, is_folder: true });
+    out.push(FlatRow { id, depth, is_folder: true, kids_empty: false });
     if !expanded.contains(&id) {
         return;
     }
