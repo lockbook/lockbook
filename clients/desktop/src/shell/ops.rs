@@ -1,14 +1,11 @@
-//! Shared session mutations used from `apply` (cache rebuild, pins).
+//! Shared session mutations used from `apply` (cache epoch, pins).
 
 use lb::Uuid;
-use workspace_rs::file_cache::FileCache;
 
 use super::session::Ready;
 
-pub fn rebuild_cache(r: &mut Ready) {
-    if let Ok(files) = FileCache::new(&r.workspace.core) {
-        *r.workspace.files.write().unwrap() = files;
-    }
+/// Invalidate Recents/Shared after workspace already wrote `files`.
+pub fn note_files_changed(r: &mut Ready) {
     r.files_epoch = r.files_epoch.wrapping_add(1);
     refresh_pinned(r);
     r.refresh_status();
