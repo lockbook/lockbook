@@ -310,7 +310,6 @@ impl ShellApp {
         match &self.session {
             Session::Loading { kind: session::LoadKind::Cold, .. } => {
                 // Opening local account — empty chrome, no plate / no spinner.
-                ctx.request_repaint();
                 CentralPanel::default()
                     .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
                     .show(ctx, |_| {});
@@ -323,7 +322,6 @@ impl ShellApp {
             Session::Loading { kind: session::LoadKind::Onboard, status, .. } => {
                 let msg = session::read_load_status(status);
                 boot_screen(ctx, &t, &msg, true);
-                ctx.request_repaint();
                 titlebar::show(self, ctx, &t, &mut queue);
                 for a in queue {
                     apply::apply(self, ctx, a);
