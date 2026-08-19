@@ -445,6 +445,17 @@ pub(crate) struct FlatRow {
     id: Uuid,
     depth: usize,
     is_folder: bool,
+    /// Folder with no children (context menu hides Expand/Collapse all).
+    kids_empty: bool,
+}
+
+/// Flattened Files-tree walk. Rebuilt when [`Ready::files_epoch`] or `expanded` changes.
+#[derive(Default)]
+pub struct TreeWalkCache {
+    epoch: u64,
+    expanded: std::collections::HashSet<Uuid>,
+    root: Option<Uuid>,
+    flat: Vec<FlatRow>,
 }
 
 // ── Shared FileRow chrome (every sticky / virtualized tree) ─────────────────
@@ -564,27 +575,15 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
         pins::show(ui, t, &*files, &pins, queue);
     }
 
-    let (root, flat) = {
-        let Some(ready) = app.session.ready() else {
-            return;
-        };
-        let files = ready.workspace.files.read().unwrap();
-        let root = files.root().id;
-        let mut flat = Vec::new();
-        flatten(&*files, &ready.expanded, root, 0, &mut flat, true);
-        (root, flat)
+    let Some(root) = ensure_tree_walk(app) else {
+        return;
     };
-
-    if let Some(r) = app.session.ready_mut() {
-        r.expanded.insert(root);
-        r.nav_order = flat.iter().map(|r| r.id).collect();
-    }
+    let flat = app.tree_walk.flat.clone();
 
     if let Some(ready) = app.session.ready() {
-        let expanded = ready.expanded.clone();
-        let status = ready.status.clone();
         let files = ready.workspace.files.read().unwrap();
-        app.sync_dots.refresh(ui.ctx(), &status, &expanded, &*files);
+        app.sync_dots
+            .refresh(ui.ctx(), &ready.status, &ready.expanded, &*files);
     }
 
     // Files tree: uniform single-line pitch (variable path ready for Shared).
@@ -892,22 +891,60 @@ pub(crate) fn paint_sticky_viewport(
     bg_resp
 }
 
+/// Rebuild [`ShellApp::tree_walk`] when the file cache or expand set changed.
+/// Returns the tree root, or `None` when there is no Ready session.
+fn ensure_tree_walk(app: &mut ShellApp) -> Option<Uuid> {
+    let ready = app.session.ready_mut()?;
+    let files = ready.workspace.files.read().unwrap();
+    let root = files.root().id;
+    ready.expanded.insert(root);
+    let epoch = ready.files_epoch;
+    if app.tree_walk.epoch == epoch
+        && app.tree_walk.root == Some(root)
+        && app.tree_walk.expanded == ready.expanded
+    {
+        return Some(root);
+    }
+    let mut flat = Vec::new();
+    flatten(&*files, &ready.expanded, root, 0, &mut flat, true);
+    ready.nav_order = flat.iter().map(|r| r.id).collect();
+    drop(files);
+    app.tree_walk =
+        TreeWalkCache { epoch, expanded: ready.expanded.clone(), root: Some(root), flat };
+    Some(root)
+}
+
 pub(crate) fn flatten(
     files: &impl FilesExt, expanded: &std::collections::HashSet<Uuid>, id: Uuid, depth: usize,
     out: &mut Vec<FlatRow>, skip_self: bool,
 ) {
     if !skip_self {
         let is_folder = files.get_by_id(id).map(|f| f.is_folder()).unwrap_or(false);
-        out.push(FlatRow { id, depth, is_folder });
-        if !is_folder || !expanded.contains(&id) {
+        if !is_folder {
+            out.push(FlatRow { id, depth, is_folder: false, kids_empty: false });
+            return;
+        }
+        if !expanded.contains(&id) {
+            out.push(FlatRow {
+                id,
+                depth,
+                is_folder: true,
+                kids_empty: files.children(id).is_empty(),
+            });
             return;
         }
     }
-    for kid in files.children(id) {
-        if kid.id == id {
-            continue;
-        }
-        flatten(files, expanded, kid.id, if skip_self { 0 } else { depth + 1 }, out, false);
+    let kids: Vec<_> = files
+        .children(id)
+        .into_iter()
+        .filter(|kid| kid.id != id)
+        .collect();
+    if !skip_self {
+        out.push(FlatRow { id, depth, is_folder: true, kids_empty: kids.is_empty() });
+    }
+    let child_depth = if skip_self { 0 } else { depth + 1 };
+    for kid in kids {
+        flatten(files, expanded, kid.id, child_depth, out, false);
     }
 }
 
@@ -1109,18 +1146,18 @@ fn paint_row(
     let Some(ready) = app.session.ready() else {
         return;
     };
-    let (name, kids_empty, create_parent, is_shared) = {
+    let (name, create_parent, is_shared) = {
         let files = ready.workspace.files.read().unwrap();
         let Some(f) = files.get_by_id(row.id) else {
             return;
         };
-        let empty = row.is_folder && files.children(row.id).is_empty();
         // Create under a folder, or alongside a document (same parent).
         let parent = if row.is_folder { row.id } else { f.parent };
         // Classic tree: share chrome when the file itself carries share metadata.
         let shared = !f.shares.is_empty();
-        (f.name.clone(), empty, parent, shared)
+        (f.name.clone(), parent, shared)
     };
+    let kids_empty = row.kids_empty;
     let selected = ready.selected.contains(&row.id) || ready.cursor == Some(row.id);
     let expanded = ready.expanded.contains(&row.id);
     let pinned = is_pinned(ready, row.id);
@@ -1284,10 +1321,10 @@ mod sticky_tests {
     use lb::Uuid;
 
     fn folder(id: u128, depth: usize) -> FlatRow {
-        FlatRow { id: Uuid::from_u128(id), depth, is_folder: true }
+        FlatRow { id: Uuid::from_u128(id), depth, is_folder: true, kids_empty: false }
     }
     fn doc(id: u128, depth: usize) -> FlatRow {
-        FlatRow { id: Uuid::from_u128(id), depth, is_folder: false }
+        FlatRow { id: Uuid::from_u128(id), depth, is_folder: false, kids_empty: false }
     }
     fn uni(flat: &[FlatRow]) -> RowGeom {
         RowGeom::uniform(flat.len(), ROW_H)

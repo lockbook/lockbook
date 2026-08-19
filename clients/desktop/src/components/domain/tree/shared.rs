@@ -68,7 +68,7 @@ pub fn show_shared(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
     );
     let flat: Vec<FlatRow> = shared_flat
         .iter()
-        .map(|r| FlatRow { id: r.id, depth: r.depth, is_folder: r.is_folder })
+        .map(|r| FlatRow { id: r.id, depth: r.depth, is_folder: r.is_folder, kids_empty: false })
         .collect();
     // Parallel meta by index (ids unique within a share forest for paint).
     let meta = shared_flat;

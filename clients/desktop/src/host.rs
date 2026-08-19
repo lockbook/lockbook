@@ -106,7 +106,7 @@ impl ApplicationHandler<UserEvent> for App {
             lb.renderer.context.viewport_id(),
             &window,
             Some(window.scale_factor() as f32),
-            None,
+            window.theme(),
             None,
         );
 
@@ -151,7 +151,7 @@ impl ApplicationHandler<UserEvent> for App {
         if is_paste_shortcut(&state.egui_winit, &event) {
             state.pending_paste = true;
             state.window.request_redraw();
-        } else if !matches!(event, WindowEvent::ThemeChanged(_)) {
+        } else {
             let response = state.egui_winit.on_window_event(&state.window, &event);
 
             if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {

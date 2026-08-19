@@ -93,6 +93,8 @@ pub struct ShellApp {
     pub recents_cache: RecentsCache,
     /// Derived Shared lists; same epoch rule.
     pub shared_cache: SharedCache,
+    /// Flattened Files-tree walk; same epoch + expanded-set rule.
+    pub tree_walk: tree::TreeWalkCache,
     theme_applied: bool,
     /// macOS: one-shot NSWindow.isMovable=false (see [`macos_window`]).
     /// Set by the host after window creation.
@@ -158,6 +160,7 @@ impl Default for ShellApp {
             lb_rx: None,
             recents_cache: RecentsCache::default(),
             shared_cache: SharedCache::default(),
+            tree_walk: tree::TreeWalkCache::default(),
             theme_applied: false,
             #[cfg(target_os = "macos")]
             macos_window_tweaked: false,
@@ -310,7 +313,6 @@ impl ShellApp {
         match &self.session {
             Session::Loading { kind: session::LoadKind::Cold, .. } => {
                 // Opening local account — empty chrome, no plate / no spinner.
-                ctx.request_repaint();
                 CentralPanel::default()
                     .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
                     .show(ctx, |_| {});
@@ -323,7 +325,6 @@ impl ShellApp {
             Session::Loading { kind: session::LoadKind::Onboard, status, .. } => {
                 let msg = session::read_load_status(status);
                 boot_screen(ctx, &t, &msg, true);
-                ctx.request_repaint();
                 titlebar::show(self, ctx, &t, &mut queue);
                 for a in queue {
                     apply::apply(self, ctx, a);

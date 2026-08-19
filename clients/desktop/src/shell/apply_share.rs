@@ -6,7 +6,6 @@ use egui::Context;
 
 use super::ShellApp;
 use super::action::{Modal, ShareLookup, ShareStaged};
-use super::ops::rebuild_cache;
 use lb::model::file::ShareMode;
 
 fn share_split_tokens(q: &str) -> (Vec<String>, String) {
@@ -400,7 +399,6 @@ pub(crate) fn share_invite(app: &mut ShellApp, ctx: &Context) {
             }
         }
         if !ok.is_empty() {
-            rebuild_cache(r);
             r.refresh_status();
         }
     }
