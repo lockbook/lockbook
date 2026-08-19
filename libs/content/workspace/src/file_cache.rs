@@ -20,8 +20,10 @@ pub enum ResolvedLink {
 
 pub struct FileCache {
     pub root: File,
-    pub files: HashMap<Uuid, File>,
-    pub shared: HashMap<Uuid, File>,
+    /// Clustered covering index: own tree + pending shares, sorted by
+    /// `(parent, is_document, name)`. `(parent, name)` is unique.
+    rows: Vec<File>,
+    by_id: HashMap<Uuid, u32>,
     pub shared_roots: Vec<File>,
     pub suggested: Vec<Uuid>,
     pub size_bytes_recursive: HashMap<Uuid, u64>,
@@ -32,30 +34,77 @@ pub struct FileCache {
     pub last_modified: u64,
 }
 
+/// Folders first, then name. Parent+name is unique so `id` is not in the key.
+fn cmp_cluster(a: &File, b: &File) -> Ordering {
+    a.parent
+        .cmp(&b.parent)
+        .then_with(|| a.is_document().cmp(&b.is_document()))
+        .then_with(|| a.name.cmp(&b.name))
+}
+
+fn index_rows(rows: &[File]) -> HashMap<Uuid, u32> {
+    rows.iter()
+        .enumerate()
+        .map(|(i, f)| (f.id, i as u32))
+        .collect()
+}
+
 impl FileCache {
     /// An empty file cache for contexts where no real files exist (e.g. public site demos).
     pub fn empty() -> Self {
         let root_id = Uuid::new_v4();
+        let root = File {
+            id: root_id,
+            parent: root_id,
+            name: "root".into(),
+            file_type: FileType::Folder,
+            last_modified: 0,
+            last_modified_by: String::new(),
+            owner: String::new(),
+            shares: vec![],
+            size_bytes: 0,
+        };
         Self {
-            root: File {
-                id: root_id,
-                parent: root_id,
-                name: "root".into(),
-                file_type: FileType::Folder,
-                last_modified: 0,
-                last_modified_by: String::new(),
-                owner: String::new(),
-                shares: vec![],
-                size_bytes: 0,
-            },
-            files: Default::default(),
-            shared: Default::default(),
+            root: root.clone(),
             suggested: vec![],
             size_bytes_recursive: Default::default(),
             last_modified_recursive: Default::default(),
             last_modified_by_recursive: Default::default(),
             last_modified: 0,
             shared_roots: vec![],
+            rows: vec![root],
+            by_id: [(root_id, 0)].into_iter().collect(),
+        }
+    }
+
+    /// Own tree + pending-share rows as a single clustered covering index.
+    pub fn from_owned_and_shared(
+        root: File, owned: impl IntoIterator<Item = File>, shared: impl IntoIterator<Item = File>,
+    ) -> Self {
+        Self::from_rows(root, owned.into_iter().chain(shared), Vec::new(), Vec::new())
+    }
+
+    fn from_rows(
+        root: File, files: impl IntoIterator<Item = File>, shared_roots: Vec<File>,
+        suggested: Vec<Uuid>,
+    ) -> Self {
+        let mut rows: Vec<File> = files.into_iter().collect();
+        if !rows.iter().any(|f| f.id == root.id) {
+            rows.push(root.clone());
+        }
+        rows.sort_by(cmp_cluster);
+        let last_modified = rows.iter().map(|f| f.last_modified).max().unwrap_or(0);
+        let by_id = index_rows(&rows);
+        Self {
+            root,
+            rows,
+            by_id,
+            shared_roots,
+            suggested,
+            size_bytes_recursive: HashMap::new(),
+            last_modified_recursive: HashMap::new(),
+            last_modified_by_recursive: HashMap::new(),
+            last_modified,
         }
     }
 
@@ -66,67 +115,36 @@ impl FileCache {
         let suggested = lb.suggested_docs(Default::default())?;
         let shared = lb.get_pending_share_files()?;
         let shared_roots = lb.get_pending_shares()?;
+        let mut cache =
+            Self::from_rows(root, files.into_iter().chain(shared), shared_roots, suggested);
+        cache.fill_recursive();
+        Ok(cache)
+    }
 
-        let mut size_recursive = HashMap::new();
-        let mut modified_recursive = HashMap::new();
-        let mut modified_by_recursive = HashMap::new();
-        for file in files.iter().chain(shared.iter()) {
-            let all_ids = files
-                .descendents(file.id)
-                .iter()
-                .chain(shared.descendents(file.id).iter())
-                .map(|f| f.id)
-                .chain(iter::once(file.id))
-                .collect::<Vec<_>>();
-
-            size_recursive.insert(
-                file.id,
-                all_ids
-                    .iter()
-                    .filter_map(|id| {
-                        files
-                            .get_by_id(*id)
-                            .or_else(|| shared.get_by_id(*id))
-                            .map(|f| f.size_bytes)
-                    })
-                    .sum::<_>(),
-            );
-
-            let most_recent = all_ids
-                .iter()
-                .filter_map(|id| files.get_by_id(*id).or_else(|| shared.get_by_id(*id)))
-                .max_by_key(|f| f.last_modified);
-
-            modified_recursive.insert(file.id, most_recent.map(|f| f.last_modified).unwrap_or(0));
-            modified_by_recursive.insert(
-                file.id,
-                most_recent
-                    .map(|f| f.last_modified_by.clone())
-                    .unwrap_or_default(),
-            );
+    fn fill_recursive(&mut self) {
+        let ids: Vec<Uuid> = self.rows.iter().map(|f| f.id).collect();
+        let mut size = HashMap::with_capacity(ids.len());
+        let mut modified = HashMap::with_capacity(ids.len());
+        let mut modified_by = HashMap::with_capacity(ids.len());
+        for id in ids {
+            let me = self.get_by_id(id).unwrap();
+            let mut sum = me.size_bytes;
+            let mut best_mod = me.last_modified;
+            let mut best_by = me.last_modified_by.clone();
+            for f in self.descendents(id) {
+                sum += f.size_bytes;
+                if f.last_modified >= best_mod {
+                    best_mod = f.last_modified;
+                    best_by = f.last_modified_by.clone();
+                }
+            }
+            size.insert(id, sum);
+            modified.insert(id, best_mod);
+            modified_by.insert(id, best_by);
         }
-
-        let last_modified = files
-            .iter()
-            .chain(shared.iter())
-            .map(|f| f.last_modified)
-            .max()
-            .unwrap_or(0);
-
-        let files: HashMap<Uuid, File> = files.into_iter().map(|f| (f.id, f)).collect();
-        let shared: HashMap<Uuid, File> = shared.into_iter().map(|f| (f.id, f)).collect();
-
-        Ok(Self {
-            root,
-            files,
-            suggested,
-            shared,
-            shared_roots,
-            size_bytes_recursive: size_recursive,
-            last_modified_recursive: modified_recursive,
-            last_modified_by_recursive: modified_by_recursive,
-            last_modified,
-        })
+        self.size_bytes_recursive = size;
+        self.last_modified_recursive = modified;
+        self.last_modified_by_recursive = modified_by;
     }
 
     pub fn usage_portion(&self, id: Uuid) -> f32 {
@@ -143,7 +161,7 @@ impl FileCache {
 
     /// Iterates all known files: the user's own tree plus pending shares.
     pub fn all_files(&self) -> impl Iterator<Item = &File> {
-        self.files.values().chain(self.shared.values())
+        self.rows.iter()
     }
 
     /// Returns path segments for a file, each annotated with whether that file
@@ -200,16 +218,17 @@ impl FileCache {
     }
 
     pub fn insert_created_file(&mut self, file: File) {
-        let parent_is_shared = self.shared.contains_key(&file.parent);
         let file_id = file.id;
         let file_size = file.size_bytes;
         let file_modified = file.last_modified;
         let file_modified_by = file.last_modified_by.clone();
 
-        if parent_is_shared {
-            self.shared.insert(file_id, file);
-        } else {
-            self.files.insert(file_id, file);
+        let idx = self
+            .rows
+            .partition_point(|f| cmp_cluster(f, &file) == Ordering::Less);
+        self.rows.insert(idx, file);
+        for i in idx..self.rows.len() {
+            self.by_id.insert(self.rows[i].id, i as u32);
         }
 
         self.size_bytes_recursive.insert(file_id, file_size);
@@ -235,7 +254,7 @@ impl FileCache {
 impl Debug for FileCache {
     fn fmt(&self, f: &mut Formatter<'_>) -> fmt::Result {
         f.debug_struct("FileCache")
-            .field("files.len()", &self.files.len())
+            .field("rows.len()", &self.rows.len())
             .field("suggested.len()", &self.suggested.len())
             .finish()
     }
@@ -576,20 +595,16 @@ impl FilesExt for FileCache {
     }
 
     fn get_by_id(&self, id: Uuid) -> Option<&File> {
-        self.files.get(&id).or_else(|| self.shared.get(&id))
+        self.by_id.get(&id).map(|&i| &self.rows[i as usize])
     }
 
     fn children(&self, id: Uuid) -> Vec<&File> {
-        let mut children: Vec<_> = self
-            .all_files()
-            .filter(|f| f.parent == id && f.parent != f.id)
-            .collect();
-        children.sort_by(|a, b| match (a.file_type, b.file_type) {
-            (FileType::Folder, FileType::Document) => Ordering::Less,
-            (FileType::Document, FileType::Folder) => Ordering::Greater,
-            (_, _) => a.name.cmp(&b.name),
-        });
-        children
+        let start = self.rows.partition_point(|f| f.parent < id);
+        let end = self.rows.partition_point(|f| f.parent <= id);
+        self.rows[start..end]
+            .iter()
+            .filter(|f| f.id != id)
+            .collect()
     }
 
     fn iter_files(&self) -> impl Iterator<Item = &File> {
@@ -787,5 +802,51 @@ mod tests {
     fn by_path_missing() {
         let files = tree();
         assert!(files.by_path("/notes/nonexistent.md").is_none());
+    }
+
+    #[test]
+    fn clustered_children_folders_then_name() {
+        let root = Uuid::from_u128(1);
+        let cache = FileCache::from_owned_and_shared(
+            file(root, root, "root", FileType::Folder),
+            [
+                file(root, root, "root", FileType::Folder),
+                file(Uuid::from_u128(2), root, "zeta.md", FileType::Document),
+                file(Uuid::from_u128(3), root, "alpha", FileType::Folder),
+                file(Uuid::from_u128(4), root, "beta.md", FileType::Document),
+                file(Uuid::from_u128(5), root, "mid", FileType::Folder),
+            ],
+            [],
+        );
+        let names: Vec<&str> = cache
+            .children(root)
+            .iter()
+            .map(|f| f.name.as_str())
+            .collect();
+        assert_eq!(names, ["alpha", "mid", "beta.md", "zeta.md"]);
+        assert!(cache.children(root).iter().all(|f| f.id != root));
+    }
+
+    #[test]
+    fn insert_created_file_keeps_cluster_order() {
+        let root = Uuid::from_u128(1);
+        let mut cache = FileCache::from_owned_and_shared(
+            file(root, root, "root", FileType::Folder),
+            [
+                file(root, root, "root", FileType::Folder),
+                file(Uuid::from_u128(2), root, "b.md", FileType::Document),
+            ],
+            [],
+        );
+        cache.insert_created_file(file(Uuid::from_u128(3), root, "a", FileType::Folder));
+        cache.insert_created_file(file(Uuid::from_u128(4), root, "c.md", FileType::Document));
+        let names: Vec<&str> = cache
+            .children(root)
+            .iter()
+            .map(|f| f.name.as_str())
+            .collect();
+        assert_eq!(names, ["a", "b.md", "c.md"]);
+        assert_eq!(cache.get_by_id(Uuid::from_u128(3)).unwrap().name, "a");
+        assert_eq!(cache.get_by_id(Uuid::from_u128(4)).unwrap().name, "c.md");
     }
 }

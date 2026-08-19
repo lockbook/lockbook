@@ -28,7 +28,7 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use serde_json::json;
 
 use crate::GlyphonRendererCallback;
-use crate::file_cache::FileCache;
+use crate::file_cache::{FileCache, FilesExt};
 use crate::resolvers::FileCacheLinkResolver;
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
 use crate::theme::icons::Icon;
@@ -1528,7 +1528,7 @@ fn tool_errored(msg: &Message) -> bool {
 /// Whether a file (or any ancestor) is shared — a shared chat is a group
 /// conversation, which gets no agent.
 fn is_shared(files: &FileCache, mut id: Uuid) -> bool {
-    while let Some(f) = files.files.get(&id) {
+    while let Some(f) = files.get_by_id(id) {
         if !f.shares.is_empty() {
             return true;
         }
