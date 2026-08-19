@@ -233,9 +233,37 @@ impl Tab {
                     }
                     TabContent::Markdown(md) => {
                         let initialized = md.initialized;
+                        let tab_id = match self.destination {
+                            Destination::Search => None,
+                            _ => Some(self.destination.id()),
+                        };
+                        let tab_origin = self.origin;
                         let md_resp = md.show(ui);
                         if !self.read_only && md_resp.text_updated && initialized {
+                            let was_dirty = self.last_changed > self.last_saved;
                             self.last_changed = Instant::now();
+                            if !was_dirty {
+                                let buf = &md.edit.renderer.buffer.current;
+                                tracing::info!(
+                                    id = ?tab_id,
+                                    origin = ?tab_origin,
+                                    seq = buf.seq,
+                                    sel = ?(buf.selection.0 .0, buf.selection.1 .0),
+                                    text_len = buf.text.len(),
+                                    "[mw-edit]/dirty tab marked dirty (text_updated)"
+                                );
+                            }
+                        }
+                        if md_resp.selection_updated {
+                            let buf = &md.edit.renderer.buffer.current;
+                            tracing::debug!(
+                                id = ?tab_id,
+                                origin = ?tab_origin,
+                                seq = buf.seq,
+                                sel = ?(buf.selection.0 .0, buf.selection.1 .0),
+                                text_updated = md_resp.text_updated,
+                                "[mw-edit]/sel tab selection_updated"
+                            );
                         }
                         resp.open_camera = md_resp.open_camera;
                         resp.text_updated = md_resp.text_updated;

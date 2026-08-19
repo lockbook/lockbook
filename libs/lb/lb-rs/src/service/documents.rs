@@ -129,6 +129,13 @@ impl LocalLb {
             let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
             let file = tree.find(&id)?;
             if file.document_hmac() != old_hmac.as_ref() {
+                tracing::warn!(
+                    ?id,
+                    ?old_hmac,
+                    current_hmac = ?file.document_hmac(),
+                    ?origin,
+                    "[mw-edit]/lb safe_write ReReadRequired (pre-write hmac mismatch)"
+                );
                 return Err(LbErrKind::ReReadRequired.into());
             }
             let target_id = match file.file_type() {
@@ -155,6 +162,14 @@ impl LocalLb {
                 .to_lazy();
             self.docs.promote_pending(target_id, hmac).await?;
             if tree.find(&id)?.document_hmac() != old_hmac.as_ref() {
+                tracing::warn!(
+                    ?id,
+                    ?target_id,
+                    ?old_hmac,
+                    current_hmac = ?tree.find(&id)?.document_hmac(),
+                    ?origin,
+                    "[mw-edit]/lb safe_write ReReadRequired (commit-time hmac mismatch)"
+                );
                 return Err(LbErrKind::ReReadRequired.into());
             }
             tree.overwrite_document_hmac(
@@ -166,6 +181,13 @@ impl LocalLb {
             tx.end();
         }
 
+        tracing::info!(
+            ?target_id,
+            ?origin,
+            ?hmac,
+            content_len = content.len(),
+            "[mw-edit]/lb safe_write committed DocumentWritten"
+        );
         self.events.doc_written(target_id, Actor::User(origin));
         self.add_doc_event(activity::DocEvent::Write(target_id, get_time().0))
             .await?;
