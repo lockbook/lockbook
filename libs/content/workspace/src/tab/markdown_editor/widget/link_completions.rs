@@ -1079,8 +1079,6 @@ impl MdEdit {
 
 #[cfg(test)]
 mod tests {
-    use std::collections::HashMap;
-
     use lb_rs::Uuid;
     use lb_rs::model::file::File;
     use lb_rs::model::file_metadata::FileType;
@@ -1103,18 +1101,7 @@ mod tests {
     }
 
     fn build(root: File, rest: Vec<File>) -> FileCache {
-        let files = std::iter::once(root.clone()).chain(rest);
-        FileCache {
-            root,
-            files: files.map(|f| (f.id, f)).collect(),
-            shared: HashMap::new(),
-            shared_roots: vec![],
-            suggested: vec![],
-            size_bytes_recursive: HashMap::new(),
-            last_modified_recursive: HashMap::new(),
-            last_modified_by_recursive: HashMap::new(),
-            last_modified: 0,
-        }
+        FileCache::from_owned_and_shared(root, rest, [])
     }
 
     /// The completions/resolver contract: every wikilink completion offered

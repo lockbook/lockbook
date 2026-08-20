@@ -449,15 +449,6 @@ pub(crate) struct FlatRow {
     kids_empty: bool,
 }
 
-/// Flattened Files-tree walk. Rebuilt when [`Ready::files_epoch`] or `expanded` changes.
-#[derive(Default)]
-pub struct TreeWalkCache {
-    epoch: u64,
-    expanded: std::collections::HashSet<Uuid>,
-    root: Option<Uuid>,
-    flat: Vec<FlatRow>,
-}
-
 // ── Shared FileRow chrome (every sticky / virtualized tree) ─────────────────
 
 /// Geometry + interact flags common to Files / Shared / delete / folder pick.
@@ -575,10 +566,18 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
         pins::show(ui, t, &*files, &pins, queue);
     }
 
-    let Some(root) = ensure_tree_walk(app) else {
-        return;
+    let (root, flat) = {
+        let Some(ready) = app.session.ready_mut() else {
+            return;
+        };
+        let files = ready.workspace.files.read().unwrap();
+        let root = files.root().id;
+        ready.expanded.insert(root);
+        let mut flat = Vec::new();
+        flatten(&*files, &ready.expanded, root, 0, &mut flat, true);
+        ready.nav_order = flat.iter().map(|r| r.id).collect();
+        (root, flat)
     };
-    let flat = app.tree_walk.flat.clone();
 
     if let Some(ready) = app.session.ready() {
         let files = ready.workspace.files.read().unwrap();
@@ -889,29 +888,6 @@ pub(crate) fn paint_sticky_viewport(
     }
 
     bg_resp
-}
-
-/// Rebuild [`ShellApp::tree_walk`] when the file cache or expand set changed.
-/// Returns the tree root, or `None` when there is no Ready session.
-fn ensure_tree_walk(app: &mut ShellApp) -> Option<Uuid> {
-    let ready = app.session.ready_mut()?;
-    let files = ready.workspace.files.read().unwrap();
-    let root = files.root().id;
-    ready.expanded.insert(root);
-    let epoch = ready.files_epoch;
-    if app.tree_walk.epoch == epoch
-        && app.tree_walk.root == Some(root)
-        && app.tree_walk.expanded == ready.expanded
-    {
-        return Some(root);
-    }
-    let mut flat = Vec::new();
-    flatten(&*files, &ready.expanded, root, 0, &mut flat, true);
-    ready.nav_order = flat.iter().map(|r| r.id).collect();
-    drop(files);
-    app.tree_walk =
-        TreeWalkCache { epoch, expanded: ready.expanded.clone(), root: Some(root), flat };
-    Some(root)
 }
 
 pub(crate) fn flatten(
