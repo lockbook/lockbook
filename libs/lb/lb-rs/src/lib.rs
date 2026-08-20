@@ -52,7 +52,7 @@ pub struct LocalLb {
 }
 
 impl LocalLb {
-    #[instrument(level = "info", skip_all, err(Debug))]
+    #[instrument(name = "Lb::init", level = "info", skip_all, err(Debug))]
     pub async fn init(config: Config) -> LbResult<Self> {
         let docs = AsyncDocs::from(&config);
         let db_cfg = db_rs::Config::in_folder(&config.writeable_path);
@@ -98,7 +98,10 @@ impl Lb {
         let local: Arc<OnceLock<LocalLb>> = Arc::new(OnceLock::new());
         let init_err = match LocalLb::init(config.clone()).await {
             Ok(loc) => {
-                logging::init(&loc.config)?;
+                debug_assert!(
+                    !loc.config.logs || tracing::dispatcher::has_been_set(),
+                    "install a tracing subscriber before Lb::init (logging::install_default)"
+                );
                 ipc::spawn_host(loc.clone());
                 let _ = local.set(loc);
                 return Ok(Self { local, remote: None, config });
@@ -696,7 +699,6 @@ use crate::ipc::client::RemoteLb;
 use crate::subscribers::syncer::Syncer;
 use db_rs::Db;
 
-use crate::service::logging;
 use io::LbDb;
 use io::docs::AsyncDocs;
 use io::network::Network;

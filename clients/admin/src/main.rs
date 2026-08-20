@@ -106,7 +106,9 @@ pub enum SetUserTier {
 type Res<T> = Result<T, Error>;
 
 pub fn main() {
-    let core = Lb::init(Config::cli_config("cli")).unwrap(); // use the cli account
+    let config = Config::cli_config("cli");
+    lb::service::logging::install_default(&config).unwrap();
+    let core = Lb::init(config).unwrap(); // use the cli account
 
     let result = match Admin::parse() {
         Admin::DisappearAccount { username } => disappear::account(&core, username),

@@ -7,6 +7,7 @@
 
 mod components;
 pub mod host;
+mod perf;
 mod settings;
 pub mod shell;
 mod util;

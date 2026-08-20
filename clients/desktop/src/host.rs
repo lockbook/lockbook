@@ -537,6 +537,7 @@ fn resources_declare_xft_dpi(resources: &str) -> bool {
 /// Product shell.
 pub fn run() {
     env_logger::init();
+    let _trace = crate::perf::install();
 
     let mut builder = EventLoop::<UserEvent>::with_user_event();
 
