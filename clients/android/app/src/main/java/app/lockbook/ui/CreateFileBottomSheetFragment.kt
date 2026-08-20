@@ -88,7 +88,7 @@ class CreateFileBottomSheetFragment : BottomSheetDialogFragment() {
                     .getDefaultSharedPreferences(requireContext())
                     .getBoolean(getString(R.string.open_new_doc_automatically_key), true)
             if (file.type == net.lockbook.File.FileType.Document && openAutomatically) {
-                mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = true))
+                mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false))
             }
             dismiss()
         }

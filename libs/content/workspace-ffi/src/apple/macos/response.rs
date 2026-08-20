@@ -22,6 +22,7 @@ pub struct MacOSResponse {
 
     // widget response
     pub selected_file: CUuid,
+    pub selected_tab: CUuid,
     pub doc_created: CUuid,
     pub tabs_changed: bool,
     pub selected_folder_changed: bool,
@@ -33,6 +34,7 @@ impl From<crate::Response> for MacOSResponse {
             workspace:
                 workspace_rs::Response {
                     selected_file,
+                    selected_session,
                     file_renamed: _,
                     file_moved: _,
                     file_deleted: _,
@@ -76,6 +78,10 @@ impl From<crate::Response> for MacOSResponse {
 
         Self {
             selected_file: selected_file.unwrap_or_default().into(),
+            selected_tab: selected_session
+                .map(|id| id.as_uuid())
+                .unwrap_or_default()
+                .into(),
             doc_created,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),

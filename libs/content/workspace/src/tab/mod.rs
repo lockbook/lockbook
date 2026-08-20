@@ -57,34 +57,167 @@ impl Destination {
             Self::Search => None,
         }
     }
-}
 
-#[derive(Clone)]
-pub struct TabSlot {
-    pub dest: Destination,
-    pub back: Vec<Destination>,
-    pub forward: Vec<Destination>,
-    pub rename: Option<String>,
-}
-
-impl TabSlot {
-    pub fn new(dest: Destination) -> Self {
-        Self { dest, back: Vec::new(), forward: Vec::new(), rename: None }
+    /// Stable integer for FFI tab records. Not a file id.
+    pub fn kind_code(&self) -> i32 {
+        match self {
+            Self::File(_) => 0,
+            Self::Search => 1,
+            Self::MindMap(_) => 2,
+            Self::SpaceInspector(_) => 3,
+        }
     }
+}
+
+/// Identity of a session/tab instance. Distinct from dest file ids and from
+/// lb write-event tokens, which carry this value as a `Uuid`.
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub struct SessionId(Uuid);
+
+impl SessionId {
+    pub fn new() -> Self {
+        Self(Uuid::new_v4())
+    }
+
+    pub fn is_nil(self) -> bool {
+        self.0.is_nil()
+    }
+
+    /// Token for `Actor::User` / `safe_write` so other surfaces skip or reload.
+    pub fn as_uuid(self) -> Uuid {
+        self.0
+    }
+
+    pub fn from_uuid(id: Uuid) -> Self {
+        Self(id)
+    }
+}
+
+impl Default for SessionId {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A persistable navigation journey: the current dest plus back/forward stacks.
+/// Changes to `dest` are navigation; stacks are the undo/redo of those changes.
+/// `id` identifies this session/tab instance and is not persisted.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Session {
+    #[serde(skip, default = "SessionId::new")]
+    pub id: SessionId,
+    pub dest: Destination,
+    #[serde(default)]
+    pub back: Vec<Destination>,
+    #[serde(default)]
+    pub forward: Vec<Destination>,
+}
+
+impl Session {
+    pub fn new(dest: Destination) -> Self {
+        Self { id: SessionId::new(), dest, back: Vec::new(), forward: Vec::new() }
+    }
+
+    /// Push `from` onto back, clear forward, and move to `to`.
+    pub fn navigate(&mut self, to: Destination) {
+        if self.dest == to {
+            return;
+        }
+        self.back.push(std::mem::replace(&mut self.dest, to));
+        self.forward.clear();
+    }
+
+    pub fn go_back(&mut self) -> bool {
+        let Some(prev) = self.back.pop() else {
+            return false;
+        };
+        self.forward.push(std::mem::replace(&mut self.dest, prev));
+        true
+    }
+
+    pub fn go_forward(&mut self) -> bool {
+        let Some(next) = self.forward.pop() else {
+            return false;
+        };
+        self.back.push(std::mem::replace(&mut self.dest, next));
+        true
+    }
+
+    pub fn can_back(&self) -> bool {
+        !self.back.is_empty()
+    }
+
+    pub fn can_forward(&self) -> bool {
+        !self.forward.is_empty()
+    }
+
+    /// Fresh history at `dest`, same session/tab id.
+    pub fn replace(&mut self, dest: Destination) {
+        self.dest = dest;
+        self.back.clear();
+        self.forward.clear();
+    }
+}
+
+/// How an "open from sidebar" action should treat the tab strip.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum TabAction {
+    Activate,
+    Replace,
+    Create,
+    Navigate,
+}
+
+/// `in_new_tab` is the explicit menu/cmd-click request. `desktop_tab_policy`
+/// is activate-if-open / honor the open-in-new-tab setting. Distinct from
+/// drawing the egui tab strip (`Workspace::show_tabs`). Desktop with the
+/// setting off navigates in the current session so back still works.
+pub fn tab_action_for_open(
+    dest_already_open: bool, in_new_tab: bool, desktop_tab_policy: bool, open_in_new_tab: bool,
+) -> TabAction {
+    if in_new_tab {
+        return TabAction::Create;
+    }
+    if desktop_tab_policy && dest_already_open {
+        return TabAction::Activate;
+    }
+    if desktop_tab_policy && open_in_new_tab {
+        return TabAction::Create;
+    }
+    if desktop_tab_policy {
+        return TabAction::Navigate;
+    }
+    TabAction::Replace
+}
+
+/// Which session to Activate when several share `dest`. Prefer the current
+/// session, then the most recently activated match, then strip order.
+pub fn index_of_dest_to_activate(
+    strip: &[Session], current: Option<SessionId>, recents: &[SessionId], dest: &Destination,
+) -> Option<usize> {
+    if let Some(id) = current {
+        if let Some(i) = strip.iter().position(|s| s.id == id && s.dest == *dest) {
+            return Some(i);
+        }
+    }
+    for id in recents.iter().rev() {
+        if let Some(i) = strip.iter().position(|s| s.id == *id && s.dest == *dest) {
+            return Some(i);
+        }
+    }
+    strip.iter().position(|s| s.dest == *dest)
 }
 
 pub struct Tab {
     pub destination: Destination,
     pub content: ContentState,
 
-    /// Uniquely identifies this editing surface across every workspace in the
-    /// process. Rides lb write events as the origin so other surfaces showing
-    /// the same document know to reload while this one skips its own writes.
-    pub origin: Uuid,
-
     pub last_changed: Instant,
     pub last_saved: Instant,
     pub read_only: bool,
+
+    /// Transient tab-title edit. Not part of the session.
+    pub rename: Option<String>,
 }
 
 impl Tab {
@@ -486,7 +619,7 @@ impl TabStatus {
 
 impl Workspace {
     pub fn tab_status(&self, i: usize) -> TabStatus {
-        let tab = self.tab_strip.get(i).and_then(|s| self.tabs.get(&s.dest));
+        let tab = self.tab_strip.get(i).and_then(|s| self.tabs.get(&s.id));
         if let Some(tab) = tab {
             if let Some(id) = tab.id() {
                 if self.tasks.load_in_progress(id) {
@@ -734,4 +867,161 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
         .expect("write lockbook file for image");
 
     file
+}
+
+#[cfg(test)]
+mod nav_tests {
+    use super::*;
+
+    fn file(n: u8) -> Destination {
+        let mut bytes = [0u8; 16];
+        bytes[0] = n;
+        Destination::File(Uuid::from_bytes(bytes))
+    }
+
+    #[test]
+    fn session_navigate_pushes_history() {
+        let a = file(1);
+        let b = file(2);
+        let mut session = Session::new(a.clone());
+        session.navigate(b.clone());
+        assert_eq!(session.dest, b);
+        assert_eq!(session.back, vec![a.clone()]);
+        assert!(session.forward.is_empty());
+
+        assert!(session.go_back());
+        assert_eq!(session.dest, a);
+        assert_eq!(session.forward, vec![b.clone()]);
+
+        assert!(session.go_forward());
+        assert_eq!(session.dest, b);
+    }
+
+    #[test]
+    fn session_navigate_same_dest_is_noop() {
+        let a = file(1);
+        let mut session = Session::new(a.clone());
+        session.navigate(a.clone());
+        assert!(session.back.is_empty());
+        assert_eq!(session.dest, a);
+    }
+
+    #[test]
+    fn replace_session_clears_history() {
+        let a = file(1);
+        let b = file(2);
+        let mut session = Session::new(a);
+        session.navigate(file(3));
+        let id = session.id;
+        session.replace(b.clone());
+        assert_eq!(session.dest, b);
+        assert_eq!(session.id, id);
+        assert!(session.back.is_empty());
+        assert!(session.forward.is_empty());
+    }
+
+    #[test]
+    fn two_sessions_can_share_a_dest() {
+        let dest = file(1);
+        let a = Session::new(dest.clone());
+        let b = Session::new(dest.clone());
+        assert_ne!(a.id, b.id);
+        assert_eq!(a.dest, b.dest);
+    }
+
+    #[test]
+    fn tab_action_explicit_new_tab_always_creates() {
+        assert_eq!(tab_action_for_open(true, true, true, false), TabAction::Create);
+        assert_eq!(tab_action_for_open(false, true, false, false), TabAction::Create);
+    }
+
+    #[test]
+    fn tab_action_desktop_activates_open_dest() {
+        assert_eq!(tab_action_for_open(true, false, true, true), TabAction::Activate);
+    }
+
+    #[test]
+    fn activate_prefers_current_session_of_same_dest() {
+        let dest = file(1);
+        let a = Session::new(dest.clone());
+        let b = Session::new(dest.clone());
+        let strip = vec![a.clone(), b.clone()];
+        assert_eq!(index_of_dest_to_activate(&strip, Some(b.id), &[], &dest), Some(1));
+    }
+
+    #[test]
+    fn activate_prefers_most_recently_activated_match() {
+        let dest = file(1);
+        let a = Session::new(dest.clone());
+        let b = Session::new(dest.clone());
+        let other = Session::new(file(2));
+        let strip = vec![a.clone(), other.clone(), b.clone()];
+        assert_eq!(
+            index_of_dest_to_activate(&strip, Some(other.id), &[a.id, b.id], &dest),
+            Some(2)
+        );
+    }
+
+    #[test]
+    fn tab_action_desktop_setting_creates() {
+        assert_eq!(tab_action_for_open(false, false, true, true), TabAction::Create);
+    }
+
+    #[test]
+    fn tab_action_desktop_setting_off_navigates() {
+        assert_eq!(tab_action_for_open(false, false, true, false), TabAction::Navigate);
+    }
+
+    #[test]
+    fn tab_action_mobile_replaces_even_if_dest_open() {
+        assert_eq!(tab_action_for_open(true, false, false, true), TabAction::Replace);
+    }
+
+    #[test]
+    fn replace_is_not_fresh_if_forward_remains() {
+        let a = file(1);
+        let b = file(2);
+        let mut session = Session::new(a.clone());
+        session.navigate(b.clone());
+        assert!(session.go_back());
+        assert_eq!(session.dest, a);
+        assert!(!session.forward.is_empty());
+        let id = session.id;
+        session.replace(a.clone());
+        assert_eq!(session.id, id);
+        assert!(session.forward.is_empty());
+        assert!(session.back.is_empty());
+    }
+
+    #[test]
+    fn dest_kind_codes_are_stable() {
+        assert_eq!(file(1).kind_code(), 0);
+        assert_eq!(Destination::Search.kind_code(), 1);
+        assert_eq!(Destination::MindMap(Uuid::nil()).kind_code(), 2);
+        assert_eq!(Destination::SpaceInspector(Uuid::nil()).kind_code(), 3);
+    }
+
+    #[test]
+    fn persisted_session_roundtrip() {
+        let mut session = Session::new(file(1));
+        session.navigate(file(2));
+        session.navigate(file(3));
+        let json = serde_json::to_string(&session).unwrap();
+        let restored: Session = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.dest, session.dest);
+        assert_eq!(restored.back, session.back);
+        assert_eq!(restored.forward, session.forward);
+        assert!(!restored.id.is_nil());
+        assert_ne!(restored.id, session.id);
+    }
+
+    #[test]
+    fn persisted_legacy_dest_list_still_loads() {
+        let dest = file(4);
+        let json = serde_json::to_string(&vec![dest.clone()]).unwrap();
+        let dests: Vec<Destination> = serde_json::from_str(&json).unwrap();
+        let sessions: Vec<Session> = dests.into_iter().map(Session::new).collect();
+        assert_eq!(sessions[0].dest, dest);
+        assert!(sessions[0].back.is_empty());
+    }
 }

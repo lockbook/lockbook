@@ -39,7 +39,7 @@ import app.lockbook.model.FinishedAction
 import app.lockbook.model.MainNavigationAction
 import app.lockbook.model.MainScreenViewModel
 import app.lockbook.model.OpenFilePresentation
-import app.lockbook.model.OpenFileRequest
+import app.lockbook.model.OpenTab
 import app.lockbook.model.SearchPresentation
 import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceTab
@@ -184,10 +184,10 @@ class WorkspaceFragment : Fragment() {
                 is FinishedAction.Rename -> {
                     workspaceWrapper.workspaceView.fileRenamed(action.id, action.name)
                     binding.workspaceToolbar.setTitle(action.name)
-                    val tabIndex = model.tabs.indexOfFirst { it.id == action.id }
+                    val tabIndex = model.tabs.indexOfFirst { it.file.id == action.id }
                     if (tabIndex != -1) {
                         val updatedTab = model.tabs.get(tabIndex)
-                        updatedTab.name = action.name
+                        updatedTab.file.name = action.name
 
                         model.tabs.removeAt(tabIndex)
                         model.tabs.insert(tabIndex, updatedTab)
@@ -433,14 +433,20 @@ class WorkspaceFragment : Fragment() {
         val openTabs =
             workspaceWrapper.workspaceView
                 .getTabs()
-                .mapNotNull { tabId -> filesListModel.fileModel.idsAndFiles[tabId] }
-                .toList()
+                .mapNotNull { raw ->
+                    val parts = raw.split(' ', limit = 2)
+                    val sessionId = parts[0]
+                    val destId = parts.getOrElse(1) { sessionId }
+                    filesListModel.fileModel.idsAndFiles[destId]?.let { file ->
+                        OpenTab(sessionId, file)
+                    }
+                }.toList()
 
         model.tabs.set(openTabs)
         notifyTabListsChanged()
         binding.closeAllTabs.isEnabled = !model.tabs.isEmpty()
 
-        scrollToCurrentTab(newTab.id)
+        scrollToCurrentTab(newTab.sessionId)
 
         workspaceWrapper.updateWrapperBasedOnTab(newTab.type)
         showBottomSheet()
@@ -449,7 +455,7 @@ class WorkspaceFragment : Fragment() {
 
     private fun scrollToCurrentTab(newTab: String?) {
         if (newTab == null) return
-        val selectedPosition = model.tabs.indexOfFirst { it.id == newTab }
+        val selectedPosition = model.tabs.indexOfFirst { it.sessionId == newTab }
         if (selectedPosition != -1) {
             binding.compactTabsList.scrollToPosition(selectedPosition)
             binding.expandedTabsList.scrollToPosition(selectedPosition)
@@ -539,7 +545,7 @@ class WorkspaceFragment : Fragment() {
     }
 
     private fun onCreateTabList(workspaceWrapper: WorkspaceWrapperView) {
-        setupTabLists()
+        setupTabLists(workspaceWrapper)
         setBottomSheetExpanded(model.tabListExpanded.value ?: false)
 
         model.tabListExpanded.observe(viewLifecycleOwner) { shouldExpand ->
@@ -603,12 +609,12 @@ class WorkspaceFragment : Fragment() {
         }
     }
 
-    private fun setupTabLists() {
-        setupCompactTabList()
-        setupExpandedTabList()
+    private fun setupTabLists(workspaceWrapper: WorkspaceWrapperView) {
+        setupCompactTabList(workspaceWrapper)
+        setupExpandedTabList(workspaceWrapper)
     }
 
-    private fun setupCompactTabList() {
+    private fun setupCompactTabList(workspaceWrapper: WorkspaceWrapperView) {
         binding.compactTabsList.layoutManager =
             LinearLayoutManager(
                 requireContext(),
@@ -619,19 +625,19 @@ class WorkspaceFragment : Fragment() {
         binding.compactTabsList.setup {
             withDataSource(model.tabs)
 
-            withItem<File, HorizontalTabItemHolder>(R.layout.horizontal_tab_item) {
+            withItem<OpenTab, HorizontalTabItemHolder>(R.layout.horizontal_tab_item) {
                 onBind(::HorizontalTabItemHolder) { i, item ->
-                    name.text = item.name
-                    name.isChecked = getCurrentFile()?.id == item.id
+                    name.text = item.file.name
+                    name.isChecked = model.currentTab.value?.sessionId == item.sessionId
                 }
                 onClick {
-                    switchTab(item.id)
+                    switchTab(workspaceWrapper, item.sessionId)
                 }
             }
         }
     }
 
-    private fun setupExpandedTabList() {
+    private fun setupExpandedTabList(workspaceWrapper: WorkspaceWrapperView) {
         binding.expandedTabsList.layoutManager =
             LinearLayoutManager(
                 requireContext(),
@@ -642,22 +648,22 @@ class WorkspaceFragment : Fragment() {
         binding.expandedTabsList.setup {
             withDataSource(model.tabs)
 
-            withItem<File, VerticalTabItemHolder>(R.layout.vertical_tab_item) {
+            withItem<OpenTab, VerticalTabItemHolder>(R.layout.vertical_tab_item) {
                 onBind(::VerticalTabItemHolder) { i, item ->
-                    name.text = item.name
-                    val isSelected = getCurrentFile()?.id == item.id
+                    name.text = item.file.name
+                    val isSelected = model.currentTab.value?.sessionId == item.sessionId
 
                     name.isChecked = isSelected
-                    name.setIconResource(item.getIconResource())
+                    name.setIconResource(item.file.getIconResource())
 
                     closeButton.isChecked = isSelected
                     closeButton.setOnClickListener {
-                        model._closeFile.value = item.id
+                        workspaceWrapper.workspaceView.closeSession(item.sessionId)
                         notifyTabListsChanged()
                     }
 
                     name.setOnClickListener {
-                        switchTab(item.id)
+                        switchTab(workspaceWrapper, item.sessionId)
                     }
                 }
             }
@@ -668,21 +674,18 @@ class WorkspaceFragment : Fragment() {
     private fun notifyTabListsChanged() {
         binding.compactTabsList.adapter?.notifyDataSetChanged()
         binding.expandedTabsList.adapter?.notifyDataSetChanged()
-        scrollToCurrentTab(getCurrentFile()?.id)
+        scrollToCurrentTab(model.currentTab.value?.sessionId)
     }
 
-    private fun switchTab(id: String) {
+    private fun switchTab(
+        workspaceWrapper: WorkspaceWrapperView,
+        sessionId: String,
+    ) {
         pendingTabSwitchUiState =
             PendingTabSwitchUiState(
                 isTabListExpanded = model.tabListExpanded.value ?: false,
             )
-        model.openFile(
-            OpenFileRequest(
-                id = id,
-                newFile = false,
-                presentation = OpenFilePresentation.Preserve,
-            ),
-        )
+        workspaceWrapper.workspaceView.activateDoc(sessionId)
     }
 }
 
@@ -730,6 +733,10 @@ class WorkspaceWrapperView(
     }
 
     fun updateWrapperBasedOnTab(newTab: WorkspaceTabType) {
+        if (newTab == currentTab) {
+            return
+        }
+
         detachWrapperIfPresent()
         attachWrapperIfNeeded(newTab)
 

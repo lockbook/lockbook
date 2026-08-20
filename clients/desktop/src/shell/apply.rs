@@ -94,7 +94,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 if !r.workspace.make_current(i) {
                     if let Some(slot) = r.workspace.tab_strip.get(i).cloned() {
                         // Force current even when promote missed a frame.
-                        r.workspace.current_tab = Some(slot.dest);
+                        r.workspace.current_tab = Some(slot.id);
                         r.workspace.current_tab_changed = true;
                         r.workspace.ctx.request_repaint();
                     }
@@ -551,6 +551,11 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 r.workspace.cfg.set_contact_linked_sites(v);
             }
         }
+        A::SetPrefOpenInNewTab(v) => {
+            if let Some(r) = app.session.ready_mut() {
+                r.workspace.cfg.set_open_in_new_tab(v);
+            }
+        }
         A::SetPrefSidebarUsage(v) => {
             app.settings.sidebar_usage = v;
             let _ = app.settings.to_file();
@@ -970,7 +975,7 @@ fn confirm_create(app: &mut ShellApp) {
                 r.expanded.insert(parent_id);
                 r.select_only(file.id);
                 if !is_folder {
-                    r.workspace.open_file(file.id, true, true);
+                    r.workspace.open_file(file.id, true, false);
                 }
                 Ok(file.name)
             }
@@ -1074,8 +1079,7 @@ fn duplicate_files(app: &mut ShellApp, ids: &[Uuid]) {
             let last = created.last().unwrap().id;
             for (i, f) in created.iter().enumerate() {
                 if f.is_document() {
-                    r.workspace
-                        .open_file(f.id, true, i > 0 || created.len() == 1);
+                    r.workspace.open_file(f.id, true, i > 0);
                 }
             }
             if created.len() > 1 {

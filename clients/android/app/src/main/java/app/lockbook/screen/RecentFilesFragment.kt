@@ -100,7 +100,7 @@ class RecentFilesFragment :
         if (selectionModel.uiState.value.isActive) {
             selectionModel.toggle(FileSelectionSource.Recents, file)
         } else {
-            mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = true))
+            mainScreenModel.navigate(MainNavigationAction.OpenDocument(file.id, newFile = false))
         }
     }
 

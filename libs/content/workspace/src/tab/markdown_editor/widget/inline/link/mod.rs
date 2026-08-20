@@ -316,11 +316,11 @@ impl<'ast> MdRender {
         self.link_resolver.resolve_link(url)
     }
 
-    /// Open `url` in a new tab, navigating in-app for internal file links and
-    /// to the browser otherwise. Shared by link and image interaction handlers.
-    pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context) {
+    /// Open `url` in-app for internal file links and in the browser otherwise.
+    /// `new_tab` is only for an explicit new-tab request (cmd-click / multi-open).
+    pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
-            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, true),
+            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, new_tab),
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
@@ -418,8 +418,8 @@ impl<'ast> MdRender {
         }
     }
 
-    /// Hover → `PointingHand` + Warning/Broken tooltip; click → open
-    /// in a new tab. The producer's interaction scope is the gate: cmd
+    /// Hover → `PointingHand` + Warning/Broken tooltip; click → navigate
+    /// in place. The producer's interaction scope is the gate: cmd
     /// held (desktop), read-only, or touch — where the click instead
     /// selects the link and pops the menu ([`MdEdit::handle_link_menu_taps`]).
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
@@ -467,10 +467,10 @@ impl<'ast> MdRender {
             if response.clicked() && (self.readonly || !self.touch_mode) {
                 if is_wikilink {
                     if let Some(file_id) = self.resolve_wikilink(&url) {
-                        ui.ctx().open_file(file_id, true);
+                        ui.ctx().open_file(file_id, false);
                     }
                 } else {
-                    self.open_resolved_link(&url, ui.ctx());
+                    self.open_resolved_link(&url, ui.ctx(), false);
                 }
                 return;
             }

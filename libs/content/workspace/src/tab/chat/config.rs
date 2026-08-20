@@ -474,8 +474,8 @@ impl Chat {
                     .map(|p| p..p + KEY_PLACEHOLDER.len())
             });
         match range {
-            Some(r) => self.ctx.open_file_at_range(file_id, r, true),
-            None => self.ctx.open_file(file_id, true),
+            Some(r) => self.ctx.open_file_at_range(file_id, r, false),
+            None => self.ctx.open_file(file_id, false),
         }
     }
 
@@ -502,6 +502,6 @@ impl Chat {
                 }
             },
         };
-        self.ctx.open_file(file.id, true);
+        self.ctx.open_file(file.id, false);
     }
 }

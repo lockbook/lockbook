@@ -875,26 +875,33 @@ pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
     ));
 }
 
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn get_tabs_ids(obj: *mut c_void) -> TabsIds {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let ids: Vec<CUuid> = obj
-        .workspace
-        .tab_strip
-        .iter()
-        .map(|s| s.dest.id().into())
-        .collect();
-
-    TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
+fn tab_info(session: &workspace_rs::tab::Session) -> CTabInfo {
+    CTabInfo {
+        session_id: session.id.as_uuid().into(),
+        dest_kind: session.dest.kind_code(),
+        dest_file: session.dest.backing_file().unwrap_or_default().into(),
+    }
 }
 
 /// # Safety
-/// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn free_tab_ids(ids: TabsIds) {
-    let _ = Box::from_raw(std::slice::from_raw_parts_mut(ids.ids as *mut CUuid, ids.size as usize));
+pub unsafe extern "C" fn get_tabs(obj: *mut c_void) -> CTabs {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let tabs: Vec<CTabInfo> = obj.workspace.tab_strip.iter().map(tab_info).collect();
+
+    CTabs {
+        size: tabs.len() as i32,
+        tabs: Box::into_raw(tabs.into_boxed_slice()) as *const CTabInfo,
+    }
+}
+
+/// # Safety
+#[no_mangle]
+pub unsafe extern "C" fn free_tabs(tabs: CTabs) {
+    let _ = Box::from_raw(std::slice::from_raw_parts_mut(
+        tabs.tabs as *mut CTabInfo,
+        tabs.size as usize,
+    ));
 }
 
 /// # Safety
@@ -908,16 +915,19 @@ pub unsafe extern "C" fn reorder_tab(obj: *mut c_void, from: usize, to: usize) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn get_recently_closed_tabs(obj: *mut c_void) -> TabsIds {
+pub unsafe extern "C" fn get_recently_closed_tabs(obj: *mut c_void) -> CTabs {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let ids: Vec<CUuid> = obj
+    let tabs: Vec<CTabInfo> = obj
         .workspace
         .recently_closed_tabs()
         .into_iter()
-        .map(Into::into)
+        .map(tab_info)
         .collect();
 
-    TabsIds { size: ids.len() as i32, ids: Box::into_raw(ids.into_boxed_slice()) as *const CUuid }
+    CTabs {
+        size: tabs.len() as i32,
+        tabs: Box::into_raw(tabs.into_boxed_slice()) as *const CTabInfo,
+    }
 }
 
 /// # Safety
@@ -929,11 +939,11 @@ pub unsafe extern "C" fn reopen_last_closed_tab(obj: *mut c_void) {
 }
 
 /// # Safety
-/// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn reopen_closed_file(obj: *mut c_void, id: CUuid) {
+pub unsafe extern "C" fn reopen_closed_tab(obj: *mut c_void, id: CUuid) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.workspace.reopen_closed_file(id.into());
+    obj.workspace
+        .reopen_closed_session(workspace_rs::tab::SessionId::from_uuid(id.into()));
 }
 
 /// # Safety
@@ -1079,10 +1089,8 @@ pub unsafe extern "C" fn set_pencil_only_drawing(obj: *mut c_void, val: bool) {
 pub unsafe extern "C" fn unfocus_title(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
-    if let Some(dest) = obj.workspace.current_tab.clone() {
-        if let Some(slot) = obj.workspace.tab_strip.iter_mut().find(|s| s.dest == dest) {
-            slot.rename = None;
-        }
+    if let Some(tab_id) = obj.workspace.current_tab {
+        obj.workspace.clear_tab_rename(tab_id);
     }
 }
 
@@ -1102,12 +1110,7 @@ pub unsafe extern "C" fn close_active_tab(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     if !obj.workspace.tab_strip.is_empty() {
-        if let Some(idx) = obj
-            .workspace
-            .current_tab
-            .as_ref()
-            .and_then(|d| obj.workspace.tab_strip.iter().position(|s| s.dest == *d))
-        {
+        if let Some(idx) = obj.workspace.current_slot_index() {
             obj.workspace.close_tab(idx);
         }
     }

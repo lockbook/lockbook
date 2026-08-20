@@ -441,10 +441,20 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_openDoc(
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    // Always open in a new tab (pre-#4918 / mobile strip behavior). `new_file`
-    // is retained for the JNI signature used by Kotlin callers.
-    let _ = new_file;
-    obj.workspace.open_file(id, true, true);
+    obj.workspace.open_file(id, true, new_file == 1);
+    get_current_tab(obj)
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_activateDoc(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    obj.workspace
+        .make_current_by_session(workspace_rs::tab::SessionId::from_uuid(id));
     get_current_tab(obj)
 }
 
@@ -470,14 +480,32 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeDoc(
     let rid: String = env.get_string(&jid).unwrap().into();
     let id = Uuid::parse_str(&rid).unwrap();
 
-    if let Some(tab_id) = obj
-        .workspace
-        .tab_strip
-        .iter()
-        .position(|s| s.dest.id() == id)
-    {
-        obj.workspace.close_tab(tab_id);
-    }
+    obj.workspace.close_tabs_for_dest(id);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_closeSession(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    obj.workspace
+        .close_session(workspace_rs::tab::SessionId::from_uuid(id));
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_navigateDoc(
+    mut env: JNIEnv, _: JClass, obj: jlong, jid: JString,
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+
+    let rid: String = env.get_string(&jid).unwrap().into();
+    let id = Uuid::parse_str(&rid).unwrap();
+    obj.workspace
+        .navigate_to(workspace_rs::tab::Destination::File(id));
+    get_current_tab(obj)
 }
 
 #[no_mangle]
@@ -532,7 +560,11 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_getTabs(
 ) -> jobjectArray {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    let ids = obj.workspace.tab_strip.iter().map(|s| s.dest.id());
+    let ids = obj
+        .workspace
+        .tab_strip
+        .iter()
+        .map(|s| format!("{} {}", s.id.as_uuid(), s.dest.id()));
 
     let string_class = env.find_class("java/lang/String").unwrap();
 
@@ -561,16 +593,27 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_currentTab(
         .current_tab_id()
         .unwrap_or_default()
         .to_string();
+    let session = obj
+        .workspace
+        .current_tab
+        .map(|id| id.as_uuid())
+        .unwrap_or_default()
+        .to_string();
 
     let cls = _env
         .find_class("app/lockbook/workspace/NativeWorkspaceTab")
         .expect("find NativeWorkspaceTab class");
     let id = _env.new_string(id).expect("create tab id string");
+    let session = _env.new_string(session).expect("create session id string");
 
     _env.new_object(
         cls,
-        "(Ljava/lang/String;I)V",
-        &[JValue::Object(&JObject::from(id)), JValue::Int(tab_type)],
+        "(Ljava/lang/String;ILjava/lang/String;)V",
+        &[
+            JValue::Object(&JObject::from(id)),
+            JValue::Int(tab_type),
+            JValue::Object(&JObject::from(session)),
+        ],
     )
     .expect("create NativeWorkspaceTab")
     .into_raw()
@@ -599,10 +642,8 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_unfocusTitle(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
 
-    if let Some(dest) = obj.workspace.current_tab.clone() {
-        if let Some(slot) = obj.workspace.tab_strip.iter_mut().find(|s| s.dest == dest) {
-            slot.rename = None;
-        }
+    if let Some(tab_id) = obj.workspace.current_tab {
+        obj.workspace.clear_tab_rename(tab_id);
     }
 }
 

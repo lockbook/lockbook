@@ -8,6 +8,7 @@ import SwiftWorkspace
         @State private var showAccountKeys = false
 
         @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
+        @AppStorage("openInNewTab") private var openInNewTab: Bool = true
 
         var body: some View {
             Form {
@@ -25,6 +26,15 @@ import SwiftWorkspace
 
                 Section("Usage") {
                     UsageSettingsRows(model: model)
+                }
+
+                Section(
+                    header: Text("Tabs"),
+                    footer: Text(
+                        "When off, files open in the current tab by default."
+                    )
+                ) {
+                    Toggle("Open files in new tabs", isOn: $openInNewTab)
                 }
 
                 Section(
@@ -80,6 +90,11 @@ import SwiftWorkspace
                     SettingsUsageView(model: model)
                         .tabItem {
                             Label("Usage", systemImage: "externaldrive")
+                        }
+
+                    SettingsGeneralView()
+                        .tabItem {
+                            Label("General", systemImage: "gearshape")
                         }
 
                     SettingsEditorView()
@@ -171,6 +186,24 @@ import SwiftWorkspace
             Form {
                 Section("Usage") {
                     UsageSettingsRows(model: model)
+                }
+            }
+            .formStyle(.grouped)
+        }
+    }
+
+    struct SettingsGeneralView: View {
+        @AppStorage("openInNewTab") private var openInNewTab: Bool = true
+
+        var body: some View {
+            Form {
+                Section("Tabs") {
+                    Toggle("Open files in new tabs", isOn: $openInNewTab)
+                    Text(
+                        "When off, files open in the current tab by default."
+                    )
+                    .font(.caption)
+                    .foregroundColor(.secondary)
                 }
             }
             .formStyle(.grouped)

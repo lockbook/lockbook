@@ -1,3 +1,4 @@
+use crate::tab::SessionId;
 use lb_rs::Uuid;
 use lb_rs::model::file::File;
 
@@ -6,6 +7,8 @@ use lb_rs::model::file::File;
 pub struct Response {
     /// What file the workspace is currently showing
     pub selected_file: Option<Uuid>,
+    /// Current session/tab instance. Distinct from `selected_file`.
+    pub selected_session: Option<SessionId>,
     pub file_created: Option<Result<File, String>>,
     pub file_renamed: Option<(Uuid, String)>,
     pub file_moved: Option<(Uuid, Uuid)>,

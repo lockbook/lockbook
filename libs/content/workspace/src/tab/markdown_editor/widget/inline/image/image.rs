@@ -188,7 +188,7 @@ impl<'ast> MdEdit {
         }
         if response.clicked() {
             if open {
-                self.renderer.open_resolved_link(url, ui.ctx());
+                self.renderer.open_resolved_link(url, ui.ctx(), false);
             } else {
                 ui.memory_mut(|m| m.request_focus(id));
                 let region = Region::BetweenLocations {
@@ -212,7 +212,9 @@ impl<'ast> MdEdit {
             response
                 .context_menu(|ui| action = link_menu_buttons(ui, is_image, editable, refreshable));
             match action {
-                Some(LinkMenuAction::Open) => self.renderer.open_resolved_link(url, ui.ctx()),
+                Some(LinkMenuAction::Open) => {
+                    self.renderer.open_resolved_link(url, ui.ctx(), false)
+                }
                 Some(LinkMenuAction::Copy) => ui.ctx().copy_text(url.to_string()),
                 Some(LinkMenuAction::Refresh) => self.renderer.refresh_link_meta(url),
                 Some(LinkMenuAction::Edit) => {

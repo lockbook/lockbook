@@ -29,8 +29,6 @@ import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.model.OpenFilePresentation
-import app.lockbook.model.OpenFileRequest
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -356,16 +354,6 @@ class WorkspaceView(
             }
         }
 
-        if (!response.docCreated.isNullUUID()) {
-            model.postOpenFile(
-                OpenFileRequest(
-                    id = response.docCreated,
-                    newFile = true,
-                    presentation = OpenFilePresentation.ShowDetail,
-                ),
-            )
-        }
-
         if (response.copiedText.isNotEmpty()) {
             (
                 App
@@ -477,6 +465,15 @@ class WorkspaceView(
         return
     }
 
+    fun activateDoc(id: String) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.activateDoc(wgpuObj, id)
+        invalidate()
+    }
+
     fun back(): Boolean {
         if (wgpuObj == Long.MAX_VALUE || surface == null) {
             return false
@@ -537,6 +534,15 @@ class WorkspaceView(
         }
 
         Workspace.closeDoc(wgpuObj, id)
+        invalidate()
+    }
+
+    fun closeSession(id: String) {
+        if (wgpuObj == Long.MAX_VALUE || surface == null) {
+            return
+        }
+
+        Workspace.closeSession(wgpuObj, id)
         invalidate()
     }
 
