@@ -1065,6 +1065,7 @@
         // menu
         var menuDelegate: SvgMenuDelegate?
         var menuInteraction: UIEditMenuInteraction?
+        var editMenuForImage = false
 
         init(mtkView: iOSMTK) {
             self.mtkView = mtkView
@@ -1147,6 +1148,7 @@
 
             addInteraction(menuInteraction)
 
+            menuDelegate.view = self
             self.menuDelegate = menuDelegate
             self.menuInteraction = menuInteraction
         }
@@ -1175,6 +1177,10 @@
                 return
             }
 
+            if isImageTab {
+                return
+            }
+
             // Check if we have any valid actions before presenting
             let location = gesture.location(in: mtkView)
             if will_consume_touch(wsHandle, Float(location.x), Float(location.y))
@@ -1183,13 +1189,27 @@
                 return
             }
 
+            editMenuForImage = false
             let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: location)
+            menuInteraction.presentEditMenu(with: config)
+        }
+
+        var isImageTab: Bool {
+            WorkspaceTab(rawValue: Int(current_tab(wsHandle))) == .Image
+        }
+
+        func presentImageEditMenu(at point: CGPoint) {
+            guard let menuInteraction else { return }
+
+            editMenuForImage = true
+            let config = UIEditMenuConfiguration(identifier: nil, sourcePoint: point)
             menuInteraction.presentEditMenu(with: config)
         }
 
         override public func canPerformAction(_ action: Selector, withSender _: Any?) -> Bool {
             if action == #selector(paste(_:)) {
-                return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+                return !isImageTab
+                    && (UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages)
             }
 
             return false
@@ -1273,6 +1293,10 @@
         }
 
         override public func paste(_: Any?) {
+            if isImageTab {
+                return
+            }
+
             if let image = UIPasteboard.general.image {
                 mtkView.importContent(.image(image), isPaste: true)
             } else if let string = UIPasteboard.general.string {
@@ -1347,7 +1371,27 @@
 
     // MARK: - SvgEditMenuDelegate
 
-    public class SvgMenuDelegate: NSObject, UIEditMenuInteractionDelegate {}
+    public class SvgMenuDelegate: NSObject, UIEditMenuInteractionDelegate {
+        weak var view: SvgView?
+
+        public func editMenuInteraction(
+            _: UIEditMenuInteraction, menuFor _: UIEditMenuConfiguration,
+            suggestedActions: [UIMenuElement]
+        ) -> UIMenu? {
+            guard let view, view.editMenuForImage else {
+                return UIMenu(children: suggestedActions)
+            }
+
+            let copy = UIAction(
+                title: "Copy image", image: UIImage(systemName: "doc.on.doc")
+            ) { [weak view] _ in
+                guard let view else { return }
+                copy_image(view.wsHandle)
+                view.mtkView.setNeedsDisplay(view.mtkView.frame)
+            }
+            return UIMenu(children: [copy])
+        }
+    }
 
     // MARK: - MdMenuDelegate
 
@@ -1505,6 +1549,16 @@
                     mtkView.workspaceOutput!.currentTab = currentTab
                     mtkView.currentTabChanged?(currentTab)
                 }
+            }
+
+            if output.has_context_menu, output.context_menu_for_image,
+               let currentWrapper = mtkView.currentWrapper as? SvgView
+            {
+                currentWrapper.presentImageEditMenu(
+                    at: CGPoint(
+                        x: CGFloat(output.context_menu_x), y: CGFloat(output.context_menu_y)
+                    )
+                )
             }
 
             if currentTab == .Welcome, mtkView.currentOpenDoc != nil {

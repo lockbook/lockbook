@@ -6,17 +6,17 @@ use lb_rs::Uuid;
 use resvg::usvg::Transform;
 use tracing::error;
 
-use crate::tab::ExtendedInput as _;
 use crate::tab::input_controller::{
     InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
+use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::widgets::image_cache::{ImageCache, ImageState};
 
 const MIN_ZOOM_LEVEL: f32 = 0.1;
 const ZOOM_STEP: f32 = 10.0;
-const VIEWPORT_ISLAND_FALLBACK_WIDTH: f32 = 178.0;
+const VIEWPORT_ISLAND_FALLBACK_WIDTH: f32 = 136.0;
 const ZOOM_STOPS_POPOVER_WIDTH: f32 = 80.0;
 const BRING_BACK_FALLBACK_WIDTH: f32 = 220.0;
 const SCREEN_PADDING: egui::Pos2 =
@@ -219,17 +219,6 @@ impl ImageViewer {
             };
 
             ui.add_space((50.0 - zoom_pct_btn.rect.width()).max(0.0));
-
-            ui.add(egui::Separator::default().vertical().shrink(4.0));
-
-            if Button::default()
-                .icon(&Icon::CONTENT_COPY.size(size))
-                .show(ui)
-                .on_hover_text("Copy image")
-                .clicked()
-            {
-                self.copy_image(ui);
-            }
         });
     }
 
@@ -244,6 +233,15 @@ impl ImageViewer {
             egui::Sense::click(),
         );
 
+        if cfg!(target_os = "ios") {
+            if response.clicked() {
+                if let Some(pos) = response.interact_pointer_pos() {
+                    ui.ctx().set_context_menu(pos, ContextMenuTarget::Image);
+                }
+            }
+            return;
+        }
+
         let mut copy = false;
         response.context_menu(|ui| {
             if ui.button("Copy image").clicked() {
@@ -252,13 +250,13 @@ impl ImageViewer {
             }
         });
         if copy {
-            self.copy_image(ui);
+            self.copy_image(ui.ctx());
         }
     }
 
-    fn copy_image(&self, ui: &egui::Ui) {
+    pub fn copy_image(&self, ctx: &egui::Context) {
         match self.images.color_image(self.id) {
-            Ok(image) => ui.ctx().copy_image(image),
+            Ok(image) => ctx.copy_image(image),
             Err(err) => error!("failed to copy image to clipboard: {err}"),
         }
     }

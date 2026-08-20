@@ -43,6 +43,7 @@ pub struct IOSResponse {
     /// The menu is over a selected atom (image, link card/capsule) — offer "Edit"
     /// (`enter_selected_atom`) alongside the standard actions.
     pub context_menu_for_atom: bool,
+    pub context_menu_for_image: bool,
 }
 
 impl From<crate::Response> for IOSResponse {
@@ -123,6 +124,10 @@ impl From<crate::Response> for IOSResponse {
             context_menu_for_atom: matches!(
                 context_menu,
                 Some((_, workspace_rs::tab::ContextMenuTarget::Atom))
+            ),
+            context_menu_for_image: matches!(
+                context_menu,
+                Some((_, workspace_rs::tab::ContextMenuTarget::Image))
             ),
         }
     }
