@@ -47,6 +47,11 @@ jobs:
     uses: ./.github/workflows/windows-arm.yml
     secrets: inherit
 
+  package_windows_store:
+    needs: release
+    uses: ./.github/workflows/windows-store.yml
+    secrets: inherit
+
   deploy_apple:
     needs: release
     uses: ./.github/workflows/apple.yml
