@@ -4,11 +4,12 @@ use egui::{self, Color32, Pos2, Rect, Vec2};
 use epaint::RectShape;
 use lb_rs::Uuid;
 use resvg::usvg::Transform;
+use tracing::error;
 
-use crate::tab::ExtendedInput as _;
 use crate::tab::input_controller::{
     InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
+use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
 use crate::theme::icons::Icon;
 use crate::widgets::Button;
 use crate::widgets::image_cache::{ImageCache, ImageState};
@@ -84,6 +85,7 @@ impl ImageViewer {
                     Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
                 ));
 
+                self.show_image_context_menu(ui, available, rect);
                 self.show_viewport_controls(ui, available, rect);
             }
             ImageState::Failed(ref msg) => {
@@ -218,6 +220,45 @@ impl ImageViewer {
 
             ui.add_space((50.0 - zoom_pct_btn.rect.width()).max(0.0));
         });
+    }
+
+    fn show_image_context_menu(&mut self, ui: &mut egui::Ui, available: Rect, image_rect: Rect) {
+        if !available.intersects(image_rect) {
+            return;
+        }
+
+        let response = ui.interact(
+            available.intersect(image_rect),
+            ui.id().with("image_viewer_image"),
+            egui::Sense::click(),
+        );
+
+        if cfg!(target_os = "ios") {
+            if response.clicked() {
+                if let Some(pos) = response.interact_pointer_pos() {
+                    ui.ctx().set_context_menu(pos, ContextMenuTarget::Image);
+                }
+            }
+            return;
+        }
+
+        let mut copy = false;
+        response.context_menu(|ui| {
+            if ui.button("Copy image").clicked() {
+                copy = true;
+                ui.close();
+            }
+        });
+        if copy {
+            self.copy_image(ui.ctx());
+        }
+    }
+
+    pub fn copy_image(&self, ctx: &egui::Context) {
+        match self.images.color_image(self.id) {
+            Ok(image) => ctx.copy_image(image),
+            Err(err) => error!("failed to copy image to clipboard: {err}"),
+        }
     }
 
     fn show_popovers(&mut self, ui: &mut egui::Ui, available: Rect, viewport_island_rect: Rect) {

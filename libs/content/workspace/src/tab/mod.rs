@@ -144,6 +144,13 @@ impl Tab {
         }
     }
 
+    pub fn image_viewer(&self) -> Option<&ImageViewer> {
+        match &self.content {
+            ContentState::Open(TabContent::Image(img)) => Some(img),
+            _ => None,
+        }
+    }
+
     pub fn svg(&self) -> Option<&SVGEditor> {
         match &self.content {
             ContentState::Open(TabContent::Svg(svg)) => Some(svg),
@@ -539,6 +546,7 @@ pub enum ContextMenuTarget {
     #[default]
     Text,
     Atom,
+    Image,
 }
 
 // todo: find a better place for the code that attaches additional things to egui::Context
