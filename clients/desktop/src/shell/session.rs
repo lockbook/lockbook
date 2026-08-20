@@ -104,6 +104,7 @@ pub struct Ready {
 }
 
 impl Ready {
+    #[tracing::instrument(name = "Ready::new", level = "trace", skip_all)]
     pub fn new(
         core: Lb, files: FileCache, ctx: &Context, sub_info: Option<SubscriptionInfo>,
     ) -> Self {
