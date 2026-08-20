@@ -53,6 +53,7 @@ const RECENTS_ROW_HEIGHT: f32 = 60.0;
 const RECENTS_ROW_HORIZONTAL_PADDING: f32 = 18.0;
 
 impl LandingPage {
+    #[tracing::instrument(level = "trace", skip_all)]
     pub fn update_recent_files(&mut self, files: &FileCache) {
         let root = files.root().id;
         let mut recent: Vec<_> = files
