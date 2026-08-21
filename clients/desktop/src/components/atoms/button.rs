@@ -433,6 +433,14 @@ pub fn icon_button(
 pub fn icon_button_hit(
     ui: &mut Ui, t: &Theme, icon: &'static str, active: bool, ground: Color32, hit: f32,
 ) -> Response {
+    icon_button_hit_font(ui, t, icon, active, ground, hit, phosphor_ui_font_id())
+}
+
+/// [`icon_button_hit`] with an explicit phosphor font (taller titleband marks).
+pub fn icon_button_hit_font(
+    ui: &mut Ui, t: &Theme, icon: &'static str, active: bool, ground: Color32, hit: f32,
+    font: FontId,
+) -> Response {
     let hit = hit.max(1.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(hit, hit), sense_click());
     let hover = icon_hover_t(ui, &resp, rect);
@@ -458,7 +466,7 @@ pub fn icon_button_hit(
     };
     let g = ui
         .painter()
-        .layout_no_wrap(icon.into(), phosphor_ui_font_id(), Color32::PLACEHOLDER);
+        .layout_no_wrap(icon.into(), font, Color32::PLACEHOLDER);
     ui.painter()
         .galley(rect.center() - g.size() / 2.0, g, color);
     resp

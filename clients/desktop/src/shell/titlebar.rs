@@ -3,30 +3,38 @@
 //! | Platform | Window chrome |
 //! |----------|---------------|
 //! | macOS | Native traffic lights (host: fullsize content + transparent titlebar) |
-//! | Windows | Minimize · maximize/restore · close |
-//! | Linux | Circle (maximize) · X (close) — minimal |
+//! | Windows / Linux | Minimize · maximize/restore · close — Chrome/Win11 caption plates |
 //!
-//! View toggles (Files / Recents / Shared) + settings float top-left and stay
-//! visible with the sidebar closed. Tab strip insets clear this cluster (and
-//! macOS lights) — see [`tab_left_inset`] / [`tab_right_inset`].
+//! View toggles (Files / Recents / Shared) float top-left and stay visible with
+//! the sidebar closed. Tab strip insets clear this cluster (and macOS lights) —
+//! see [`tab_left_inset`] / [`tab_right_inset`].
 
 use egui::{Area, Id, Order, Rect, pos2, vec2};
 #[cfg(not(target_os = "macos"))]
 use egui::{Sense, Ui};
 
 #[cfg(not(target_os = "macos"))]
-use crate::components::phosphor;
+use crate::components::FG_HOVER;
 #[cfg(not(target_os = "macos"))]
-use crate::components::{FG_HOVER, FG_PRESS};
-use crate::components::{Space, Theme, claim, control_height, icon_button_hit, place_at, tip_text};
+use crate::components::foundation::chrome::phosphor_font_id;
+#[cfg(not(target_os = "macos"))]
+use crate::components::phosphor;
+use crate::components::{
+    Space, Theme, claim, control_height, icon_button_hit_font, phosphor_titleband_font_id,
+    place_at, tip_text,
+};
 use egui::{Align, Layout};
 
 use super::ShellApp;
 use super::action::Action as A;
 use super::action::{Action, SidebarPane};
 
-/// y-center of the title row ≈ macOS traffic-light center.
+/// y-center of the title row. macOS keeps traffic-light alignment (~16pt);
+/// Win/Linux is a Chrome-like ~40pt strip.
+#[cfg(target_os = "macos")]
 pub const HEADER_CENTER: f32 = 16.0;
+#[cfg(not(target_os = "macos"))]
+pub const HEADER_CENTER: f32 = 20.0;
 /// Full title / tab strip height.
 pub const HEADER_H: f32 = HEADER_CENTER * 2.0;
 
@@ -37,17 +45,21 @@ pub const TOGGLE_X: f32 = 76.0;
 pub const TOGGLE_X: f32 = 10.0;
 
 const TOOLBAR_GAP: f32 = 4.0;
-#[cfg_attr(target_os = "macos", allow(dead_code))]
-const WIN_BTN_GAP: f32 = 2.0;
-#[cfg_attr(target_os = "macos", allow(dead_code))]
-const WIN_RIGHT_PAD: f32 = 6.0;
+/// Win11 / Chrome caption button width. Height is [`HEADER_H`] (full-bleed).
+#[cfg(not(target_os = "macos"))]
+const CAPTION_BTN_W: f32 = 46.0;
+/// Extra air above tabs when the window is restored (Chrome restored padding).
+/// Maximized and macOS stay flush aside from tab stroke air.
+#[cfg(not(target_os = "macos"))]
+const RESTORED_TAB_AIR: f32 = 8.0;
 
 /// View-toggle cluster only (Files / Recents / Shared). Settings lives in the
 /// footer with sync — app chrome, not part of the pane multi-select.
 const TOOLBAR_ICONS: usize = 3;
 
-/// Hit / hover-wash size for titleband icons. Glyph stays phosphor UI size;
-/// hit is smaller so wash is not flush to the window top/bottom of `HEADER_H`.
+/// Hit / hover-wash size for titleband icons. Glyph is
+/// [`phosphor_titleband_font_id`]; hit is inset so wash is not flush to the
+/// window top/bottom of `HEADER_H`.
 fn icon_hit_size() -> f32 {
     let air = Space::Xs.pts() * 2.0; // top + bottom within the strip
     (HEADER_H - air).min(control_height()).max(1.0)
@@ -83,20 +95,37 @@ pub fn tab_left_inset(sidebar_open: bool) -> f32 {
 }
 
 /// Right pad so tabs never sit under drawn window controls (Windows/Linux).
+/// Includes a small always-empty gap before the caption cluster so there is a
+/// grab handle even when tabs fill the strip.
 pub fn tab_right_inset() -> f32 {
     #[cfg(target_os = "macos")]
     {
         Space::Sm.pts()
     }
-    #[cfg(target_os = "windows")]
+    #[cfg(not(target_os = "macos"))]
     {
-        // min + max + close
-        3.0 * icon_size() + 2.0 * WIN_BTN_GAP + WIN_RIGHT_PAD + Space::Sm.pts()
+        caption_cluster_w() + Space::Md.pts()
     }
-    #[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
+}
+
+/// Caption-button cluster width (min + max + close). Not the tab inset — the
+/// inset is wider by a drag gap that must remain a window-move region.
+#[cfg(not(target_os = "macos"))]
+fn caption_cluster_w() -> f32 {
+    3.0 * CAPTION_BTN_W
+}
+
+/// Extra top inset for tab hit cells so restored Win/Linux windows have a
+/// Chrome-like grab strip above the tabs. 0 on macOS and when maximized.
+pub fn tab_caption_air(ctx: &egui::Context) -> f32 {
+    #[cfg(target_os = "macos")]
     {
-        // Linux: circle + close
-        2.0 * icon_size() + WIN_BTN_GAP + WIN_RIGHT_PAD + Space::Sm.pts()
+        let _ = ctx;
+        0.0
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        if ctx.input(|i| i.viewport().maximized.unwrap_or(false)) { 0.0 } else { RESTORED_TAB_AIR }
     }
 }
 
@@ -146,7 +175,7 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
     drag_strip(ctx);
 }
 
-/// Full-width band of height [`HEADER_H`] (32 = `HEADER_CENTER * 2`).
+/// Full-width band of height [`HEADER_H`].
 ///
 /// Does **not** allocate a hit-target over the whole band (that would steal
 /// tab clicks / tab reorder DnD). Instead: if the press originated in the
@@ -236,7 +265,15 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
                 let slot = Rect::from_min_size(pos2(x, origin.y), vec2(icon_size(), cluster_h));
                 let active = app.sidebar_open && app.pane == *pane;
                 let (resp, _) = place_at(ui, slot, Layout::top_down(Align::Min), |ui| {
-                    let resp = icon_button_hit(ui, t, pane.icon(), active, ground, icon_hit_size());
+                    let resp = icon_button_hit_font(
+                        ui,
+                        t,
+                        pane.icon(),
+                        active,
+                        ground,
+                        icon_hit_size(),
+                        phosphor_titleband_font_id(),
+                    );
                     tip_text(ui.ctx(), &resp, pane.title());
                     resp
                 });
@@ -250,132 +287,83 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
         });
 }
 
-/// Place a sequence of equal-size window buttons L→R at absolute x.
+/// Win/Linux: full-bleed min · max/restore · close, flush to the top-right.
+/// Only the caption plates block window-move; the gap before them is a grab.
 #[cfg(not(target_os = "macos"))]
-fn place_icon_row(ui: &mut Ui, count: usize, mut paint_at: impl FnMut(&mut Ui, usize, Rect)) {
-    let origin = ui.cursor().min;
-    let sz = icon_size();
-    let mut x = origin.x;
-    for i in 0..count {
-        if i > 0 {
-            x += WIN_BTN_GAP;
-        }
-        let slot = Rect::from_min_size(pos2(x, origin.y), vec2(sz, sz));
-        paint_at(ui, i, slot);
-        x += sz;
-    }
-    let total_w = count as f32 * sz + (count.saturating_sub(1) as f32) * WIN_BTN_GAP;
-    claim(ui, Rect::from_min_size(origin, vec2(total_w, sz)));
-}
-
-#[cfg(target_os = "windows")]
 fn window_controls(ctx: &egui::Context, t: &Theme) {
     use egui::{Align2, ViewportCommand};
-    let y = HEADER_CENTER - icon_size() / 2.0;
-    let controls_w = tab_right_inset();
+    let cluster_w = caption_cluster_w();
     let screen = ctx.screen_rect();
     block_window_drag(
         ctx,
         Rect::from_min_size(
-            pos2(screen.right() - controls_w, screen.top()),
-            vec2(controls_w, HEADER_H),
+            pos2(screen.right() - cluster_w, screen.top()),
+            vec2(cluster_w, HEADER_H),
         ),
     );
     Area::new(Id::new("shell_window_controls"))
         .order(Order::Foreground)
-        .anchor(Align2::RIGHT_TOP, vec2(-WIN_RIGHT_PAD, y))
+        .anchor(Align2::RIGHT_TOP, vec2(0.0, 0.0))
         .show(ctx, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+            let origin = ui.cursor().min;
             let ground = t.neutral_bg();
-            place_icon_row(ui, 3, |ui, i, slot| {
-                let _ = place_at(ui, slot, Layout::top_down(Align::Min), |ui| match i {
-                    0 => {
-                        if window_button(ui, t, phosphor::MINUS, false, ground).clicked() {
-                            ui.ctx().send_viewport_cmd(ViewportCommand::Minimized(true));
-                        }
-                    }
-                    1 => {
-                        let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
-                        let max_icon = if maximized { phosphor::COPY } else { phosphor::SQUARE };
-                        if window_button(ui, t, max_icon, false, ground).clicked() {
-                            ui.ctx()
-                                .send_viewport_cmd(ViewportCommand::Maximized(!maximized));
-                        }
-                    }
-                    _ => {
-                        if window_button(ui, t, phosphor::X, true, ground).clicked() {
-                            ui.ctx().send_viewport_cmd(ViewportCommand::Close);
-                        }
-                    }
-                });
-            });
-        });
-}
-
-/// Linux: circle (maximize/restore) + close only.
-#[cfg(all(not(target_os = "macos"), not(target_os = "windows")))]
-fn window_controls(ctx: &egui::Context, t: &Theme) {
-    use egui::{Align2, ViewportCommand};
-    let y = HEADER_CENTER - icon_size() / 2.0;
-    let controls_w = tab_right_inset();
-    let screen = ctx.screen_rect();
-    block_window_drag(
-        ctx,
-        Rect::from_min_size(
-            pos2(screen.right() - controls_w, screen.top()),
-            vec2(controls_w, HEADER_H),
-        ),
-    );
-    Area::new(Id::new("shell_window_controls"))
-        .order(Order::Foreground)
-        .anchor(Align2::RIGHT_TOP, vec2(-WIN_RIGHT_PAD, y))
-        .show(ctx, |ui| {
-            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-            let ground = t.neutral_bg();
-            place_icon_row(ui, 2, |ui, i, slot| {
+            let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
+            let max_icon = if maximized { phosphor::COPY } else { phosphor::SQUARE };
+            let marks = [phosphor::MINUS, max_icon, phosphor::X];
+            for (i, icon) in marks.into_iter().enumerate() {
+                let slot = Rect::from_min_size(
+                    pos2(origin.x + i as f32 * CAPTION_BTN_W, origin.y),
+                    vec2(CAPTION_BTN_W, HEADER_H),
+                );
                 let _ = place_at(ui, slot, Layout::top_down(Align::Min), |ui| {
-                    if i == 0 {
-                        let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
-                        if window_button(ui, t, phosphor::CIRCLE, false, ground).clicked() {
-                            ui.ctx()
-                                .send_viewport_cmd(ViewportCommand::Maximized(!maximized));
+                    let danger = i == 2;
+                    if caption_button(ui, t, icon, danger, ground).clicked() {
+                        match i {
+                            0 => ui.ctx().send_viewport_cmd(ViewportCommand::Minimized(true)),
+                            1 => ui
+                                .ctx()
+                                .send_viewport_cmd(ViewportCommand::Maximized(!maximized)),
+                            _ => ui.ctx().send_viewport_cmd(ViewportCommand::Close),
                         }
-                    } else if window_button(ui, t, phosphor::X, true, ground).clicked() {
-                        ui.ctx().send_viewport_cmd(ViewportCommand::Close);
                     }
                 });
-            });
+            }
+            claim(ui, Rect::from_min_size(origin, vec2(cluster_w, HEADER_H)));
         });
 }
 
-/// Ghost window control — smaller mark than toolbar icons.
-/// `ground` = parent fill (typically canvas at the window edge).
+/// Full-bleed caption plate. Small glyph, large hit, square hover (Win11 / Chrome).
+/// Close hover is solid danger with a light mark.
 #[cfg(not(target_os = "macos"))]
-fn window_button(
+fn caption_button(
     ui: &mut Ui, t: &Theme, icon: &'static str, danger: bool, ground: egui::Color32,
 ) -> egui::Response {
+    use crate::components::TypeRole;
     use crate::components::foundation::chrome::HOVER_ANIM_SECS;
-    use crate::components::{Radius, phosphor_ui_font_id};
-    let size = icon_size();
-    let (rect, resp) = ui.allocate_exact_size(vec2(size, size), Sense::click());
+    let (rect, resp) = ui.allocate_exact_size(vec2(CAPTION_BTN_W, HEADER_H), Sense::click());
     let over = resp.hovered() || ui.ctx().rect_contains_pointer(ui.layer_id(), rect);
     let hover = ui
         .ctx()
         .animate_bool_with_time(resp.id.with("win_hov"), over, HOVER_ANIM_SECS);
-    let accent = if danger { t.danger() } else { t.neutral_fg() };
     if hover > 0.0 {
         let wash = if danger {
-            ground.lerp_to_gamma(t.danger(), FG_PRESS * hover)
+            ground.lerp_to_gamma(t.danger(), hover)
         } else {
             t.wash_toward_neutral_fg(ground, FG_HOVER * hover)
         };
-        ui.painter()
-            .rect_filled(rect, Radius::Control.corner(), wash);
+        ui.painter().rect_filled(rect, 0.0, wash);
     }
-    let color = t.neutral_fg_secondary().lerp_to_gamma(accent, hover);
-    let g = ui
-        .painter()
-        .layout_no_wrap(icon.into(), phosphor_ui_font_id(), color);
+    let color = if danger {
+        t.neutral_fg_secondary()
+            .lerp_to_gamma(egui::Color32::WHITE, hover)
+    } else {
+        t.neutral_fg_secondary()
+            .lerp_to_gamma(t.neutral_fg(), hover)
+    };
+    let g =
+        ui.painter()
+            .layout_no_wrap(icon.into(), phosphor_font_id(TypeRole::Mono.size()), color);
     ui.painter()
         .galley(rect.center() - g.size() / 2.0, g, color);
     resp

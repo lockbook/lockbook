@@ -12,7 +12,7 @@ pub mod picker;
 pub mod quiet_chip;
 pub mod segmented;
 
-pub use button::{Button, icon_button, icon_button_hit};
+pub use button::{Button, icon_button, icon_button_hit, icon_button_hit_font};
 pub use chip::{Chip, ChipHue};
 pub use chip_layout::EqualCells;
 pub use field::Field;

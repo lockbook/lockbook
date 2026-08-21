@@ -275,8 +275,6 @@ pub mod phosphor {
     /// Window chrome (borderless title bar).
     pub const MINUS: &str = "\u{e32a}";
     pub const SQUARE: &str = "\u{e45e}";
-    /// Linux maximize mark — simple circle outline.
-    pub const CIRCLE: &str = "\u{e192}";
     // Restore-down reuses COPY (two squares).
 }
 
@@ -307,9 +305,27 @@ pub fn file_row_icon(name: &str, is_folder: bool) -> &'static str {
 /// Font family name registered by `workspace_rs::register_fonts`.
 const PHOSPHOR_FAMILY: &str = "phosphor";
 
+/// Phosphor at an explicit size (titleband vs body vs caption glyphs).
+pub fn phosphor_font_id(size: f32) -> FontId {
+    FontId::new(size, FontFamily::Name(Arc::from(PHOSPHOR_FAMILY)))
+}
+
 /// Phosphor at body size (leading button icons / file rows).
 pub fn phosphor_ui_font_id() -> FontId {
-    FontId::new(TypeRole::Body.size(), FontFamily::Name(Arc::from(PHOSPHOR_FAMILY)))
+    phosphor_font_id(TypeRole::Body.size())
+}
+
+/// Titleband marks (toolbar, tab type icons). Body on macOS; 16pt on Win/Linux
+/// where the strip is taller (Chrome-like).
+pub fn phosphor_titleband_font_id() -> FontId {
+    #[cfg(target_os = "macos")]
+    {
+        phosphor_ui_font_id()
+    }
+    #[cfg(not(target_os = "macos"))]
+    {
+        phosphor_font_id(16.0)
+    }
 }
 
 /// Commit shortcut badge (⌘⏎ on macOS, Ctrl+⏎ elsewhere).
