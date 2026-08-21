@@ -114,8 +114,51 @@ fn install_perfetto(config: &lb::model::core_config::Config) -> std::io::Result<
         })),
     );
 
+    // `process::exit` skips Drop but still runs atexit. Without this, close
+    // loses the per-thread queues that have not filled yet.
+    let _ = ATEXIT_GUARD.set(Arc::clone(&guard));
+    register_atexit_flush();
+    register_term_exit();
+
     Ok(TraceSession { guard })
 }
+
+#[cfg(feature = "perf-qa")]
+static ATEXIT_GUARD: std::sync::OnceLock<std::sync::Arc<tracing_perfetto_file::FlushGuard>> =
+    std::sync::OnceLock::new();
+
+#[cfg(all(feature = "perf-qa", unix))]
+fn register_atexit_flush() {
+    extern "C" fn flush_atexit() {
+        if let Some(guard) = ATEXIT_GUARD.get() {
+            let _ = guard.flush();
+        }
+    }
+    // SAFETY: handler only flushes once at process exit.
+    unsafe {
+        let _ = libc::atexit(flush_atexit);
+    }
+}
+
+#[cfg(all(feature = "perf-qa", unix))]
+fn register_term_exit() {
+    extern "C" fn on_term(_: libc::c_int) {
+        // Not async-signal-safe; dogfood only. Routes SIGTERM through
+        // `exit` so atexit can flush the Perfetto queues.
+        std::process::exit(0);
+    }
+    // SAFETY: replaces default terminate with exit+flush for this process.
+    unsafe {
+        libc::signal(libc::SIGTERM, on_term as libc::sighandler_t);
+        libc::signal(libc::SIGINT, on_term as libc::sighandler_t);
+    }
+}
+
+#[cfg(all(feature = "perf-qa", not(unix)))]
+fn register_atexit_flush() {}
+
+#[cfg(all(feature = "perf-qa", not(unix)))]
+fn register_term_exit() {}
 
 #[cfg(all(test, feature = "perf-qa"))]
 mod tests {
