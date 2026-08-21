@@ -29,13 +29,9 @@ use super::ShellApp;
 use super::action::Action as A;
 use super::action::{Action, SidebarPane};
 
-/// y-center of the title row. macOS keeps traffic-light alignment (~16pt);
-/// Win/Linux is a Chrome-like ~40pt strip.
-#[cfg(target_os = "macos")]
+/// y-center of the title row ≈ macOS traffic-light center / Win11 caption mid.
 pub const HEADER_CENTER: f32 = 16.0;
-#[cfg(not(target_os = "macos"))]
-pub const HEADER_CENTER: f32 = 20.0;
-/// Full title / tab strip height.
+/// Full title / tab strip height (32 = Win11 Settings / Chrome maximized).
 pub const HEADER_H: f32 = HEADER_CENTER * 2.0;
 
 /// Left edge of the floating toolbar. Cleared past traffic lights on macOS.
@@ -48,10 +44,6 @@ const TOOLBAR_GAP: f32 = 4.0;
 /// Win11 / Chrome caption button width. Height is [`HEADER_H`] (full-bleed).
 #[cfg(not(target_os = "macos"))]
 const CAPTION_BTN_W: f32 = 46.0;
-/// Extra air above tabs when the window is restored (Chrome restored padding).
-/// Maximized and macOS stay flush aside from tab stroke air.
-#[cfg(not(target_os = "macos"))]
-const RESTORED_TAB_AIR: f32 = 8.0;
 
 /// View-toggle cluster only (Files / Recents / Shared). Settings lives in the
 /// footer with sync — app chrome, not part of the pane multi-select.
@@ -115,20 +107,6 @@ fn caption_cluster_w() -> f32 {
     3.0 * CAPTION_BTN_W
 }
 
-/// Extra top inset for tab hit cells so restored Win/Linux windows have a
-/// Chrome-like grab strip above the tabs. 0 on macOS and when maximized.
-pub fn tab_caption_air(ctx: &egui::Context) -> f32 {
-    #[cfg(target_os = "macos")]
-    {
-        let _ = ctx;
-        0.0
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        if ctx.input(|i| i.viewport().maximized.unwrap_or(false)) { 0.0 } else { RESTORED_TAB_AIR }
-    }
-}
-
 /// Temp-data id: rects where a primary drag must **not** move the OS window
 /// (tabs, toolbar, window controls). Written during panel paint; read by
 /// [`drag_strip`] after panels (shell root order).
@@ -166,7 +144,14 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
     #[cfg(not(target_os = "macos"))]
     {
         window_resize_edges(ctx);
-        window_controls(ctx, t);
+        let tabs_open = app
+            .session
+            .ready()
+            .is_some_and(|r| !r.workspace.tab_strip.is_empty());
+        // Washes lerp from the real plate under the buttons (tab bar vs canvas).
+        // Wrong ground is a flash at the hover endpoints.
+        let ground = if tabs_open { t.neutral_bg_secondary() } else { t.neutral_bg() };
+        window_controls(ctx, t, ground, tabs_open);
     }
 
     // macOS: fullsize + transparent titlebar still needs app-driven `StartDrag`
@@ -290,7 +275,9 @@ fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &
 /// Win/Linux: full-bleed min · max/restore · close, flush to the top-right.
 /// Only the caption plates block window-move; the gap before them is a grab.
 #[cfg(not(target_os = "macos"))]
-fn window_controls(ctx: &egui::Context, t: &Theme) {
+fn window_controls(
+    ctx: &egui::Context, t: &Theme, ground: egui::Color32, keep_bottom_hairline: bool,
+) {
     use egui::{Align2, ViewportCommand};
     let cluster_w = caption_cluster_w();
     let screen = ctx.screen_rect();
@@ -307,7 +294,6 @@ fn window_controls(ctx: &egui::Context, t: &Theme) {
         .show(ctx, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
             let origin = ui.cursor().min;
-            let ground = t.neutral_bg();
             let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));
             let max_icon = if maximized { phosphor::COPY } else { phosphor::SQUARE };
             let marks = [phosphor::MINUS, max_icon, phosphor::X];
@@ -318,7 +304,7 @@ fn window_controls(ctx: &egui::Context, t: &Theme) {
                 );
                 let _ = place_at(ui, slot, Layout::top_down(Align::Min), |ui| {
                     let danger = i == 2;
-                    if caption_button(ui, t, icon, danger, ground).clicked() {
+                    if caption_button(ui, t, icon, danger, ground, keep_bottom_hairline).clicked() {
                         match i {
                             0 => ui.ctx().send_viewport_cmd(ViewportCommand::Minimized(true)),
                             1 => ui
@@ -334,33 +320,50 @@ fn window_controls(ctx: &egui::Context, t: &Theme) {
 }
 
 /// Full-bleed caption plate. Small glyph, large hit, square hover (Win11 / Chrome).
-/// Close hover is solid danger with a light mark.
+///
+/// Wash is lerped from `ground` (the plate under the button). Ease in, snap out
+/// (same as [`icon_button_hit`]) so the rest endpoint never paints a foreign
+/// fill. Bottom is pulled off the tab-bar hairline via [`fit_outside_stroke_fill`].
 #[cfg(not(target_os = "macos"))]
 fn caption_button(
     ui: &mut Ui, t: &Theme, icon: &'static str, danger: bool, ground: egui::Color32,
+    keep_bottom_hairline: bool,
 ) -> egui::Response {
     use crate::components::TypeRole;
     use crate::components::foundation::chrome::HOVER_ANIM_SECS;
+    use crate::components::{STROKE_HAIRLINE, fit_outside_stroke_fill};
     let (rect, resp) = ui.allocate_exact_size(vec2(CAPTION_BTN_W, HEADER_H), Sense::click());
     let over = resp.hovered() || ui.ctx().rect_contains_pointer(ui.layer_id(), rect);
-    let hover = ui
-        .ctx()
-        .animate_bool_with_time(resp.id.with("win_hov"), over, HOVER_ANIM_SECS);
+    let id = resp.id.with("win_hov");
+    // Ease in, snap out — same clock as titleband icon buttons.
+    let hover = if over {
+        ui.ctx().animate_bool_with_time(id, true, HOVER_ANIM_SECS)
+    } else {
+        let _ = ui.ctx().animate_bool_with_time(id, false, 0.0);
+        0.0
+    };
     if hover > 0.0 {
         let wash = if danger {
             ground.lerp_to_gamma(t.danger(), hover)
         } else {
             t.wash_toward_neutral_fg(ground, FG_HOVER * hover)
         };
-        ui.painter().rect_filled(rect, 0.0, wash);
+        // Expand clip on the open sides (window edge / sibling) so only the
+        // bar→workspace hairline, if present, eats fill.
+        let mut clip = rect;
+        clip.min.x -= STROKE_HAIRLINE * 2.0;
+        clip.max.x += STROKE_HAIRLINE * 2.0;
+        clip.min.y -= STROKE_HAIRLINE * 2.0;
+        if !keep_bottom_hairline {
+            clip.max.y += STROKE_HAIRLINE * 2.0;
+        }
+        let fill = fit_outside_stroke_fill(rect, clip);
+        ui.painter().rect_filled(fill, 0.0, wash);
     }
-    let color = if danger {
-        t.neutral_fg_secondary()
-            .lerp_to_gamma(egui::Color32::WHITE, hover)
-    } else {
-        t.neutral_fg_secondary()
-            .lerp_to_gamma(t.neutral_fg(), hover)
-    };
+    // Danger hover ink is canvas (same as solid danger buttons), not a hardcoded
+    // white that misses the theme's rest/hover endpoints.
+    let accent = if danger { t.neutral_bg() } else { t.neutral_fg() };
+    let color = t.neutral_fg_secondary().lerp_to_gamma(accent, hover);
     let g =
         ui.painter()
             .layout_no_wrap(icon.into(), phosphor_font_id(TypeRole::Mono.size()), color);

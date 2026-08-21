@@ -20,9 +20,7 @@ use crate::components::{
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
 use crate::shell::action::Action as A;
-use crate::shell::titlebar::{
-    HEADER_H, block_window_drag, tab_caption_air, tab_left_inset, tab_right_inset,
-};
+use crate::shell::titlebar::{HEADER_H, block_window_drag, tab_left_inset, tab_right_inset};
 
 const TAB_PAD_X: f32 = 12.0;
 const TAB_MAX_W: f32 = 180.0;
@@ -135,8 +133,6 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
             ui.set_height(HEADER_H);
             // Flush scroll content to the bar top (same y as outer).
             let strip_tl = pos2(ui.max_rect().left(), ui.max_rect().top());
-            let air = tab_caption_air(ui.ctx());
-            let tab_h = (HEADER_H - air).max(1.0);
             let mut x = strip_tl.x;
             let mut total_w = 0.0_f32;
             let reordering = DragAndDrop::has_payload_of_type::<TabReorder>(ui.ctx());
@@ -148,8 +144,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
             // seam for reorder; Outside stroke sits in side air).
             for tab in &tabs {
                 let w = measure_tab_w(ui, &tab.title);
-                // Restored Win/Linux: top `air` is a window-move grab, not a tab hit.
-                let tab_r = egui::Rect::from_min_size(pos2(x, strip_tl.y + air), vec2(w, tab_h));
+                let tab_r = egui::Rect::from_min_size(pos2(x, strip_tl.y), vec2(w, HEADER_H));
                 // Tabs own this band: window-move drag must not start here.
                 block_window_drag(ui.ctx(), tab_r);
                 let (out, _) = place_at(ui, tab_r, Layout::top_down(Align::Min), |ui| {
@@ -341,7 +336,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     let active = tab.active;
     let index = tab.idx;
     let w = measure_tab_w(ui, name);
-    let h = ui.max_rect().height().max(1.0);
+    let h = HEADER_H;
     let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
     let id = ui.id().with("shell_tab").with(index);
     let resp = ui.interact(rect, id, Sense::click_and_drag());
