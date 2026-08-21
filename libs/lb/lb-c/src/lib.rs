@@ -44,6 +44,10 @@ pub extern "C" fn lb_init(writeable_path: *const c_char, logs: bool) -> LbInitRe
         client_type: ClientType::Ui,
     };
 
+    if let Err(err) = lb_rs::service::logging::install_default(&config) {
+        return LbInitRes { lb: null_mut(), err: lb_err(err) };
+    }
+
     match Lb::init(config) {
         Ok(lb) => {
             let lb = Box::into_raw(Box::new(lb));

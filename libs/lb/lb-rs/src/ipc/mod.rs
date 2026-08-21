@@ -10,7 +10,6 @@ use crate::ipc::client::RemoteCallError;
 use crate::ipc::protocol::Request;
 use crate::model::core_config::Config;
 use crate::model::errors::{LbErrKind, LbResult};
-use crate::service::logging;
 use crate::{Lb, LocalLb};
 
 pub const SOCKET_FILENAME: &str = "lb.sock";
@@ -42,7 +41,6 @@ impl Lb {
                 return Err(e);
             }
         };
-        logging::init(&loc.config)?;
         spawn_host(loc.clone());
         match self.local.set(loc.clone()) {
             Ok(()) => Ok(loc),

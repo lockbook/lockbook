@@ -93,13 +93,7 @@ impl Search {
         let folders = self.folders.clone();
         let core = self.core.clone();
         let ctx = ctx.clone();
-        thread::spawn(move || {
-            let loaded = core
-                .list_paths_with_ids(Some(Filter::FoldersOnly))
-                .unwrap_or_default();
-            *folders.write().unwrap() = loaded;
-            ctx.request_repaint();
-        });
+        thread::spawn(move || load_folders(folders, core, ctx));
     }
 
     fn spawn_build(&mut self, ctx: &Context) {
@@ -112,13 +106,7 @@ impl Search {
         let core = self.core.clone();
         let ctx = ctx.clone();
         let search_type = self.search_type;
-        thread::spawn(move || {
-            let mut guard = executor.write().unwrap();
-            *guard = Some(search_type.create_executor(&core));
-            drop(guard);
-            building.store(false, Ordering::SeqCst);
-            ctx.request_repaint();
-        });
+        thread::spawn(move || build_index(executor, building, core, ctx, search_type));
     }
 
     /// Swap the executor when the search type changes and dispatch the current
@@ -148,12 +136,7 @@ impl Search {
             let executor = self.executor.clone();
             let ctx = ctx.clone();
             let query = self.query.clone();
-            thread::spawn(move || {
-                if let Some(executor) = executor.write().unwrap().as_mut() {
-                    executor.handle_query(&query);
-                }
-                ctx.request_repaint();
-            });
+            thread::spawn(move || run_query(executor, ctx, query));
         }
 
         if self.scope_path != self.dispatched_filter {
@@ -167,12 +150,7 @@ impl Search {
 
             let executor = self.executor.clone();
             let ctx = ctx.clone();
-            thread::spawn(move || {
-                if let Some(executor) = executor.write().unwrap().as_mut() {
-                    executor.update_filter(filter);
-                }
-                ctx.request_repaint();
-            });
+            thread::spawn(move || update_filter(executor, ctx, filter));
         }
     }
 
@@ -600,3 +578,43 @@ use crate::{
     widgets::IconButton,
     workspace::Workspace,
 };
+
+#[tracing::instrument(level = "trace", skip_all)]
+fn load_folders(folders: Arc<RwLock<Vec<(lb_rs::Uuid, String)>>>, core: Lb, ctx: Context) {
+    let loaded = core
+        .list_paths_with_ids(Some(Filter::FoldersOnly))
+        .unwrap_or_default();
+    *folders.write().unwrap() = loaded;
+    ctx.request_repaint();
+}
+
+#[tracing::instrument(level = "trace", skip_all)]
+fn build_index(
+    executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>, building: Arc<AtomicBool>, core: Lb,
+    ctx: Context, search_type: SearchType,
+) {
+    let mut guard = executor.write().unwrap();
+    *guard = Some(search_type.create_executor(&core));
+    drop(guard);
+    building.store(false, Ordering::SeqCst);
+    ctx.request_repaint();
+}
+
+#[tracing::instrument(level = "trace", skip_all)]
+fn run_query(executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>, ctx: Context, query: String) {
+    if let Some(executor) = executor.write().unwrap().as_mut() {
+        executor.handle_query(&query);
+    }
+    ctx.request_repaint();
+}
+
+#[tracing::instrument(level = "trace", skip_all)]
+fn update_filter(
+    executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>, ctx: Context,
+    filter: Option<SearchFilter>,
+) {
+    if let Some(executor) = executor.write().unwrap().as_mut() {
+        executor.update_filter(filter);
+    }
+    ctx.request_repaint();
+}
