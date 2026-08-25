@@ -7,6 +7,7 @@
 
 mod components;
 pub mod host;
+mod perf;
 mod settings;
 pub mod shell;
 mod util;
@@ -18,7 +19,8 @@ pub use host::run;
 pub const DEV_USERS: &[&str] = &["parth", "adam", "travis", "at"];
 
 use egui::{PlatformOutput, ViewportIdMap, ViewportOutput};
-use egui_wgpu_renderer::RendererState;
+use egui_wgpu_renderer::{PreparedFrame, RendererState};
+use tracing::instrument;
 
 /// Custom-host product frame: wgpu surface + shell.
 pub struct WgpuLockbook<'window> {
@@ -35,11 +37,13 @@ pub struct Output {
 }
 
 impl WgpuLockbook<'_> {
+    #[instrument(level = "trace", skip_all)]
     pub fn frame(&mut self) -> Output {
-        self.renderer.begin_frame();
-        self.app.ui(&self.renderer.context);
-        self.renderer.set_is_dev(self.app.is_dev());
-        let (platform, viewport) = self.renderer.end_frame();
+        let _sample = lb::service::perf::Sample::new();
+        let prepared = self.frame_ui();
+        let platform = prepared.platform_output.clone();
+        let viewport = prepared.viewport_output.clone();
+        self.frame_gpu(prepared);
 
         self.renderer
             .raw_input
@@ -51,5 +55,18 @@ impl WgpuLockbook<'_> {
         }
 
         Output { platform, viewport }
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    fn frame_ui(&mut self) -> PreparedFrame {
+        self.renderer.begin_frame();
+        self.app.ui(&self.renderer.context);
+        self.renderer.set_is_dev(self.app.is_dev());
+        self.renderer.prepare_frame()
+    }
+
+    #[instrument(level = "trace", skip_all)]
+    fn frame_gpu(&mut self, prepared: PreparedFrame) {
+        self.renderer.render_prepared_frame(prepared);
     }
 }

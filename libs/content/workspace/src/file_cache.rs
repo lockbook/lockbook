@@ -59,14 +59,46 @@ impl FileCache {
         }
     }
 
-    #[instrument(level = "debug", skip_all)]
+    #[instrument(name = "FileCache::new", level = "trace", skip_all, fields(n_files = tracing::field::Empty))]
     pub fn new(lb: &Lb) -> LbResult<Self> {
         let root = lb.get_root()?;
         let files = lb.list_metadatas()?;
         let suggested = lb.suggested_docs(Default::default())?;
         let shared = lb.get_pending_share_files()?;
         let shared_roots = lb.get_pending_shares()?;
+        tracing::Span::current().record("n_files", files.len() + shared.len());
 
+        let (size_recursive, modified_recursive, modified_by_recursive) =
+            Self::rebuild_walk(&files, &shared);
+
+        let last_modified = files
+            .iter()
+            .chain(shared.iter())
+            .map(|f| f.last_modified)
+            .max()
+            .unwrap_or(0);
+
+        let files: HashMap<Uuid, File> = files.into_iter().map(|f| (f.id, f)).collect();
+        let shared: HashMap<Uuid, File> = shared.into_iter().map(|f| (f.id, f)).collect();
+
+        Ok(Self {
+            root,
+            files,
+            suggested,
+            shared,
+            shared_roots,
+            size_bytes_recursive: size_recursive,
+            last_modified_recursive: modified_recursive,
+            last_modified_by_recursive: modified_by_recursive,
+            last_modified,
+        })
+    }
+
+    #[instrument(level = "trace", skip_all, fields(n))]
+    fn rebuild_walk(
+        files: &[File], shared: &[File],
+    ) -> (HashMap<Uuid, u64>, HashMap<Uuid, u64>, HashMap<Uuid, String>) {
+        tracing::Span::current().record("n", files.len() + shared.len());
         let mut size_recursive = HashMap::new();
         let mut modified_recursive = HashMap::new();
         let mut modified_by_recursive = HashMap::new();
@@ -105,28 +137,7 @@ impl FileCache {
                     .unwrap_or_default(),
             );
         }
-
-        let last_modified = files
-            .iter()
-            .chain(shared.iter())
-            .map(|f| f.last_modified)
-            .max()
-            .unwrap_or(0);
-
-        let files: HashMap<Uuid, File> = files.into_iter().map(|f| (f.id, f)).collect();
-        let shared: HashMap<Uuid, File> = shared.into_iter().map(|f| (f.id, f)).collect();
-
-        Ok(Self {
-            root,
-            files,
-            suggested,
-            shared,
-            shared_roots,
-            size_bytes_recursive: size_recursive,
-            last_modified_recursive: modified_recursive,
-            last_modified_by_recursive: modified_by_recursive,
-            last_modified,
-        })
+        (size_recursive, modified_recursive, modified_by_recursive)
     }
 
     pub fn usage_portion(&self, id: Uuid) -> f32 {

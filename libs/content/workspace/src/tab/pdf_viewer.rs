@@ -745,12 +745,15 @@ fn spawn_worker(
     }
 
     thread::spawn(move || {
-        let pdf = match Pdf::new(bytes) {
-            Ok(p) => p,
-            Err(_) => {
-                let _ = response_tx.send(WorkerResponse::ParseFailed);
-                ctx.request_repaint();
-                return;
+        let pdf = {
+            let _span = tracing::trace_span!("Pdf::parse").entered();
+            match Pdf::new(bytes) {
+                Ok(p) => p,
+                Err(_) => {
+                    let _ = response_tx.send(WorkerResponse::ParseFailed);
+                    ctx.request_repaint();
+                    return;
+                }
             }
         };
 
@@ -770,6 +773,7 @@ fn spawn_worker(
 
             match req {
                 WorkerRequest::Render { page_idx, kind, scale, generation } => {
+                    let _span = tracing::trace_span!("Pdf::render", page_idx).entered();
                     if kind == RenderKind::Page
                         && generation != current_generation.load(Ordering::Relaxed)
                     {
