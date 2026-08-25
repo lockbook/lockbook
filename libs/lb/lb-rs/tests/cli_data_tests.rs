@@ -5,9 +5,7 @@ use lb_rs::service::debug::DebugInfoDisplay;
 #[tokio::test]
 #[ignore]
 async fn pending_shares_perf() {
-    let config = Config::cli_config("cli");
-    lb_rs::service::logging::install_default(&config).unwrap();
-    let lb = Lb::init(config).await.unwrap();
+    let lb = Lb::init(Config::cli_config("cli")).await.unwrap();
     for _ in 0..1000 {
         lb.get_pending_shares().await.unwrap();
     }
@@ -16,9 +14,7 @@ async fn pending_shares_perf() {
 #[tokio::test]
 #[ignore]
 async fn debug_info_test() {
-    let config = Config::cli_config("cli");
-    lb_rs::service::logging::install_default(&config).unwrap();
-    let lb = Lb::init(config).await.unwrap();
+    let lb = Lb::init(Config::cli_config("cli")).await.unwrap();
     for _ in 0..2 {
         lb.debug_info("none".to_string(), true).await.to_string();
     }
@@ -27,9 +23,7 @@ async fn debug_info_test() {
 #[tokio::test]
 #[ignore]
 async fn list_metadatas_perf() {
-    let config = Config::cli_config("cli");
-    lb_rs::service::logging::install_default(&config).unwrap();
-    let lb = Lb::init(config).await.unwrap();
+    let lb = Lb::init(Config::cli_config("cli")).await.unwrap();
     for _ in 0..100 {
         lb.list_metadatas().await.unwrap();
     }

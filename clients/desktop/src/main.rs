@@ -9,11 +9,6 @@ fn main() {
                lockbook-desktop\n\
                lockbook-desktop --help"
         );
-        #[cfg(feature = "perf-qa")]
-        eprintln!(
-            "\nThis build writes traces/*.pftrace next to lockbook.log\n\
-             (open in https://ui.perfetto.dev)."
-        );
         return;
     }
 

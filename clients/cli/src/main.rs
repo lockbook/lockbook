@@ -242,19 +242,14 @@ fn main() {
 }
 
 pub async fn core() -> CliResult<Lb> {
-    let config = Config::cli_config("cli");
-    lb_rs::service::logging::install_default(&config)
-        .map_err(|err| CliError::from(err.to_string()))?;
-    Lb::init(config)
+    Lb::init(Config::cli_config("cli"))
         .await
         .map_err(|err| CliError::from(err.to_string()))
 }
 
 fn search(query: &str) -> CliResult<()> {
-    let config = Config::cli_config("cli");
-    lb_rs::service::logging::install_default(&config)
+    let lb = lb_rs::blocking::Lb::init(Config::cli_config("cli"))
         .map_err(|err| CliError::from(err.to_string()))?;
-    let lb = lb_rs::blocking::Lb::init(config).map_err(|err| CliError::from(err.to_string()))?;
     lb.get_account()
         .map_err(|err| CliError::from(err.to_string()))?;
 

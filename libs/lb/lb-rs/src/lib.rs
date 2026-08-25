@@ -98,10 +98,7 @@ impl Lb {
         let local: Arc<OnceLock<LocalLb>> = Arc::new(OnceLock::new());
         let init_err = match LocalLb::init(config.clone()).await {
             Ok(loc) => {
-                debug_assert!(
-                    !loc.config.logs || tracing::dispatcher::has_been_set(),
-                    "install a tracing subscriber before Lb::init (logging::install_default)"
-                );
+                logging::init(&loc.config)?;
                 ipc::spawn_host(loc.clone());
                 let _ = local.set(loc);
                 return Ok(Self { local, remote: None, config });
@@ -699,6 +696,7 @@ use crate::ipc::client::RemoteLb;
 use crate::subscribers::syncer::Syncer;
 use db_rs::Db;
 
+use crate::service::logging;
 use io::LbDb;
 use io::docs::AsyncDocs;
 use io::network::Network;

@@ -537,7 +537,10 @@ fn resources_declare_xft_dpi(resources: &str) -> bool {
 /// Product shell.
 pub fn run() {
     env_logger::init();
-    let _trace = crate::perf::install();
+
+    let config = lb::model::core_config::Config::ui_config("egui");
+    lb::service::logging::init(&config).expect("install lockbook logging");
+    crate::perf::install_exit_flush();
 
     let mut builder = EventLoop::<UserEvent>::with_user_event();
 

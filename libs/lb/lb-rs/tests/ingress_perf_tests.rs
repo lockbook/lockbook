@@ -115,9 +115,7 @@ async fn ingress_one_gib_single_file() {
     println!("using fixture at {} ({} bytes)", doc_path.display(), file_size);
     print_rss("baseline (before Lb::init)");
 
-    let config = verbose_config();
-    lb_rs::service::logging::install_default(&config).unwrap();
-    let core = Lb::init(config).await.unwrap();
+    let core = Lb::init(verbose_config()).await.unwrap();
     core.create_account(&random_name(), &url(), false)
         .await
         .unwrap();

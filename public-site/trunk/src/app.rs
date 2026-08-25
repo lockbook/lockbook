@@ -35,16 +35,15 @@ impl LbWebApp {
     pub fn new(cc: &eframe::CreationContext<'_>, initial_screen: InitialScreen) -> Self {
         let ctx = cc.egui_ctx.clone();
 
-        let config = Config {
+        let lb = Lb::init(Config {
             logs: true,
             colored_logs: false,
             writeable_path: "".into(),
             background_work: false,
             stdout_logs: true,
             client_type: ClientType::Ui,
-        };
-        lb_rs::service::logging::install_default(&config).unwrap();
-        let lb = Lb::init(config).unwrap();
+        })
+        .unwrap();
 
         let mut fonts = egui::FontDefinitions::default();
 

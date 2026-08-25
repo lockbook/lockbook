@@ -38,11 +38,6 @@ pub extern "system" fn Java_net_lockbook_Lb_init<'local>(
         client_type: ClientType::Ui,
     };
 
-    if let Err(err) = lb_rs::service::logging::install_default(&config) {
-        throw_err(&mut env, err);
-        return;
-    }
-
     match Lb::init(config) {
         Ok(lb) => {
             let rx = lb.subscribe();

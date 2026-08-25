@@ -4236,6 +4236,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-logcat",
+ "tracing-perfetto-file",
  "tracing-subscriber",
  "tracing-wasm",
  "unicode-segmentation",
@@ -4244,6 +4245,7 @@ dependencies = [
  "variant_count",
  "wasm-bindgen-futures",
  "web-time",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4495,10 +4497,7 @@ dependencies = [
  "serde",
  "serde_json",
  "tracing",
- "tracing-perfetto-file",
- "tracing-subscriber",
  "wgpu",
- "windows-sys 0.59.0",
  "winit",
  "workspace",
  "x11rb",

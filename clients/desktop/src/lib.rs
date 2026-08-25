@@ -39,7 +39,7 @@ pub struct Output {
 impl WgpuLockbook<'_> {
     #[instrument(level = "trace", skip_all)]
     pub fn frame(&mut self) -> Output {
-        let _sample = crate::perf::Sample::new("frame");
+        let _sample = lb::service::perf::Sample::new();
         let prepared = self.frame_ui();
         let platform = prepared.platform_output.clone();
         let viewport = prepared.viewport_output.clone();

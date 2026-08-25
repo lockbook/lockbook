@@ -8,7 +8,7 @@ pub struct Sample {
 }
 
 impl Sample {
-    pub fn new(_kind: &'static str) -> Option<Self> {
+    pub fn new() -> Option<Self> {
         if !tracing::enabled!(tracing::Level::TRACE) {
             return None;
         }
@@ -35,6 +35,16 @@ impl Drop for Sample {
             (None, None) => {}
         }
     }
+}
+
+#[cfg(not(any(unix, windows)))]
+fn process_cpu() -> Option<Duration> {
+    None
+}
+
+#[cfg(not(any(unix, windows)))]
+fn current_rss_bytes() -> Option<u64> {
+    None
 }
 
 #[cfg(unix)]
@@ -67,7 +77,7 @@ fn current_rss_bytes() -> Option<u64> {
             &mut info as *mut _ as libc::task_info_t,
             &mut count,
         );
-        if kr == libc::KERN_SUCCESS { Some(info.resident_size as u64) } else { None }
+        if kr == libc::KERN_SUCCESS { Some(info.resident_size) } else { None }
     }
 }
 
@@ -137,6 +147,6 @@ mod tests {
         let _ = process_cpu();
         let rss = current_rss_bytes();
         assert!(rss.unwrap_or(0) > 0, "expected a current RSS reading, got {rss:?}");
-        let _s = Sample::new("test");
+        let _s = Sample::new();
     }
 }

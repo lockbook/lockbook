@@ -29,7 +29,7 @@ use tracing::instrument;
 
 #[instrument(level = "trace", skip_all, fields(action = action.name()))]
 pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
-    let _sample = crate::perf::Sample::new("apply");
+    let _sample = lb::service::perf::Sample::new();
     match action {
         A::SelectPane(p) => {
             if app.pane == p && app.sidebar_open && !app.settings.zen_mode {
