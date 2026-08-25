@@ -31,7 +31,7 @@ db-rs-derive = "0.3.7"
 db-rs = "0.3.7"
 flate2 = "1.0"
 futures = "0.3.30"
-getrandom = "0.2"
+getrandom = { version = "0.2", features = ["js"] }
 glam = "0.22.0"
 hmac = "0.11.0"
 http = "0.2.6"
@@ -50,7 +50,6 @@ serde_json = "1.0.44"
 sha2 = "0.9.9"
 similar = { version = "2.6.0", features = ["unicode"] }
 time = "0.3.20"
-tracing-appender = "0.2"
 tracing-subscriber = "0.3.9"
 tracing = "0.1.5"
 unicode-segmentation = "1.10.0"
@@ -90,6 +89,7 @@ tracing-wasm = "0.2.1"
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
 tokio = { version = "1", features = ["full"] }
 tracing-perfetto-file = "=0.1.1"
+tracing-appender = "0.2"
 
 
 [dev-dependencies]
