@@ -7,9 +7,9 @@
 //! | Linux | Compact header icons, circular hover (min · max/restore · close) |
 //!
 //! View toggles (Files / Recents / Shared) stay top-left and stay visible with
-//! the sidebar closed. Back / forward sit as a second group after them. Tab
-//! strip insets clear this cluster (and macOS lights) — see [`tab_left_inset`]
-//! / [`tab_right_inset`].
+//! the sidebar closed, once a session is ready. Back / forward sit as a second
+//! group after them. Tab strip insets clear this cluster (and macOS lights) —
+//! see [`tab_left_inset`] / [`tab_right_inset`].
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 mod linux;
@@ -124,7 +124,10 @@ fn titleband_double_click_interval() -> f64 {
 /// Call once per frame from the shell root (after panels so tab blockers exist).
 pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
     // Chrome first so its rects are in the blocker list before drag_strip.
-    floating_toolbar(app, ctx, t, queue);
+    // Pane / history icons are workspace chrome — hide them on onboard.
+    if app.session.ready().is_some() {
+        floating_toolbar(app, ctx, t, queue);
+    }
 
     #[cfg(not(target_os = "macos"))]
     {
