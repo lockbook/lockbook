@@ -173,12 +173,8 @@ pub enum Modal {
         uname_lookup: OnboardLookup,
         /// Username last settled by network / invalid local check.
         uname_lookup_for: String,
-        /// Sign-in path: compact key (default) or 24-word phrase grid.
-        import_kind: OnboardImportKind,
-        /// Compact account key buffer.
-        compact: String,
-        /// BIP-39 slots (always 24 when in phrase mode).
-        words: Vec<String>,
+        /// Compact key or 24-word phrase — `import_account` accepts either.
+        account_key: String,
         busy: bool,
         err: Option<String>,
     },
@@ -192,16 +188,6 @@ pub enum OnboardMode {
     Import,
 }
 
-/// How the user is pasting their existing account secret.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum OnboardImportKind {
-    /// Base64 compact key (password managers / QR) — default.
-    #[default]
-    CompactKey,
-    /// 24-word account phrase (paper / structured entry).
-    Phrase,
-}
-
 /// Stripe upgrade sheet stages.
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
 pub enum UpgradeStage {
@@ -209,27 +195,6 @@ pub enum UpgradeStage {
     EnterCard,
     Confirm,
     Paying,
-}
-
-impl OnboardImportKind {
-    pub fn from_index(i: usize) -> Self {
-        match i {
-            1 => Self::Phrase,
-            _ => Self::CompactKey,
-        }
-    }
-
-    pub fn index(self) -> usize {
-        match self {
-            Self::CompactKey => 0,
-            Self::Phrase => 1,
-        }
-    }
-}
-
-/// Empty 24-slot phrase grid for import.
-pub fn empty_phrase_words() -> Vec<String> {
-    vec![String::new(); 24]
 }
 
 /// Create-sheet file type.
@@ -379,7 +344,6 @@ pub enum Action {
     OnboardSetMode(OnboardMode),
     /// Debounced create-username availability (share-style network verify).
     OnboardVerifyUname,
-    OnboardImportKind(OnboardImportKind),
     /// `show_error`: false for auto-submit (silent fail until the secret changes).
     OnboardSubmit {
         show_error: bool,
@@ -513,7 +477,6 @@ impl Action {
             Self::OpenHelp => "OpenHelp",
             Self::OnboardSetMode(_) => "OnboardSetMode",
             Self::OnboardVerifyUname => "OnboardVerifyUname",
-            Self::OnboardImportKind(_) => "OnboardImportKind",
             Self::OnboardSubmit { .. } => "OnboardSubmit",
             Self::RequestSync => "RequestSync",
             Self::TogglePin(_) => "TogglePin",

@@ -470,19 +470,12 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                     });
                 }
                 OnboardMode::Import => {
-                    onboard_import_focus(ctx, app);
+                    onboard_import_focus(ctx);
                 }
                 OnboardMode::Choice => {}
             }
         }
         A::OnboardVerifyUname => onboard_verify_uname(app, ctx),
-        A::OnboardImportKind(k) => {
-            if let Some(Modal::Onboard { import_kind, err, .. }) = &mut app.modal {
-                *import_kind = k;
-                *err = None;
-            }
-            onboard_import_focus(ctx, app);
-        }
         A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
         A::RequestSync => request_sync(app, ctx),
         A::TogglePin(id) => toggle_pins(app, &[id]),

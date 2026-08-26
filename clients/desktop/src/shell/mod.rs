@@ -249,10 +249,8 @@ impl ShellApp {
                 eprintln!("[session-stress] → import + promote");
                 // Drive onboard import via actions.
                 apply::apply(self, ctx, A::OnboardSetMode(action::OnboardMode::Import));
-                if let Some(Modal::Onboard { import_kind, compact, words, .. }) = &mut self.modal {
-                    *import_kind = action::OnboardImportKind::CompactKey;
-                    *compact = key.trim().to_owned();
-                    words.fill(String::new());
+                if let Some(Modal::Onboard { account_key, .. }) = &mut self.modal {
+                    *account_key = key.trim().to_owned();
                 }
                 apply::apply(self, ctx, A::OnboardSubmit { show_error: true });
             }
@@ -278,9 +276,7 @@ impl ShellApp {
                 uname: String::new(),
                 uname_lookup: action::OnboardLookup::Idle,
                 uname_lookup_for: String::new(),
-                import_kind: action::OnboardImportKind::default(),
-                compact: String::new(),
-                words: action::empty_phrase_words(),
+                account_key: String::new(),
                 busy: false,
                 err: Some(err),
             });
@@ -341,9 +337,7 @@ impl ShellApp {
                         uname: String::new(),
                         uname_lookup: action::OnboardLookup::Idle,
                         uname_lookup_for: String::new(),
-                        import_kind: action::OnboardImportKind::default(),
-                        compact: String::new(),
-                        words: action::empty_phrase_words(),
+                        account_key: String::new(),
                         busy: false,
                         err: None,
                     });
