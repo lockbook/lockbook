@@ -93,7 +93,7 @@ pub struct Ready {
     pub sub_info: Option<SubscriptionInfo>,
     /// Flattened visible tree order (Shift-range select).
     pub nav_order: Vec<Uuid>,
-    /// Bumped when [`super::ops::rebuild_cache`] rewrites the file cache.
+    /// Bumped when [`super::ops::note_files_changed`] runs.
     /// Sidebar list panes (Recents / Shared) rebuild derived rows only when this changes.
     pub files_epoch: u64,
     /// Pending Files-tree center-scroll (tab open / reveal). Held until the row
@@ -104,6 +104,7 @@ pub struct Ready {
 }
 
 impl Ready {
+    #[tracing::instrument(name = "Ready::new", level = "trace", skip_all)]
     pub fn new(
         core: Lb, files: FileCache, ctx: &Context, sub_info: Option<SubscriptionInfo>,
     ) -> Self {

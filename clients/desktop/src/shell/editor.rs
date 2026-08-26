@@ -35,7 +35,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
         let out = ready.workspace.show(ui);
 
         if out.file_cache_updated {
-            super::ops::rebuild_cache(ready);
+            super::ops::note_files_changed(ready);
         }
 
         if let Some(Ok(file)) = out.file_created {

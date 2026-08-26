@@ -211,6 +211,7 @@ impl ImageCache {
         let pixels_per_point = ctx.pixels_per_point();
 
         spawn!({
+            let _span = tracing::trace_span!("ImageCache::load").entered();
             let texture_manager = ctx.tex_manager();
 
             let texture_closure = async_on_wasm!({

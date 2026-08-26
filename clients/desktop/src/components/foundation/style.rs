@@ -9,6 +9,7 @@ use super::typography;
 
 const MODE_PREF_ID: &str = "design_mode_preference";
 const THEME_FAMILY_ID: &str = "design_theme_family";
+const DETECTED_MODE_ID: &str = "design_detected_system_mode";
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ModePreference {
@@ -156,7 +157,9 @@ pub fn resolved_mode(ctx: &Context) -> Mode {
     }
 }
 
-/// OS appearance: egui `system_theme`, else `dark_light`; unspecified → light.
+/// OS appearance: egui `system_theme`, else one cached `dark_light` probe.
+///
+/// `dark_light::detect()` blocks on a portal / registry read — call it once.
 pub fn system_mode(ctx: &Context) -> Mode {
     if let Some(theme) = ctx.system_theme() {
         return egui_theme_to_mode(theme);
@@ -164,10 +167,15 @@ pub fn system_mode(ctx: &Context) -> Mode {
     if let Some(theme) = ctx.input(|i| i.raw.system_theme) {
         return egui_theme_to_mode(theme);
     }
-    match dark_light::detect() {
+    if let Some(cached) = ctx.data(|d| d.get_temp::<Mode>(Id::new(DETECTED_MODE_ID))) {
+        return cached;
+    }
+    let mode = match dark_light::detect() {
         Ok(dark_light::Mode::Dark) => Mode::Dark,
         Ok(dark_light::Mode::Light | dark_light::Mode::Unspecified) | Err(_) => Mode::Light,
-    }
+    };
+    ctx.data_mut(|d| d.insert_temp(Id::new(DETECTED_MODE_ID), mode));
+    mode
 }
 
 fn egui_theme_to_mode(theme: EguiTheme) -> Mode {

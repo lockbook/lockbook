@@ -197,6 +197,24 @@ impl Tab {
         }
     }
 
+    fn kind_name(&self) -> &'static str {
+        match &self.content {
+            ContentState::Loading(_) => "loading",
+            ContentState::Failed(_) => "failed",
+            ContentState::Open(TabContent::Markdown(_)) => "markdown",
+            ContentState::Open(TabContent::Svg(_)) => "svg",
+            ContentState::Open(TabContent::Image(_)) => "image",
+            ContentState::Open(TabContent::Pdf(_)) => "pdf",
+            #[cfg(not(target_family = "wasm"))]
+            ContentState::Open(TabContent::Chat(_)) => "chat",
+            #[cfg(not(target_family = "wasm"))]
+            ContentState::Open(TabContent::MindMap(_)) => "mind_map",
+            ContentState::Open(TabContent::SpaceInspector(_)) => "space_inspector",
+            ContentState::Open(TabContent::Search(_)) => "search",
+        }
+    }
+
+    #[tracing::instrument(name = "Tab::show", level = "trace", skip_all, fields(kind = self.kind_name()))]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         self.show_inner(ui)
     }

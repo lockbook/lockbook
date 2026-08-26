@@ -209,6 +209,7 @@ impl MindMap {
         }
     }
 
+    #[tracing::instrument(level = "trace", skip_all)]
     fn apply_spring_layout(
         thread_positions: Arc<RwLock<Vec<Pos2>>>, graph: &[LinkNode], max_iterations: usize,
         screen: Rect, stop: Arc<RwLock<bool>>, linkless_node: Vec<bool>,

@@ -225,7 +225,6 @@ pub fn show<T: Clone>(
         ctx.memory_mut(|m| {
             m.data.insert_temp(open_id(), state);
         });
-        ctx.request_repaint();
     }
 
     chosen
