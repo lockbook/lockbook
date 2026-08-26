@@ -1,6 +1,6 @@
-//! Pinned section: caption + two-column chip grid on surface.
+//! Pinned section: caption + two-column chip grid on canvas.
 //!
-//! Chips are canvas plates; hover is ground-relative ink wash (no outline).
+//! Chips are secondary plates; hover is ground-relative ink wash (no outline).
 //! Layout air uses [`Spacer`] so F2 space overlay paints token bands.
 //! Right-click: file menu (same intents as tree/recents; always **Unpin**).
 
@@ -68,9 +68,9 @@ pub fn show(
 
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-    // Surface band: pad via Spacers (F2), not Frame margin.
+    // Canvas band: pad via Spacers (F2), not Frame margin.
     egui::Frame::new()
-        .fill(t.neutral_bg_secondary())
+        .fill(t.neutral_bg())
         .inner_margin(0.0)
         .show(ui, |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
@@ -182,6 +182,9 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
         } else {
             queue.push(A::OpenFile(row.id));
         }
+    }
+    if resp.middle_clicked() && !row.is_folder {
+        queue.push(A::OpenFileNewTab(row.id));
     }
     if resp.secondary_clicked() {
         queue.push(A::SelectFile(row.id));

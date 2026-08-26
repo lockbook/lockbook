@@ -96,10 +96,6 @@ pub struct ShellApp {
     /// Flattened Files-tree walk; same epoch + expanded-set rule.
     pub tree_walk: tree::TreeWalkCache,
     theme_applied: bool,
-    /// macOS: one-shot NSWindow.isMovable=false (see [`macos_window`]).
-    /// Set by the host after window creation.
-    #[cfg(target_os = "macos")]
-    pub macos_window_tweaked: bool,
     /// Debounced per-file sync dots (Files tree only).
     pub sync_dots: sync_dots::SyncDots,
     /// Footer stable message + spin-after-tap.
@@ -137,8 +133,8 @@ pub struct RecentsCache {
 #[derive(Default)]
 pub struct SharedCache {
     pub epoch: u64,
-    /// `(id, name, shared_by, is_folder)`
-    pub pending: Vec<(Uuid, String, String, bool)>,
+    /// `(id, name, shared_by, is_folder, last_modified_ms)`
+    pub pending: Vec<(Uuid, String, String, bool, u64)>,
 }
 
 impl Default for ShellApp {
@@ -162,8 +158,6 @@ impl Default for ShellApp {
             shared_cache: SharedCache::default(),
             tree_walk: tree::TreeWalkCache::default(),
             theme_applied: false,
-            #[cfg(target_os = "macos")]
-            macos_window_tweaked: false,
             sync_dots: sync_dots::SyncDots::default(),
             sync_footer: footer::SyncFooterState::default(),
             session_stress: std::env::var_os("LOCKBOOK_SESSION_STRESS").map(|_| SessionStress {
@@ -365,27 +359,44 @@ impl ShellApp {
         let show_side =
             matches!(self.session, Session::Ready(_)) && self.sidebar_open && !self.defaults_zen();
 
-        // Soften resize stroke + shrink grab (scroll bar shares the right edge).
-        let resize_style =
-            if show_side { Some(sidebar::begin_resize_style(ctx, &t)) } else { None };
-        SidePanel::left(sidebar::PANEL_ID)
-            .resizable(true)
-            .default_width(300.0)
-            .width_range(sidebar::WIDTH_MIN..=sidebar::WIDTH_MAX)
-            .show_separator_line(false)
-            .frame(
-                Frame::new()
-                    .fill(t.neutral_bg_secondary())
-                    .inner_margin(0.0),
-            )
-            .show_animated(ctx, show_side, |ui| {
-                // Do **not** `ui.disable()` under a sheet: egui fades disabled paint
-                // (sticky elevated plates look transparent). Input is blocked by the
-                // full-window dim + Foreground sheet; keys are gated in `process_keys`.
-                sidebar::show(self, ui, &t, &mut queue);
-            });
-        if let Some(saved) = resize_style {
-            sidebar::end_resize_style(ctx, saved);
+        // One SidePanel: slide its contents (right edge glued to visible width).
+        // Resting width is stored separately so the wipe does not persist 1px.
+        let how = sidebar::open_t(ctx, show_side);
+        let side_frame = Frame::new().fill(t.neutral_bg()).inner_margin(0.0);
+        if how >= 1.0 {
+            // Only after a slide: wipe uses exact_width down to 1px on this same
+            // panel id. Don't restore every resting frame — that undoes drag.
+            sidebar::restore_panel_width_if_collapsed(ctx);
+            let resize_style = sidebar::begin_resize_style(ctx, &t);
+            SidePanel::left(sidebar::PANEL_ID)
+                .resizable(false)
+                .default_width(sidebar::WIDTH_DEFAULT)
+                .width_range(sidebar::width_min()..=sidebar::width_max(ctx))
+                .show_separator_line(false)
+                .frame(side_frame)
+                .show(ctx, |ui| {
+                    // Same paint path as the slide so tree/recents scroll ids match.
+                    sidebar::show_sliding(self, ui, &t, &mut queue, ui.max_rect().width());
+                });
+            sidebar::end_resize_style(ctx, resize_style);
+            sidebar::resize_over_workspace(ctx, &t, titlebar::HEADER_H);
+            if let Some(state) =
+                egui::containers::panel::PanelState::load(ctx, egui::Id::new(sidebar::PANEL_ID))
+            {
+                sidebar::remember_resting_width(ctx, state.rect.width());
+            }
+        } else if how > 0.0 {
+            let full_w = sidebar::resting_width(ctx);
+            let w = (how * full_w).max(1.0);
+            SidePanel::left(sidebar::PANEL_ID)
+                .resizable(false)
+                .exact_width(w)
+                .show_separator_line(false)
+                .frame(side_frame)
+                .show(ctx, |ui| {
+                    sidebar::show_sliding(self, ui, &t, &mut queue, full_w);
+                });
+            sidebar::paint_split_line(ctx, &t, titlebar::HEADER_H);
         }
 
         CentralPanel::default()
@@ -403,18 +414,6 @@ impl ShellApp {
                     });
                 }
             });
-
-        // SidePanel's content-side grab is covered by CentralPanel — reclaim it.
-        // Separator starts below the tab strip when tabs are open; full height
-        // when the strip is hidden (workspace flush to the top).
-        if show_side {
-            let strip_h = self
-                .session
-                .ready()
-                .map(|r| if r.workspace.tab_strip.is_empty() { 0.0 } else { titlebar::HEADER_H })
-                .unwrap_or(0.0);
-            sidebar::resize_over_workspace(ctx, &t, strip_h);
-        }
 
         titlebar::show(self, ctx, &t, &mut queue);
 
@@ -483,7 +482,7 @@ impl ShellApp {
         if self.shared_cache.epoch == epoch {
             return;
         }
-        let pending = {
+        let mut pending = {
             let files = ready.workspace.files.read().unwrap();
             // Pending share roots only — not yet organized into the user's tree.
             files
@@ -495,10 +494,16 @@ impl ShellApp {
                         .first()
                         .map(|s| s.shared_by.clone())
                         .unwrap_or_else(|| "someone".into());
-                    (f.id, f.name.clone(), from, f.is_folder())
+                    (f.id, f.name.clone(), from, f.is_folder(), f.last_modified)
                 })
                 .collect::<Vec<_>>()
         };
+        // Group order for the pane: sharer, then name (same buckets Recents uses for time).
+        pending.sort_by(|a, b| {
+            a.2.to_ascii_lowercase()
+                .cmp(&b.2.to_ascii_lowercase())
+                .then_with(|| a.1.to_ascii_lowercase().cmp(&b.1.to_ascii_lowercase()))
+        });
         self.shared_cache = SharedCache { epoch, pending };
     }
 
@@ -613,6 +618,36 @@ impl ShellApp {
             }
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::O)) {
                 self.queue.push(A::OpenSearch);
+            }
+            // History: Cmd+[ ] on Apple (Option+arrows are word motion).
+            // Elsewhere Alt+arrows (exact, so Alt+Shift still reaches the editor).
+            #[cfg(target_os = "macos")]
+            {
+                if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::OpenBracket)) {
+                    self.queue.push(A::NavBack);
+                }
+                if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::CloseBracket)) {
+                    self.queue.push(A::NavForward);
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let alt_arrows = ctx.input(|i| {
+                    i.modifiers.alt
+                        && !i.modifiers.shift
+                        && !i.modifiers.ctrl
+                        && !i.modifiers.command
+                });
+                if alt_arrows
+                    && ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::ArrowLeft))
+                {
+                    self.queue.push(A::NavBack);
+                }
+                if alt_arrows
+                    && ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::ArrowRight))
+                {
+                    self.queue.push(A::NavForward);
+                }
             }
             // No Files-tree keybinding surface: the editor holds focus whenever a
             // doc is open, so ↑↓/⌘C/… almost never hit the tree. Rename / cut /
@@ -734,7 +769,7 @@ pub(crate) fn reveal_in_tree(r: &mut ReadyState, id: Uuid) {
     }
 }
 
-/// Expand ancestors and animate the Files tree to center `id` (tab / open / restore).
+/// Expand ancestors and scroll the Files tree just enough to show `id`.
 pub(crate) fn reveal_and_scroll(r: &mut ReadyState, id: Uuid) {
     reveal_in_tree(r, id);
     r.request_tree_scroll(id);

@@ -44,7 +44,7 @@ pub fn show_shared(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
         };
         let files = ready.workspace.files.read().unwrap();
         let mut flat = Vec::new();
-        for (id, name, from, is_folder) in &pending {
+        for (id, name, from, is_folder, _) in &pending {
             flatten_shared(
                 &*files,
                 &ready.expanded,

@@ -258,6 +258,9 @@ pub mod phosphor {
     pub const CARET_DOWN: &str = "\u{e136}";
     pub const CARET_LEFT: &str = "\u{e138}";
     pub const CARET_RIGHT: &str = "\u{e13a}";
+    /// Titleband back / forward.
+    pub const ARROW_LEFT: &str = "\u{e058}";
+    pub const ARROW_RIGHT: &str = "\u{e06c}";
     pub const FOLDERS: &str = "\u{e260}";
     pub const PUSH_PIN: &str = "\u{e3e2}";
     pub const SCISSORS: &str = "\u{eae0}";
@@ -275,9 +278,9 @@ pub mod phosphor {
     /// Window chrome (borderless title bar).
     pub const MINUS: &str = "\u{e32a}";
     pub const SQUARE: &str = "\u{e45e}";
-    /// Linux maximize mark — simple circle outline.
-    pub const CIRCLE: &str = "\u{e192}";
-    // Restore-down reuses COPY (two squares).
+    /// Linux maximize / restore (two diagonal arrows).
+    pub const ARROWS_OUT_SIMPLE: &str = "\u{e0a6}";
+    pub const ARROWS_IN_SIMPLE: &str = "\u{e09e}";
 }
 
 /// Phosphor glyph for a workspace [`DocType`].
@@ -307,9 +310,14 @@ pub fn file_row_icon(name: &str, is_folder: bool) -> &'static str {
 /// Font family name registered by `workspace_rs::register_fonts`.
 const PHOSPHOR_FAMILY: &str = "phosphor";
 
+/// Phosphor at `size` pt.
+pub fn phosphor_font_id(size: f32) -> FontId {
+    FontId::new(size, FontFamily::Name(Arc::from(PHOSPHOR_FAMILY)))
+}
+
 /// Phosphor at body size (leading button icons / file rows).
 pub fn phosphor_ui_font_id() -> FontId {
-    FontId::new(TypeRole::Body.size(), FontFamily::Name(Arc::from(PHOSPHOR_FAMILY)))
+    phosphor_font_id(TypeRole::Body.size())
 }
 
 /// Commit shortcut badge (⌘⏎ on macOS, Ctrl+⏎ elsewhere).
