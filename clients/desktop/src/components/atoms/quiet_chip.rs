@@ -1,4 +1,4 @@
-//! Quiet canvas chip: plate + ink wash, icon + label in one body line-box.
+//! Quiet chip: secondary plate on canvas, icon + label in one body line-box.
 //!
 //! Shared shell for sidebar **action** chips (Create / Import / Search) and
 //! **pin** chips. Call sites keep domain behavior (queue, menus, file names).
@@ -38,7 +38,7 @@ pub enum QuietChipLabel<'a> {
     FileName(&'a str),
 }
 
-/// Canvas plate + optional icon/label. Returns the click response.
+/// Secondary plate + optional icon/label. Returns the click response.
 pub fn quiet_chip(
     ui: &mut Ui, t: &Theme, icon: &str, icon_ink: Color32, label: Option<QuietChipLabel<'_>>,
     align: QuietChipAlign,
@@ -51,7 +51,7 @@ pub fn quiet_chip(
     let hover =
         ui.ctx()
             .animate_bool_with_time(resp.id.with("quiet_chip_hov"), over, HOVER_ANIM_SECS);
-    let ground = t.neutral_bg();
+    let ground = t.neutral_bg_secondary();
     let fill = if resp.is_pointer_button_down_on() || resp.clicked() {
         t.wash_toward_neutral_fg(ground, FG_PRESS)
     } else if hover > 0.0 {

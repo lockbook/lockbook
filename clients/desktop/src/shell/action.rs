@@ -303,6 +303,9 @@ pub enum Action {
     OpenFile(Uuid),
     /// Open document in a new tab.
     OpenFileNewTab(Uuid),
+    /// Per-tab workspace history (same as mobile `nav_back` / `nav_forward`).
+    NavBack,
+    NavForward,
     /// Open documents (filters folders). Multi: first reuses tab path unless
     /// `new_tab`; further docs always open as new tabs.
     OpenDocuments {
