@@ -95,9 +95,8 @@ pub fn tab_drag_gap() -> f32 {
     CAPTION_CELL_W
 }
 
-/// Zero when the sidebar is open (tabs live only in the central column).
-pub fn tab_left_inset(sidebar_open: bool) -> f32 {
-    if sidebar_open { 0.0 } else { controls_right() }
+pub fn tab_left_inset(sidebar_w: f32) -> f32 {
+    (controls_right() - sidebar_w.max(0.0)).max(0.0)
 }
 
 pub fn tab_right_inset() -> f32 {
