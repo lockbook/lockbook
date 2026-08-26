@@ -5,6 +5,7 @@ mod releaser;
 mod utils;
 
 use cli_rs::arg::Arg;
+use cli_rs::cli_error::Exit;
 use cli_rs::command::Command;
 use cli_rs::parser::Cmd;
 use releaser::version::BumpType;
@@ -132,5 +133,6 @@ fn main() {
                 .subcommand(Command::name("assert-git-clean").handler(ci::assert_git_clean))
                 .subcommand(Command::name("assert-no-udeps").handler(ci::assert_no_udeps))
         )
-        .parse();
+        .parse()
+        .exit();
 }
