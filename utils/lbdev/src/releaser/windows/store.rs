@@ -1,6 +1,6 @@
-use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
+use std::{env, fs};
 
 use cli_rs::cli_error::{CliError, CliResult};
 
@@ -43,7 +43,8 @@ fn pack_for_target(target: &str, arch: &str) -> CliResult<()> {
         layout.join("AppxManifest.xml"),
         MANIFEST_TEMPLATE
             .replace("{version}", &package_version())
-            .replace("{arch}", arch),
+            .replace("{arch}", arch)
+            .replace("{publisher_suffix}", publisher_suffix()),
     )
     .unwrap();
 
@@ -83,6 +84,16 @@ fn package_version() -> String {
     format!("{}.0", lb_version())
 }
 
+/// Marker OID that lets testers install a package with `Add-AppxPackage -AllowUnsigned`, no certificate anywhere.
+/// Windows deliberately gives such a package an identity distinct from the signed one, so a package carrying this can
+/// never be submitted to the store -- only set `LB_MSIX_TEST=1` for builds headed to testers.
+const UNSIGNED_OID: &str = ", OID.2.25.311729368913984317654407730594956997722=1";
+
+fn publisher_suffix() -> &'static str {
+    // deliberately checks the value, not just presence: CI sets this to "0" for submission builds
+    if env::var("LB_MSIX_TEST").as_deref() == Ok("1") { UNSIGNED_OID } else { "" }
+}
+
 fn sdk_tool(name: &str) -> CliResult<PathBuf> {
     let bin = PathBuf::from(r"C:\Program Files (x86)\Windows Kits\10\bin");
 
@@ -118,7 +129,7 @@ const MANIFEST_TEMPLATE: &str = r##"<?xml version="1.0" encoding="utf-8"?>
   <Identity
     Name="LockbookLLC.Lockbook"
     Version="{version}"
-    Publisher="CN=D9AE12F1-1EE4-44A0-9763-F57F719BB9E1"
+    Publisher="CN=D9AE12F1-1EE4-44A0-9763-F57F719BB9E1{publisher_suffix}"
     ProcessorArchitecture="{arch}" />
 
   <Properties>
