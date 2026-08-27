@@ -79,7 +79,10 @@ fn main() {
                         .subcommand(Command::name("desktop").handler(releaser::windows::desktop::release))
                         .subcommand(Command::name("desktop-arm").handler(releaser::windows::desktop::release_arm))
                         .subcommand(Command::name("desktop-build").handler(releaser::windows::desktop::build))
-                        .subcommand(Command::name("desktop-build-arm").handler(releaser::windows::desktop::build_arm)),
+                        .subcommand(Command::name("desktop-build-arm").handler(releaser::windows::desktop::build_arm))
+                        .subcommand(Command::name("store-pack").handler(releaser::windows::store::pack))
+                        .subcommand(Command::name("store-pack-arm").handler(releaser::windows::store::pack_arm))
+                        .subcommand(Command::name("store-bundle").handler(releaser::windows::store::bundle)),
                 )
                 .subcommand(
                     Command::name("linux")
