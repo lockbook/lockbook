@@ -5,12 +5,13 @@
 
 Write notes, sketch ideas, and store files in one secure place. Share seamlessly, keep data synced, and access it on any platform—even offline. Lockbook encrypts files so even we can’t see them, but don’t take our word for it: Lockbook is 100% open-source.
 
-[<img height= "30" src="https://toolbox.marketingtools.apple.com/api/assets/featured-content/apps/badges/badge-1/en-us.svg">](https://apps.apple.com/us/app/lockbook/id1526775001) [<img height= "30" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/2560px-Google_Play_Store_badge_EN.svg.png">](https://play.google.com/store/apps/details?id=app.lockbook)
+[<img height= "30" src="https://toolbox.marketingtools.apple.com/api/assets/featured-content/apps/badges/badge-1/en-us.svg">](https://apps.apple.com/us/app/lockbook/id1526775001) [<img height= "30" src="https://upload.wikimedia.org/wikipedia/commons/thumb/7/78/Google_Play_Store_badge_EN.svg/1280px-Google_Play_Store_badge_EN.svg.png?utm_source=en.wikibooks.org&utm_campaign=index&utm_content=thumbnail">](https://play.google.com/store/apps/details?id=app.lockbook)
 
 [![Discord](https://img.shields.io/discord/1014184997751619664?label=Discord&style=plastic)](https://discord.gg/lockbook)
 
-[![What's Lockbook Video](https://github.com/user-attachments/assets/0a278538-d27b-4700-a689-f13a720b33d6)](https://www.youtube.com/watch?v=doPI9IajzKw)
-
+<a href="https://youtu.be/8LM5zrXiki8">
+  <img src="https://img.youtube.com/vi/8LM5zrXiki8/maxresdefault.jpg" alt="Video thumbnail" width="320">
+</a>
 
 ## Community-Driven
 Lockbook is in open beta. Join our community, share your feedback, and help achieve our vision of open-source privacy without compromises.

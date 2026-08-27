@@ -1,79 +1,109 @@
-# Design Constraints
+* We want to release often
+  * We want to reward people for reporting bugs to us. The best way to do this is to get the bugfix in their hands as quickly as possible.
+  * Our release infrastructure is non-trivial and fequently exersizing it let's us catch issues early and be selective about when we fix problems.
+  * Users cannot rollback, so we want to be confident in the increments we're shipping. The following schedule is crafted to balance QA workload and risk of changes
+* Release Schedule
+  * Monday 11am EST -- release coordination
+    * **Release Coordinator** is selected based on who is shipping the most this release. They're going to gather any QA resources (internal or external) fan out work and evaluate release suitability. QA people have 24 hours to perform QA. 11am is the deadline for sending the message to testers.
+  * Tuesday 11am EST -- Decision time
+    * Plan A: no bugs found and release can proceed as planned. 
+    * Plan B: bugs were found and the release is cancelled. Responsible party has until Friday to reconcile the situation. 
+    * Plan C: work can be cleanly reverted, or minor bugfixes exist. Another 24 hours of QA is scheduled, and **Decision time** is repeated on Wednesday.
+  * Tuesday Afternoon -- Post Release
+    * **Release Coordinator** goes through and crafts a message containing gifs / videos and updates the github release. This message should be compatible with discord, and general is notified. Do not wait for app store acceptance or any other external events. If a github release exists, make discord and github satisfying spaces to consume what happened. 
+    * **Merge Window Opens**:
+      * If your change is graphical in nature, at a minimum your PR should contain a screenshot. A gif is preferred, and a video is acceptable. This makes it easy for a release coordinator to make a post on your behalf.
+      * Merging risky things: Take all the steps you can to de-risk your merge. Before the merge window opened you should have invited people to try your PR (if relevant). Leave an audit trail in your PR of what QA was done. Your obligation ends at the invitation, whether the person shows up or not is not your problem. If you want a larger window of testing and don't want to release the following monday, set expectations accordingly.
+      * After the merge window opens, merge riskiest things first, communicate what you're merging to `#development`, what the nature of the risk is and who should be dogfooding it. Ask people to rebase their branches so they can passively experience the changes while they work on their own stuff.
+  * Friday 7pm **Merge Window Closes** / **Passive Dogfood Begins**:
+    * External testers notified, they can give any feedback during the weekend at their leisure 
+    * Any merging during this point should be overwhelmbly obviously low in risk, or a specific bugfix in service of the release.
+    * A release coordinator is determined for Monday.
 
-We want to release often. Why?
- 
-1. We want to reward people for reporting bugs to us. The best way to do this is to get the bugfix in their hands as quickly as possible.
-1. We want to perform intentional QA and balance the QA workload. Too little, and the engineering interruption feels like a waste. Too much and QA quality will suffer.
-1. Our release infrastructure is non-trivial and fequently exersizing it let's us catch issues early and be selective about when we fix problems.
+# Stacked PRs
+If you're concerned about juggling the git history while merging is not an option ChatGPT got you:
 
-However, in most cases: users cannot rollback. So we want to be confident in the increments we're shipping. The following schedule and roles are crafted to balance QA workload and risk of changes.
+You can open a PR that depends on another unmerged PR.
 
-# Release Commander
-**Release Commander** will be Adam, Parth, or Travis. They will be chosen collectively based on the goals of the release. Some consideration includes:
-* who is shipping the most
-* or who is shipping the riskiest thing (migration, several refinements to an experience)
-* or who is shipping the most important thing.
+Assume:
 
-The release Commander will have the following responsibilities:
-* Ensure we stick to the schedule in the next section 
-* Delegate out QA to whatever maintainers & volunteers we have present
-* Operate the release machinery
-* Communicate the released changes to Github & Discord
+```text
+master
+  \
+   A   PR 1
+    \
+     B   PR 2
+```
 
-# The 7 day cycle
-1. After a successful release (Thursday Afternoon)
-   1. Release Commander, enhances the automatically generated github release with any visually stimulating content. Ideally in a way that can be easily brought over to discord for minimal effort. For productivity and consistency feel free to say *We did X* even if you weren't directly involved. The release Commander is representing the whole Lockbook team. Feel free to link the PR if this feels wrong, this is an open source project and the whole audit trail is aparent.
-   1. Release Commander chooses a successor.
-   1. Merge window opens for contributors (Thursday -> Tuesday). Some guidelines for what to merge when:
-      1. Risky things soonest, for maximum dogfooding. Do not merge a risky thing moments before the merge window closes changing the nature of the release. If your change is risky, use all available assets including inviting people to QA your changes directly on your PR. Your obligation ends at the invitation whether they show up to QA the changes or not is not your problem. **Merging your change is an expression that you've taken all the steps you could to ensure the releasibility of your change.**
-      1. If your changes are graphical in nature ensure there is visually stimulating content that a Release Commander can use to craft a release message. Gifs are preferred, then videos, then screenshots.
-      1.  Communicate what you're merging to `#development`. There are non-technical (non-github) people in our discord who have shown a willingness to test unreleased work. You can link them the automatically produced binary artifacts, or invite them to be Play Store Internal Testers, or TestFlight users. Speak out and try to aquire the QA resources you need.
-1. Merge window Closes **Tuesday 7pm**:
-    1.  Any dogfooding announcements and requests are made.
-    1.  Any merge during this point is at the discretion of the release Commander. Make a PR and tag them if you think this is a low risk bugfix and based on the context of the release they'll determine whether or not you have to wait until post release.
-    1.  Release Commander has until **Wednesday 11am** to send out the QA Plan.
-1. **Wednesday 11am** QA plan deadline
-    1.  Release Commander writes the QA plan in `lb-maintainers/common/release-ops`
-    1.  Prefix it with 'pending-' so that 'pending-release-' brings up the correct doc for all team members at any time
-    1. Create a thread in `#release-ops`, optimisitically choosing Thursday for the version number of the release (see 'Version numbers' below).
-1. **Thursday 11am** QA Results deadline. 3 possible outcomes.
-    1.  No bugs found & release can proceed as planned (see 'How to release' below).
-    1.  Bugs were found. They are minor, or the work can be cleanly reverted. Possibly another 24 hours of QA is performed and the release happens tomorrow
-    1.  Bugs were found and the release is cancelled. Responsible party has until Friday to restore releasibility.
+There are three practical workflows.
 
-# Version numbers
-* We encode a date in our version numbers. Why?
-  * Easy to order
-  * It's an option everywhere
-* Almost all places require these to never decrease. Implicitly most places don't support the idea of rolling back.
-* TestFlight
-  * On test flight we can have an external group of testers who can access our app just by using a link.
-  * Each time we bump the version number, our app needs a fresh review by apple before this group of people can access the app.
-* For the above reason, we bump the version number right before we release (so that production version numbers are the most accurate).
-* For the app store and testflight. Once we release, that version is "closed" and new builds cannot be submitted. So we additionally bump the version right after we release. This has the added benefit to distinguish dev traffic from actual customer traffic.
+### 1. Squash before branching
 
-# What is risk?
-For the purposes of a release a change is "Risky" if it is likely to invalidate QA (requiring a re-request of QA flows), or if it is likely to result in an aborted release. These outcomes prevent known, good value from being shipped.
-  * Risk can be reduced by making sure your work can be reverted: clean chunks of work that don't build on one another and can be reverted. And if reverted would not invalidate QA.
-  * The change doesn't require feedback from users (bugfix, obvious improvement, etc).
-  * The change is isolated to a given platform.
+Make PR 1 a single commit before creating PR 2:
 
-# How to release
-1. Github Actions :arrow_right: Bump versions :arrow_right: Today. This will set the version to today's date.
-1. Github Actions :arrow_right: Github release. This will spawn the workflow which will create a github release. The inital workflow will generate the github release, tag, and changelog. This workflow will also spawn the automatiions that publish to all the various app stores. Keep a tab open monitoring the progress of these.
-1. The server is not released automatically. If a server release is required. At this point, likely only Parth should be doing this. If this becomes annoying we should automate it so more people can do it: 
-   1. ssh into prod
-   1. `cd lockbook`. 
-   1. `git pull`. Check `git log` and ensure the output is what you expect. 
-   1. `cd server && cargo build -r`.
-   1. if needed take a snapshot of all users data, and the currently running binary. Bring it locally for maximum conservatism. There are automated server backups as well managed by google.
-   1. If needed `systemctl stop lockbook-server.service`
-   1. `cd ../target/release`. `mv lockbook-server /usr/local/bin`
-   1. `systemctl restart lockbook-server.service`
-   1. the server tests pagerduty at startup. Expect a page. **Resolve** the page so that the test will work any time the server is restarted.
-1. Once the github release exists populate it with any additional context. Make it obvious using markdown features if there are any breaking changes to `lockbook` CLI. 
-1. Github Actions :arrow_right: Bump versions :arrow_right: patch. This increments the patch by 1. This will be the dev version number.
-1. Appstore connect :arrow_right: promote the test flight build we just released (it will have today's date) to production for iOS and macOS.
-1. Flatpak & Nixpkgs will send Parth a pull request make sure he approves it.
-1. Announce that the release window is open in `#development`
-1. Propegate any information about this release to `#general`. This is a justified use of `@here`. Make it obvious using markdown features if there are any breaking changes to `lockbook` CLI.
+```text
+master
+  \
+   A   PR 1
+    \
+     B   PR 2
+```
+
+When PR 1 is squash-merged, commit `A` lands unchanged. Git then understands that PR 2 contains only `B`.
+
+### 2. Rebase only the dependent commits
+
+Let PR 1 contain multiple commits:
+
+```text
+master
+  \
+   A---B   PR 1
+        \
+         C---D   PR 2
+```
+
+After PR 1 is squash-merged, replay only `C` and `D`:
+
+```bash
+git rebase --onto master PR_1_BRANCH PR_2_BRANCH
+```
+
+Result:
+
+```text
+master---S
+          \
+           C'---D'   PR 2
+```
+
+`S` is the squashed version of `A---B`.
+
+### 3. Ignore commit structure and merge `master`
+
+Create PR 2 from `master`, then bring PR 1’s changes into it:
+
+```bash
+git switch -c pr-2 master
+git reset --soft PR_1_BRANCH
+git commit
+```
+
+The branches remain independent:
+
+```text
+master
+  ├── A     PR 1
+  └── A+B   PR 2
+```
+
+After PR 1 is merged:
+
+```bash
+git switch pr-2
+git pull --no-rebase origin master
+```
+
+The merge removes PR 1’s changes from PR 2’s diff, leaving only the additional work.
+
+This creates messier branch history, but squash-merging keeps `master` clean.
