@@ -17,7 +17,7 @@ use workspace_rs::tab::Destination;
 
 use crate::components::{
     FG_HOVER, FG_PRESS, Radius, STROKE_HAIRLINE, Space, Theme, TypeRole, claim, context_menu,
-    file_row_icon, fit_outside_stroke_fill, phosphor, place_at, ui_width,
+    fit_outside_stroke_fill, phosphor, place_at, tab_icon, ui_width,
 };
 
 use crate::shell::ShellApp;
@@ -73,7 +73,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                         Destination::File(id) => Some(*id),
                         _ => None,
                     };
-                    TabInfo { idx: i, title, active, file_id }
+                    TabInfo { idx: i, title, active, file_id, dest: slot.dest.clone() }
                 })
                 .collect();
             (tabs, can_reopen)
@@ -254,6 +254,7 @@ struct TabInfo {
     title: String,
     active: bool,
     file_id: Option<Uuid>,
+    dest: Destination,
 }
 
 #[derive(Clone, Copy)]
@@ -328,7 +329,8 @@ fn apply_tab_out(queue: &mut Vec<Action>, tab: &TabInfo, out: TabOut) {
 /// - Sides: [`TAB_SIDE_AIR`] so flush neighbors share an edge without hover
 ///   covering the active tab’s Outside stroke (no inter-tab *layout* gap)
 /// - Clip: [`fit_outside_stroke_fill`] for panel / window edges
-/// - Bottom: inactive leaves bar hairline; active opens into workspace
+/// - Bottom: inactive leaves bar hairline; active fill covers it (stroke is
+///   clipped open — see [`tab_button`])
 fn tab_chrome_rect(ui: &Ui, body: egui::Rect, active: bool) -> egui::Rect {
     let top = body.top() + TAB_TOP_AIR;
     let bottom = if active {
@@ -380,20 +382,19 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     let edge = Stroke::new(STROKE_HAIRLINE, t.neutral());
 
     if active {
-        // Settings-style: Outside stroke so later label/close paints cannot
-        // cover rounded corners. Plate is already inset from the window top.
-        ui.painter()
-            .rect(chrome, radius, canvas, edge, StrokeKind::Outside);
-        // Open the bottom: erase Outside bottom chord so plate bleeds into
-        // workspace (same fill). Inset sides so L/R strokes meet the bar.
-        let open = STROKE_HAIRLINE + 0.5;
-        ui.painter().rect_filled(
-            egui::Rect::from_min_max(
-                pos2(chrome.left() + open, chrome.bottom() - open),
-                pos2(chrome.right() - open, chrome.bottom() + open),
-            ),
-            0.0,
-            canvas,
+        // Plate covers the strip hairline under this tab. Outside stroke so
+        // label/close cannot cover rounded corners.
+        ui.painter().rect_filled(chrome, radius, canvas);
+        // Clip at the strip hairline (not chrome.bottom()) so L/R strokes meet
+        // the bar instead of running past it. A closed-rect punch left L-hooks.
+        let mut stroke_clip = ui.clip_rect();
+        let hairline_y = body.bottom() - STROKE_HAIRLINE * 0.5;
+        stroke_clip.max.y = stroke_clip.max.y.min(hairline_y);
+        ui.painter().with_clip_rect(stroke_clip).rect_stroke(
+            chrome,
+            radius,
+            edge,
+            StrokeKind::Outside,
         );
     } else if hover_t > 0.0 {
         let wash = t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER * hover_t);
@@ -407,7 +408,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             .lerp_to_gamma(t.neutral_fg(), hover_t)
     };
 
-    let icon = file_row_icon(name, false);
+    let icon = tab_icon(&tab.dest, name);
     let icon_g =
         ui.painter()
             .layout_no_wrap(icon.into(), crate::components::phosphor_ui_font_id(), ink);

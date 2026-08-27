@@ -20,7 +20,7 @@ pub use foundation::{
     fit_outside_stroke_fill, handle_toggle_shortcut, install, origin, paint_plate,
     paint_plate_stroke, phosphor, phosphor_font_id, phosphor_ui_font_id, place_at, plate_content,
     remaining_height, sense_click, set_mode_preference, set_theme_family, shortcut_cmd_i,
-    shortcut_cmd_n, shortcut_enter, shortcut_esc, shortcut_return, ui_width, with_h_pad,
+    shortcut_cmd_n, shortcut_enter, shortcut_esc, shortcut_return, tab_icon, ui_width, with_h_pad,
     with_h_pad_in, with_pad_fit,
 };
 #[cfg(test)]

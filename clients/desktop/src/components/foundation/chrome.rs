@@ -281,6 +281,10 @@ pub mod phosphor {
     /// Linux maximize / restore (two diagonal arrows).
     pub const ARROWS_OUT_SIMPLE: &str = "\u{e0a6}";
     pub const ARROWS_IN_SIMPLE: &str = "\u{e09e}";
+    /// Mind map tab (connected nodes).
+    pub const GRAPH: &str = "\u{eb58}";
+    /// Space inspector tab (share of disk).
+    pub const CHART_PIE_SLICE: &str = "\u{e15a}";
 }
 
 /// Phosphor glyph for a workspace [`DocType`].
@@ -304,6 +308,20 @@ pub fn file_row_icon(name: &str, is_folder: bool) -> &'static str {
         phosphor::FOLDER
     } else {
         phosphor_for_doc_type(workspace_rs::show::DocType::from_name(name))
+    }
+}
+
+/// Tab-strip glyph for a workspace [`Destination`].
+///
+/// Search / mind map / space inspector are not files — do not go through
+/// [`file_row_icon`]. Files still use the name’s [`DocType`].
+pub fn tab_icon(dest: &workspace_rs::tab::Destination, name: &str) -> &'static str {
+    use workspace_rs::tab::Destination;
+    match dest {
+        Destination::Search => phosphor::SEARCH,
+        Destination::MindMap(_) => phosphor::GRAPH,
+        Destination::SpaceInspector(_) => phosphor::CHART_PIE_SLICE,
+        Destination::File(_) => file_row_icon(name, false),
     }
 }
 
