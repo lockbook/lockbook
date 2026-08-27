@@ -9,7 +9,9 @@ use std::sync::Arc;
 use crate::ipc::client::RemoteCallError;
 use crate::ipc::protocol::Request;
 use crate::model::core_config::Config;
-use crate::model::errors::{LbErrKind, LbResult};
+#[cfg(unix)]
+use crate::model::errors::LbErrKind;
+use crate::model::errors::LbResult;
 use crate::service::logging;
 use crate::{Lb, LocalLb};
 

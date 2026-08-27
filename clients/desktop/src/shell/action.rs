@@ -471,6 +471,8 @@ impl Action {
             Self::CollapseSubtree(_) => "CollapseSubtree",
             Self::OpenFile(_) => "OpenFile",
             Self::OpenFileNewTab(_) => "OpenFileNewTab",
+            Self::NavBack => "NavBack",
+            Self::NavForward => "NavForward",
             Self::OpenDocuments { .. } => "OpenDocuments",
             Self::SelectTab(_) => "SelectTab",
             Self::CloseTab(_) => "CloseTab",
