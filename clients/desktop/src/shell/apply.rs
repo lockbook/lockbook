@@ -90,6 +90,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::CollapseSubtree(id) => expand_or_collapse(app, id, false),
         A::OpenFile(id) => open_documents(app, &[id], false),
         A::OpenFileNewTab(id) => open_documents(app, &[id], true),
+        A::NavBack => nav_history(app, true),
+        A::NavForward => nav_history(app, false),
         A::OpenDocuments { ids, new_tab } => open_documents(app, &ids, new_tab),
         A::SelectTab(i) => {
             if let Some(r) = app.session.ready_mut() {
@@ -468,19 +470,12 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                     });
                 }
                 OnboardMode::Import => {
-                    onboard_import_focus(ctx, app);
+                    onboard_import_focus(ctx);
                 }
                 OnboardMode::Choice => {}
             }
         }
         A::OnboardVerifyUname => onboard_verify_uname(app, ctx),
-        A::OnboardImportKind(k) => {
-            if let Some(Modal::Onboard { import_kind, err, .. }) = &mut app.modal {
-                *import_kind = k;
-                *err = None;
-            }
-            onboard_import_focus(ctx, app);
-        }
         A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
         A::RequestSync => request_sync(app, ctx),
         A::TogglePin(id) => toggle_pins(app, &[id]),
@@ -742,6 +737,22 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             if let Some(r) = app.session.ready_mut() {
                 r.workspace.save_all_tabs();
             }
+        }
+    }
+}
+
+fn nav_history(app: &mut ShellApp, back: bool) {
+    if let Some(r) = app.session.ready_mut() {
+        if back {
+            if r.workspace.can_back() {
+                r.workspace.back();
+            }
+        } else if r.workspace.can_forward() {
+            r.workspace.forward();
+        }
+        if let Some(id) = r.workspace.current_tab_id() {
+            r.select_only(id);
+            super::reveal_and_scroll(r, id);
         }
     }
 }

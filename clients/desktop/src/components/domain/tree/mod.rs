@@ -49,7 +49,7 @@ const DROP_EDGE_BAND: f32 = 28.0;
 /// Max edge-scroll speed (points / second) at full band penetration.
 const DROP_EDGE_SPEED: f32 = 900.0;
 
-// ── Files tree scroll animator (reveal / tab open → sticky-aware center) ─────
+// ── Files tree scroll animator (reveal / tab open → into view, not center) ─────
 /// Snap if closer than this (no tween noise).
 const SCROLL_SNAP_PX: f32 = 4.0;
 /// Distance → duration scale; clamped by min/max below.
@@ -100,12 +100,29 @@ fn scroll_duration(dist: f32) -> f32 {
     }
 }
 
-/// Center row in free viewport under sticky pins (reveal / tab open).
-fn offset_center_row(flat: &[FlatRow], geom: &RowGeom, i: usize, band_h: f32, max_off: f32) -> f32 {
+/// Scroll offset that shows row `i` in the free viewport under sticky pins.
+/// Already fully visible → keep `cur_off` (no re-center on click).
+fn offset_reveal_row(
+    flat: &[FlatRow], geom: &RowGeom, i: usize, band_h: f32, max_off: f32, cur_off: f32,
+) -> f32 {
     let sticky_h = folder::sticky_band_above(flat, geom, i);
-    let free_h = (band_h - sticky_h).max(geom.height(i));
-    let target_vy = sticky_h + (free_h - geom.height(i)) * 0.5;
-    (geom.top(i) - target_vy).clamp(0.0, max_off)
+    let row_h = geom.height(i);
+    let row_top = geom.top(i);
+    let row_bot = row_top + row_h;
+    let pad = Space::Xs.pts();
+    let vis_top = cur_off + sticky_h + pad;
+    let vis_bot = cur_off + band_h - pad;
+    let free_h = (band_h - sticky_h - 2.0 * pad).max(0.0);
+    if row_h >= free_h {
+        return (row_top - sticky_h - pad).clamp(0.0, max_off);
+    }
+    if row_top >= vis_top && row_bot <= vis_bot {
+        return cur_off.clamp(0.0, max_off);
+    }
+    if row_top < vis_top {
+        return (row_top - sticky_h - pad).clamp(0.0, max_off);
+    }
+    (row_bot - band_h + pad).clamp(0.0, max_off)
 }
 
 #[derive(Clone, Debug)]
@@ -368,7 +385,7 @@ fn drop_group_outline(
 fn finish_tree_drop(
     ui: &Ui, t: &Theme, queue: &mut Vec<Action>, files: &FileCache, flat: &[FlatRow],
     geom: &RowGeom, viewport: Rect, content_pad: f32, content_total: f32,
-    expanded: &std::collections::HashSet<Uuid>,
+    expanded: &std::collections::HashSet<Uuid>, root: Uuid,
 ) -> Option<Uuid> {
     let hits = drop_hit_take(ui);
     let Some(payload) = DragAndDrop::payload::<DragIds>(ui.ctx()) else {
@@ -382,6 +399,11 @@ fn finish_tree_drop(
 
     paint_drag_ghost(ui, t, files, &payload.0, pointer);
     tree_edge_scroll(ui, viewport, content_total);
+
+    let content_min = ui.max_rect().min;
+    let view_screen = Rect::from_min_size(content_min + viewport.min.to_vec2(), viewport.size());
+    let clip = view_screen.intersect(ui.clip_rect());
+    let sticky = sticky_layout(flat, geom, viewport.min.y);
 
     // Sticky last in the hit list → prefer topmost under the pointer.
     let hover = hits.iter().rev().find(|r| r.hit_rect.contains(pointer));
@@ -401,10 +423,16 @@ fn finish_tree_drop(
     let already = expand_candidate.is_some_and(|id| expanded.contains(&id));
     let expand = try_drop_expand(ui, expand_candidate, already);
 
-    let Some(hover) = hover else {
+    // Empty canvas below the last row is the account root (same as the
+    // background context menu). Gutters beside a row are not — those stay a miss
+    // so they don't steal a folder dest.
+    let parent = if let Some(hover) = hover {
+        drop_dest_parent(*hover)
+    } else if pointer_below_tree(pointer, clip, flat, geom, &sticky, content_min, view_screen) {
+        root
+    } else {
         return expand;
     };
-    let parent = drop_dest_parent(*hover);
     if !move_into_ok(files, &payload.0, parent) {
         return expand;
     }
@@ -417,14 +445,13 @@ fn finish_tree_drop(
         return expand;
     }
 
-    let content_min = ui.max_rect().min;
-    let view_screen = Rect::from_min_size(content_min + viewport.min.to_vec2(), viewport.size());
-    let sticky = sticky_layout(flat, geom, viewport.min.y);
-    if let Some(group) =
+    let group = if parent == root {
+        root_drop_outline(view_screen, content_pad)
+    } else {
         drop_group_outline(flat, geom, &sticky, parent, content_min, view_screen, content_pad)
-    {
+    };
+    if let Some(group) = group {
         // Clip to scroll viewport — outline is content, not a separate layer.
-        let clip = view_screen.intersect(ui.clip_rect());
         ui.painter().with_clip_rect(clip).rect_stroke(
             group,
             Radius::Control.pts() as f32,
@@ -438,6 +465,32 @@ fn finish_tree_drop(
         clear_drop_dwell(ui);
     }
     expand
+}
+
+/// Pointer is in the tree viewport, below the last painted row (or the tree is empty).
+fn pointer_below_tree(
+    pointer: egui::Pos2, clip: Rect, flat: &[FlatRow], geom: &RowGeom, sticky: &[Stuck],
+    content_min: egui::Pos2, view_screen: Rect,
+) -> bool {
+    if !clip.contains(pointer) {
+        return false;
+    }
+    if flat.is_empty() {
+        return true;
+    }
+    let last = flat.len() - 1;
+    let last_bot = row_abs_bottom(last, flat, geom, sticky, content_min, view_screen.top());
+    pointer.y >= last_bot
+}
+
+/// Accent plate around the whole Files list (account root drop).
+fn root_drop_outline(view_screen: Rect, content_pad: f32) -> Option<Rect> {
+    let left = view_screen.left() + content_pad;
+    let right = view_screen.right() - content_pad;
+    if right <= left + 1.0 || view_screen.height() < 4.0 {
+        return None;
+    }
+    Some(Rect::from_min_max(pos2(left, view_screen.top()), pos2(right, view_screen.bottom())))
 }
 
 #[derive(Clone, Copy, Debug)]
@@ -635,21 +688,23 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
         let intent = app.session.ready().and_then(|r| r.tree_scroll);
         if let Some(id) = intent {
             if let Some(i) = flat.iter().position(|r| r.id == id) {
-                let to = offset_center_row(&flat, &geom, i, band_h, max_off);
                 let from = cur_y;
+                let to = offset_reveal_row(&flat, &geom, i, band_h, max_off, from);
                 let dist = (to - from).abs();
-                let duration = scroll_duration(dist);
-                let prev = ui
-                    .ctx()
-                    .data(|d| d.get_temp::<TreeScrollAnim>(tree_scroll_anim_id()));
-                let retarget = prev.is_none_or(|a| a.id != id || (a.to - to).abs() > 1.0);
-                if retarget {
-                    ui.ctx().data_mut(|d| {
-                        d.insert_temp(
-                            tree_scroll_anim_id(),
-                            TreeScrollAnim { id, from, to, t0: now, duration },
-                        );
-                    });
+                if dist >= SCROLL_SNAP_PX {
+                    let duration = scroll_duration(dist);
+                    let prev = ui
+                        .ctx()
+                        .data(|d| d.get_temp::<TreeScrollAnim>(tree_scroll_anim_id()));
+                    let retarget = prev.is_none_or(|a| a.id != id || (a.to - to).abs() > 1.0);
+                    if retarget {
+                        ui.ctx().data_mut(|d| {
+                            d.insert_temp(
+                                tree_scroll_anim_id(),
+                                TreeScrollAnim { id, from, to, t0: now, duration },
+                            );
+                        });
+                    }
                 }
                 // Consumed once the row exists — anim carries the rest.
                 if let Some(r) = app.session.ready_mut() {
@@ -665,7 +720,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
             .data(|d| d.get_temp::<TreeScrollAnim>(tree_scroll_anim_id()));
         if let Some(mut anim) = anim {
             if let Some(i) = flat.iter().position(|r| r.id == anim.id) {
-                anim.to = offset_center_row(&flat, &geom, i, band_h, max_off);
+                anim.to = offset_reveal_row(&flat, &geom, i, band_h, max_off, anim.from);
                 let y = if anim.duration <= 0.0 {
                     anim.to
                 } else {
@@ -740,6 +795,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
                             content_pad,
                             content_total,
                             &expanded,
+                            root,
                         )
                     } else {
                         let _ = drop_hit_take(ui);
@@ -754,10 +810,25 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
                     if bg.clicked() {
                         queue.push(Action::SetSelection(vec![]));
                     }
-                    if let Some(FileCmd::Create) = context_menu::show(&bg, t, |e| {
+                    if let Some(cmd) = context_menu::show(&bg, t, |e| {
                         e.item(phosphor::NOTE_PENCIL, "Create…", FileCmd::Create);
+                        if flat.iter().any(|r| r.is_folder) {
+                            e.separator();
+                            e.item(phosphor::CARET_DOWN, "Expand all", FileCmd::ExpandAll);
+                            e.item(phosphor::CARET_LEFT, "Collapse all", FileCmd::CollapseAll);
+                        }
                     }) {
-                        queue.push(Action::OpenCreate { parent: Some(root), is_folder: false });
+                        match cmd {
+                            FileCmd::Create => {
+                                queue.push(Action::OpenCreate {
+                                    parent: Some(root),
+                                    is_folder: false,
+                                });
+                            }
+                            FileCmd::ExpandAll => queue.push(Action::ExpandSubtree(root)),
+                            FileCmd::CollapseAll => queue.push(Action::CollapseSubtree(root)),
+                            _ => {}
+                        }
                     }
                 });
             // Feed next frame's animator / ensure-visible baseline.
@@ -1225,6 +1296,9 @@ fn paint_row(
         } else {
             queue.push(Action::OpenFile(row.id));
         }
+    }
+    if resp.middle_clicked() && !row.is_folder {
+        queue.push(Action::OpenFileNewTab(row.id));
     }
     if resp.double_clicked() && !row.is_folder {
         queue.push(Action::OpenFileNewTab(row.id));

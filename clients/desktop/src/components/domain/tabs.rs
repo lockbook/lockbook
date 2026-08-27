@@ -1,8 +1,10 @@
 //! Tab strip driven by `Workspace::tab_strip`.
 //!
-//! Opaque surface bar flush to the panel top; tabs measured then placed on x.
-//! Active tab = canvas plate open into the workspace (same fill, no bottom edge).
-//! Drag reorder; middle-click close; active title → rename sheet; context menu.
+//! Canvas bar flush to the panel top; always [`HEADER_H`], even with no tabs,
+//! so traffic lights and the pane cluster sit on chrome, not the editor.
+//! Tabs measured then placed on x. Active tab = canvas plate open into the
+//! workspace (same fill, no bottom edge). Drag reorder; middle-click close;
+//! active title → rename sheet; context menu.
 
 use egui::{
     Align, CornerRadius, CursorIcon, DragAndDrop, Id, Layout, Sense, Stroke, StrokeKind, Ui,
@@ -10,17 +12,20 @@ use egui::{
 };
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
+use workspace_rs::show::DocType;
 use workspace_rs::tab::Destination;
 
 use crate::components::{
     FG_HOVER, FG_PRESS, Radius, STROKE_HAIRLINE, Space, Theme, TypeRole, claim, context_menu,
-    file_row_icon, fit_outside_stroke_fill, phosphor, place_at, ui_width,
+    fit_outside_stroke_fill, phosphor, place_at, tab_icon, ui_width,
 };
 
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
 use crate::shell::action::Action as A;
-use crate::shell::titlebar::{HEADER_H, block_window_drag, tab_left_inset, tab_right_inset};
+use crate::shell::titlebar::{
+    HEADER_H, block_window_drag, tab_drag_gap, tab_left_inset, tab_right_inset,
+};
 
 const TAB_PAD_X: f32 = 12.0;
 const TAB_MAX_W: f32 = 180.0;
@@ -44,9 +49,9 @@ fn tab_edge_scroll_id() -> Id {
 #[derive(Clone, Copy, Debug)]
 struct TabReorder(usize);
 
-/// Paint the tab strip. Returns **`true`** if a strip was claimed (tabs open).
-/// When empty, paints nothing so workspace can fill to the panel top and the
-/// sidebar separator can run full height.
+/// Paint the titleband. Always claims [`HEADER_H`] (including zero tabs) so the
+/// editor / landing page sit below chrome. Returns **`true`** after the band is
+/// claimed.
 pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) -> bool {
     ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
 
@@ -68,27 +73,25 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                         Destination::File(id) => Some(*id),
                         _ => None,
                     };
-                    TabInfo { idx: i, title, active, file_id }
+                    TabInfo { idx: i, title, active, file_id, dest: slot.dest.clone() }
                 })
                 .collect();
             (tabs, can_reopen)
         })
         .unwrap_or_default();
     let tab_count = tabs.len();
-    if tab_count == 0 {
-        return false;
-    }
 
-    let left = tab_left_inset(app.sidebar_open);
+    let sidebar_w = ui.max_rect().left() - ui.ctx().screen_rect().left();
+    let left = tab_left_inset(sidebar_w);
     let right = tab_right_inset();
     let bar_w = ui_width(ui);
     // Flush to the central panel top — do not use cursor after Frame/spacing quirks.
     let top_left = pos2(ui.max_rect().left(), ui.max_rect().top());
     let outer = egui::Rect::from_min_size(top_left, vec2(bar_w, HEADER_H));
 
-    // Bar fill (surface) under tabs.
-    ui.painter()
-        .rect_filled(outer, 0.0, t.neutral_bg_secondary());
+    // Bar fill (canvas) under tabs — and under traffic lights / pane cluster
+    // when the strip is empty. Same ground as the sidebar titleband.
+    ui.painter().rect_filled(outer, 0.0, t.neutral_bg());
 
     // Full bar→workspace hairline **under** the tabs. The active tab's canvas
     // plate paints on top of this and covers the segment under the tab so the
@@ -96,6 +99,13 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     let edge = Stroke::new(STROKE_HAIRLINE, t.neutral());
     let y = outer.bottom() - STROKE_HAIRLINE * 0.5;
     ui.painter().hline(outer.x_range(), y, edge);
+
+    if tab_count == 0 {
+        // Empty chrome is a drag region (toolbar / window controls register
+        // their own blockers). Do not `block_window_drag` the whole band.
+        claim(ui, outer);
+        return true;
+    }
 
     // Parent-owned insets (toolbar / window controls) — not Space tokens.
     if left > 0.0 {
@@ -106,86 +116,92 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     }
 
     let mid_left = top_left.x + left;
-    let mid_w = (bar_w - left - right.max(0.0)).max(TAB_MIN_W);
+    let content_w: f32 = tabs.iter().map(|tab| measure_tab_w(ui, &tab.title)).sum();
+    let scroll_w = tab_scroll_w(bar_w, left, right, content_w);
 
-    let scroll_rect = egui::Rect::from_min_size(pos2(mid_left, top_left.y), vec2(mid_w, HEADER_H));
-    let _ = place_at(ui, scroll_rect, Layout::top_down(Align::Min), |ui| {
-        ui.set_width(mid_w);
-        ui.set_height(HEADER_H);
-        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-        // No scrollbar (Zed / toolbar-style): wheel + DnD edge-scroll only.
-        let mut hscroll = egui::ScrollArea::horizontal()
-            .id_salt("shell_tab_scroll")
-            .max_width(mid_w)
-            .auto_shrink([false, false])
-            .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden);
-        if let Some(x) = ui
-            .ctx()
-            .data_mut(|d| d.remove_temp::<f32>(tab_edge_scroll_id()))
-        {
-            hscroll = hscroll.horizontal_scroll_offset(x);
-        }
-        let out = hscroll.show(ui, |ui| {
-            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+    if scroll_w > 0.5 {
+        let scroll_rect =
+            egui::Rect::from_min_size(pos2(mid_left, top_left.y), vec2(scroll_w, HEADER_H));
+        // Visible strip only. Tab *content* rects extend past this when overflow
+        // is scrolled left, and those must not cover the right grab gap.
+        block_window_drag(ui.ctx(), scroll_rect);
+        let _ = place_at(ui, scroll_rect, Layout::top_down(Align::Min), |ui| {
+            ui.set_width(scroll_w);
             ui.set_height(HEADER_H);
-            // Flush scroll content to the bar top (same y as outer).
-            let strip_tl = pos2(ui.max_rect().left(), ui.max_rect().top());
-            let mut x = strip_tl.x;
-            let mut total_w = 0.0_f32;
-            let reordering = DragAndDrop::has_payload_of_type::<TabReorder>(ui.ctx());
-            // Grabbing for the whole reorder — never NotAllowed on a no-op slot.
-            if reordering {
-                ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+            ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+            // No scrollbar (Zed / toolbar-style): wheel + DnD edge-scroll only.
+            let mut hscroll = egui::ScrollArea::horizontal()
+                .id_salt("shell_tab_scroll")
+                .max_width(scroll_w)
+                .auto_shrink([false, false])
+                .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden);
+            if let Some(x) = ui
+                .ctx()
+                .data_mut(|d| d.remove_temp::<f32>(tab_edge_scroll_id()))
+            {
+                hscroll = hscroll.horizontal_scroll_offset(x);
             }
-            // Flush on x — no gap between tabs (shared edge = one drop
-            // seam for reorder; Outside stroke sits in side air).
-            for tab in &tabs {
-                let w = measure_tab_w(ui, &tab.title);
-                let tab_r = egui::Rect::from_min_size(pos2(x, strip_tl.y), vec2(w, HEADER_H));
-                // Tabs own this band: window-move drag must not start here.
-                block_window_drag(ui.ctx(), tab_r);
-                let (out, _) = place_at(ui, tab_r, Layout::top_down(Align::Min), |ui| {
-                    tab_button(ui, t, tab, tab_count, can_reopen)
-                });
-                apply_tab_out(queue, tab, out);
-                x += w;
-                total_w += w;
-            }
-            claim(ui, egui::Rect::from_min_size(strip_tl, vec2(total_w.max(1.0), HEADER_H)));
-        });
-        // Edge auto-scroll when reordering past the visible strip.
-        if DragAndDrop::has_payload_of_type::<TabReorder>(ui.ctx()) {
-            if let Some(pointer) = ui.input(|i| i.pointer.interact_pos()) {
-                let clip = scroll_rect;
-                if clip.width() >= TAB_EDGE_BAND * 2.0 {
-                    let dt = ui.input(|i| i.unstable_dt).clamp(1.0 / 240.0, 0.05);
-                    let max_off = (out.content_size.x - mid_w).max(0.0);
-                    if max_off > 0.5 {
-                        let mut off = out.state.offset.x;
-                        let mut moved = false;
-                        if pointer.x < clip.left() + TAB_EDGE_BAND {
-                            let depth = ((clip.left() + TAB_EDGE_BAND - pointer.x) / TAB_EDGE_BAND)
-                                .clamp(0.0, 1.0);
-                            off = (off - TAB_EDGE_SPEED * depth * dt).max(0.0);
-                            moved = true;
-                        } else if pointer.x > clip.right() - TAB_EDGE_BAND {
-                            let depth = ((pointer.x - (clip.right() - TAB_EDGE_BAND))
-                                / TAB_EDGE_BAND)
-                                .clamp(0.0, 1.0);
-                            off = (off + TAB_EDGE_SPEED * depth * dt).min(max_off);
-                            moved = true;
-                        }
-                        if moved && (off - out.state.offset.x).abs() > 0.25 {
-                            ui.ctx()
-                                .data_mut(|d| d.insert_temp(tab_edge_scroll_id(), off));
-                            ui.ctx().request_repaint();
+            let out = hscroll.show(ui, |ui| {
+                ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+                ui.set_height(HEADER_H);
+                // Flush scroll content to the bar top (same y as outer).
+                let strip_tl = pos2(ui.max_rect().left(), ui.max_rect().top());
+                let mut x = strip_tl.x;
+                let mut total_w = 0.0_f32;
+                let reordering = DragAndDrop::has_payload_of_type::<TabReorder>(ui.ctx());
+                // Grabbing for the whole reorder — never NotAllowed on a no-op slot.
+                if reordering {
+                    ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
+                }
+                // Flush on x — no gap between tabs (shared edge = one drop
+                // seam for reorder; Outside stroke sits in side air).
+                for tab in &tabs {
+                    let w = measure_tab_w(ui, &tab.title);
+                    let tab_r = egui::Rect::from_min_size(pos2(x, strip_tl.y), vec2(w, HEADER_H));
+                    let (out, _) = place_at(ui, tab_r, Layout::top_down(Align::Min), |ui| {
+                        tab_button(ui, t, tab, tab_count, can_reopen)
+                    });
+                    apply_tab_out(queue, tab, out);
+                    x += w;
+                    total_w += w;
+                }
+                claim(ui, egui::Rect::from_min_size(strip_tl, vec2(total_w.max(1.0), HEADER_H)));
+            });
+            // Edge auto-scroll when reordering past the visible strip.
+            if DragAndDrop::has_payload_of_type::<TabReorder>(ui.ctx()) {
+                if let Some(pointer) = ui.input(|i| i.pointer.interact_pos()) {
+                    let clip = scroll_rect;
+                    if clip.width() >= TAB_EDGE_BAND * 2.0 {
+                        let dt = ui.input(|i| i.unstable_dt).clamp(1.0 / 240.0, 0.05);
+                        let max_off = (out.content_size.x - scroll_w).max(0.0);
+                        if max_off > 0.5 {
+                            let mut off = out.state.offset.x;
+                            let mut moved = false;
+                            if pointer.x < clip.left() + TAB_EDGE_BAND {
+                                let depth = ((clip.left() + TAB_EDGE_BAND - pointer.x)
+                                    / TAB_EDGE_BAND)
+                                    .clamp(0.0, 1.0);
+                                off = (off - TAB_EDGE_SPEED * depth * dt).max(0.0);
+                                moved = true;
+                            } else if pointer.x > clip.right() - TAB_EDGE_BAND {
+                                let depth = ((pointer.x - (clip.right() - TAB_EDGE_BAND))
+                                    / TAB_EDGE_BAND)
+                                    .clamp(0.0, 1.0);
+                                off = (off + TAB_EDGE_SPEED * depth * dt).min(max_off);
+                                moved = true;
+                            }
+                            if moved && (off - out.state.offset.x).abs() > 0.25 {
+                                ui.ctx()
+                                    .data_mut(|d| d.insert_temp(tab_edge_scroll_id(), off));
+                                ui.ctx().request_repaint();
+                            }
                         }
                     }
                 }
+                ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
             }
-            ui.ctx().set_cursor_icon(CursorIcon::Grabbing);
-        }
-    });
+        });
+    }
 
     if right > 0.0 {
         let right_r = egui::Rect::from_min_size(
@@ -219,10 +235,18 @@ fn measure_tab_w(ui: &Ui, name: &str) -> f32 {
     (TAB_PAD_X + icon_w + nw + Space::Xs.pts() + CLOSE_SLOT + TAB_PAD_X).clamp(TAB_MIN_W, TAB_MAX_W)
 }
 
+/// Visible tab-scroll width. Never consumes [`tab_drag_gap`] or the caption
+/// inset; leftover after the last tab is empty chrome (window-move).
+fn tab_scroll_w(bar_w: f32, left: f32, right: f32, content_w: f32) -> f32 {
+    let chrome = left + right.max(0.0);
+    let with_gap = (bar_w - chrome - tab_drag_gap()).max(0.0);
+    // Keep one tab hittable on a narrow window even if it eats the drag gap.
+    let available = if with_gap >= TAB_MIN_W { with_gap } else { (bar_w - chrome).max(0.0) };
+    content_w.min(available)
+}
+
 fn display_name(name: &str) -> &str {
-    name.trim_end_matches(".md")
-        .trim_end_matches(".rs")
-        .trim_end_matches(".toml")
+    DocType::from_name(name).display_name(name)
 }
 
 struct TabInfo {
@@ -230,6 +254,7 @@ struct TabInfo {
     title: String,
     active: bool,
     file_id: Option<Uuid>,
+    dest: Destination,
 }
 
 #[derive(Clone, Copy)]
@@ -304,7 +329,8 @@ fn apply_tab_out(queue: &mut Vec<Action>, tab: &TabInfo, out: TabOut) {
 /// - Sides: [`TAB_SIDE_AIR`] so flush neighbors share an edge without hover
 ///   covering the active tab’s Outside stroke (no inter-tab *layout* gap)
 /// - Clip: [`fit_outside_stroke_fill`] for panel / window edges
-/// - Bottom: inactive leaves bar hairline; active opens into workspace
+/// - Bottom: inactive leaves bar hairline; active fill covers it (stroke is
+///   clipped open — see [`tab_button`])
 fn tab_chrome_rect(ui: &Ui, body: egui::Rect, active: bool) -> egui::Rect {
     let top = body.top() + TAB_TOP_AIR;
     let bottom = if active {
@@ -356,23 +382,22 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     let edge = Stroke::new(STROKE_HAIRLINE, t.neutral());
 
     if active {
-        // Settings-style: Outside stroke so later label/close paints cannot
-        // cover rounded corners. Plate is already inset from the window top.
-        ui.painter()
-            .rect(chrome, radius, canvas, edge, StrokeKind::Outside);
-        // Open the bottom: erase Outside bottom chord so plate bleeds into
-        // workspace (same fill). Inset sides so L/R strokes meet the bar.
-        let open = STROKE_HAIRLINE + 0.5;
-        ui.painter().rect_filled(
-            egui::Rect::from_min_max(
-                pos2(chrome.left() + open, chrome.bottom() - open),
-                pos2(chrome.right() - open, chrome.bottom() + open),
-            ),
-            0.0,
-            canvas,
+        // Plate covers the strip hairline under this tab. Outside stroke so
+        // label/close cannot cover rounded corners.
+        ui.painter().rect_filled(chrome, radius, canvas);
+        // Clip at the strip hairline (not chrome.bottom()) so L/R strokes meet
+        // the bar instead of running past it. A closed-rect punch left L-hooks.
+        let mut stroke_clip = ui.clip_rect();
+        let hairline_y = body.bottom() - STROKE_HAIRLINE * 0.5;
+        stroke_clip.max.y = stroke_clip.max.y.min(hairline_y);
+        ui.painter().with_clip_rect(stroke_clip).rect_stroke(
+            chrome,
+            radius,
+            edge,
+            StrokeKind::Outside,
         );
     } else if hover_t > 0.0 {
-        let wash = t.wash_toward_neutral_fg(t.neutral_bg_secondary(), FG_HOVER * hover_t);
+        let wash = t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER * hover_t);
         ui.painter().rect_filled(chrome, radius, wash);
     }
 
@@ -383,7 +408,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             .lerp_to_gamma(t.neutral_fg(), hover_t)
     };
 
-    let icon = file_row_icon(name, false);
+    let icon = tab_icon(&tab.dest, name);
     let icon_g =
         ui.painter()
             .layout_no_wrap(icon.into(), crate::components::phosphor_ui_font_id(), ink);
@@ -414,14 +439,16 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             vec2(CLOSE_SLOT, CLOSE_SLOT),
         );
         let close_id = ui.id().with("shell_tab_close").with(index);
-        let close_resp = ui.interact(close_rect, close_id, Sense::click());
+        let close_resp = ui
+            .interact(close_rect, close_id, Sense::click())
+            .on_hover_cursor(CursorIcon::PointingHand);
         let close_over = ui.ctx().rect_contains_pointer(ui.layer_id(), close_rect);
         let close_h = ui.ctx().animate_bool(close_resp.id, close_over);
         // Ground = plate under the X (canvas when active; hover wash when inactive).
         let tab_ground = if active {
             t.neutral_bg()
         } else {
-            t.wash_toward_neutral_fg(t.neutral_bg_secondary(), FG_HOVER * hover_t)
+            t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER * hover_t)
         };
         if close_h > 0.0 || close_over {
             let amount =
@@ -513,4 +540,74 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     let select = primary && !active;
 
     TabOut { select, rename, close: close || middle_close, reorder, menu }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::components::{ThemeExt, install};
+    use crate::shell::ShellApp;
+    use egui::{CentralPanel, Context, FullOutput, Pos2, RawInput, Rect, Vec2};
+
+    #[test]
+    fn empty_strip_still_claims_titleband() {
+        let mut app = ShellApp::default();
+        let ctx = Context::default();
+        let input = RawInput {
+            screen_rect: Some(Rect::from_min_size(Pos2::ZERO, Vec2::new(1200.0, 800.0))),
+            ..Default::default()
+        };
+        let FullOutput { .. } = ctx.run(input.clone(), |ctx| {
+            install(ctx);
+        });
+        let mut claimed_h = 0.0_f32;
+        let FullOutput { .. } = ctx.run(input, |ctx| {
+            install(ctx);
+            let t = ctx.get_lb_theme();
+            CentralPanel::default().show(ctx, |ui| {
+                let top = ui.max_rect().top();
+                let mut queue = Vec::new();
+                assert!(show(&mut app, ui, &t, &mut queue));
+                claimed_h = ui.cursor().top() - top;
+            });
+        });
+        assert!(
+            (claimed_h - HEADER_H).abs() < 0.5,
+            "empty strip claimed {claimed_h:.1}, want HEADER_H={HEADER_H:.1}"
+        );
+    }
+
+    #[test]
+    fn overflowing_tabs_leave_drag_gap() {
+        let bar = 800.0;
+        let left = 0.0;
+        let right = 10.0;
+        let content = 5000.0;
+        let w = tab_scroll_w(bar, left, right, content);
+        let leftover = bar - left - w - right;
+        assert!(
+            leftover + 0.01 >= tab_drag_gap(),
+            "leftover={leftover:.1} want ≥ drag gap {}",
+            tab_drag_gap()
+        );
+        assert!((leftover - tab_drag_gap()).abs() < 0.5);
+    }
+
+    #[test]
+    fn few_tabs_scroll_matches_content() {
+        let w = tab_scroll_w(800.0, 0.0, 10.0, 200.0);
+        assert!((w - 200.0).abs() < 0.5);
+    }
+
+    #[test]
+    fn narrow_bar_keeps_drag_gap() {
+        let gap = tab_drag_gap();
+        let bar = 200.0;
+        let left = 40.0;
+        let right = 20.0;
+        let w = tab_scroll_w(bar, left, right, 500.0);
+        assert!((w - (bar - left - right - gap)).abs() < 0.5);
+        assert!(w >= 0.0);
+        assert!(bar - left - w - right + 0.01 >= gap);
+    }
 }

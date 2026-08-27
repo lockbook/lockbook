@@ -7,23 +7,12 @@ use egui::Context;
 use workspace_rs::file_cache::FileCache;
 
 use super::ShellApp;
-use super::action::{Modal, OnboardImportKind, OnboardLookup, OnboardMode};
+use super::action::{Modal, OnboardLookup, OnboardMode};
 use super::apply_share::spawn_username_exists;
 use super::session::Session;
 
-pub(crate) fn onboard_import_focus(ctx: &Context, app: &ShellApp) {
-    let kind = match &app.modal {
-        Some(Modal::Onboard { import_kind, .. }) => *import_kind,
-        _ => OnboardImportKind::CompactKey,
-    };
-    match kind {
-        OnboardImportKind::CompactKey => {
-            ctx.data_mut(|d| d.insert_temp(egui::Id::new("onboard_compact_need_focus"), true));
-        }
-        OnboardImportKind::Phrase => {
-            ctx.data_mut(|d| d.insert_temp(egui::Id::new("onboard_word_need_focus"), 0usize));
-        }
-    }
+pub(crate) fn onboard_import_focus(ctx: &Context) {
+    ctx.data_mut(|d| d.insert_temp(egui::Id::new("onboard_account_key_need_focus"), true));
 }
 
 fn onboard_uname_verify_done_key() -> egui::Id {
@@ -143,43 +132,20 @@ pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
     });
 }
 
-/// Join compact buffer or 24-word slots into the secret string `import_account` expects.
-fn onboard_import_secret(
-    import_kind: OnboardImportKind, compact: &str, words: &[String],
-) -> String {
-    match import_kind {
-        OnboardImportKind::CompactKey => compact.trim().to_owned(),
-        OnboardImportKind::Phrase => words
-            .iter()
-            .map(|w| w.trim())
-            .filter(|w| !w.is_empty())
-            .collect::<Vec<_>>()
-            .join(" "),
-    }
+/// Flatten paste (newlines / extra spaces) so both compact keys and phrases work.
+fn onboard_import_secret(account_key: &str) -> String {
+    account_key.split_whitespace().collect::<Vec<_>>().join(" ")
 }
 
 pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool) {
-    let (mode, uname, import_kind, import_secret, lookup_ok) = match &app.modal {
+    let (mode, uname, import_secret, lookup_ok) = match &app.modal {
         Some(Modal::Onboard {
-            mode,
-            uname,
-            import_kind,
-            compact,
-            words,
-            uname_lookup,
-            uname_lookup_for,
-            ..
+            mode, uname, account_key, uname_lookup, uname_lookup_for, ..
         }) => {
             let u = uname.trim();
             let lookup_ok = u.eq_ignore_ascii_case(uname_lookup_for)
                 && matches!(uname_lookup, OnboardLookup::Available);
-            (
-                *mode,
-                uname.clone(),
-                *import_kind,
-                onboard_import_secret(*import_kind, compact, words),
-                lookup_ok,
-            )
+            (*mode, uname.clone(), onboard_import_secret(account_key), lookup_ok)
         }
         _ => return,
     };
@@ -198,14 +164,7 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         }
         OnboardMode::Import => {
             if import_secret.is_empty() {
-                Some(match import_kind {
-                    OnboardImportKind::CompactKey => "Compact key required".into(),
-                    OnboardImportKind::Phrase => "Enter your 24-word phrase".into(),
-                })
-            } else if matches!(import_kind, OnboardImportKind::Phrase)
-                && import_secret.split_whitespace().count() != 24
-            {
-                Some("Phrase must be 24 words".into())
+                Some("Account key required".into())
             } else {
                 None
             }

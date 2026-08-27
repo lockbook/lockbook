@@ -41,11 +41,18 @@ objc2 = "0.5.2"
 objc2-app-kit = { version = "0.2.2", default-features = false, features = [
     "std",
     "NSApplication",
+    "NSButton",
+    "NSControl",
+    "NSEvent",
     "NSImage",
     "NSBitmapImageRep",
     "NSGraphics",
     "NSView",
     "NSWindow",
 ] }
-objc2-foundation = { version = "0.2.2", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.2.2", default-features = false, features = [
+    "std",
+    "NSString",
+    "NSUserDefaults",
+] }
 raw-window-handle = "0.6"

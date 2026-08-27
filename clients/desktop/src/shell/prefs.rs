@@ -70,3 +70,30 @@ pub fn recents_bucket(modified_ms: i64) -> &'static str {
         "Earlier"
     }
 }
+
+/// Compact relative day for a file row subtitle (`last_modified` milliseconds).
+///
+/// Not a share timestamp — `Share` has none. Closest signal on a pending root.
+pub fn relative_modified(modified_ms: i64) -> String {
+    use chrono::{Datelike, Local};
+
+    let Some(utc) = chrono::DateTime::from_timestamp_millis(modified_ms) else {
+        return String::new();
+    };
+    let local = utc.with_timezone(&Local);
+    let file_day = local.date_naive();
+    let now = Local::now();
+    let days = (now.date_naive() - file_day).num_days();
+
+    if days <= 0 {
+        "Today".into()
+    } else if days == 1 {
+        "Yesterday".into()
+    } else if days < 7 {
+        format!("{days} days ago")
+    } else if local.year() == now.year() {
+        format!("{} {}", local.format("%b"), local.day())
+    } else {
+        format!("{} {}, {}", local.format("%b"), local.day(), local.year())
+    }
+}
