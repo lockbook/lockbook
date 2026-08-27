@@ -1312,19 +1312,9 @@ checksum = "c8d4a3bb8b1e0c1050499d1815f5ab16d04f0959b233085fb31653fbfc9d98f9"
 
 [[package]]
 name = "cli-rs"
-version = "0.1.13"
+version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "9cd015617b6534fee7005364657276f3438ca921d514733b5e6ff45cec60e976"
-dependencies = [
- "cli-rs-command-gen",
- "colored 2.2.0",
-]
-
-[[package]]
-name = "cli-rs"
-version = "0.2.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "344fe03b3fcdfd231f17dee5de7727dc2f8a4221fe9d5b75d64cb0150f6fc26b"
+checksum = "fa13a4191763a977880141cf85fb3e4fe4ef153d2d77b29f4a9af4a031e83493"
 dependencies = [
  "cli-rs-command-gen",
  "colored 2.2.0",
@@ -1837,6 +1827,20 @@ dependencies = [
  "darling_core",
  "quote",
  "syn 2.0.119",
+]
+
+[[package]]
+name = "dashmap"
+version = "6.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e6361d5c062261c78a176addb82d4c821ae42bed6089de0e12603cd25de2059c"
+dependencies = [
+ "cfg-if",
+ "crossbeam-utils",
+ "hashbrown 0.14.5",
+ "lock_api",
+ "once_cell",
+ "parking_lot_core",
 ]
 
 [[package]]
@@ -3232,6 +3236,12 @@ checksum = "8a9ee70c43aaf417c914396645a0fa852624801b24ebb7ae78fe8272889ac888"
 
 [[package]]
 name = "hashbrown"
+version = "0.14.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
+
+[[package]]
+name = "hashbrown"
 version = "0.15.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9229cfe53dfd69f0609a49f65461bd93001ea1ef889cd5529dd176593f5338a1"
@@ -4133,7 +4143,7 @@ source = "git+https://github.com/lockbook/lb-fonts#da966ea9de83f36903f812b3cd5a1
 name = "lb-fs"
 version = "26.8.12"
 dependencies = [
- "cli-rs 0.2.0",
+ "cli-rs",
  "lb-rs",
  "nfs3_server",
  "tokio",
@@ -4218,6 +4228,7 @@ dependencies = [
  "tracing",
  "tracing-appender",
  "tracing-logcat",
+ "tracing-perfetto-file",
  "tracing-subscriber",
  "tracing-wasm",
  "unicode-segmentation",
@@ -4226,6 +4237,7 @@ dependencies = [
  "variant_count",
  "wasm-bindgen-futures",
  "web-time",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4233,7 +4245,7 @@ name = "lbdev"
 version = "26.8.12"
 dependencies = [
  "chrono-tz",
- "cli-rs 0.1.13",
+ "cli-rs",
  "dotenvy",
  "gh_release",
  "google-androidpublisher3",
@@ -4442,7 +4454,7 @@ version = "26.8.12"
 dependencies = [
  "arboard",
  "chrono",
- "cli-rs 0.2.0",
+ "cli-rs",
  "colored 3.1.1",
  "fs_extra",
  "hotwatch",
@@ -4467,6 +4479,7 @@ dependencies = [
  "env_logger",
  "image 0.25.10",
  "lb-rs",
+ "libc",
  "log",
  "objc2 0.5.2",
  "objc2-app-kit 0.2.2",
@@ -4475,6 +4488,7 @@ dependencies = [
  "rfd",
  "serde",
  "serde_json",
+ "tracing",
  "wgpu",
  "winit",
  "workspace",
@@ -6780,6 +6794,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "rtrb"
+version = "0.3.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fae8ee26b0371a29a77d2b2d6b3ae13aa81def6f9bf1b1b92a32d279a5e709b7"
+
+[[package]]
 name = "rustc-hash"
 version = "1.1.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8288,6 +8308,20 @@ checksum = "678d561ce3d4b33dfcfb1c6bd13c422aad89be5bf0e66e20d518a5a254345b54"
 dependencies = [
  "rustix 0.38.34",
  "tracing",
+ "tracing-subscriber",
+]
+
+[[package]]
+name = "tracing-perfetto-file"
+version = "0.1.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "03f997ece63aa71c970ff73000dfc52b3231dc1248bd612db2b8ad3c865dd85b"
+dependencies = [
+ "crossbeam-queue",
+ "dashmap",
+ "parking_lot",
+ "rtrb",
+ "tracing-core",
  "tracing-subscriber",
 ]
 

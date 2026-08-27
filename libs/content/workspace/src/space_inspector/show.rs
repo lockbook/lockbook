@@ -51,24 +51,7 @@ impl SpaceInspector {
         let state: Arc<Mutex<AppState>> = Default::default();
         let bg_state = state.clone();
         spawn!({
-            let usage = bg_lb.get_usage();
-            let meta_data = bg_lb.list_metadatas();
-
-            match (usage, meta_data) {
-                (Ok(usage_result), Ok(metadata_result)) => {
-                    let mut lock = bg_state.lock().unwrap();
-                    *lock = AppState::Ready(Data::init(
-                        potential_root,
-                        usage_result.usages,
-                        metadata_result,
-                    ));
-                }
-                (Err(err), _) | (_, Err(err)) => {
-                    let mut lock = bg_state.lock().unwrap();
-                    *lock = AppState::Error(err);
-                }
-            }
-            ctx.request_repaint();
+            Self::load(bg_lb, bg_state, potential_root, ctx);
         });
 
         Self {
@@ -80,6 +63,28 @@ impl SpaceInspector {
             current_rect: Rect::NOTHING,
             lb: lb.clone(),
         }
+    }
+
+    #[tracing::instrument(name = "SpaceInspector::load", level = "trace", skip_all)]
+    fn load(bg_lb: Lb, bg_state: Arc<Mutex<AppState>>, potential_root: Option<File>, ctx: Context) {
+        let usage = bg_lb.get_usage();
+        let meta_data = bg_lb.list_metadatas();
+
+        match (usage, meta_data) {
+            (Ok(usage_result), Ok(metadata_result)) => {
+                let mut lock = bg_state.lock().unwrap();
+                *lock = AppState::Ready(Data::init(
+                    potential_root,
+                    usage_result.usages,
+                    metadata_result,
+                ));
+            }
+            (Err(err), _) | (_, Err(err)) => {
+                let mut lock = bg_state.lock().unwrap();
+                *lock = AppState::Error(err);
+            }
+        }
+        ctx.request_repaint();
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) {

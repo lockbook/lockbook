@@ -52,7 +52,7 @@ pub struct LocalLb {
 }
 
 impl LocalLb {
-    #[instrument(level = "info", skip_all, err(Debug))]
+    #[instrument(name = "Lb::init", level = "info", skip_all, err(Debug))]
     pub async fn init(config: Config) -> LbResult<Self> {
         let docs = AsyncDocs::from(&config);
         let db_cfg = db_rs::Config::in_folder(&config.writeable_path);

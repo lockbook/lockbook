@@ -5,6 +5,7 @@ use lb::Uuid;
 use super::session::Ready;
 
 /// Invalidate Recents/Shared after workspace already wrote `files`.
+#[tracing::instrument(level = "trace", skip_all)]
 pub fn note_files_changed(r: &mut Ready) {
     r.files_epoch = r.files_epoch.wrapping_add(1);
     refresh_pinned(r);

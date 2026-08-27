@@ -930,7 +930,7 @@ impl Editor {
 
         let prior_selection = self.edit.renderer.buffer.current.selection;
         let prior_entered_atom = self.edit.renderer.entered_atom;
-        let buf_resp = self.edit.handle_input(ui.ctx(), self.id());
+        let buf_resp = self.handle_input(ui);
         resp.open_camera = buf_resp.open_camera;
 
         if !self.initialized || buf_resp.text_updated {
@@ -970,9 +970,12 @@ impl Editor {
         // Re-parse for render. handle_input parsed its own; that arena has
         // been dropped. The parse is assumed cheap (~1 ms).
         let arena = Arena::new();
-        let options = MdRender::comrak_options();
-        let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
-        let root = comrak::parse_document(&arena, &text_with_newline, &options);
+        let root = {
+            let _parse = tracing::trace_span!("MarkdownEditor::parse").entered();
+            let options = MdRender::comrak_options();
+            let text_with_newline = self.edit.renderer.buffer.current.text.to_string() + "\n";
+            comrak::parse_document(&arena, &text_with_newline, &options)
+        };
 
         if PRINT {
             println!(
@@ -1343,6 +1346,12 @@ impl Editor {
             .any(|rect| rect.contains(pos))
     }
 
+    #[tracing::instrument(name = "MarkdownEditor::input", level = "trace", skip_all)]
+    fn handle_input(&mut self, ui: &Ui) -> lb_rs::model::text::buffer::Response {
+        self.edit.handle_input(ui.ctx(), self.id())
+    }
+
+    #[tracing::instrument(name = "MarkdownEditor::paint", level = "trace", skip_all)]
     fn show_scrollable_editor<'a>(&mut self, ui: &mut Ui, _root: &'a AstNode<'a>) {
         let scroll_id = self.id();
 

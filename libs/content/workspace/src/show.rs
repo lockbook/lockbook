@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::mem;
 use std::sync::{Arc, Mutex};
-use tracing::instrument;
 use web_time::{Duration, Instant};
 
 use crate::file_cache::{FilesExt as _, ResolvedLink};
@@ -29,7 +28,6 @@ pub const SEARCH_SHORTCUT: egui::KeyboardShortcut =
     egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
 
 impl Workspace {
-    #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         if let Some(cache) = self
             .ctx

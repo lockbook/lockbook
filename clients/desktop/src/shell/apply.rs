@@ -25,8 +25,11 @@ use super::ops::{is_pinned, refresh_pinned};
 use super::prefs::AccountPanel;
 use super::session::Ready;
 use crate::components::{set_mode_preference, set_theme_family};
+use tracing::instrument;
 
+#[instrument(level = "trace", skip_all, fields(action = action.name()))]
 pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
+    let _sample = lb::service::perf::Sample::new();
     match action {
         A::SelectPane(p) => {
             if app.pane == p && app.sidebar_open && !app.settings.zen_mode {
@@ -953,6 +956,7 @@ fn suggested_create_name(app: &ShellApp, parent: Option<Uuid>, kind: CreateKind)
     if let Some(e) = kind.ext() { full.strip_suffix(e).unwrap_or(&full).to_owned() } else { full }
 }
 
+#[instrument(level = "trace", skip_all)]
 fn confirm_create(app: &mut ShellApp) {
     let (name, kind, parent) = match &app.modal {
         Some(Modal::Create { name, kind, parent, .. }) => (name.trim().to_owned(), *kind, *parent),
@@ -1009,6 +1013,7 @@ fn confirm_create(app: &mut ShellApp) {
 
 /// Open documents. Folders in `ids` are skipped except a sole folder (toggle expand).
 /// Multi open without `new_tab`: first reuses tab path, rest open as new tabs.
+#[instrument(level = "trace", skip_all)]
 fn open_documents(app: &mut ShellApp, ids: &[Uuid], new_tab: bool) {
     let Some(r) = app.session.ready_mut() else {
         return;
@@ -1077,6 +1082,7 @@ fn toggle_pins(app: &mut ShellApp, ids: &[Uuid]) {
     }
 }
 
+#[instrument(level = "trace", skip_all)]
 fn duplicate_files(app: &mut ShellApp, ids: &[Uuid]) {
     let mut created = Vec::new();
     if let Some(r) = app.session.ready_mut() {
