@@ -2,17 +2,16 @@
 
 {% block content %}
 
-<!-- ═══ 01 · HERO ═══════════════════════════════════════════════════════ -->
 <section class="section hero">
   <div class="wrap">
     <h1>Notes that stay yours.</h1>
     <p class="hero-sub">
-      Lockbook is an open-source notebook, encrypted on your devices with keys
-      we never see. Write in markdown, sketch by hand, sync everywhere.
+      An open-source notebook, encrypted on your devices with keys we never
+      see, written in formats you will always be able to open.
     </p>
     <div class="hero-cta">
       <a class="btn btn-primary btn-lg" id="hero-download" href="#download">Download</a>
-      <a class="btn btn-quiet btn-lg" href="#download">All platforms</a>
+      <a class="btn btn-quiet btn-lg" href="#formats">See it work</a>
     </div>
     <p class="hero-proof">
       Open source since 2020 &nbsp;·&nbsp; 25&nbsp;MB free &nbsp;·&nbsp; No account required
@@ -20,159 +19,157 @@
   </div>
 </section>
 
-<!-- ═══ 02 · MARKDOWN ═══════════════════════════════════════════════════ -->
-<section class="section">
+<section class="section" id="encryption">
   <div class="wrap">
-    <div class="split">
-      <div class="split-text">
-        <p class="eyebrow">Markdown</p>
-        <h2>Formatting that resolves as you type.</h2>
-        <p class="lede">
-          No preview pane, no mode switch. Headings, lists, tables and code
-          become themselves the moment you write them — and the file on disk is
-          still plain text you can open anywhere.
-        </p>
-      </div>
-      <div class="split-visual">
-        <figure class="window" id="demo-editor">
-          <div class="window-bar">
-            <!-- Abstract window decoration: a schematic of a window — frame,
-                 title bar, sidebar — rather than any one OS's controls. -->
-            <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
-              <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
-              <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
-            </svg>
-            <span class="window-label">notes.md</span>
-            <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
-              <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
-              <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
-              <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
-            </svg>
-          </div>
-          <div class="window-body" data-ratio="4/3">
-            <canvas id="editor-demo" tabindex="0"></canvas>
-            <div class="demo-overlay" id="editor-loading">
-              <div class="spinner"></div>
-              <span>Loading the live demo…</span>
-            </div>
-          </div>
-        </figure>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ 03 · SKETCHES ═══════════════════════════════════════════════════ -->
-<section class="section">
-  <div class="wrap">
-    <div class="split flip">
-      <div class="split-text">
-        <p class="eyebrow">Sketches</p>
-        <h2>Draw on the same page as your notes.</h2>
-        <p class="lede">
-          Sketch with a stylus or a trackpad, drop in images, embed PDFs.
-          Drawings save as SVG — an open format that will still open in twenty
-          years.
-        </p>
-      </div>
-      <div class="split-visual">
-        <figure class="window" id="demo-canvas">
-          <div class="window-bar">
-            <!-- Abstract window decoration: a schematic of a window — frame,
-                 title bar, sidebar — rather than any one OS's controls. -->
-            <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
-              <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
-              <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
-            </svg>
-            <span class="window-label">sketch.svg</span>
-            <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
-              <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
-              <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
-              <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
-            </svg>
-          </div>
-          <div class="window-body" data-ratio="4/3">
-            <canvas id="canvas-demo" tabindex="0"></canvas>
-            <div class="demo-overlay" id="canvas-loading">
-              <div class="spinner"></div>
-              <span>Loading the live demo…</span>
-            </div>
-          </div>
-        </figure>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ 04 · PLATFORMS ══════════════════════════════════════════════════ -->
-<section class="section">
-  <div class="wrap">
-    <div class="platforms-head">
-      <p class="eyebrow">Platforms</p>
-      <h2>Five native apps. No Electron.</h2>
-      <p class="lede">
-        Each client is written for its own platform, so it starts instantly,
-        honours your system theme, and feels like it belongs there.
-      </p>
-    </div>
-
-    <div class="segmented" id="platform-switch" role="tablist" aria-label="Platform screenshots">
-      <button role="tab" aria-selected="true"  data-platform="macos">macOS</button>
-      <button role="tab" aria-selected="false" data-platform="ios">iOS</button>
-      <button role="tab" aria-selected="false" data-platform="windows">Windows</button>
-      <button role="tab" aria-selected="false" data-platform="linux">Linux</button>
-      <button role="tab" aria-selected="false" data-platform="android">Android</button>
-    </div>
-
-    <div class="platform-stage">
-      <div class="ph" data-ratio="16/10" id="platform-shot">
-        <span><b>macOS client</b>screenshot · 16:10 · 2× · matches viewer&rsquo;s theme</span>
-      </div>
-    </div>
-  </div>
-</section>
-
-<!-- ═══ 05 · ENCRYPTION ═════════════════════════════════════════════════ -->
-<section class="section">
-  <div class="wrap">
-    <div class="measure" style="margin-bottom:var(--s-xl)">
+    <div class="measure">
       <p class="eyebrow">Encryption</p>
-      <h2>We can&rsquo;t read your notes. That&rsquo;s structural, not a policy.</h2>
+      <h2>We built a notebook we can&rsquo;t read.</h2>
       <p class="lede">
-        Your keys are generated on your device and never leave it. Files are
-        encrypted before they sync. Sharing hands a key to a person you name —
-        never to us. We don&rsquo;t ask for your email, your phone number, or a
-        password.
+        Your keys are generated on your device and never leave it. Everything is
+        encrypted before it syncs, so what reaches our servers is noise. Sharing
+        hands a key to a person you name — never to us.
       </p>
-      <p style="margin-top:var(--s-md)"><a href="/security">How it works &rarr;</a></p>
     </div>
 
-    <div class="cards three">
-      <div class="card">
-        <h3>Offline first</h3>
-        <p>Everything is on your device already. Write on a plane; it syncs when you land.</p>
+    <div class="cipher-frame">
+      <pre class="cipher" id="cipher" aria-label="A private note, shown decrypting"><span class="cl">Thursday</span>
+<span class="cl"></span>
+<span class="cl">Dr. Reyes moved the follow-up to the 14th —</span>
+<span class="cl">ask about the dosage before Friday&rsquo;s refill.</span>
+<span class="cl"></span>
+<span class="cl">  resting hr      58</span>
+<span class="cl">  bp          118/76</span>
+<span class="cl"></span>
+<span class="cl">Mom&rsquo;s birthday is the 2nd. The green teapot,</span>
+<span class="cl">not the blue one.</span></pre>
+
+      <div class="cipher-status">
+        <span class="cs-dot" id="cipher-dot"></span>
+        <span id="cipher-state">ciphertext &mdash; what our servers hold</span>
+        <button type="button" id="cipher-replay" hidden>replay</button>
       </div>
-      <div class="card">
-        <h3>Shared by invitation</h3>
-        <p>Share a file or a folder with someone you name. Edits appear live, still end-to-end encrypted.</p>
+    </div>
+
+    <p class="after-note">
+      <a href="/security">How the cryptography works &rarr;</a>
+    </p>
+  </div>
+</section>
+
+<section class="section" id="formats">
+  <div class="wrap">
+    <div class="measure">
+      <p class="eyebrow">Open formats</p>
+      <h2>Files you could still read if we disappeared.</h2>
+      <p class="lede">
+        There is no proprietary container and no database you need our app to
+        open. Folders are folders, notes are Markdown, drawings are SVG. Export
+        writes exactly what you see here to disk — and every one of these opens
+        in software that has nothing to do with us.
+      </p>
+    </div>
+
+    <figure class="window fmt" id="fmt-window">
+      <div class="window-bar">
+        <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+          <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+          <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+        </svg>
+        <div class="window-tabs" id="fmt-tabs" role="tablist" aria-label="Open formats">
+          <button role="tab" id="tab-tree" aria-controls="panel-tree" aria-selected="true"  data-panel="tree">documents/</button>
+          <button role="tab" id="tab-md"   aria-controls="panel-md"   aria-selected="false" data-panel="md"   tabindex="-1">notes.md</button>
+          <button role="tab" id="tab-svg"  aria-controls="panel-svg"  aria-selected="false" data-panel="svg"  tabindex="-1">sketch.svg</button>
+        </div>
+        <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+          <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+          <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+          <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+        </svg>
       </div>
-      <div class="card">
-        <h3>Open formats</h3>
-        <p>Markdown and SVG. Export everything, any time, and read it without us.</p>
+
+      <div class="window-body fmt-stage" data-ratio="16/10">
+        <div class="fmt-panel is-on" id="panel-tree" role="tabpanel" aria-labelledby="tab-tree">
+          <div class="tree-wrap">
+<pre class="tree"><span class="tree-cmd">$ lockbook export / ~/documents</span>
+
+documents/
+<i>├──</i> journal/
+<i>│   ├──</i> 2026-08-24.md
+<i>│   ├──</i> 2026-08-25.md
+<i>│   └──</i> 2026-08-26.md
+<i>├──</i> kitchen/
+<i>│   ├──</i> measurements.svg
+<i>│   └──</i> quotes.md
+<i>└──</i> recipes/
+<i>    ├──</i> bread.md
+<i>    └──</i> lamination.svg</pre>
+          </div>
+        </div>
+
+        <div class="fmt-panel" id="panel-md" role="tabpanel" aria-labelledby="tab-md">
+          <canvas id="editor-demo" tabindex="0"></canvas>
+          <div class="demo-overlay" id="editor-loading">
+            <div class="spinner"></div>
+            <span>Loading the live editor&hellip;</span>
+          </div>
+        </div>
+
+        <div class="fmt-panel" id="panel-svg" role="tabpanel" aria-labelledby="tab-svg">
+          <canvas id="canvas-demo" tabindex="0"></canvas>
+          <div class="demo-overlay" id="canvas-loading">
+            <div class="spinner"></div>
+            <span>Loading the live canvas&hellip;</span>
+          </div>
+        </div>
+      </div>
+    </figure>
+
+    <div class="fmt-caption" id="fmt-caption">
+      <p data-for="tree"><b>A directory tree.</b> Your notes are files in folders, named by you. Export writes them to disk in this shape — no manifest, no index, nothing to reconstruct.</p>
+      <p data-for="md" hidden><b>CommonMark.</b> Tables, task lists, footnotes and Obsidian-style <code>[[wikilinks]]</code>. The same file renders on GitHub, converts with <code>pandoc</code>, and opens in every editor you already have.</p>
+      <p data-for="svg" hidden><b>SVG.</b> Every stroke is a path in an open vector format. Drop the file into Inkscape, Illustrator, Figma or a browser and it opens — because it is not a picture of a drawing, it is the drawing.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="platforms">
+  <div class="wrap">
+    <div class="measure">
+      <p class="eyebrow">Platforms</p>
+      <h2>Five native apps, one core.</h2>
+      <p class="lede">
+        The hard parts — encryption, sync, conflict resolution — live in a
+        single Rust library that every client shares. The interface on top is
+        written for its own platform, so each app launches instantly and behaves
+        the way that platform should. No Electron, no web view.
+      </p>
+    </div>
+
+    <div class="stack">
+      <div class="stack-row">
+        <div class="stack-cell"><b>macOS</b><span>SwiftUI</span></div>
+        <div class="stack-cell"><b>iOS</b><span>SwiftUI</span></div>
+        <div class="stack-cell"><b>Android</b><span>Kotlin</span></div>
+        <div class="stack-cell"><b>Linux</b><span>Rust · egui</span></div>
+        <div class="stack-cell"><b>Windows</b><span>Rust · egui</span></div>
+      </div>
+      <div class="stack-links" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+      <div class="stack-core">
+        <code>lb-rs</code>
+        <span>one Rust core &mdash; the same crate the CLI and this page&rsquo;s demos run on</span>
       </div>
     </div>
   </div>
 </section>
 
-<!-- ═══ 06 · PRICING ════════════════════════════════════════════════════ -->
 <section class="section" id="pricing">
   <div class="wrap">
     <div class="measure" style="margin-bottom:var(--s-xl)">
       <p class="eyebrow">Pricing</p>
       <h2>Be the customer, not the product.</h2>
       <p class="lede">
-        We sell storage, not data. There&rsquo;s no ad model and no analytics
-        business — and nothing to mine even if we wanted one.
+        We sell storage, not data. There is no ad model and no analytics
+        business &mdash; and nothing to mine even if we wanted one.
       </p>
     </div>
 
@@ -181,7 +178,7 @@
         <p class="plan-name">Free</p>
         <p class="plan-price">$0</p>
         <p class="plan-cap">25&nbsp;MB of encrypted storage</p>
-        <p class="plan-note">Thousands of notes — it&rsquo;s text, and text is small. Every feature included, including sharing.</p>
+        <p class="plan-note">Thousands of notes &mdash; it is text, and text is small. Every feature included, sharing included.</p>
         <a class="btn btn-quiet" href="#download">Download</a>
       </div>
       <div class="card plan featured">
@@ -195,7 +192,68 @@
   </div>
 </section>
 
-<!-- ═══ 07 · DOWNLOAD ═══════════════════════════════════════════════════ -->
+<section class="section" id="developers">
+  <div class="wrap">
+    <div class="split">
+      <div class="split-text">
+        <p class="eyebrow">Developers</p>
+        <h2>Scriptable all the way down.</h2>
+        <p class="lede">
+          Find notes with <code>fzf</code>, schedule backups with <code>cron</code>,
+          pipe a note into anything &mdash; or run <code>lockbook fs</code> and mount the
+          whole notebook as a drive. When the shell is not enough, link the same
+          Rust library the apps are built on.
+        </p>
+        <div class="link-list">
+          <a href="https://github.com/lockbook/lockbook/tree/master/clients/cli">CLI reference &rarr;</a>
+          <a href="https://crates.io/crates/lb-rs">lb-rs on crates.io &rarr;</a>
+          <a href="https://docs.rs/lb-rs">Library documentation &rarr;</a>
+        </div>
+      </div>
+
+      <div class="split-visual">
+        <figure class="window">
+          <div class="window-bar">
+            <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+              <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+              <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+            </svg>
+            <span class="window-label">zsh &mdash; lockbook</span>
+            <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+              <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+              <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+              <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+            </svg>
+          </div>
+          <div class="window-body term-body">
+            <div class="term-out" id="term-out"><pre>lockbook &mdash; the private, polished note-taking platform
+
+USAGE
+    <b>lockbook</b> &lt;command&gt; [args...]
+
+COMMANDS
+    <b>account</b>   account management commands
+    <b>copy</b>      import files from your file system
+    <b>edit</b>      edit a document
+    <b>export</b>    export a lockbook file to your file system
+    <b>fs</b>        mount your files as an NFS drive
+    <b>list</b>      list files and file information
+    <b>search</b>    search file paths and document contents
+    <b>share</b>     sharing related commands
+    <b>sync</b>      sync your local changes back to lockbook servers</pre></div>
+            <form class="term-line" id="term-form" autocomplete="off">
+              <span class="term-sigil">$</span>
+              <span class="term-cmd">lockbook</span>
+              <input id="term-input" type="text" aria-label="Try a lockbook command"
+                     autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+            </form>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
 <section class="section" id="download">
   <div class="wrap">
     <div class="measure" style="margin-bottom:var(--s-xl)">
@@ -214,15 +272,119 @@
 </section>
 
 <style>{% raw %}
-  /* Page-local layout. Tokens only — no new colours, sizes or easings. */
   .hero{padding:var(--s-3xl) 0 var(--s-2xl);border-top:0}
   .hero h1{font-size:clamp(38px,7vw,62px);line-height:1.02;letter-spacing:-.035em;max-width:15ch}
   .hero-sub{margin-top:var(--s-lg);color:var(--fg-2);font-size:19px;max-width:34em}
   .hero-cta{display:flex;flex-wrap:wrap;gap:var(--s-sm);margin-top:var(--s-lg)}
   .hero-proof{margin-top:var(--s-md);color:var(--fg-3);font-family:var(--mono);font-size:12px}
 
-  .platforms-head{max-width:var(--measure);margin-bottom:var(--s-lg)}
-  .platform-stage{margin-top:var(--s-md)}
+  .after-note{margin-top:var(--s-lg)}
+
+  .cipher-frame{
+    margin-top:var(--s-xl);
+    border:1px solid var(--stroke);border-radius:var(--r-surface);
+    background:var(--bg-panel);overflow:hidden;
+  }
+  .cipher{
+    margin:0;padding:var(--s-lg);overflow-x:auto;
+    font-family:var(--mono);font-size:13.5px;line-height:1.85;
+    color:var(--fg-3);white-space:pre;
+    -webkit-user-select:none;user-select:none;
+  }
+  @media (min-width:760px){.cipher{font-size:16px;padding:var(--s-xl)}}
+  .cipher .on{color:var(--fg)}
+
+  .cipher-status{
+    display:flex;align-items:center;gap:var(--s-sm);
+    padding:var(--s-sm) var(--s-lg);border-top:1px solid var(--divider);
+    font-family:var(--mono);font-size:12px;color:var(--fg-3);
+  }
+  @media (min-width:760px){.cipher-status{padding-left:var(--s-xl);padding-right:var(--s-xl)}}
+  .cs-dot{
+    flex:none;width:7px;height:7px;border-radius:50%;background:var(--fg-3);
+    transition:background-color .6s ease;
+  }
+  .cs-dot.is-clear{background:var(--accent)}
+  #cipher-replay{
+    margin-left:auto;appearance:none;border:0;background:transparent;cursor:pointer;
+    font-family:var(--mono);font-size:12px;color:var(--fg-3);
+    padding:var(--s-xxs) var(--s-xs);border-radius:var(--r-sm);
+    transition:background-color var(--anim) ease,color var(--anim) ease;
+  }
+  #cipher-replay:hover{background:var(--wash-1);color:var(--fg-2)}
+
+  .fmt{margin:var(--s-xl) auto 0;max-width:960px}
+  .fmt-panel{
+    position:absolute;inset:0;
+    opacity:0;visibility:hidden;pointer-events:none;
+    transition:opacity var(--anim) ease;
+  }
+  .fmt-panel.is-on{opacity:1;visibility:visible;pointer-events:auto}
+  .fmt-panel canvas{display:block;width:100%;height:100%}
+
+  .tree-wrap{
+    height:100%;overflow:auto;padding:var(--s-lg);
+    display:flex;align-items:center;justify-content:center;
+  }
+  @media (min-width:760px){.tree-wrap{padding:var(--s-xl) var(--s-2xl)}}
+  .tree{
+    margin:0;font-family:var(--mono);font-size:13px;line-height:1.45;
+    color:var(--fg);white-space:pre;
+  }
+  @media (min-width:760px){.tree{font-size:18px}}
+  .tree-cmd{color:var(--fg-2)}
+  .tree i{color:var(--fg-3);font-style:normal}
+
+  .fmt-caption{max-width:960px;margin:var(--s-md) auto 0}
+  .fmt-caption p{color:var(--fg-2);font-size:16px}
+  .fmt-caption b{color:var(--fg);font-weight:500}
+
+  .stack{margin-top:var(--s-xl)}
+  .stack-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-sm)}
+  @media (min-width:760px){.stack-row{grid-template-columns:repeat(5,minmax(0,1fr))}}
+  .stack-cell{
+    border:1px solid var(--divider);border-radius:var(--r-control);
+    background:var(--bg);padding:var(--s-md) var(--s-sm);text-align:center;
+  }
+  .stack-cell b{display:block;font-weight:500;font-size:16px;letter-spacing:-.01em}
+  .stack-cell span{display:block;margin-top:var(--s-xxs);font-family:var(--mono);font-size:11px;color:var(--fg-3)}
+  .stack-links{display:none}
+  @media (min-width:760px){
+    .stack-links{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));height:var(--s-lg)}
+    .stack-links i{display:block;width:1px;height:100%;margin:0 auto;background:var(--divider)}
+  }
+  .stack-core{
+    margin-top:var(--s-sm);
+    border:1px solid var(--stroke);border-radius:var(--r-control);background:var(--bg-panel);
+    padding:var(--s-md) var(--s-lg);
+    display:flex;flex-wrap:wrap;align-items:baseline;justify-content:center;
+    gap:var(--s-xs) var(--s-sm);text-align:center;
+  }
+  @media (min-width:760px){.stack-core{margin-top:0}}
+  .stack-core code{font-family:var(--mono);font-size:15px;color:var(--fg)}
+  .stack-core span{color:var(--fg-2);font-size:15px}
+
+  .link-list{display:flex;flex-direction:column;gap:var(--s-xs);margin-top:var(--s-lg);font-size:16px}
+
+  .term-body{height:400px;display:flex;flex-direction:column}
+  .term-out{flex:1;min-height:0;overflow-y:auto;padding:var(--s-md)}
+  .term-out pre{
+    margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.7;
+    color:var(--fg-2);white-space:pre-wrap;
+  }
+  .term-out pre b{color:var(--accent);font-weight:400}
+  .term-out .err{color:var(--danger)}
+  .term-line{
+    display:flex;align-items:center;gap:var(--s-xs);
+    padding:var(--s-sm) var(--s-md);border-top:1px solid var(--divider);
+    font-family:var(--mono);font-size:12.5px;
+  }
+  .term-sigil{color:var(--fg-3);user-select:none}
+  .term-cmd{color:var(--accent);user-select:none}
+  .term-line input{
+    flex:1;min-width:0;appearance:none;border:0;background:transparent;outline:none;
+    font:inherit;color:var(--fg);
+  }
 
   .plan{display:flex;flex-direction:column;align-items:flex-start}
   .plan.featured{border-color:var(--accent)}
@@ -243,31 +405,162 @@
 
 {% block scripts %}
 <script>{% raw %}
-  // Platform switcher. Swaps the placeholder label today; swaps <img src> once
-  // the real screenshots land.
   (function () {
-    var LABELS = {
-      macos:'macOS client', ios:'iOS client', windows:'Windows client',
-      linux:'Linux client', android:'Android client'
-    };
-    var strip = document.getElementById('platform-switch');
-    var shot  = document.getElementById('platform-shot');
-    if (!strip || !shot) return;
+    var block = document.getElementById('cipher');
+    var state = document.getElementById('cipher-state');
+    var dot   = document.getElementById('cipher-dot');
+    var again = document.getElementById('cipher-replay');
+    if (!block) return;
+
+    var GLYPHS  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var CIPHER  = 'ciphertext — what our servers hold';
+    var PLAIN   = 'plaintext — only ever on your device';
+    var CHURN   = 50;
+    var STAGGER = 90;
+
+    var lines = [].slice.call(block.querySelectorAll('.cl')).map(function (el) {
+      var text = el.textContent;
+      el.textContent = '';
+      var on  = document.createElement('span');
+      var off = document.createElement('span');
+      on.className = 'on';
+      el.appendChild(on);
+      el.appendChild(off);
+      return { text: text, on: on, off: off };
+    });
+
+    var total = 0;
+    lines.forEach(function (l, i) {
+      l.start = i * STAGGER;
+      l.span  = 620 + l.text.length * 9;
+      total = Math.max(total, l.start + l.span);
+    });
+
+    function noise(n) {
+      var s = '';
+      for (var i = 0; i < n; i++) s += GLYPHS[(Math.random() * GLYPHS.length) | 0];
+      return s;
+    }
+
+    function settle() {
+      lines.forEach(function (l) { l.on.textContent = l.text; l.off.textContent = ''; });
+      if (state) state.textContent = PLAIN;
+      if (dot) dot.classList.add('is-clear');
+    }
+
+    var still = window.matchMedia('(prefers-reduced-motion: reduce)');
+    var running = false;
+
+    function run() {
+      if (running) return;
+      running = true;
+      if (state) state.textContent = CIPHER;
+      if (dot) dot.classList.remove('is-clear');
+
+      var t0 = performance.now();
+      var churnedAt = -Infinity;
+
+      function frame(now) {
+        var t = now - t0;
+        var churn = now - churnedAt >= CHURN;
+        if (churn) churnedAt = now;
+
+        for (var i = 0; i < lines.length; i++) {
+          var l = lines[i];
+          if (!l.text.length) continue;
+          var p = (t - l.start) / l.span;
+          if (p >= 1) {
+            if (l.on.textContent !== l.text) { l.on.textContent = l.text; l.off.textContent = ''; }
+            continue;
+          }
+          var k = p <= 0 ? 0 : Math.floor(p * l.text.length);
+          if (l.on.textContent.length !== k) l.on.textContent = l.text.slice(0, k);
+          if (churn) l.off.textContent = noise(l.text.length - k);
+        }
+
+        if (t < total) requestAnimationFrame(frame);
+        else { running = false; settle(); }
+      }
+      requestAnimationFrame(frame);
+    }
+
+    if (still.matches) {
+      settle();
+    } else {
+      lines.forEach(function (l) { l.off.textContent = noise(l.text.length); });
+      if (again) { again.hidden = false; again.addEventListener('click', run); }
+      if ('IntersectionObserver' in window) {
+        var io = new IntersectionObserver(function (entries) {
+          if (entries[0].isIntersecting) { io.disconnect(); run(); }
+        }, { threshold: 0.3 });
+        io.observe(block);
+      } else {
+        run();
+      }
+    }
+  })();
+
+  (function () {
+    var strip = document.getElementById('fmt-tabs');
+    var caption = document.getElementById('fmt-caption');
+    if (!strip) return;
     var tabs = [].slice.call(strip.querySelectorAll('button'));
-    tabs.forEach(function (t) {
-      t.addEventListener('click', function () {
-        tabs.forEach(function (o) {
-          o.setAttribute('aria-selected', o === t ? 'true' : 'false');
+
+    function show(tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+        var panel = document.getElementById(t.getAttribute('aria-controls'));
+        if (panel) panel.classList.toggle('is-on', on);
+      });
+      if (caption) {
+        [].forEach.call(caption.children, function (p) {
+          p.hidden = p.getAttribute('data-for') !== tab.dataset.panel;
         });
-        shot.innerHTML = '<span><b>' + LABELS[t.dataset.platform] +
-          '</b>screenshot · 16:10 · 2× · matches viewer’s theme</span>';
+      }
+    }
+
+    tabs.forEach(function (t, i) {
+      t.addEventListener('click', function () { show(t); });
+      t.addEventListener('keydown', function (e) {
+        var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        var next = tabs[(i + d + tabs.length) % tabs.length];
+        next.focus();
+        show(next);
       });
     });
   })();
 
-  // Detect the visitor's platform: name the hero CTA, point it at the right
-  // build, and mark the matching tile in the download grid. Falls back to the
-  // plain "Download" jump link when nothing matches.
+  (function () {
+    var form  = document.getElementById('term-form');
+    var input = document.getElementById('term-input');
+    var out   = document.getElementById('term-out');
+    if (!form || !input || !out) return;
+
+    function esc(s) {
+      return s.replace(/[&<>]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
+      });
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var cmd = input.value.trim();
+      if (!cmd) return;
+      input.value = '';
+      var line = document.createElement('pre');
+      line.innerHTML =
+        '\n<span class="term-sigil">$</span> <b>lockbook</b> ' + esc(cmd) +
+        '\n<span class="err">error</span>: the developers were too lazy to build a working shell here.' +
+        '\n       The real one ships with every desktop build — <a href="#download">grab it</a>.';
+      out.appendChild(line);
+      out.scrollTop = out.scrollHeight;
+    });
+  })();
+
   (function () {
     var ua = navigator.userAgent || '';
     var plat = navigator.platform || '';
@@ -289,53 +582,28 @@
     var nav  = document.getElementById('nav-download');
     if (tile && hero) { hero.textContent = 'Download for ' + NAMES[os]; hero.href = tile.href; }
     if (tile && nav) nav.href = tile.href;
-
-    var strip = document.getElementById('platform-switch');
-    var btn = strip && strip.querySelector('button[data-platform="' + os + '"]');
-    if (btn) btn.click();
   })();
 
-  // ── Live demos ────────────────────────────────────────────────────────
-  // Two eframe runners mount onto #editor-demo and #canvas-demo from the
-  // same bundle (trunk/src/main.rs). Three rules govern how it loads:
-  //   · never on the critical path — the bundle is tens of MB
-  //   · never on a touch device — the editor is unusable at 375px
-  //   · never steal the page's scroll until the visitor opts in
   (function () {
     var FRAMES = [
-      { win: 'demo-editor', overlay: 'editor-loading' },
-      { win: 'demo-canvas', overlay: 'canvas-loading' }
+      { panel: 'panel-md',  overlay: 'editor-loading' },
+      { panel: 'panel-svg', overlay: 'canvas-loading' }
     ];
-    function overlayHtml(msg) { return '<span>' + msg + '</span>'; }
 
-    // Touch / coarse pointer: don't fetch the bundle at all.
     if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
       FRAMES.forEach(function (f) {
         var o = document.getElementById(f.overlay);
-        if (o) o.innerHTML = overlayHtml('Live demo — open on a desktop to try it');
+        if (o) o.innerHTML = '<span>Live demo — open on a desktop to try it</span>';
       });
       return;
     }
 
-    // eframe registers a wheel handler on the canvas that calls
-    // preventDefault() (verified: dispatching a wheel event on the canvas
-    // returns false). Left alone, putting the cursor over a demo stops the
-    // page scrolling. Rather than gate interaction behind a click, catch wheel
-    // in the CAPTURE phase on the frame — ancestors run before the target, so
-    // the canvas never sees it and the browser still performs its default
-    // scroll. Clicking, typing and drawing all work immediately; only
-    // scrolling *inside* the demo is given up, which is the right trade on a
-    // page you are meant to be able to scroll past.
-    FRAMES.forEach(function (f) {
-      var w = document.getElementById(f.win);
-      if (!w) return;
-      w.addEventListener('wheel', function (e) { e.stopPropagation(); },
-                         { capture: true, passive: true });
-    });
+    var stage = document.querySelector('.fmt-stage');
+    if (stage) {
+      stage.addEventListener('wheel', function (e) { e.stopPropagation(); },
+                             { capture: true, passive: true });
+    }
 
-    // egui focuses a hidden IME input during init and on interaction; the
-    // browser's default focus() scrolls it into view and yanks the page to the
-    // demo. Patch focus globally before the runner starts.
     var origFocus = HTMLElement.prototype.focus;
     HTMLElement.prototype.focus = function (opts) {
       var o = { preventScroll: true };
@@ -353,20 +621,20 @@
           console.error('Lockbook WASM init failed:', err);
           FRAMES.forEach(function (f) {
             var o = document.getElementById(f.overlay);
-            if (o) o.innerHTML = overlayHtml(
-              'The live demo didn’t load. <a href="#download">Download the app</a> instead.');
+            if (o) o.innerHTML =
+              '<span>The live demo didn’t load. <a href="#download">Download the app</a> instead.</span>';
           });
         });
     }
 
-    var first = document.getElementById('demo-editor');
-    if (first && 'IntersectionObserver' in window) {
+    var win = document.getElementById('fmt-window');
+    if (win && 'IntersectionObserver' in window) {
       var io = new IntersectionObserver(function (entries) {
         for (var i = 0; i < entries.length; i++) {
           if (entries[i].isIntersecting) { io.disconnect(); start(); return; }
         }
       }, { rootMargin: '600px 0px' });
-      io.observe(first);
+      io.observe(win);
     } else {
       start();
     }

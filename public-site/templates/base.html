@@ -1,0 +1,414 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+
+<title>{% block title %}Lockbook — Encrypted notes for every platform{% endblock %}</title>
+<meta name="description" content="{% block description %}An open-source, end-to-end encrypted notebook. Write markdown, sketch by hand, and sync across native apps on every platform.{% endblock %}" />
+
+<link rel="icon" type="image/svg+xml" href="/favicon/favicon.svg" />
+<link rel="icon" type="image/png" sizes="96x96" href="/favicon/favicon-96x96.png" />
+<link rel="apple-touch-icon" sizes="180x180" href="/favicon/apple-touch-icon.png" />
+<link rel="manifest" href="/favicon/site.webmanifest" />
+
+<script>{% raw %}
+  (function () {
+    var root = document.documentElement;
+    var saved = null;
+    try { saved = localStorage.getItem('lb-theme'); } catch (e) {}
+    if (saved === 'light' || saved === 'dark') {
+      root.setAttribute('data-theme', saved);
+    }
+    window.lbApplyMode = function () {
+      var pref = root.getAttribute('data-theme');
+      var dark = pref ? pref === 'dark'
+                      : window.matchMedia('(prefers-color-scheme: dark)').matches;
+      root.setAttribute('data-lb-mode', dark ? 'dark' : 'light');
+    };
+    window.lbApplyMode();
+  })();
+{% endraw %}</script>
+
+<style>{% raw %}
+:root {
+    --dim-black:#101010;   --bright-black:#101010;
+  --dim-grey:#1D1D1D;    --bright-grey:#F6F6F6;
+  --dim-red:#DF2040;     --bright-red:#FF6680;
+  --dim-green:#00B371;   --bright-green:#67E4B6;
+  --dim-yellow:#E6AC00;  --bright-yellow:#FFDB70;
+  --dim-blue:#207FDF;    --bright-blue:#66B2FF;
+  --dim-magenta:#7855AA; --bright-magenta:#AC8CD9;
+  --dim-cyan:#00BBCC;    --bright-cyan:#6EECF7;
+  --dim-white:#FFFFFF;   --bright-white:#FFFFFF;
+
+    --bg:            #FFFFFF;    --bg-panel:      #F6F6F6;    --bg-control:    #D4D4D4;    --stroke:        #B1B1B1;    --divider:       #DADADA;    --fg:            #101010;    --fg-2:          #515151;    --fg-3:          #838383;    --accent:        #207FDF;    --danger:        #DF2040;
+  --wash-1:        rgba(16,16,16,.05);    --wash-2:        rgba(16,16,16,.10);    --on-accent:     #FFFFFF;
+  --ink-fill:      #101010;    --ink-fill-text: #FFFFFF;  
+    --s-xxs:2px; --s-xs:5px; --s-sm:10px; --s-md:15px; --s-lg:25px; --s-xl:40px;
+    --s-2xl:65px; --s-3xl:105px;
+
+    --r-sm:4px; --r-control:8px; --r-surface:12px;
+
+    --anim:.2s;
+
+    --t-title:34px; --t-heading:22px; --t-body:17px; --t-mono:13px;
+  --lh-ui:1.4; --lh-prose:1.6;
+
+  --sans:-apple-system,BlinkMacSystemFont,"Segoe UI","Noto Sans",system-ui,sans-serif;
+  --mono:ui-monospace,SFMono-Regular,"SF Mono","Noto Sans Mono",Menlo,monospace;
+
+  --measure:38em;
+  --page:1120px;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg:#101010; --bg-panel:#1D1D1D; --bg-control:#3F3F3F;
+    --stroke:#565656; --divider:#383838;
+    --fg:#FFFFFF; --fg-2:#B4B4B4; --fg-3:#8E8E8E;
+    --accent:#66B2FF; --danger:#FF6680;
+    --wash-1:rgba(255,255,255,.05); --wash-2:rgba(255,255,255,.10);
+    --ink-fill:#FFFFFF; --ink-fill-text:#101010;
+  }
+}
+:root[data-theme="dark"] {
+  --bg:#101010; --bg-panel:#1D1D1D; --bg-control:#3F3F3F;
+  --stroke:#565656; --divider:#383838;
+  --fg:#FFFFFF; --fg-2:#B4B4B4; --fg-3:#8E8E8E;
+  --accent:#66B2FF; --danger:#FF6680;
+  --wash-1:rgba(255,255,255,.05); --wash-2:rgba(255,255,255,.10);
+  --ink-fill:#FFFFFF; --ink-fill-text:#101010;
+}
+
+*,*::before,*::after{box-sizing:border-box}
+html{-webkit-text-size-adjust:100%}
+body{
+  margin:0; background:var(--bg); color:var(--fg);
+  font-family:var(--sans); font-size:var(--t-body); line-height:var(--lh-prose);
+  -webkit-font-smoothing:antialiased; -moz-osx-font-smoothing:grayscale;
+}
+img,svg{max-width:100%;display:block}
+a{color:var(--accent);text-decoration:none}
+a:hover{text-decoration:underline}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px;border-radius:var(--r-sm)}
+h1,h2,h3,h4{margin:0;font-weight:600;letter-spacing:-.02em;line-height:1.15;text-wrap:balance}
+p{margin:0}
+code,kbd,samp{font-family:var(--mono);font-size:.85em}
+
+.wrap{max-width:var(--page);margin:0 auto;padding:0 var(--s-lg)}
+.measure{max-width:var(--measure)}
+
+.btn{
+  display:inline-flex;align-items:center;justify-content:center;gap:var(--s-xs);
+  padding:var(--s-xs) var(--s-sm);min-height:34px;
+  border-radius:var(--r-control);border:1px solid transparent;
+  font:inherit;font-size:15px;font-weight:500;line-height:var(--lh-ui);
+  cursor:pointer;white-space:nowrap;text-decoration:none;
+  transition:background-color var(--anim) ease,border-color var(--anim) ease,color var(--anim) ease;
+}
+.btn:hover{text-decoration:none}
+.btn-primary{background:var(--ink-fill);color:var(--ink-fill-text);border-color:var(--ink-fill)}
+.btn-primary:hover{background:color-mix(in srgb,var(--ink-fill) 84%,var(--bg));border-color:color-mix(in srgb,var(--ink-fill) 84%,var(--bg))}
+.btn-primary:active{background:color-mix(in srgb,var(--ink-fill) 76%,var(--bg));border-color:color-mix(in srgb,var(--ink-fill) 76%,var(--bg))}
+.btn-quiet{background:transparent;color:var(--fg);border-color:var(--stroke)}
+.btn-quiet:hover{background:var(--wash-1)}
+.btn-quiet:active{background:var(--wash-2)}
+.btn-lg{min-height:42px;padding:var(--s-sm) var(--s-md);font-size:16px}
+.btn-icon{
+  display:inline-flex;align-items:center;justify-content:center;
+  width:34px;height:34px;padding:0;border:0;border-radius:var(--r-control);
+  background:transparent;color:var(--fg-3);cursor:pointer;
+  transition:background-color var(--anim) ease,color var(--anim) ease;
+}
+.btn-icon:hover{background:var(--wash-1);color:var(--fg)}
+
+.segmented{
+  display:inline-flex;padding:var(--s-xxs);gap:var(--s-xxs);
+  background:var(--bg-panel);border-radius:var(--r-control);
+  border:1px solid var(--divider);flex-wrap:wrap;
+}
+.segmented button{
+  font:inherit;font-family:var(--mono);font-size:11px;letter-spacing:.08em;
+  text-transform:uppercase;color:var(--fg-3);
+  padding:var(--s-xs) var(--s-sm);border:0;border-radius:var(--r-sm);
+  background:transparent;cursor:pointer;
+  transition:background-color var(--anim) ease,color var(--anim) ease;
+}
+.segmented button:hover{color:var(--fg);background:var(--wash-1)}
+.segmented button[aria-selected="true"]{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--divider)}
+
+.eyebrow{
+  font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--accent);margin:0 0 var(--s-sm);
+}
+
+.site-header{
+  position:sticky;top:0;z-index:50;
+  background:color-mix(in srgb,var(--bg) 88%,transparent);
+  backdrop-filter:saturate(1.4) blur(10px);-webkit-backdrop-filter:saturate(1.4) blur(10px);
+  border-bottom:1px solid var(--divider);
+}
+.site-header .bar{display:flex;align-items:center;justify-content:space-between;gap:var(--s-md);height:60px}
+.brand{display:inline-flex;align-items:center;gap:var(--s-xs);color:var(--fg);font-weight:600;font-size:17px;letter-spacing:-.01em}
+.brand:hover{text-decoration:none}
+.brand svg{width:22px;height:22px;color:var(--accent)}
+.site-nav{display:flex;align-items:center;gap:var(--s-xs)}
+.site-nav a.navlink{
+  color:var(--fg-2);font-size:15px;padding:var(--s-xs) var(--s-sm);border-radius:var(--r-control);
+  transition:background-color var(--anim) ease,color var(--anim) ease;
+}
+.site-nav a.navlink:hover{background:var(--wash-1);color:var(--fg);text-decoration:none}
+.nav-desktop{display:none}
+@media (min-width:860px){.nav-desktop{display:flex;align-items:center;gap:var(--s-xxs)}.nav-burger{display:none}}
+.nav-burger{background:transparent;border:0;color:var(--fg);cursor:pointer;padding:var(--s-xs);border-radius:var(--r-control)}
+.nav-burger:hover{background:var(--wash-1)}
+#mobile-nav{display:none;border-top:1px solid var(--divider);padding:var(--s-sm) 0 var(--s-md)}
+#mobile-nav.open{display:block}
+#mobile-nav a{display:block;padding:var(--s-sm) var(--s-xs);color:var(--fg);font-size:16px}
+@media (min-width:860px){#mobile-nav{display:none !important}}
+
+.section{padding:var(--s-3xl) 0;border-top:1px solid var(--divider)}
+.section:first-of-type{border-top:0}
+.section h2{font-size:clamp(24px,3.6vw,var(--t-heading));font-size:clamp(24px,3.6vw,30px)}
+.section .lede{color:var(--fg-2);margin-top:var(--s-md);max-width:var(--measure)}
+
+.split{display:grid;gap:var(--s-xl);align-items:center}
+@media (min-width:900px){
+  .split{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--s-2xl)}
+  .split.flip .split-text{order:2}
+  .split.flip .split-visual{order:1}
+}
+
+.ph{
+  position:relative;width:100%;border-radius:var(--r-surface);
+  border:1px dashed var(--stroke);background:var(--bg-panel);
+  display:flex;align-items:center;justify-content:center;
+  color:var(--fg-3);font-family:var(--mono);font-size:12px;line-height:1.6;
+  text-align:center;padding:var(--s-lg);
+}
+.ph[data-ratio="4/3"]{aspect-ratio:4/3}
+.ph[data-ratio="16/10"]{aspect-ratio:16/10}
+.ph[data-ratio="16/9"]{aspect-ratio:16/9}
+.ph b{display:block;color:var(--fg-2);font-weight:500;margin-bottom:var(--s-xs)}
+
+.window{
+  position:relative;margin:0;
+  border:1px solid var(--stroke);border-radius:var(--r-surface);
+  background:var(--bg-panel);overflow:hidden;
+}
+.window-bar{
+  display:flex;align-items:center;gap:var(--s-sm);
+  height:34px;padding:0 var(--s-sm);
+  border-bottom:1px solid var(--divider);background:var(--bg-panel);
+}
+.window-marks{flex:none;color:var(--fg-3);opacity:.65}
+.window-dots{flex:none;margin-left:auto;color:var(--fg-3);opacity:.5}
+.window-label{
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;
+  color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.window-tabs{display:flex;align-items:center;gap:var(--s-xxs);min-width:0;overflow:hidden}
+.window-tabs button{
+  appearance:none;border:0;background:transparent;cursor:pointer;
+  font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--fg-3);
+  padding:var(--s-xxs) var(--s-xs);border-radius:var(--r-sm);white-space:nowrap;
+  transition:background-color var(--anim) ease,color var(--anim) ease;
+}
+.window-tabs button:hover{background:var(--wash-1);color:var(--fg-2)}
+.window-tabs button[aria-selected="true"]{
+  background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--divider);
+}
+.window-body{position:relative;background:var(--bg);}
+.window-body[data-ratio="4/3"]{aspect-ratio:4/3}
+.window-body[data-ratio="16/10"]{aspect-ratio:16/10}
+:root[data-theme="dark"] .window-body{background:var(--dim-black)}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]) .window-body{background:var(--dim-black)}}
+.window-body canvas{display:block;width:100%;height:100%}
+
+.demo-overlay{
+  position:absolute;inset:0;display:flex;flex-direction:column;
+  align-items:center;justify-content:center;gap:var(--s-sm);
+  background:var(--bg-panel);color:var(--fg-3);
+  font-family:var(--mono);font-size:12px;text-align:center;padding:var(--s-lg);
+}
+.spinner{
+  width:13px;height:13px;border-radius:50%;
+  border:1.5px solid var(--divider);border-top-color:var(--fg-3);
+  animation:spin .9s linear infinite;
+}
+@keyframes spin{to{transform:rotate(360deg)}}
+@media (prefers-reduced-motion:reduce){.spinner{animation:none}}
+
+.cards{display:grid;gap:var(--s-md)}
+@media (min-width:760px){.cards.three{grid-template-columns:repeat(3,1fr)}.cards.two{grid-template-columns:repeat(2,1fr)}}
+.card{border:1px solid var(--divider);border-radius:var(--r-surface);padding:var(--s-lg);background:var(--bg)}
+.card h3{font-size:19px;margin-bottom:var(--s-sm)}
+.card p{color:var(--fg-2);font-size:16px}
+
+.site-footer{border-top:1px solid var(--divider);padding:var(--s-2xl) 0 var(--s-xl);color:var(--fg-2);font-size:15px}
+.site-footer .cols{display:grid;gap:var(--s-lg);margin-bottom:var(--s-lg)}
+@media (min-width:760px){.site-footer .cols{grid-template-columns:repeat(4,1fr)}}
+.site-footer h4{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--fg-3);font-weight:400;margin-bottom:var(--s-sm)}
+.site-footer ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;gap:var(--s-xs)}
+.site-footer a{color:var(--fg-2)}
+.site-footer a:hover{color:var(--fg)}
+.site-footer .base{display:flex;flex-wrap:wrap;gap:var(--s-sm) var(--s-lg);justify-content:space-between;
+  padding-top:var(--s-md);border-top:1px solid var(--divider);font-family:var(--mono);font-size:12px;color:var(--fg-3)}
+
+.prose{max-width:42em;margin:0 auto;padding:var(--s-2xl) 0}
+.prose h1{font-size:var(--t-title);margin-bottom:var(--s-md)}
+.prose h2{font-size:var(--t-heading);margin:var(--s-xl) 0 var(--s-sm)}
+.prose h3{font-size:19px;margin:var(--s-lg) 0 var(--s-xs)}
+.prose p,.prose ul,.prose ol{margin:0 0 var(--s-md)}
+.prose li{margin-bottom:var(--s-xs)}
+.prose pre{background:var(--bg-panel);padding:var(--s-md);border-radius:var(--r-control);overflow-x:auto}
+
+@media (prefers-reduced-motion:reduce){*{transition-duration:.01ms !important;animation-duration:.01ms !important}}
+{% endraw %}</style>
+
+<script type="application/ld+json">
+{
+  "@context":"https://schema.org",
+  "@type":"SoftwareApplication",
+  "name":"Lockbook",
+  "applicationCategory":"ProductivityApplication",
+  "operatingSystem":"macOS, iOS, Android, Linux, Windows",
+  "description":"An open-source, end-to-end encrypted notebook for markdown notes and SVG drawings.",
+  "url":"https://lockbook.net",
+  "license":"https://github.com/lockbook/lockbook/blob/master/UNLICENSE",
+  "sameAs":[
+    "https://github.com/lockbook/lockbook",
+    "https://apps.apple.com/us/app/lockbook/id1526775001",
+    "https://play.google.com/store/apps/details?id=app.lockbook",
+    "https://flathub.org/apps/net.lockbook.Lockbook",
+    "https://discord.gg/lockbook"
+  ],
+  "offers":[
+    {"@type":"Offer","name":"Free","price":"0","priceCurrency":"USD"},
+    {"@type":"Offer","name":"Premium","price":"2.99","priceCurrency":"USD"}
+  ]
+}
+</script>
+</head>
+
+<body>
+
+<header class="site-header">
+  <div class="wrap">
+    <div class="bar">
+      <a class="brand" href="/">
+        <svg viewBox="0 0 2160 2160" fill="currentColor" aria-hidden="true">
+          <path d="M0,651.781C0,638.715 6.374,626.471 17.077,618.977C128.402,541.026 750.275,105.586 878.097,16.084C891.888,6.427 910.246,6.427 924.038,16.084C1082.22,126.847 2007.96,775.055 2145.48,871.35C2156.19,878.845 2162.56,891.089 2162.56,904.155C2162.56,927.543 2162.56,965.259 2162.56,988.647C2162.56,1001.71 2156.19,1013.96 2145.48,1021.45C2039.67,1095.55 1474.5,1491.28 1368.68,1565.38C1357.98,1572.87 1351.6,1585.12 1351.6,1598.18L1351.6,1810.48C1351.6,1814.21 1353.68,1817.63 1356.99,1819.36C1360.3,1821.08 1364.3,1820.82 1367.36,1818.68C1403,1793.72 1486.76,1735.07 1486.76,1735.07L1486.76,1629.73C1486.76,1616.66 1493.13,1604.42 1503.84,1596.92C1538.68,1572.53 1617.52,1517.32 1651.22,1493.73C1654.28,1491.59 1658.27,1491.32 1661.59,1493.05C1664.9,1494.77 1666.97,1498.19 1666.97,1501.93C1666.97,1537.25 1666.97,1608.88 1666.97,1608.88C1666.97,1608.88 2062.35,1332.04 2146.81,1272.9C2149.87,1270.76 2153.86,1270.5 2157.17,1272.22C2160.48,1273.94 2162.56,1277.37 2162.56,1281.1C2162.56,1304.33 2162.56,1343.27 2162.56,1367.21C2162.56,1380.27 2156.19,1392.52 2145.48,1400.01C2058.3,1461.06 1666.97,1735.07 1666.97,1735.07L1666.97,1977.43C1666.97,1980.09 1665.92,1982.63 1664.04,1984.51C1662.16,1986.39 1659.62,1987.44 1656.96,1987.44C1633.49,1987.44 1576.87,1987.44 1576.87,1987.44C1576.87,1987.44 1531.24,2051.34 1504.92,2088.2C1502.39,2091.74 1497.86,2093.24 1493.72,2091.91C1489.57,2090.59 1486.76,2086.73 1486.76,2082.38C1486.76,2014.83 1486.76,1861.26 1486.76,1861.26C1486.76,1861.26 1341.82,1962.74 1284.46,2002.9C1270.67,2012.56 1252.32,2012.56 1238.52,2002.9C1080.34,1892.14 154.601,1243.93 17.077,1147.64C6.374,1140.14 0,1127.9 0,1114.83L0,651.781ZM990.381,799.075C993.724,798.532 997.114,799.717 999.391,802.223C1023.81,829.081 1162.83,982.046 1204.58,1027.99C1211.36,1035.45 1222.63,1036.71 1230.88,1030.93C1277.76,998.104 1425.33,894.777 1472.27,861.907C1475.23,859.838 1476.84,856.339 1476.49,852.748C1476.15,849.157 1473.9,846.029 1470.6,844.561C1409.38,817.279 1192.85,720.799 1148.06,700.84C1143.52,698.815 1141.15,693.761 1142.5,688.974C1144.89,680.402 1146.12,671.541 1146.12,662.481C1146.12,585.19 1056.5,522.439 946.121,522.439C835.738,522.439 746.121,585.19 746.121,662.481C746.121,739.772 835.738,802.522 946.121,802.522C961.328,802.522 976.142,801.331 990.381,799.075Z"/>
+        </svg>
+        <span>Lockbook</span>
+      </a>
+
+      <nav class="site-nav">
+        <div class="nav-desktop">
+          <a class="navlink" href="/#pricing">Pricing</a>
+          <a class="navlink" href="/blog">Blog</a>
+          <a class="navlink" href="/docs">Docs</a>
+          <a class="navlink" href="https://github.com/lockbook/lockbook">GitHub</a>
+          <a class="navlink" href="https://discord.gg/lockbook">Discord</a>
+        </div>
+        <button class="btn-icon" id="theme-toggle" type="button" aria-label="Toggle light or dark mode">
+          <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+            <circle cx="12" cy="12" r="4.2"/><path d="M12 2.5v2M12 19.5v2M4.4 4.4l1.4 1.4M18.2 18.2l1.4 1.4M2.5 12h2M19.5 12h2M4.4 19.6l1.4-1.4M18.2 5.8l1.4-1.4"/>
+          </svg>
+        </button>
+        <a class="btn btn-primary" id="nav-download" href="/#download">Download</a>
+        <button class="nav-burger" id="nav-burger" type="button" aria-expanded="false" aria-controls="mobile-nav" aria-label="Menu">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" aria-hidden="true">
+            <path d="M4 7h16M4 12h16M4 17h16"/>
+          </svg>
+        </button>
+      </nav>
+    </div>
+
+    <div id="mobile-nav">
+      <a href="/#pricing">Pricing</a>
+      <a href="/blog">Blog</a>
+      <a href="/docs">Docs</a>
+      <a href="https://github.com/lockbook/lockbook">GitHub</a>
+      <a href="https://discord.gg/lockbook">Discord</a>
+    </div>
+  </div>
+</header>
+
+{% block content %}{% endblock %}
+
+<footer class="site-footer">
+  <div class="wrap">
+    <div class="cols">
+      <div>
+        <h4>Product</h4>
+        <ul>
+          <li><a href="/#download">Download</a></li>
+          <li><a href="/#pricing">Pricing</a></li>
+          <li><a href="/security">Security</a></li>
+          <li><a href="https://github.com/lockbook/lockbook/milestones">Roadmap</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Learn</h4>
+        <ul>
+          <li><a href="/blog">Blog</a></li>
+          <li><a href="/docs">Docs</a></li>
+          <li><a href="https://github.com/lockbook/lockbook/tree/master/clients/cli">CLI</a></li>
+          <li><a href="https://crates.io/crates/lb-rs">lb-rs</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Open</h4>
+        <ul>
+          <li><a href="https://github.com/lockbook/lockbook">Source</a></li>
+          <li><a href="https://github.com/lockbook/lockbook/blob/master/UNLICENSE">License</a></li>
+          <li><a href="https://github.com/lockbook/lockbook/graphs/contributors">Contributors</a></li>
+          <li><a href="https://discord.gg/lockbook">Discord</a></li>
+        </ul>
+      </div>
+      <div>
+        <h4>Legal</h4>
+        <ul>
+          <li><a href="/privacy-policy">Privacy</a></li>
+          <li><a href="/tos">Terms</a></li>
+          <li><a href="/delete-account">Delete account</a></li>
+        </ul>
+      </div>
+    </div>
+    <div class="base">
+      <span>Lockbook — open source since 2020</span>
+      <span>Public domain, under the Unlicense</span>
+    </div>
+  </div>
+</footer>
+
+<script>{% raw %}
+  document.getElementById('theme-toggle').addEventListener('click', function () {
+    var root = document.documentElement;
+    var systemDark = window.matchMedia('(prefers-color-scheme: dark)').matches;
+    var current = root.getAttribute('data-theme') || (systemDark ? 'dark' : 'light');
+    var next = current === 'dark' ? 'light' : 'dark';
+    root.setAttribute('data-theme', next);
+    try { localStorage.setItem('lb-theme', next); } catch (e) {}
+    window.lbApplyMode();
+  });
+
+  window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', function () {
+    if (!document.documentElement.getAttribute('data-theme')) window.lbApplyMode();
+  });
+
+  (function () {
+    var b = document.getElementById('nav-burger');
+    var m = document.getElementById('mobile-nav');
+    b.addEventListener('click', function () {
+      var open = m.classList.toggle('open');
+      b.setAttribute('aria-expanded', open ? 'true' : 'false');
+    });
+  })();
+{% endraw %}</script>
+
+{% block scripts %}{% endblock %}
+</body>
+</html>
