@@ -14,16 +14,9 @@ cd clients/cli && cargo install --path .
 
 See [cli](cli.md) for information about setting up completions.
 
-# Desktop (Windows / Linux / macOS host)
-Product GUI is `clients/desktop` (custom winit/wgpu host + shell). Packaging renames platform bins to `lockbook-desktop`.
-
+# Windows
 ```bash
-cargo run -p lockbook-desktop
-# release / install:
-cargo install --path clients/desktop
-# packaging builds (same host code):
-#   cargo build -p lockbook-linux --release
-#   cargo build -p lockbook-windows --release
+cd clients/desktop && cargo install --path .
 ```
 
 # Linux
@@ -36,6 +29,10 @@ Commonly required dependencies:
 
 See `clients/linux/default.nix` for the formal specification. Nix-users can just `nix-shell` in this directory to fulfill the dependency requirements.
 
+Once dependencies are fulfilled: 
+```bash
+cd clients/desktop && cargo install --path .
+``` 
 
 # Android
 Dependencies:
