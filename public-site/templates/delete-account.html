@@ -1,8 +1,4 @@
 {% extends "base.html" %}
 {% block content %}
-
-<div id="markdown" class="max-w-2xl mx-auto my-24 text-egshell">
-    {{ page.content | safe }}  
-</div>
-
+<div class="wrap"><div class="prose">{{ page.content | safe }}</div></div>
 {% endblock content %}

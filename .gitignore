@@ -120,3 +120,5 @@ book/
 .vscode
 perf-investigation/
 perf-investigation/
+
+public-site/static/wasm/
