@@ -120,7 +120,7 @@ checksum = "320119579fcad9c21884f5c4861d16174d0e06250625266f50fe6898340abefa"
 
 [[package]]
 name = "admin"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "base64 0.13.1",
  "basic-human-duration",
@@ -4129,7 +4129,7 @@ checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
 name = "lb-c"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "lb-rs",
 ]
@@ -4141,7 +4141,7 @@ source = "git+https://github.com/lockbook/lb-fonts#da966ea9de83f36903f812b3cd5a1
 
 [[package]]
 name = "lb-fs"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "cli-rs",
  "lb-rs",
@@ -4153,7 +4153,7 @@ dependencies = [
 
 [[package]]
 name = "lb-java"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "jni 0.21.1",
  "lb-rs",
@@ -4184,7 +4184,7 @@ dependencies = [
 
 [[package]]
 name = "lb-rs"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "aes-gcm",
  "base64 0.13.1",
@@ -4242,7 +4242,7 @@ dependencies = [
 
 [[package]]
 name = "lbdev"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "chrono-tz",
  "cli-rs",
@@ -4450,7 +4450,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "arboard",
  "chrono",
@@ -4467,7 +4467,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-desktop"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "arboard",
  "chrono",
@@ -4497,14 +4497,14 @@ dependencies = [
 
 [[package]]
 name = "lockbook-linux"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "lockbook-desktop",
 ]
 
 [[package]]
 name = "lockbook-server"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "async-stripe",
  "async-trait",
@@ -4543,7 +4543,7 @@ dependencies = [
 
 [[package]]
 name = "lockbook-windows"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "lockbook-desktop",
 ]
@@ -7914,7 +7914,7 @@ dependencies = [
 
 [[package]]
 name = "test_utils"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "bincode",
  "lb-rs",
@@ -9772,7 +9772,7 @@ dependencies = [
 
 [[package]]
 name = "winstaller"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "eframe",
  "egui_extras",
@@ -9806,7 +9806,7 @@ dependencies = [
 
 [[package]]
 name = "workspace"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "basic-human-duration",
  "bezier-rs",
@@ -9861,7 +9861,7 @@ dependencies = [
 
 [[package]]
 name = "workspace-ffi"
-version = "26.8.12"
+version = "26.8.27"
 dependencies = [
  "egui",
  "egui_extras",
