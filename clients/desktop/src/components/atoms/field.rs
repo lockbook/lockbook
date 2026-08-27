@@ -37,15 +37,8 @@ pub struct Field<'a> {
     completion_suffix: Option<String>,
     /// Full string Tab accepts (prefix of which is already typed).
     completion_full: Option<String>,
-    /// Always mask as `*` (compact key).
+    /// Always mask as `*` (account key).
     password: bool,
-    /// Mask only while unfocused (phrase slots: reveal the active word).
-    password_when_unfocused: bool,
-    /// Place caret at end of buffer when the field gains focus.
-    cursor_at_end_on_focus: bool,
-    /// Leave Tab for egui focus ring (phrase word grid). Default false = share
-    /// completion behavior (non-empty claims Tab).
-    tab_navigates: bool,
     /// After keyboard events, before paint: rewrite buffer + remap caret.
     /// `(old_text, cursor, anchor) -> (new_text, new_cursor, new_anchor)`.
     rewrite: Option<Box<FieldRewrite<'a>>>,
@@ -70,9 +63,6 @@ impl<'a> Field<'a> {
             completion_suffix: None,
             completion_full: None,
             password: false,
-            password_when_unfocused: false,
-            cursor_at_end_on_focus: false,
-            tab_navigates: false,
             rewrite: None,
         }
     }
@@ -137,27 +127,9 @@ impl<'a> Field<'a> {
         self
     }
 
-    /// Always paint `*` per character (compact account key).
+    /// Always paint `*` per character (account key).
     pub fn password(mut self, on: bool) -> Self {
         self.password = on;
-        self
-    }
-
-    /// Mask when blurred; plain text while focused (phrase grid slots).
-    pub fn password_when_unfocused(mut self, on: bool) -> Self {
-        self.password_when_unfocused = on;
-        self
-    }
-
-    /// Caret at end of buffer when focus is newly gained (paste-into-grid).
-    pub fn cursor_at_end_on_focus(mut self, on: bool) -> Self {
-        self.cursor_at_end_on_focus = on;
-        self
-    }
-
-    /// Tab moves focus to the next field (never claimed for completion).
-    pub fn tab_navigates(mut self, on: bool) -> Self {
-        self.tab_navigates = on;
         self
     }
 
@@ -181,15 +153,13 @@ impl<'a> Field<'a> {
         });
         let edit_id = host.with("edit");
 
-        // Drain before paint. Default: non-empty claims Tab (complete / stay).
-        // `tab_navigates`: never claim — focus ring walks multi-field grids.
-        let claim_tab = !self.tab_navigates;
+        // Drain before paint. Non-empty claims Tab (complete / stay).
         let _ = GlyphonTextEdit::process_events_ex(
             ui,
             edit_id,
             self.text,
-            if claim_tab { self.completion_full.as_deref() } else { None },
-            claim_tab,
+            self.completion_full.as_deref(),
+            true,
         );
 
         // Format / strip before paint so the frame never shows raw input.
@@ -281,26 +251,23 @@ impl<'a> Field<'a> {
         let (edit_resp, _) = place_at(ui, edit_rect, Layout::left_to_right(Align::Center), |ui| {
             ui.set_min_width(edit_w);
             ui.set_max_width(edit_w);
-            let mask = self.password || (self.password_when_unfocused && !focused);
+            let mask = self.password;
             let mut edit = GlyphonTextEdit::new(self.text)
                 .id(edit_id)
                 .font_size(TypeRole::Body.size())
                 .line_height(control_line_height())
                 .password(mask)
-                .claim_tab_when_nonempty(!self.tab_navigates);
+                .claim_tab_when_nonempty(true);
             if !self.hint.is_empty() {
                 edit = edit.hint_text(&self.hint);
             }
-            if !mask && !self.tab_navigates {
+            if !mask {
                 if let Some(ref suffix) = paint_suffix {
                     edit = edit.completion_suffix(suffix);
                 }
             }
             if self.select_all_on_focus {
                 edit = edit.select_all();
-            }
-            if self.cursor_at_end_on_focus {
-                edit = edit.cursor_at_end();
             }
             edit.show(ui)
         });

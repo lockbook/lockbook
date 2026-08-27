@@ -103,7 +103,7 @@ pub(crate) fn page_account(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &m
     });
 }
 
-/// In-settings phrase view (body · mono plate · Back). Esc → HideAccountKey.
+/// In-settings phrase view (body · mono plate · Back · Copy). Esc → HideAccountKey.
 fn page_account_phrase(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     // Parallel to QR: “Scan this QR… to sign in.”
     ui.label(
@@ -126,9 +126,20 @@ fn page_account_phrase(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
     });
 
     ui.add(Spacer::new(Space::Md));
-    let foot = sheet_footer(ui, t, "", SheetFooterOpts::default().divider(false).back_only());
+    let foot = sheet_footer(
+        ui,
+        t,
+        "Copy",
+        SheetFooterOpts::default()
+            .divider(false)
+            .cancel_label("Back")
+            .copy_feedback("shell_copy_phrase"),
+    );
     if foot.cancel {
         queue.push(A::HideAccountKey);
+    }
+    if foot.primary {
+        queue.push(A::CopyPhrase);
     }
 }
 

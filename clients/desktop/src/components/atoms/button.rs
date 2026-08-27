@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use crate::components::foundation::chrome::{
     HOVER_ANIM_SECS, KbdPart, Radius, STROKE_HAIRLINE, Shortcut, control_height, phosphor,
-    phosphor_ui_font_id,
+    phosphor_font_id, phosphor_ui_font_id,
 };
 use crate::components::foundation::color::{BG_HOVER, BG_PRESS, FG_HOVER, FG_PRESS, Theme};
 use crate::components::foundation::interact::{ControlFills, sense_click};
@@ -433,6 +433,13 @@ pub fn icon_button(
 pub fn icon_button_hit(
     ui: &mut Ui, t: &Theme, icon: &'static str, active: bool, ground: Color32, hit: f32,
 ) -> Response {
+    icon_button_glyph(ui, t, icon, active, ground, hit, TypeRole::Body.size())
+}
+
+/// [`icon_button_hit`] with an explicit Phosphor size (titleband toolbar).
+pub fn icon_button_glyph(
+    ui: &mut Ui, t: &Theme, icon: &'static str, active: bool, ground: Color32, hit: f32, glyph: f32,
+) -> Response {
     let hit = hit.max(1.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(hit, hit), sense_click());
     let hover = icon_hover_t(ui, &resp, rect);
@@ -458,7 +465,7 @@ pub fn icon_button_hit(
     };
     let g = ui
         .painter()
-        .layout_no_wrap(icon.into(), phosphor_ui_font_id(), Color32::PLACEHOLDER);
+        .layout_no_wrap(icon.into(), phosphor_font_id(glyph), Color32::PLACEHOLDER);
     ui.painter()
         .galley(rect.center() - g.size() / 2.0, g, color);
     resp

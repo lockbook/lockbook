@@ -5,8 +5,8 @@ use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
 use crate::components::{
-    FileRow, LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, Theme, TypeRole, context_menu, phosphor,
-    with_overlay_scroll,
+    FileRow, LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, Theme, TypeRole, context_menu,
+    paint_list_section, phosphor, with_overlay_scroll,
 };
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
@@ -111,17 +111,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                             if *h > TypeRole::Body.line_height() + SECTION_HEAD_GAP.pts() + 0.5 {
                                 y += SECTION_GAP.pts();
                             }
-                            // Match `list_section_header` (strong body, muted).
-                            let g = ui.painter().layout_no_wrap(
-                                (*title).to_owned(),
-                                egui::FontId::new(
-                                    TypeRole::Body.size(),
-                                    egui::FontFamily::Name(std::sync::Arc::from("Bold")),
-                                ),
-                                t.neutral_fg_secondary(),
-                            );
-                            ui.painter()
-                                .galley(pos2(text_left, y), g, t.neutral_fg_secondary());
+                            paint_list_section(ui, t, title, pos2(text_left, y));
                         }
                         RecentItem::Doc { idx, h } => {
                             let (id, name, _mod, crumbs, pinned) = &docs[*idx];
@@ -144,6 +134,9 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                             );
                             if resp.clicked() {
                                 queue.push(Action::OpenFile(*id));
+                            }
+                            if resp.middle_clicked() {
+                                queue.push(Action::OpenFileNewTab(*id));
                             }
                             let parent = parents.get(id).copied();
                             let pinned = *pinned;
