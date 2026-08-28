@@ -292,10 +292,15 @@ impl AppState {
                     let _ = self.clipboard.set_text(text.clone());
                 }
                 egui::OutputCommand::CopyImage(image) => {
+                    let bytes: Vec<u8> = image
+                        .pixels
+                        .iter()
+                        .flat_map(|px| px.to_srgba_unmultiplied())
+                        .collect();
                     let _ = self.clipboard.set_image(arboard::ImageData {
                         width: image.width(),
                         height: image.height(),
-                        bytes: std::borrow::Cow::Borrowed(image.as_raw()),
+                        bytes: std::borrow::Cow::Owned(bytes),
                     });
                 }
                 _ => {}

@@ -399,6 +399,10 @@ impl Workspace {
         self.current_tab_mut()?.svg_mut()
     }
 
+    pub fn current_tab_image(&self) -> Option<&ImageViewer> {
+        self.current_tab()?.image_viewer()
+    }
+
     /// The active editable text widget for native (iOS) text input — the
     /// markdown document's editor or the chat tab's composer. Lets the
     /// `UITextInput` FFI bridge target whichever editor is current without

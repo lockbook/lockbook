@@ -508,6 +508,11 @@
                 }
             }
 
+            if let png = dataFromBytes(b: output.copied_image), let image = NSImage(data: png) {
+                NSPasteboard.general.clearContents()
+                NSPasteboard.general.writeObjects([image])
+            }
+
             let cursor = NSCursor.fromCCursor(c: output.cursor)
             if cursor != lastCursor {
                 lastCursor = cursor
