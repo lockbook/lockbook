@@ -208,17 +208,6 @@ code,kbd,samp{font-family:var(--mono);font-size:.85em}
   font-family:var(--mono);font-size:11px;letter-spacing:.06em;
   color:var(--fg-3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
 }
-.window-tabs{display:flex;align-items:center;gap:var(--s-xxs);min-width:0;overflow:hidden}
-.window-tabs button{
-  appearance:none;border:0;background:transparent;cursor:pointer;
-  font-family:var(--mono);font-size:11px;letter-spacing:.06em;color:var(--fg-3);
-  padding:var(--s-xxs) var(--s-xs);border-radius:var(--r-sm);white-space:nowrap;
-  transition:background-color var(--anim) ease,color var(--anim) ease;
-}
-.window-tabs button:hover{background:var(--wash-1);color:var(--fg-2)}
-.window-tabs button[aria-selected="true"]{
-  background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--divider);
-}
 .window-body{position:relative;background:var(--bg);}
 .window-body[data-ratio="4/3"]{aspect-ratio:4/3}
 .window-body[data-ratio="16/10"]{aspect-ratio:16/10}

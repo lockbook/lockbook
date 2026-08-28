@@ -113,11 +113,7 @@ d3FrUvLB9tXq/W6pCsA</pre>
           <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
           <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
         </svg>
-        <div class="window-tabs" id="fmt-tabs" role="tablist" aria-label="Open formats">
-          <button role="tab" id="tab-tree" aria-controls="panel-tree" aria-selected="true"  data-panel="tree">documents/</button>
-          <button role="tab" id="tab-md"   aria-controls="panel-md"   aria-selected="false" data-panel="md"   tabindex="-1">notes.md</button>
-          <button role="tab" id="tab-svg"  aria-controls="panel-svg"  aria-selected="false" data-panel="svg"  tabindex="-1">sketch.svg</button>
-        </div>
+        <span class="window-label" id="fmt-title">documents/</span>
         <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
           <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
           <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
@@ -125,9 +121,34 @@ d3FrUvLB9tXq/W6pCsA</pre>
         </svg>
       </div>
 
-      <div class="window-body fmt-stage" data-ratio="16/10">
-        <div class="fmt-panel is-on" id="panel-tree" role="tabpanel" aria-labelledby="tab-tree">
-          <div class="tree-wrap">
+      <div class="window-body fmt-split">
+        <div class="fmt-rail" id="fmt-rail" role="tablist" aria-orientation="vertical" aria-label="Open formats">
+          <button role="tab" id="tab-tree" aria-controls="panel-tree" aria-selected="true" data-panel="tree" data-title="documents/">
+            <span class="fr-head">
+              <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg>
+              <span class="fr-name">documents/</span>
+            </span>
+            <span class="fr-desc">plain folders on disk</span>
+          </button>
+          <button role="tab" id="tab-md" aria-controls="panel-md" aria-selected="false" data-panel="md" data-title="documents/notes.md" tabindex="-1">
+            <span class="fr-head">
+              <svg width="12" height="13" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg>
+              <span class="fr-name">notes.md</span>
+            </span>
+            <span class="fr-desc">CommonMark &middot; live editor</span>
+          </button>
+          <button role="tab" id="tab-svg" aria-controls="panel-svg" aria-selected="false" data-panel="svg" data-title="documents/sketch.svg" tabindex="-1">
+            <span class="fr-head">
+              <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden="true"><rect x=".65" y=".65" width="12.7" height="10.7" rx="1.6" stroke="currentColor" stroke-width="1.1"/><circle cx="4.35" cy="4.1" r="1.15" stroke="currentColor" stroke-width="1.1"/><path d="M2.2 9.3l2.9-2.9 2.1 2.1 2-2 2.6 2.8" stroke="currentColor" stroke-width="1.1"/></svg>
+              <span class="fr-name">sketch.svg</span>
+            </span>
+            <span class="fr-desc">SVG &middot; live canvas</span>
+          </button>
+        </div>
+
+        <div class="fmt-stage">
+          <div class="fmt-panel is-on" id="panel-tree" role="tabpanel" aria-labelledby="tab-tree">
+            <div class="tree-wrap">
 <pre class="tree"><span class="tree-cmd">$ lockbook export / ~/documents</span>
 
 documents/
@@ -141,22 +162,23 @@ documents/
 <i>└──</i> recipes/
 <i>    ├──</i> bread.md
 <i>    └──</i> lamination.svg</pre>
+            </div>
           </div>
-        </div>
 
-        <div class="fmt-panel" id="panel-md" role="tabpanel" aria-labelledby="tab-md">
-          <canvas id="editor-demo" tabindex="0"></canvas>
-          <div class="demo-overlay" id="editor-loading">
-            <div class="spinner"></div>
-            <span>Loading the live editor&hellip;</span>
+          <div class="fmt-panel" id="panel-md" role="tabpanel" aria-labelledby="tab-md">
+            <canvas id="editor-demo" tabindex="0"></canvas>
+            <div class="demo-overlay" id="editor-loading">
+              <div class="spinner"></div>
+              <span>Loading the live editor&hellip;</span>
+            </div>
           </div>
-        </div>
 
-        <div class="fmt-panel" id="panel-svg" role="tabpanel" aria-labelledby="tab-svg">
-          <canvas id="canvas-demo" tabindex="0"></canvas>
-          <div class="demo-overlay" id="canvas-loading">
-            <div class="spinner"></div>
-            <span>Loading the live canvas&hellip;</span>
+          <div class="fmt-panel" id="panel-svg" role="tabpanel" aria-labelledby="tab-svg">
+            <canvas id="canvas-demo" tabindex="0"></canvas>
+            <div class="demo-overlay" id="canvas-loading">
+              <div class="spinner"></div>
+              <span>Loading the live canvas&hellip;</span>
+            </div>
           </div>
         </div>
       </div>
@@ -410,6 +432,30 @@ COMMANDS
   }
 
   .fmt{margin:var(--s-xl) auto 0;max-width:960px}
+  .fmt-split{display:flex;align-items:stretch;aspect-ratio:16/9}
+  .fmt-rail{
+    width:236px;flex:none;display:flex;flex-direction:column;gap:var(--s-xxs);
+    padding:var(--s-sm);border-right:1px solid var(--divider);background:var(--bg-panel);
+  }
+  .fmt-rail button{
+    appearance:none;border:0;background:transparent;cursor:pointer;text-align:left;
+    display:block;width:100%;padding:var(--s-sm);border-radius:var(--r-control);
+    font:inherit;color:var(--fg-2);
+    transition:background-color var(--anim) ease,color var(--anim) ease,box-shadow var(--anim) ease;
+  }
+  .fmt-rail button:hover{background:var(--wash-1);color:var(--fg)}
+  .fmt-rail button[aria-selected="true"]{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--divider)}
+  .fr-head{display:flex;align-items:center;gap:var(--s-xs)}
+  .fr-head svg{flex:none;color:var(--fg-3)}
+  .fmt-rail button[aria-selected="true"] .fr-head svg{color:var(--accent)}
+  .fr-name{font-family:var(--mono);font-size:13px;letter-spacing:.02em}
+  .fr-desc{display:block;margin-top:var(--s-xxs);padding-left:19px;font-family:var(--mono);font-size:11px;color:var(--fg-3)}
+  .fmt-stage{position:relative;flex:1;min-width:0}
+  @media (max-width:759px){
+    .fmt-split{flex-direction:column;aspect-ratio:auto}
+    .fmt-rail{width:auto;border-right:0;border-bottom:1px solid var(--divider)}
+    .fmt-stage{aspect-ratio:4/3}
+  }
   .fmt-panel{
     position:absolute;inset:0;
     opacity:0;visibility:hidden;pointer-events:none;
@@ -624,10 +670,11 @@ COMMANDS
   })();
 
   (function () {
-    var strip = document.getElementById('fmt-tabs');
+    var rail = document.getElementById('fmt-rail');
     var caption = document.getElementById('fmt-caption');
-    if (!strip) return;
-    var tabs = [].slice.call(strip.querySelectorAll('button'));
+    var title = document.getElementById('fmt-title');
+    if (!rail) return;
+    var tabs = [].slice.call(rail.querySelectorAll('button'));
 
     function show(tab) {
       tabs.forEach(function (t) {
@@ -637,17 +684,20 @@ COMMANDS
         var panel = document.getElementById(t.getAttribute('aria-controls'));
         if (panel) panel.classList.toggle('is-on', on);
       });
+      if (title) title.textContent = tab.dataset.title;
       if (caption) {
         [].forEach.call(caption.children, function (p) {
           p.hidden = p.getAttribute('data-for') !== tab.dataset.panel;
         });
       }
+      if (tab.dataset.panel !== 'tree' && window.lbLoadDemos) window.lbLoadDemos();
     }
 
     tabs.forEach(function (t, i) {
       t.addEventListener('click', function () { show(t); });
       t.addEventListener('keydown', function (e) {
-        var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        var d = (e.key === 'ArrowDown' || e.key === 'ArrowRight') ? 1 :
+                (e.key === 'ArrowUp' || e.key === 'ArrowLeft') ? -1 : 0;
         if (!d) return;
         e.preventDefault();
         var next = tabs[(i + d + tabs.length) % tabs.length];
@@ -786,17 +836,14 @@ COMMANDS
           });
         });
     }
+    window.lbLoadDemos = start;
 
-    var win = document.getElementById('fmt-window');
-    if (win && 'IntersectionObserver' in window) {
-      var io = new IntersectionObserver(function (entries) {
-        for (var i = 0; i < entries.length; i++) {
-          if (entries[i].isIntersecting) { io.disconnect(); start(); return; }
-        }
-      }, { rootMargin: '600px 0px' });
-      io.observe(win);
-    } else {
-      start();
+    var rail = document.getElementById('fmt-rail');
+    if (rail) {
+      [].forEach.call(
+        rail.querySelectorAll('button[data-panel="md"], button[data-panel="svg"]'),
+        function (b) { b.addEventListener('pointerenter', start, { once: true }); }
+      );
     }
   })();
 {% endraw %}</script>
