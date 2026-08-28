@@ -43,7 +43,7 @@
     </div>
 
     <div class="arch" role="img" aria-label="Diagram: a note is encrypted on your device before it leaves, and the server only ever stores ciphertext">
-      <figure class="arch-node">
+      <figure class="arch-node" id="arch-device">
         <figcaption>
           <svg width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
             <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
@@ -52,10 +52,11 @@
           your device
           <span class="arch-tag">plaintext</span>
         </figcaption>
-        <pre class="arch-note" id="arch-note"><span>Thursday</span>
-<span>Dr. Reyes moved my</span>
-<span>follow-up to the 14th</span>
-<span>bp 118/76 &middot; resting 58</span></pre>
+        <pre class="arch-note">Thursday
+
+Dr. Reyes moved my
+follow-up to the 14th
+bp 118/76 &middot; resting 58</pre>
       </figure>
 
       <div class="arch-wire" id="arch-wire">
@@ -66,10 +67,10 @@
           </svg>
         </span>
         <span class="lock-note">encrypted before it leaves</span>
-        <span class="arch-packet" id="arch-packet" aria-hidden="true">Thursday</span>
+        <span class="arch-packet" id="arch-packet" aria-hidden="true"><svg width="12" height="13" viewBox="0 0 12 13" fill="none"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span id="packet-label">notes.md</span></span>
       </div>
 
-      <figure class="arch-node">
+      <figure class="arch-node" id="arch-server">
         <figcaption>
           <svg width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
             <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
@@ -78,10 +79,11 @@
           our server
           <span class="arch-tag">ciphertext</span>
         </figcaption>
-        <pre class="arch-store" id="arch-store">mK2x+9QfLw3eYaZv0
+        <pre class="arch-store" id="arch-store">mK2x+9QfLw3eYaZv0d
 u8PJq4Tn6RcXbGdV1e+
 Hs5AyEw7Zk+jMoN2iQd
-d3FrUvLB9tXq/W6pCs</pre>
+p7Rc/Xw2mBhT4nEuJ8f
+d3FrUvLB9tXq/W6pCsA</pre>
       </figure>
     </div>
 
@@ -357,9 +359,9 @@ COMMANDS
   .arch-tag{margin-left:auto}
   .arch-note,.arch-store{margin:0;font-family:var(--mono);font-size:13px;line-height:2;white-space:pre;overflow-x:auto}
   .arch-note{color:var(--fg)}
-  .arch-note span{border-radius:var(--r-sm);transition:background-color var(--anim) ease}
-  .arch-note span.hot{background:var(--wash-2)}
   .arch-store{color:var(--fg-3)}
+  .arch-node.flash{animation:archflash .55s ease}
+  @keyframes archflash{0%{background:color-mix(in srgb,var(--accent) 9%,var(--bg-panel))}100%{background:var(--bg-panel)}}
 
   .arch-wire{position:relative;min-height:120px}
   .arch-wire::before{
@@ -381,10 +383,12 @@ COMMANDS
   }
   .arch-packet{
     position:absolute;z-index:1;left:0;top:0;opacity:0;will-change:transform;
+    display:inline-flex;align-items:center;gap:var(--s-xs);
     font-family:var(--mono);font-size:11.5px;padding:var(--s-xxs) var(--s-xs);
     border:1px solid var(--stroke);border-radius:var(--r-sm);
     background:var(--bg);color:var(--fg);white-space:nowrap;
   }
+  .arch-packet svg{flex:none}
   .arch-packet.is-cipher{color:var(--fg-3)}
 
   @media (min-width:860px){
@@ -523,19 +527,21 @@ COMMANDS
   (function () {
     var wire = document.getElementById('arch-wire');
     var packet = document.getElementById('arch-packet');
+    var label = document.getElementById('packet-label');
     var store = document.getElementById('arch-store');
-    var note = document.getElementById('arch-note');
-    if (!wire || !packet || !store || !note) return;
+    var device = document.getElementById('arch-device');
+    var server = document.getElementById('arch-server');
+    if (!wire || !packet || !label || !store || !device || !server) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     var GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    var READ = 700, SEAL = 500, SEND = 1500, LAND = 250, REST = 700;
+    var NAME = 'notes.md';
+    var READ = 600, SEAL = 500, SEND = 1500, LAND = 250, REST = 950;
     var TOTAL = READ + SEAL + SEND + LAND + REST;
     var wide = window.matchMedia('(min-width: 860px)');
 
-    var lines = [].slice.call(note.querySelectorAll('span'));
-    var stored = store.textContent.split('\n');
-    var start = null, index = 0, landed = false, churnedAt = 0, raf = null, running = false;
+    var shape = store.textContent.split('\n').map(function (l) { return l.length; });
+    var start = null, sealed = false, landed = false, churnedAt = 0, raf = null, running = false;
 
     function noise(n) {
       var out = '';
@@ -555,44 +561,47 @@ COMMANDS
       packet.style.opacity = alpha;
     }
 
+    function flash(node) {
+      node.classList.remove('flash');
+      void node.offsetWidth;
+      node.classList.add('flash');
+    }
+
     function beginCycle() {
-      landed = false;
+      sealed = false; landed = false;
       packet.classList.remove('is-cipher');
-      packet.textContent = lines[index].textContent;
-      lines.forEach(function (l, k) { l.classList.toggle('hot', k === index); });
+      label.textContent = NAME;
+      flash(device);
+    }
+
+    function seal() {
+      sealed = true;
+      packet.classList.add('is-cipher');
+      label.textContent = noise(NAME.length);
     }
 
     function land() {
       landed = true;
-      stored.unshift(packet.textContent);
-      stored.splice(lines.length);
-      store.textContent = stored.join('\n');
+      store.textContent = shape.map(function (n) { return noise(n); }).join('\n');
+      flash(server);
     }
 
     function frame(now) {
       if (start === null) { start = now; beginCycle(); }
       var t = now - start;
       if (t >= TOTAL) {
-        if (!landed && packet.classList.contains('is-cipher')) land();
+        if (!landed && sealed) land();
         start = now; t = 0;
-        index = (index + 1) % lines.length;
         beginCycle();
       }
       if (t >= READ + SEAL + SEND && !landed) {
-        if (!packet.classList.contains('is-cipher')) {
-          packet.classList.add('is-cipher');
-          packet.textContent = noise(lines[index].textContent.length);
-        }
+        if (!sealed) seal();
         land();
       }
       if (t < READ) {
         place(0, Math.min(1, t / 200));
       } else if (t < READ + SEAL) {
-        packet.classList.add('is-cipher');
-        if (now - churnedAt > 55) {
-          churnedAt = now;
-          packet.textContent = noise(lines[index].textContent.length);
-        }
+        if (now - churnedAt > 55) { churnedAt = now; seal(); }
         place(0, 1);
       } else if (t < READ + SEAL + SEND) {
         place(ease((t - READ - SEAL) / SEND), 1);
