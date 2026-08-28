@@ -206,53 +206,38 @@ d3FrUvLB9tXq/W6pCsA</pre>
 
 <section class="section" id="platforms">
   <div class="wrap">
-    <div class="measure">
-      <p class="eyebrow">Platforms</p>
-      <h2>Six clients, one Rust core.</h2>
-      <p class="lede">
-        Each interface is written for its own platform, so every app launches
-        instantly and behaves the way that platform should — no Electron, no
-        web view. The apps share one editor engine; everything, CLI included,
-        stands on one Rust core. Pick a client:
-      </p>
-    </div>
-
     <div class="platform-duo">
-    <div class="stack">
-      <div class="stack-row" id="platform-switch" role="tablist" aria-label="Clients">
-        <button class="stack-cell" role="tab" aria-selected="true"  data-platform="macos"><b>macOS</b><span>SwiftUI</span></button>
-        <button class="stack-cell" role="tab" aria-selected="false" data-platform="ios"     tabindex="-1"><b>iOS</b><span>SwiftUI</span></button>
-        <button class="stack-cell" role="tab" aria-selected="false" data-platform="android" tabindex="-1"><b>Android</b><span>Kotlin</span></button>
-        <button class="stack-cell" role="tab" aria-selected="false" data-platform="linux"   tabindex="-1"><b>Linux</b><span>Rust · egui</span></button>
-        <button class="stack-cell" role="tab" aria-selected="false" data-platform="windows" tabindex="-1"><b>Windows</b><span>Rust · egui</span></button>
-        <button class="stack-cell" role="tab" aria-selected="false" data-platform="cli"     tabindex="-1"><b>CLI</b><span>Rust</span></button>
-      </div>
-
-      <div class="stack-links" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
-
-      <div class="stack-mid">
-        <div class="stack-bar">
-          <code>workspace</code>
-          <span>the editor &amp; canvas every app embeds</span>
-          <a href="https://github.com/lockbook/lockbook/tree/master/libs/content/workspace">Learn more &rarr;</a>
+      <div class="platform-copy">
+        <p class="eyebrow">Platforms</p>
+        <h2>Five native apps, one core.</h2>
+        <p class="lede">
+          Each interface is written for its own platform, so every app launches
+          instantly and behaves the way that platform should — no Electron, no
+          web view. Everything, <a href="#developers">CLI</a> included, stands
+          on one Rust core. Pick a platform:
+        </p>
+        <div class="stack">
+          <div class="stack-row" id="platform-switch" role="tablist" aria-label="Platforms">
+            <button class="stack-cell" role="tab" aria-selected="true"  data-platform="macos"><b>macOS</b><span>SwiftUI</span></button>
+            <button class="stack-cell" role="tab" aria-selected="false" data-platform="ios"     tabindex="-1"><b>iOS</b><span>SwiftUI</span></button>
+            <button class="stack-cell" role="tab" aria-selected="false" data-platform="android" tabindex="-1"><b>Android</b><span>Kotlin</span></button>
+            <button class="stack-cell" role="tab" aria-selected="false" data-platform="linux"   tabindex="-1"><b>Linux</b><span>Rust · egui</span></button>
+            <button class="stack-cell" role="tab" aria-selected="false" data-platform="windows" tabindex="-1"><b>Windows</b><span>Rust · egui</span></button>
+          </div>
+          <div class="stack-links" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i></div>
+          <div class="stack-bar">
+            <code>lb-rs</code>
+            <span>encryption, sync, storage</span>
+            <a href="https://docs.rs/lb-rs">Learn more &rarr;</a>
+          </div>
         </div>
-        <span class="stack-pass" aria-hidden="true"><i></i></span>
       </div>
-
-      <div class="stack-under" aria-hidden="true"><i class="u-ws"></i><i class="u-cli"></i></div>
-
-      <div class="stack-bar">
-        <code>lb-rs</code>
-        <span>encryption, sync, storage</span>
-        <a href="https://docs.rs/lb-rs">Learn more &rarr;</a>
-      </div>
-    </div>
 
       <div class="shots" id="screenshots">
-      <div class="ph" data-ratio="16/10" id="platform-shot">
-        <span><b>macOS client</b>screenshot · 16:10 · 2× · matches viewer&rsquo;s theme</span>
+        <div class="ph" data-ratio="16/10" id="platform-shot">
+          <span><b>macOS client</b>screenshot · 16:10 · 2× · matches viewer&rsquo;s theme</span>
+        </div>
       </div>
-    </div>
     </div>
   </div>
 </section>
@@ -390,7 +375,6 @@ COMMANDS
   .hero-shot:hover .ph{border-color:var(--fg-3)}
 
   .shots{scroll-margin-top:calc(60px + var(--s-md))}
-  #platform-shot{margin-top:var(--s-md)}
 
   .after-note{margin-top:var(--s-lg)}
 
@@ -511,11 +495,11 @@ COMMANDS
   .fmt-caption p{color:var(--fg-2);font-size:16px}
   .fmt-caption b{color:var(--fg);font-weight:500}
 
-  .platform-duo{margin-top:var(--s-xl);display:grid;gap:var(--s-xl)}
+  .platform-duo{display:grid;gap:var(--s-xl)}
   @media (min-width:860px){
-    .platform-duo{grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--s-2xl);align-items:center}
+    .platform-duo{grid-template-columns:minmax(0,6fr) minmax(0,6fr);gap:var(--s-2xl);align-items:center}
   }
-  .stack{margin-top:0}
+  .stack{margin-top:var(--s-lg)}
   .stack-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-sm)}
   .stack-cell{
     appearance:none;font:inherit;cursor:pointer;
@@ -527,8 +511,9 @@ COMMANDS
   .stack-cell[aria-selected="true"]{border-color:var(--accent)}
   .stack-cell b{display:block;font-weight:500;font-size:16px;letter-spacing:-.01em}
   .stack-cell span{display:block;margin-top:var(--s-xxs);font-family:var(--mono);font-size:11px;color:var(--fg-3)}
-  .stack-links,.stack-under,.stack-pass{display:none}
+  .stack-links{display:none}
   .stack-bar{
+    margin-top:var(--s-sm);
     border:1px solid var(--stroke);border-radius:var(--r-control);background:var(--bg-panel);
     padding:var(--s-sm) var(--s-md);
     display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s-xs) var(--s-sm);
@@ -536,20 +521,11 @@ COMMANDS
   .stack-bar code{font-family:var(--mono);font-size:15px;color:var(--fg)}
   .stack-bar span{color:var(--fg-2);font-size:15px}
   .stack-bar a{margin-left:auto;font-family:var(--mono);font-size:12px;white-space:nowrap}
-  .stack-mid{margin-top:var(--s-sm)}
-  .stack-mid + .stack-under + .stack-bar{margin-top:var(--s-sm)}
   @media (min-width:760px){
-    .stack-row{grid-template-columns:repeat(6,minmax(0,1fr))}
-    .stack-links{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));height:var(--s-lg)}
+    .stack-row{grid-template-columns:repeat(5,minmax(0,1fr))}
+    .stack-links{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));height:var(--s-lg)}
     .stack-links i{display:block;width:1px;height:100%;margin:0 auto;background:var(--divider)}
-    .stack-mid{margin-top:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--s-sm)}
-    .stack-mid .stack-bar{grid-column:1/6}
-    .stack-pass{display:block;grid-column:6}
-    .stack-pass i{display:block;width:1px;height:100%;margin:0 auto;background:var(--divider)}
-    .stack-under{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));height:var(--s-lg)}
-    .stack-under .u-ws{grid-column:1/6;width:1px;height:100%;margin:0 auto;background:var(--divider)}
-    .stack-under .u-cli{grid-column:6;width:1px;height:100%;margin:0 auto;background:var(--divider)}
-    .stack-mid + .stack-under + .stack-bar{margin-top:0}
+    .stack-bar{margin-top:0}
   }
 
   .link-list{display:flex;flex-direction:column;gap:var(--s-xs);margin-top:var(--s-lg);font-size:16px}
@@ -783,7 +759,7 @@ COMMANDS
   (function () {
     var LABELS = {
       macos:'macOS client', ios:'iOS client', windows:'Windows client',
-      linux:'Linux client', android:'Android client', cli:'CLI'
+      linux:'Linux client', android:'Android client'
     };
     var strip = document.getElementById('platform-switch');
     var shot  = document.getElementById('platform-shot');
