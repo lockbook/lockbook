@@ -15,8 +15,8 @@
         has no <a href="#formats">lock-in</a>,
         works <a href="#encryption">offline</a>,
         lets you collaborate,
-        is <a href="#developers">extensible</a>,
-        and runs <a href="#platforms">native</a> on every platform.
+        runs <a href="#platforms">native</a> on every platform,
+        and is <a href="#developers">extensible</a>.
       </p>
       <p class="hero-close">See why that place is Lockbook.</p>
       <div class="hero-cta">
@@ -101,7 +101,8 @@ d3FrUvLB9tXq/W6pCsA</pre>
 
 <section class="section" id="formats">
   <div class="wrap">
-    <div class="measure">
+    <div class="split">
+      <div class="split-text">
       <p class="eyebrow">Open formats</p>
       <h2>Files you could still read if we disappeared.</h2>
       <p class="lede">
@@ -110,9 +111,14 @@ d3FrUvLB9tXq/W6pCsA</pre>
         writes exactly what you see here to disk — and every one of these opens
         in software that has nothing to do with us.
       </p>
+        <div class="fmt-caption" id="fmt-caption">
+      <p data-for="tree"><b>Ordinary files.</b> Export writes your notebook to disk exactly like this — folders you named, Markdown and SVG inside. No manifest, no database, nothing to reconstruct.</p>
+      <p data-for="md" hidden><b>CommonMark.</b> Tables, task lists, footnotes and Obsidian-style <code>[[wikilinks]]</code>. The same file renders on GitHub, converts with <code>pandoc</code>, and opens in every editor you already have.</p>
+      <p data-for="svg" hidden><b>SVG.</b> Every stroke is a path in an open vector format. Drop the file into Inkscape, Illustrator, Figma or a browser and it opens — because it is not a picture of a drawing, it is the drawing.</p>
     </div>
-
-    <figure class="window fmt" id="fmt-window">
+      </div>
+      <div class="split-visual">
+        <figure class="window fmt" id="fmt-window">
       <div class="window-bar">
         <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
           <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
@@ -193,11 +199,7 @@ d3FrUvLB9tXq/W6pCsA</pre>
         </div>
       </div>
     </figure>
-
-    <div class="fmt-caption" id="fmt-caption">
-      <p data-for="tree"><b>Ordinary files.</b> Export writes your notebook to disk exactly like this — folders you named, Markdown and SVG inside. No manifest, no database, nothing to reconstruct.</p>
-      <p data-for="md" hidden><b>CommonMark.</b> Tables, task lists, footnotes and Obsidian-style <code>[[wikilinks]]</code>. The same file renders on GitHub, converts with <code>pandoc</code>, and opens in every editor you already have.</p>
-      <p data-for="svg" hidden><b>SVG.</b> Every stroke is a path in an open vector format. Drop the file into Inkscape, Illustrator, Figma or a browser and it opens — because it is not a picture of a drawing, it is the drawing.</p>
+      </div>
     </div>
   </div>
 </section>
@@ -215,6 +217,7 @@ d3FrUvLB9tXq/W6pCsA</pre>
       </p>
     </div>
 
+    <div class="platform-duo">
     <div class="stack">
       <div class="stack-row" id="platform-switch" role="tablist" aria-label="Clients">
         <button class="stack-cell" role="tab" aria-selected="true"  data-platform="macos"><b>macOS</b><span>SwiftUI</span></button>
@@ -230,7 +233,7 @@ d3FrUvLB9tXq/W6pCsA</pre>
       <div class="stack-mid">
         <div class="stack-bar">
           <code>workspace</code>
-          <span>the markdown editor &amp; canvas every app embeds</span>
+          <span>the editor &amp; canvas every app embeds</span>
           <a href="https://github.com/lockbook/lockbook/tree/master/libs/content/workspace">Learn more &rarr;</a>
         </div>
         <span class="stack-pass" aria-hidden="true"><i></i></span>
@@ -245,10 +248,11 @@ d3FrUvLB9tXq/W6pCsA</pre>
       </div>
     </div>
 
-    <div class="shots" id="screenshots">
+      <div class="shots" id="screenshots">
       <div class="ph" data-ratio="16/10" id="platform-shot">
         <span><b>macOS client</b>screenshot · 16:10 · 2× · matches viewer&rsquo;s theme</span>
       </div>
+    </div>
     </div>
   </div>
 </section>
@@ -385,7 +389,7 @@ COMMANDS
   .hero-shot:hover{text-decoration:none}
   .hero-shot:hover .ph{border-color:var(--fg-3)}
 
-  .shots{margin-top:var(--s-2xl);scroll-margin-top:calc(60px + var(--s-md))}
+  .shots{scroll-margin-top:calc(60px + var(--s-md))}
   #platform-shot{margin-top:var(--s-md)}
 
   .after-note{margin-top:var(--s-lg)}
@@ -449,10 +453,11 @@ COMMANDS
     .lock-note{left:var(--s-sm);top:calc(50% + 16px);transform:none}
   }
 
-  .fmt{margin:var(--s-xl) auto 0;max-width:960px}
-  .fmt-split{display:flex;align-items:stretch;aspect-ratio:16/9}
+  .fmt{margin:0}
+  .fmt-split{display:flex;align-items:stretch}
+  @media (min-width:760px){.fmt-split{height:440px}}
   .fmt-rail{
-    width:236px;flex:none;display:flex;flex-direction:column;gap:var(--s-xxs);
+    width:190px;flex:none;display:flex;flex-direction:column;gap:var(--s-xxs);
     padding:var(--s-sm);border-right:1px solid var(--divider);background:var(--bg-panel);
   }
   .fmt-rail button{
@@ -492,7 +497,7 @@ COMMANDS
   .fs-count{flex:none}
   .fs-grid{
     flex:1;min-height:0;overflow:auto;
-    display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));
     gap:var(--s-sm) var(--s-xs);padding:var(--s-sm) var(--s-lg);align-content:space-evenly;
   }
   .fs-item{display:flex;flex-direction:column;align-items:center;gap:var(--s-xs);min-width:0}
@@ -502,16 +507,20 @@ COMMANDS
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
 
-  .fmt-caption{max-width:960px;margin:var(--s-md) auto 0}
+  .fmt-caption{margin-top:var(--s-lg)}
   .fmt-caption p{color:var(--fg-2);font-size:16px}
   .fmt-caption b{color:var(--fg);font-weight:500}
 
-  .stack{margin-top:var(--s-xl)}
+  .platform-duo{margin-top:var(--s-xl);display:grid;gap:var(--s-xl)}
+  @media (min-width:860px){
+    .platform-duo{grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--s-2xl);align-items:center}
+  }
+  .stack{margin-top:0}
   .stack-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-sm)}
   .stack-cell{
     appearance:none;font:inherit;cursor:pointer;
     border:1px solid var(--divider);border-radius:var(--r-control);
-    background:var(--bg);color:var(--fg);padding:var(--s-md) var(--s-xs);text-align:center;
+    background:var(--bg);color:var(--fg);padding:var(--s-sm) var(--s-xxs);text-align:center;
     transition:background-color var(--anim) ease,border-color var(--anim) ease;
   }
   .stack-cell:hover{background:var(--wash-1)}
@@ -521,7 +530,7 @@ COMMANDS
   .stack-links,.stack-under,.stack-pass{display:none}
   .stack-bar{
     border:1px solid var(--stroke);border-radius:var(--r-control);background:var(--bg-panel);
-    padding:var(--s-md) var(--s-lg);
+    padding:var(--s-sm) var(--s-md);
     display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s-xs) var(--s-sm);
   }
   .stack-bar code{font-family:var(--mono);font-size:15px;color:var(--fg)}
