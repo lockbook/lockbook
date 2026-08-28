@@ -38,23 +38,47 @@
       </p>
     </div>
 
-    <div class="cipher-frame">
-      <pre class="cipher" id="cipher" aria-label="A private note, shown decrypting"><span class="cl">Thursday</span>
-<span class="cl"></span>
-<span class="cl">Dr. Reyes moved the follow-up to the 14th —</span>
-<span class="cl">ask about the dosage before Friday&rsquo;s refill.</span>
-<span class="cl"></span>
-<span class="cl">  resting hr      58</span>
-<span class="cl">  bp          118/76</span>
-<span class="cl"></span>
-<span class="cl">Mom&rsquo;s birthday is the 2nd. The green teapot,</span>
-<span class="cl">not the blue one.</span></pre>
+    <div class="arch" role="img" aria-label="Diagram: a note is encrypted on your device before it leaves, and the server only ever stores ciphertext">
+      <figure class="arch-node">
+        <figcaption>
+          <svg width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+            <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M.65 4.2h14.7" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+          your device
+          <span class="arch-tag">plaintext</span>
+        </figcaption>
+        <pre class="arch-note" id="arch-note"><span>Thursday</span>
+<span>Dr. Reyes moved my</span>
+<span>follow-up to the 14th</span>
+<span>bp 118/76 &middot; resting 58</span></pre>
+      </figure>
 
-      <div class="cipher-status">
-        <span class="cs-dot" id="cipher-dot"></span>
-        <span id="cipher-state">ciphertext &mdash; what our servers hold</span>
-        <button type="button" id="cipher-replay" hidden>replay</button>
+      <div class="arch-wire" id="arch-wire">
+        <span class="lock-badge" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="2.2" y="6.4" width="9.6" height="5.9" rx="1.6" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M4.5 6.2V4.4a2.5 2.5 0 0 1 5 0v1.8" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+        </span>
+        <span class="lock-note">encrypted before it leaves</span>
+        <span class="arch-packet" id="arch-packet" aria-hidden="true">Thursday</span>
       </div>
+
+      <figure class="arch-node">
+        <figcaption>
+          <svg width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+            <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M.65 4.55h14.7M.65 8.45h14.7" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+          our server
+          <span class="arch-tag">ciphertext</span>
+        </figcaption>
+        <pre class="arch-store" id="arch-store">mK2x+9QfLw3eYaZv0
+u8PJq4Tn6RcXbGdV1e+
+Hs5AyEw7Zk+jMoN2iQd
+d3FrUvLB9tXq/W6pCs</pre>
+      </figure>
     </div>
 
     <p class="after-note">
@@ -312,38 +336,62 @@ COMMANDS
 
   .after-note{margin-top:var(--s-lg)}
 
-  .cipher-frame{
-    margin-top:var(--s-xl);
-    border:1px solid var(--stroke);border-radius:var(--r-surface);
-    background:var(--bg-panel);overflow:hidden;
+  .arch{margin-top:var(--s-xl);display:flex;flex-direction:column;gap:var(--s-lg)}
+  .arch-node{margin:0;border:1px solid var(--stroke);border-radius:var(--r-surface);
+    background:var(--bg-panel);padding:var(--s-md) var(--s-md) var(--s-lg)}
+  .arch-node figcaption{
+    display:flex;align-items:center;gap:var(--s-xs);margin-bottom:var(--s-md);
+    font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);
   }
-  .cipher{
-    margin:0;padding:var(--s-lg);overflow-x:auto;
-    font-family:var(--mono);font-size:13.5px;line-height:1.85;
-    color:var(--fg-3);white-space:pre;
-    -webkit-user-select:none;user-select:none;
-  }
-  @media (min-width:760px){.cipher{font-size:16px;padding:var(--s-xl)}}
-  .cipher .on{color:var(--fg)}
+  .arch-node figcaption svg{flex:none}
+  .arch-tag{margin-left:auto}
+  .arch-note,.arch-store{margin:0;font-family:var(--mono);font-size:13px;line-height:2;white-space:pre;overflow-x:auto}
+  .arch-note{color:var(--fg)}
+  .arch-note span{border-radius:var(--r-sm);transition:background-color var(--anim) ease}
+  .arch-note span.hot{background:var(--wash-2)}
+  .arch-store{color:var(--fg-3)}
 
-  .cipher-status{
-    display:flex;align-items:center;gap:var(--s-sm);
-    padding:var(--s-sm) var(--s-lg);border-top:1px solid var(--divider);
-    font-family:var(--mono);font-size:12px;color:var(--fg-3);
+  .arch-wire{position:relative;min-height:120px}
+  .arch-wire::before{
+    content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;
+    background:repeating-linear-gradient(180deg,var(--stroke) 0 5px,transparent 5px 11px);
   }
-  @media (min-width:760px){.cipher-status{padding-left:var(--s-xl);padding-right:var(--s-xl)}}
-  .cs-dot{
-    flex:none;width:7px;height:7px;border-radius:50%;background:var(--fg-3);
-    transition:background-color .6s ease;
+  .arch-wire::after{
+    content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);
+    border:5px solid transparent;border-top-color:var(--stroke);border-bottom:0;
   }
-  .cs-dot.is-clear{background:var(--accent)}
-  #cipher-replay{
-    margin-left:auto;appearance:none;border:0;background:transparent;cursor:pointer;
-    font-family:var(--mono);font-size:12px;color:var(--fg-3);
-    padding:var(--s-xxs) var(--s-xs);border-radius:var(--r-sm);
-    transition:background-color var(--anim) ease,color var(--anim) ease;
+  .lock-badge{
+    position:absolute;z-index:2;left:50%;top:0;transform:translate(-50%,-50%);
+    display:inline-flex;padding:5px;background:var(--bg);
+    border:1px solid var(--stroke);border-radius:50%;color:var(--accent);
   }
-  #cipher-replay:hover{background:var(--wash-1);color:var(--fg-2)}
+  .lock-note{
+    position:absolute;z-index:2;left:calc(50% + 18px);top:0;transform:translateY(-50%);
+    font-family:var(--mono);font-size:11px;color:var(--fg-3);white-space:nowrap;
+  }
+  .arch-packet{
+    position:absolute;z-index:1;left:0;top:0;opacity:0;will-change:transform;
+    font-family:var(--mono);font-size:11.5px;padding:var(--s-xxs) var(--s-xs);
+    border:1px solid var(--stroke);border-radius:var(--r-sm);
+    background:var(--bg);color:var(--fg);white-space:nowrap;
+  }
+  .arch-packet.is-cipher{color:var(--fg-3)}
+
+  @media (min-width:860px){
+    .arch{flex-direction:row;align-items:stretch;gap:0}
+    .arch-node{width:300px;flex:none}
+    .arch-wire{flex:1;min-height:0}
+    .arch-wire::before{
+      left:0;right:0;top:50%;bottom:auto;width:auto;height:1px;
+      background:repeating-linear-gradient(90deg,var(--stroke) 0 5px,transparent 5px 11px);
+    }
+    .arch-wire::after{
+      left:auto;right:-1px;bottom:auto;top:50%;transform:translateY(-50%);
+      border:5px solid transparent;border-left-color:var(--stroke);border-right:0;
+    }
+    .lock-badge{left:0;top:50%}
+    .lock-note{left:var(--s-sm);top:calc(50% + 16px);transform:none}
+  }
 
   .fmt{margin:var(--s-xl) auto 0;max-width:960px}
   .fmt-panel{
@@ -438,98 +486,95 @@ COMMANDS
 {% block scripts %}
 <script>{% raw %}
   (function () {
-    var block = document.getElementById('cipher');
-    var state = document.getElementById('cipher-state');
-    var dot   = document.getElementById('cipher-dot');
-    var again = document.getElementById('cipher-replay');
-    if (!block) return;
+    var wire = document.getElementById('arch-wire');
+    var packet = document.getElementById('arch-packet');
+    var store = document.getElementById('arch-store');
+    var note = document.getElementById('arch-note');
+    if (!wire || !packet || !store || !note) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
-    var GLYPHS  = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    var CIPHER  = 'ciphertext — what our servers hold';
-    var PLAIN   = 'plaintext — only ever on your device';
-    var CHURN   = 50;
-    var STAGGER = 90;
+    var GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var READ = 700, SEAL = 500, SEND = 1500, LAND = 250, REST = 700;
+    var TOTAL = READ + SEAL + SEND + LAND + REST;
+    var wide = window.matchMedia('(min-width: 860px)');
 
-    var lines = [].slice.call(block.querySelectorAll('.cl')).map(function (el) {
-      var text = el.textContent;
-      el.textContent = '';
-      var on  = document.createElement('span');
-      var off = document.createElement('span');
-      on.className = 'on';
-      el.appendChild(on);
-      el.appendChild(off);
-      return { text: text, on: on, off: off };
-    });
-
-    var total = 0;
-    lines.forEach(function (l, i) {
-      l.start = i * STAGGER;
-      l.span  = 620 + l.text.length * 9;
-      total = Math.max(total, l.start + l.span);
-    });
+    var lines = [].slice.call(note.querySelectorAll('span'));
+    var stored = store.textContent.split('\n');
+    var start = null, index = 0, landed = false, churnedAt = 0, raf = null, running = false;
 
     function noise(n) {
-      var s = '';
-      for (var i = 0; i < n; i++) s += GLYPHS[(Math.random() * GLYPHS.length) | 0];
-      return s;
+      var out = '';
+      for (var i = 0; i < n; i++) out += GLYPHS[(Math.random() * GLYPHS.length) | 0];
+      return out;
     }
 
-    function settle() {
-      lines.forEach(function (l) { l.on.textContent = l.text; l.off.textContent = ''; });
-      if (state) state.textContent = PLAIN;
-      if (dot) dot.classList.add('is-clear');
+    function ease(p) { return p * p * (3 - 2 * p); }
+
+    function place(p, alpha) {
+      var w = wire.clientWidth, h = wire.clientHeight;
+      var pw = packet.offsetWidth, ph = packet.offsetHeight;
+      var x, y;
+      if (wide.matches) { x = p * (w - pw); y = (h - ph) / 2; }
+      else { x = (w - pw) / 2; y = p * (h - ph); }
+      packet.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+      packet.style.opacity = alpha;
     }
 
-    var still = window.matchMedia('(prefers-reduced-motion: reduce)');
-    var running = false;
+    function beginCycle() {
+      landed = false;
+      packet.classList.remove('is-cipher');
+      packet.textContent = lines[index].textContent;
+      lines.forEach(function (l, k) { l.classList.toggle('hot', k === index); });
+    }
 
-    function run() {
-      if (running) return;
-      running = true;
-      if (state) state.textContent = CIPHER;
-      if (dot) dot.classList.remove('is-clear');
+    function land() {
+      landed = true;
+      stored.unshift(packet.textContent);
+      stored.splice(lines.length);
+      store.textContent = stored.join('\n');
+    }
 
-      var t0 = performance.now();
-      var churnedAt = -Infinity;
-
-      function frame(now) {
-        var t = now - t0;
-        var churn = now - churnedAt >= CHURN;
-        if (churn) churnedAt = now;
-
-        for (var i = 0; i < lines.length; i++) {
-          var l = lines[i];
-          if (!l.text.length) continue;
-          var p = (t - l.start) / l.span;
-          if (p >= 1) {
-            if (l.on.textContent !== l.text) { l.on.textContent = l.text; l.off.textContent = ''; }
-            continue;
-          }
-          var k = p <= 0 ? 0 : Math.floor(p * l.text.length);
-          if (l.on.textContent.length !== k) l.on.textContent = l.text.slice(0, k);
-          if (churn) l.off.textContent = noise(l.text.length - k);
+    function frame(now) {
+      if (start === null) { start = now; beginCycle(); }
+      var t = now - start;
+      if (t >= TOTAL) {
+        if (!landed && packet.classList.contains('is-cipher')) land();
+        start = now; t = 0;
+        index = (index + 1) % lines.length;
+        beginCycle();
+      }
+      if (t >= READ + SEAL + SEND && !landed) {
+        if (!packet.classList.contains('is-cipher')) {
+          packet.classList.add('is-cipher');
+          packet.textContent = noise(lines[index].textContent.length);
         }
-
-        if (t < total) requestAnimationFrame(frame);
-        else { running = false; settle(); }
+        land();
       }
-      requestAnimationFrame(frame);
-    }
-
-    if (still.matches) {
-      settle();
-    } else {
-      lines.forEach(function (l) { l.off.textContent = noise(l.text.length); });
-      if (again) { again.hidden = false; again.addEventListener('click', run); }
-      if ('IntersectionObserver' in window) {
-        var io = new IntersectionObserver(function (entries) {
-          if (entries[0].isIntersecting) { io.disconnect(); run(); }
-        }, { threshold: 0.3 });
-        io.observe(block);
+      if (t < READ) {
+        place(0, Math.min(1, t / 200));
+      } else if (t < READ + SEAL) {
+        packet.classList.add('is-cipher');
+        if (now - churnedAt > 55) {
+          churnedAt = now;
+          packet.textContent = noise(lines[index].textContent.length);
+        }
+        place(0, 1);
+      } else if (t < READ + SEAL + SEND) {
+        place(ease((t - READ - SEAL) / SEND), 1);
+      } else if (t < READ + SEAL + SEND + LAND) {
+        place(1, 1 - (t - READ - SEAL - SEND) / LAND);
       } else {
-        run();
+        place(1, 0);
       }
+      raf = requestAnimationFrame(frame);
     }
+
+    var io = new IntersectionObserver(function (entries) {
+      var vis = entries[0].isIntersecting;
+      if (vis && !running) { running = true; start = null; raf = requestAnimationFrame(frame); }
+      else if (!vis && running) { running = false; cancelAnimationFrame(raf); packet.style.opacity = 0; }
+    }, { threshold: 0.2 });
+    io.observe(wire);
   })();
 
   (function () {
