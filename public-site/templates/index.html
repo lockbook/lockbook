@@ -11,8 +11,12 @@
         <span class="rot-line" aria-hidden="true"><b class="rot" id="rot-word">notes</b><span class="caret"></span></span>
       </h1>
       <p class="hero-sub">
-        respects your privacy, doesn&rsquo;t lock you in, lets you collaborate,
-        and runs native on every platform.
+        <a href="#encryption">respects your privacy</a>,
+        <a href="#formats">doesn&rsquo;t lock you in</a>,
+        <a href="#encryption">works offline</a>,
+        lets you collaborate,
+        <a href="#developers">is extensible</a>,
+        and <a href="#platforms">runs native on every platform</a>.
       </p>
       <p class="hero-close">See why that place is Lockbook.</p>
       <div class="hero-cta">
@@ -38,8 +42,9 @@
       <h2>We built a notebook we can&rsquo;t read.</h2>
       <p class="lede">
         Your keys are generated on your device and never leave it. Everything is
-        encrypted before it syncs, so what reaches our servers is noise. Sharing
-        hands a key to a person you name — never to us.
+        encrypted before it syncs, so what reaches our servers is noise. Your
+        notes live on your device first, so offline isn&rsquo;t a mode — it&rsquo;s the
+        default. Sharing hands a key to a person you name — never to us.
       </p>
     </div>
 
@@ -148,20 +153,25 @@ d3FrUvLB9tXq/W6pCsA</pre>
 
         <div class="fmt-stage">
           <div class="fmt-panel is-on" id="panel-tree" role="tabpanel" aria-labelledby="tab-tree">
-            <div class="tree-wrap">
-<pre class="tree"><span class="tree-cmd">$ lockbook export / ~/documents</span>
-
-documents/
-<i>├──</i> journal/
-<i>│   ├──</i> 2026-08-24.md
-<i>│   ├──</i> 2026-08-25.md
-<i>│   └──</i> 2026-08-26.md
-<i>├──</i> kitchen/
-<i>│   ├──</i> measurements.svg
-<i>│   └──</i> quotes.md
-<i>└──</i> recipes/
-<i>    ├──</i> bread.md
-<i>    └──</i> lamination.svg</pre>
+            <div class="fs">
+              <div class="fs-bar">
+                <span class="fs-cmd">$ lockbook export / ~/documents</span>
+                <span class="fs-count">12 items</span>
+              </div>
+              <div class="fs-grid">
+              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg><span>journal</span></div>
+              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg><span>kitchen</span></div>
+              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg><span>recipes</span></div>
+              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg><span>travel</span></div>
+              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>notes.md</span></div>
+              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><rect x=".65" y=".65" width="12.7" height="10.7" rx="1.6" stroke="currentColor" stroke-width="1.1"/><circle cx="4.35" cy="4.1" r="1.15" stroke="currentColor" stroke-width="1.1"/><path d="M2.2 9.3l2.9-2.9 2.1 2.1 2-2 2.6 2.8" stroke="currentColor" stroke-width="1.1"/></svg><span>sketch.svg</span></div>
+              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>bread.md</span></div>
+              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>quotes.md</span></div>
+              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><rect x=".65" y=".65" width="12.7" height="10.7" rx="1.6" stroke="currentColor" stroke-width="1.1"/><circle cx="4.35" cy="4.1" r="1.15" stroke="currentColor" stroke-width="1.1"/><path d="M2.2 9.3l2.9-2.9 2.1 2.1 2-2 2.6 2.8" stroke="currentColor" stroke-width="1.1"/></svg><span>lamination.svg</span></div>
+              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>2026-08-26.md</span></div>
+              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>budget.md</span></div>
+              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>packing.md</span></div>
+              </div>
             </div>
           </div>
 
@@ -185,7 +195,7 @@ documents/
     </figure>
 
     <div class="fmt-caption" id="fmt-caption">
-      <p data-for="tree"><b>A directory tree.</b> Your notes are files in folders, named by you. Export writes them to disk in this shape — no manifest, no index, nothing to reconstruct.</p>
+      <p data-for="tree"><b>Ordinary files.</b> Export writes your notebook to disk exactly like this — folders you named, Markdown and SVG inside. No manifest, no database, nothing to reconstruct.</p>
       <p data-for="md" hidden><b>CommonMark.</b> Tables, task lists, footnotes and Obsidian-style <code>[[wikilinks]]</code>. The same file renders on GitHub, converts with <code>pandoc</code>, and opens in every editor you already have.</p>
       <p data-for="svg" hidden><b>SVG.</b> Every stroke is a path in an open vector format. Drop the file into Inkscape, Illustrator, Figma or a browser and it opens — because it is not a picture of a drawing, it is the drawing.</p>
     </div>
@@ -355,6 +365,12 @@ COMMANDS
   @media (prefers-reduced-motion:reduce){.caret{display:none}}
   .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .hero-sub{margin-top:var(--s-md);color:var(--fg-2);font-size:19px;max-width:30em;text-wrap:pretty}
+  .hero-sub a{
+    text-decoration:underline;text-underline-offset:3px;
+    text-decoration-color:color-mix(in srgb,var(--accent) 45%,transparent);
+    transition:text-decoration-color var(--anim) ease;
+  }
+  .hero-sub a:hover{text-decoration-color:var(--accent)}
   .hero-close{margin-top:var(--s-md);font-size:19px;font-weight:500}
   .hero-cta{display:flex;flex-wrap:wrap;gap:var(--s-sm);margin-top:var(--s-lg)}
   .hero-proof{margin-top:var(--s-md);color:var(--fg-3);font-family:var(--mono);font-size:12px}
@@ -464,18 +480,25 @@ COMMANDS
   .fmt-panel.is-on{opacity:1;visibility:visible;pointer-events:auto}
   .fmt-panel canvas{display:block;width:100%;height:100%}
 
-  .tree-wrap{
-    height:100%;overflow:auto;padding:var(--s-lg);
-    display:flex;align-items:center;justify-content:center;
+  .fs{position:absolute;inset:0;display:flex;flex-direction:column}
+  .fs-bar{
+    display:flex;align-items:center;justify-content:space-between;gap:var(--s-sm);
+    padding:var(--s-sm) var(--s-md);border-bottom:1px solid var(--divider);
+    font-family:var(--mono);font-size:12px;color:var(--fg-3);
   }
-  @media (min-width:760px){.tree-wrap{padding:var(--s-xl) var(--s-2xl)}}
-  .tree{
-    margin:0;font-family:var(--mono);font-size:13px;line-height:1.45;
-    color:var(--fg);white-space:pre;
+  .fs-cmd{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fs-count{flex:none}
+  .fs-grid{
+    flex:1;min-height:0;overflow:auto;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(112px,1fr));
+    gap:var(--s-sm) var(--s-xs);padding:var(--s-sm) var(--s-lg);align-content:space-evenly;
   }
-  @media (min-width:760px){.tree{font-size:18px}}
-  .tree-cmd{color:var(--fg-2)}
-  .tree i{color:var(--fg-3);font-style:normal}
+  .fs-item{display:flex;flex-direction:column;align-items:center;gap:var(--s-xs);min-width:0}
+  .fs-item svg{color:var(--fg-3)}
+  .fs-item span{
+    max-width:100%;font-family:var(--mono);font-size:11.5px;color:var(--fg-2);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
 
   .fmt-caption{max-width:960px;margin:var(--s-md) auto 0}
   .fmt-caption p{color:var(--fg-2);font-size:16px}
