@@ -7,6 +7,19 @@ android {
     compileSdk=36
     namespace "app.lockbook"
 
+    flavorDimensions "store"
+
+    productFlavors {
+        play {
+            dimension "store"
+        }
+
+        fdroid {
+            dimension "store"
+            applicationIdSuffix ".fdroid"
+        }
+    }
+
     defaultConfig {
         applicationId "app.lockbook"
         minSdkVersion 24
@@ -34,7 +47,9 @@ android {
 
     buildTypes {
         release {
-            signingConfig signingConfigs.release
+            if (signingConfigs.release.maybeStoreFile != null) {
+                signingConfig signingConfigs.release
+            }
 
             minifyEnabled true
 	        zipAlignEnabled true
@@ -116,7 +131,7 @@ dependencies {
     // Miscellaneous
     implementation "com.jakewharton.timber:timber:$logger_version"
     implementation "androidx.work:work-runtime-ktx:$work_version"
-    implementation "com.android.billingclient:billing-ktx:$billing_version"
+    playImplementation "com.android.billingclient:billing-ktx:$billing_version"
 
     implementation project(':workspace')
     implementation project(':lb-java')

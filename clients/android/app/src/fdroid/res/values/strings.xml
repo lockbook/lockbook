@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="card_details">Card details</string>
+    <string name="card_number">Card number</string>
+    <string name="card_expiration_month">MM</string>
+    <string name="card_expiration_year">YY or YYYY</string>
+    <string name="card_cvc">CVC</string>
+    <string name="invalid_card_number">Enter a valid card number.</string>
+    <string name="invalid_expiration_month">Enter a month from 1 to 12.</string>
+    <string name="invalid_expiration_year">Enter a two- or four-digit year.</string>
+    <string name="invalid_card_cvc">Enter a valid CVC.</string>
+</resources>

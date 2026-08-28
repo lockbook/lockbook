@@ -87,7 +87,14 @@ class UpgradeAccountActivity : AppCompatActivity() {
                 }
             }
 
-            is BillingEvent.SuccessfulPurchase -> {
+            BillingEvent.SuccessfulPurchase -> {
+                alertModel.notifySuccessfulPurchaseConfirm {
+                    setResult(SUCCESSFUL_SUBSCRIPTION_PURCHASE)
+                    this@UpgradeAccountActivity.finish()
+                }
+            }
+
+            is BillingEvent.GooglePlayPurchase -> {
                 uiScope.launch {
                     binding.progressOverlay.visibility = View.VISIBLE
                     binding.subscribeToPlan.isEnabled = false
