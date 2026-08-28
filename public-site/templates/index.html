@@ -5,10 +5,14 @@
 <section class="section hero">
   <div class="wrap hero-grid">
     <div class="hero-copy">
-      <h1>Notes that stay yours.</h1>
+      <h1>
+        <span class="hero-lead">The best place for your</span>
+        <span class="sr-only">notes</span>
+        <span class="rot-line" aria-hidden="true"><b class="rot" id="rot-word">notes</b><span class="caret"></span></span>
+      </h1>
       <p class="hero-sub">
-        An open-source notebook, encrypted on your devices with keys we never
-        see, written in formats you will always be able to open.
+        respects your privacy, doesn&rsquo;t lock you in, lets you collaborate,
+        and runs native on every platform.
       </p>
       <div class="hero-cta">
         <a class="btn btn-primary btn-lg" id="hero-download" href="#download">Download</a>
@@ -318,8 +322,14 @@ COMMANDS
 <style>{% raw %}
   .hero{padding:var(--s-3xl) 0 var(--s-2xl);border-top:0}
   .hero-grid{display:grid;gap:var(--s-xl);align-items:center}
-  .hero h1{font-size:clamp(38px,7vw,62px);line-height:1.02;letter-spacing:-.035em;max-width:15ch}
-  .hero-sub{margin-top:var(--s-lg);color:var(--fg-2);font-size:19px;max-width:34em}
+  .hero-lead{display:block;font-size:clamp(22px,2.8vw,28px);font-weight:500;letter-spacing:-.015em;line-height:1.3}
+  .rot-line{display:block;margin-top:var(--s-xs);font-size:clamp(42px,6.5vw,60px);font-weight:600;letter-spacing:-.03em;line-height:1.15;white-space:nowrap}
+  .rot{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:var(--r-sm);padding:0 .09em;margin-left:-.09em}
+  .caret{display:inline-block;width:3px;height:.82em;margin-left:.09em;background:var(--accent);vertical-align:-.06em;animation:caret 1.1s steps(1) infinite}
+  @keyframes caret{50%{opacity:0}}
+  @media (prefers-reduced-motion:reduce){.caret{display:none}}
+  .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  .hero-sub{margin-top:var(--s-md);color:var(--fg-2);font-size:19px;max-width:30em;text-wrap:pretty}
   .hero-cta{display:flex;flex-wrap:wrap;gap:var(--s-sm);margin-top:var(--s-lg)}
   .hero-proof{margin-top:var(--s-md);color:var(--fg-3);font-family:var(--mono);font-size:12px}
   .hero-shot{display:none}
@@ -485,6 +495,31 @@ COMMANDS
 
 {% block scripts %}
 <script>{% raw %}
+  (function () {
+    var el = document.getElementById('rot-word');
+    if (!el) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+    var WORDS = ['notes', 'sketches', 'todos', 'diagrams', 'journal',
+                 'meeting notes', 'recipes', 'research', 'drafts', 'field notes',
+                 'poems', 'diary', 'thesis', 'novel', 'wiki', 'ideas'];
+    var i = 0, txt = WORDS[0], deleting = false;
+    function step() {
+      var word = WORDS[i];
+      if (!deleting) {
+        txt = word.slice(0, txt.length + 1);
+        el.textContent = txt;
+        if (txt === word) { deleting = true; setTimeout(step, 2100); return; }
+        setTimeout(step, 70);
+      } else {
+        txt = txt.slice(0, -1);
+        el.textContent = txt;
+        if (!txt) { deleting = false; i = (i + 1) % WORDS.length; setTimeout(step, 350); return; }
+        setTimeout(step, 40);
+      }
+    }
+    setTimeout(step, 2000);
+  })();
+
   (function () {
     var wire = document.getElementById('arch-wire');
     var packet = document.getElementById('arch-packet');
