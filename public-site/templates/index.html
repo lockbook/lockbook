@@ -14,6 +14,7 @@
         respects your privacy, doesn&rsquo;t lock you in, lets you collaborate,
         and runs native on every platform.
       </p>
+      <p class="hero-close">See why that place is Lockbook.</p>
       <div class="hero-cta">
         <a class="btn btn-primary btn-lg" id="hero-download" href="#download">Download</a>
         <a class="btn btn-quiet btn-lg" href="#formats">See it work</a>
@@ -332,6 +333,7 @@ COMMANDS
   @media (prefers-reduced-motion:reduce){.caret{display:none}}
   .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .hero-sub{margin-top:var(--s-md);color:var(--fg-2);font-size:19px;max-width:30em;text-wrap:pretty}
+  .hero-close{margin-top:var(--s-md);font-size:19px;font-weight:500}
   .hero-cta{display:flex;flex-wrap:wrap;gap:var(--s-sm);margin-top:var(--s-lg)}
   .hero-proof{margin-top:var(--s-md);color:var(--fg-3);font-family:var(--mono);font-size:12px}
   .hero-shot{display:none}
@@ -506,7 +508,7 @@ COMMANDS
     var WORDS = ['notes', 'sketches', 'todos', 'diagrams', 'journal',
                  'meeting notes', 'recipes', 'research', 'drafts', 'field notes',
                  'poems', 'diary', 'thesis', 'novel', 'wiki', 'ideas'];
-    var i = 0, txt = WORDS[0], deleting = false;
+    var i = 0, txt = WORDS[0], deleting = true;
     function step() {
       var word = WORDS[i];
       if (!deleting) {
@@ -521,7 +523,7 @@ COMMANDS
         setTimeout(step, 40);
       }
     }
-    setTimeout(step, 2000);
+    setTimeout(step, 1400);
   })();
 
   (function () {
