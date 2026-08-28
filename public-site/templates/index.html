@@ -3,19 +3,26 @@
 {% block content %}
 
 <section class="section hero">
-  <div class="wrap">
-    <h1>Notes that stay yours.</h1>
-    <p class="hero-sub">
-      An open-source notebook, encrypted on your devices with keys we never
-      see, written in formats you will always be able to open.
-    </p>
-    <div class="hero-cta">
-      <a class="btn btn-primary btn-lg" id="hero-download" href="#download">Download</a>
-      <a class="btn btn-quiet btn-lg" href="#formats">See it work</a>
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <h1>Notes that stay yours.</h1>
+      <p class="hero-sub">
+        An open-source notebook, encrypted on your devices with keys we never
+        see, written in formats you will always be able to open.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" id="hero-download" href="#download">Download</a>
+        <a class="btn btn-quiet btn-lg" href="#formats">See it work</a>
+      </div>
+      <p class="hero-proof">
+        Open source since 2020 &nbsp;·&nbsp; 25&nbsp;MB free &nbsp;·&nbsp; No account required
+      </p>
     </div>
-    <p class="hero-proof">
-      Open source since 2020 &nbsp;·&nbsp; 25&nbsp;MB free &nbsp;·&nbsp; No account required
-    </p>
+    <a class="hero-shot" href="#screenshots" aria-label="See Lockbook on every platform">
+      <span class="ph" data-ratio="16/10">
+        <span><b id="hero-shot-name">macOS client</b>screenshot &mdash; see every platform &rarr;</span>
+      </span>
+    </a>
   </div>
 </section>
 
@@ -159,6 +166,19 @@ documents/
         <span>one Rust core &mdash; the same crate the CLI and this page&rsquo;s demos run on</span>
       </div>
     </div>
+
+    <div class="shots" id="screenshots">
+      <div class="segmented" id="platform-switch" role="tablist" aria-label="Platform screenshots">
+        <button role="tab" aria-selected="true"  data-platform="macos">macOS</button>
+        <button role="tab" aria-selected="false" data-platform="ios"     tabindex="-1">iOS</button>
+        <button role="tab" aria-selected="false" data-platform="android" tabindex="-1">Android</button>
+        <button role="tab" aria-selected="false" data-platform="linux"   tabindex="-1">Linux</button>
+        <button role="tab" aria-selected="false" data-platform="windows" tabindex="-1">Windows</button>
+      </div>
+      <div class="ph" data-ratio="16/10" id="platform-shot">
+        <span><b>macOS client</b>screenshot · 16:10 · 2× · matches viewer&rsquo;s theme</span>
+      </div>
+    </div>
   </div>
 </section>
 
@@ -273,10 +293,22 @@ COMMANDS
 
 <style>{% raw %}
   .hero{padding:var(--s-3xl) 0 var(--s-2xl);border-top:0}
+  .hero-grid{display:grid;gap:var(--s-xl);align-items:center}
   .hero h1{font-size:clamp(38px,7vw,62px);line-height:1.02;letter-spacing:-.035em;max-width:15ch}
   .hero-sub{margin-top:var(--s-lg);color:var(--fg-2);font-size:19px;max-width:34em}
   .hero-cta{display:flex;flex-wrap:wrap;gap:var(--s-sm);margin-top:var(--s-lg)}
   .hero-proof{margin-top:var(--s-md);color:var(--fg-3);font-family:var(--mono);font-size:12px}
+  .hero-shot{display:none}
+  @media (min-width:900px){
+    .hero-grid{grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:var(--s-2xl)}
+    .hero-shot{display:block}
+  }
+  .hero-shot .ph{transition:border-color var(--anim) ease}
+  .hero-shot:hover{text-decoration:none}
+  .hero-shot:hover .ph{border-color:var(--fg-3)}
+
+  .shots{margin-top:var(--s-2xl);scroll-margin-top:calc(60px + var(--s-md))}
+  #platform-shot{margin-top:var(--s-md)}
 
   .after-note{margin-top:var(--s-lg)}
 
@@ -562,6 +594,37 @@ COMMANDS
   })();
 
   (function () {
+    var LABELS = {
+      macos:'macOS client', ios:'iOS client', windows:'Windows client',
+      linux:'Linux client', android:'Android client'
+    };
+    var strip = document.getElementById('platform-switch');
+    var shot  = document.getElementById('platform-shot');
+    if (!strip || !shot) return;
+    var tabs = [].slice.call(strip.querySelectorAll('button'));
+    function show(tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+      });
+      shot.innerHTML = '<span><b>' + LABELS[tab.dataset.platform] +
+        '</b>screenshot · 16:10 · 2× · matches viewer’s theme</span>';
+    }
+    tabs.forEach(function (t, i) {
+      t.addEventListener('click', function () { show(t); });
+      t.addEventListener('keydown', function (e) {
+        var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        var next = tabs[(i + d + tabs.length) % tabs.length];
+        next.focus();
+        show(next);
+      });
+    });
+  })();
+
+  (function () {
     var ua = navigator.userAgent || '';
     var plat = navigator.platform || '';
     var touch = navigator.maxTouchPoints || 0;
@@ -582,6 +645,12 @@ COMMANDS
     var nav  = document.getElementById('nav-download');
     if (tile && hero) { hero.textContent = 'Download for ' + NAMES[os]; hero.href = tile.href; }
     if (tile && nav) nav.href = tile.href;
+
+    var shotName = document.getElementById('hero-shot-name');
+    if (shotName) shotName.textContent = NAMES[os] + ' client';
+    var strip = document.getElementById('platform-switch');
+    var btn = strip && strip.querySelector('button[data-platform="' + os + '"]');
+    if (btn) btn.click();
   })();
 
   (function () {
