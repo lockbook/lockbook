@@ -90,7 +90,7 @@
     <string name="bread_crumb_folder">Folder</string>
     <string name="sort_date_modified">Date modified</string>
     <string name="sort_date_last_modified">Date last modified</string>
-    <string name="sort_alphabetical">Alphabetical</string>
+    <string name="sort_alphabetical">Name</string>
     <string name="sort_ascending">Sort ascending</string>
     <string name="sort_descending">Sort descending</string>
     <string name="sort_ascending_a_to_z">A to Z (ascending)</string>

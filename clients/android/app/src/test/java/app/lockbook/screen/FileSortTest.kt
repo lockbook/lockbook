@@ -7,6 +7,20 @@ import org.junit.Test
 
 class FileSortTest {
     @Test
+    fun `menu selections update sort state`() {
+        val initial = FileSortOptions()
+
+        assertEquals(
+            initial.copy(criterion = FileSortCriterion.Alphabetical),
+            initial.withMenuSelection(app.lockbook.R.id.sort_by_alphabetical),
+        )
+        assertEquals(
+            initial.copy(direction = FileSortDirection.Ascending),
+            initial.withMenuSelection(app.lockbook.R.id.sort_ascending),
+        )
+    }
+
+    @Test
     fun `alphabetical sorting keeps folders first and applies direction within each type`() {
         val items =
             listOf(

@@ -11,6 +11,7 @@ import android.os.Build
 import android.os.Bundle
 import android.view.*
 import android.widget.EditText
+import androidx.annotation.IdRes
 import androidx.annotation.StringRes
 import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
@@ -238,32 +239,26 @@ class FilesListFragment :
     }
 
     private fun showFileSortMenu(anchor: View) {
-        val popup = PopupMenu(requireContext(), anchor)
+        val popup = PopupMenu(requireContext(), anchor, Gravity.START)
         popup.menuInflater.inflate(R.menu.menu_file_sort, popup.menu)
         MenuCompat.setGroupDividerEnabled(popup.menu, true)
-
-        popup.menu.findItem(R.id.sort_by_last_modified).isChecked =
-            sortOptions.criterion == FileSortCriterion.LastModified
-        popup.menu.findItem(R.id.sort_by_alphabetical).isChecked =
-            sortOptions.criterion == FileSortCriterion.Alphabetical
-        popup.menu.findItem(R.id.sort_ascending).isChecked =
-            sortOptions.direction == FileSortDirection.Ascending
-        popup.menu.findItem(R.id.sort_descending).isChecked =
-            sortOptions.direction == FileSortDirection.Descending
+        popup.menu.syncCheckedSortOptions(sortOptions)
 
         popup.setOnMenuItemClickListener { item ->
-            sortOptions =
-                when (item.itemId) {
-                    R.id.sort_by_last_modified -> sortOptions.copy(criterion = FileSortCriterion.LastModified)
-                    R.id.sort_by_alphabetical -> sortOptions.copy(criterion = FileSortCriterion.Alphabetical)
-                    R.id.sort_ascending -> sortOptions.copy(direction = FileSortDirection.Ascending)
-                    R.id.sort_descending -> sortOptions.copy(direction = FileSortDirection.Descending)
-                    else -> return@setOnMenuItemClickListener false
-                }
+            val updatedOptions = sortOptions.withMenuSelection(item.itemId)
+                ?: return@setOnMenuItemClickListener false
+
+            sortOptions = updatedOptions
+            popup.menu.syncCheckedSortOptions(sortOptions)
             renderSortedFiles()
             true
         }
-        popup.show()
+        recyclerView.stopScroll()
+        anchor.post {
+            if (_binding != null && anchor.isAttachedToWindow) {
+                popup.show()
+            }
+        }
     }
 
     private fun setUpPinnedFiles() {
@@ -694,6 +689,40 @@ internal fun sortFileItems(
         compareBy<FileViewHolderInfo> { it is FileViewHolderInfo.DocumentViewHolderInfo }
             .then(directionalComparator),
     )
+}
+
+internal fun FileSortOptions.withMenuSelection(
+    @IdRes menuItemId: Int,
+): FileSortOptions? =
+    when (menuItemId) {
+        R.id.sort_by_last_modified -> copy(criterion = FileSortCriterion.LastModified)
+        R.id.sort_by_alphabetical -> copy(criterion = FileSortCriterion.Alphabetical)
+        R.id.sort_ascending -> copy(direction = FileSortDirection.Ascending)
+        R.id.sort_descending -> copy(direction = FileSortDirection.Descending)
+        else -> null
+    }
+
+private fun Menu.syncCheckedSortOptions(options: FileSortOptions) {
+    setGroupCheckable(R.id.file_sort_criterion_group, true, true)
+    setGroupCheckable(R.id.file_sort_direction_group, true, true)
+
+    findItem(R.id.sort_by_last_modified).isChecked = false
+    findItem(R.id.sort_by_alphabetical).isChecked = false
+    findItem(R.id.sort_ascending).isChecked = false
+    findItem(R.id.sort_descending).isChecked = false
+
+    findItem(
+        when (options.criterion) {
+            FileSortCriterion.LastModified -> R.id.sort_by_last_modified
+            FileSortCriterion.Alphabetical -> R.id.sort_by_alphabetical
+        },
+    ).isChecked = true
+    findItem(
+        when (options.direction) {
+            FileSortDirection.Ascending -> R.id.sort_ascending
+            FileSortDirection.Descending -> R.id.sort_descending
+        },
+    ).isChecked = true
 }
 
 sealed class UpdateFilesUI {

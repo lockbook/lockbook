@@ -65,10 +65,11 @@ internal class FileSortAdapter(
         private val holder: ListItemCardView = itemView.findViewById(R.id.file_sort_holder)
         private val label: MaterialTextView = itemView.findViewById(R.id.file_sort_label)
         private val arrow: View = itemView.findViewById(R.id.file_sort_arrow)
+        private val popupAnchor: View = itemView.findViewById(R.id.file_sort_popup_anchor)
 
         init {
-            holder.setOnClickListener(onClick)
-            arrow.setOnClickListener(onClick)
+            holder.setOnClickListener { onClick(popupAnchor) }
+            arrow.setOnClickListener { onClick(popupAnchor) }
         }
 
         fun bind(
