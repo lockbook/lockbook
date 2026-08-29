@@ -17,8 +17,20 @@ import net.lockbook.Lb
 class FileTreeAdapter(
     private val onItemClick: (FileViewHolderInfo) -> Unit,
     private val onItemLongClick: (FileViewHolderInfo) -> Unit,
+    private val precedingItemCount: Int = 0,
 ) : ListAdapter<FileViewHolderInfo, RecyclerView.ViewHolder>(FileTreeDiffCallback()) {
     private var selectedFileIds: Set<String> = emptySet()
+
+    fun refreshSegmentedAppearance() {
+        if (itemCount == 0) {
+            return
+        }
+
+        notifyItemChanged(0, PAYLOAD_APPEARANCE)
+        if (itemCount > 1) {
+            notifyItemChanged(itemCount - 1, PAYLOAD_APPEARANCE)
+        }
+    }
 
     fun setSelectedFileIds(newSelection: Set<String>) {
         if (selectedFileIds == newSelection) {
@@ -58,6 +70,10 @@ class FileTreeAdapter(
         payloads: MutableList<Any>,
     ) {
         val item = getItem(position)
+        if (payloads.contains(PAYLOAD_APPEARANCE)) {
+            updateListItemAppearance(holder, position)
+            return
+        }
         if (payloads.contains(PAYLOAD_SELECTION)) {
             bind(holder, item, position)
             return
@@ -94,7 +110,10 @@ class FileTreeAdapter(
         holder: RecyclerView.ViewHolder,
         position: Int,
     ) {
-        (holder.itemView as? ListItemLayout)?.updateAppearance(position, itemCount)
+        (holder.itemView as? ListItemLayout)?.updateAppearance(
+            position + precedingItemCount,
+            itemCount + precedingItemCount,
+        )
     }
 
     private fun FileViewHolderInfo.toFileMetadataRowInfo(): FileMetadataRowInfo {
@@ -152,3 +171,4 @@ private class FileTreeDiffCallback : DiffUtil.ItemCallback<FileViewHolderInfo>()
 }
 
 private const val PAYLOAD_SELECTION = "selection"
+private const val PAYLOAD_APPEARANCE = "appearance"

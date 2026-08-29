@@ -12,7 +12,9 @@ import android.os.Bundle
 import android.view.*
 import android.widget.EditText
 import androidx.annotation.StringRes
+import androidx.appcompat.widget.PopupMenu
 import androidx.core.content.ContextCompat
+import androidx.core.view.MenuCompat
 import androidx.core.view.doOnLayout
 import androidx.core.view.updatePadding
 import androidx.fragment.app.Fragment
@@ -22,6 +24,7 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
 import androidx.preference.PreferenceManager
+import androidx.recyclerview.widget.ConcatAdapter
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.App
 import app.lockbook.R
@@ -60,14 +63,18 @@ class FilesListFragment :
     private var originalListPaddingBottom = 0
     private var folderTransition: Animator? = null
     private var folderTransitionId = 0
+    private var latestFiles: List<FileViewHolderInfo> = emptyList()
+    private var sortOptions = FileSortOptions()
 
     private var currentTab: WorkspaceTab = WorkspaceTab.welcome
     private val fileTreeAdapter by lazy {
         FileTreeAdapter(
             onItemClick = ::onFileItemClicked,
             onItemLongClick = ::onFileItemLongClicked,
+            precedingItemCount = 1,
         )
     }
+    private val fileSortAdapter by lazy { FileSortAdapter(::showFileSortMenu) }
     private val pinnedFilesAdapter by lazy {
         PinnedFilesAdapter(
             onItemClick = { enterFile(it.file) },
@@ -93,6 +100,19 @@ class FilesListFragment :
         savedInstanceState: Bundle?,
     ): View {
         _binding = FragmentFilesListBinding.inflate(inflater, container, false)
+        sortOptions =
+            FileSortOptions(
+                criterion =
+                    savedInstanceState
+                        ?.getString(FILE_SORT_CRITERION_STATE)
+                        ?.let(FileSortCriterion::valueOf)
+                        ?: FileSortCriterion.LastModified,
+                direction =
+                    savedInstanceState
+                        ?.getString(FILE_SORT_DIRECTION_STATE)
+                        ?.let(FileSortDirection::valueOf)
+                        ?: FileSortDirection.Descending,
+            )
         originalListPaddingBottom = binding.filesList.paddingBottom
         model.notifyUpdateFilesUI.observe(
             viewLifecycleOwner,
@@ -187,23 +207,63 @@ class FilesListFragment :
     private fun observeFilesList() {
         model.files.observe(viewLifecycleOwner) { files ->
             val currentFiles = files.orEmpty()
+            latestFiles = currentFiles
             selectionModel.reconcile(
                 FileSelectionSource.Files,
                 currentFiles.map { item -> item.fileMetadata },
             )
-            fileTreeAdapter.submitList(currentFiles.toList()) {
-                fileTreeAdapter.setSelectedFileIds(
-                    selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Files),
-                )
-                binding.filesEmptyFolder.visibility = if (currentFiles.isEmpty()) View.VISIBLE else View.GONE
+            renderSortedFiles()
+        }
+    }
+
+    private fun renderSortedFiles() {
+        val sortedFiles = sortFileItems(latestFiles, sortOptions)
+        val fileCountChanged = fileTreeAdapter.itemCount != sortedFiles.size
+        fileSortAdapter.update(sortOptions, sortedFiles.size)
+        fileTreeAdapter.submitList(sortedFiles) {
+            if (fileCountChanged) {
+                fileTreeAdapter.refreshSegmentedAppearance()
             }
+            fileTreeAdapter.setSelectedFileIds(
+                selectionModel.uiState.value.selectedIdsFor(FileSelectionSource.Files),
+            )
+            binding.filesEmptyFolder.visibility = if (latestFiles.isEmpty()) View.VISIBLE else View.GONE
         }
     }
 
     private fun setUpFilesList() {
         recyclerView.layoutManager = LinearLayoutManager(requireContext())
-        recyclerView.adapter = fileTreeAdapter
+        recyclerView.adapter = ConcatAdapter(fileSortAdapter, fileTreeAdapter)
         recyclerView.itemAnimator = null
+    }
+
+    private fun showFileSortMenu(anchor: View) {
+        val popup = PopupMenu(requireContext(), anchor)
+        popup.menuInflater.inflate(R.menu.menu_file_sort, popup.menu)
+        MenuCompat.setGroupDividerEnabled(popup.menu, true)
+
+        popup.menu.findItem(R.id.sort_by_last_modified).isChecked =
+            sortOptions.criterion == FileSortCriterion.LastModified
+        popup.menu.findItem(R.id.sort_by_alphabetical).isChecked =
+            sortOptions.criterion == FileSortCriterion.Alphabetical
+        popup.menu.findItem(R.id.sort_ascending).isChecked =
+            sortOptions.direction == FileSortDirection.Ascending
+        popup.menu.findItem(R.id.sort_descending).isChecked =
+            sortOptions.direction == FileSortDirection.Descending
+
+        popup.setOnMenuItemClickListener { item ->
+            sortOptions =
+                when (item.itemId) {
+                    R.id.sort_by_last_modified -> sortOptions.copy(criterion = FileSortCriterion.LastModified)
+                    R.id.sort_by_alphabetical -> sortOptions.copy(criterion = FileSortCriterion.Alphabetical)
+                    R.id.sort_ascending -> sortOptions.copy(direction = FileSortDirection.Ascending)
+                    R.id.sort_descending -> sortOptions.copy(direction = FileSortDirection.Descending)
+                    else -> return@setOnMenuItemClickListener false
+                }
+            renderSortedFiles()
+            true
+        }
+        popup.show()
     }
 
     private fun setUpPinnedFiles() {
@@ -586,6 +646,12 @@ class FilesListFragment :
         }
     }
 
+    override fun onSaveInstanceState(outState: Bundle) {
+        outState.putString(FILE_SORT_CRITERION_STATE, sortOptions.criterion.name)
+        outState.putString(FILE_SORT_DIRECTION_STATE, sortOptions.direction.name)
+        super.onSaveInstanceState(outState)
+    }
+
     override fun onDestroyView() {
         fileActionDispatcher = null
         binding.filesList.adapter = null
@@ -598,6 +664,37 @@ class FilesListFragment :
 private const val FOLDER_TRANSITION_FADE_OUT_DURATION = 70L
 private const val FOLDER_TRANSITION_FADE_IN_DURATION = 160L
 private const val FOLDER_TRANSITION_TRANSLATION_DP = 24f
+private const val FILE_SORT_CRITERION_STATE = "file_sort_criterion"
+private const val FILE_SORT_DIRECTION_STATE = "file_sort_direction"
+
+internal fun sortFileItems(
+    items: List<FileViewHolderInfo>,
+    options: FileSortOptions,
+): List<FileViewHolderInfo> {
+    val ascendingComparator =
+        when (options.criterion) {
+            FileSortCriterion.LastModified -> {
+                compareBy<FileViewHolderInfo> { it.fileMetadata.lastModified }
+                    .thenBy { it.fileMetadata.name.lowercase(Locale.ROOT) }
+            }
+
+            FileSortCriterion.Alphabetical -> {
+                compareBy<FileViewHolderInfo> { it.fileMetadata.name.lowercase(Locale.ROOT) }
+                    .thenBy { it.fileMetadata.name }
+            }
+        }
+    val directionalComparator =
+        if (options.direction == FileSortDirection.Ascending) {
+            ascendingComparator
+        } else {
+            ascendingComparator.reversed()
+        }
+
+    return items.sortedWith(
+        compareBy<FileViewHolderInfo> { it is FileViewHolderInfo.DocumentViewHolderInfo }
+            .then(directionalComparator),
+    )
+}
 
 sealed class UpdateFilesUI {
     object UpdateBreadcrumbBar : UpdateFilesUI()

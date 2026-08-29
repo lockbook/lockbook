@@ -88,6 +88,13 @@
     <string name="dialog_file_extension">Ext.</string>
     <string name="empty_folder">No files</string>
     <string name="bread_crumb_folder">Folder</string>
+    <string name="sort_date_modified">Date modified</string>
+    <string name="sort_date_last_modified">Date last modified</string>
+    <string name="sort_alphabetical">Alphabetical</string>
+    <string name="sort_ascending">Sort ascending</string>
+    <string name="sort_descending">Sort descending</string>
+    <string name="sort_ascending_a_to_z">A to Z (ascending)</string>
+    <string name="sort_descending_z_to_a">Z to A (descending)</string>
 
     <string name="document">Document</string>
     <string name="folder">Folder</string>
