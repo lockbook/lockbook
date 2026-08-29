@@ -3,16 +3,13 @@ package app.lockbook.billing
 import android.app.Activity
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LiveData
-import app.lockbook.screen.UpgradeAccountActivity
 import net.lockbook.LbError
 
 interface BillingManager : DefaultLifecycleObserver {
     val billingEvent: LiveData<BillingEvent>
+    val premiumPrice: LiveData<String>
 
-    fun launchBillingFlow(
-        activity: Activity,
-        newTier: UpgradeAccountActivity.AccountTier,
-    )
+    fun launchBillingFlow(activity: Activity)
 
     fun showInAppMessaging(activity: Activity) {}
 }

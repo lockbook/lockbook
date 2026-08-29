@@ -9,4 +9,5 @@
     <string name="invalid_expiration_month">Enter a month from 1 to 12.</string>
     <string name="invalid_expiration_year">Enter a two- or four-digit year.</string>
     <string name="invalid_card_cvc">Enter a valid CVC.</string>
+    <string name="premium_price">$2.99</string>
 </resources>

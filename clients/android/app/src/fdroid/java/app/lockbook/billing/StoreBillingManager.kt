@@ -7,9 +7,9 @@ import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AppCompatActivity
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
-import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.SingleMutableLiveData
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
@@ -17,28 +17,29 @@ import com.google.android.material.button.MaterialButton
 import com.google.android.material.progressindicator.CircularProgressIndicator
 import com.google.android.material.textfield.TextInputEditText
 import com.google.android.material.textfield.TextInputLayout
+import com.google.android.material.textview.MaterialTextView
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.Lb
 import net.lockbook.LbError
+import net.lockbook.LbError.LbEC
+import timber.log.Timber
 
 class StoreBillingManager(
-    @Suppress("UNUSED_PARAMETER") applicationContext: Context,
+    applicationContext: Context,
 ) : BillingManager {
     private val _billingEvent = SingleMutableLiveData<BillingEvent>()
+    private val _premiumPrice = MutableLiveData(applicationContext.getString(R.string.premium_price))
 
     override val billingEvent: LiveData<BillingEvent>
         get() = _billingEvent
 
-    override fun launchBillingFlow(
-        activity: Activity,
-        newTier: UpgradeAccountActivity.AccountTier,
-    ) {
-        if (newTier != UpgradeAccountActivity.AccountTier.PremiumMonthly) {
-            return
-        }
+    override val premiumPrice: LiveData<String>
+        get() = _premiumPrice
 
+    override fun launchBillingFlow(activity: Activity) {
         val appCompatActivity = activity as? AppCompatActivity
         if (appCompatActivity == null) {
             _billingEvent.postValue(BillingEvent.NotifyUnrecoverableError)
@@ -58,6 +59,7 @@ class StoreBillingManager(
         val year = view.findViewById<TextInputEditText>(R.id.card_expiration_year)
         val cvcLayout = view.findViewById<TextInputLayout>(R.id.card_cvc_layout)
         val cvc = view.findViewById<TextInputEditText>(R.id.card_cvc)
+        val paymentError = view.findViewById<MaterialTextView>(R.id.card_payment_error)
         val progress = view.findViewById<CircularProgressIndicator>(R.id.card_payment_progress)
 
         val subscribeButton = view.findViewById<MaterialButton>(R.id.card_subscribe)
@@ -91,6 +93,7 @@ class StoreBillingManager(
             monthLayout.error = null
             yearLayout.error = null
             cvcLayout.error = null
+            paymentError.visibility = View.GONE
 
             val cardNumber = number.text.toString().filter(Char::isDigit)
             val expirationMonth = month.text.toString().toIntOrNull()
@@ -126,7 +129,7 @@ class StoreBillingManager(
             progress.visibility = View.VISIBLE
 
             activity.lifecycleScope.launch {
-                val error =
+                val error: Throwable? =
                     withContext(Dispatchers.IO) {
                         try {
                             Lb.upgradeAccountStripe(
@@ -136,23 +139,26 @@ class StoreBillingManager(
                                 cardCvc,
                             )
                             null
-                        } catch (error: LbError) {
+                        } catch (error: CancellationException) {
+                            throw error
+                        } catch (error: Throwable) {
                             error
                         }
                     }
 
-                cvc.text?.clear()
                 if (error == null) {
                     dialog.dismiss()
                     _billingEvent.value = BillingEvent.SuccessfulPurchase
                 } else {
-                    setPaymentFormEnabled(view, true)
-                    subscribeButton.isEnabled = true
-                    cancelButton.isEnabled = true
-                    dialog.setCancelable(true)
-                    dialog.setCanceledOnTouchOutside(true)
-                    progress.visibility = View.GONE
-                    _billingEvent.value = BillingEvent.NotifyError(error)
+                    restorePaymentForm(view, subscribeButton, cancelButton, dialog, progress)
+                    showPaymentError(
+                        error,
+                        paymentError,
+                        numberLayout,
+                        monthLayout,
+                        yearLayout,
+                        cvcLayout,
+                    )
                 }
             }
         }
@@ -167,6 +173,65 @@ class StoreBillingManager(
         view.findViewById<TextInputEditText>(R.id.card_expiration_month).isEnabled = isEnabled
         view.findViewById<TextInputEditText>(R.id.card_expiration_year).isEnabled = isEnabled
         view.findViewById<TextInputEditText>(R.id.card_cvc).isEnabled = isEnabled
+    }
+
+    private fun restorePaymentForm(
+        view: View,
+        subscribeButton: MaterialButton,
+        cancelButton: MaterialButton,
+        dialog: BottomSheetDialog,
+        progress: CircularProgressIndicator,
+    ) {
+        setPaymentFormEnabled(view, true)
+        subscribeButton.isEnabled = true
+        cancelButton.isEnabled = true
+        dialog.setCancelable(true)
+        dialog.setCanceledOnTouchOutside(true)
+        progress.visibility = View.GONE
+    }
+
+    private fun showPaymentError(
+        error: Throwable,
+        paymentError: MaterialTextView,
+        numberLayout: TextInputLayout,
+        monthLayout: TextInputLayout,
+        yearLayout: TextInputLayout,
+        cvcLayout: TextInputLayout,
+    ) {
+        if (error !is LbError) {
+            Timber.e(error, "Unexpected Stripe payment error")
+            paymentError.setText(R.string.basic_error)
+            paymentError.visibility = View.VISIBLE
+            return
+        }
+
+        when (error.kind) {
+            LbEC.CardInvalidNumber -> {
+                numberLayout.error = error.msg
+            }
+
+            LbEC.CardInvalidExpMonth -> {
+                monthLayout.error = error.msg
+            }
+
+            LbEC.CardInvalidExpYear, LbEC.CardExpired -> {
+                yearLayout.error = error.msg
+            }
+
+            LbEC.CardInvalidCvc -> {
+                cvcLayout.error = error.msg
+            }
+
+            else -> {
+                if (error.kind == LbEC.Unexpected) {
+                    Timber.e(error, "Unexpected Stripe payment error")
+                    paymentError.setText(R.string.basic_error)
+                } else {
+                    paymentError.text = error.msg
+                }
+                paymentError.visibility = View.VISIBLE
+            }
+        }
     }
 
     private fun parseExpirationYear(value: String): Int? =

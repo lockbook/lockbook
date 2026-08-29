@@ -8,15 +8,16 @@ import android.content.res.Configuration
 import android.os.Bundle
 import android.view.View
 import androidx.appcompat.app.AppCompatActivity
+import androidx.lifecycle.lifecycleScope
 import app.lockbook.App
 import app.lockbook.R
 import app.lockbook.billing.BillingEvent
 import app.lockbook.databinding.ActivityUpgradeAccountBinding
 import app.lockbook.model.AlertModel
-import com.google.android.material.card.MaterialCardView
 import kotlinx.coroutines.*
 import net.lockbook.Lb
 import net.lockbook.LbError
+import timber.log.Timber
 import java.lang.ref.WeakReference
 
 class UpgradeAccountActivity : AppCompatActivity() {
@@ -25,14 +26,6 @@ class UpgradeAccountActivity : AppCompatActivity() {
     private val alertModel by lazy {
         AlertModel(WeakReference(this))
     }
-    private val uiScope = CoroutineScope(Dispatchers.Main + Job())
-
-    enum class AccountTier {
-        Free,
-        PremiumMonthly,
-    }
-
-    private var selectedTier = AccountTier.Free
 
     private fun screenIsLarge(): Boolean {
         val screenSize = resources.configuration.screenLayout and Configuration.SCREENLAYOUT_SIZE_MASK
@@ -51,31 +44,22 @@ class UpgradeAccountActivity : AppCompatActivity() {
             requestedOrientation = ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
         }
 
-        if (savedInstanceState != null) {
-            selectedTier = AccountTier.valueOf(savedInstanceState.getString(SELECTED_TIER_KEY, AccountTier.Free.name))
-        }
-
-        binding.upgradeAccountTierFree.setOnClickListener(clickListener)
-        binding.upgradeAccountTierPremiumMonthly.setOnClickListener(clickListener)
-
         binding.exitBilling.setOnClickListener {
             finish()
         }
 
-        (application as App).billingClientLifecycle.billingEvent.observe(this) { billingEvent ->
-            handleBillingEvent(billingEvent)
+        (application as App).billingClientLifecycle.apply {
+            billingEvent.observe(this@UpgradeAccountActivity) { billingEvent ->
+                handleBillingEvent(billingEvent)
+            }
+            premiumPrice.observe(this@UpgradeAccountActivity) { price ->
+                binding.premiumPrice.text = getString(R.string.per_month_price, price)
+            }
         }
 
-        val selectedTierCardView =
-            when (selectedTier) {
-                AccountTier.Free -> binding.upgradeAccountTierFree
-                AccountTier.PremiumMonthly -> binding.upgradeAccountTierPremiumMonthly
-            }
-
-        selectedTierCardView.isChecked = true
-        binding.subscribeToPlan.isEnabled = selectedTier != AccountTier.Free
+        binding.subscribeToPlan.isEnabled = true
         binding.subscribeToPlan.setOnClickListener {
-            launchPurchaseFlow(selectedTier)
+            (application as App).billingClientLifecycle.launchBillingFlow(this)
         }
     }
 
@@ -95,23 +79,29 @@ class UpgradeAccountActivity : AppCompatActivity() {
             }
 
             is BillingEvent.GooglePlayPurchase -> {
-                uiScope.launch {
+                lifecycleScope.launch {
                     binding.progressOverlay.visibility = View.VISIBLE
                     binding.subscribeToPlan.isEnabled = false
 
-                    withContext(Dispatchers.IO) {
-                        try {
+                    try {
+                        withContext(Dispatchers.IO) {
                             Lb.upgradeAccountGooglePlay(billingEvent.purchaseToken, billingEvent.accountId)
-                            binding.progressOverlay.visibility = View.GONE
-                            binding.subscribeToPlan.isEnabled = true
-
-                            alertModel.notifySuccessfulPurchaseConfirm {
-                                setResult(SUCCESSFUL_SUBSCRIPTION_PURCHASE)
-                                this@UpgradeAccountActivity.finish()
-                            }
-                        } catch (err: LbError) {
-                            alertModel.notifyError(err)
                         }
+
+                        alertModel.notifySuccessfulPurchaseConfirm {
+                            setResult(SUCCESSFUL_SUBSCRIPTION_PURCHASE)
+                            this@UpgradeAccountActivity.finish()
+                        }
+                    } catch (err: LbError) {
+                        alertModel.notifyError(err)
+                    } catch (err: CancellationException) {
+                        throw err
+                    } catch (err: Throwable) {
+                        Timber.e(err, "Unexpected Google Play purchase confirmation error")
+                        alertModel.notifyBasicError()
+                    } finally {
+                        binding.progressOverlay.visibility = View.GONE
+                        binding.subscribeToPlan.isEnabled = true
                     }
                 }
             }
@@ -124,48 +114,6 @@ class UpgradeAccountActivity : AppCompatActivity() {
                 alertModel.notifyWithToast(billingEvent.error)
             }
         }
-    }
-
-    override fun onSaveInstanceState(outState: Bundle) {
-        outState.putString(SELECTED_TIER_KEY, selectedTier.name)
-
-        super.onSaveInstanceState(outState)
-    }
-
-    private fun toggleSubscribeButton() {
-        binding.subscribeToPlan.isEnabled = selectedTier != AccountTier.Free
-    }
-
-    private val clickListener =
-        View.OnClickListener { tierCardView ->
-            val oldSelectedTier = selectedTier
-
-            selectedTier =
-                when (tierCardView) {
-                    binding.upgradeAccountTierFree -> AccountTier.Free
-                    binding.upgradeAccountTierPremiumMonthly -> AccountTier.PremiumMonthly
-                    else -> AccountTier.Free
-                }
-
-            val oldTierCardView =
-                when (oldSelectedTier) {
-                    AccountTier.Free -> binding.upgradeAccountTierFree
-                    AccountTier.PremiumMonthly -> binding.upgradeAccountTierPremiumMonthly
-                }
-
-            toggleSubscribeButton()
-            oldTierCardView.isChecked = false
-            (tierCardView as MaterialCardView).isChecked = true
-        }
-
-    private fun launchPurchaseFlow(selectedTier: AccountTier) {
-        if (selectedTier == AccountTier.PremiumMonthly) {
-            (application as App).billingClientLifecycle.launchBillingFlow(this, selectedTier)
-        }
-    }
-
-    companion object {
-        const val SELECTED_TIER_KEY = "selected_tier_key"
     }
 }
 

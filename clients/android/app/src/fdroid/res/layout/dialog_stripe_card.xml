@@ -100,6 +100,14 @@
 
     </LinearLayout>
 
+    <com.google.android.material.textview.MaterialTextView
+        android:id="@+id/card_payment_error"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="12dp"
+        android:textColor="?attr/colorError"
+        android:visibility="gone" />
+
     <com.google.android.material.progressindicator.CircularProgressIndicator
         android:id="@+id/card_payment_progress"
         android:layout_width="wrap_content"

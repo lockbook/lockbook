@@ -6,8 +6,8 @@ import android.app.Activity
 import android.content.Context
 import androidx.lifecycle.LifecycleOwner
 import androidx.lifecycle.LiveData
+import androidx.lifecycle.MutableLiveData
 import app.lockbook.R
-import app.lockbook.screen.UpgradeAccountActivity
 import app.lockbook.util.SingleMutableLiveData
 import app.lockbook.util.getString
 import com.android.billingclient.api.*
@@ -38,9 +38,13 @@ class StoreBillingManager(
     }
     private var productDetails: ProductDetails? = null
     private val _billingEvent = SingleMutableLiveData<BillingEvent>()
+    private val _premiumPrice = MutableLiveData<String>()
 
     override val billingEvent: LiveData<BillingEvent>
         get() = _billingEvent
+
+    override val premiumPrice: LiveData<String>
+        get() = _premiumPrice
 
     override fun onCreate(owner: LifecycleOwner) {
         if (!billingClient.isReady) {
@@ -109,6 +113,12 @@ class StoreBillingManager(
             response.isOk -> {
                 if (productDetailsList.size == listOfProducts.size) {
                     productDetails = productDetailsList[0]
+                    monthlyOffer(productDetailsList[0])
+                        ?.pricingPhases
+                        ?.pricingPhaseList
+                        ?.lastOrNull()
+                        ?.formattedPrice
+                        ?.let(_premiumPrice::postValue)
                 }
             }
 
@@ -118,13 +128,10 @@ class StoreBillingManager(
         }
     }
 
-    override fun launchBillingFlow(
-        activity: Activity,
-        newTier: UpgradeAccountActivity.AccountTier,
-    ) {
+    override fun launchBillingFlow(activity: Activity) {
         val billingFlowParams =
-            billingFlowParamsBuilder(newTier)
-                ?: return _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(activity.resources, R.string.basic_error)))
+            billingFlowParamsBuilder()
+                ?: return _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(activity.resources, R.string.billing_not_ready)))
 
         val response = BillingResponse(billingClient.launchBillingFlow(activity, billingFlowParams).responseCode)
 
@@ -132,7 +139,7 @@ class StoreBillingManager(
             response.isOk -> {}
 
             response.isRecoverableError -> {
-                _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.basic_error)))
+                _billingEvent.postValue(BillingEvent.NotifyErrorMsg(getString(applicationContext.resources, R.string.billing_not_ready)))
             }
 
             else -> {
@@ -141,19 +148,8 @@ class StoreBillingManager(
         }
     }
 
-    private fun billingFlowParamsBuilder(newTier: UpgradeAccountActivity.AccountTier): BillingFlowParams? {
-        val offerTag =
-            when (newTier) {
-                UpgradeAccountActivity.AccountTier.Free -> return null
-                UpgradeAccountActivity.AccountTier.PremiumMonthly -> PREMIUM_MONTHLY_OFFER_ID
-            }
-
-        val offerToken =
-            productDetails
-                ?.subscriptionOfferDetails
-                ?.filter { it.offerTags[0] == offerTag }
-                ?.map { it.offerToken }
-                ?.get(0) ?: return null
+    private fun billingFlowParamsBuilder(): BillingFlowParams? {
+        val offerToken = monthlyOffer(productDetails ?: return null)?.offerToken ?: return null
 
         return BillingFlowParams
             .newBuilder()
@@ -168,6 +164,9 @@ class StoreBillingManager(
             ).setObfuscatedAccountId(UUID.randomUUID().toString())
             .build()
     }
+
+    private fun monthlyOffer(details: ProductDetails): ProductDetails.SubscriptionOfferDetails? =
+        details.subscriptionOfferDetails?.firstOrNull { PREMIUM_MONTHLY_OFFER_ID in it.offerTags }
 
     override fun onPurchasesUpdated(
         billingResult: BillingResult,
@@ -243,7 +242,6 @@ private value class BillingResponse(
             code in
                 setOf(
                     BillingResponseCode.USER_CANCELED,
-                    BillingResponseCode.ERROR,
                 )
 
     val isRecoverableError: Boolean
@@ -251,6 +249,7 @@ private value class BillingResponse(
             code in
                 setOf(
                     BillingResponseCode.SERVICE_DISCONNECTED,
+                    BillingResponseCode.ERROR,
                 )
 
     val isUnrecoverableError: Boolean
