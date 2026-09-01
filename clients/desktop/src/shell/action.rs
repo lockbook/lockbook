@@ -128,8 +128,8 @@ pub enum Modal {
         /// Destination parent (resolved from location chips).
         parent: Option<Uuid>,
         loc: CreateLoc,
-        /// Tree-selected document’s parent + name for the "Alongside …" plate.
-        /// (Tab focus usually tracks selection; plate follows the sidebar cursor.)
+        /// Open document (tab) parent + name for the "Alongside …" plate.
+        /// Chrome Create (⌘N) offers this; folder-context create does not.
         alongside: Option<(Uuid, String)>,
         /// Nested folder list for "Choose…".
         picking: bool,
@@ -352,10 +352,7 @@ pub enum Action {
     TogglePin(Uuid),
     /// Toggle pin on each id (own state).
     TogglePinMany(Vec<Uuid>),
-    Cut(Vec<Uuid>),
-    Copy(Vec<Uuid>),
-    Paste,
-    /// Drag-drop or cut-paste: move ids into parent.
+    /// Drag-drop: move ids into parent.
     MoveInto {
         ids: Vec<Uuid>,
         parent: Uuid,
@@ -481,9 +478,6 @@ impl Action {
             Self::RequestSync => "RequestSync",
             Self::TogglePin(_) => "TogglePin",
             Self::TogglePinMany(_) => "TogglePinMany",
-            Self::Cut(_) => "Cut",
-            Self::Copy(_) => "Copy",
-            Self::Paste => "Paste",
             Self::MoveInto { .. } => "MoveInto",
             Self::Duplicate(_) => "Duplicate",
             Self::Export(_) => "Export",
