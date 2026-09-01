@@ -12,6 +12,7 @@ use crate::components::{
 use super::ShellApp;
 use super::action::Action as A;
 use super::action::{Action, Modal};
+use super::ops::is_saved_share;
 use super::settings;
 
 /// True when `q` has been stable for 100ms and verify should run.
@@ -156,6 +157,9 @@ fn show_delete(
     let mut expanded: std::collections::HashSet<Uuid> =
         ctx.data(|d| d.get_temp(exp_id)).unwrap_or_default();
 
+    let parts = delete_parts(app, ids);
+    let remove_only = parts.owned.is_empty() && !parts.shares.is_empty();
+
     let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_delete"));
     if sheet_dim(ctx, Id::new("shell_delete_dim"), layer) {
         queue.push(A::CloseModal);
@@ -168,22 +172,25 @@ fn show_delete(
             sheet_panel_fit(ui, t, 320.0, |ui| {
                 // Pure confirm: optional folder tree + copy + danger footer.
                 // Files-only: summary alone (tree would be static rows in a plate).
-                // Md throughout — no Xl “read vs act” gap.
-                if sheet_title_muted(ui, t, "Delete") {
+                // Share links: Remove (not Delete) — opposite of Save to your files.
+                let title = if remove_only { "Remove" } else { "Delete" };
+                if sheet_title_muted(ui, t, title) {
                     queue.push(A::CloseModal);
                 }
                 ui.add(Spacer::new(Space::Md));
-                if super::tree::show_delete_tree(app, ui, t, ids, &mut expanded) {
+                if !parts.owned_ids.is_empty()
+                    && super::tree::show_delete_tree(app, ui, t, &parts.owned_ids, &mut expanded)
+                {
                     ui.add(Spacer::new(Space::Md));
                 }
-                paint_delete_summary(ui, t, app, ids);
+                paint_delete_parts(ui, t, &parts);
                 ui.add(Spacer::new(Space::Md));
                 let foot = sheet_footer(
                     ui,
                     t,
-                    "Delete",
+                    if remove_only { "Remove" } else { "Delete" },
                     SheetFooterOpts::default()
-                        .danger(true)
+                        .danger(!remove_only)
                         .divider(false)
                         .primary_shortcut(shortcut_return()),
                 );
@@ -199,21 +206,34 @@ fn show_delete(
     ctx.data_mut(|d| d.insert_temp(exp_id, expanded));
 }
 
-/// Confirm copy: specific when we can, bold on names / counts / size (share style).
-///
-/// Body fg; Glyphon so emoji names shape. Always ends with the undo clause.
-fn paint_delete_summary(ui: &mut egui::Ui, t: &Theme, app: &ShellApp, ids: &[Uuid]) {
-    use workspace_rs::widgets::GlyphonLabel;
+struct DeleteParts {
+    owned_ids: Vec<Uuid>,
+    owned: Vec<(String, bool)>,
+    shares: Vec<(String, bool)>,
+}
 
+fn paint_delete_parts(ui: &mut egui::Ui, t: &Theme, parts: &DeleteParts) {
+    let mixed = !parts.owned.is_empty() && !parts.shares.is_empty();
+    if mixed {
+        paint_delete_para(ui, t, &parts.owned);
+        ui.add(Spacer::new(Space::Md));
+        paint_delete_para(ui, t, &parts.shares);
+    } else if !parts.owned.is_empty() {
+        paint_delete_para(ui, t, &parts.owned);
+    } else if !parts.shares.is_empty() {
+        paint_delete_para(ui, t, &parts.shares);
+    }
+}
+
+fn paint_delete_para(ui: &mut egui::Ui, t: &Theme, spans: &[(String, bool)]) {
+    use workspace_rs::widgets::GlyphonLabel;
+    if spans.is_empty() {
+        return;
+    }
     let ink = t.neutral_fg();
     let fs = TypeRole::Body.size();
     let lh = TypeRole::Body.line_height();
     let max_w = crate::components::ui_width(ui).max(1.0);
-
-    let spans = delete_summary_spans(app, ids);
-    if spans.is_empty() {
-        return;
-    }
     let rich: Vec<(&str, bool)> = spans.iter().map(|(s, b)| (s.as_str(), *b)).collect();
     ui.add(
         GlyphonLabel::new_rich(rich, ink)
@@ -223,12 +243,17 @@ fn paint_delete_summary(ui: &mut egui::Ui, t: &Theme, app: &ShellApp, ids: &[Uui
     );
 }
 
-/// Build (text, bold) spans for the delete confirm sentence.
-fn delete_summary_spans(app: &ShellApp, ids: &[Uuid]) -> Vec<(String, bool)> {
+fn delete_parts(app: &ShellApp, ids: &[Uuid]) -> DeleteParts {
     let undo = "This cannot be undone.";
-    let Some(ready) = app.session.ready() else {
-        return vec![(undo.into(), false)];
+    let empty = DeleteParts {
+        owned_ids: Vec::new(),
+        owned: vec![(undo.into(), false)],
+        shares: Vec::new(),
     };
+    let Some(ready) = app.session.ready() else {
+        return empty;
+    };
+    let me = ready.workspace.account.username.as_str();
     let files = ready.workspace.files.read().unwrap();
 
     // Folder covers its selected kids — same roots as the delete tree.
@@ -241,21 +266,34 @@ fn delete_summary_spans(app: &ShellApp, ids: &[Uuid]) -> Vec<(String, bool)> {
         })
         .collect();
     if roots.is_empty() {
-        return vec![(undo.into(), false)];
+        return empty;
     }
 
     let mut cascade = 0usize;
     let mut bytes = 0u64;
     let mut any_folder = false;
+    let mut owned_ids = Vec::new();
     let mut names: Vec<String> = Vec::with_capacity(roots.len());
+    let mut link_names: Vec<String> = Vec::new();
     for id in &roots {
-        let is_folder = files.get_by_id(*id).is_some_and(|f| f.is_folder());
+        let Some(f) = files.get_by_id(*id) else {
+            continue;
+        };
+        if is_saved_share(f, me) {
+            link_names.push(f.name.clone());
+            continue;
+        }
+        let is_folder = f.is_folder();
         any_folder |= is_folder;
         cascade += 1 + files.descendents(*id).len();
         bytes += files.size_bytes_recursive.get(id).copied().unwrap_or(0);
-        if let Some(f) = files.get_by_id(*id) {
-            names.push(f.name.clone());
-        }
+        names.push(f.name.clone());
+        owned_ids.push(*id);
+    }
+
+    let shares = if link_names.is_empty() { Vec::new() } else { delete_link_spans(&link_names) };
+    if names.is_empty() {
+        return DeleteParts { owned_ids, owned: Vec::new(), shares };
     }
 
     // Descendants only (excludes the folder row itself).
@@ -263,7 +301,7 @@ fn delete_summary_spans(app: &ShellApp, ids: &[Uuid]) -> Vec<(String, bool)> {
     let size = delete_size_paren(bytes);
     let mut spans: Vec<(String, bool)> = Vec::new();
 
-    match (roots.len(), any_folder, cascade) {
+    match (names.len(), any_folder, cascade) {
         (1, false, _) => {
             // **Linux.md** will be permanently deleted (12.4 MB).
             if let Some(n) = names.first() {
@@ -306,7 +344,7 @@ fn delete_summary_spans(app: &ShellApp, ids: &[Uuid]) -> Vec<(String, bool)> {
             spans.push((".".into(), false));
         }
         // Few named roots, no cascade (docs and/or empty folders): list names.
-        (n, _, c) if n <= 4 && c == roots.len() && names.len() == n => {
+        (n, _, c) if n <= 4 && c == names.len() && names.len() == n => {
             delete_push_name_list(&mut spans, &names);
             spans.push((" will be permanently deleted".into(), false));
             if !size.is_empty() {
@@ -324,7 +362,7 @@ fn delete_summary_spans(app: &ShellApp, ids: &[Uuid]) -> Vec<(String, bool)> {
             spans.push((".".into(), false));
         }
         // Multi with folder(s), no extra descendants.
-        (_, true, n) if n == roots.len() => {
+        (_, true, n) if n == names.len() => {
             spans.push((delete_count_noun(n, "item", "items"), true));
             spans.push((" will be permanently deleted".into(), false));
             if !size.is_empty() {
@@ -345,6 +383,17 @@ fn delete_summary_spans(app: &ShellApp, ids: &[Uuid]) -> Vec<(String, bool)> {
 
     spans.push((" ".into(), false));
     spans.push((undo.into(), false));
+    DeleteParts { owned_ids, owned: spans, shares }
+}
+
+/// Removing an accepted share from Files — not a real delete.
+fn delete_link_spans(names: &[String]) -> Vec<(String, bool)> {
+    let mut spans = Vec::new();
+    delete_push_name_list(&mut spans, names);
+    spans.push((
+        " will be removed from files. You'll still have access through Shared with me.".into(),
+        false,
+    ));
     spans
 }
 
@@ -600,4 +649,42 @@ fn help_shortcut_row(ui: &mut egui::Ui, t: &Theme, key: &str, label: &str) {
         label_galley,
         ink,
     );
+}
+
+#[cfg(test)]
+mod delete_link_copy_tests {
+    use super::{delete_link_spans, delete_push_name_list};
+
+    fn text(spans: &[(String, bool)]) -> String {
+        spans.iter().map(|(s, _)| s.as_str()).collect()
+    }
+
+    #[test]
+    fn single_link_is_not_permanent_delete() {
+        let t = text(&delete_link_spans(&["Notes".into()]));
+        assert_eq!(
+            t,
+            "Notes will be removed from files. You'll still have access through Shared with me."
+        );
+        assert!(!t.to_ascii_lowercase().contains("delete"));
+        assert!(!t.contains("lose access"));
+        assert!(!t.contains("cannot be undone"));
+    }
+
+    #[test]
+    fn multiple_links_pluralize() {
+        let t = text(&delete_link_spans(&["A".into(), "B".into()]));
+        assert_eq!(
+            t,
+            "A and B will be removed from files. You'll still have access through Shared with me."
+        );
+        assert!(!t.to_ascii_lowercase().contains("delete"));
+    }
+
+    #[test]
+    fn name_list_three() {
+        let mut spans = Vec::new();
+        delete_push_name_list(&mut spans, &["a".into(), "b".into(), "c".into()]);
+        assert_eq!(text(&spans), "a, b, and c");
+    }
 }

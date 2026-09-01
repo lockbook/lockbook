@@ -40,7 +40,7 @@ use crate::components::{
 };
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
-use crate::shell::ops::is_pinned;
+use crate::shell::ops::{ids_are_saved_shares, is_pinned};
 
 /// Dwell before expanding a collapsed folder under a drag.
 const DROP_EXPAND_SECS: f64 = 0.6;
@@ -625,7 +625,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
     if let Some(ready) = app.session.ready() {
         let pins = ready.pinned.clone();
         let files = ready.workspace.files.read().unwrap();
-        pins::show(ui, t, &*files, &pins, queue);
+        pins::show(ui, t, &*files, &pins, &ready.workspace.account.username, queue);
     }
 
     let Some(root) = ensure_tree_walk(app) else {
@@ -1217,7 +1217,12 @@ fn paint_row(
     let Some(ready) = app.session.ready() else {
         return;
     };
-    let (name, create_parent, is_shared) = {
+    let kids_empty = row.kids_empty;
+    let selected = ready.selected.contains(&row.id) || ready.cursor == Some(row.id);
+    let expanded = ready.expanded.contains(&row.id);
+    let pinned = is_pinned(ready, row.id);
+    let multi = ready.selection_vec();
+    let (name, create_parent, is_shared, targets_are_saved_shares) = {
         let files = ready.workspace.files.read().unwrap();
         let Some(f) = files.get_by_id(row.id) else {
             return;
@@ -1226,13 +1231,11 @@ fn paint_row(
         let parent = if row.is_folder { row.id } else { f.parent };
         // Classic tree: share chrome when the file itself carries share metadata.
         let shared = !f.shares.is_empty();
-        (f.name.clone(), parent, shared)
+        let targets =
+            if multi.len() > 1 && multi.contains(&row.id) { &multi[..] } else { &[row.id][..] };
+        let links = ids_are_saved_shares(&*files, targets, &ready.workspace.account.username);
+        (f.name.clone(), parent, shared, links)
     };
-    let kids_empty = row.kids_empty;
-    let selected = ready.selected.contains(&row.id) || ready.cursor == Some(row.id);
-    let expanded = ready.expanded.contains(&row.id);
-    let pinned = is_pinned(ready, row.id);
-    let multi = ready.selection_vec();
     let sync_dot = app.sync_dots.color_for(row.id, t);
 
     // Open/closed folder icon (no chevron). Whole-row click toggles.
@@ -1347,7 +1350,12 @@ fn paint_row(
             e.item(phosphor::DOWNLOAD_SIMPLE, "Export…", FileCmd::Export);
         }
         e.separator();
-        e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
+        if targets_are_saved_shares {
+            // Opposite of Shared with me → "Save to your files…".
+            e.item(phosphor::FOLDER_MINUS, "Remove from files…", FileCmd::Delete);
+        } else {
+            e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
+        }
     }) {
         match cmd {
             FileCmd::Open => {

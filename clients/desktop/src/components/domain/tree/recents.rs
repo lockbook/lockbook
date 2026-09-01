@@ -10,6 +10,7 @@ use crate::components::{
 };
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
+use crate::shell::ops::is_saved_share;
 use crate::shell::prefs::recents_bucket;
 
 use super::{FileCmd, RowGeom, TreeRowChrome, empty_state, paint_tree_file_row, row_type_icon};
@@ -86,14 +87,19 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                         visible_doc_ids.push(docs[*idx].0);
                     }
                 }
-                let parents: std::collections::HashMap<Uuid, Uuid> = app
+                let parents: std::collections::HashMap<Uuid, (Uuid, bool)> = app
                     .session
                     .ready()
                     .map(|r| {
+                        let me = r.workspace.account.username.as_str();
                         let files = r.workspace.files.read().unwrap();
                         visible_doc_ids
                             .iter()
-                            .filter_map(|id| files.get_by_id(*id).map(|f| (*id, f.parent)))
+                            .filter_map(|id| {
+                                files
+                                    .get_by_id(*id)
+                                    .map(|f| (*id, (f.parent, is_saved_share(f, me))))
+                            })
                             .collect()
                     })
                     .unwrap_or_default();
@@ -138,7 +144,10 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                             if resp.middle_clicked() {
                                 queue.push(Action::OpenFileNewTab(*id));
                             }
-                            let parent = parents.get(id).copied();
+                            let (parent, saved_share) = parents
+                                .get(id)
+                                .map(|(p, share)| (Some(*p), *share))
+                                .unwrap_or((None, false));
                             let pinned = *pinned;
                             if let Some(cmd) = context_menu::show(&resp, t, |e| {
                                 e.item(phosphor::ARROW_SQUARE_OUT, "Open", FileCmd::Open);
@@ -163,7 +172,15 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                 e.item(phosphor::LINK, "Copy link", FileCmd::CopyLink);
                                 e.item(phosphor::DOWNLOAD_SIMPLE, "Export…", FileCmd::Export);
                                 e.separator();
-                                e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
+                                if saved_share {
+                                    e.item(
+                                        phosphor::FOLDER_MINUS,
+                                        "Remove from files…",
+                                        FileCmd::Delete,
+                                    );
+                                } else {
+                                    e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
+                                }
                             }) {
                                 match cmd {
                                     FileCmd::Open => queue.push(Action::OpenFile(*id)),

@@ -372,7 +372,7 @@ pub(crate) fn show_decline_share(
         });
 }
 
-/// You will lose access to **name**. The owner will not be affected.
+/// You will lose access to **name**.
 fn paint_decline_summary(ui: &mut egui::Ui, t: &Theme, name: &str) {
     use workspace_rs::widgets::GlyphonLabel;
     let ink = t.neutral_fg();
@@ -381,11 +381,7 @@ fn paint_decline_summary(ui: &mut egui::Ui, t: &Theme, name: &str) {
     let max_w = crate::components::ui_width(ui).max(1.0);
     ui.add(
         GlyphonLabel::new_rich(
-            vec![
-                ("You will lose access to ", false),
-                (name, true),
-                (". The owner will not be affected.", false),
-            ],
+            vec![("You will lose access to ", false), (name, true), (".", false)],
             ink,
         )
         .font_size(fs)
