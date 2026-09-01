@@ -5,9 +5,9 @@ use workspace_rs::file_cache::FilesExt;
 use crate::components::interact::{ControlFills, interact_fill, sense_click};
 use crate::components::{
     Button, EqualCells, FG_HOVER, FG_PRESS, Field, Radius, SheetFooterOpts, Space, Spacer, Theme,
-    TypeRole, file_row_icon, measure_file_name, paint_file_name, phosphor, phosphor_ui_font_id,
-    segmented, sheet_band, sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer,
-    sheet_panel_fixed, sheet_title_muted, shortcut_enter,
+    TypeRole, claim, measure_file_name, origin, paint_file_name, phosphor, phosphor_ui_font_id,
+    place_at, segmented, segmented_width, sheet_band, sheet_band_centered, sheet_dim,
+    sheet_equal_row, sheet_footer, sheet_panel_fixed, sheet_title_muted, shortcut_enter,
 };
 
 use super::ShellApp;
@@ -15,7 +15,7 @@ use super::action::Action as A;
 use super::action::{Action, CreateKind, CreateLoc, Modal};
 
 /// Wide enough for location plates (username · Alongside {note} · Choose…).
-const CREATE_SHEET_W: f32 = 420.0;
+const CREATE_SHEET_W: f32 = 480.0;
 
 fn create_sheet_h_key() -> Id {
     Id::new("shell_create_inner_h")
@@ -140,9 +140,9 @@ pub(crate) fn show_create(
 
 /// Create form body (no footer). Top-aligned inside a fixed body slot when locked.
 fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>) {
-    let (kind, parent, loc, alongside, error) = match &app.modal {
-        Some(Modal::Create { kind, parent, loc, alongside, error, .. }) => {
-            (*kind, *parent, *loc, alongside.clone(), error.clone())
+    let (kind, parent, loc, alongside, chosen, error) = match &app.modal {
+        Some(Modal::Create { kind, parent, loc, alongside, chosen, error, .. }) => {
+            (*kind, *parent, *loc, alongside.clone(), *chosen, error.clone())
         }
         _ => return,
     };
@@ -159,33 +159,44 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
         .ready()
         .map(|r| r.workspace.files.read().unwrap().root().id);
 
-    let root_sel = matches!(loc, CreateLoc::Root)
-        || (matches!(loc, CreateLoc::Custom) && parent.is_some() && parent == root_id);
+    let root_sel = matches!(loc, CreateLoc::Root);
     let along_sel = matches!(loc, CreateLoc::Alongside);
+    let custom_sel = matches!(loc, CreateLoc::Custom) && chosen.is_some() && chosen != root_id;
 
     if sheet_title_muted(ui, t, "Create") {
         queue.push(A::CloseModal);
     }
     ui.add(Spacer::new(Space::Md));
 
-    // Center in a fixed control band (not unconstrained Area height).
+    // Type + name share one centered column (segmented natural width). Location
+    // plates keep the full sheet.
+    let col_w = segmented_width(ui, t, &labels);
     sheet_band_centered(ui, crate::components::segmented_h(), |ui| {
         if segmented(ui, t, &labels, &mut kind_i).changed() {
             queue.push(A::CreateSetKind(CreateKind::from_index(kind_i)));
         }
     });
     ui.add(Spacer::new(Space::Md));
-    ui.label(TypeRole::Body.rich("Name").color(t.neutral_fg_secondary()));
-    ui.add(Spacer::new(Space::Xs));
 
-    // Field edits Modal::Create.name in place (in-place modal fields).
-    {
+    let total = crate::components::ui_width(ui);
+    let top_left = origin(ui);
+    let col_left = top_left.x + ((total - col_w) / 2.0).max(0.0);
+    let budget = egui::Rect::from_min_size(
+        egui::pos2(col_left, top_left.y),
+        egui::vec2(col_w.max(1.0), crate::components::remaining_height(ui).max(1.0)),
+    );
+    let (_, used) = place_at(ui, budget, Layout::top_down(Align::Min), |ui| {
+        ui.set_width(col_w.max(1.0));
+        ui.label(TypeRole::Body.rich("Name").color(t.neutral_fg_secondary()));
+        ui.add(Spacer::new(Space::Xs));
+
         let Some(Modal::Create { name, name_dirty, error, .. }) = &mut app.modal else {
             return;
         };
         let before = name.clone();
         let mut field = Field::new(t, name)
             .id("shell_create_field")
+            .width(col_w)
             .select_all_on_focus(true);
         if let Some(ext) = kind.ext() {
             field = field.trailing_static(ext);
@@ -203,7 +214,8 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
             *name_dirty = true;
             *error = None;
         }
-    }
+    });
+    claim(ui, egui::Rect::from_min_size(top_left, egui::vec2(total, used.height().max(1.0))));
 
     ui.add(Spacer::new(Space::Md));
     ui.label(
@@ -213,8 +225,8 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
     );
     ui.add(Spacer::new(Space::Xs));
 
-    // Exclusive location plates: unselected = surface rest; selected elevates to
-    // canvas + hairline (segmented-pill language — not press-wash-as-selection).
+    // Exclusive location plates: unselected = surface rest; selected = canvas
+    // + accent hairline (destination, not the type segmented).
     // Compact labels keep natural width; name-bearing plates take the leftover so
     // “Alongside {note}” can show a real title instead of permanent ellipsis.
     let username = app
@@ -223,22 +235,16 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
         .map(|r| r.workspace.account.username.clone())
         .filter(|s| !s.is_empty())
         .unwrap_or_else(|| "Home".into());
-    let custom_sel =
-        matches!(loc, CreateLoc::Custom) && parent.is_some() && parent != root_id && !along_sel;
-    let custom_folder = if custom_sel {
-        parent.and_then(|id| {
-            app.session.ready().and_then(|r| {
-                r.workspace
-                    .files
-                    .read()
-                    .unwrap()
-                    .get_by_id(id)
-                    .map(|f| f.name.clone())
-            })
+    let custom_folder = chosen.filter(|id| Some(*id) != root_id).and_then(|id| {
+        app.session.ready().and_then(|r| {
+            r.workspace
+                .files
+                .read()
+                .unwrap()
+                .get_by_id(id)
+                .map(|f| f.name.clone())
         })
-    } else {
-        None
-    };
+    });
 
     let mut plates: Vec<CreateLocPlate> = Vec::new();
     plates.push(CreateLocPlate {
@@ -250,27 +256,35 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
     });
     if let Some((_, doc_name)) = alongside.as_ref() {
         plates.push(CreateLocPlate {
-            icon: file_row_icon(doc_name, false),
+            icon: phosphor::ARROW_BEND_DOWN_RIGHT,
             label: LocPlateLabel::Alongside(doc_name.clone()),
             selected: along_sel,
             flex: true,
             action: CreateLocPlateAction::Set(CreateLoc::Alongside),
         });
     }
+    // Third slot is always flex (Choose… or a picked folder). Flipping flex
+    // on pick used to steal width from Alongside. A chosen folder stays on
+    // the plate even when Home / Alongside is selected; click selects it,
+    // click-again (already Custom) reopens the picker.
     if let Some(folder) = custom_folder {
         plates.push(CreateLocPlate {
             icon: phosphor::FOLDER,
             label: LocPlateLabel::FileName(folder),
-            selected: true,
+            selected: custom_sel,
             flex: true,
-            action: CreateLocPlateAction::Pick,
+            action: if custom_sel {
+                CreateLocPlateAction::Pick
+            } else {
+                CreateLocPlateAction::Set(CreateLoc::Custom)
+            },
         });
     } else {
         plates.push(CreateLocPlate {
             icon: phosphor::FOLDERS,
             label: LocPlateLabel::Text("Choose…".into()),
             selected: false,
-            flex: false,
+            flex: true,
             action: CreateLocPlateAction::Pick,
         });
     }
@@ -382,16 +396,13 @@ struct CreateLocPlate {
 
 const LOC_PLATE_H: f32 = 30.0;
 
-/// Location plate fills. Selected elevates to canvas (same as segmented pill);
-/// unselected stays surface with hover/press washes only.
+/// Location plate fills. Selected elevates to canvas; unselected stays surface.
 fn create_loc_plate_fills(t: &Theme, selected: bool) -> ControlFills {
     if selected {
         let canvas = t.neutral_bg();
         ControlFills {
             rest: canvas,
             hover: canvas,
-            // Still pressable if re-clicked; keep feedback without looking like
-            // “stuck press” at rest.
             press: t.wash_toward_neutral_fg(canvas, FG_HOVER),
         }
     } else {
@@ -429,7 +440,7 @@ fn create_loc_plate_natural_w(ui: &egui::Ui, t: &Theme, plate: &CreateLocPlate) 
     chrome + label_w
 }
 
-/// Location plate: left icon + label. Selected = raised canvas + hairline.
+/// Location plate: left icon + label. Selected = canvas + accent hairline.
 fn create_loc_plate(ui: &mut egui::Ui, t: &Theme, plate: &CreateLocPlate) -> egui::Response {
     let w = crate::components::ui_width(ui);
     let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, LOC_PLATE_H), sense_click());
@@ -450,7 +461,7 @@ fn create_loc_plate(ui: &mut egui::Ui, t: &Theme, plate: &CreateLocPlate) -> egu
         ui.painter().rect_stroke(
             rect,
             r,
-            Stroke::new(crate::components::STROKE_HAIRLINE, t.neutral()),
+            Stroke::new(crate::components::STROKE_HAIRLINE, t.accent()),
             StrokeKind::Inside,
         );
     }
@@ -458,6 +469,7 @@ fn create_loc_plate(ui: &mut egui::Ui, t: &Theme, plate: &CreateLocPlate) -> egu
     let icon_ink = if plate.icon == phosphor::FOLDER
         || plate.icon == phosphor::FOLDERS
         || plate.icon == phosphor::FOLDER_OPEN
+        || plate.icon == phosphor::ARROW_BEND_DOWN_RIGHT
     {
         t.accent()
     } else {

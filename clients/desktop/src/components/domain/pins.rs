@@ -48,8 +48,6 @@ struct PinRow {
     name: String,
     is_folder: bool,
     saved_share: bool,
-    /// Create destination: folder id, or parent of a document.
-    create_parent: Uuid,
 }
 
 pub fn show(
@@ -60,13 +58,11 @@ pub fn show(
         .iter()
         .filter_map(|id| {
             let f = files.get_by_id(*id)?;
-            let create_parent = if f.is_folder() { f.id } else { f.parent };
             Some(PinRow {
                 id: *id,
                 name: f.name.clone(),
                 is_folder: f.is_folder(),
                 saved_share: is_saved_share(f, me),
-                create_parent,
             })
         })
         .collect();
@@ -235,7 +231,19 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
             PinCmd::Open => queue.push(A::OpenFile(row.id)),
             PinCmd::OpenNewTab => queue.push(A::OpenFileNewTab(row.id)),
             PinCmd::Create => {
-                queue.push(A::OpenCreate { parent: Some(row.create_parent), is_folder: false })
+                if row.is_folder {
+                    queue.push(A::OpenCreate {
+                        folder: Some(row.id),
+                        alongside: None,
+                        is_folder: false,
+                    })
+                } else {
+                    queue.push(A::OpenCreate {
+                        folder: None,
+                        alongside: Some(row.id),
+                        is_folder: false,
+                    })
+                }
             }
             PinCmd::ExpandAll => queue.push(A::ExpandSubtree(row.id)),
             PinCmd::CollapseAll => queue.push(A::CollapseSubtree(row.id)),

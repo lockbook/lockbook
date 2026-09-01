@@ -125,12 +125,15 @@ pub enum Modal {
     Create {
         name: String,
         kind: CreateKind,
-        /// Destination parent (resolved from location chips).
+        /// Destination parent (resolved from the selected location plate).
         parent: Option<Uuid>,
         loc: CreateLoc,
-        /// Open document (tab) parent + name for the "Alongside …" plate.
-        /// Chrome Create (⌘N) offers this; folder-context create does not.
+        /// Document to create next to: (parent folder, document name).
+        /// Shown whenever a document tab is open or Create was invoked on a file.
         alongside: Option<(Uuid, String)>,
+        /// Folder from Choose… / folder-context Create. Independent of `loc`.
+        /// Never the account root — Home is its own plate.
+        chosen: Option<Uuid>,
         /// Nested folder list for "Choose…".
         picking: bool,
         error: Option<String>,
@@ -311,9 +314,12 @@ pub enum Action {
     ShareInvite,
     /// Drop someone from the multi-add stage (chip dismiss).
     ShareUnstage(String),
-    /// Open create sheet. `parent` seeds location; `is_folder` seeds type.
+    /// Open create sheet. Folder-context fills `folder` and selects Choose;
+    /// file-context fills `alongside` and selects that plate (Choose stays empty).
+    /// Chrome / ⌘N leaves both None and follows the open document tab.
     OpenCreate {
-        parent: Option<Uuid>,
+        folder: Option<Uuid>,
+        alongside: Option<Uuid>,
         is_folder: bool,
     },
     CreateSetKind(CreateKind),

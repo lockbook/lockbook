@@ -821,7 +821,8 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
                         match cmd {
                             FileCmd::Create => {
                                 queue.push(Action::OpenCreate {
-                                    parent: Some(root),
+                                    folder: Some(root),
+                                    alongside: None,
                                     is_folder: false,
                                 });
                             }
@@ -1227,7 +1228,7 @@ fn paint_row(
         let Some(f) = files.get_by_id(row.id) else {
             return;
         };
-        // Create under a folder, or alongside a document (same parent).
+        // Drop dest: into a folder, or alongside a document (same parent).
         let parent = if row.is_folder { row.id } else { f.parent };
         // Classic tree: share chrome when the file itself carries share metadata.
         let shared = !f.shares.is_empty();
@@ -1376,9 +1377,21 @@ fn paint_row(
             FileCmd::Move => queue.push(Action::OpenMove(targets.clone())),
             FileCmd::Delete => queue.push(Action::OpenDelete(targets.clone())),
             FileCmd::Create => {
-                // Location = into folder / alongside file; type stays Note (not “Folder”
-                // just because the row is a folder — users pick Folder on the sheet).
-                queue.push(Action::OpenCreate { parent: Some(create_parent), is_folder: false });
+                // Folder-context selects Choose; file-context selects Alongside.
+                // Type stays Note (not “Folder” just because the row is a folder).
+                if row.is_folder {
+                    queue.push(Action::OpenCreate {
+                        folder: Some(row.id),
+                        alongside: None,
+                        is_folder: false,
+                    });
+                } else {
+                    queue.push(Action::OpenCreate {
+                        folder: None,
+                        alongside: Some(row.id),
+                        is_folder: false,
+                    });
+                }
             }
             FileCmd::Duplicate => queue.push(Action::Duplicate(targets.clone())),
             FileCmd::Export => queue.push(Action::Export(targets.clone())),

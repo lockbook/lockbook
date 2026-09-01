@@ -75,7 +75,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                 let inner_w = (view_screen.width() - pad * 2.0).max(1.0);
                 let text_left = view_screen.left() + pad;
 
-                // Visible doc ids → parents (one lock, only rows we paint).
+                // Visible doc ids → saved-share (one lock, only rows we paint).
                 let mut visible_doc_ids: Vec<Uuid> = Vec::new();
                 for (i, item) in items.iter().enumerate() {
                     let y0 = pad + geom.top(i);
@@ -87,7 +87,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                         visible_doc_ids.push(docs[*idx].0);
                     }
                 }
-                let parents: std::collections::HashMap<Uuid, (Uuid, bool)> = app
+                let saved_shares: std::collections::HashMap<Uuid, bool> = app
                     .session
                     .ready()
                     .map(|r| {
@@ -96,9 +96,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                         visible_doc_ids
                             .iter()
                             .filter_map(|id| {
-                                files
-                                    .get_by_id(*id)
-                                    .map(|f| (*id, (f.parent, is_saved_share(f, me))))
+                                files.get_by_id(*id).map(|f| (*id, is_saved_share(f, me)))
                             })
                             .collect()
                     })
@@ -144,10 +142,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                             if resp.middle_clicked() {
                                 queue.push(Action::OpenFileNewTab(*id));
                             }
-                            let (parent, saved_share) = parents
-                                .get(id)
-                                .map(|(p, share)| (Some(*p), *share))
-                                .unwrap_or((None, false));
+                            let saved_share = saved_shares.get(id).copied().unwrap_or(false);
                             let pinned = *pinned;
                             if let Some(cmd) = context_menu::show(&resp, t, |e| {
                                 e.item(phosphor::ARROW_SQUARE_OUT, "Open", FileCmd::Open);
@@ -185,9 +180,11 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                 match cmd {
                                     FileCmd::Open => queue.push(Action::OpenFile(*id)),
                                     FileCmd::OpenNewTab => queue.push(Action::OpenFileNewTab(*id)),
-                                    FileCmd::Create => {
-                                        queue.push(Action::OpenCreate { parent, is_folder: false })
-                                    }
+                                    FileCmd::Create => queue.push(Action::OpenCreate {
+                                        folder: None,
+                                        alongside: Some(*id),
+                                        is_folder: false,
+                                    }),
                                     FileCmd::Rename => queue.push(Action::OpenRename(*id)),
                                     FileCmd::Pin => queue.push(Action::TogglePin(*id)),
                                     FileCmd::Move => queue.push(Action::OpenMove(vec![*id])),

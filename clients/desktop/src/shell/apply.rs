@@ -235,7 +235,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::ShareInvite => share_invite(app, ctx),
-        A::OpenCreate { parent, is_folder } => open_create_sheet(app, ctx, parent, is_folder),
+        A::OpenCreate { folder, alongside, is_folder } => {
+            open_create_sheet(app, ctx, folder, alongside, is_folder)
+        }
         A::CreateSetKind(kind) => {
             let (parent, dirty) = match &app.modal {
                 Some(Modal::Create { parent, name_dirty, .. }) => (*parent, *name_dirty),
@@ -252,9 +254,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::CreateSetLoc(loc) => {
-            let (alongside, kind, dirty, cur_parent) = match &app.modal {
-                Some(Modal::Create { alongside, kind, name_dirty, parent, .. }) => {
-                    (alongside.clone(), *kind, *name_dirty, *parent)
+            let (alongside, kind, dirty, chosen) = match &app.modal {
+                Some(Modal::Create { alongside, kind, name_dirty, chosen, .. }) => {
+                    (alongside.clone(), *kind, *name_dirty, *chosen)
                 }
                 _ => return,
             };
@@ -265,7 +267,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             let parent = match loc {
                 CreateLoc::Root => root,
                 CreateLoc::Alongside => alongside.as_ref().map(|(id, _)| *id).or(root),
-                CreateLoc::Custom => cur_parent.or(root),
+                CreateLoc::Custom => chosen.or(root),
             };
             let suggested =
                 if dirty { None } else { Some(suggested_create_name(app, parent, kind)) };
@@ -302,11 +304,19 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             };
             let suggested =
                 if dirty { None } else { Some(suggested_create_name(app, Some(id), kind)) };
-            if let Some(Modal::Create { picking, parent, loc, name, error, .. }) = &mut app.modal {
+            if let Some(Modal::Create { picking, parent, loc, chosen, name, error, .. }) =
+                &mut app.modal
+            {
                 // Collapse the browser after a pick.
                 *picking = false;
-                *loc = if root == Some(id) { CreateLoc::Root } else { CreateLoc::Custom };
                 *parent = Some(id);
+                if root == Some(id) {
+                    *loc = CreateLoc::Root;
+                    *chosen = None;
+                } else {
+                    *loc = CreateLoc::Custom;
+                    *chosen = Some(id);
+                }
                 *error = None;
                 if let Some(s) = suggested {
                     *name = s;
@@ -719,7 +729,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::Create => {
             // Sidebar Create chip / ⌘N — open tab (not tree selection).
-            open_create_sheet(app, ctx, None, false);
+            open_create_sheet(app, ctx, None, None, false);
         }
         A::SaveAll => {
             if let Some(r) = app.session.ready_mut() {
@@ -755,12 +765,16 @@ fn sync_selection_after_tab_close(r: &mut Ready) {
     }
 }
 
-/// Open document tab → (parent, name). Tree `cursor` is not read.
-fn open_doc_alongside(r: &Ready) -> Option<(Uuid, String)> {
-    let id = r.workspace.current_tab_id()?;
+/// Document → (parent, name) for the Alongside plate. Folders yield None.
+fn file_alongside(r: &Ready, id: Uuid) -> Option<(Uuid, String)> {
     let files = r.workspace.files.read().unwrap();
     let f = files.get_by_id(id)?;
     if f.is_folder() { None } else { Some((f.parent, f.name.clone())) }
+}
+
+/// Open document tab → (parent, name). Tree `cursor` is not read.
+fn open_doc_alongside(r: &Ready) -> Option<(Uuid, String)> {
+    file_alongside(r, r.workspace.current_tab_id()?)
 }
 
 fn dest_folder_from_open_tab(r: &Ready) -> Uuid {
@@ -773,42 +787,46 @@ struct CreateSheetPlan {
     loc: CreateLoc,
     parent: Option<Uuid>,
     alongside: Option<(Uuid, String)>,
+    chosen: Option<Uuid>,
 }
 
-/// Chrome Create (`parent_hint` None) follows the open tab.
-/// Context-menu Create (`parent_hint` Some) lands in that folder; the Alongside
-/// plate is offered only when that folder is the open note's parent.
+/// Home is always a plate. Alongside is offered whenever `alongside` is Some
+/// (open document tab, or file-context Create). `chosen_folder` is the
+/// independent Choose… slot (folder-context Create / a later pick).
+///
+/// Default loc: explicit folder (root → Home, else Choose) > alongside > Home.
 fn create_sheet_plan(
-    root: Uuid, parent_hint: Option<Uuid>, open_doc: Option<(Uuid, String)>,
+    root: Uuid, chosen_folder: Option<Uuid>, alongside: Option<(Uuid, String)>,
 ) -> CreateSheetPlan {
-    let alongside = match parent_hint {
-        None => open_doc,
-        Some(hint) => open_doc.filter(|(p, _)| *p == hint),
+    let chosen = chosen_folder.filter(|id| *id != root);
+    // Folder-context (including root → Home) wins over Alongside.
+    let loc = match chosen_folder {
+        Some(id) if id == root => CreateLoc::Root,
+        Some(_) => CreateLoc::Custom,
+        None if alongside.is_some() => CreateLoc::Alongside,
+        None => CreateLoc::Root,
     };
-    let hint = parent_hint
-        .or_else(|| alongside.as_ref().map(|(p, _)| *p))
-        .unwrap_or(root);
-    let loc = if hint == root {
-        CreateLoc::Root
-    } else if alongside.as_ref().is_some_and(|(p, _)| *p == hint) {
-        CreateLoc::Alongside
-    } else {
-        CreateLoc::Custom
+    let parent = match loc {
+        CreateLoc::Root => Some(root),
+        CreateLoc::Alongside => alongside.as_ref().map(|(p, _)| *p).or(Some(root)),
+        CreateLoc::Custom => chosen.or(Some(root)),
     };
-    CreateSheetPlan { loc, parent: Some(hint), alongside }
+    CreateSheetPlan { loc, parent, alongside, chosen }
 }
 
 fn open_create_sheet(
-    app: &mut ShellApp, ctx: &Context, parent_hint: Option<Uuid>, prefer_folder: bool,
+    app: &mut ShellApp, ctx: &Context, folder: Option<Uuid>, alongside_file: Option<Uuid>,
+    prefer_folder: bool,
 ) {
     let Some(r) = app.session.ready() else {
         return;
     };
-    let files = r.workspace.files.read().unwrap();
-    let root = files.root().id;
-    drop(files);
-    let open_doc = open_doc_alongside(r);
-    let plan = create_sheet_plan(root, parent_hint, open_doc);
+    let root = r.workspace.files.read().unwrap().root().id;
+    let alongside = match alongside_file {
+        Some(id) => file_alongside(r, id),
+        None => open_doc_alongside(r),
+    };
+    let plan = create_sheet_plan(root, folder, alongside);
 
     let kind = if prefer_folder { CreateKind::Folder } else { CreateKind::Note };
     let name = suggested_create_name(app, plan.parent, kind);
@@ -818,6 +836,7 @@ fn open_create_sheet(
         parent: plan.parent,
         loc: plan.loc,
         alongside: plan.alongside,
+        chosen: plan.chosen,
         picking: false,
         error: None,
         name_dirty: false,
@@ -1240,15 +1259,17 @@ mod create_sheet_plan_tests {
         assert_eq!(plan.loc, CreateLoc::Alongside);
         assert_eq!(plan.parent, Some(doc_parent));
         assert!(plan.alongside.is_some());
+        assert!(plan.chosen.is_none());
     }
 
     #[test]
-    fn folder_context_create_is_custom_without_alongside() {
+    fn folder_context_selects_chosen_and_keeps_alongside() {
         let (root, folder, doc_parent) = ids();
         let plan = create_sheet_plan(root, Some(folder), Some((doc_parent, "note.md".into())));
         assert_eq!(plan.loc, CreateLoc::Custom);
         assert_eq!(plan.parent, Some(folder));
-        assert!(plan.alongside.is_none());
+        assert_eq!(plan.chosen, Some(folder));
+        assert!(plan.alongside.is_some());
     }
 
     #[test]
@@ -1258,13 +1279,36 @@ mod create_sheet_plan_tests {
         assert_eq!(plan.loc, CreateLoc::Root);
         assert_eq!(plan.parent, Some(root));
         assert!(plan.alongside.is_none());
+        assert!(plan.chosen.is_none());
     }
 
     #[test]
-    fn context_create_in_open_docs_folder_offers_alongside() {
+    fn file_context_selects_alongside_choose_unchosen() {
         let (root, _, doc_parent) = ids();
-        let plan = create_sheet_plan(root, Some(doc_parent), Some((doc_parent, "note.md".into())));
+        let plan = create_sheet_plan(root, None, Some((doc_parent, "note.md".into())));
         assert_eq!(plan.loc, CreateLoc::Alongside);
+        assert_eq!(plan.parent, Some(doc_parent));
         assert!(plan.alongside.is_some());
+        assert!(plan.chosen.is_none());
+    }
+
+    #[test]
+    fn folder_context_on_root_is_home() {
+        let (root, _, doc_parent) = ids();
+        let plan = create_sheet_plan(root, Some(root), Some((doc_parent, "note.md".into())));
+        assert_eq!(plan.loc, CreateLoc::Root);
+        assert_eq!(plan.parent, Some(root));
+        assert!(plan.chosen.is_none());
+        assert!(plan.alongside.is_some());
+    }
+
+    #[test]
+    fn folder_context_without_open_doc_is_custom() {
+        let (root, folder, _) = ids();
+        let plan = create_sheet_plan(root, Some(folder), None);
+        assert_eq!(plan.loc, CreateLoc::Custom);
+        assert_eq!(plan.parent, Some(folder));
+        assert_eq!(plan.chosen, Some(folder));
+        assert!(plan.alongside.is_none());
     }
 }

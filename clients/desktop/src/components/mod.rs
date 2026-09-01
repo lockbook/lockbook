@@ -30,7 +30,7 @@ pub use atoms::{
     Button, Chip, ChipHue, EqualCells, Field, FileRow, NavItem, PersonRow, PersonTone,
     QuietChipAlign, QuietChipLabel, icon_button, icon_button_glyph, icon_button_hit,
     measure_file_name, paint_file_name, person_row_height, quiet_chip, quiet_chip_height,
-    quiet_chip_labeled_min_width, segmented, segmented_h,
+    quiet_chip_labeled_min_width, segmented, segmented_h, segmented_width,
 };
 
 pub use compounds::{
