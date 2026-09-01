@@ -7,7 +7,7 @@ use egui::{Align, Color32, Id, Layout, Response, Stroke, StrokeKind, Ui, pos2, v
 use workspace_rs::widgets::GlyphonTextEdit;
 
 use crate::components::foundation::chrome::{
-    Radius, STROKE_HAIRLINE, control_height, control_line_height, phosphor_ui_font_id,
+    Radius, STROKE_HAIRLINE, control_height, control_line_height, phosphor, phosphor_ui_font_id,
 };
 use crate::components::foundation::color::{
     FG_HOVER, FG_PRESS, QUIET_PLATE_HOVER, QUIET_PLATE_PRESS, Theme,
@@ -323,6 +323,49 @@ impl<'a> Field<'a> {
 
         response = response.union(edit_resp);
 
+        if response.secondary_clicked() {
+            ui.memory_mut(|m| m.request_focus(edit_id));
+        }
+        if let Some(cmd) = crate::components::context_menu::show(&response, t, |e| {
+            e.item(phosphor::SCISSORS, "Cut", FieldEditCmd::Cut);
+            e.item(phosphor::COPY, "Copy", FieldEditCmd::Copy);
+            e.item(phosphor::CLIPBOARD_TEXT, "Paste", FieldEditCmd::Paste);
+            e.separator();
+            e.item(phosphor::SELECTION_ALL, "Select all", FieldEditCmd::SelectAll);
+        }) {
+            ui.memory_mut(|m| m.request_focus(edit_id));
+            match cmd {
+                FieldEditCmd::Cut => {
+                    ui.ctx().input_mut(|i| i.events.push(egui::Event::Cut));
+                    let _ = GlyphonTextEdit::process_events_ex(
+                        ui,
+                        edit_id,
+                        self.text,
+                        self.completion_full.as_deref(),
+                        true,
+                    );
+                }
+                FieldEditCmd::Copy => {
+                    ui.ctx().input_mut(|i| i.events.push(egui::Event::Copy));
+                    let _ = GlyphonTextEdit::process_events_ex(
+                        ui,
+                        edit_id,
+                        self.text,
+                        self.completion_full.as_deref(),
+                        true,
+                    );
+                }
+                FieldEditCmd::Paste => {
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+                }
+                FieldEditCmd::SelectAll => {
+                    let len = self.text.len();
+                    GlyphonTextEdit::place_cursor(ui, edit_id, len, 0);
+                }
+            }
+        }
+
         // Sticky text focus: egui surrenders focus on any press outside the
         // focused widget. Non-text controls use `sense_click` (no FOCUSABLE) and
         // do not request focus — if a pointer press cleared us and nothing else
@@ -339,6 +382,14 @@ impl<'a> Field<'a> {
 
         response
     }
+}
+
+#[derive(Clone, Copy)]
+enum FieldEditCmd {
+    Cut,
+    Copy,
+    Paste,
+    SelectAll,
 }
 
 /// Ghost after typed buffer: remainder of `full` when `query` is a
