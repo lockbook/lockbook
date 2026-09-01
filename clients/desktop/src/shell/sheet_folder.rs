@@ -3,8 +3,8 @@ use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
 use crate::components::{
-    SheetFooterOpts, Space, Spacer, Theme, TypeRole, sheet_dim, sheet_footer, sheet_panel_fit,
-    sheet_title_muted, shortcut_enter, shortcut_return,
+    SheetFooterOpts, Space, Spacer, Theme, TypeRole, display_file_name, sheet_dim, sheet_footer,
+    sheet_panel_fit, sheet_title_muted, shortcut_enter, shortcut_return,
 };
 
 use super::ShellApp;
@@ -183,8 +183,13 @@ fn move_cascade_stats(app: &ShellApp, ids: &[Uuid]) -> (Option<String>, usize, u
         bytes += files.size_bytes_recursive.get(id).copied().unwrap_or(0);
     }
 
-    let single =
-        if roots.len() == 1 { files.get_by_id(roots[0]).map(|f| f.name.clone()) } else { None };
+    let single = if roots.len() == 1 {
+        files
+            .get_by_id(roots[0])
+            .map(|f| display_file_name(&f.name).to_owned())
+    } else {
+        None
+    };
     (single, cascade, bytes)
 }
 
@@ -375,6 +380,7 @@ pub(crate) fn show_decline_share(
 /// You will lose access to **name**.
 fn paint_decline_summary(ui: &mut egui::Ui, t: &Theme, name: &str) {
     use workspace_rs::widgets::GlyphonLabel;
+    let name = display_file_name(name);
     let ink = t.neutral_fg();
     let fs = TypeRole::Body.size();
     let lh = TypeRole::Body.line_height();
@@ -549,6 +555,7 @@ fn dest_action_summary(
         return;
     };
     let path = folder_path_slash(app, Some(dest));
+    let subject = display_file_name(subject);
     let ink = t.neutral_fg();
     let fs = TypeRole::Body.size();
     let lh = TypeRole::Body.line_height();

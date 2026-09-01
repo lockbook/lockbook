@@ -621,13 +621,14 @@ fn create_summary_line(
 
     let kind_l = kind.label();
     let ext = kind.ext().unwrap_or("");
-    let display_name = if name.is_empty() {
+    let full = if name.is_empty() {
         format!("untitled{ext}")
     } else if ext.is_empty() || name.ends_with(ext) {
         name.to_owned()
     } else {
         format!("{name}{ext}")
     };
+    let display_name = display_file_name(&full);
 
     let dest = super::sheet_folder::folder_path_slash(app, parent);
 
@@ -648,12 +649,12 @@ fn create_summary_line(
     let mid = " will be created at: ";
     let path_w = measure(&dest, true);
     let one_line_w =
-        measure(&head, false) + measure(&display_name, true) + measure(mid, false) + path_w;
+        measure(&head, false) + measure(display_name, true) + measure(mid, false) + path_w;
 
     if one_line_w <= max_w {
         ui.add(
             GlyphonLabel::new_rich(
-                vec![(&head, false), (&display_name, true), (mid, false), (&dest, true)],
+                vec![(&head, false), (display_name, true), (mid, false), (&dest, true)],
                 ink,
             )
             .font_size(fs)
@@ -663,7 +664,7 @@ fn create_summary_line(
     } else {
         // Line 1: prose; line 2: path fitted to full sheet width (no Clip chop).
         ui.add(
-            GlyphonLabel::new_rich(vec![(&head, false), (&display_name, true), (mid, false)], ink)
+            GlyphonLabel::new_rich(vec![(&head, false), (display_name, true), (mid, false)], ink)
                 .font_size(fs)
                 .line_height(lh)
                 .max_width(max_w)

@@ -5,8 +5,8 @@ use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
 use crate::components::{
-    Button, Field, SheetFooterOpts, Space, Spacer, Theme, TypeRole, phosphor, sheet_dim,
-    sheet_footer, sheet_panel_fit, sheet_title_muted, shortcut_enter, shortcut_return,
+    Button, Field, SheetFooterOpts, Space, Spacer, Theme, TypeRole, display_file_name, phosphor,
+    sheet_dim, sheet_footer, sheet_panel_fit, sheet_title_muted, shortcut_enter, shortcut_return,
 };
 
 use super::ShellApp;
@@ -143,7 +143,7 @@ pub(crate) fn file_name(app: &ShellApp, id: Uuid) -> String {
                 .read()
                 .unwrap()
                 .get_by_id(id)
-                .map(|f| f.name.clone())
+                .map(|f| display_file_name(&f.name).to_owned())
         })
         .unwrap_or_else(|| "item".into())
 }
@@ -279,15 +279,16 @@ fn delete_parts(app: &ShellApp, ids: &[Uuid]) -> DeleteParts {
         let Some(f) = files.get_by_id(*id) else {
             continue;
         };
+        let shown = display_file_name(&f.name).to_owned();
         if is_saved_share(f, me) {
-            link_names.push(f.name.clone());
+            link_names.push(shown);
             continue;
         }
         let is_folder = f.is_folder();
         any_folder |= is_folder;
         cascade += 1 + files.descendents(*id).len();
         bytes += files.size_bytes_recursive.get(id).copied().unwrap_or(0);
-        names.push(f.name.clone());
+        names.push(shown);
         owned_ids.push(*id);
     }
 
@@ -303,7 +304,7 @@ fn delete_parts(app: &ShellApp, ids: &[Uuid]) -> DeleteParts {
 
     match (names.len(), any_folder, cascade) {
         (1, false, _) => {
-            // **Linux.md** will be permanently deleted (12.4 MB).
+            // **Linux** will be permanently deleted (12.4 MB).
             if let Some(n) = names.first() {
                 spans.push((n.clone(), true));
                 spans.push((" will be permanently deleted".into(), false));
