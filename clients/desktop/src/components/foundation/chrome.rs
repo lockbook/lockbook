@@ -319,6 +319,12 @@ pub fn file_row_icon(name: &str, is_folder: bool) -> &'static str {
     }
 }
 
+/// Visible file name in chrome: strip the extension when the doc type hides it
+/// (Markdown, drawing, PDF, chat). Do not pass paths.
+pub fn display_file_name(name: &str) -> &str {
+    workspace_rs::show::DocType::from_name(name).display_name(name)
+}
+
 /// Tab-strip glyph for a workspace [`Destination`].
 ///
 /// Search / mind map / space inspector are not files — do not go through

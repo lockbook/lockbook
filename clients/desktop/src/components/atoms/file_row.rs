@@ -17,7 +17,7 @@ use egui::{Color32, Id, Rect, Response, Sense, Ui, pos2, vec2};
 
 use super::file_name;
 use crate::components::foundation::chrome::{
-    HOVER_ANIM_SECS, Radius, phosphor, phosphor_ui_font_id, row_wash_inset,
+    HOVER_ANIM_SECS, Radius, display_file_name, phosphor, phosphor_ui_font_id, row_wash_inset,
 };
 use crate::components::foundation::color::{FG_HOVER, FG_PRESS, Theme};
 use crate::components::foundation::interact::sense_click;
@@ -267,7 +267,7 @@ impl<'a> FileRow<'a> {
         // File names (and path/from captions) via glyphon — emoji-safe.
         let name_slot =
             Rect::from_min_size(pos2(text_x, name_cy - name_lh / 2.0), vec2(max_w, name_lh));
-        let name_w = file_name::paint_body(ui, &self.label, ink, name_slot);
+        let name_w = file_name::paint_body(ui, display_file_name(&self.label), ink, name_slot);
 
         if let Some(c) = self.sync_dot {
             let cx = (text_x + name_w + SYNC_GAP + SYNC_R).min(content_right - trail_w - SYNC_R);

@@ -5,9 +5,9 @@ use workspace_rs::file_cache::FilesExt;
 use crate::components::interact::{ControlFills, interact_fill, sense_click};
 use crate::components::{
     Button, EqualCells, FG_HOVER, FG_PRESS, Field, Radius, SheetFooterOpts, Space, Spacer, Theme,
-    TypeRole, claim, measure_file_name, origin, paint_file_name, phosphor, phosphor_ui_font_id,
-    place_at, segmented, segmented_width, sheet_band, sheet_band_centered, sheet_dim,
-    sheet_equal_row, sheet_footer, sheet_panel_fixed, sheet_title_muted, shortcut_enter,
+    TypeRole, claim, display_file_name, measure_file_name, origin, paint_file_name, phosphor,
+    phosphor_ui_font_id, place_at, segmented, segmented_width, sheet_band, sheet_band_centered,
+    sheet_dim, sheet_equal_row, sheet_footer, sheet_panel_fixed, sheet_title_muted, shortcut_enter,
 };
 
 use super::ShellApp;
@@ -257,7 +257,7 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
     if let Some((_, doc_name)) = alongside.as_ref() {
         plates.push(CreateLocPlate {
             icon: phosphor::ARROW_BEND_DOWN_RIGHT,
-            label: LocPlateLabel::Alongside(doc_name.clone()),
+            label: LocPlateLabel::Alongside(display_file_name(doc_name).to_owned()),
             selected: along_sel,
             flex: true,
             action: CreateLocPlateAction::Set(CreateLoc::Alongside),

@@ -12,12 +12,11 @@ use egui::{
 };
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
-use workspace_rs::show::DocType;
 use workspace_rs::tab::Destination;
 
 use crate::components::{
     FG_HOVER, FG_PRESS, Radius, STROKE_HAIRLINE, Space, Theme, TypeRole, claim, context_menu,
-    fit_outside_stroke_fill, phosphor, place_at, tab_icon, ui_width,
+    display_file_name, fit_outside_stroke_fill, phosphor, place_at, tab_icon, ui_width,
 };
 
 use crate::shell::ShellApp;
@@ -230,7 +229,7 @@ fn tab_label(ready: &crate::shell::session::Ready, dest: &Destination) -> String
 }
 
 fn measure_tab_w(ui: &Ui, name: &str) -> f32 {
-    let nw = crate::components::measure_file_name(ui, display_name(name));
+    let nw = crate::components::measure_file_name(ui, display_file_name(name));
     let icon_w = TypeRole::Body.size() + Space::Xs.pts();
     (TAB_PAD_X + icon_w + nw + Space::Xs.pts() + CLOSE_SLOT + TAB_PAD_X).clamp(TAB_MIN_W, TAB_MAX_W)
 }
@@ -243,10 +242,6 @@ fn tab_scroll_w(bar_w: f32, left: f32, right: f32, content_w: f32) -> f32 {
     // Keep one tab hittable on a narrow window even if it eats the drag gap.
     let available = if with_gap >= TAB_MIN_W { with_gap } else { (bar_w - chrome).max(0.0) };
     content_w.min(available)
-}
-
-fn display_name(name: &str) -> &str {
-    DocType::from_name(name).display_name(name)
 }
 
 struct TabInfo {
@@ -412,7 +407,7 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     let icon_g =
         ui.painter()
             .layout_no_wrap(icon.into(), crate::components::phosphor_ui_font_id(), ink);
-    let label = display_name(name);
+    let label = display_file_name(name);
     let show_close = over || active;
     let close_reserve = if show_close { CLOSE_SLOT + 2.0 } else { 0.0 };
     let text_max =
