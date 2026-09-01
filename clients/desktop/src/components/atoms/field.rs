@@ -42,6 +42,8 @@ pub struct Field<'a> {
     /// After keyboard events, before paint: rewrite buffer + remap caret.
     /// `(old_text, cursor, anchor) -> (new_text, new_cursor, new_anchor)`.
     rewrite: Option<Box<FieldRewrite<'a>>>,
+    /// Re-take focus when a press lands on a non-focusable control (default).
+    sticky: bool,
 }
 
 /// Buffer rewrite after keyboard events (see [`Field::rewrite`]).
@@ -64,6 +66,7 @@ impl<'a> Field<'a> {
             completion_full: None,
             password: false,
             rewrite: None,
+            sticky: true,
         }
     }
 
@@ -130,6 +133,12 @@ impl<'a> Field<'a> {
     /// Always paint `*` per character (account key).
     pub fn password(mut self, on: bool) -> Self {
         self.password = on;
+        self
+    }
+
+    /// When false, a press outside surrenders focus (caption → field blur).
+    pub fn sticky(mut self, on: bool) -> Self {
+        self.sticky = on;
         self
     }
 
@@ -317,7 +326,11 @@ impl<'a> Field<'a> {
             ui.painter().galley(cr.center() - xg.size() / 2.0, xg, ink);
             if cresp.clicked() {
                 self.text.clear();
-                ui.memory_mut(|m| m.request_focus(edit_id));
+                if self.sticky {
+                    ui.memory_mut(|m| m.request_focus(edit_id));
+                } else {
+                    ui.memory_mut(|m| m.surrender_focus(edit_id));
+                }
             }
         }
 
@@ -372,7 +385,7 @@ impl<'a> Field<'a> {
         // claimed focus, re-take it. Keyboard surrender (Esc / Enter submit) has
         // no pointer press, so we leave focus clear.
         let lost = ui.memory(|m| m.had_focus_last_frame(edit_id) && !m.has_focus(edit_id));
-        if lost {
+        if self.sticky && lost {
             let free = ui.memory(|m| m.focused().is_none());
             let pointer = ui.input(|i| i.pointer.any_pressed() || i.pointer.any_down());
             if free && pointer {

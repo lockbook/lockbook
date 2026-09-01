@@ -178,6 +178,8 @@ pub enum Modal {
         uname_lookup_for: String,
         /// Compact key or 24-word phrase — `import_account` accepts either.
         account_key: String,
+        /// Custom API URL. Empty = [`lb::DEFAULT_API_LOCATION`].
+        api_url: String,
         busy: bool,
         err: Option<String>,
     },
