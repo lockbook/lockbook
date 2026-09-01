@@ -25,16 +25,15 @@ pub fn segmented_h() -> f32 {
 /// Equalize segment widths so the strip doesn’t look lopsided.
 const EQUALIZE: bool = true;
 
-/// Exclusive segmented control. `options` should be 2–5 short labels.
-/// Marks the response `.changed()` when `selected` updates.
-pub fn segmented(ui: &mut Ui, t: &Theme, options: &[&str], selected: &mut usize) -> Response {
-    let n = options.len().max(1);
-    *selected = (*selected).min(n - 1);
+/// Natural width of a [`segmented`] for `options` (equalized cells).
+pub fn segmented_width(ui: &Ui, t: &Theme, options: &[&str]) -> f32 {
+    segmented_cell_widths(ui, t, options).iter().sum()
+}
 
+fn segmented_cell_widths(ui: &Ui, t: &Theme, options: &[&str]) -> Vec<f32> {
+    let n = options.len().max(1);
     let h = segmented_h();
     let pad_x = Space::Md.pts();
-    let pill_inset = Space::Xxs.pts();
-
     let font = TypeRole::Body.font_id();
     let mut natural = Vec::with_capacity(n);
     let mut max_w = 0.0_f32;
@@ -46,7 +45,19 @@ pub fn segmented(ui: &mut Ui, t: &Theme, options: &[&str], selected: &mut usize)
         natural.push(w);
         max_w = max_w.max(w);
     }
-    let widths: Vec<f32> = if EQUALIZE { vec![max_w; n] } else { natural };
+    if EQUALIZE { vec![max_w; n] } else { natural }
+}
+
+/// Exclusive segmented control. `options` should be 2–5 short labels.
+/// Marks the response `.changed()` when `selected` updates.
+pub fn segmented(ui: &mut Ui, t: &Theme, options: &[&str], selected: &mut usize) -> Response {
+    let n = options.len().max(1);
+    *selected = (*selected).min(n - 1);
+
+    let h = segmented_h();
+    let pill_inset = Space::Xxs.pts();
+    let font = TypeRole::Body.font_id();
+    let widths = segmented_cell_widths(ui, t, options);
     let total_w: f32 = widths.iter().sum();
 
     let (track, mut resp) = ui.allocate_exact_size(vec2(total_w, h), sense_click());

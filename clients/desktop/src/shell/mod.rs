@@ -271,15 +271,7 @@ impl ShellApp {
         }
         if let Some(err) = self.session.poll(ctx) {
             // Sign-in worker failed; session is SignedOut again — show onboard error.
-            self.modal = Some(Modal::Onboard {
-                mode: action::OnboardMode::Import,
-                uname: String::new(),
-                uname_lookup: action::OnboardLookup::Idle,
-                uname_lookup_for: String::new(),
-                account_key: String::new(),
-                busy: false,
-                err: Some(err),
-            });
+            self.modal = Some(apply_onboard::onboard_modal(action::OnboardMode::Import, Some(err)));
         }
         if let Session::Ready(r) = &self.session {
             if self.lb_rx.is_none() {
@@ -332,15 +324,8 @@ impl ShellApp {
             Session::SignedOut { .. } => {
                 // Offer onboard immediately
                 if self.modal.is_none() {
-                    self.modal = Some(Modal::Onboard {
-                        mode: action::OnboardMode::Choice,
-                        uname: String::new(),
-                        uname_lookup: action::OnboardLookup::Idle,
-                        uname_lookup_for: String::new(),
-                        account_key: String::new(),
-                        busy: false,
-                        err: None,
-                    });
+                    self.modal =
+                        Some(apply_onboard::onboard_modal(action::OnboardMode::Choice, None));
                 }
             }
             Session::Ready(_) => {}
@@ -542,26 +527,48 @@ impl ShellApp {
     fn process_keys(&mut self, ctx: &egui::Context) {
         const CMD: egui::Modifiers = egui::Modifiers::COMMAND;
 
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            if let Some(modal) = &self.modal {
-                let action = match modal {
-                    // Account subpanels (incl. upgrade) stay in Settings — Esc backs the panel.
-                    Modal::Settings { .. } => match &self.account_panel {
-                        AccountPanel::Upgrade {
-                            stage: action::UpgradeStage::Paying,
-                            done: None,
-                            ..
-                        } => None, // mid-charge
-                        AccountPanel::Upgrade { .. } => Some(A::UpgradeBack),
-                        AccountPanel::Closed => Some(A::CloseModal),
-                        _ => Some(A::HideAccountKey),
-                    },
-                    _ => Some(A::CloseModal),
-                };
-                if let Some(a) = action {
-                    self.queue.push(a);
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && self.modal.is_some() {
+            let revert_server = matches!(
+                &self.modal,
+                Some(Modal::Onboard { mode: action::OnboardMode::Choice, .. })
+            ) && ctx.data(|d| {
+                d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())
+                    .unwrap_or(false)
+            });
+            let action = match &self.modal {
+                // Account subpanels (incl. upgrade) stay in Settings — Esc backs the panel.
+                Some(Modal::Settings { .. }) => match &self.account_panel {
+                    AccountPanel::Upgrade {
+                        stage: action::UpgradeStage::Paying,
+                        done: None,
+                        ..
+                    } => None, // mid-charge
+                    AccountPanel::Upgrade { .. } => Some(A::UpgradeBack),
+                    AccountPanel::Closed => Some(A::CloseModal),
+                    _ => Some(A::HideAccountKey),
+                },
+                Some(Modal::Onboard { mode, .. }) => match mode {
+                    action::OnboardMode::Choice => None,
+                    _ => Some(A::OnboardSetMode(action::OnboardMode::Choice)),
+                },
+                Some(_) => Some(A::CloseModal),
+                None => None,
+            };
+            if let Some(a) = action {
+                self.queue.push(a);
+            }
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+            if revert_server {
+                if let Some(snap) =
+                    ctx.data(|d| d.get_temp::<String>(apply_onboard::onboard_server_snap_key()))
+                {
+                    if let Some(Modal::Onboard { api_url, .. }) = &mut self.modal {
+                        *api_url = snap;
+                    }
                 }
-                ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+                ctx.data_mut(|d| {
+                    d.insert_temp(apply_onboard::onboard_server_editing_key(), false);
+                });
             }
         }
 
@@ -644,8 +651,8 @@ impl ShellApp {
                 }
             }
             // No Files-tree keybinding surface: the editor holds focus whenever a
-            // doc is open, so ↑↓/⌘C/… almost never hit the tree. Rename / cut /
-            // copy / paste / delete stay on context menus (and global chrome above).
+            // doc is open, so ↑↓/⌘C/… almost never hit the tree. Rename / delete
+            // stay on context menus (and global chrome above).
         }
 
         if let Some(modal) = &self.modal {
@@ -716,9 +723,24 @@ impl ShellApp {
                             _ => {}
                         },
                         Modal::ImportParent { .. } => self.queue.push(A::ConfirmImportParent),
-                        Modal::Onboard { .. } => {
-                            self.queue.push(A::OnboardSubmit { show_error: true })
-                        }
+                        Modal::Onboard { mode, .. } => match mode {
+                            action::OnboardMode::Create | action::OnboardMode::Import => {
+                                self.queue.push(A::OnboardSubmit { show_error: true })
+                            }
+                            action::OnboardMode::Choice => {
+                                if ctx.data(|d| {
+                                    d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())
+                                        .unwrap_or(false)
+                                }) {
+                                    ctx.data_mut(|d| {
+                                        d.insert_temp(
+                                            apply_onboard::onboard_server_editing_key(),
+                                            false,
+                                        );
+                                    });
+                                }
+                            }
+                        },
                         Modal::Share { .. } => unreachable!(),
                         _ => {}
                     }
@@ -736,18 +758,8 @@ impl ShellApp {
         if paths.is_empty() {
             return;
         }
-        // Pick parent when drop lands (folder picker), unless a folder is cursored.
-        let parent = self.session.ready().and_then(|r| {
-            let id = r.cursor?;
-            let files = r.workspace.files.read().unwrap();
-            let f = files.get_by_id(id)?;
-            if f.is_folder() { Some(f.id) } else { None }
-        });
-        if let Some(parent) = parent {
-            self.queue.push(A::ImportPaths { paths, parent });
-        } else {
-            self.queue.push(A::OpenImportParent { paths });
-        }
+        // Always pick a folder — tree `cursor` is not a drop target.
+        self.queue.push(A::OpenImportParent { paths });
     }
 }
 

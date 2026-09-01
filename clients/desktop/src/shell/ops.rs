@@ -1,6 +1,8 @@
 //! Shared session mutations used from `apply` (cache epoch, pins).
 
 use lb::Uuid;
+use lb::model::file::File;
+use workspace_rs::file_cache::FilesExt;
 
 use super::session::Ready;
 
@@ -18,4 +20,19 @@ pub fn refresh_pinned(r: &mut Ready) {
 
 pub fn is_pinned(r: &Ready, id: Uuid) -> bool {
     r.pinned.contains(&id)
+}
+
+/// File in your tree that you don't own. `list_metadatas` hides the Link and
+/// shows the target (e.g. luca's `movies.md` sitting in your root), so
+/// `FileType::Link` never appears in the UI. Removing it deletes your link,
+/// not the owner's file.
+pub fn is_saved_share(f: &File, me: &str) -> bool {
+    !f.owner.eq_ignore_ascii_case(me)
+}
+
+pub fn ids_are_saved_shares(files: &impl FilesExt, ids: &[Uuid], me: &str) -> bool {
+    !ids.is_empty()
+        && ids
+            .iter()
+            .all(|&id| files.get_by_id(id).is_some_and(|f| is_saved_share(f, me)))
 }

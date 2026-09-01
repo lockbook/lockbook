@@ -1,21 +1,32 @@
 use egui::{Align, Area, Id, Layout, Order};
 
 use crate::components::{
-    Button, Field, SheetFooterOpts, Space, Spacer, Theme, TypeRole, phosphor, sheet_dim,
-    sheet_footer, sheet_panel_fit, shortcut_cmd_i, shortcut_cmd_n, shortcut_return,
+    Button, Field, SheetFooterOpts, Space, Spacer, Theme, TypeRole, phosphor, sense_click,
+    sheet_dim, sheet_footer, sheet_panel_fit, shortcut_cmd_i, shortcut_cmd_n, shortcut_return,
 };
 
 use super::ShellApp;
 use super::action::Action as A;
 use super::action::{Action, Modal, OnboardLookup, OnboardMode};
+use super::apply_onboard::{
+    display_server_host, onboard_server_editing_key, onboard_server_snap_key,
+    uname_check_matches_core,
+};
 
 pub(crate) fn show_onboard(
     app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
 ) {
-    let (mode, uname_lookup, uname_lookup_for, busy, err) = match &app.modal {
-        Some(Modal::Onboard { mode, uname_lookup, uname_lookup_for, busy, err, .. }) => {
-            (*mode, uname_lookup.clone(), uname_lookup_for.clone(), *busy, err.clone())
-        }
+    let (mode, uname_lookup, uname_lookup_for, busy, err, api_url) = match &app.modal {
+        Some(Modal::Onboard {
+            mode, uname_lookup, uname_lookup_for, busy, err, api_url, ..
+        }) => (
+            *mode,
+            uname_lookup.clone(),
+            uname_lookup_for.clone(),
+            *busy,
+            err.clone(),
+            api_url.clone(),
+        ),
         _ => return,
     };
 
@@ -126,6 +137,8 @@ pub(crate) fn show_onboard(
                                 },
                             );
                         });
+                        ui.add(Spacer::new(Space::Md));
+                        onboard_server_row(app, ui, t, &api_url);
                     }
                     OnboardMode::Create => {
                         ui.label(
@@ -196,7 +209,13 @@ pub(crate) fn show_onboard(
                             ("Checking…", t.neutral_fg_secondary())
                         } else {
                             match &uname_lookup {
-                                OnboardLookup::Available => ("Available", t.accent()),
+                                OnboardLookup::Available => {
+                                    if uname_check_matches_core(&api_url) {
+                                        ("Available", t.accent())
+                                    } else {
+                                        ("", t.neutral_fg_secondary())
+                                    }
+                                }
                                 OnboardLookup::Taken => ("Username taken", t.danger()),
                                 OnboardLookup::Error(e) => (e.as_str(), t.danger()),
                                 OnboardLookup::Idle | OnboardLookup::Checking => {
@@ -324,4 +343,75 @@ pub(crate) fn show_onboard(
                 }
             });
         });
+}
+
+fn onboard_server_edit_id() -> Id {
+    Id::new("onboard_server").with("edit")
+}
+
+fn onboard_server_need_focus_key() -> Id {
+    Id::new("onboard_server_need_focus")
+}
+
+/// Rest: hostname caption. Click: field. Blur / Enter commit; Esc reverts; × defaults.
+fn onboard_server_row(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, api_url: &str) {
+    let editing_key = onboard_server_editing_key();
+    let snap_key = onboard_server_snap_key();
+    let mut editing = ui
+        .ctx()
+        .data(|d| d.get_temp::<bool>(editing_key))
+        .unwrap_or(false);
+    let mut need_focus = ui
+        .ctx()
+        .data(|d| d.get_temp::<bool>(onboard_server_need_focus_key()))
+        .unwrap_or(false);
+
+    if editing {
+        {
+            let Some(Modal::Onboard { api_url, .. }) = &mut app.modal else {
+                return;
+            };
+            let _ = Field::new(t, api_url)
+                .hint(lb::DEFAULT_API_LOCATION)
+                .id("onboard_server")
+                .clearable(true)
+                .sticky(false)
+                .show(ui);
+            if need_focus {
+                ui.memory_mut(|m| m.request_focus(onboard_server_edit_id()));
+                if ui.memory(|m| m.has_focus(onboard_server_edit_id())) {
+                    need_focus = false;
+                }
+            }
+        }
+        let focused = ui.memory(|m| m.has_focus(onboard_server_edit_id()));
+        if !need_focus && !focused {
+            editing = false;
+        }
+    } else if onboard_server_caption(ui, t, &display_server_host(api_url)) {
+        editing = true;
+        need_focus = true;
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(snap_key, api_url.to_owned()));
+    }
+
+    ui.ctx().data_mut(|d| {
+        d.insert_temp(editing_key, editing);
+        d.insert_temp(onboard_server_need_focus_key(), need_focus);
+    });
+}
+
+fn onboard_server_caption(ui: &mut egui::Ui, t: &Theme, host: &str) -> bool {
+    let rest = t.neutral_fg_secondary();
+    let g = ui
+        .painter()
+        .layout_no_wrap(host.to_owned(), TypeRole::Body.font_id(), rest);
+    let h = crate::components::control_height();
+    let w = crate::components::ui_width(ui).max(1.0);
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), sense_click());
+    let over = ui.ctx().rect_contains_pointer(ui.layer_id(), rect);
+    let ink = if over { t.neutral_fg() } else { rest };
+    ui.painter()
+        .galley(egui::pos2(rect.left(), rect.center().y - g.size().y / 2.0), g, ink);
+    resp.clicked()
 }

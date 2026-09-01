@@ -1,7 +1,6 @@
 //! Shell tab strip + Workspace content (`show_tabs = false`).
 
 use egui::{Align, Layout, Ui};
-use workspace_rs::file_cache::FilesExt;
 
 use crate::components::{Theme, claim, place_at};
 
@@ -25,15 +24,9 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
 
         ready.workspace.show_tabs = false;
         ready.workspace.sidebar_open = sidebar_open;
-        if let Some(id) = ready.cursor {
-            let parent = {
-                let files = ready.workspace.files.read().unwrap();
-                files
-                    .get_by_id(id)
-                    .map(|f| if f.is_folder() { f.id } else { f.parent })
-            };
-            ready.workspace.focused_parent = parent;
-        }
+        // Workspace create-dest follows the open tab. Tree `cursor` is selection
+        // only — a folder right-click must not retarget ⌘N / landing create.
+        ready.workspace.focused_parent = ready.workspace.current_tab_id();
 
         let (out, _) =
             place_at(ui, rest, Layout::top_down(Align::Min), |ui| ready.workspace.show(ui));

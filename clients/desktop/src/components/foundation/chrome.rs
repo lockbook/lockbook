@@ -199,6 +199,8 @@ pub mod phosphor {
     pub const COMMAND: &str = "\u{e1c4}";
     /// Return corner (`ph-arrow-elbow-down-left`).
     pub const KEY_RETURN: &str = "\u{e044}";
+    /// Create-sheet “Alongside …” (`ph-arrow-bend-down-right`).
+    pub const ARROW_BEND_DOWN_RIGHT: &str = "\u{e01a}";
     pub const FOLDER: &str = "\u{e24a}";
     /// Open folder.
     pub const FOLDER_OPEN: &str = "\u{e256}";
@@ -255,6 +257,8 @@ pub mod phosphor {
     /// New note.
     pub const NOTE_PENCIL: &str = "\u{e34c}";
     pub const FOLDER_PLUS: &str = "\u{e258}";
+    /// Phosphor 2.1 IcoMoon PUA (`folder-minus` / `folder-notch-minus`).
+    pub const FOLDER_MINUS: &str = "\u{e254}";
     pub const CARET_DOWN: &str = "\u{e136}";
     pub const CARET_LEFT: &str = "\u{e138}";
     pub const CARET_RIGHT: &str = "\u{e13a}";
@@ -265,6 +269,10 @@ pub mod phosphor {
     pub const PUSH_PIN: &str = "\u{e3e2}";
     pub const SCISSORS: &str = "\u{eae0}";
     pub const COPY: &str = "\u{e1ca}";
+    /// Paste (`ph-clipboard-text`).
+    pub const CLIPBOARD_TEXT: &str = "\u{e198}";
+    /// Select all (`ph-selection-all`).
+    pub const SELECTION_ALL: &str = "\u{e746}";
     /// Sync / refresh (sidebar footer).
     pub const ARROWS_CLOCKWISE: &str = "\u{e094}";
     /// Zen / hide sidebar.
@@ -309,6 +317,12 @@ pub fn file_row_icon(name: &str, is_folder: bool) -> &'static str {
     } else {
         phosphor_for_doc_type(workspace_rs::show::DocType::from_name(name))
     }
+}
+
+/// Visible file name in chrome: strip the extension when the doc type hides it
+/// (Markdown, drawing, PDF, chat). Do not pass paths.
+pub fn display_file_name(name: &str) -> &str {
+    workspace_rs::show::DocType::from_name(name).display_name(name)
 }
 
 /// Tab-strip glyph for a workspace [`Destination`].

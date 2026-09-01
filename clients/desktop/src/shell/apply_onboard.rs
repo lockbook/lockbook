@@ -11,6 +11,63 @@ use super::action::{Modal, OnboardLookup, OnboardMode};
 use super::apply_share::spawn_username_exists;
 use super::session::Session;
 
+/// Seed the onboard URL field: `API_URL` when it isn’t the hosted default.
+pub(crate) fn initial_api_url() -> String {
+    match std::env::var("API_URL") {
+        Ok(s) => {
+            let t = s.trim();
+            if t.is_empty() || t == lb::DEFAULT_API_LOCATION { String::new() } else { t.to_owned() }
+        }
+        Err(_) => String::new(),
+    }
+}
+
+/// Empty / whitespace → hosted default.
+pub(crate) fn resolved_api_url(api_url: &str) -> String {
+    let t = api_url.trim();
+    if t.is_empty() { lb::DEFAULT_API_LOCATION.to_string() } else { t.to_owned() }
+}
+
+/// Hostname (or host:port) for the welcome caption.
+pub(crate) fn display_server_host(api_url: &str) -> String {
+    let url = resolved_api_url(api_url);
+    url.trim()
+        .trim_start_matches("https://")
+        .trim_start_matches("http://")
+        .trim_end_matches('/')
+        .to_owned()
+}
+
+fn env_or_default_api_url() -> String {
+    std::env::var("API_URL").unwrap_or_else(|_| lb::DEFAULT_API_LOCATION.to_string())
+}
+
+/// Live username check hits env/default inside core; skip it when the form URL differs.
+pub(crate) fn uname_check_matches_core(api_url: &str) -> bool {
+    resolved_api_url(api_url) == env_or_default_api_url()
+}
+
+pub(crate) fn onboard_modal(mode: OnboardMode, err: Option<String>) -> Modal {
+    Modal::Onboard {
+        mode,
+        uname: String::new(),
+        uname_lookup: OnboardLookup::Idle,
+        uname_lookup_for: String::new(),
+        account_key: String::new(),
+        api_url: initial_api_url(),
+        busy: false,
+        err,
+    }
+}
+
+pub(crate) fn onboard_server_editing_key() -> egui::Id {
+    egui::Id::new("onboard_server_editing")
+}
+
+pub(crate) fn onboard_server_snap_key() -> egui::Id {
+    egui::Id::new("onboard_server_snap")
+}
+
 pub(crate) fn onboard_import_focus(ctx: &Context) {
     ctx.data_mut(|d| d.insert_temp(egui::Id::new("onboard_account_key_need_focus"), true));
 }
@@ -57,12 +114,13 @@ pub(crate) fn onboard_poll_uname(app: &mut ShellApp, ctx: &Context) {
 /// Debounced availability check via `username_exists` (works signed-out).
 pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
     onboard_poll_uname(app, ctx);
-    let q = match &app.modal {
+    let (q, api_url) = match &app.modal {
         Some(Modal::Onboard {
             mode: OnboardMode::Create,
             uname,
             uname_lookup,
             uname_lookup_for,
+            api_url,
             ..
         }) => {
             let q = uname.trim().to_owned();
@@ -75,7 +133,7 @@ pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
             {
                 return;
             }
-            q
+            (q, api_url.clone())
         }
         _ => return,
     };
@@ -89,6 +147,13 @@ pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
     if !onboard_uname_format_ok(&q) {
         if let Some(Modal::Onboard { uname_lookup, uname_lookup_for, .. }) = &mut app.modal {
             *uname_lookup = OnboardLookup::Error("Invalid username".into());
+            *uname_lookup_for = q;
+        }
+        return;
+    }
+    if !uname_check_matches_core(&api_url) {
+        if let Some(Modal::Onboard { uname_lookup, uname_lookup_for, .. }) = &mut app.modal {
+            *uname_lookup = OnboardLookup::Available;
             *uname_lookup_for = q;
         }
         return;
@@ -138,14 +203,26 @@ fn onboard_import_secret(account_key: &str) -> String {
 }
 
 pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool) {
-    let (mode, uname, import_secret, lookup_ok) = match &app.modal {
+    let (mode, uname, import_secret, lookup_ok, api) = match &app.modal {
         Some(Modal::Onboard {
-            mode, uname, account_key, uname_lookup, uname_lookup_for, ..
+            mode,
+            uname,
+            account_key,
+            uname_lookup,
+            uname_lookup_for,
+            api_url,
+            ..
         }) => {
             let u = uname.trim();
             let lookup_ok = u.eq_ignore_ascii_case(uname_lookup_for)
                 && matches!(uname_lookup, OnboardLookup::Available);
-            (*mode, uname.clone(), onboard_import_secret(account_key), lookup_ok)
+            (
+                *mode,
+                uname.clone(),
+                onboard_import_secret(account_key),
+                lookup_ok,
+                resolved_api_url(api_url),
+            )
         }
         _ => return,
     };
@@ -213,8 +290,6 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
     thread::spawn(move || {
         use super::session::{CoreLoad, set_load_status};
 
-        let api = std::env::var("API_URL").unwrap_or_else(|_| lb::DEFAULT_API_LOCATION.to_string());
-
         let account_res = match mode {
             OnboardMode::Create => {
                 set_load_status(&status, "Creating account…");
@@ -270,4 +345,18 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         }
         ctx.request_repaint();
     });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{display_server_host, resolved_api_url};
+
+    #[test]
+    fn empty_url_is_hosted_default() {
+        assert_eq!(resolved_api_url(""), lb::DEFAULT_API_LOCATION);
+        assert_eq!(resolved_api_url("  "), lb::DEFAULT_API_LOCATION);
+        assert_eq!(resolved_api_url("http://localhost:8000"), "http://localhost:8000");
+        assert_eq!(display_server_host(""), "app.lockbook.net");
+        assert_eq!(display_server_host("http://localhost:8000"), "localhost:8000");
+    }
 }

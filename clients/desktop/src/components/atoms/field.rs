@@ -7,7 +7,7 @@ use egui::{Align, Color32, Id, Layout, Response, Stroke, StrokeKind, Ui, pos2, v
 use workspace_rs::widgets::GlyphonTextEdit;
 
 use crate::components::foundation::chrome::{
-    Radius, STROKE_HAIRLINE, control_height, control_line_height, phosphor_ui_font_id,
+    Radius, STROKE_HAIRLINE, control_height, control_line_height, phosphor, phosphor_ui_font_id,
 };
 use crate::components::foundation::color::{
     FG_HOVER, FG_PRESS, QUIET_PLATE_HOVER, QUIET_PLATE_PRESS, Theme,
@@ -42,6 +42,8 @@ pub struct Field<'a> {
     /// After keyboard events, before paint: rewrite buffer + remap caret.
     /// `(old_text, cursor, anchor) -> (new_text, new_cursor, new_anchor)`.
     rewrite: Option<Box<FieldRewrite<'a>>>,
+    /// Re-take focus when a press lands on a non-focusable control (default).
+    sticky: bool,
 }
 
 /// Buffer rewrite after keyboard events (see [`Field::rewrite`]).
@@ -64,6 +66,7 @@ impl<'a> Field<'a> {
             completion_full: None,
             password: false,
             rewrite: None,
+            sticky: true,
         }
     }
 
@@ -130,6 +133,12 @@ impl<'a> Field<'a> {
     /// Always paint `*` per character (account key).
     pub fn password(mut self, on: bool) -> Self {
         self.password = on;
+        self
+    }
+
+    /// When false, a press outside surrenders focus (caption → field blur).
+    pub fn sticky(mut self, on: bool) -> Self {
+        self.sticky = on;
         self
     }
 
@@ -317,11 +326,58 @@ impl<'a> Field<'a> {
             ui.painter().galley(cr.center() - xg.size() / 2.0, xg, ink);
             if cresp.clicked() {
                 self.text.clear();
-                ui.memory_mut(|m| m.request_focus(edit_id));
+                if self.sticky {
+                    ui.memory_mut(|m| m.request_focus(edit_id));
+                } else {
+                    ui.memory_mut(|m| m.surrender_focus(edit_id));
+                }
             }
         }
 
         response = response.union(edit_resp);
+
+        if response.secondary_clicked() {
+            ui.memory_mut(|m| m.request_focus(edit_id));
+        }
+        if let Some(cmd) = crate::components::context_menu::show(&response, t, |e| {
+            e.item(phosphor::SCISSORS, "Cut", FieldEditCmd::Cut);
+            e.item(phosphor::COPY, "Copy", FieldEditCmd::Copy);
+            e.item(phosphor::CLIPBOARD_TEXT, "Paste", FieldEditCmd::Paste);
+            e.separator();
+            e.item(phosphor::SELECTION_ALL, "Select all", FieldEditCmd::SelectAll);
+        }) {
+            ui.memory_mut(|m| m.request_focus(edit_id));
+            match cmd {
+                FieldEditCmd::Cut => {
+                    ui.ctx().input_mut(|i| i.events.push(egui::Event::Cut));
+                    let _ = GlyphonTextEdit::process_events_ex(
+                        ui,
+                        edit_id,
+                        self.text,
+                        self.completion_full.as_deref(),
+                        true,
+                    );
+                }
+                FieldEditCmd::Copy => {
+                    ui.ctx().input_mut(|i| i.events.push(egui::Event::Copy));
+                    let _ = GlyphonTextEdit::process_events_ex(
+                        ui,
+                        edit_id,
+                        self.text,
+                        self.completion_full.as_deref(),
+                        true,
+                    );
+                }
+                FieldEditCmd::Paste => {
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+                }
+                FieldEditCmd::SelectAll => {
+                    let len = self.text.len();
+                    GlyphonTextEdit::place_cursor(ui, edit_id, len, 0);
+                }
+            }
+        }
 
         // Sticky text focus: egui surrenders focus on any press outside the
         // focused widget. Non-text controls use `sense_click` (no FOCUSABLE) and
@@ -329,7 +385,7 @@ impl<'a> Field<'a> {
         // claimed focus, re-take it. Keyboard surrender (Esc / Enter submit) has
         // no pointer press, so we leave focus clear.
         let lost = ui.memory(|m| m.had_focus_last_frame(edit_id) && !m.has_focus(edit_id));
-        if lost {
+        if self.sticky && lost {
             let free = ui.memory(|m| m.focused().is_none());
             let pointer = ui.input(|i| i.pointer.any_pressed() || i.pointer.any_down());
             if free && pointer {
@@ -339,6 +395,14 @@ impl<'a> Field<'a> {
 
         response
     }
+}
+
+#[derive(Clone, Copy)]
+enum FieldEditCmd {
+    Cut,
+    Copy,
+    Paste,
+    SelectAll,
 }
 
 /// Ghost after typed buffer: remainder of `full` when `query` is a

@@ -16,6 +16,7 @@ use crate::components::{
 
 use crate::shell::action::Action;
 use crate::shell::action::Action as A;
+use crate::shell::ops::is_saved_share;
 
 const COLS: usize = 2;
 const MAX_ROWS: usize = 3;
@@ -46,19 +47,23 @@ struct PinRow {
     id: Uuid,
     name: String,
     is_folder: bool,
-    /// Create destination: folder id, or parent of a document.
-    create_parent: Uuid,
+    saved_share: bool,
 }
 
 pub fn show(
-    ui: &mut Ui, t: &Theme, files: &impl FilesExt, pinned: &[Uuid], queue: &mut Vec<Action>,
+    ui: &mut Ui, t: &Theme, files: &impl FilesExt, pinned: &[Uuid], me: &str,
+    queue: &mut Vec<Action>,
 ) {
     let mut rows: Vec<PinRow> = pinned
         .iter()
         .filter_map(|id| {
             let f = files.get_by_id(*id)?;
-            let create_parent = if f.is_folder() { f.id } else { f.parent };
-            Some(PinRow { id: *id, name: f.name.clone(), is_folder: f.is_folder(), create_parent })
+            Some(PinRow {
+                id: *id,
+                name: f.name.clone(),
+                is_folder: f.is_folder(),
+                saved_share: is_saved_share(f, me),
+            })
         })
         .collect();
     if rows.is_empty() {
@@ -216,13 +221,29 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
             e.item(phosphor::DOWNLOAD_SIMPLE, "Export…", PinCmd::Export);
         }
         e.separator();
-        e.item_danger(phosphor::TRASH, "Delete…", PinCmd::Delete);
+        if row.saved_share {
+            e.item(phosphor::FOLDER_MINUS, "Remove from files…", PinCmd::Delete);
+        } else {
+            e.item_danger(phosphor::TRASH, "Delete…", PinCmd::Delete);
+        }
     }) {
         match cmd {
             PinCmd::Open => queue.push(A::OpenFile(row.id)),
             PinCmd::OpenNewTab => queue.push(A::OpenFileNewTab(row.id)),
             PinCmd::Create => {
-                queue.push(A::OpenCreate { parent: Some(row.create_parent), is_folder: false })
+                if row.is_folder {
+                    queue.push(A::OpenCreate {
+                        folder: Some(row.id),
+                        alongside: None,
+                        is_folder: false,
+                    })
+                } else {
+                    queue.push(A::OpenCreate {
+                        folder: None,
+                        alongside: Some(row.id),
+                        is_folder: false,
+                    })
+                }
             }
             PinCmd::ExpandAll => queue.push(A::ExpandSubtree(row.id)),
             PinCmd::CollapseAll => queue.push(A::CollapseSubtree(row.id)),

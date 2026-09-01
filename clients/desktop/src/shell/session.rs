@@ -69,17 +69,12 @@ pub fn read_load_status(status: &LoadStatus) -> String {
         .unwrap_or_else(|| "Loading…".into())
 }
 
-/// Clipboard of file ids for cut/copy/paste.
-#[derive(Clone, Debug, Default)]
-pub struct FileClipboard {
-    pub ids: Vec<Uuid>,
-    pub cut: bool,
-}
-
 pub struct Ready {
     pub workspace: Workspace,
     pub expanded: HashSet<Uuid>,
-    /// Primary cursor (last click / open).
+    /// Tree / list selection (highlight, multi-select, context-menu targets).
+    /// Not keyboard focus and not create/import destination — those follow the
+    /// open tab. Right-clicking a folder updates this without opening a file.
     pub cursor: Option<Uuid>,
     /// Shift-range anchor (Finder-style).
     pub anchor: Option<Uuid>,
@@ -89,7 +84,6 @@ pub struct Ready {
     pub status_msg: String,
     pub syncing: bool,
     pub pinned: Vec<Uuid>,
-    pub clipboard: FileClipboard,
     pub sub_info: Option<SubscriptionInfo>,
     /// Flattened visible tree order (Shift-range select).
     pub nav_order: Vec<Uuid>,
@@ -127,7 +121,6 @@ impl Ready {
             status_msg: "Up to date".into(),
             syncing: false,
             pinned,
-            clipboard: FileClipboard::default(),
             sub_info,
             nav_order: Vec::new(),
             // Start at 1 so empty caches (epoch 0) rebuild on first paint.

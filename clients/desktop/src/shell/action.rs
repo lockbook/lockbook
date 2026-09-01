@@ -125,12 +125,15 @@ pub enum Modal {
     Create {
         name: String,
         kind: CreateKind,
-        /// Destination parent (resolved from location chips).
+        /// Destination parent (resolved from the selected location plate).
         parent: Option<Uuid>,
         loc: CreateLoc,
-        /// Tree-selected document’s parent + name for the "Alongside …" plate.
-        /// (Tab focus usually tracks selection; plate follows the sidebar cursor.)
+        /// Document to create next to: (parent folder, document name).
+        /// Shown whenever a document tab is open or Create was invoked on a file.
         alongside: Option<(Uuid, String)>,
+        /// Folder from Choose… / folder-context Create. Independent of `loc`.
+        /// Never the account root — Home is its own plate.
+        chosen: Option<Uuid>,
         /// Nested folder list for "Choose…".
         picking: bool,
         error: Option<String>,
@@ -175,6 +178,8 @@ pub enum Modal {
         uname_lookup_for: String,
         /// Compact key or 24-word phrase — `import_account` accepts either.
         account_key: String,
+        /// Custom API URL. Empty = [`lb::DEFAULT_API_LOCATION`].
+        api_url: String,
         busy: bool,
         err: Option<String>,
     },
@@ -311,9 +316,12 @@ pub enum Action {
     ShareInvite,
     /// Drop someone from the multi-add stage (chip dismiss).
     ShareUnstage(String),
-    /// Open create sheet. `parent` seeds location; `is_folder` seeds type.
+    /// Open create sheet. Folder-context fills `folder` and selects Choose;
+    /// file-context fills `alongside` and selects that plate (Choose stays empty).
+    /// Chrome / ⌘N leaves both None and follows the open document tab.
     OpenCreate {
-        parent: Option<Uuid>,
+        folder: Option<Uuid>,
+        alongside: Option<Uuid>,
         is_folder: bool,
     },
     CreateSetKind(CreateKind),
@@ -352,10 +360,7 @@ pub enum Action {
     TogglePin(Uuid),
     /// Toggle pin on each id (own state).
     TogglePinMany(Vec<Uuid>),
-    Cut(Vec<Uuid>),
-    Copy(Vec<Uuid>),
-    Paste,
-    /// Drag-drop or cut-paste: move ids into parent.
+    /// Drag-drop: move ids into parent.
     MoveInto {
         ids: Vec<Uuid>,
         parent: Uuid,
@@ -481,9 +486,6 @@ impl Action {
             Self::RequestSync => "RequestSync",
             Self::TogglePin(_) => "TogglePin",
             Self::TogglePinMany(_) => "TogglePinMany",
-            Self::Cut(_) => "Cut",
-            Self::Copy(_) => "Copy",
-            Self::Paste => "Paste",
             Self::MoveInto { .. } => "MoveInto",
             Self::Duplicate(_) => "Duplicate",
             Self::Export(_) => "Export",

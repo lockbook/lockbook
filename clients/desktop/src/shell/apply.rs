@@ -235,7 +235,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::ShareInvite => share_invite(app, ctx),
-        A::OpenCreate { parent, is_folder } => open_create_sheet(app, ctx, parent, is_folder),
+        A::OpenCreate { folder, alongside, is_folder } => {
+            open_create_sheet(app, ctx, folder, alongside, is_folder)
+        }
         A::CreateSetKind(kind) => {
             let (parent, dirty) = match &app.modal {
                 Some(Modal::Create { parent, name_dirty, .. }) => (*parent, *name_dirty),
@@ -252,9 +254,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::CreateSetLoc(loc) => {
-            let (alongside, kind, dirty, cur_parent) = match &app.modal {
-                Some(Modal::Create { alongside, kind, name_dirty, parent, .. }) => {
-                    (alongside.clone(), *kind, *name_dirty, *parent)
+            let (alongside, kind, dirty, chosen) = match &app.modal {
+                Some(Modal::Create { alongside, kind, name_dirty, chosen, .. }) => {
+                    (alongside.clone(), *kind, *name_dirty, *chosen)
                 }
                 _ => return,
             };
@@ -265,7 +267,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             let parent = match loc {
                 CreateLoc::Root => root,
                 CreateLoc::Alongside => alongside.as_ref().map(|(id, _)| *id).or(root),
-                CreateLoc::Custom => cur_parent.or(root),
+                CreateLoc::Custom => chosen.or(root),
             };
             let suggested =
                 if dirty { None } else { Some(suggested_create_name(app, parent, kind)) };
@@ -302,11 +304,19 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             };
             let suggested =
                 if dirty { None } else { Some(suggested_create_name(app, Some(id), kind)) };
-            if let Some(Modal::Create { picking, parent, loc, name, error, .. }) = &mut app.modal {
+            if let Some(Modal::Create { picking, parent, loc, chosen, name, error, .. }) =
+                &mut app.modal
+            {
                 // Collapse the browser after a pick.
                 *picking = false;
-                *loc = if root == Some(id) { CreateLoc::Root } else { CreateLoc::Custom };
                 *parent = Some(id);
+                if root == Some(id) {
+                    *loc = CreateLoc::Root;
+                    *chosen = None;
+                } else {
+                    *loc = CreateLoc::Custom;
+                    *chosen = Some(id);
+                }
                 *error = None;
                 if let Some(s) = suggested {
                     *name = s;
@@ -480,17 +490,6 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::RequestSync => request_sync(app, ctx),
         A::TogglePin(id) => toggle_pins(app, &[id]),
         A::TogglePinMany(ids) => toggle_pins(app, &ids),
-        A::Cut(ids) => {
-            if let Some(r) = app.session.ready_mut() {
-                r.clipboard = super::session::FileClipboard { ids, cut: true };
-            }
-        }
-        A::Copy(ids) => {
-            if let Some(r) = app.session.ready_mut() {
-                r.clipboard = super::session::FileClipboard { ids, cut: false };
-            }
-        }
-        A::Paste => paste_clip(app, None),
         A::MoveInto { ids, parent } => {
             if let Some(r) = app.session.ready_mut() {
                 for id in &ids {
@@ -729,9 +728,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::Create => {
-            // Sidebar Create chip / ⌘N — create sheet, default Note at focus parent.
-            let parent = focused_create_parent(app);
-            open_create_sheet(app, ctx, parent, false);
+            // Sidebar Create chip / ⌘N — open tab (not tree selection).
+            open_create_sheet(app, ctx, None, None, false);
         }
         A::SaveAll => {
             if let Some(r) = app.session.ready_mut() {
@@ -767,65 +765,78 @@ fn sync_selection_after_tab_close(r: &mut Ready) {
     }
 }
 
-fn focused_create_parent(app: &ShellApp) -> Option<Uuid> {
-    let r = app.session.ready()?;
-    if let Some(id) = r.cursor {
-        let files = r.workspace.files.read().unwrap();
-        return files
-            .get_by_id(id)
-            .map(|f| if f.is_folder() { f.id } else { f.parent });
-    }
-    r.workspace
-        .current_tab_id()
-        .and_then(|id| {
-            let files = r.workspace.files.read().unwrap();
-            files.get_by_id(id).map(|f| f.parent)
-        })
-        .or_else(|| Some(r.workspace.files.read().unwrap().root().id))
+/// Document → (parent, name) for the Alongside plate. Folders yield None.
+fn file_alongside(r: &Ready, id: Uuid) -> Option<(Uuid, String)> {
+    let files = r.workspace.files.read().unwrap();
+    let f = files.get_by_id(id)?;
+    if f.is_folder() { None } else { Some((f.parent, f.name.clone())) }
+}
+
+/// Open document tab → (parent, name). Tree `cursor` is not read.
+fn open_doc_alongside(r: &Ready) -> Option<(Uuid, String)> {
+    file_alongside(r, r.workspace.current_tab_id()?)
+}
+
+fn dest_folder_from_open_tab(r: &Ready) -> Uuid {
+    open_doc_alongside(r)
+        .map(|(p, _)| p)
+        .unwrap_or_else(|| r.workspace.files.read().unwrap().root().id)
+}
+
+struct CreateSheetPlan {
+    loc: CreateLoc,
+    parent: Option<Uuid>,
+    alongside: Option<(Uuid, String)>,
+    chosen: Option<Uuid>,
+}
+
+/// Home is always a plate. Alongside is offered whenever `alongside` is Some
+/// (open document tab, or file-context Create). `chosen_folder` is the
+/// independent Choose… slot (folder-context Create / a later pick).
+///
+/// Default loc: explicit folder (root → Home, else Choose) > alongside > Home.
+fn create_sheet_plan(
+    root: Uuid, chosen_folder: Option<Uuid>, alongside: Option<(Uuid, String)>,
+) -> CreateSheetPlan {
+    let chosen = chosen_folder.filter(|id| *id != root);
+    // Folder-context (including root → Home) wins over Alongside.
+    let loc = match chosen_folder {
+        Some(id) if id == root => CreateLoc::Root,
+        Some(_) => CreateLoc::Custom,
+        None if alongside.is_some() => CreateLoc::Alongside,
+        None => CreateLoc::Root,
+    };
+    let parent = match loc {
+        CreateLoc::Root => Some(root),
+        CreateLoc::Alongside => alongside.as_ref().map(|(p, _)| *p).or(Some(root)),
+        CreateLoc::Custom => chosen.or(Some(root)),
+    };
+    CreateSheetPlan { loc, parent, alongside, chosen }
 }
 
 fn open_create_sheet(
-    app: &mut ShellApp, ctx: &Context, parent_hint: Option<Uuid>, prefer_folder: bool,
+    app: &mut ShellApp, ctx: &Context, folder: Option<Uuid>, alongside_file: Option<Uuid>,
+    prefer_folder: bool,
 ) {
     let Some(r) = app.session.ready() else {
         return;
     };
-    let files = r.workspace.files.read().unwrap();
-    let root = files.root().id;
-    // Alongside plate = tree cursor when that row is a document (same parent).
-    // Tab focus usually mirrors selection (`SelectTab` → select_only + reveal), but
-    // a tree click without open can diverge — invocation context is the sidebar.
-    let (alongside_parent, alongside_label) = r
-        .cursor
-        .and_then(|id| {
-            let f = files.get_by_id(id)?;
-            if f.is_folder() { None } else { Some((f.parent, f.name.clone())) }
-        })
-        .map(|(p, n)| (Some(p), Some(n)))
-        .unwrap_or((None, None));
-
-    let hint = parent_hint.unwrap_or(root);
-    let (loc, parent) = if hint == root {
-        (CreateLoc::Root, Some(root))
-    } else if alongside_parent == Some(hint) {
-        (CreateLoc::Alongside, Some(hint))
-    } else {
-        (CreateLoc::Custom, Some(hint))
+    let root = r.workspace.files.read().unwrap().root().id;
+    let alongside = match alongside_file {
+        Some(id) => file_alongside(r, id),
+        None => open_doc_alongside(r),
     };
+    let plan = create_sheet_plan(root, folder, alongside);
 
     let kind = if prefer_folder { CreateKind::Folder } else { CreateKind::Note };
-    drop(files);
-    let name = suggested_create_name(app, parent, kind);
-    let alongside = match (alongside_parent, alongside_label) {
-        (Some(id), Some(label)) => Some((id, label)),
-        _ => None,
-    };
+    let name = suggested_create_name(app, plan.parent, kind);
     app.modal = Some(Modal::Create {
         name,
         kind,
-        parent,
-        loc,
-        alongside,
+        parent: plan.parent,
+        loc: plan.loc,
+        alongside: plan.alongside,
+        chosen: plan.chosen,
         picking: false,
         error: None,
         name_dirty: false,
@@ -1125,53 +1136,6 @@ fn expand_or_collapse(app: &mut ShellApp, id: Uuid, expand: bool) {
     }
 }
 
-fn paste_clip(app: &mut ShellApp, dest_override: Option<Uuid>) {
-    let Some(r) = app.session.ready_mut() else {
-        return;
-    };
-    let dest = dest_override
-        .map(|d| {
-            // If dest is a document, paste into its parent (recents menus).
-            let files = r.workspace.files.read().unwrap();
-            files
-                .get_by_id(d)
-                .map(|f| if f.is_folder() { f.id } else { f.parent })
-                .unwrap_or(d)
-        })
-        .unwrap_or_else(|| {
-            r.cursor
-                .and_then(|id| {
-                    let files = r.workspace.files.read().unwrap();
-                    files
-                        .get_by_id(id)
-                        .map(|f| if f.is_folder() { f.id } else { f.parent })
-                })
-                .unwrap_or_else(|| r.workspace.files.read().unwrap().root().id)
-        });
-    let clip = r.clipboard.clone();
-    if clip.ids.is_empty() {
-        return;
-    }
-    if clip.cut {
-        for id in &clip.ids {
-            if *id != dest {
-                r.workspace.move_file((*id, dest));
-            }
-        }
-        r.clipboard = Default::default();
-        r.expanded.insert(dest);
-    } else {
-        for id in &clip.ids {
-            if let Ok(f) = r.workspace.core.duplicate_file(id) {
-                if f.parent != dest {
-                    let _ = r.workspace.core.move_file(&f.id, &dest);
-                }
-            }
-        }
-        r.expanded.insert(dest);
-    }
-}
-
 fn export_files(app: &mut ShellApp, ids: &[Uuid]) {
     if ids.is_empty() {
         return;
@@ -1226,19 +1190,10 @@ fn import_pick(app: &mut ShellApp, ctx: &Context) {
     open_import_parent_sheet(app, ctx, paths);
 }
 
-/// Open the Import folder-picker sheet. Seeds `dest` from the cursor folder
-/// (or its parent / root) so chip and drop share one path.
+/// Open the Import folder-picker sheet. Seeds `dest` from the open tab's folder
+/// (not tree selection).
 fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBuf>) {
-    let dest = app.session.ready().map(|r| {
-        r.cursor
-            .and_then(|id| {
-                let files = r.workspace.files.read().unwrap();
-                files
-                    .get_by_id(id)
-                    .map(|f| if f.is_folder() { f.id } else { f.parent })
-            })
-            .unwrap_or_else(|| r.workspace.files.read().unwrap().root().id)
-    });
+    let dest = app.session.ready().map(dest_folder_from_open_tab);
     ctx.data_mut(|d| {
         d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new((
             "shell_folder_pick_exp",
@@ -1286,4 +1241,74 @@ fn request_sync(app: &mut ShellApp, ctx: &Context) {
 fn persist_zen(app: &mut ShellApp) {
     // Disk: zen = sidebar collapsed at next launch.
     let _ = app.settings.write_zen_mode(!app.sidebar_open);
+}
+
+#[cfg(test)]
+mod create_sheet_plan_tests {
+    use super::{CreateLoc, create_sheet_plan};
+    use lb::Uuid;
+
+    fn ids() -> (Uuid, Uuid, Uuid) {
+        (Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(3))
+    }
+
+    #[test]
+    fn cmd_n_follows_open_tab() {
+        let (root, _folder, doc_parent) = ids();
+        let plan = create_sheet_plan(root, None, Some((doc_parent, "note.md".into())));
+        assert_eq!(plan.loc, CreateLoc::Alongside);
+        assert_eq!(plan.parent, Some(doc_parent));
+        assert!(plan.alongside.is_some());
+        assert!(plan.chosen.is_none());
+    }
+
+    #[test]
+    fn folder_context_selects_chosen_and_keeps_alongside() {
+        let (root, folder, doc_parent) = ids();
+        let plan = create_sheet_plan(root, Some(folder), Some((doc_parent, "note.md".into())));
+        assert_eq!(plan.loc, CreateLoc::Custom);
+        assert_eq!(plan.parent, Some(folder));
+        assert_eq!(plan.chosen, Some(folder));
+        assert!(plan.alongside.is_some());
+    }
+
+    #[test]
+    fn cmd_n_without_open_doc_is_root() {
+        let (root, _, _) = ids();
+        let plan = create_sheet_plan(root, None, None);
+        assert_eq!(plan.loc, CreateLoc::Root);
+        assert_eq!(plan.parent, Some(root));
+        assert!(plan.alongside.is_none());
+        assert!(plan.chosen.is_none());
+    }
+
+    #[test]
+    fn file_context_selects_alongside_choose_unchosen() {
+        let (root, _, doc_parent) = ids();
+        let plan = create_sheet_plan(root, None, Some((doc_parent, "note.md".into())));
+        assert_eq!(plan.loc, CreateLoc::Alongside);
+        assert_eq!(plan.parent, Some(doc_parent));
+        assert!(plan.alongside.is_some());
+        assert!(plan.chosen.is_none());
+    }
+
+    #[test]
+    fn folder_context_on_root_is_home() {
+        let (root, _, doc_parent) = ids();
+        let plan = create_sheet_plan(root, Some(root), Some((doc_parent, "note.md".into())));
+        assert_eq!(plan.loc, CreateLoc::Root);
+        assert_eq!(plan.parent, Some(root));
+        assert!(plan.chosen.is_none());
+        assert!(plan.alongside.is_some());
+    }
+
+    #[test]
+    fn folder_context_without_open_doc_is_custom() {
+        let (root, folder, _) = ids();
+        let plan = create_sheet_plan(root, Some(folder), None);
+        assert_eq!(plan.loc, CreateLoc::Custom);
+        assert_eq!(plan.parent, Some(folder));
+        assert_eq!(plan.chosen, Some(folder));
+        assert!(plan.alongside.is_none());
+    }
 }
