@@ -399,6 +399,16 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                     return;
                 }
                 if let Some(r) = app.session.ready_mut() {
+                    let unchanged = r
+                        .workspace
+                        .files
+                        .read()
+                        .unwrap()
+                        .get_by_id(id)
+                        .is_some_and(|f| f.name == full);
+                    if unchanged {
+                        return;
+                    }
                     if rename_name_taken(r, id, &full) {
                         app.toasts.error("A file with that name already exists");
                         return;
@@ -908,19 +918,8 @@ pub(crate) fn rename_live_status(
     app: &ShellApp, id: Uuid, stem: &str, ext: Option<&str>,
 ) -> RenameLive {
     let full = rename_join_name(stem, ext);
-    let original = app.session.ready().and_then(|r| {
-        r.workspace
-            .files
-            .read()
-            .unwrap()
-            .get_by_id(id)
-            .map(|f| f.name.clone())
-    });
     if let Err(msg) = rename_validate_name(&full) {
         return RenameLive { error: Some(msg), can_commit: false };
-    }
-    if original.as_deref() == Some(full.as_str()) {
-        return RenameLive { error: None, can_commit: false };
     }
     if let Some(r) = app.session.ready() {
         if rename_name_taken(r, id, &full) {
