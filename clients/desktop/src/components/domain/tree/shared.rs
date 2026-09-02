@@ -33,7 +33,7 @@ pub fn show_shared(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<A
     let pending = app.shared_cache.pending.clone();
 
     if pending.is_empty() {
-        empty_state(ui, t, "Nothing shared with you yet");
+        empty_state(ui, t, "Nothing shared with you");
         return;
     }
 

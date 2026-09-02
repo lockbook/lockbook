@@ -633,6 +633,11 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
     };
     let flat = app.tree_walk.flat.clone();
 
+    if flat.is_empty() {
+        empty_state(ui, t, "No files");
+        return;
+    }
+
     if let Some(ready) = app.session.ready() {
         let files = ready.workspace.files.read().unwrap();
         app.sync_dots
