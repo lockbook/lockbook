@@ -111,6 +111,8 @@ pub struct ShellApp {
     pub(crate) native_dialog_rx: Option<mpsc::Receiver<apply::NativeDialogResult>>,
     /// Auto-import worker (paste / complete key). Failures do not surface.
     pub(crate) onboard_auto_rx: Option<mpsc::Receiver<apply_onboard::AutoOnboard>>,
+    /// After a successful create, show the account-key backup sheet.
+    pub(crate) onboard_backup_pending: bool,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -177,6 +179,7 @@ impl Default for ShellApp {
             toasts: ToastHost::default(),
             native_dialog_rx: None,
             onboard_auto_rx: None,
+            onboard_backup_pending: false,
         }
     }
 }
@@ -194,8 +197,21 @@ impl ShellApp {
             .unwrap_or(false)
     }
 
+    fn showing_backup(&self) -> bool {
+        matches!(&self.modal, Some(Modal::Onboard { mode: action::OnboardMode::Backup, .. }))
+    }
+
+    /// Sidebar, editor, pane toggles. Hidden while the post-create key backup
+    /// sheet is up — that step is still onboard, not the signed-in app.
+    pub(crate) fn product_open(&self) -> bool {
+        matches!(self.session, Session::Ready(_)) && !self.showing_backup()
+    }
+
     /// Auto logout / re-import loop for crash hunting (`LOCKBOOK_SESSION_STRESS=1`).
     fn session_stress_tick(&mut self, ctx: &egui::Context) {
+        if self.showing_backup() {
+            return;
+        }
         let Some(stress) = self.session_stress.as_mut() else {
             return;
         };
@@ -279,6 +295,7 @@ impl ShellApp {
         }
         if let Some(fail) = self.session.poll(ctx) {
             // Manual sign-in failed; restore the form with the error.
+            self.onboard_backup_pending = false;
             let mode = fail.mode;
             self.modal = Some(apply_onboard::onboard_form(
                 fail.mode,
@@ -291,6 +308,21 @@ impl ShellApp {
                 apply_onboard::onboard_import_focus(ctx);
             }
         }
+        if self.onboard_backup_pending && matches!(self.session, Session::Ready(_)) {
+            self.onboard_backup_pending = false;
+            if let Some(r) = self.session.ready() {
+                if let Ok(p) = r.workspace.core.export_account_phrase() {
+                    self.phrase_cache = Some(p);
+                }
+            }
+            self.modal = Some(apply_onboard::onboard_form(
+                action::OnboardMode::Backup,
+                String::new(),
+                String::new(),
+                apply_onboard::initial_api_url(),
+                None,
+            ));
+        }
         apply_onboard::poll_auto_import(self, ctx);
         apply::poll_native_dialog(self, ctx);
         if let Session::Ready(r) = &self.session {
@@ -300,7 +332,9 @@ impl ShellApp {
         }
         self.drain_events();
         self.process_keys(ctx);
-        self.process_drops(ctx);
+        if self.product_open() {
+            self.process_drops(ctx);
+        }
 
         // Close window: save workspace tabs
         if ctx.input(|i| i.viewport().close_requested()) {
@@ -355,8 +389,7 @@ impl ShellApp {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
 
-        let show_side =
-            matches!(self.session, Session::Ready(_)) && self.sidebar_open && !self.defaults_zen();
+        let show_side = self.product_open() && self.sidebar_open && !self.defaults_zen();
 
         // One SidePanel: slide its contents (right edge glued to visible width).
         // Resting width is stored separately so the wipe does not persist 1px.
@@ -401,9 +434,9 @@ impl ShellApp {
         CentralPanel::default()
             .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
             .show(ctx, |ui| {
-                if matches!(self.session, Session::Ready(_)) {
+                if self.product_open() {
                     editor::show(self, ui, &t, &mut queue);
-                } else {
+                } else if !self.showing_backup() {
                     ui.centered_and_justified(|ui| {
                         ui.label(
                             TypeRole::Body
@@ -568,7 +601,7 @@ impl ShellApp {
                     _ => Some(A::HideAccountKey),
                 },
                 Some(Modal::Onboard { mode, .. }) => match mode {
-                    action::OnboardMode::Choice => None,
+                    action::OnboardMode::Choice | action::OnboardMode::Backup => None,
                     _ => Some(A::OnboardSetMode(action::OnboardMode::Choice)),
                 },
                 Some(_) => Some(A::CloseModal),
@@ -607,7 +640,7 @@ impl ShellApp {
             }
         }
 
-        if matches!(self.session, Session::Ready(_)) {
+        if self.product_open() {
             // Help / Settings toggle even while open (same shortcut again closes).
             // Nested sheets over Settings (QR, upgrade, …) leave these alone.
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Slash)) {
@@ -626,7 +659,7 @@ impl ShellApp {
             }
         }
 
-        if self.modal.is_none() && matches!(self.session, Session::Ready(_)) {
+        if self.modal.is_none() && self.product_open() {
             // Global chrome shortcuts — safe while editing.
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::N)) {
                 self.queue.push(A::Create);
@@ -743,10 +776,20 @@ impl ShellApp {
                             _ => {}
                         },
                         Modal::ImportParent { .. } => self.queue.push(A::ConfirmImportParent),
-                        Modal::Onboard { mode, .. } => match mode {
+                        Modal::Onboard { mode, key_stored, .. } => match mode {
                             action::OnboardMode::Create | action::OnboardMode::Import => {
                                 self.queue.push(A::OnboardSubmit { show_error: true })
                             }
+                            action::OnboardMode::Backup
+                                if *key_stored
+                                    && self
+                                        .phrase_cache
+                                        .as_deref()
+                                        .is_some_and(|p| p.split_whitespace().count() == 24) =>
+                            {
+                                self.queue.push(A::OnboardFinishBackup)
+                            }
+                            action::OnboardMode::Backup => {}
                             action::OnboardMode::Choice => {
                                 if ctx.data(|d| {
                                     d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())

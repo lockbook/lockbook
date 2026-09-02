@@ -34,7 +34,7 @@ pub use atoms::{
 };
 
 pub use compounds::{
-    LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, SheetFooterOpts, fixed_height_list, footnote,
+    LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, SheetFooterOpts, ack_row, fixed_height_list, footnote,
     form_group, form_picker, form_row, form_row_detail, form_segmented, form_toggle,
     form_toggle_detail, form_value, paint_list_section, section_label, sheet_band,
     sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer, sheet_panel_fit,

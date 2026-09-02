@@ -475,6 +475,9 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OpenHelp => app.modal = Some(Modal::Help),
         A::OnboardSetMode(m) => {
+            if matches!(&app.modal, Some(Modal::Onboard { mode: OnboardMode::Backup, .. })) {
+                return;
+            }
             if let Some(Modal::Onboard { mode, err, uname_lookup, uname_lookup_for, .. }) =
                 &mut app.modal
             {
@@ -495,11 +498,25 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 OnboardMode::Import => {
                     onboard_import_focus(ctx);
                 }
-                OnboardMode::Choice => {}
+                OnboardMode::Choice | OnboardMode::Backup => {}
             }
         }
         A::OnboardVerifyUname => onboard_verify_uname(app, ctx),
         A::OnboardSubmit { show_error } => onboard_submit(app, ctx, show_error),
+        A::OnboardFinishBackup => {
+            let stored = matches!(
+                &app.modal,
+                Some(Modal::Onboard { mode: OnboardMode::Backup, key_stored: true, .. })
+            );
+            let phrase_ok = app
+                .phrase_cache
+                .as_deref()
+                .is_some_and(|p| p.split_whitespace().count() == 24);
+            if stored && phrase_ok {
+                app.modal = None;
+                app.phrase_cache = None;
+            }
+        }
         A::RequestSync => request_sync(app, ctx),
         A::TogglePin(id) => toggle_pins(app, &[id]),
         A::TogglePinMany(ids) => toggle_pins(app, &ids),

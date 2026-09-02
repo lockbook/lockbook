@@ -1,12 +1,11 @@
 //! Settings → Account (key, plan, Stripe, QR, logout / delete).
 
-use egui::{Id, Stroke, Ui};
+use egui::{Id, Ui};
 
 use crate::components::{
-    Button, FG_HOVER, Field, Radius, STROKE_HAIRLINE, SheetFooterOpts, Space, Spacer, Theme,
-    TypeRole, control_height, footnote, form_group, form_row, form_row_detail, form_value,
-    phosphor, phosphor_ui_font_id, plate_content, section_label, sense_click, sheet_band_centered,
-    sheet_footer, shortcut_enter, shortcut_return, ui_width,
+    Button, Field, Radius, SheetFooterOpts, Space, Spacer, Theme, TypeRole, control_height,
+    footnote, form_group, form_row, form_row_detail, form_value, plate_content, section_label,
+    sheet_band_centered, sheet_footer, shortcut_enter, shortcut_return, ui_width,
 };
 use crate::shell::ShellApp;
 use crate::shell::action::{Action, Action as A, UpgradeStage};
@@ -157,7 +156,12 @@ fn page_account_logout(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
         let AccountPanel::Logout { acked } = &mut app.account_panel else {
             return;
         };
-        logout_ack_row(ui, t, acked);
+        crate::components::ack_row(
+            ui,
+            t,
+            "I am signed in on another device or have access to a backup of my phrase or compact key.",
+            acked,
+        );
         *acked
     };
     ui.add(Spacer::new(Space::Md));
@@ -507,60 +511,6 @@ fn page_account_cancel_sub(app: &ShellApp, ui: &mut Ui, t: &Theme, queue: &mut V
     if foot.primary {
         queue.push(A::ConfirmCancelSub);
     }
-}
-
-/// Checkbox + wrapping copy; whole row toggles (logout confirm).
-fn logout_ack_row(ui: &mut Ui, t: &Theme, on: &mut bool) {
-    let label =
-        "I am signed in on another device or have access to a backup of my phrase or compact key.";
-    let box_s = TypeRole::Body.line_height().min(control_height() * 0.85);
-    let gap = Space::Sm.pts();
-    let max_w = ui_width(ui).max(1.0);
-    let text_w = (max_w - box_s - gap).max(1.0);
-    let galley =
-        ui.painter()
-            .layout(label.to_owned(), TypeRole::Body.font_id(), t.neutral_fg(), text_w);
-    let row_h = galley.size().y.max(box_s);
-    let (row, resp) = ui.allocate_exact_size(egui::vec2(max_w, row_h), sense_click());
-    if resp.clicked() {
-        *on = !*on;
-    }
-    let over = ui.ctx().rect_contains_pointer(ui.layer_id(), row);
-    let box_rect = egui::Rect::from_min_size(
-        egui::pos2(row.left(), row.center().y - box_s / 2.0),
-        egui::vec2(box_s, box_s),
-    );
-    let ground = t.neutral_bg();
-    let fill = if *on {
-        t.accent()
-    } else if over {
-        t.wash_toward_neutral_fg(ground, FG_HOVER)
-    } else {
-        ground
-    };
-    ui.painter().rect(
-        box_rect,
-        Radius::Sm.corner(),
-        fill,
-        Stroke::new(STROKE_HAIRLINE, if *on { t.accent() } else { t.neutral() }),
-        egui::StrokeKind::Inside,
-    );
-    if *on {
-        let check = phosphor::CHECK;
-        let ig = ui
-            .painter()
-            .layout_no_wrap(check.into(), phosphor_ui_font_id(), t.neutral_bg());
-        ui.painter().galley(
-            egui::pos2(
-                box_rect.center().x - ig.size().x / 2.0,
-                box_rect.center().y - ig.size().y / 2.0,
-            ),
-            ig,
-            t.neutral_bg(),
-        );
-    }
-    let text_pos = egui::pos2(row.left() + box_s + gap, row.top());
-    ui.painter().galley(text_pos, galley, t.neutral_fg());
 }
 
 /// In-settings QR view — same column as phrase (body · code · Back). Esc → HideAccountKey.

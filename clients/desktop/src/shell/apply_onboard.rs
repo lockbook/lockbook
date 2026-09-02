@@ -63,6 +63,7 @@ pub(crate) fn onboard_form(
         api_url,
         busy: false,
         err,
+        key_stored: false,
     }
 }
 
@@ -283,6 +284,10 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         }
         _ => return,
     };
+    if mode == OnboardMode::Backup {
+        return;
+    }
+
     // Cheap validation stays on the UI thread so errors stay on the form.
     let local_err: Option<String> = match mode {
         OnboardMode::Create => {
@@ -303,6 +308,7 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
             }
         }
         OnboardMode::Choice => Some("Pick Create or Import".into()),
+        OnboardMode::Backup => None,
     };
     if let Some(e) = local_err {
         if let Some(Modal::Onboard { busy, err, .. }) = &mut app.modal {
@@ -375,11 +381,15 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         }
     };
 
+    if mode == OnboardMode::Create {
+        app.onboard_backup_pending = true;
+    }
+
     let (tx, rx) = mpsc::channel();
     let status = super::session::load_status(match mode {
         OnboardMode::Create => "Creating account…",
         OnboardMode::Import => "Importing account…",
-        OnboardMode::Choice => "Signing in…",
+        OnboardMode::Choice | OnboardMode::Backup => "Signing in…",
     });
     app.lb_rx = None;
     app.modal = None;
@@ -420,7 +430,7 @@ fn onboard_account(
             .import_account(import_secret, Some(api))
             .map(|_| ())
             .map_err(|e| e.to_string()),
-        OnboardMode::Choice => Err("Pick Create or Import".into()),
+        OnboardMode::Choice | OnboardMode::Backup => Err("Pick Create or Import".into()),
     }
 }
 
