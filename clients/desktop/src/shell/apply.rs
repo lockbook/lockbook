@@ -1095,7 +1095,14 @@ fn open_documents(app: &mut ShellApp, ids: &[Uuid], new_tab: bool) {
 
 fn toggle_pins(app: &mut ShellApp, ids: &[Uuid]) {
     if let Some(r) = app.session.ready_mut() {
-        for &id in ids {
+        let docs: Vec<Uuid> = {
+            let files = r.workspace.files.read().unwrap();
+            ids.iter()
+                .copied()
+                .filter(|id| files.get_by_id(*id).is_some_and(|f| f.is_document()))
+                .collect()
+        };
+        for id in docs {
             let was = is_pinned(r, id);
             let res =
                 if was { r.workspace.core.unpin_file(id) } else { r.workspace.core.pin_file(id) };

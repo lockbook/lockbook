@@ -58,10 +58,13 @@ pub fn show(
         .iter()
         .filter_map(|id| {
             let f = files.get_by_id(*id)?;
+            if f.is_folder() {
+                return None;
+            }
             Some(PinRow {
                 id: *id,
                 name: f.name.clone(),
-                is_folder: f.is_folder(),
+                is_folder: false,
                 saved_share: is_saved_share(f, me),
             })
         })
