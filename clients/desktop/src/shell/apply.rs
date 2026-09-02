@@ -8,10 +8,13 @@ use super::apply_share::*;
 pub(crate) use super::apply_share::{share_poll_network, share_shortest_prefix_match};
 
 use std::path::PathBuf;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::mpsc;
 use std::thread;
 
 use egui::Context;
 use lb::Uuid;
+use lb::model::file::File;
 use lb::model::file_metadata::FileType;
 use rfd::FileDialog;
 use workspace_rs::file_cache::FilesExt;
@@ -511,7 +514,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             }
         }
         A::Duplicate(ids) => duplicate_files(app, &ids),
-        A::Export(ids) => export_files(app, &ids),
+        A::Export(ids) => export_files(app, ctx, &ids),
         A::CopyLink(id) => {
             if let Some(r) = app.session.ready() {
                 if let Ok(url) = r.workspace.core.get_file_link_url(id) {
@@ -1135,7 +1138,66 @@ fn expand_or_collapse(app: &mut ShellApp, id: Uuid, expand: bool) {
     }
 }
 
-fn export_files(app: &mut ShellApp, ids: &[Uuid]) {
+/// Result of a system file/folder picker that ran off the UI thread.
+pub(crate) enum NativeDialogResult {
+    Import(Option<Vec<PathBuf>>),
+    Export { files: Vec<File>, dest: Option<PathBuf> },
+}
+
+/// NSOpenPanel's nested modal often synthesizes `CloseRequested` on cancel.
+/// Host ignores window-close while this is set; cleared when the result is polled.
+static NATIVE_FILE_DIALOG: AtomicBool = AtomicBool::new(false);
+
+pub(crate) fn native_file_dialog_open() -> bool {
+    NATIVE_FILE_DIALOG.load(Ordering::SeqCst)
+}
+
+/// Poll a finished system picker. Cancel (`None`) is a no-op.
+pub(crate) fn poll_native_dialog(app: &mut ShellApp, ctx: &Context) {
+    let Some(rx) = &app.native_dialog_rx else {
+        return;
+    };
+    let result = match rx.try_recv() {
+        Ok(r) => r,
+        Err(mpsc::TryRecvError::Empty) => return,
+        Err(mpsc::TryRecvError::Disconnected) => {
+            app.native_dialog_rx = None;
+            NATIVE_FILE_DIALOG.store(false, Ordering::SeqCst);
+            return;
+        }
+    };
+    app.native_dialog_rx = None;
+    NATIVE_FILE_DIALOG.store(false, Ordering::SeqCst);
+    match result {
+        NativeDialogResult::Import(Some(paths)) if !paths.is_empty() => {
+            open_import_parent_sheet(app, ctx, paths);
+        }
+        NativeDialogResult::Export { files, dest: Some(dest) } => {
+            finish_export(app, files, dest);
+        }
+        _ => {}
+    }
+}
+
+fn spawn_native_dialog(
+    app: &mut ShellApp, ctx: &Context, work: impl FnOnce() -> NativeDialogResult + Send + 'static,
+) {
+    if app.native_dialog_rx.is_some() {
+        return;
+    }
+    let (tx, rx) = mpsc::channel();
+    app.native_dialog_rx = Some(rx);
+    let ctx = ctx.clone();
+    // Set on the UI thread so a cancel-close during thread start is ignored.
+    NATIVE_FILE_DIALOG.store(true, Ordering::SeqCst);
+    thread::spawn(move || {
+        let result = work();
+        let _ = tx.send(result);
+        ctx.request_repaint();
+    });
+}
+
+fn export_files(app: &mut ShellApp, ctx: &Context, ids: &[Uuid]) {
     if ids.is_empty() {
         return;
     }
@@ -1151,7 +1213,14 @@ fn export_files(app: &mut ShellApp, ids: &[Uuid]) {
     if files.is_empty() {
         return;
     }
-    let Some(dest) = FileDialog::new().pick_folder() else {
+    spawn_native_dialog(app, ctx, move || NativeDialogResult::Export {
+        files,
+        dest: FileDialog::new().pick_folder(),
+    });
+}
+
+fn finish_export(app: &mut ShellApp, files: Vec<File>, dest: PathBuf) {
+    let Some(r) = app.session.ready() else {
         return;
     };
     let core = r.workspace.core.clone();
@@ -1179,14 +1248,9 @@ fn export_files(app: &mut ShellApp, ids: &[Uuid]) {
 }
 
 fn import_pick(app: &mut ShellApp, ctx: &Context) {
-    // Sidebar Import chip: system file picker → same destination sheet as drop.
-    let Some(paths) = FileDialog::new().pick_files() else {
-        return;
-    };
-    if paths.is_empty() {
-        return;
-    }
-    open_import_parent_sheet(app, ctx, paths);
+    // Off-thread: blocking NSOpenPanel inside the egui/wgpu frame crashes/quits
+    // on cancel (spurious window-close). Same pattern as the old linux client.
+    spawn_native_dialog(app, ctx, || NativeDialogResult::Import(FileDialog::new().pick_files()));
 }
 
 /// Open the Import folder-picker sheet. Seeds `dest` from the open tab's folder

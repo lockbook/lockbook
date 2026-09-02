@@ -157,6 +157,11 @@ impl ApplicationHandler<UserEvent> for App {
 
         match event {
             WindowEvent::CloseRequested => {
+                // Native file dialogs (NSOpenPanel) synthesize a window-close on
+                // cancel. Ignore it while a picker is in flight.
+                if crate::shell::native_file_dialog_open() {
+                    return;
+                }
                 state.close_requested = true;
                 state.window.request_redraw();
             }

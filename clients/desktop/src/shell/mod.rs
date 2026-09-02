@@ -26,6 +26,7 @@ pub mod titlebar;
 pub mod toasts;
 
 pub use action::{Modal, SidebarPane};
+pub(crate) use apply::native_file_dialog_open;
 
 // Domain surfaces live in the component library; re-export for shell-local paths.
 pub use crate::components::domain::{footer, sync_dots, tabs, tree};
@@ -33,6 +34,7 @@ pub use crate::components::domain::{footer, sync_dots, tabs, tree};
 // OnboardMode / SettingsCat / Ready are used via module paths; re-export only what
 // other crates/bin need from `shell::`.
 
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
 use egui::{Area, CentralPanel, Frame, Id, Order, SidePanel};
@@ -105,6 +107,8 @@ pub struct ShellApp {
     session_stress: Option<SessionStress>,
     /// Transient errors / short notices (import, rename, workspace failures).
     pub toasts: ToastHost,
+    /// In-flight system file/folder picker (import / export).
+    pub(crate) native_dialog_rx: Option<mpsc::Receiver<apply::NativeDialogResult>>,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -169,6 +173,7 @@ impl Default for ShellApp {
                 last_kind: StressKind::Loading,
             }),
             toasts: ToastHost::default(),
+            native_dialog_rx: None,
         }
     }
 }
@@ -273,6 +278,7 @@ impl ShellApp {
             // Sign-in worker failed; session is SignedOut again — show onboard error.
             self.modal = Some(apply_onboard::onboard_modal(action::OnboardMode::Import, Some(err)));
         }
+        apply::poll_native_dialog(self, ctx);
         if let Session::Ready(r) = &self.session {
             if self.lb_rx.is_none() {
                 self.lb_rx = Some(r.workspace.core.subscribe());
