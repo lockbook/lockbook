@@ -352,7 +352,7 @@ pub enum Action {
     OnboardSetMode(OnboardMode),
     /// Debounced create-username availability (share-style network verify).
     OnboardVerifyUname,
-    /// `show_error`: false for auto-submit (silent fail until the secret changes).
+    /// `show_error`: false for auto-submit (silent fail; Import button surfaces).
     OnboardSubmit {
         show_error: bool,
     },

@@ -109,6 +109,8 @@ pub struct ShellApp {
     pub toasts: ToastHost,
     /// In-flight system file/folder picker (import / export).
     pub(crate) native_dialog_rx: Option<mpsc::Receiver<apply::NativeDialogResult>>,
+    /// Auto-import worker (paste / complete key). Failures do not surface.
+    pub(crate) onboard_auto_rx: Option<mpsc::Receiver<apply_onboard::AutoOnboard>>,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -174,6 +176,7 @@ impl Default for ShellApp {
             }),
             toasts: ToastHost::default(),
             native_dialog_rx: None,
+            onboard_auto_rx: None,
         }
     }
 }
@@ -274,10 +277,21 @@ impl ShellApp {
         if matches!(&self.session, Session::Error(s) if s == "not started") {
             self.session = Session::start(ctx);
         }
-        if let Some(err) = self.session.poll(ctx) {
-            // Sign-in worker failed; session is SignedOut again — show onboard error.
-            self.modal = Some(apply_onboard::onboard_modal(action::OnboardMode::Import, Some(err)));
+        if let Some(fail) = self.session.poll(ctx) {
+            // Manual sign-in failed; restore the form with the error.
+            let mode = fail.mode;
+            self.modal = Some(apply_onboard::onboard_form(
+                fail.mode,
+                fail.uname,
+                fail.account_key,
+                fail.api_url,
+                Some(fail.err),
+            ));
+            if mode == action::OnboardMode::Import {
+                apply_onboard::onboard_import_focus(ctx);
+            }
         }
+        apply_onboard::poll_auto_import(self, ctx);
         apply::poll_native_dialog(self, ctx);
         if let Session::Ready(r) = &self.session {
             if self.lb_rx.is_none() {

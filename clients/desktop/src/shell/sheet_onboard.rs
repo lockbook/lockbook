@@ -311,8 +311,8 @@ pub(crate) fn show_onboard(
                             _ => String::new(),
                         };
                         let can_import = !secret.is_empty();
-                        // Auto-submit once per secret when valid. Failures stay silent
-                        // until the secret changes or the user hits Import manually.
+                        // Auto-submit on every change. Failures stay silent
+                        // until the user hits Import.
                         if can_import && !busy {
                             let last = ui.ctx().data(|d| {
                                 d.get_temp::<String>(Id::new("onboard_auto_submit_secret"))
