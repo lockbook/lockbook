@@ -4,6 +4,7 @@ use egui::{Id, Rect, ScrollArea, Sense, Ui, pos2, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
+use crate::components::domain::pins;
 use crate::components::{
     FileRow, LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, Theme, TypeRole, context_menu,
     paint_list_section, phosphor, with_overlay_scroll,
@@ -20,6 +21,13 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
     if app.session.ready().is_none() {
         return;
     }
+
+    if let Some(ready) = app.session.ready() {
+        let pins = ready.pinned.clone();
+        let files = ready.workspace.files.read().unwrap();
+        pins::show(ui, t, &*files, &pins, &ready.workspace.account.username, queue);
+    }
+
     // Clone row ids/meta once; paint path is virtualized (was full-list every frame).
     let docs = app.recents_cache.rows.clone();
 
