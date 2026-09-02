@@ -30,11 +30,11 @@ pub use atoms::{
     Button, Chip, ChipHue, EqualCells, Field, FileRow, NavItem, PersonRow, PersonTone,
     QuietChipAlign, QuietChipLabel, icon_button, icon_button_glyph, icon_button_hit,
     measure_file_name, paint_file_name, person_row_height, quiet_chip, quiet_chip_height,
-    quiet_chip_labeled_min_width, segmented, segmented_h, segmented_width,
+    quiet_chip_labeled_min_width, segmented, segmented_h,
 };
 
 pub use compounds::{
-    LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, SheetFooterOpts, fixed_height_list, footnote,
+    LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, SheetFooterOpts, ack_row, fixed_height_list, footnote,
     form_group, form_picker, form_row, form_row_detail, form_segmented, form_toggle,
     form_toggle_detail, form_value, paint_list_section, section_label, sheet_band,
     sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer, sheet_panel_fit,

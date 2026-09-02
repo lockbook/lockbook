@@ -125,7 +125,7 @@ fn titleband_double_click_interval() -> f64 {
 pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
     // Chrome first so its rects are in the blocker list before drag_strip.
     // Pane / history icons are workspace chrome — hide them on onboard.
-    if app.session.ready().is_some() {
+    if app.product_open() {
         floating_toolbar(app, ctx, t, queue);
     }
 

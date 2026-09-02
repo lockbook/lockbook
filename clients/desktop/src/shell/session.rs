@@ -31,6 +31,8 @@ use lb::subscribers::status::Status;
 use workspace_rs::file_cache::FileCache;
 use workspace_rs::workspace::Workspace;
 
+use super::action::OnboardMode;
+
 pub enum CoreLoad {
     Ready {
         core: Lb,
@@ -43,9 +45,18 @@ pub enum CoreLoad {
     /// Create/import/sync failed — keep `core` for retry (may already hold keys).
     OnboardFailed {
         core: Lb,
-        err: String,
+        fail: OnboardFail,
     },
     Failed(String),
+}
+
+/// Form to restore after a **manual** onboard failure (errors stay on the sheet).
+pub struct OnboardFail {
+    pub err: String,
+    pub mode: OnboardMode,
+    pub uname: String,
+    pub account_key: String,
+    pub api_url: String,
 }
 
 /// Shared boot status for [`Session::Loading`] (worker may update mid-flight).
@@ -287,9 +298,9 @@ impl Session {
         Self::Loading { kind: LoadKind::Cold, status: load_status(""), rx }
     }
 
-    /// Poll a background load. Returns an onboard error string when sign-in
+    /// Poll a background load. Returns form state when a **manual** sign-in
     /// failed but we still have a usable `SignedOut` core to retry with.
-    pub fn poll(&mut self, ctx: &Context) -> Option<String> {
+    pub fn poll(&mut self, ctx: &Context) -> Option<OnboardFail> {
         let Session::Loading { rx, .. } = self else {
             return None;
         };
@@ -303,9 +314,9 @@ impl Session {
                 *self = Session::SignedOut { core };
                 None
             }
-            CoreLoad::OnboardFailed { core, err } => {
+            CoreLoad::OnboardFailed { core, fail } => {
                 *self = Session::SignedOut { core };
-                Some(err)
+                Some(fail)
             }
             CoreLoad::Failed(e) => {
                 *self = Session::Error(e);

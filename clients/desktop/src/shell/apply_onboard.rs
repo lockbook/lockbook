@@ -9,7 +9,7 @@ use workspace_rs::file_cache::FileCache;
 use super::ShellApp;
 use super::action::{Modal, OnboardLookup, OnboardMode};
 use super::apply_share::spawn_username_exists;
-use super::session::Session;
+use super::session::{self, CoreLoad, OnboardFail, Session};
 
 /// Seed the onboard URL field: `API_URL` when it isn’t the hosted default.
 pub(crate) fn initial_api_url() -> String {
@@ -48,15 +48,22 @@ pub(crate) fn uname_check_matches_core(api_url: &str) -> bool {
 }
 
 pub(crate) fn onboard_modal(mode: OnboardMode, err: Option<String>) -> Modal {
+    onboard_form(mode, String::new(), String::new(), initial_api_url(), err)
+}
+
+pub(crate) fn onboard_form(
+    mode: OnboardMode, uname: String, account_key: String, api_url: String, err: Option<String>,
+) -> Modal {
     Modal::Onboard {
         mode,
-        uname: String::new(),
+        uname,
         uname_lookup: OnboardLookup::Idle,
         uname_lookup_for: String::new(),
-        account_key: String::new(),
-        api_url: initial_api_url(),
+        account_key,
+        api_url,
         busy: false,
         err,
+        key_stored: false,
     }
 }
 
@@ -197,13 +204,62 @@ pub(crate) fn onboard_verify_uname(app: &mut ShellApp, ctx: &Context) {
     });
 }
 
-/// Flatten paste (newlines / extra spaces) so both compact keys and phrases work.
+/// Flatten paste so both compact keys and phrases work.
+///
+/// 24 tokens → phrase (spaces kept). Otherwise drop whitespace so a wrapped
+/// compact key still base64-decodes.
 fn onboard_import_secret(account_key: &str) -> String {
-    account_key.split_whitespace().collect::<Vec<_>>().join(" ")
+    let words: Vec<&str> = account_key.split_whitespace().collect();
+    if words.len() == 24 { words.join(" ") } else { words.concat() }
+}
+
+pub(crate) enum AutoOnboard {
+    Ready {
+        core: lb::blocking::Lb,
+        files: FileCache,
+        sub_info: Option<lb::model::api::SubscriptionInfo>,
+    },
+    Failed,
+}
+
+/// Apply a finished auto-import. Failures are silent — the form stays put.
+pub(crate) fn poll_auto_import(app: &mut ShellApp, ctx: &Context) {
+    let Some(rx) = &app.onboard_auto_rx else {
+        return;
+    };
+    let result = match rx.try_recv() {
+        Ok(r) => r,
+        Err(mpsc::TryRecvError::Empty) => return,
+        Err(mpsc::TryRecvError::Disconnected) => {
+            app.onboard_auto_rx = None;
+            if let Some(Modal::Onboard { busy, .. }) = &mut app.modal {
+                *busy = false;
+            }
+            return;
+        }
+    };
+    app.onboard_auto_rx = None;
+    match result {
+        AutoOnboard::Ready { core, files, sub_info } => {
+            app.modal = None;
+            app.lb_rx = None;
+            app.recents_cache = Default::default();
+            app.shared_cache = Default::default();
+            app.session = Session::Ready(Box::new(session::Ready::new(core, files, ctx, sub_info)));
+        }
+        AutoOnboard::Failed => {
+            if let Some(Modal::Onboard { busy, .. }) = &mut app.modal {
+                *busy = false;
+            }
+        }
+    }
 }
 
 pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool) {
-    let (mode, uname, import_secret, lookup_ok, api) = match &app.modal {
+    if app.onboard_auto_rx.is_some() {
+        return;
+    }
+    let (mode, uname, account_key, import_secret, lookup_ok, api, api_url) = match &app.modal {
         Some(Modal::Onboard {
             mode,
             uname,
@@ -219,13 +275,18 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
             (
                 *mode,
                 uname.clone(),
+                account_key.clone(),
                 onboard_import_secret(account_key),
                 lookup_ok,
                 resolved_api_url(api_url),
+                api_url.clone(),
             )
         }
         _ => return,
     };
+    if mode == OnboardMode::Backup {
+        return;
+    }
 
     // Cheap validation stays on the UI thread so errors stay on the form.
     let local_err: Option<String> = match mode {
@@ -247,6 +308,7 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
             }
         }
         OnboardMode::Choice => Some("Pick Create or Import".into()),
+        OnboardMode::Backup => None,
     };
     if let Some(e) = local_err {
         if let Some(Modal::Onboard { busy, err, .. }) = &mut app.modal {
@@ -259,6 +321,52 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         }
         return;
     }
+
+    // Auto-import: try on every change. Failures are silent until Import.
+    if !show_error {
+        if mode != OnboardMode::Import {
+            return;
+        }
+        let Some(core) = app.session.signed_out_core().cloned() else {
+            return;
+        };
+        if let Some(Modal::Onboard { busy, err, .. }) = &mut app.modal {
+            *busy = true;
+            *err = None;
+        }
+        let (tx, rx) = mpsc::channel();
+        app.onboard_auto_rx = Some(rx);
+        let ctx = ctx.clone();
+        thread::spawn(move || {
+            match onboard_account(&core, mode, &uname, &import_secret, &api) {
+                Ok(()) => {
+                    // Import already wrote the account. Open even if sync fails
+                    // so we don't leave a signed-in core on the import form.
+                    let load = match onboard_sync_and_cache(core, None, &ctx) {
+                        Ok(CoreLoad::Ready { core, files, sub_info }) => {
+                            AutoOnboard::Ready { core, files, sub_info }
+                        }
+                        Ok(_) => AutoOnboard::Failed,
+                        Err((core, _)) => match FileCache::new(&core) {
+                            Ok(files) => {
+                                let sub_info = core.get_subscription_info().ok().flatten();
+                                AutoOnboard::Ready { core, files, sub_info }
+                            }
+                            Err(_) => AutoOnboard::Failed,
+                        },
+                    };
+                    let _ = tx.send(load);
+                }
+                Err(_) => {
+                    let _ = tx.send(AutoOnboard::Failed);
+                }
+            }
+            ctx.request_repaint();
+        });
+        return;
+    }
+
+    let fail = OnboardFail { err: String::new(), mode, uname: uname.clone(), account_key, api_url };
 
     // Take the live `Lb` off the session and finish create/import + initial
     let core = match std::mem::replace(
@@ -273,11 +381,15 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
         }
     };
 
+    if mode == OnboardMode::Create {
+        app.onboard_backup_pending = true;
+    }
+
     let (tx, rx) = mpsc::channel();
     let status = super::session::load_status(match mode {
         OnboardMode::Create => "Creating account…",
         OnboardMode::Import => "Importing account…",
-        OnboardMode::Choice => "Signing in…",
+        OnboardMode::Choice | OnboardMode::Backup => "Signing in…",
     });
     app.lb_rx = None;
     app.modal = None;
@@ -288,68 +400,72 @@ pub(crate) fn onboard_submit(app: &mut ShellApp, ctx: &Context, show_error: bool
 
     let ctx = ctx.clone();
     thread::spawn(move || {
-        use super::session::{CoreLoad, set_load_status};
-
-        let account_res = match mode {
-            OnboardMode::Create => {
-                set_load_status(&status, "Creating account…");
-                ctx.request_repaint();
-                core.create_account(uname.trim(), &api, true)
-                    .map(|_| ())
-                    .map_err(|e| format!("{e:?}"))
-            }
-            OnboardMode::Import => {
-                set_load_status(&status, "Importing account…");
-                ctx.request_repaint();
-                core.import_account(&import_secret, Some(&api))
-                    .map(|_| ())
-                    .map_err(|e| format!("{e:?}"))
-            }
-            OnboardMode::Choice => Err("Pick Create or Import".into()),
-        };
-
-        if let Err(e) = account_res {
-            let _ = tx.send(CoreLoad::OnboardFailed { core, err: e });
+        if let Err(e) = onboard_account(&core, mode, &uname, &import_secret, &api) {
+            let _ = tx.send(CoreLoad::OnboardFailed { core, fail: OnboardFail { err: e, ..fail } });
             ctx.request_repaint();
             return;
         }
-
-        set_load_status(&status, "Syncing your files…");
-        ctx.request_repaint();
-        // Preview spinner: `LOCKBOOK_SLOW_SYNC_MS=4000 cargo run -p lockbook-desktop`
-        if let Ok(ms) = std::env::var("LOCKBOOK_SLOW_SYNC_MS") {
-            if let Ok(ms) = ms.parse::<u64>() {
-                if ms > 0 {
-                    std::thread::sleep(std::time::Duration::from_millis(ms));
-                }
+        match onboard_sync_and_cache(core, Some(&status), &ctx) {
+            Ok(load) => {
+                let _ = tx.send(load);
             }
-        }
-        if let Err(e) = core.sync() {
-            let _ = tx.send(CoreLoad::OnboardFailed { core, err: format!("Sync failed: {e:?}") });
-            ctx.request_repaint();
-            return;
-        }
-
-        set_load_status(&status, "Opening workspace…");
-        ctx.request_repaint();
-        match FileCache::new(&core) {
-            Ok(files) => {
-                let _ = tx.send(super::session::prepare_ready(core, files));
-            }
-            Err(e) => {
-                let _ = tx.send(CoreLoad::OnboardFailed {
-                    core,
-                    err: format!("Couldn’t load files: {e:?}"),
-                });
+            Err((core, err)) => {
+                let _ =
+                    tx.send(CoreLoad::OnboardFailed { core, fail: OnboardFail { err, ..fail } });
             }
         }
         ctx.request_repaint();
     });
 }
 
+fn onboard_account(
+    core: &lb::blocking::Lb, mode: OnboardMode, uname: &str, import_secret: &str, api: &str,
+) -> Result<(), String> {
+    match mode {
+        OnboardMode::Create => core
+            .create_account(uname.trim(), api, true)
+            .map(|_| ())
+            .map_err(|e| e.to_string()),
+        OnboardMode::Import => core
+            .import_account(import_secret, Some(api))
+            .map(|_| ())
+            .map_err(|e| e.to_string()),
+        OnboardMode::Choice | OnboardMode::Backup => Err("Pick Create or Import".into()),
+    }
+}
+
+fn onboard_sync_and_cache(
+    core: lb::blocking::Lb, status: Option<&session::LoadStatus>, ctx: &Context,
+) -> Result<CoreLoad, (lb::blocking::Lb, String)> {
+    use super::session::set_load_status;
+    if let Some(status) = status {
+        set_load_status(status, "Syncing your files…");
+        ctx.request_repaint();
+    }
+    // Preview spinner: `LOCKBOOK_SLOW_SYNC_MS=4000 cargo run -p lockbook-desktop`
+    if let Ok(ms) = std::env::var("LOCKBOOK_SLOW_SYNC_MS") {
+        if let Ok(ms) = ms.parse::<u64>() {
+            if ms > 0 {
+                std::thread::sleep(std::time::Duration::from_millis(ms));
+            }
+        }
+    }
+    if let Err(e) = core.sync() {
+        return Err((core, format!("Sync failed: {e}")));
+    }
+    if let Some(status) = status {
+        set_load_status(status, "Opening workspace…");
+        ctx.request_repaint();
+    }
+    match FileCache::new(&core) {
+        Ok(files) => Ok(session::prepare_ready(core, files)),
+        Err(e) => Err((core, format!("Couldn’t load files: {e}"))),
+    }
+}
+
 #[cfg(test)]
 mod tests {
-    use super::{display_server_host, resolved_api_url};
+    use super::{display_server_host, onboard_import_secret, resolved_api_url};
 
     #[test]
     fn empty_url_is_hosted_default() {
@@ -358,5 +474,16 @@ mod tests {
         assert_eq!(resolved_api_url("http://localhost:8000"), "http://localhost:8000");
         assert_eq!(display_server_host(""), "app.lockbook.net");
         assert_eq!(display_server_host("http://localhost:8000"), "localhost:8000");
+    }
+
+    #[test]
+    fn import_secret_phrase_keeps_spaces_compact_strips() {
+        let phrase = (0..24)
+            .map(|i| format!("w{i}"))
+            .collect::<Vec<_>>()
+            .join(" ");
+        assert_eq!(onboard_import_secret(&phrase), phrase);
+        assert_eq!(onboard_import_secret("abcd\n efgh"), "abcdefgh");
+        assert_eq!(onboard_import_secret("  abcd  "), "abcd");
     }
 }

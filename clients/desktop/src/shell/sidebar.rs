@@ -84,7 +84,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
     ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
 
-    let show_chips = app.pane == SidebarPane::Files;
+    let show_chips = matches!(app.pane, SidebarPane::Files | SidebarPane::Recents);
     egui::TopBottomPanel::top("shell_sidebar_head")
         .resizable(false)
         .show_separator_line(false)

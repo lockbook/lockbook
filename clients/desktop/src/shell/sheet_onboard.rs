@@ -1,8 +1,9 @@
 use egui::{Align, Area, Id, Layout, Order};
 
 use crate::components::{
-    Button, Field, SheetFooterOpts, Space, Spacer, Theme, TypeRole, phosphor, sense_click,
-    sheet_dim, sheet_footer, sheet_panel_fit, shortcut_cmd_i, shortcut_cmd_n, shortcut_return,
+    Button, Field, Radius, SheetFooterOpts, Space, Spacer, Theme, TypeRole, control_height,
+    phosphor, plate_content, sense_click, sheet_dim, sheet_footer, sheet_panel_fit, shortcut_cmd_i,
+    shortcut_cmd_n, shortcut_return, ui_width, with_pad_fit,
 };
 
 use super::ShellApp;
@@ -31,10 +32,10 @@ pub(crate) fn show_onboard(
     };
 
     let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_onboard"));
-    // Don't dismiss create/import by dim-click while busy.
+    // Don't dismiss create/import by dim-click while busy, or the backup step at all.
     if !busy && sheet_dim(ctx, Id::new("shell_onboard_dim"), layer) {
         // Stay on onboard when signed out — only cancel sub-modes.
-        if mode != OnboardMode::Choice {
+        if mode != OnboardMode::Choice && mode != OnboardMode::Backup {
             queue.push(A::OnboardSetMode(OnboardMode::Choice));
         }
     }
@@ -311,8 +312,8 @@ pub(crate) fn show_onboard(
                             _ => String::new(),
                         };
                         let can_import = !secret.is_empty();
-                        // Auto-submit once per secret when valid. Failures stay silent
-                        // until the secret changes or the user hits Import manually.
+                        // Auto-submit on every change. Failures stay silent
+                        // until the user hits Import.
                         if can_import && !busy {
                             let last = ui.ctx().data(|d| {
                                 d.get_temp::<String>(Id::new("onboard_auto_submit_secret"))
@@ -340,9 +341,142 @@ pub(crate) fn show_onboard(
                             queue.push(A::OnboardSubmit { show_error: true });
                         }
                     }
+                    OnboardMode::Backup => {
+                        onboard_backup(app, ui, t, queue);
+                    }
                 }
             });
         });
+}
+
+fn onboard_backup(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>) {
+    ui.label(
+        TypeRole::Heading
+            .rich("Your secret key")
+            .color(t.neutral_fg()),
+    );
+    ui.add(Spacer::new(Space::Sm));
+    ui.label(
+        TypeRole::Body
+            .rich(
+                "This 24-word phrase is your password — sign in on another device, write it down, or save it in a password manager.",
+            )
+            .color(t.neutral_fg()),
+    );
+    ui.add(Spacer::new(Space::Sm));
+    ui.label(
+        TypeRole::Body
+            .rich(
+                "Anyone with it can read your notes. If you lose your last copy, we can’t help you recover your files. You can always find it in Settings.",
+            )
+            .color(t.neutral_fg_secondary()),
+    );
+    ui.add(Spacer::new(Space::Md));
+
+    if app
+        .phrase_cache
+        .as_deref()
+        .is_none_or(|p| p.split_whitespace().count() != 24)
+    {
+        if let Some(r) = app.session.ready() {
+            if let Ok(p) = r.workspace.core.export_account_phrase() {
+                app.phrase_cache = Some(p);
+            }
+        }
+    }
+    let phrase = app.phrase_cache.as_deref().unwrap_or("");
+    let phrase_ok = phrase.split_whitespace().count() == 24;
+    plate_content(ui, t.neutral_bg_secondary(), t.neutral(), Radius::Control.corner(), |ui| {
+        ui.set_width(ui_width(ui));
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        with_pad_fit(ui, Space::Md, |ui| {
+            onboard_phrase_columns(ui, t, phrase);
+        });
+    });
+
+    ui.add(Spacer::new(Space::Md));
+    {
+        let Some(Modal::Onboard { key_stored, .. }) = &mut app.modal else {
+            return;
+        };
+        crate::components::ack_row(ui, t, "I’ve stored my secret key in a safe place.", key_stored);
+    }
+    let stored = match &app.modal {
+        Some(Modal::Onboard { key_stored, .. }) => *key_stored,
+        _ => false,
+    };
+
+    ui.add(Spacer::new(Space::Md));
+    let row_w = ui_width(ui);
+    let row_h = control_height();
+    let gap = Space::Sm;
+    ui.horizontal(|ui| {
+        ui.set_min_height(row_h);
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        let copy = Button::quiet(t, "Copy")
+            .copy_feedback("shell_onboard_copy_phrase")
+            .height(row_h)
+            .show(ui);
+        if copy.clicked() {
+            queue.push(A::CopyPhrase);
+        }
+        let copy_w = copy.rect.width();
+        ui.add(Spacer::new(gap).fill_cross(row_h));
+        let primary_max = (row_w - copy_w - gap.pts()).max(Space::Xl.pts() * 2.4);
+        ui.allocate_ui_with_layout(
+            egui::vec2(primary_max, row_h),
+            Layout::right_to_left(Align::Center),
+            |ui| {
+                ui.set_max_width(primary_max);
+                if Button::primary(t, "Done")
+                    .shortcut(shortcut_return())
+                    .height(row_h)
+                    .max_width(primary_max)
+                    .enabled(stored && phrase_ok)
+                    .show(ui)
+                    .clicked()
+                {
+                    queue.push(A::OnboardFinishBackup);
+                }
+            },
+        );
+    });
+}
+
+fn onboard_phrase_columns(ui: &mut egui::Ui, t: &Theme, phrase: &str) {
+    let words: Vec<&str> = phrase.split_whitespace().collect();
+    if words.len() != 24 {
+        ui.label(
+            TypeRole::Mono
+                .rich(if phrase.is_empty() { "Preparing phrase…" } else { phrase })
+                .color(t.neutral_fg()),
+        );
+        return;
+    }
+    let col_w = (ui_width(ui) / 2.0).max(1.0);
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        ui.vertical(|ui| {
+            ui.set_width(col_w);
+            for (i, word) in words.iter().take(12).enumerate() {
+                onboard_phrase_word(ui, t, i + 1, word);
+            }
+        });
+        ui.vertical(|ui| {
+            ui.set_width(col_w);
+            for (i, word) in words.iter().skip(12).enumerate() {
+                onboard_phrase_word(ui, t, i + 13, word);
+            }
+        });
+    });
+}
+
+fn onboard_phrase_word(ui: &mut egui::Ui, t: &Theme, n: usize, word: &str) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(Space::Xs.pts(), 0.0);
+        ui.label(TypeRole::Mono.rich(format!("{n}.")).color(t.accent()));
+        ui.label(TypeRole::Mono.rich(word).color(t.neutral_fg()));
+    });
 }
 
 fn onboard_server_edit_id() -> Id {

@@ -4,7 +4,7 @@
 //! Layout air uses [`Spacer`] so F2 space overlay paints token bands.
 //! Right-click: file menu (same intents as tree/recents; always **Unpin**).
 
-use egui::{Id, Ui, pos2, vec2};
+use egui::{FontFamily, FontId, Id, Ui, pos2, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
@@ -91,15 +91,20 @@ pub fn show(
                 let n = row_count.max(1) as f32;
                 n * ch + (row_count.saturating_sub(1) as f32) * EqualCells::gap_pts()
             };
-            let pins_h = 14.0 + Space::Sm.pts() + grid_h;
+            let head_h = TypeRole::Body.line_height();
+            let pins_h = head_h + Space::Sm.pts() + grid_h;
             let mut pins_body = FixedPadContent::new(pins_h, |ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
+                // Same type as Recents “Today” / Shared sharer section labels.
                 ui.label(
                     TypeRole::Body
                         .rich("Pinned")
-                        .color(t.neutral_fg_secondary())
-                        .size(11.0),
+                        .font(FontId::new(
+                            TypeRole::Body.size(),
+                            FontFamily::Name(std::sync::Arc::from("Bold")),
+                        ))
+                        .color(t.neutral_fg_secondary()),
                 );
                 ui.add(Spacer::new(Space::Sm));
 

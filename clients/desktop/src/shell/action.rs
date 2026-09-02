@@ -182,6 +182,8 @@ pub enum Modal {
         api_url: String,
         busy: bool,
         err: Option<String>,
+        /// Backup step: user confirmed they stored the key.
+        key_stored: bool,
     },
 }
 
@@ -191,6 +193,8 @@ pub enum OnboardMode {
     Choice,
     Create,
     Import,
+    /// After create: show the 24-word key and require a backup ack.
+    Backup,
 }
 
 /// Stripe upgrade sheet stages.
@@ -352,10 +356,12 @@ pub enum Action {
     OnboardSetMode(OnboardMode),
     /// Debounced create-username availability (share-style network verify).
     OnboardVerifyUname,
-    /// `show_error`: false for auto-submit (silent fail until the secret changes).
+    /// `show_error`: false for auto-submit (silent fail; Import button surfaces).
     OnboardSubmit {
         show_error: bool,
     },
+    /// Backup step finished (key ack). Dismisses onboard.
+    OnboardFinishBackup,
     RequestSync,
     TogglePin(Uuid),
     /// Toggle pin on each id (own state).
@@ -483,6 +489,7 @@ impl Action {
             Self::OnboardSetMode(_) => "OnboardSetMode",
             Self::OnboardVerifyUname => "OnboardVerifyUname",
             Self::OnboardSubmit { .. } => "OnboardSubmit",
+            Self::OnboardFinishBackup => "OnboardFinishBackup",
             Self::RequestSync => "RequestSync",
             Self::TogglePin(_) => "TogglePin",
             Self::TogglePinMany(_) => "TogglePinMany",

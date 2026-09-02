@@ -24,4 +24,4 @@ pub use quiet_chip::height as quiet_chip_height;
 pub use quiet_chip::{
     QuietChipAlign, QuietChipLabel, labeled_min_width as quiet_chip_labeled_min_width, quiet_chip,
 };
-pub use segmented::{segmented, segmented_h, segmented_width};
+pub use segmented::{segmented, segmented_h};
