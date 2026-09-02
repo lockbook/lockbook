@@ -5,9 +5,9 @@ use workspace_rs::file_cache::FilesExt;
 use crate::components::interact::{ControlFills, interact_fill, sense_click};
 use crate::components::{
     Button, EqualCells, FG_HOVER, FG_PRESS, Field, Radius, SheetFooterOpts, Space, Spacer, Theme,
-    TypeRole, claim, display_file_name, measure_file_name, origin, paint_file_name, phosphor,
-    phosphor_ui_font_id, place_at, segmented, segmented_width, sheet_band, sheet_band_centered,
-    sheet_dim, sheet_equal_row, sheet_footer, sheet_panel_fixed, sheet_title_muted, shortcut_enter,
+    TypeRole, display_file_name, measure_file_name, paint_file_name, phosphor, phosphor_ui_font_id,
+    segmented, sheet_band, sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer,
+    sheet_panel_fixed, sheet_title_muted, shortcut_enter,
 };
 
 use super::ShellApp;
@@ -168,35 +168,23 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
     }
     ui.add(Spacer::new(Space::Md));
 
-    // Type + name share one centered column (segmented natural width). Location
-    // plates keep the full sheet.
-    let col_w = segmented_width(ui, t, &labels);
     sheet_band_centered(ui, crate::components::segmented_h(), |ui| {
         if segmented(ui, t, &labels, &mut kind_i).changed() {
             queue.push(A::CreateSetKind(CreateKind::from_index(kind_i)));
         }
     });
     ui.add(Spacer::new(Space::Md));
+    ui.label(TypeRole::Body.rich("Name").color(t.neutral_fg_secondary()));
+    ui.add(Spacer::new(Space::Xs));
 
-    let total = crate::components::ui_width(ui);
-    let top_left = origin(ui);
-    let col_left = top_left.x + ((total - col_w) / 2.0).max(0.0);
-    let budget = egui::Rect::from_min_size(
-        egui::pos2(col_left, top_left.y),
-        egui::vec2(col_w.max(1.0), crate::components::remaining_height(ui).max(1.0)),
-    );
-    let (_, used) = place_at(ui, budget, Layout::top_down(Align::Min), |ui| {
-        ui.set_width(col_w.max(1.0));
-        ui.label(TypeRole::Body.rich("Name").color(t.neutral_fg_secondary()));
-        ui.add(Spacer::new(Space::Xs));
-
+    // Field edits Modal::Create.name in place (in-place modal fields).
+    {
         let Some(Modal::Create { name, name_dirty, error, .. }) = &mut app.modal else {
             return;
         };
         let before = name.clone();
         let mut field = Field::new(t, name)
             .id("shell_create_field")
-            .width(col_w)
             .select_all_on_focus(true);
         if let Some(ext) = kind.ext() {
             field = field.trailing_static(ext);
@@ -214,8 +202,7 @@ fn create_form_body(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mu
             *name_dirty = true;
             *error = None;
         }
-    });
-    claim(ui, egui::Rect::from_min_size(top_left, egui::vec2(total, used.height().max(1.0))));
+    }
 
     ui.add(Spacer::new(Space::Md));
     ui.label(

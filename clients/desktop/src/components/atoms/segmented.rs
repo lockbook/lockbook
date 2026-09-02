@@ -25,11 +25,6 @@ pub fn segmented_h() -> f32 {
 /// Equalize segment widths so the strip doesn’t look lopsided.
 const EQUALIZE: bool = true;
 
-/// Natural width of a [`segmented`] for `options` (equalized cells).
-pub fn segmented_width(ui: &Ui, t: &Theme, options: &[&str]) -> f32 {
-    segmented_cell_widths(ui, t, options).iter().sum()
-}
-
 fn segmented_cell_widths(ui: &Ui, t: &Theme, options: &[&str]) -> Vec<f32> {
     let n = options.len().max(1);
     let h = segmented_h();
