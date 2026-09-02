@@ -1339,7 +1339,9 @@ fn paint_row(
         if !multi_sel {
             e.item(phosphor::PENCIL, "Rename…", FileCmd::Rename);
         }
-        e.item(phosphor::PUSH_PIN, if pinned { "Unpin" } else { "Pin" }, FileCmd::Pin);
+        if !row.is_folder {
+            e.item(phosphor::PUSH_PIN, if pinned { "Unpin" } else { "Pin" }, FileCmd::Pin);
+        }
         e.item(phosphor::FOLDERS, "Move…", FileCmd::Move);
         if !row.is_folder {
             e.item(phosphor::COPY, "Duplicate", FileCmd::Duplicate);
