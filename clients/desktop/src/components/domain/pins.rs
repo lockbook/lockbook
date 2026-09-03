@@ -187,7 +187,7 @@ fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
         QuietChipAlign::Start,
     );
 
-    if resp.clicked() {
+    if resp.clicked() && !resp.double_clicked() {
         if row.is_folder {
             // Reveal/select in the tree; expand so contents are visible.
             queue.push(A::SelectFile(row.id));
