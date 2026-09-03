@@ -821,7 +821,7 @@ impl ShellApp {
         if paths.is_empty() {
             return;
         }
-        // Always pick a folder — tree `cursor` is not a drop target.
+        // Folder picker, pre-selected from tree context (then open tab / home).
         self.queue.push(A::OpenImportParent { paths });
     }
 }

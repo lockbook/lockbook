@@ -84,8 +84,9 @@ pub struct Ready {
     pub workspace: Workspace,
     pub expanded: HashSet<Uuid>,
     /// Tree / list selection (highlight, multi-select, context-menu targets).
-    /// Not keyboard focus and not create/import destination — those follow the
-    /// open tab. Right-clicking a folder updates this without opening a file.
+    /// Import dest uses it (folder, or parent of a selected file), then the
+    /// open tab, then home. Create still ignores it. Right-clicking a folder
+    /// updates this without opening a file.
     pub cursor: Option<Uuid>,
     /// Shift-range anchor (Finder-style).
     pub anchor: Option<Uuid>,

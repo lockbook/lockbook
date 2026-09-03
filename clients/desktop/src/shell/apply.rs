@@ -807,10 +807,29 @@ fn open_doc_alongside(r: &Ready) -> Option<(Uuid, String)> {
     file_alongside(r, r.workspace.current_tab_id()?)
 }
 
-fn dest_folder_from_open_tab(r: &Ready) -> Uuid {
-    open_doc_alongside(r)
-        .map(|(p, _)| p)
-        .unwrap_or_else(|| r.workspace.files.read().unwrap().root().id)
+/// Import dest follows the highlighted folder so drop/import land where you are.
+fn dest_folder_for_import(r: &Ready) -> Uuid {
+    let files = r.workspace.files.read().unwrap();
+    let root = files.root().id;
+    let cursor = r.cursor.and_then(|id| {
+        let f = files.get_by_id(id)?;
+        Some((id, f.is_folder(), f.parent))
+    });
+    let tab_parent = r.workspace.current_tab_id().and_then(|id| {
+        files
+            .get_by_id(id)
+            .and_then(|f| if f.is_folder() { None } else { Some(f.parent) })
+    });
+    import_dest_id(root, cursor, tab_parent)
+}
+
+fn import_dest_id(
+    root: Uuid, cursor: Option<(Uuid, bool, Uuid)>, tab_parent: Option<Uuid>,
+) -> Uuid {
+    if let Some((id, is_folder, parent)) = cursor {
+        return if is_folder { id } else { parent };
+    }
+    tab_parent.unwrap_or(root)
 }
 
 struct CreateSheetPlan {
@@ -1032,7 +1051,7 @@ fn confirm_create(app: &mut ShellApp) {
                     }
                     Ok(file.name)
                 }
-                // Display — Debug includes a backtrace.
+                // Display, not Debug: Debug dumps the lb-rs backtrace into the sheet.
                 Err(e) => Err(e.to_string()),
             }
         }
@@ -1292,10 +1311,10 @@ fn import_pick(app: &mut ShellApp, ctx: &Context) {
     spawn_native_dialog(app, ctx, || NativeDialogResult::Import(FileDialog::new().pick_files()));
 }
 
-/// Open the Import folder-picker sheet. Seeds `dest` from the open tab's folder
-/// (not tree selection).
+/// Open the Import folder-picker sheet. Seeds `dest` from tree selection
+/// (folder, or parent of a selected file), then the open tab, then home.
 fn open_import_parent_sheet(app: &mut ShellApp, ctx: &Context, paths: Vec<PathBuf>) {
-    let dest = app.session.ready().map(dest_folder_from_open_tab);
+    let dest = app.session.ready().map(dest_folder_for_import);
     ctx.data_mut(|d| {
         d.remove::<std::collections::HashSet<Uuid>>(egui::Id::new((
             "shell_folder_pick_exp",
@@ -1412,5 +1431,39 @@ mod create_sheet_plan_tests {
         assert_eq!(plan.parent, Some(folder));
         assert_eq!(plan.chosen, Some(folder));
         assert!(plan.alongside.is_none());
+    }
+}
+
+#[cfg(test)]
+mod import_dest_tests {
+    use super::import_dest_id;
+    use lb::Uuid;
+
+    fn ids() -> (Uuid, Uuid, Uuid) {
+        (Uuid::from_u128(1), Uuid::from_u128(2), Uuid::from_u128(3))
+    }
+
+    #[test]
+    fn selected_folder_wins() {
+        let (root, folder, tab_parent) = ids();
+        assert_eq!(import_dest_id(root, Some((folder, true, root)), Some(tab_parent)), folder);
+    }
+
+    #[test]
+    fn selected_file_uses_parent() {
+        let (root, folder, file) = ids();
+        assert_eq!(import_dest_id(root, Some((file, false, folder)), None), folder);
+    }
+
+    #[test]
+    fn open_tab_when_nothing_selected() {
+        let (root, _, tab_parent) = ids();
+        assert_eq!(import_dest_id(root, None, Some(tab_parent)), tab_parent);
+    }
+
+    #[test]
+    fn home_when_no_context() {
+        let (root, _, _) = ids();
+        assert_eq!(import_dest_id(root, None, None), root);
     }
 }
