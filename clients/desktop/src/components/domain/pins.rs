@@ -65,7 +65,7 @@ pub fn show(
                 id: *id,
                 name: f.name.clone(),
                 is_folder: false,
-                saved_share: is_saved_share(f, me),
+                saved_share: is_saved_share(f, files.get_by_id(f.parent), me),
             })
         })
         .collect();

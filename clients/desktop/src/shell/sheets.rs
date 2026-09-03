@@ -280,7 +280,7 @@ fn delete_parts(app: &ShellApp, ids: &[Uuid]) -> DeleteParts {
             continue;
         };
         let shown = display_file_name(&f.name).to_owned();
-        if is_saved_share(f, me) {
+        if is_saved_share(f, files.get_by_id(f.parent), me) {
             link_names.push(shown);
             continue;
         }
