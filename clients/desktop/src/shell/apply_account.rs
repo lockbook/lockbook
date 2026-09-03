@@ -32,16 +32,13 @@ pub(crate) fn do_logout(app: &mut ShellApp, _ctx: &Context) {
     std::process::exit(0);
 }
 
-/// Server delete (best-effort), wipe local data, exit.
+/// Screenshot branch: wipe local data and exit — do **not** delete on the server.
 pub(crate) fn do_delete_account(app: &mut ShellApp, _ctx: &Context) {
     app.modal = None;
     app.close_account_panel();
     if let Some(r) = app.session.ready_mut() {
         r.workspace.save_all_tabs();
         let path = r.workspace.core.get_config().writeable_path.clone();
-        let core = r.workspace.core.clone();
-        let _ = core.delete_account();
-        drop(core);
         let _ = fs::remove_dir_all(path);
     }
     std::process::exit(0);
@@ -83,6 +80,14 @@ fn upgrade_card_digits(s: &str) -> String {
     s.chars().filter(|c| c.is_ascii_digit()).collect()
 }
 
+/// ~30 days from now, as unix millis (Settings “Renews on …”).
+pub(crate) fn mock_period_end_ms() -> u64 {
+    chrono::Utc::now()
+        .checked_add_signed(chrono::Duration::days(30))
+        .unwrap_or_else(chrono::Utc::now)
+        .timestamp_millis() as u64
+}
+
 /// Parse `MM/YY` (or bare digits) → (month 1–12, full year).
 fn parse_card_exp(exp: &str) -> Option<(i32, i32)> {
     let d = upgrade_card_digits(exp);
@@ -103,27 +108,16 @@ pub(crate) fn upgrade_validate_and_confirm(app: &mut ShellApp) {
     else {
         return;
     };
-    let number = upgrade_card_digits(number);
-    if number.is_empty() || number.len() < 12 {
-        if let AccountPanel::Upgrade { error, .. } = &mut app.account_panel {
-            *error = Some("Enter a valid card number".into());
-        }
-        return;
+    // Screenshot branch: no card validation — any input (or none) continues.
+    let mut number = upgrade_card_digits(number);
+    if number.is_empty() {
+        number = "4242424242424242".into();
     }
-    let Some((exp_month, exp_year)) = parse_card_exp(exp) else {
-        if let AccountPanel::Upgrade { error, .. } = &mut app.account_panel {
-            *error = Some("Invalid expiry (MM/YY)".into());
-        }
-        return;
-    };
-    let cvc = cvc.trim().to_string();
-    if cvc.len() < 3 {
-        if let AccountPanel::Upgrade { error, .. } = &mut app.account_panel {
-            *error = Some("Enter CVC".into());
-        }
-        return;
+    let (exp_month, exp_year) = parse_card_exp(exp).unwrap_or((12, 2028));
+    let mut cvc = cvc.trim().to_string();
+    if cvc.is_empty() {
+        cvc = "123".into();
     }
-    // Normalize buffers + advance (digits-only number for API; MM/YY for display).
     if let AccountPanel::Upgrade { stage, number: n, exp: e, cvc: c, error, .. } =
         &mut app.account_panel
     {
@@ -136,10 +130,9 @@ pub(crate) fn upgrade_validate_and_confirm(app: &mut ShellApp) {
 }
 
 pub(crate) fn upgrade_start_pay(app: &mut ShellApp, ctx: &Context) {
-    let (number, exp_month, exp_year, cvc) = match &app.account_panel {
-        AccountPanel::Upgrade { stage: UpgradeStage::Confirm, number, exp, cvc, .. } => {
-            let (m, y) = parse_card_exp(exp).unwrap_or((0, 0));
-            (upgrade_card_digits(number), m, y, cvc.clone())
+    let number = match &app.account_panel {
+        AccountPanel::Upgrade { stage: UpgradeStage::Confirm, number, .. } => {
+            upgrade_card_digits(number)
         }
         _ => return,
     };
@@ -148,25 +141,24 @@ pub(crate) fn upgrade_start_pay(app: &mut ShellApp, ctx: &Context) {
         *done = None;
         *error = None;
     }
-    let Some(r) = app.session.ready() else {
+    if app.session.ready().is_none() {
         if let AccountPanel::Upgrade { done, .. } = &mut app.account_panel {
             *done = Some(Err("Not signed in".into()));
         }
         return;
-    };
-    let core = r.workspace.core.clone();
+    }
     let ctx = ctx.clone();
-    // Result channel via temp Id — worker can't mut ShellApp.
-    // Wrapper: `remove_temp` requires Default (Result doesn't implement it).
     let result_id = egui::Id::new("shell_upgrade_result");
     ctx.data_mut(|d| d.remove::<UpgradePayResult>(result_id));
+    let last4 =
+        if number.len() >= 4 { number[number.len() - 4..].to_owned() } else { "4242".into() };
     thread::spawn(move || {
-        use lb::model::api::{PaymentMethod, StripeAccountTier};
-        let method = PaymentMethod::NewCard { number, exp_month, exp_year, cvc };
-        let out = core
-            .upgrade_account_stripe(StripeAccountTier::Premium(method))
-            .map_err(|e| format!("{e:?}"));
-        ctx.data_mut(|d| d.insert_temp(result_id, UpgradePayResult(Some(out))));
+        // Screenshot branch: pretend Stripe succeeded. No charge, no card check.
+        std::thread::sleep(std::time::Duration::from_millis(400));
+        ctx.data_mut(|d| {
+            d.insert_temp(result_id, UpgradePayResult(Some(Ok(()))));
+            d.insert_temp(egui::Id::new("shell_upgrade_last4"), last4);
+        });
         ctx.request_repaint();
     });
 }
@@ -188,11 +180,14 @@ pub(crate) fn poll_upgrade(app: &mut ShellApp, ctx: &Context) {
     };
     if out.is_ok() {
         if let Some(r) = app.session.ready_mut() {
-            let usage = r.workspace.core.get_usage().ok();
-            if let Some(u) = usage {
-                r.status.space_used = Some(u);
-            }
-            r.sub_info = r.workspace.core.get_subscription_info().ok().flatten();
+            let last4 = ctx
+                .data(|d| d.get_temp::<String>(egui::Id::new("shell_upgrade_last4")))
+                .unwrap_or_else(|| "4242".into());
+            r.mock_plan = Some(crate::shell::session::MockPlan {
+                active: true,
+                period_end: mock_period_end_ms(),
+                card_last_4: last4,
+            });
             r.refresh_status();
         }
     }

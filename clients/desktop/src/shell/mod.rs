@@ -878,6 +878,6 @@ fn boot_screen(ctx: &egui::Context, t: &Theme, msg: &str, spinner: bool) {
         });
 }
 
-/// macOS NSWindow chrome helpers (titlebar drag vs interactive tabs).
+/// macOS NSWindow chrome helpers (disable native titleband drag).
 #[cfg(target_os = "macos")]
 pub mod macos_window;

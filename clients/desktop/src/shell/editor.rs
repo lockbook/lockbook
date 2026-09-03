@@ -14,7 +14,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
     tabs::show(app, ui, _t, queue);
 
     // Workspace (and the empty landing page) must not paint `max_rect` under
-    // the titleband — that fill would cover traffic lights / pane cluster.
+    // the titleband — that fill would cover captions / pane cluster.
     let rest = ui.available_rect_before_wrap();
     let sidebar_open = app.sidebar_open;
     let failures = {

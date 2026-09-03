@@ -1,7 +1,7 @@
 //! Tab strip driven by `Workspace::tab_strip`.
 //!
 //! Canvas bar flush to the panel top; always [`HEADER_H`], even with no tabs,
-//! so traffic lights and the pane cluster sit on chrome, not the editor.
+//! so captions and the pane cluster sit on chrome, not the editor.
 //! Tabs measured then placed on x. Active tab = canvas plate open into the
 //! workspace (same fill, no bottom edge). Drag reorder; middle-click close;
 //! active title → rename sheet; context menu.
@@ -88,7 +88,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     let top_left = pos2(ui.max_rect().left(), ui.max_rect().top());
     let outer = egui::Rect::from_min_size(top_left, vec2(bar_w, HEADER_H));
 
-    // Bar fill (canvas) under tabs — and under traffic lights / pane cluster
+    // Bar fill (canvas) under tabs — and under captions / pane cluster
     // when the strip is empty. Same ground as the sidebar titleband.
     ui.painter().rect_filled(outer, 0.0, t.neutral_bg());
 

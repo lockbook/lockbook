@@ -2,19 +2,18 @@
 //!
 //! | Platform | Window chrome |
 //! |----------|---------------|
-//! | macOS | Native traffic lights (host: fullsize content + transparent titlebar) |
-//! | Windows | Full-height caption cells (min · max/restore · close) |
+//! | macOS / Windows | Full-height caption cells (min · max/restore · close) |
 //! | Linux | Compact header icons, circular hover (min · max/restore · close) |
 //!
 //! View toggles (Files / Recents / Shared) stay top-left and stay visible with
 //! the sidebar closed, once a session is ready. Back / forward sit as a second
-//! group after them. Tab strip insets clear this cluster (and macOS lights) —
-//! see [`tab_left_inset`] / [`tab_right_inset`].
+//! group after them. Tab strip insets clear this cluster and the caption
+//! buttons — see [`tab_left_inset`] / [`tab_right_inset`].
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 mod linux;
 mod metrics;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 mod windows;
 
 pub use metrics::{
@@ -39,7 +38,7 @@ use metrics::{group_gap, icon_hit_size, icon_size, left_chrome_w, titlebar_glyph
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
 use linux::window_controls;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 use windows::window_controls;
 
 /// Temp-data id: rects where a primary drag must **not** move the OS window
@@ -88,23 +87,6 @@ pub fn take_window_menu_request(ctx: &egui::Context) -> Option<egui::Pos2> {
     ctx.data_mut(|d| d.remove_temp(window_menu_request_id()))
 }
 
-#[cfg(target_os = "macos")]
-fn titlebar_double_click_request_id() -> Id {
-    Id::new("shell_titlebar_double_click")
-}
-
-#[cfg(target_os = "macos")]
-fn request_titlebar_double_click(ctx: &egui::Context) {
-    ctx.data_mut(|d| d.insert_temp(titlebar_double_click_request_id(), true));
-}
-
-/// Host: run the Mac system titlebar double-click action this frame.
-#[cfg(target_os = "macos")]
-pub fn take_titlebar_double_click(ctx: &egui::Context) -> bool {
-    ctx.data_mut(|d| d.remove_temp::<bool>(titlebar_double_click_request_id()))
-        .unwrap_or(false)
-}
-
 fn titleband_last_click_id() -> Id {
     Id::new("shell_titleband_last_click")
 }
@@ -129,11 +111,11 @@ pub fn show(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<
         floating_toolbar(app, ctx, t, queue);
     }
 
+    // macOS: native titled window still resizes from the frame. AppKit does
+    // not implement `BeginResize`, so CSD resize edges stay Win/Linux-only.
     #[cfg(not(target_os = "macos"))]
-    {
-        window_resize_edges(ctx);
-        window_controls(ctx, t);
-    }
+    window_resize_edges(ctx);
+    window_controls(ctx, t);
 
     // macOS: fullsize + transparent titlebar still needs app-driven `StartDrag`
     // (content view owns mouseDown). Win/Linux: frameless — same path.
@@ -199,13 +181,8 @@ fn drag_strip(ctx: &egui::Context) {
                 });
                 if is_double {
                     ctx.data_mut(|d| d.remove_temp::<(f64, egui::Pos2)>(last_id));
-                    #[cfg(target_os = "macos")]
-                    request_titlebar_double_click(ctx);
-                    #[cfg(not(target_os = "macos"))]
-                    {
-                        let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
-                        ctx.send_viewport_cmd(ViewportCommand::Maximized(!maximized));
-                    }
+                    let maximized = ctx.input(|i| i.viewport().maximized.unwrap_or(false));
+                    ctx.send_viewport_cmd(ViewportCommand::Maximized(!maximized));
                     return;
                 }
                 ctx.data_mut(|d| d.insert_temp(last_id, (time, pos)));
@@ -239,7 +216,7 @@ fn drag_strip(ctx: &egui::Context) {
 fn floating_toolbar(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
     let y = HEADER_CENTER - icon_size() / 2.0;
     // Always over the canvas titleband: sidebar head when open, tab-strip bar
-    // (left inset past traffic lights) when closed. Do not flip ground with
+    // (left inset past the pane cluster) when closed. Do not flip ground with
     // sidebar_open.
     let ground = t.neutral_bg();
     let cluster_w = left_chrome_w();
@@ -404,7 +381,7 @@ fn window_resize_edges(ctx: &egui::Context) {
     }
 }
 
-#[cfg(all(test, not(target_os = "macos")))]
+#[cfg(test)]
 mod tests {
     use super::metrics::{caption_cluster_w, tab_right_inset};
 

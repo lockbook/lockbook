@@ -727,35 +727,16 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             do_delete_account(app, ctx);
         }
         A::ConfirmCancelSub => {
-            // Cancel → refresh usage + sub_info (Stripe standing is cap-based).
+            // Screenshot branch: local cancel only — no Stripe / server call.
+            // Drop the mock so Settings matches the initial free-tier copy
+            // (Upgrade + “Premium unlocks 30 GB…”), not “Canceled”.
             app.close_account_panel();
             let Some(r) = app.session.ready_mut() else {
                 return;
             };
-            match r.workspace.core.cancel_subscription() {
-                Ok(()) => {
-                    let usage = r.workspace.core.get_usage().ok();
-                    if let Some(u) = usage.clone() {
-                        r.status.space_used = Some(u);
-                    }
-                    r.sub_info = r.workspace.core.get_subscription_info().ok().flatten();
-                }
-                Err(e) => {
-                    let msg = format!("{e}");
-                    let lower = msg.to_lowercase();
-                    let already = lower.contains("not premium")
-                        || lower.contains("notpremium")
-                        || lower.contains("already canceled")
-                        || lower.contains("alreadycanceled");
-                    if already {
-                        let usage = r.workspace.core.get_usage().ok();
-                        if let Some(u) = usage {
-                            r.status.space_used = Some(u);
-                        }
-                        r.sub_info = r.workspace.core.get_subscription_info().ok().flatten();
-                    }
-                }
-            }
+            r.mock_plan = None;
+            r.sub_info = None;
+            r.refresh_status();
         }
         A::Create => {
             // Sidebar Create chip / ⌘N — open tab (not tree selection).
@@ -963,7 +944,8 @@ pub(crate) struct RenameLive {
 /// Note: NameComponents currently treats the day of `YYYY-MM-DD` as a variant
 /// (`2026-08-05` → `2026-08-5`). Accept that until NameComponents is fixed.
 fn suggested_create_name(app: &ShellApp, parent: Option<Uuid>, kind: CreateKind) -> String {
-    let date = chrono::Local::now().format("%Y-%m-%d").to_string();
+    // Screenshot branch: freeze the suggested name on October 17.
+    let date = "2026-10-17".to_string();
     let ext = kind.ext().unwrap_or("");
     let desired = format!("{date}{ext}");
     let Some(r) = app.session.ready() else {

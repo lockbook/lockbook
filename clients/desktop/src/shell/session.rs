@@ -106,6 +106,17 @@ pub struct Ready {
     pub tree_scroll: Option<Uuid>,
     /// Local username roster for share field (instant; no UI-thread network).
     pub known_usernames: Vec<String>,
+    /// Screenshot branch: fake Stripe standing (no charge).
+    pub mock_plan: Option<MockPlan>,
+}
+
+/// Local premium/cancel overlay so Settings looks subscribed without Stripe.
+#[derive(Clone, Debug)]
+pub struct MockPlan {
+    /// `true` = billed premium; `false` = canceled (cap drops to free).
+    pub active: bool,
+    pub period_end: u64,
+    pub card_last_4: String,
 }
 
 impl Ready {
@@ -138,7 +149,40 @@ impl Ready {
             files_epoch: 1,
             tree_scroll: None,
             known_usernames,
+            mock_plan: None,
         }
+    }
+
+    /// Paint fake Stripe standing over core usage / `sub_info`.
+    pub fn apply_mock_plan(&mut self) {
+        use lb::model::api::{
+            FREE_TIER_USAGE_SIZE, PREMIUM_TIER_USAGE_SIZE, PaymentPlatform, SubscriptionInfo,
+        };
+        use lb::service::usage::{UsageItemMetric, UsageMetrics};
+
+        let Some(m) = self.mock_plan.clone() else {
+            return;
+        };
+        self.sub_info = Some(SubscriptionInfo {
+            payment_platform: PaymentPlatform::Stripe { card_last_4_digits: m.card_last_4 },
+            period_end: m.period_end,
+        });
+        let (cap, cap_label) = if m.active {
+            (PREMIUM_TIER_USAGE_SIZE, "30 GB")
+        } else {
+            (FREE_TIER_USAGE_SIZE, "25 MB")
+        };
+        let used = self
+            .status
+            .space_used
+            .as_ref()
+            .map(|u| u.server_usage.clone());
+        let server_usage = used.unwrap_or(UsageItemMetric { exact: 0, readable: "0 B".into() });
+        self.status.space_used = Some(UsageMetrics {
+            usages: Vec::new(),
+            server_usage,
+            data_cap: UsageItemMetric { exact: cap, readable: cap_label.into() },
+        });
     }
 
     /// Request an animated center-scroll once `id` is visible in the flat walk.
@@ -190,6 +234,7 @@ impl Ready {
                     "Up to date".into()
                 }
             });
+        self.apply_mock_plan();
     }
 
     pub fn select_only(&mut self, id: Uuid) {

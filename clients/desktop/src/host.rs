@@ -47,14 +47,16 @@ impl ApplicationHandler<UserEvent> for App {
             .with_window_icon(window_icon);
 
         // Frameless product chrome: shell paints its own titlebar / controls.
-        // macOS keeps native traffic lights over fullsize content.
+        // macOS keeps a titled fullsize window (native edge resize + shadow)
+        // but hides traffic lights so Win11 caption cells can sit on the right.
         #[cfg(target_os = "macos")]
         {
             use winit::platform::macos::WindowAttributesExtMacOS;
             window_attrs = window_attrs
                 .with_fullsize_content_view(true)
                 .with_titlebar_transparent(true)
-                .with_title_hidden(true);
+                .with_title_hidden(true)
+                .with_titlebar_buttons_hidden(true);
         }
         #[cfg(not(target_os = "macos"))]
         {
@@ -73,10 +75,7 @@ impl ApplicationHandler<UserEvent> for App {
         }
 
         #[cfg(target_os = "macos")]
-        {
-            crate::shell::macos_window::disable_automatic_titlebar_drag(window.as_ref());
-            crate::shell::macos_window::pin_traffic_lights(window.as_ref());
-        }
+        crate::shell::macos_window::disable_automatic_titlebar_drag(window.as_ref());
 
         let mut lb = init_app(Arc::clone(&window));
 
@@ -167,8 +166,6 @@ impl ApplicationHandler<UserEvent> for App {
             }
             WindowEvent::Resized(size) => {
                 state.lb.renderer.screen.size_in_pixels = [size.width, size.height];
-                #[cfg(target_os = "macos")]
-                crate::shell::macos_window::pin_traffic_lights(state.window.as_ref());
                 // Nested WM_SIZE loop: paint now or the swapchain lags the HWND.
                 #[cfg(target_os = "windows")]
                 if size.width > 0 && size.height > 0 {
@@ -240,9 +237,6 @@ impl AppState {
         if size.width > 0 && size.height > 0 {
             self.lb.renderer.screen.size_in_pixels = [size.width, size.height];
         }
-
-        #[cfg(target_os = "macos")]
-        crate::shell::macos_window::pin_traffic_lights(self.window.as_ref());
 
         let mut raw_input = self.egui_winit.take_egui_input(&self.window);
         // Frameless chrome reads `viewport.maximized` to toggle restore. Without
@@ -342,16 +336,6 @@ impl AppState {
             self.window
                 .show_window_menu(winit::dpi::LogicalPosition::new(pos.x as f64, pos.y as f64));
         }
-
-        #[cfg(target_os = "macos")]
-        if crate::shell::titlebar::take_titlebar_double_click(&self.lb.renderer.context) {
-            crate::shell::macos_window::perform_titlebar_double_click(self.window.as_ref());
-        }
-
-        // Title (and other viewport cmds) make AppKit re-layout the titlebar
-        // after paint — Back is a common trigger. Re-pin after those cmds.
-        #[cfg(target_os = "macos")]
-        crate::shell::macos_window::pin_traffic_lights(self.window.as_ref());
 
         if info
             .events

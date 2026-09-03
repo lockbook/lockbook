@@ -6,12 +6,9 @@ use egui::{Pos2, Rect};
 
 const SETTINGS_W: f32 = 760.0;
 const SETTINGS_H: f32 = 560.0;
-/// Outer margin from screen edges (and below traffic lights on macOS).
+/// Outer margin from screen edges.
 const SCREEN_MARGIN: f32 = 40.0;
-/// Frameless macOS: keep plate clear of the titleband.
-#[cfg(target_os = "macos")]
-const TOP_SAFE: f32 = crate::shell::titlebar::HEADER_H;
-#[cfg(not(target_os = "macos"))]
+/// Captions live in the titleband (right); no extra top inset.
 const TOP_SAFE: f32 = 0.0;
 
 /// Preferred plate size for a given screen (shared with tests).
@@ -23,7 +20,7 @@ pub fn plate_size_for_screen(screen: Rect) -> (f32, f32) {
 }
 
 /// Top-left of the plate: horizontally centered; vertically centered **unless**
-/// that would sit closer than [`TOP_SAFE`] to the top (macOS traffic lights).
+/// that would sit closer than [`TOP_SAFE`] to the top.
 ///
 /// We do **not** use `Area` `Align2::CENTER_*` + offset hacks — egui centers in
 /// the full screen rect and ignores safe insets (see design house rules).

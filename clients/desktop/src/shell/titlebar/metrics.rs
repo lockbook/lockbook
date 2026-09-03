@@ -2,31 +2,19 @@
 
 use crate::components::{Space, control_height};
 
-/// y-center of the title row (macOS traffic lights are aligned to this).
+/// y-center of the title row.
 pub const HEADER_CENTER: f32 = 20.0;
 /// Full title / tab strip height.
 pub const HEADER_H: f32 = HEADER_CENTER * 2.0;
 
-/// Native close/miniaturize/zoom diameter (logical pt). Used for [`TOGGLE_X`].
-#[cfg(target_os = "macos")]
-pub const TRAFFIC_LIGHT_D: f32 = 12.0;
-#[cfg(target_os = "macos")]
-pub const TRAFFIC_LIGHT_GAP: f32 = 8.0;
-
 /// Left edge of the floating toolbar.
-#[cfg(target_os = "macos")]
-pub const TOGGLE_X: f32 = (HEADER_H - TRAFFIC_LIGHT_D) / 2.0
-    + TRAFFIC_LIGHT_D * 3.0
-    + TRAFFIC_LIGHT_GAP * 2.0
-    + Space::Lg.pts();
-#[cfg(not(target_os = "macos"))]
 pub const TOGGLE_X: f32 = 10.0;
 
 const TOOLBAR_GAP: f32 = 4.0;
 /// Win11 caption cell width (~46). Height follows [`HEADER_H`]. Grab after
 /// tabs is one cell so the empty chrome is as easy to hit as a window button.
 pub const CAPTION_CELL_W: f32 = 46.0;
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub const CAPTION_W: f32 = CAPTION_CELL_W;
 
 #[cfg(not(any(target_os = "macos", target_os = "windows")))]
@@ -100,17 +88,10 @@ pub fn tab_left_inset(sidebar_w: f32) -> f32 {
 }
 
 pub fn tab_right_inset() -> f32 {
-    #[cfg(target_os = "macos")]
-    {
-        Space::Sm.pts()
-    }
-    #[cfg(not(target_os = "macos"))]
-    {
-        caption_cluster_w()
-    }
+    caption_cluster_w()
 }
 
-#[cfg(target_os = "windows")]
+#[cfg(any(target_os = "macos", target_os = "windows"))]
 pub fn caption_cluster_w() -> f32 {
     3.0 * CAPTION_W
 }
