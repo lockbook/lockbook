@@ -17,6 +17,7 @@ use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
+use crate::theme::visuals;
 use crate::widgets::glyphon_cache::GlyphonCache;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
@@ -29,6 +30,8 @@ pub const SEARCH_SHORTCUT: egui::KeyboardShortcut =
 
 impl Workspace {
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        visuals::apply(ui.style_mut());
+
         if let Some(cache) = self
             .ctx
             .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))
