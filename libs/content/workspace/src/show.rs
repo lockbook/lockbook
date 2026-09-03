@@ -124,6 +124,8 @@ impl Workspace {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         ui.vertical(|ui| {
+            // Clients own tab chrome (desktop titleband, Apple/Android native).
+            // `show_tabs` is false on every current client; this path is leftover.
             if self.current_tab().is_some() && self.show_tabs {
                 self.show_tab_strip(ui);
             }

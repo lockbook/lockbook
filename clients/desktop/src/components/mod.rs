@@ -40,7 +40,7 @@ pub use compounds::{
     sheet_band_centered, sheet_dim, sheet_equal_row, sheet_footer, sheet_panel_fit,
     sheet_panel_fixed, sheet_title_muted, tip_card_placed, tip_text, with_overlay_scroll,
 };
-pub use domain::{show_recents, show_shared, show_sync_footer, show_tree};
+pub use domain::{show_recents, show_shared, show_sync_footer, show_tree, sync_footer_height};
 
 pub mod interact {
     pub use super::foundation::interact::*;

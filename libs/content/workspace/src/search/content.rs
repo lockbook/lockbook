@@ -1,17 +1,18 @@
 use std::ops::Range;
 
-use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
+use egui::{Context, Frame, Key, Margin, Modifiers, Ui};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::search::{ContentMatch, ContentSearcher, SearchFilter, SearchResult};
 
 use crate::{
     search::{SearchExecutor, SearchType},
-    show::{DocType, InputStateExt},
-    theme::{
-        icons::Icon,
-        palette_v2::{Palette, ThemeExt},
+    show::InputStateExt,
+    style::{
+        FG_PRESS, FileRow, Radius, Space, Spacer, ThemeExt, TypeRole, color::hue_wash,
+        file_row_icon, phosphor, phosphor_ui_font_id,
     },
+    theme::palette_v2::Palette,
     widgets::GlyphonLabel,
 };
 
@@ -43,8 +44,8 @@ impl ContentSearch {
     }
 }
 
-const CHILD_ROW_HEIGHT: f32 = 20.0;
-const HEADER_ROW_HEIGHT: f32 = 16.0 * 1.3 + 13.0 * 1.3 + 6.0;
+const CHILD_ROW_HEIGHT: f32 = TypeRole::Body.line_height() + Space::Xs.pts();
+const HEADER_ROW_HEIGHT: f32 = FileRow::height_for(true);
 const MAX_CHILDREN: usize = 4;
 
 /// What a flat index points to.
@@ -342,7 +343,7 @@ impl SearchExecutor for ContentSearch {
                         );
                         ui.painter().rect_stroke(
                             rect,
-                            CornerRadius::same(4),
+                            Radius::Control.corner(),
                             stroke,
                             egui::StrokeKind::Middle,
                         );
@@ -488,21 +489,28 @@ impl ContentSearch {
         let substring_matches = result.content_matches.len() - exact_matches;
 
         let frame = Frame::new()
-            .inner_margin(Margin { left: 8, right: 8, top: 3, bottom: 3 })
-            .outer_margin(Margin { left: 0, right: 20, top: 0, bottom: 0 })
-            .corner_radius(CornerRadius::same(4));
+            .inner_margin(Margin {
+                left: Space::Sm.pts() as i8,
+                right: Space::Sm.pts() as i8,
+                top: 0,
+                bottom: 0,
+            })
+            .outer_margin(Margin { left: 0, right: Space::Lg.pts() as i8, top: 0, bottom: 0 })
+            .corner_radius(Radius::Control.corner());
 
         let inner = frame.show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 10.0;
-                ui.set_min_height(16.0 * 1.3 + 13.0 * 1.3);
+                ui.spacing_mut().item_spacing = egui::vec2(Space::Xs.pts(), 0.0);
+                ui.set_min_height(HEADER_ROW_HEIGHT);
 
-                let icon_size = 19.;
-                DocType::from_name(&result.filename)
-                    .to_icon()
-                    .size(icon_size)
-                    .color(theme.neutral_fg_secondary())
-                    .show(ui);
+                let icon = file_row_icon(&result.filename, false);
+                let ig = ui.painter().layout_no_wrap(
+                    icon.into(),
+                    phosphor_ui_font_id(),
+                    theme.neutral_fg(),
+                );
+                let (icon_rect, _) = ui.allocate_exact_size(ig.size(), egui::Sense::hover());
+                ui.painter().galley(icon_rect.min, ig, theme.neutral_fg());
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
                     ui.spacing_mut().item_spacing.x = 3.0;
@@ -515,41 +523,44 @@ impl ContentSearch {
                         };
                         let number = (ordinal + 1).to_string();
                         for glyph in [number.as_str(), modifier] {
-                            ui.add(GlyphonLabel::new(glyph, parent_color).font_size(12.0));
+                            ui.add(
+                                GlyphonLabel::new(glyph, parent_color)
+                                    .font_size(TypeRole::Mono.size()),
+                            );
                         }
                     }
 
                     let badge_size = egui::vec2(22.0, 16.0);
 
                     if substring_matches > 0 {
-                        let bg = variant.get_color(Palette::Magenta).linear_multiply(0.15);
                         let fg = variant.get_color(Palette::Magenta);
+                        let bg = hue_wash(&theme, Palette::Magenta);
                         ui.allocate_ui(badge_size, |ui| {
                             Frame::new()
                                 .inner_margin(Margin { left: 5, right: 5, top: 1, bottom: 1 })
-                                .corner_radius(CornerRadius::same(3))
+                                .corner_radius(Radius::Sm.corner())
                                 .fill(bg)
                                 .show(ui, |ui| {
                                     ui.add(
                                         GlyphonLabel::new(&format!("{}", substring_matches), fg)
-                                            .font_size(11.0),
+                                            .font_size(TypeRole::Mono.size()),
                                     );
                                 });
                         });
                     }
 
                     if exact_matches > 0 {
-                        let bg = variant.get_color(Palette::Blue).linear_multiply(0.15);
                         let fg = variant.get_color(Palette::Blue);
+                        let bg = hue_wash(&theme, Palette::Blue);
                         ui.allocate_ui(badge_size, |ui| {
                             Frame::new()
                                 .inner_margin(Margin { left: 5, right: 5, top: 1, bottom: 1 })
-                                .corner_radius(CornerRadius::same(3))
+                                .corner_radius(Radius::Sm.corner())
                                 .fill(bg)
                                 .show(ui, |ui| {
                                     ui.add(
                                         GlyphonLabel::new(&format!("{}", exact_matches), fg)
-                                            .font_size(11.0),
+                                            .font_size(TypeRole::Mono.size()),
                                     );
                                 });
                         });
@@ -563,7 +574,7 @@ impl ContentSearch {
                             Self::filename_base(result),
                             &result.path_matches,
                             name_color,
-                            16.0,
+                            TypeRole::Body.size(),
                         );
                         Self::highlighted_path_line(
                             ui,
@@ -571,7 +582,7 @@ impl ContentSearch {
                             0,
                             &result.path_matches,
                             parent_color,
-                            13.0,
+                            TypeRole::Mono.size(),
                         );
                     });
                 });
@@ -596,24 +607,29 @@ impl ContentSearch {
         let snippet = self.extract_snippet(result.id, &highlight.range);
 
         let (badge_bg, badge_fg) = if highlight.exact {
-            (
-                variant.get_color(Palette::Blue).linear_multiply(0.15),
-                variant.get_color(Palette::Blue),
-            )
+            (hue_wash(&theme, Palette::Blue), variant.get_color(Palette::Blue))
         } else {
-            (
-                variant.get_color(Palette::Magenta).linear_multiply(0.15),
-                variant.get_color(Palette::Magenta),
-            )
+            (hue_wash(&theme, Palette::Magenta), variant.get_color(Palette::Magenta))
         };
         let label = if highlight.exact { "exact" } else { "partial" };
 
         let mut child_frame = Frame::new()
-            .outer_margin(Margin { left: 14, right: 20, top: 1, bottom: 1 })
-            .inner_margin(Margin { left: 14, right: 10, top: 2, bottom: 2 })
-            .corner_radius(CornerRadius::same(4));
+            .outer_margin(Margin {
+                left: Space::Md.pts() as i8,
+                right: Space::Lg.pts() as i8,
+                top: 1,
+                bottom: 1,
+            })
+            .inner_margin(Margin {
+                left: Space::Md.pts() as i8,
+                right: Space::Sm.pts() as i8,
+                top: 2,
+                bottom: 2,
+            })
+            .corner_radius(Radius::Control.corner());
         if is_active {
-            child_frame = child_frame.fill(theme.neutral_bg_tertiary());
+            child_frame =
+                child_frame.fill(theme.wash_toward_neutral_fg(theme.neutral_bg(), FG_PRESS));
         }
 
         let cf = child_frame.show(ui, |ui| {
@@ -623,10 +639,10 @@ impl ContentSearch {
 
                 Frame::new()
                     .inner_margin(Margin { left: 4, right: 4, top: 1, bottom: 1 })
-                    .corner_radius(CornerRadius::same(3))
+                    .corner_radius(Radius::Sm.corner())
                     .fill(badge_bg)
                     .show(ui, |ui| {
-                        ui.add(GlyphonLabel::new(label, badge_fg).font_size(10.0));
+                        ui.add(GlyphonLabel::new(label, badge_fg).font_size(TypeRole::Mono.size()));
                     });
 
                 let max_w = ui.available_width();
@@ -635,7 +651,7 @@ impl ContentSearch {
                         snippet.iter().map(|(t, b)| (t.as_str(), *b)).collect(),
                         parent_color,
                     )
-                    .font_size(12.0)
+                    .font_size(TypeRole::Mono.size())
                     .max_width(max_w),
                 );
             });
@@ -656,11 +672,21 @@ impl ContentSearch {
         let fg = variant.get_color(Palette::Cyan);
 
         let mut frame = Frame::new()
-            .outer_margin(Margin { left: 14, right: 20, top: 1, bottom: 1 })
-            .inner_margin(Margin { left: 14, right: 10, top: 2, bottom: 2 })
-            .corner_radius(CornerRadius::same(4));
+            .outer_margin(Margin {
+                left: Space::Md.pts() as i8,
+                right: Space::Lg.pts() as i8,
+                top: 1,
+                bottom: 1,
+            })
+            .inner_margin(Margin {
+                left: Space::Md.pts() as i8,
+                right: Space::Sm.pts() as i8,
+                top: 2,
+                bottom: 2,
+            })
+            .corner_radius(Radius::Control.corner());
         if is_active {
-            frame = frame.fill(theme.neutral_bg_tertiary());
+            frame = frame.fill(theme.wash_toward_neutral_fg(theme.neutral_bg(), FG_PRESS));
         }
 
         let cf = frame.show(ui, |ui| {
@@ -675,7 +701,7 @@ impl ContentSearch {
                         ),
                         fg,
                     )
-                    .font_size(12.0),
+                    .font_size(TypeRole::Body.size()),
                 );
             });
         });
@@ -762,27 +788,30 @@ impl ContentSearch {
     }
 
     fn show_empty_state(&self, ui: &mut Ui, no_results: bool) {
-        let theme = ui.ctx().get_lb_theme();
-        let muted = theme.neutral_fg_secondary();
-        let variant = theme.fg();
-
-        let (title, subtitle, icon_color): (&str, &str, _) = if no_results {
-            ("Search your notes", "Start typing to find matches", variant.get_color(Palette::Blue))
+        let t = ui.ctx().get_lb_theme();
+        let muted = t.neutral_fg_secondary();
+        let (title, subtitle) = if no_results {
+            ("Search your notes", "Start typing to find matches")
         } else {
-            ("No matches", "Try a different query or shorter words", muted)
+            ("No matches", "Try a different query or shorter words")
         };
 
-        // Fill the available region so the pane doesn't collapse to 0 width.
         let rect = ui.available_rect_before_wrap();
         ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
             ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
                 ui.vertical_centered(|ui| {
-                    ui.add_space(24.0);
-                    Icon::SEARCH.size(42.0).color(icon_color).show(ui);
-                    ui.add_space(14.0);
-                    ui.add(GlyphonLabel::new(title, theme.neutral_fg()).font_size(18.0));
-                    ui.add_space(6.0);
-                    ui.add(GlyphonLabel::new(subtitle, muted).font_size(13.0));
+                    ui.add(Spacer::new(Space::Lg));
+                    let g = ui.painter().layout_no_wrap(
+                        phosphor::SEARCH.into(),
+                        phosphor_ui_font_id(),
+                        t.accent(),
+                    );
+                    let (icon_rect, _) = ui.allocate_exact_size(g.size(), egui::Sense::hover());
+                    ui.painter().galley(icon_rect.min, g, t.accent());
+                    ui.add(Spacer::new(Space::Sm));
+                    ui.label(TypeRole::Heading.rich(title).color(t.neutral_fg()));
+                    ui.add(Spacer::new(Space::Xxs));
+                    ui.label(TypeRole::Body.rich(subtitle).color(muted));
                 });
             });
         });
@@ -796,17 +825,32 @@ impl ContentSearch {
         let total = result.content_matches.len();
 
         let frame = Frame::new()
-            .inner_margin(Margin { left: 8, right: 8, top: 6, bottom: 6 })
-            .outer_margin(Margin { left: 0, right: 20, top: 0, bottom: 4 })
-            .corner_radius(CornerRadius::same(4))
+            .inner_margin(Margin {
+                left: Space::Sm.pts() as i8,
+                right: Space::Sm.pts() as i8,
+                top: Space::Xs.pts() as i8,
+                bottom: Space::Xs.pts() as i8,
+            })
+            .outer_margin(Margin {
+                left: 0,
+                right: Space::Lg.pts() as i8,
+                top: 0,
+                bottom: Space::Xxs.pts() as i8,
+            })
+            .corner_radius(Radius::Control.corner())
             .fill(theme.neutral_bg_secondary());
 
         let inner = frame.show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 8.0;
+                ui.spacing_mut().item_spacing = egui::vec2(Space::Xs.pts(), 0.0);
 
-                // Back arrow icon.
-                Icon::ARROW_LEFT.size(14.0).color(parent_color).show(ui);
+                let ig = ui.painter().layout_no_wrap(
+                    phosphor::ARROW_LEFT.into(),
+                    phosphor_ui_font_id(),
+                    parent_color,
+                );
+                let (icon_rect, _) = ui.allocate_exact_size(ig.size(), egui::Sense::hover());
+                ui.painter().galley(icon_rect.min, ig, parent_color);
 
                 ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
                     ui.spacing_mut().item_spacing.y = 0.0;

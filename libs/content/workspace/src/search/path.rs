@@ -1,13 +1,13 @@
-use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
+use egui::{Context, Frame, Key, Margin, Modifiers, Ui};
 use lb_rs::blocking::Lb;
 use lb_rs::search::SearchFilter;
 
 use crate::{
     search::{SearchExecutor, SearchType},
-    show::{DocType, InputStateExt},
-    theme::{
-        icons::Icon,
-        palette_v2::{Palette, ThemeExt},
+    show::InputStateExt,
+    style::{
+        FG_PRESS, FileRow, Radius, Space, Spacer, ThemeExt, TypeRole, file_row_icon, phosphor,
+        phosphor_ui_font_id,
     },
     widgets::GlyphonLabel,
 };
@@ -88,7 +88,7 @@ impl SearchExecutor for PathSearch {
         let mut clicked_id: Option<lb_rs::Uuid> = None;
         let mut clicked_new_tab = false;
 
-        const ROW_HEIGHT: f32 = 16.0 * 1.3 + 13.0 * 1.3 + 6.0;
+        const ROW_HEIGHT: f32 = FileRow::height_for(true);
 
         ui.style_mut().spacing.scroll = egui::style::ScrollStyle::solid();
         ui.style_mut().spacing.scroll.floating = true;
@@ -214,33 +214,30 @@ impl PathSearch {
     }
 
     fn show_empty_state(&self, ui: &mut Ui) {
-        let theme = ui.ctx().get_lb_theme();
-        let muted = theme.neutral_fg_secondary();
-        let variant = theme.fg();
+        let t = ui.ctx().get_lb_theme();
+        let muted = t.neutral_fg_secondary();
+        let (title, subtitle) = if self.submitted_query.is_empty() {
+            ("Find a file", "Start typing to search by name")
+        } else {
+            ("No files found", "Try a different name")
+        };
 
-        let (icon, title, subtitle, icon_color): (Icon, &str, &str, _) =
-            if self.submitted_query.is_empty() {
-                (
-                    Icon::SEARCH,
-                    "Find a file",
-                    "Start typing to search by name",
-                    variant.get_color(Palette::Blue),
-                )
-            } else {
-                (Icon::DOC_UNKNOWN, "No files found", "Try a different name", muted)
-            };
-
-        // Fill the available region so the pane doesn't collapse to 0 width.
         let rect = ui.available_rect_before_wrap();
         ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
             ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
                 ui.vertical_centered(|ui| {
-                    ui.add_space(24.0);
-                    icon.size(42.0).color(icon_color).show(ui);
-                    ui.add_space(14.0);
-                    ui.add(GlyphonLabel::new(title, theme.neutral_fg()).font_size(18.0));
-                    ui.add_space(6.0);
-                    ui.add(GlyphonLabel::new(subtitle, muted).font_size(13.0));
+                    ui.add(Spacer::new(Space::Lg));
+                    let g = ui.painter().layout_no_wrap(
+                        phosphor::SEARCH.into(),
+                        phosphor_ui_font_id(),
+                        t.accent(),
+                    );
+                    let (icon_rect, _) = ui.allocate_exact_size(g.size(), egui::Sense::hover());
+                    ui.painter().galley(icon_rect.min, g, t.accent());
+                    ui.add(Spacer::new(Space::Sm));
+                    ui.label(TypeRole::Heading.rich(title).color(t.neutral_fg()));
+                    ui.add(Spacer::new(Space::Xxs));
+                    ui.label(TypeRole::Body.rich(subtitle).color(muted));
                 });
             });
         });
@@ -249,41 +246,41 @@ impl PathSearch {
     fn show_result_cell(
         &self, ui: &mut Ui, row: &Row, index: usize, selected: bool,
     ) -> egui::Response {
-        let theme = ui.ctx().get_lb_theme();
-        let name_color = theme.neutral_fg();
-        let parent_color = theme.neutral_fg_secondary();
-
-        // Path indices are relative to full path; compute offset for filename
+        let t = ui.ctx().get_lb_theme();
+        let name_color = t.neutral_fg();
+        let parent_color = t.neutral_fg_secondary();
+        let h = FileRow::height_for(true);
         let parent_char_len =
-            row.parent_path.chars().count() as u32 + if row.parent_path.is_empty() { 0 } else { 1 }; // +1 for the '/'
+            row.parent_path.chars().count() as u32 + if row.parent_path.is_empty() { 0 } else { 1 };
 
         let mut frame = Frame::new()
-            .inner_margin(Margin { left: 8, right: 8, top: 3, bottom: 3 })
-            .outer_margin(Margin { left: 0, right: 20, top: 0, bottom: 0 })
-            .corner_radius(CornerRadius::same(4));
+            .inner_margin(Margin {
+                left: Space::Sm.pts() as i8,
+                right: Space::Sm.pts() as i8,
+                top: 0,
+                bottom: 0,
+            })
+            .outer_margin(Margin { left: 0, right: Space::Lg.pts() as i8, top: 0, bottom: 0 })
+            .corner_radius(Radius::Control.corner());
         if selected {
-            frame = frame.fill(theme.neutral_bg_tertiary());
+            frame = frame.fill(t.wash_toward_neutral_fg(t.neutral_bg(), FG_PRESS));
         }
 
         let inner = frame.show(ui, |ui| {
             ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 10.0;
-                ui.set_min_height(16.0 * 1.3 + 13.0 * 1.3);
+                ui.spacing_mut().item_spacing = egui::vec2(Space::Xs.pts(), 0.0);
+                ui.set_min_height(h);
 
-                let icon_size = 19.;
-
-                let (icon, icon_color) = if !row.is_folder {
-                    (
-                        DocType::from_name(&row.filename).to_icon().size(icon_size),
-                        theme.neutral_fg_secondary(),
-                    )
-                } else {
-                    (Icon::FOLDER.size(icon_size), theme.fg().get_color(theme.prefs().primary))
-                };
-                icon.color(icon_color).show(ui);
+                let icon = file_row_icon(&row.filename, row.is_folder);
+                let icon_ink = if row.is_folder { t.accent() } else { t.neutral_fg() };
+                let ig = ui
+                    .painter()
+                    .layout_no_wrap(icon.into(), phosphor_ui_font_id(), icon_ink);
+                let (icon_rect, _) = ui.allocate_exact_size(ig.size(), egui::Sense::hover());
+                ui.painter().galley(icon_rect.min, ig, icon_ink);
 
                 ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing.x = 3.0;
+                    ui.spacing_mut().item_spacing = egui::vec2(Space::Xxs.pts(), 0.0);
                     if index < 9 {
                         let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
                             "⌘"
@@ -292,13 +289,22 @@ impl PathSearch {
                         };
                         let number = (index + 1).to_string();
                         for glyph in [number.as_str(), modifier] {
-                            ui.add(GlyphonLabel::new(glyph, parent_color).font_size(12.0));
+                            ui.add(
+                                GlyphonLabel::new(glyph, parent_color)
+                                    .font_size(TypeRole::Mono.size()),
+                            );
                         }
                     }
 
                     if row.is_folder {
-                        ui.add_space(6.0);
-                        Icon::FILTER.size(14.0).color(parent_color).show(ui);
+                        ui.add_space(Space::Xs.pts());
+                        let fg = ui.painter().layout_no_wrap(
+                            phosphor::FUNNEL.into(),
+                            phosphor_ui_font_id(),
+                            parent_color,
+                        );
+                        let (r, _) = ui.allocate_exact_size(fg.size(), egui::Sense::hover());
+                        ui.painter().galley(r.min, fg, parent_color);
                     }
 
                     ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
@@ -309,7 +315,7 @@ impl PathSearch {
                             &row.path_indices,
                             parent_char_len,
                             name_color,
-                            16.0,
+                            TypeRole::Body.size(),
                         );
                         Self::highlighted_line(
                             ui,
@@ -317,7 +323,7 @@ impl PathSearch {
                             &row.path_indices,
                             0,
                             parent_color,
-                            13.0,
+                            TypeRole::Mono.size(),
                         );
                     });
                 });

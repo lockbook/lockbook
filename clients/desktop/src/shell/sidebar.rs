@@ -3,12 +3,13 @@
 //! Layout is **top → bottom · middle**. Resize vs overlay scroll policy lives in
 //! [`crate::components::domain::sidebar_resize`].
 
-use egui::{Align, Frame, Id, Layout, Rect, Sense, Ui, UiBuilder, pos2, vec2};
+use egui::{Align, Id, Layout, Rect, Sense, Ui, pos2, vec2};
 
 use crate::components::domain::chips;
 use crate::components::{
-    FixedPadContent, STROKE_HAIRLINE, Space, Spacer, Theme, control_height, show_recents,
-    show_shared, show_sync_footer, show_tree, ui_width, with_h_pad_in,
+    FixedPadContent, STROKE_HAIRLINE, Space, Spacer, Theme, claim, control_height, place_at,
+    show_recents, show_shared, show_sync_footer, show_tree, sync_footer_height, ui_width,
+    with_h_pad_in,
 };
 
 use super::ShellApp;
@@ -17,9 +18,9 @@ use super::action::{Action, SidebarPane};
 use super::titlebar::HEADER_H;
 
 pub use crate::components::domain::sidebar_resize::{
-    PANEL_ID, WIDTH_DEFAULT, begin_resize_style, end_resize_style, open_t, paint_split_line,
+    PANEL_ID, WIDTH_DEFAULT, begin_resize_style, end_resize_style, open_motion, paint_split_line,
     remember_resting_width, resize_over_workspace, resting_width, restore_panel_width_if_collapsed,
-    width_max, width_min,
+    set_animating_width, split_stroke, width_max, width_min,
 };
 
 /// Landmarks for the Files head (title clearance + chip row). Tests only.
@@ -55,114 +56,109 @@ pub fn take_head_readout(ctx: &egui::Context) -> Option<SidebarHeadReadout> {
     ctx.data_mut(|d| d.remove_temp::<SidebarHeadReadout>(head_readout_id()))
 }
 
-/// Paint the sidebar at resting width with its **right** edge on this ui's
-/// right (slide in/out). Clip so the left runs off-screen.
+fn head_h(files_pane: bool) -> f32 {
+    if files_pane {
+        HEADER_H + Space::Sm.pts() + control_height() + Space::Md.pts()
+    } else {
+        HEADER_H + Space::Xs.pts()
+    }
+}
+
+/// Paint the sidebar at resting width, clipped to this panel slot.
+///
+/// Uses [`place_at`] so a wider content rect does not expand the SidePanel
+/// (unlike `scope_builder`, which allocates the child's min_rect in the parent).
 pub fn show_sliding(
     app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>, full_w: f32,
 ) {
-    let vis = ui.max_rect();
-    ui.set_clip_rect(vis.intersect(ui.clip_rect()));
-    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-    let full_w = full_w.max(vis.width());
-    let full =
-        Rect::from_min_size(pos2(vis.right() - full_w, vis.top()), vec2(full_w, vis.height()));
-    ui.scope_builder(
-        UiBuilder::new()
-            .id_salt((PANEL_ID, "slide_body"))
-            .max_rect(full)
-            .layout(Layout::top_down(Align::Min)),
-        |ui| {
-            ui.set_min_size(full.size());
-            ui.set_max_size(full.size());
-            ui.set_clip_rect(vis.intersect(ui.clip_rect()));
-            show(app, ui, t, queue);
-        },
-    );
+    let slot = ui.max_rect();
+    ui.set_clip_rect(slot.intersect(ui.clip_rect()));
+    ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+    let full_w = full_w.max(slot.width());
+    let full = Rect::from_min_size(slot.min, vec2(full_w, slot.height()));
+    place_at(ui, full, Layout::top_down(Align::Min), |ui| {
+        ui.shrink_clip_rect(slot);
+        show(app, ui, t, queue);
+    });
+    claim(ui, slot);
 }
 
 pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
-    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-    ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
+    ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
+    // Keep the incoming scissor (the live slot). Do not reset clip to max_rect.
+    ui.shrink_clip_rect(ui.max_rect());
 
+    let r = ui.max_rect();
     let show_chips = matches!(app.pane, SidebarPane::Files | SidebarPane::Recents);
-    egui::TopBottomPanel::top("shell_sidebar_head")
-        .resizable(false)
-        .show_separator_line(false)
-        .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
-        .show_inside(ui, |ui| {
-            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-            let mut head = SidebarHeadReadout::default();
-            let (clear_rect, _) =
-                ui.allocate_exact_size(vec2(ui_width(ui), HEADER_H), Sense::hover());
-            head.header_clearance = clear_rect;
-            // Same y as the tab-strip hairline — one titleband edge across the window.
-            ui.painter().hline(
-                clear_rect.x_range(),
-                clear_rect.bottom() - STROKE_HAIRLINE * 0.5,
-                egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
-            );
-            if show_chips {
-                ui.add(Spacer::new(Space::Sm));
-                let row_h = control_height();
-                let mut chips_body = FixedPadContent::new(row_h, |ui| {
-                    let (create, import, search, chip_rects) = chips::action_chip_row(ui, t);
-                    if create {
-                        queue.push(A::Create);
-                    }
-                    if import {
-                        queue.push(A::Import);
-                    }
-                    if search {
-                        queue.push(A::OpenSearch);
-                    }
-                    head.chip_mid = ui.min_rect();
-                    let [a, b, c] = chip_rects;
-                    head.chip_create = Some(a);
-                    head.chip_import = Some(b);
-                    head.chip_search = Some(c);
-                });
-                let row = with_h_pad_in(ui, Space::Sm, Some(row_h), &mut chips_body);
-                head.chip_row = row.rect;
-                ui.add(Spacer::new(Space::Md));
-            } else {
-                ui.add(Spacer::new(Space::Xs));
-            }
-            ui.ctx()
-                .data_mut(|d| d.insert_temp(head_readout_id(), head));
-        });
+    let head_h = head_h(show_chips);
+    let foot_h = STROKE_HAIRLINE + sync_footer_height(app.settings.sidebar_usage);
+    let head = Rect::from_min_size(r.min, vec2(r.width(), head_h.min(r.height())));
+    let foot_top = (r.bottom() - foot_h).max(head.bottom());
+    let foot = Rect::from_min_max(pos2(r.left(), foot_top), r.max);
+    let body = Rect::from_min_max(pos2(r.left(), head.bottom()), pos2(r.right(), foot.top()));
 
-    egui::TopBottomPanel::bottom("shell_sidebar_foot")
-        .resizable(false)
-        .show_separator_line(false)
-        .frame(
-            Frame::new()
-                .fill(t.neutral_bg_secondary())
-                .inner_margin(0.0),
-        )
-        .show_inside(ui, |ui| {
-            ui.set_min_width(ui_width(ui));
-            let (r, _) = ui.allocate_exact_size(vec2(ui_width(ui), 1.0), Sense::hover());
-            ui.painter().hline(
-                r.x_range(),
-                r.center().y,
-                egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
-            );
-            show_sync_footer(app, ui, t, queue);
-        });
+    place_at(ui, head, Layout::top_down(Align::Min), |ui| {
+        ui.shrink_clip_rect(head);
+        let mut readout = SidebarHeadReadout::default();
+        let (clear_rect, _) = ui.allocate_exact_size(vec2(ui_width(ui), HEADER_H), Sense::hover());
+        readout.header_clearance = clear_rect;
+        ui.painter().hline(
+            clear_rect.x_range(),
+            clear_rect.bottom() - STROKE_HAIRLINE * 0.5,
+            egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
+        );
+        if show_chips {
+            ui.add(Spacer::new(Space::Sm));
+            let row_h = control_height();
+            let mut chips_body = FixedPadContent::new(row_h, |ui| {
+                let (create, import, search, chip_rects) = chips::action_chip_row(ui, t);
+                if create {
+                    queue.push(A::Create);
+                }
+                if import {
+                    queue.push(A::Import);
+                }
+                if search {
+                    queue.push(A::OpenSearch);
+                }
+                readout.chip_mid = ui.min_rect();
+                let [a, b, c] = chip_rects;
+                readout.chip_create = Some(a);
+                readout.chip_import = Some(b);
+                readout.chip_search = Some(c);
+            });
+            let row = with_h_pad_in(ui, Space::Sm, Some(row_h), &mut chips_body);
+            readout.chip_row = row.rect;
+            ui.add(Spacer::new(Space::Md));
+        } else {
+            ui.add(Spacer::new(Space::Xs));
+        }
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(head_readout_id(), readout));
+    });
 
-    egui::CentralPanel::default()
-        .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
-        .show_inside(ui, |ui| {
-            let body = ui.max_rect();
-            ui.set_clip_rect(body.intersect(ui.clip_rect()));
-            ui.set_min_size(body.size());
-            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-            match app.pane {
-                SidebarPane::Files => show_tree(app, ui, t, queue),
-                SidebarPane::Recents => show_recents(app, ui, t, queue),
-                SidebarPane::Shared => show_shared(app, ui, t, queue),
-            }
-        });
+    place_at(ui, foot, Layout::top_down(Align::Min), |ui| {
+        ui.shrink_clip_rect(foot);
+        ui.painter()
+            .rect_filled(foot, 0.0, t.neutral_bg_secondary());
+        let (r, _) = ui.allocate_exact_size(vec2(ui_width(ui), STROKE_HAIRLINE), Sense::hover());
+        ui.painter().hline(
+            r.x_range(),
+            r.center().y,
+            egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
+        );
+        show_sync_footer(app, ui, t, queue);
+    });
+
+    place_at(ui, body, Layout::top_down(Align::Min), |ui| {
+        ui.shrink_clip_rect(body);
+        ui.set_min_size(body.size());
+        match app.pane {
+            SidebarPane::Files => show_tree(app, ui, t, queue),
+            SidebarPane::Recents => show_recents(app, ui, t, queue),
+            SidebarPane::Shared => show_shared(app, ui, t, queue),
+        }
+    });
 }
 
 #[cfg(test)]
@@ -173,7 +169,7 @@ mod head_diag {
         Space, ThemeExt, begin_spacer_record, control_height, install, take_spacer_record,
     };
     use crate::shell::ShellApp;
-    use egui::{Context, FullOutput, Pos2, RawInput, SidePanel, Vec2};
+    use egui::{Context, Frame, FullOutput, Pos2, RawInput, SidePanel, Vec2};
 
     fn fmt_rect(r: Rect) -> String {
         format!(

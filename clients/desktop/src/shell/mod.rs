@@ -388,11 +388,13 @@ impl ShellApp {
 
         let show_side = self.product_open() && self.sidebar_open && !self.defaults_zen();
 
-        // One SidePanel: slide its contents (right edge glued to visible width).
-        // Resting width is stored separately so the wipe does not persist 1px.
-        let how = sidebar::open_t(ctx, show_side);
+        // One SidePanel: contents stay left-aligned and tuck under the
+        // workspace. Resting width is stored separately so the wipe does not
+        // persist 1px.
+        let motion = sidebar::open_motion(ctx, show_side);
+        let split = sidebar::split_stroke(&t);
         let side_frame = Frame::new().fill(t.neutral_bg()).inner_margin(0.0);
-        if how >= 1.0 {
+        if motion.slide >= 1.0 {
             // Only after a slide: wipe uses exact_width down to 1px on this same
             // panel id. Don't restore every resting frame — that undoes drag.
             sidebar::restore_panel_width_if_collapsed(ctx);
@@ -404,28 +406,38 @@ impl ShellApp {
                 .show_separator_line(false)
                 .frame(side_frame)
                 .show(ctx, |ui| {
-                    // Same paint path as the slide so tree/recents scroll ids match.
                     sidebar::show_sliding(self, ui, &t, &mut queue, ui.max_rect().width());
                 });
             sidebar::end_resize_style(ctx, resize_style);
-            sidebar::resize_over_workspace(ctx, &t, titlebar::HEADER_H);
+            sidebar::resize_over_workspace(ctx, titlebar::HEADER_H, split);
             if let Some(state) =
                 egui::containers::panel::PanelState::load(ctx, egui::Id::new(sidebar::PANEL_ID))
             {
                 sidebar::remember_resting_width(ctx, state.rect.width());
             }
-        } else if how > 0.0 {
+        } else if motion.slide > 0.0 {
             let full_w = sidebar::resting_width(ctx);
-            let w = (how * full_w).max(1.0);
-            SidePanel::left(sidebar::PANEL_ID)
+            let w = (motion.slide * full_w).max(1.0);
+            sidebar::set_animating_width(ctx, w);
+            let slot = SidePanel::left(sidebar::PANEL_ID)
                 .resizable(false)
                 .exact_width(w)
                 .show_separator_line(false)
                 .frame(side_frame)
                 .show(ctx, |ui| {
                     sidebar::show_sliding(self, ui, &t, &mut queue, full_w);
-                });
-            sidebar::paint_split_line(ctx, &t, titlebar::HEADER_H);
+                })
+                .response
+                .rect;
+            tracing::debug!(
+                target: "lockbook_desktop::sidebar",
+                req_w = w,
+                slot_w = slot.width(),
+                full_w,
+                slide = motion.slide,
+                "sidebar slide slot"
+            );
+            sidebar::paint_split_line(ctx, titlebar::HEADER_H, split);
         }
 
         CentralPanel::default()

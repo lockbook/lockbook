@@ -24,6 +24,7 @@ fn log_targets(metadata: &tracing::Metadata<'_>) -> bool {
         || t.starts_with("dbrs")
         || t.starts_with("workspace")
         || t.starts_with("lb_fs")
+        || t.starts_with("lockbook_desktop")
 }
 
 #[cfg(not(target_family = "wasm"))]

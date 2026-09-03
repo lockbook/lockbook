@@ -10,5 +10,6 @@ pub mod sync_dots;
 pub mod tabs;
 pub mod tree;
 
+pub use footer::height as sync_footer_height;
 pub use footer::show as show_sync_footer;
 pub use tree::{show_recents, show_shared, show_tree};

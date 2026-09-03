@@ -4,7 +4,7 @@
 //! the right edge. These helpers codify grab size, latch, and content-side half.
 
 use crate::components::compounds::scroll::SIDEBAR_RESIZING_LATCH;
-use crate::components::foundation::{STROKE_HAIRLINE, Theme};
+use crate::components::foundation::{STROKE_HAIRLINE, SurfaceMotion, Theme, surface_motion};
 
 /// Must match [`egui::SidePanel::left`] id in the shell.
 pub const PANEL_ID: &str = "shell_sidebar";
@@ -29,8 +29,21 @@ pub fn animation_id() -> egui::Id {
 }
 
 /// 0 = closed, 1 = open. First call at a target snaps (no launch animation).
-pub fn open_t(ctx: &egui::Context, open: bool) -> f32 {
-    ctx.animate_bool_responsive(animation_id(), open)
+pub fn open_motion(ctx: &egui::Context, open: bool) -> SurfaceMotion {
+    let motion = surface_motion(ctx, animation_id(), open);
+    if motion.slide > 0.0 && motion.slide < 1.0 {
+        tracing::debug!(
+            target: "lockbook_desktop::sidebar",
+            open,
+            slide = motion.slide,
+            "sidebar motion"
+        );
+    }
+    motion
+}
+
+pub fn split_stroke(t: &Theme) -> egui::Stroke {
+    egui::Stroke::new(STROKE_HAIRLINE, t.neutral())
 }
 
 fn resting_width_id() -> egui::Id {
@@ -52,6 +65,18 @@ pub fn resting_width(ctx: &egui::Context) -> f32 {
 pub fn remember_resting_width(ctx: &egui::Context, w: f32) {
     let w = w.clamp(width_min(), width_max(ctx));
     ctx.data_mut(|d| d.insert_persisted(resting_width_id(), w));
+}
+
+/// Force the live panel rect to `w` so `exact_width` cannot lose to a stale
+/// [`PanelState`] from the last rest.
+pub fn set_animating_width(ctx: &egui::Context, w: f32) {
+    let id = panel_id();
+    let w = w.max(1.0);
+    let Some(mut state) = egui::containers::panel::PanelState::load(ctx, id) else {
+        return;
+    };
+    state.rect.set_right(state.rect.left() + w);
+    ctx.data_mut(|d| d.insert_persisted(id, state));
 }
 
 /// After a close/open slide, [`PANEL_ID`] may still be 1px wide. Restore the
@@ -134,7 +159,7 @@ fn resize_cursor(width: f32, max: f32) -> egui::CursorIcon {
 }
 
 /// Resize handle straddling the split. SidePanel's built-in grab is off.
-pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
+pub fn resize_over_workspace(ctx: &egui::Context, header_h: f32, stroke: egui::Stroke) {
     let panel_id = panel_id();
     let Some(state) = egui::containers::panel::PanelState::load(ctx, panel_id) else {
         return;
@@ -169,8 +194,7 @@ pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
             }
 
             let line_x = edge_x + STROKE_HAIRLINE * 0.5;
-            ui.painter()
-                .vline(line_x, line_y, egui::Stroke::new(STROKE_HAIRLINE, t.neutral()));
+            ui.painter().vline(line_x, line_y, stroke);
 
             if resp.dragged() {
                 if let Some(p) = resp.interact_pointer_pos() {
@@ -205,20 +229,21 @@ pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
 }
 
 /// Split hairline only (no resize hit). Used while the sidebar is sliding.
-pub fn paint_split_line(ctx: &egui::Context, t: &Theme, header_h: f32) {
+pub fn paint_split_line(ctx: &egui::Context, header_h: f32, stroke: egui::Stroke) {
     let Some(state) = egui::containers::panel::PanelState::load(ctx, panel_id()) else {
         return;
     };
-    let edge_x = state.rect.right();
-    let line_top = (state.rect.top() + header_h.max(0.0)).min(state.rect.bottom());
-    if line_top >= state.rect.bottom() - 0.5 {
+    paint_vline(ctx, state.rect.right(), state.rect.top(), state.rect.bottom(), header_h, stroke);
+}
+
+fn paint_vline(
+    ctx: &egui::Context, edge_x: f32, top: f32, bottom: f32, header_h: f32, stroke: egui::Stroke,
+) {
+    let line_top = (top + header_h.max(0.0)).min(bottom);
+    if line_top >= bottom - 0.5 {
         return;
     }
     let line_x = edge_x + STROKE_HAIRLINE * 0.5;
     ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, resize_area_id()))
-        .vline(
-            line_x,
-            egui::Rangef::new(line_top, state.rect.bottom()),
-            egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
-        );
+        .vline(line_x, egui::Rangef::new(line_top, bottom), stroke);
 }

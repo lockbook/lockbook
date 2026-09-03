@@ -154,108 +154,54 @@ impl Search {
         }
     }
 
-    /// The big "Open Quickly"-style query field: a centered, rounded, subtly
-    /// filled box with a leading magnifying glass, large text, executor radio
-    /// buttons, and an accent focus ring.
-    fn show_query_box(&mut self, ui: &mut Ui) {
-        let max_w = 720.0_f32.min(ui.available_width() - 48.0);
-        let side = ((ui.available_width() - max_w) / 2.0).max(0.0);
-
-        ui.horizontal(|ui| {
-            ui.add_space(side);
-            ui.allocate_ui_with_layout(
-                Vec2::new(max_w, 0.0),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| self.show_query_box_inner(ui),
-            );
-        });
-    }
-
-    fn show_query_box_inner(&mut self, ui: &mut Ui) {
-        let theme = ui.ctx().get_lb_theme();
-        let accent = theme.fg().get_color(theme.prefs().primary);
-
+    /// Prompt row: field + picker switch + scope. Same chrome for every picker.
+    fn show_prompt(&mut self, ui: &mut Ui, t: &Theme) {
+        ui.spacing_mut().item_spacing = Vec2::ZERO;
+        let pad = Space::Sm.pts();
+        let host = egui::Id::new("search_query");
         let hint = match self.search_type {
-            SearchType::Path => "Search Filenames",
-            SearchType::Content => "Search Contents",
+            SearchType::Path => "Find files",
+            SearchType::Content => "Live grep",
         };
 
-        let text_id = ui.id().with("search_query_input");
-        let focused = ui.memory(|m| m.has_focus(text_id));
-        self.query_focused = focused;
-
-        let fill =
-            if focused { ui.visuals().extreme_bg_color } else { theme.neutral_bg_secondary() };
-
-        let frame = Frame::new()
-            .fill(fill)
-            .corner_radius(CornerRadius::same(12))
-            .inner_margin(Margin::symmetric(20, 16));
-
-        let out = frame.show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 12.0;
-
-                    Icon::SEARCH
-                        .size(22.0)
-                        .color(theme.neutral_fg_secondary())
-                        .show(ui);
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let filter = IconButton::new(Icon::FILTER.size(18.0))
-                            .tooltip("Filters")
-                            .colored(self.filters_open)
-                            .show(ui);
-                        if filter.clicked() {
-                            self.filters_open = !self.filters_open;
-                            if !self.filters_open {
-                                self.scope_path.clear();
-                            }
-                        }
-
-                        let resp = TextEdit::singleline(&mut self.query)
-                            .id(text_id)
-                            .frame(false)
-                            .hint_text(
-                                RichText::new(hint)
-                                    .size(22.0)
-                                    .color(theme.neutral_fg_secondary()),
-                            )
-                            .text_color(theme.neutral_fg())
-                            .font(egui::FontId::proportional(22.0))
-                            .vertical_align(egui::Align::Center)
-                            .desired_width(ui.available_width())
-                            .margin(Margin::ZERO)
-                            .show(ui)
-                            .response;
-
-                        if !self.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
-                            self.initialized = true;
-                            resp.request_focus();
-                        }
-                    });
-                });
-
-                // Executor selector along the bottom of the box.
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 16.0;
-                    let label = |text: &str| {
-                        RichText::new(text)
-                            .size(14.0)
-                            .color(theme.neutral_fg_secondary())
-                    };
-                    ui.radio_value(&mut self.search_type, SearchType::Path, label("Filenames"));
-                    ui.radio_value(&mut self.search_type, SearchType::Content, label("Contents"));
-                });
-
-                if self.filters_open {
-                    ui.add_space(8.0);
-                    self.show_filter_bar(ui);
+        ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            ui.add_space(pad);
+            let mut kind = match self.search_type {
+                SearchType::Path => 0,
+                SearchType::Content => 1,
+            };
+            let seg_w = segmented_width(ui, t, &["Filenames", "Contents"]);
+            let field_w =
+                (ui.available_width() - seg_w - control_height() - Space::Xs.pts() * 2.0 - pad)
+                    .max(1.0);
+            Field::new(t, &mut self.query)
+                .id(host)
+                .hint(hint)
+                .leading(phosphor::SEARCH)
+                .clearable(true)
+                .width(field_w)
+                .show(ui);
+            ui.add(Spacer::new(Space::Xs).fill_cross(control_height()));
+            if segmented(ui, t, &["Filenames", "Contents"], &mut kind).changed() {
+                self.search_type = if kind == 0 { SearchType::Path } else { SearchType::Content };
+            }
+            ui.add(Spacer::new(Space::Xs).fill_cross(control_height()));
+            if icon_button(ui, t, phosphor::FUNNEL, self.filters_open, t.neutral_bg()).clicked() {
+                self.filters_open = !self.filters_open;
+                if !self.filters_open {
+                    self.scope_path.clear();
                 }
-            });
+            }
+            ui.add_space(pad);
         });
+
+        let edit_id = host.with("edit");
+        self.query_focused = ui.memory(|m| m.has_focus(edit_id));
+        if !self.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
+            self.initialized = true;
+            ui.memory_mut(|m| m.request_focus(edit_id));
+        }
 
         let filters_shown = !self.scope_path.is_empty() || self.filters_open;
         if (filters_shown || !self.query.is_empty())
@@ -268,45 +214,33 @@ impl Search {
                 self.query.clear();
             }
         }
-
-        if focused {
-            ui.painter().rect_stroke(
-                out.response.rect,
-                CornerRadius::same(12),
-                egui::Stroke::new(2.0, accent),
-                egui::epaint::StrokeKind::Inside,
-            );
-        }
     }
 
-    fn show_filter_bar(&mut self, ui: &mut Ui) {
-        let theme = ui.ctx().get_lb_theme();
+    fn show_filter_bar(&mut self, ui: &mut Ui, t: &Theme) {
+        let pad = Space::Sm.pts();
         ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-            ui.set_min_height(22.0);
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            ui.add_space(pad);
             ui.label(
-                RichText::new("Searching inside")
-                    .size(14.0)
-                    .color(theme.neutral_fg_secondary()),
+                TypeRole::Body
+                    .rich("Inside")
+                    .color(t.neutral_fg_secondary()),
             );
-            let home = IconButton::new(Icon::HOME.size(16.0))
-                .size(22.0)
-                .tooltip("Home")
-                .colored(self.scope_path.is_empty())
-                .show(ui);
-            if home.clicked() {
+            ui.add(Spacer::new(Space::Xs).fill_cross(control_height()));
+            if icon_button(ui, t, phosphor::FOLDERS, self.scope_path.is_empty(), t.neutral_bg())
+                .clicked()
+            {
                 self.scope_path.clear();
             }
-
-            let resp = TextEdit::singleline(&mut self.scope_path)
-                .frame(false)
-                .text_color(theme.neutral_fg())
-                .font(egui::FontId::proportional(14.0))
-                .vertical_align(egui::Align::Center)
-                .desired_width(ui.available_width())
-                .margin(Margin::ZERO)
-                .show(ui)
-                .response;
+            ui.add(Spacer::new(Space::Xs).fill_cross(control_height()));
+            let field_w = (ui.available_width() - pad).max(1.0);
+            let resp = Field::new(t, &mut self.scope_path)
+                .id("search_scope")
+                .hint("Folder path")
+                .leading(phosphor::FOLDER)
+                .width(field_w)
+                .show(ui);
+            ui.add_space(pad);
 
             if resp.changed() {
                 self.scope_selected = 0;
@@ -374,22 +308,31 @@ impl Search {
                     .max_height(600.0)
                     .auto_shrink([false, true])
                     .show(ui, |ui| {
+                        let t = ui.ctx().get_lb_theme();
                         for (idx, path) in matches.iter().enumerate() {
                             let selected = idx == self.scope_selected;
                             let (rect, row) = ui.allocate_at_least(
-                                egui::vec2(ui.available_width(), 22.0),
+                                egui::vec2(ui.available_width(), control_height()),
                                 egui::Sense::click(),
                             );
-                            let visuals = ui.style().interact_selectable(&row, selected);
                             if selected || row.hovered() {
-                                ui.painter().rect_filled(rect, 4.0, visuals.bg_fill);
+                                let amt = if selected {
+                                    crate::style::FG_PRESS
+                                } else {
+                                    crate::style::FG_HOVER
+                                };
+                                ui.painter().rect_filled(
+                                    rect.shrink(1.0),
+                                    crate::style::Radius::Control.corner(),
+                                    t.wash_toward_neutral_fg(t.neutral_bg(), amt),
+                                );
                             }
                             ui.painter().text(
-                                egui::pos2(rect.left() + 8.0, rect.center().y),
+                                egui::pos2(rect.left() + Space::Sm.pts(), rect.center().y),
                                 egui::Align2::LEFT_CENTER,
                                 path,
-                                egui::FontId::proportional(13.0),
-                                visuals.text_color(),
+                                TypeRole::Body.font_id(),
+                                t.neutral_fg(),
                             );
                             if row.clicked() {
                                 chosen = Some(path.clone());
@@ -410,144 +353,180 @@ impl Search {
     }
 }
 
+/// Prompt stack at the bottom of the picker (hairline + pads + field).
+fn prompt_band_h(filters_open: bool) -> f32 {
+    let mut h = STROKE_HAIRLINE + Space::Sm.pts() + control_height() + Space::Sm.pts();
+    if filters_open {
+        h += Space::Xs.pts() + control_height();
+    }
+    h
+}
+
+/// Results above, prompt below. Adjacent, covering `max`.
+fn picker_bands(max: egui::Rect, filters_open: bool) -> (egui::Rect, egui::Rect) {
+    let ph = prompt_band_h(filters_open).min(max.height().max(0.0));
+    let split_y = max.bottom() - ph;
+    let results = egui::Rect::from_min_max(max.min, egui::pos2(max.right(), split_y));
+    let prompt = egui::Rect::from_min_max(egui::pos2(max.left(), split_y), max.max);
+    (results, prompt)
+}
+
 impl Workspace {
-    /// Render the whole search tab: the query box, then a results list (left)
-    /// and read-only preview (right) filling the rest of the area.
+    /// Full-screen picker: results | preview, prompt at the bottom (Telescope).
     ///
-    /// This is driven from `show_current_tab_content` rather than `Tab::show`
-    /// because the preview pane reuses `self.preview` and the workspace's async
-    /// file loader, which a `Tab` can't reach on its own.
+    /// Driven from `show_current_tab_content` rather than `Tab::show` so the
+    /// preview can use the workspace async file loader.
     pub(crate) fn show_search_tab(&mut self, ui: &mut Ui) {
-        ui.vertical(|ui| {
-            // Query box + executor management need the tab's `Search`; the
-            // executor handle is cloned out so the results pass can borrow the
-            // workspace (for the preview) without holding the tab borrow.
-            let extracted = {
-                let Some(tab) = self.current_tab_mut() else {
-                    return;
-                };
-                let ContentState::Open(TabContent::Search(search)) = &mut tab.content else {
-                    return;
-                };
-                search.manage_executors(ui.ctx());
-                ui.add_space(16.0);
-                search.show_query_box(ui);
-                (search.executor.clone(), search.search_type, search.query_focused)
+        ui.spacing_mut().item_spacing = Vec2::ZERO;
+        let max = ui.max_rect();
+
+        let extracted = {
+            let Some(tab) = self.current_tab_mut() else {
+                return;
             };
-            let (executor, search_type, query_focused) = extracted;
+            let ContentState::Open(TabContent::Search(search)) = &mut tab.content else {
+                return;
+            };
+            search.manage_executors(ui.ctx());
+            (search.executor.clone(), search.search_type, search.query_focused, search.filters_open)
+        };
+        let (executor, search_type, query_focused, filters_open) = extracted;
+        let (results_rect, prompt_rect) = picker_bands(max, filters_open);
 
-            ui.add_space(10.0);
+        let t = ui.ctx().get_lb_theme();
+        crate::style::place_at(ui, prompt_rect, egui::Layout::top_down(egui::Align::Min), |ui| {
+            ui.set_width(prompt_rect.width());
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
             Self::hairline(ui, true);
-            ui.add_space(6.0);
-
-            if let Some((id, in_new_tab)) =
-                self.results_and_preview(ui, &executor, search_type, query_focused)
-            {
-                if self.is_folder(id) {
-                    let path = self.files.read().unwrap().path(id);
-                    if let Some(tab) = self.current_tab_mut() {
-                        if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
-                            search.scope_path = path;
-                            search.query.clear();
-                            search.filters_open = true;
-                        }
+            ui.add(Spacer::new(Space::Sm));
+            if let Some(tab) = self.current_tab_mut() {
+                if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                    if filters_open {
+                        search.show_filter_bar(ui, &t);
+                        ui.add(Spacer::new(Space::Xs));
                     }
-                    self.out.selected_file = Some(id);
-                } else if in_new_tab {
-                    self.open_file(id, false, true);
-                } else {
-                    self.open_file_replacing_search(id);
+                    search.show_prompt(ui, &t);
                 }
             }
+            ui.add(Spacer::new(Space::Sm));
         });
+
+        let (activated, _) = crate::style::place_at(
+            ui,
+            results_rect,
+            egui::Layout::top_down(egui::Align::Min),
+            |ui| self.results_and_preview(ui, &executor, search_type, query_focused),
+        );
+        crate::style::claim(ui, max);
+
+        let Some((id, in_new_tab)) = activated else {
+            return;
+        };
+        if self.is_folder(id) {
+            let path = self.files.read().unwrap().path(id);
+            if let Some(tab) = self.current_tab_mut() {
+                if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                    search.scope_path = path;
+                    search.query.clear();
+                    search.filters_open = true;
+                }
+            }
+            self.out.selected_file = Some(id);
+        } else if in_new_tab {
+            self.open_file(id, false, true);
+        } else {
+            self.open_file_replacing_search(id);
+        }
     }
 
     fn results_and_preview(
         &mut self, ui: &mut Ui, executor: &Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
         search_type: SearchType, allow_kb_nav: bool,
     ) -> Option<(lb_rs::Uuid, bool)> {
-        const OUTER_PAD: f32 = 24.0;
-        const MIN_PREVIEW_WIDTH: f32 = 720.0;
+        const MIN_PREVIEW_WIDTH: f32 = 560.0;
+        let pad = LIST_PAD.pts();
+        let max = ui.max_rect();
+        let show_preview = max.width() >= MIN_PREVIEW_WIDTH;
 
-        let size = ui.available_size();
-        let show_preview = size.x >= MIN_PREVIEW_WIDTH;
-        ui.horizontal(|ui| {
-            ui.set_min_size(size);
-            ui.add_space(OUTER_PAD);
-            let picker_width = if show_preview {
-                (ui.available_width() - (21.0 + OUTER_PAD)) / 2.
-            } else {
-                ui.available_width() - OUTER_PAD
-            };
-            let (picker, picked) = ui
-                .allocate_ui_with_layout(
-                    Vec2::new(picker_width, ui.available_height()),
-                    egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| {
-                        let picker = executor.try_write().ok().and_then(|mut guard| {
-                            guard
-                                .as_mut()
-                                .map(|e| e.show_result_picker(ui, allow_kb_nav))
-                        });
-                        match picker {
-                            Some(picker) => (picker, true),
-                            None => {
-                                ui.centered_and_justified(|ui| ui.spinner());
-                                (PickerResponse::default(), false)
-                            }
-                        }
-                    },
-                )
-                .inner;
+        // Split full-bleed so the preview and divider meet the prompt hairline.
+        // Recents / Shared wrap the list body in LIST_PAD (Sm, all sides); Files
+        // tree only insets L/R (sticky headers stay edge-to-edge). This is a list.
+        let (list_band, preview_rect) = if show_preview {
+            let split = max.left() + max.width() * 0.4;
+            (
+                egui::Rect::from_min_max(max.min, egui::pos2(split, max.bottom())),
+                Some(egui::Rect::from_min_max(
+                    egui::pos2(split + STROKE_HAIRLINE, max.top()),
+                    max.max,
+                )),
+            )
+        } else {
+            (max, None)
+        };
+        let list_rect = list_band.shrink2(egui::vec2(pad, pad));
 
-            if picked {
-                if show_preview {
-                    self.set_preview(picker.selected);
-
-                    // For content search, steer the read-only preview to the
-                    // highlighted snippet.
-                    if search_type == SearchType::Content {
-                        if let Some(md) = self.preview.as_mut().and_then(|t| t.markdown_mut()) {
-                            md.preview_navigate(picker.selected_range.clone());
-                        }
+        let ((picker, picked), _) =
+            crate::style::place_at(ui, list_rect, egui::Layout::top_down(egui::Align::Min), |ui| {
+                let picker = executor.try_write().ok().and_then(|mut guard| {
+                    guard
+                        .as_mut()
+                        .map(|e| e.show_result_picker(ui, allow_kb_nav))
+                });
+                match picker {
+                    Some(picker) => (picker, true),
+                    None => {
+                        ui.centered_and_justified(|ui| ui.spinner());
+                        (PickerResponse::default(), false)
                     }
-                } else {
-                    self.preview = None;
                 }
-            }
+            });
+        crate::style::claim(ui, list_band);
 
+        if picked {
             if show_preview {
-                Self::hairline(ui, false);
-
-                ui.allocate_ui_with_layout(
-                    Vec2::new(ui.available_width() - OUTER_PAD, ui.available_height()),
-                    egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| {
-                        // without clip_rect, toolbar glyphs bleed outside the preview pane
-                        ui.set_clip_rect(ui.max_rect());
-                        // without push_id, interactive widgets (e.g. checkboxes) in the preview
-                        // collide with identical widgets in a background tab (if same file)
-                        ui.push_id("search_preview", |ui| match &mut self.preview {
-                            Some(tab) => {
-                                tab.show(ui);
-                            }
-                            None => {
-                                ui.centered_and_justified(|ui| ui.spinner());
-                            }
-                        });
-                    },
-                );
+                self.set_preview(picker.selected);
+                if search_type == SearchType::Content {
+                    if let Some(md) = self.preview.as_mut().and_then(|t| t.markdown_mut()) {
+                        md.preview_navigate(picker.selected_range.clone());
+                    }
+                }
+            } else {
+                self.preview = None;
             }
+        }
 
-            picker.activated.map(|id| (id, picker.activated_in_new_tab))
-        })
-        .inner
+        if let Some(preview_rect) = preview_rect {
+            ui.painter().vline(
+                list_band.right(),
+                list_band.y_range(),
+                egui::Stroke { width: STROKE_HAIRLINE, color: ui.ctx().get_lb_theme().neutral() },
+            );
+            crate::style::place_at(
+                ui,
+                preview_rect,
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_clip_rect(ui.max_rect());
+                    ui.push_id("search_preview", |ui| match &mut self.preview {
+                        Some(tab) => {
+                            tab.show(ui);
+                        }
+                        None => {
+                            ui.centered_and_justified(|ui| ui.spinner());
+                        }
+                    });
+                },
+            );
+            crate::style::claim(ui, preview_rect);
+        }
+
+        picker.activated.map(|id| (id, picker.activated_in_new_tab))
     }
 
-    /// A 1px separator that matches the search panel's subtle divider treatment.
+    /// Hairline divider using the shared stroke token.
     fn hairline(ui: &mut Ui, horizontal: bool) {
-        let color = ui.visuals().widgets.noninteractive.bg_stroke.color;
-        let stroke = egui::Stroke { width: 1.0, color };
+        let t = ui.ctx().get_lb_theme();
+        let stroke = egui::Stroke { width: STROKE_HAIRLINE, color: t.neutral() };
         if horizontal {
             let (rect, _) =
                 ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), egui::Sense::hover());
@@ -564,7 +543,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 
-use egui::{Context, CornerRadius, Frame, Margin, RichText, TextEdit, Ui, Vec2};
+use egui::{Context, Ui, Vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::model::path_ops::Filter;
 use lb_rs::search::SearchFilter;
@@ -573,9 +552,11 @@ use crate::{
     file_cache::FilesExt,
     search::{content::ContentSearch, path::PathSearch},
     show::InputStateExt,
+    style::{
+        Field, LIST_PAD, STROKE_HAIRLINE, Space, Spacer, Theme, ThemeExt, TypeRole, control_height,
+        icon_button, phosphor, segmented, segmented_width,
+    },
     tab::{ContentState, TabContent},
-    theme::{icons::Icon, palette_v2::ThemeExt},
-    widgets::IconButton,
     workspace::Workspace,
 };
 
@@ -617,4 +598,60 @@ fn update_filter(
         executor.update_filter(filter);
     }
     ctx.request_repaint();
+}
+
+#[cfg(test)]
+mod layout_diag {
+    use super::{picker_bands, prompt_band_h};
+    use crate::style::{STROKE_HAIRLINE, Space, control_height};
+    use egui::{Rect, pos2, vec2};
+
+    fn fmt(r: Rect) -> String {
+        format!(
+            "x={:.1}..{:.1} y={:.1}..{:.1}  w={:.1} h={:.1}",
+            r.left(),
+            r.right(),
+            r.top(),
+            r.bottom(),
+            r.width(),
+            r.height()
+        )
+    }
+
+    /// Headless dump of picker bands (titleband + editor rest).
+    #[test]
+    fn diagnose_picker_bands() {
+        let max = Rect::from_min_size(pos2(0.0, 40.0), vec2(1200.0, 760.0));
+        let ch = control_height();
+        eprintln!("=== SEARCH PICKER BAND DIAG ===");
+        eprintln!(
+            "control_height={ch:.1} Sm={:.0} Xs={:.0} hairline={STROKE_HAIRLINE}",
+            Space::Sm.pts(),
+            Space::Xs.pts()
+        );
+        eprintln!("max {}", fmt(max));
+        for filters in [false, true] {
+            let (results, prompt) = picker_bands(max, filters);
+            let expect = prompt_band_h(filters);
+            eprintln!();
+            eprintln!("-- filters_open={filters} --");
+            eprintln!("results {}", fmt(results));
+            eprintln!("prompt  {}", fmt(prompt));
+            eprintln!("prompt_h {:.1}  expected {:.1}", prompt.height(), expect);
+            eprintln!("gap results.bottom→prompt.top {:.1}", prompt.top() - results.bottom());
+            assert!(
+                (prompt.height() - expect).abs() < 0.01,
+                "prompt height {} != {expect}",
+                prompt.height()
+            );
+            assert!((results.bottom() - prompt.top()).abs() < 0.01, "bands must share the split");
+            assert!((prompt.bottom() - max.bottom()).abs() < 0.01);
+            assert!((results.top() - max.top()).abs() < 0.01);
+            assert!(
+                (results.height() + prompt.height() - max.height()).abs() < 0.01,
+                "bands must cover max"
+            );
+            assert!(results.height() > 200.0, "results pane collapsed");
+        }
+    }
 }

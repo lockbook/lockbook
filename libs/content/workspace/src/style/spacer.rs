@@ -2,9 +2,7 @@
 //!
 //! [`Rule`] is a zero-main-axis hairline — sandwich between spacers for dividers.
 
-#[cfg(test)]
-use egui::{Context, Id};
-use egui::{Pos2, Rect, Response, Sense, Stroke, Ui, Vec2, Widget};
+use egui::{Context, Id, Pos2, Rect, Response, Sense, Stroke, Ui, Vec2, Widget};
 
 use super::chrome::STROKE_HAIRLINE;
 use super::color::ThemeExt;
@@ -12,7 +10,6 @@ use super::overlay;
 use super::space::Space;
 
 /// One allocated [`Spacer`] (for headless layout diagnostics).
-#[cfg(test)]
 #[derive(Clone, Debug)]
 pub struct SpacerHit {
     pub token: Space,
@@ -23,30 +20,25 @@ pub struct SpacerHit {
     pub horizontal: bool,
 }
 
-#[cfg(test)]
 fn record_id() -> Id {
     Id::new("lb.design.spacer_record")
 }
 
 /// Start collecting every [`Spacer`] allocate this frame (tests / diagnostics).
-#[cfg(test)]
 pub fn begin_record(ctx: &Context) {
     ctx.data_mut(|d| d.insert_temp(record_id(), Vec::<SpacerHit>::new()));
 }
 
 /// Drain recorded spacer hits (empty if not recording).
-#[cfg(test)]
 pub fn take_record(ctx: &Context) -> Vec<SpacerHit> {
     ctx.data_mut(|d| d.remove_temp::<Vec<SpacerHit>>(record_id()))
         .unwrap_or_default()
 }
 
-#[cfg(test)]
 fn recording(ctx: &Context) -> bool {
     ctx.data(|d| d.get_temp::<Vec<SpacerHit>>(record_id()).is_some())
 }
 
-#[cfg(test)]
 fn push_hit(ctx: &Context, hit: SpacerHit) {
     ctx.data_mut(|d| {
         if d.get_temp::<Vec<SpacerHit>>(record_id()).is_none() {
@@ -59,7 +51,7 @@ fn push_hit(ctx: &Context, hit: SpacerHit) {
 
 /// Occupies one [`Space`] step on the main axis.
 ///
-/// Vertical: full width of the parent `max_rect` × token height.  
+/// Vertical: full width of the parent `max_rect` × token height.
 /// Horizontal: token width × 1 px, or token width × **parent-supplied** cross
 /// height via [`Spacer::fill_cross`].
 ///
@@ -100,7 +92,6 @@ impl Spacer {
             let t = ui.ctx().get_lb_theme();
             ui.painter().rect_filled(rect, 0.0, token.overlay_fill(&t));
         }
-        #[cfg(test)]
         if recording(ui.ctx()) {
             let horizontal = rect.width() < rect.height();
             push_hit(

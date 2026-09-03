@@ -89,6 +89,15 @@ const PAD_X: Space = Space::Sm;
 const BAR_H: f32 = Space::Xxs.pts() * 3.0;
 const BAR_WARN_FRAC: f32 = 0.7;
 
+/// Parent-owned footer band (status row + pads, optional usage track).
+pub fn height(show_usage: bool) -> f32 {
+    let mut h = V_PAD.pts() + control_height() + V_PAD.pts();
+    if show_usage {
+        h += BAR_H + V_PAD.pts();
+    }
+    h
+}
+
 pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     let Some(ready) = app.session.ready() else {
         return;

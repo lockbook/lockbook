@@ -219,6 +219,8 @@ pub mod phosphor {
     pub const MARKDOWN_LOGO: &str = "\u{e508}";
     pub const CHAT: &str = "\u{e15c}";
     pub const SEARCH: &str = "\u{e30c}";
+    /// Filter / funnel.
+    pub const FUNNEL: &str = "\u{e268}";
     pub const GEAR: &str = "\u{e270}";
     pub const TRASH: &str = "\u{e4a6}";
     /// Phosphor pencil (drawing docs).
@@ -296,8 +298,8 @@ pub mod phosphor {
 }
 
 /// Phosphor glyph for a workspace [`DocType`].
-pub fn phosphor_for_doc_type(dt: workspace_rs::show::DocType) -> &'static str {
-    use workspace_rs::show::DocType;
+pub fn phosphor_for_doc_type(dt: crate::show::DocType) -> &'static str {
+    use crate::show::DocType;
     match dt {
         DocType::Markdown => phosphor::MARKDOWN_LOGO,
         DocType::PlainText => phosphor::FILE_TEXT,
@@ -315,22 +317,22 @@ pub fn file_row_icon(name: &str, is_folder: bool) -> &'static str {
     if is_folder {
         phosphor::FOLDER
     } else {
-        phosphor_for_doc_type(workspace_rs::show::DocType::from_name(name))
+        phosphor_for_doc_type(crate::show::DocType::from_name(name))
     }
 }
 
 /// Visible file name in chrome: strip the extension when the doc type hides it
 /// (Markdown, drawing, PDF, chat). Do not pass paths.
 pub fn display_file_name(name: &str) -> &str {
-    workspace_rs::show::DocType::from_name(name).display_name(name)
+    crate::show::DocType::from_name(name).display_name(name)
 }
 
 /// Tab-strip glyph for a workspace [`Destination`].
 ///
 /// Search / mind map / space inspector are not files — do not go through
 /// [`file_row_icon`]. Files still use the name’s [`DocType`].
-pub fn tab_icon(dest: &workspace_rs::tab::Destination, name: &str) -> &'static str {
-    use workspace_rs::tab::Destination;
+pub fn tab_icon(dest: &crate::tab::Destination, name: &str) -> &'static str {
+    use crate::tab::Destination;
     match dest {
         Destination::Search => phosphor::SEARCH,
         Destination::MindMap(_) => phosphor::GRAPH,
@@ -377,6 +379,15 @@ pub fn shortcut_cmd_n() -> Shortcut {
         Shortcut { parts: &[KbdPart::Icon(phosphor::COMMAND), KbdPart::Mono("N")] }
     } else {
         Shortcut { parts: &[KbdPart::Mono("Ctrl+"), KbdPart::Mono("N")] }
+    }
+}
+
+/// ⌘O / Ctrl+O — search / open quickly.
+pub fn shortcut_cmd_o() -> Shortcut {
+    if cfg!(target_os = "macos") {
+        Shortcut { parts: &[KbdPart::Icon(phosphor::COMMAND), KbdPart::Mono("O")] }
+    } else {
+        Shortcut { parts: &[KbdPart::Mono("Ctrl+"), KbdPart::Mono("O")] }
     }
 }
 
