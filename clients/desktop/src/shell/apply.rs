@@ -921,6 +921,16 @@ pub(crate) fn rename_validate_name(full: &str) -> Result<(), String> {
     Ok(())
 }
 
+fn create_name_taken(r: &Ready, parent: Uuid, full: &str) -> bool {
+    r.workspace
+        .files
+        .read()
+        .unwrap()
+        .children(parent)
+        .into_iter()
+        .any(|c| c.name == full)
+}
+
 /// Another sibling under the same parent already has `full` (case-sensitive, core path rules).
 pub(crate) fn rename_name_taken(r: &Ready, id: Uuid, full: &str) -> bool {
     let files = r.workspace.files.read().unwrap();
@@ -1001,25 +1011,30 @@ fn confirm_create(app: &mut ShellApp) {
             return;
         };
         let parent_id = parent.unwrap_or_else(|| r.workspace.effective_focused_parent());
-        let result = if is_folder {
-            r.workspace
-                .core
-                .create_file(&full_name, &parent_id, FileType::Folder)
+        if create_name_taken(r, parent_id, &full_name) {
+            Err("A file with that name already exists".into())
         } else {
-            r.workspace
-                .core
-                .create_file(&full_name, &parent_id, FileType::Document)
-        };
-        match result {
-            Ok(file) => {
-                r.expanded.insert(parent_id);
-                r.select_only(file.id);
-                if !is_folder {
-                    r.workspace.open_file(file.id, true, true);
+            let result = if is_folder {
+                r.workspace
+                    .core
+                    .create_file(&full_name, &parent_id, FileType::Folder)
+            } else {
+                r.workspace
+                    .core
+                    .create_file(&full_name, &parent_id, FileType::Document)
+            };
+            match result {
+                Ok(file) => {
+                    r.expanded.insert(parent_id);
+                    r.select_only(file.id);
+                    if !is_folder {
+                        r.workspace.open_file(file.id, true, true);
+                    }
+                    Ok(file.name)
                 }
-                Ok(file.name)
+                // Display — Debug includes a backtrace.
+                Err(e) => Err(e.to_string()),
             }
-            Err(e) => Err(format!("{e:?}")),
         }
     };
     match outcome {
