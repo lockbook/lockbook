@@ -69,6 +69,18 @@ pub(crate) fn show_create(
         });
     }
 
+    // Relock height when the error line appears so it isn't clipped into the footer.
+    let has_err = matches!(
+        &app.modal,
+        Some(Modal::Create { error: Some(e), .. }) if !e.is_empty()
+    );
+    let err_key = Id::new("shell_create_inner_h_err");
+    let prev_err = ctx.data(|d| d.get_temp::<bool>(err_key)).unwrap_or(false);
+    if has_err != prev_err {
+        ctx.data_mut(|d| d.remove::<f32>(create_sheet_h_key()));
+    }
+    ctx.data_mut(|d| d.insert_temp(err_key, has_err));
+
     let locked_h = ctx.data(|d| d.get_temp::<f32>(create_sheet_h_key()));
 
     Area::new(Id::new("shell_create"))

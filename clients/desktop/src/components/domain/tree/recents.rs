@@ -104,7 +104,9 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                         visible_doc_ids
                             .iter()
                             .filter_map(|id| {
-                                files.get_by_id(*id).map(|f| (*id, is_saved_share(f, me)))
+                                files.get_by_id(*id).map(|f| {
+                                    (*id, is_saved_share(f, files.get_by_id(f.parent), me))
+                                })
                             })
                             .collect()
                     })
