@@ -129,6 +129,16 @@ pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
+pub unsafe extern "C" fn copy_image(obj: *mut c_void) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    if let Some(image_viewer) = obj.workspace.current_tab_image() {
+        image_viewer.copy_image(&obj.renderer.context);
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
 pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.renderer.context.push_markdown_event(Event::Cut);

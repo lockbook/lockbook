@@ -7,7 +7,7 @@ use egui::{Align, Color32, Id, Layout, Response, Stroke, StrokeKind, Ui, pos2, v
 use workspace_rs::widgets::GlyphonTextEdit;
 
 use crate::components::foundation::chrome::{
-    Radius, STROKE_HAIRLINE, control_height, control_line_height, phosphor_ui_font_id,
+    Radius, STROKE_HAIRLINE, control_height, control_line_height, phosphor, phosphor_ui_font_id,
 };
 use crate::components::foundation::color::{
     FG_HOVER, FG_PRESS, QUIET_PLATE_HOVER, QUIET_PLATE_PRESS, Theme,
@@ -37,18 +37,13 @@ pub struct Field<'a> {
     completion_suffix: Option<String>,
     /// Full string Tab accepts (prefix of which is already typed).
     completion_full: Option<String>,
-    /// Always mask as `*` (compact key).
+    /// Always mask as `*` (account key).
     password: bool,
-    /// Mask only while unfocused (phrase slots: reveal the active word).
-    password_when_unfocused: bool,
-    /// Place caret at end of buffer when the field gains focus.
-    cursor_at_end_on_focus: bool,
-    /// Leave Tab for egui focus ring (phrase word grid). Default false = share
-    /// completion behavior (non-empty claims Tab).
-    tab_navigates: bool,
     /// After keyboard events, before paint: rewrite buffer + remap caret.
     /// `(old_text, cursor, anchor) -> (new_text, new_cursor, new_anchor)`.
     rewrite: Option<Box<FieldRewrite<'a>>>,
+    /// Re-take focus when a press lands on a non-focusable control (default).
+    sticky: bool,
 }
 
 /// Buffer rewrite after keyboard events (see [`Field::rewrite`]).
@@ -70,10 +65,8 @@ impl<'a> Field<'a> {
             completion_suffix: None,
             completion_full: None,
             password: false,
-            password_when_unfocused: false,
-            cursor_at_end_on_focus: false,
-            tab_navigates: false,
             rewrite: None,
+            sticky: true,
         }
     }
 
@@ -137,27 +130,15 @@ impl<'a> Field<'a> {
         self
     }
 
-    /// Always paint `*` per character (compact account key).
+    /// Always paint `*` per character (account key).
     pub fn password(mut self, on: bool) -> Self {
         self.password = on;
         self
     }
 
-    /// Mask when blurred; plain text while focused (phrase grid slots).
-    pub fn password_when_unfocused(mut self, on: bool) -> Self {
-        self.password_when_unfocused = on;
-        self
-    }
-
-    /// Caret at end of buffer when focus is newly gained (paste-into-grid).
-    pub fn cursor_at_end_on_focus(mut self, on: bool) -> Self {
-        self.cursor_at_end_on_focus = on;
-        self
-    }
-
-    /// Tab moves focus to the next field (never claimed for completion).
-    pub fn tab_navigates(mut self, on: bool) -> Self {
-        self.tab_navigates = on;
+    /// When false, a press outside surrenders focus (caption → field blur).
+    pub fn sticky(mut self, on: bool) -> Self {
+        self.sticky = on;
         self
     }
 
@@ -181,15 +162,13 @@ impl<'a> Field<'a> {
         });
         let edit_id = host.with("edit");
 
-        // Drain before paint. Default: non-empty claims Tab (complete / stay).
-        // `tab_navigates`: never claim — focus ring walks multi-field grids.
-        let claim_tab = !self.tab_navigates;
+        // Drain before paint. Non-empty claims Tab (complete / stay).
         let _ = GlyphonTextEdit::process_events_ex(
             ui,
             edit_id,
             self.text,
-            if claim_tab { self.completion_full.as_deref() } else { None },
-            claim_tab,
+            self.completion_full.as_deref(),
+            true,
         );
 
         // Format / strip before paint so the frame never shows raw input.
@@ -281,26 +260,23 @@ impl<'a> Field<'a> {
         let (edit_resp, _) = place_at(ui, edit_rect, Layout::left_to_right(Align::Center), |ui| {
             ui.set_min_width(edit_w);
             ui.set_max_width(edit_w);
-            let mask = self.password || (self.password_when_unfocused && !focused);
+            let mask = self.password;
             let mut edit = GlyphonTextEdit::new(self.text)
                 .id(edit_id)
                 .font_size(TypeRole::Body.size())
                 .line_height(control_line_height())
                 .password(mask)
-                .claim_tab_when_nonempty(!self.tab_navigates);
+                .claim_tab_when_nonempty(true);
             if !self.hint.is_empty() {
                 edit = edit.hint_text(&self.hint);
             }
-            if !mask && !self.tab_navigates {
+            if !mask {
                 if let Some(ref suffix) = paint_suffix {
                     edit = edit.completion_suffix(suffix);
                 }
             }
             if self.select_all_on_focus {
                 edit = edit.select_all();
-            }
-            if self.cursor_at_end_on_focus {
-                edit = edit.cursor_at_end();
             }
             edit.show(ui)
         });
@@ -350,11 +326,58 @@ impl<'a> Field<'a> {
             ui.painter().galley(cr.center() - xg.size() / 2.0, xg, ink);
             if cresp.clicked() {
                 self.text.clear();
-                ui.memory_mut(|m| m.request_focus(edit_id));
+                if self.sticky {
+                    ui.memory_mut(|m| m.request_focus(edit_id));
+                } else {
+                    ui.memory_mut(|m| m.surrender_focus(edit_id));
+                }
             }
         }
 
         response = response.union(edit_resp);
+
+        if response.secondary_clicked() {
+            ui.memory_mut(|m| m.request_focus(edit_id));
+        }
+        if let Some(cmd) = crate::components::context_menu::show(&response, t, |e| {
+            e.item(phosphor::SCISSORS, "Cut", FieldEditCmd::Cut);
+            e.item(phosphor::COPY, "Copy", FieldEditCmd::Copy);
+            e.item(phosphor::CLIPBOARD_TEXT, "Paste", FieldEditCmd::Paste);
+            e.separator();
+            e.item(phosphor::SELECTION_ALL, "Select all", FieldEditCmd::SelectAll);
+        }) {
+            ui.memory_mut(|m| m.request_focus(edit_id));
+            match cmd {
+                FieldEditCmd::Cut => {
+                    ui.ctx().input_mut(|i| i.events.push(egui::Event::Cut));
+                    let _ = GlyphonTextEdit::process_events_ex(
+                        ui,
+                        edit_id,
+                        self.text,
+                        self.completion_full.as_deref(),
+                        true,
+                    );
+                }
+                FieldEditCmd::Copy => {
+                    ui.ctx().input_mut(|i| i.events.push(egui::Event::Copy));
+                    let _ = GlyphonTextEdit::process_events_ex(
+                        ui,
+                        edit_id,
+                        self.text,
+                        self.completion_full.as_deref(),
+                        true,
+                    );
+                }
+                FieldEditCmd::Paste => {
+                    ui.ctx()
+                        .send_viewport_cmd(egui::ViewportCommand::RequestPaste);
+                }
+                FieldEditCmd::SelectAll => {
+                    let len = self.text.len();
+                    GlyphonTextEdit::place_cursor(ui, edit_id, len, 0);
+                }
+            }
+        }
 
         // Sticky text focus: egui surrenders focus on any press outside the
         // focused widget. Non-text controls use `sense_click` (no FOCUSABLE) and
@@ -362,7 +385,7 @@ impl<'a> Field<'a> {
         // claimed focus, re-take it. Keyboard surrender (Esc / Enter submit) has
         // no pointer press, so we leave focus clear.
         let lost = ui.memory(|m| m.had_focus_last_frame(edit_id) && !m.has_focus(edit_id));
-        if lost {
+        if self.sticky && lost {
             let free = ui.memory(|m| m.focused().is_none());
             let pointer = ui.input(|i| i.pointer.any_pressed() || i.pointer.any_down());
             if free && pointer {
@@ -372,6 +395,14 @@ impl<'a> Field<'a> {
 
         response
     }
+}
+
+#[derive(Clone, Copy)]
+enum FieldEditCmd {
+    Cut,
+    Copy,
+    Paste,
+    SelectAll,
 }
 
 /// Ghost after typed buffer: remainder of `full` when `query` is a

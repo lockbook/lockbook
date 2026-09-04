@@ -125,12 +125,15 @@ pub enum Modal {
     Create {
         name: String,
         kind: CreateKind,
-        /// Destination parent (resolved from location chips).
+        /// Destination parent (resolved from the selected location plate).
         parent: Option<Uuid>,
         loc: CreateLoc,
-        /// Tree-selected document’s parent + name for the "Alongside …" plate.
-        /// (Tab focus usually tracks selection; plate follows the sidebar cursor.)
+        /// Document to create next to: (parent folder, document name).
+        /// Shown whenever a document tab is open or Create was invoked on a file.
         alongside: Option<(Uuid, String)>,
+        /// Folder from Choose… / folder-context Create. Independent of `loc`.
+        /// Never the account root — Home is its own plate.
+        chosen: Option<Uuid>,
         /// Nested folder list for "Choose…".
         picking: bool,
         error: Option<String>,
@@ -173,14 +176,14 @@ pub enum Modal {
         uname_lookup: OnboardLookup,
         /// Username last settled by network / invalid local check.
         uname_lookup_for: String,
-        /// Sign-in path: compact key (default) or 24-word phrase grid.
-        import_kind: OnboardImportKind,
-        /// Compact account key buffer.
-        compact: String,
-        /// BIP-39 slots (always 24 when in phrase mode).
-        words: Vec<String>,
+        /// Compact key or 24-word phrase — `import_account` accepts either.
+        account_key: String,
+        /// Custom API URL. Empty = [`lb::DEFAULT_API_LOCATION`].
+        api_url: String,
         busy: bool,
         err: Option<String>,
+        /// Backup step: user confirmed they stored the key.
+        key_stored: bool,
     },
 }
 
@@ -190,16 +193,8 @@ pub enum OnboardMode {
     Choice,
     Create,
     Import,
-}
-
-/// How the user is pasting their existing account secret.
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Default)]
-pub enum OnboardImportKind {
-    /// Base64 compact key (password managers / QR) — default.
-    #[default]
-    CompactKey,
-    /// 24-word account phrase (paper / structured entry).
-    Phrase,
+    /// After create: show the 24-word key and require a backup ack.
+    Backup,
 }
 
 /// Stripe upgrade sheet stages.
@@ -209,27 +204,6 @@ pub enum UpgradeStage {
     EnterCard,
     Confirm,
     Paying,
-}
-
-impl OnboardImportKind {
-    pub fn from_index(i: usize) -> Self {
-        match i {
-            1 => Self::Phrase,
-            _ => Self::CompactKey,
-        }
-    }
-
-    pub fn index(self) -> usize {
-        match self {
-            Self::CompactKey => 0,
-            Self::Phrase => 1,
-        }
-    }
-}
-
-/// Empty 24-slot phrase grid for import.
-pub fn empty_phrase_words() -> Vec<String> {
-    vec![String::new(); 24]
 }
 
 /// Create-sheet file type.
@@ -303,6 +277,9 @@ pub enum Action {
     OpenFile(Uuid),
     /// Open document in a new tab.
     OpenFileNewTab(Uuid),
+    /// Per-tab workspace history (same as mobile `nav_back` / `nav_forward`).
+    NavBack,
+    NavForward,
     /// Open documents (filters folders). Multi: first reuses tab path unless
     /// `new_tab`; further docs always open as new tabs.
     OpenDocuments {
@@ -343,9 +320,12 @@ pub enum Action {
     ShareInvite,
     /// Drop someone from the multi-add stage (chip dismiss).
     ShareUnstage(String),
-    /// Open create sheet. `parent` seeds location; `is_folder` seeds type.
+    /// Open create sheet. Folder-context fills `folder` and selects Choose;
+    /// file-context fills `alongside` and selects that plate (Choose stays empty).
+    /// Chrome / ⌘N leaves both None and follows the open document tab.
     OpenCreate {
-        parent: Option<Uuid>,
+        folder: Option<Uuid>,
+        alongside: Option<Uuid>,
         is_folder: bool,
     },
     CreateSetKind(CreateKind),
@@ -376,19 +356,17 @@ pub enum Action {
     OnboardSetMode(OnboardMode),
     /// Debounced create-username availability (share-style network verify).
     OnboardVerifyUname,
-    OnboardImportKind(OnboardImportKind),
-    /// `show_error`: false for auto-submit (silent fail until the secret changes).
+    /// `show_error`: false for auto-submit (silent fail; Import button surfaces).
     OnboardSubmit {
         show_error: bool,
     },
+    /// Backup step finished (key ack). Dismisses onboard.
+    OnboardFinishBackup,
     RequestSync,
     TogglePin(Uuid),
     /// Toggle pin on each id (own state).
     TogglePinMany(Vec<Uuid>),
-    Cut(Vec<Uuid>),
-    Copy(Vec<Uuid>),
-    Paste,
-    /// Drag-drop or cut-paste: move ids into parent.
+    /// Drag-drop: move ids into parent.
     MoveInto {
         ids: Vec<Uuid>,
         parent: Uuid,
@@ -451,4 +429,108 @@ pub enum Action {
     /// Sidebar Create chip / ⌘N — open create sheet (default Note).
     Create,
     SaveAll,
+}
+
+impl Action {
+    /// Variant name only — safe for traces (no paths, secrets, or ids).
+    pub fn name(&self) -> &'static str {
+        match self {
+            Self::SelectPane(_) => "SelectPane",
+            Self::ToggleSidebar => "ToggleSidebar",
+            Self::SelectFile(_) => "SelectFile",
+            Self::SetSelection(_) => "SetSelection",
+            Self::ToggleSelect(_) => "ToggleSelect",
+            Self::SelectRange(_) => "SelectRange",
+            Self::ToggleExpand(_) => "ToggleExpand",
+            Self::ExpandSubtree(_) => "ExpandSubtree",
+            Self::CollapseSubtree(_) => "CollapseSubtree",
+            Self::OpenFile(_) => "OpenFile",
+            Self::OpenFileNewTab(_) => "OpenFileNewTab",
+            Self::NavBack => "NavBack",
+            Self::NavForward => "NavForward",
+            Self::OpenDocuments { .. } => "OpenDocuments",
+            Self::SelectTab(_) => "SelectTab",
+            Self::CloseTab(_) => "CloseTab",
+            Self::CloseOtherTabs(_) => "CloseOtherTabs",
+            Self::CloseTabsToLeft(_) => "CloseTabsToLeft",
+            Self::CloseTabsToRight(_) => "CloseTabsToRight",
+            Self::CloseAllTabs => "CloseAllTabs",
+            Self::ReopenClosedTab => "ReopenClosedTab",
+            Self::ReorderTab { .. } => "ReorderTab",
+            Self::OpenSettings => "OpenSettings",
+            Self::CloseModal => "CloseModal",
+            Self::SetSettingsCat(_) => "SetSettingsCat",
+            Self::OpenDelete(_) => "OpenDelete",
+            Self::ConfirmDelete => "ConfirmDelete",
+            Self::OpenShare(_) => "OpenShare",
+            Self::ShareQuery => "ShareQuery",
+            Self::ShareMode(_) => "ShareMode",
+            Self::ShareVerify => "ShareVerify",
+            Self::ShareStageField => "ShareStageField",
+            Self::ShareInvite => "ShareInvite",
+            Self::ShareUnstage(_) => "ShareUnstage",
+            Self::OpenCreate { .. } => "OpenCreate",
+            Self::CreateSetKind(_) => "CreateSetKind",
+            Self::CreateSetLoc(_) => "CreateSetLoc",
+            Self::CreateSetPicking(_) => "CreateSetPicking",
+            Self::CreatePickFolder(_) => "CreatePickFolder",
+            Self::ConfirmCreate => "ConfirmCreate",
+            Self::OpenMove(_) => "OpenMove",
+            Self::MoveSelect(_) => "MoveSelect",
+            Self::ConfirmMove => "ConfirmMove",
+            Self::OpenRename(_) => "OpenRename",
+            Self::ConfirmRename => "ConfirmRename",
+            Self::OpenAcceptShare { .. } => "OpenAcceptShare",
+            Self::AcceptShareDest(_) => "AcceptShareDest",
+            Self::ConfirmAcceptShare => "ConfirmAcceptShare",
+            Self::OpenDeclineShare { .. } => "OpenDeclineShare",
+            Self::ConfirmDeclineShare(_) => "ConfirmDeclineShare",
+            Self::OpenHelp => "OpenHelp",
+            Self::OnboardSetMode(_) => "OnboardSetMode",
+            Self::OnboardVerifyUname => "OnboardVerifyUname",
+            Self::OnboardSubmit { .. } => "OnboardSubmit",
+            Self::OnboardFinishBackup => "OnboardFinishBackup",
+            Self::RequestSync => "RequestSync",
+            Self::TogglePin(_) => "TogglePin",
+            Self::TogglePinMany(_) => "TogglePinMany",
+            Self::MoveInto { .. } => "MoveInto",
+            Self::Duplicate(_) => "Duplicate",
+            Self::Export(_) => "Export",
+            Self::CopyLink(_) => "CopyLink",
+            Self::Import => "Import",
+            Self::ImportPaths { .. } => "ImportPaths",
+            Self::OpenImportParent { .. } => "OpenImportParent",
+            Self::ImportParentSelect(_) => "ImportParentSelect",
+            Self::ConfirmImportParent => "ConfirmImportParent",
+            Self::OpenSearch => "OpenSearch",
+            Self::CancelSubscription => "CancelSubscription",
+            Self::ConfirmCancelSub => "ConfirmCancelSub",
+            Self::SetThemeMode(_) => "SetThemeMode",
+            Self::SetThemeFamily(_) => "SetThemeFamily",
+            Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
+            Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",
+            Self::SetPrefAllowWayland(_) => "SetPrefAllowWayland",
+            Self::RevealPhrase => "RevealPhrase",
+            Self::OpenAccountQr => "OpenAccountQr",
+            Self::HideAccountKey => "HideAccountKey",
+            Self::CopyPhrase => "CopyPhrase",
+            Self::RevealDebugInfo => "RevealDebugInfo",
+            Self::HideDebugInfo => "HideDebugInfo",
+            Self::EnsureDebugInfo => "EnsureDebugInfo",
+            Self::RefreshDebugInfo => "RefreshDebugInfo",
+            Self::CopyDebugInfo => "CopyDebugInfo",
+            Self::OpenUpgrade => "OpenUpgrade",
+            Self::UpgradeBack => "UpgradeBack",
+            Self::UpgradeNext => "UpgradeNext",
+            Self::UpgradeConfirmPay => "UpgradeConfirmPay",
+            Self::UpgradeDone => "UpgradeDone",
+            Self::OpenLogout => "OpenLogout",
+            Self::LogoutAck(_) => "LogoutAck",
+            Self::ConfirmLogout => "ConfirmLogout",
+            Self::OpenDeleteAccount => "OpenDeleteAccount",
+            Self::ConfirmDeleteAccount => "ConfirmDeleteAccount",
+            Self::Create => "Create",
+            Self::SaveAll => "SaveAll",
+        }
+    }
 }

@@ -58,6 +58,15 @@ func textFromPtr(s: UnsafeMutablePointer<CChar>!) -> String {
     return str
 }
 
+func dataFromBytes(b: CBytes) -> Data? {
+    guard b.size > 0, let bytes = b.bytes else {
+        return nil
+    }
+    let data = Data(bytes: bytes, count: Int(b.size))
+    free_bytes(b)
+    return data
+}
+
 extension UUID {
     func isNil() -> Bool {
         uuid.0 == 0 &&

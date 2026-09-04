@@ -199,6 +199,8 @@ pub mod phosphor {
     pub const COMMAND: &str = "\u{e1c4}";
     /// Return corner (`ph-arrow-elbow-down-left`).
     pub const KEY_RETURN: &str = "\u{e044}";
+    /// Create-sheet “Alongside …” (`ph-arrow-bend-down-right`).
+    pub const ARROW_BEND_DOWN_RIGHT: &str = "\u{e01a}";
     pub const FOLDER: &str = "\u{e24a}";
     /// Open folder.
     pub const FOLDER_OPEN: &str = "\u{e256}";
@@ -255,13 +257,22 @@ pub mod phosphor {
     /// New note.
     pub const NOTE_PENCIL: &str = "\u{e34c}";
     pub const FOLDER_PLUS: &str = "\u{e258}";
+    /// Phosphor 2.1 IcoMoon PUA (`folder-minus` / `folder-notch-minus`).
+    pub const FOLDER_MINUS: &str = "\u{e254}";
     pub const CARET_DOWN: &str = "\u{e136}";
     pub const CARET_LEFT: &str = "\u{e138}";
     pub const CARET_RIGHT: &str = "\u{e13a}";
+    /// Titleband back / forward.
+    pub const ARROW_LEFT: &str = "\u{e058}";
+    pub const ARROW_RIGHT: &str = "\u{e06c}";
     pub const FOLDERS: &str = "\u{e260}";
     pub const PUSH_PIN: &str = "\u{e3e2}";
     pub const SCISSORS: &str = "\u{eae0}";
     pub const COPY: &str = "\u{e1ca}";
+    /// Paste (`ph-clipboard-text`).
+    pub const CLIPBOARD_TEXT: &str = "\u{e198}";
+    /// Select all (`ph-selection-all`).
+    pub const SELECTION_ALL: &str = "\u{e746}";
     /// Sync / refresh (sidebar footer).
     pub const ARROWS_CLOCKWISE: &str = "\u{e094}";
     /// Zen / hide sidebar.
@@ -275,9 +286,13 @@ pub mod phosphor {
     /// Window chrome (borderless title bar).
     pub const MINUS: &str = "\u{e32a}";
     pub const SQUARE: &str = "\u{e45e}";
-    /// Linux maximize mark — simple circle outline.
-    pub const CIRCLE: &str = "\u{e192}";
-    // Restore-down reuses COPY (two squares).
+    /// Linux maximize / restore (two diagonal arrows).
+    pub const ARROWS_OUT_SIMPLE: &str = "\u{e0a6}";
+    pub const ARROWS_IN_SIMPLE: &str = "\u{e09e}";
+    /// Mind map tab (connected nodes).
+    pub const GRAPH: &str = "\u{eb58}";
+    /// Space inspector tab (share of disk).
+    pub const CHART_PIE_SLICE: &str = "\u{e15a}";
 }
 
 /// Phosphor glyph for a workspace [`DocType`].
@@ -304,12 +319,37 @@ pub fn file_row_icon(name: &str, is_folder: bool) -> &'static str {
     }
 }
 
+/// Visible file name in chrome: strip the extension when the doc type hides it
+/// (Markdown, drawing, PDF, chat). Do not pass paths.
+pub fn display_file_name(name: &str) -> &str {
+    workspace_rs::show::DocType::from_name(name).display_name(name)
+}
+
+/// Tab-strip glyph for a workspace [`Destination`].
+///
+/// Search / mind map / space inspector are not files — do not go through
+/// [`file_row_icon`]. Files still use the name’s [`DocType`].
+pub fn tab_icon(dest: &workspace_rs::tab::Destination, name: &str) -> &'static str {
+    use workspace_rs::tab::Destination;
+    match dest {
+        Destination::Search => phosphor::SEARCH,
+        Destination::MindMap(_) => phosphor::GRAPH,
+        Destination::SpaceInspector(_) => phosphor::CHART_PIE_SLICE,
+        Destination::File(_) => file_row_icon(name, false),
+    }
+}
+
 /// Font family name registered by `workspace_rs::register_fonts`.
 const PHOSPHOR_FAMILY: &str = "phosphor";
 
+/// Phosphor at `size` pt.
+pub fn phosphor_font_id(size: f32) -> FontId {
+    FontId::new(size, FontFamily::Name(Arc::from(PHOSPHOR_FAMILY)))
+}
+
 /// Phosphor at body size (leading button icons / file rows).
 pub fn phosphor_ui_font_id() -> FontId {
-    FontId::new(TypeRole::Body.size(), FontFamily::Name(Arc::from(PHOSPHOR_FAMILY)))
+    phosphor_font_id(TypeRole::Body.size())
 }
 
 /// Commit shortcut badge (⌘⏎ on macOS, Ctrl+⏎ elsewhere).

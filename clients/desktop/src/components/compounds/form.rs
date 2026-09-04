@@ -20,11 +20,11 @@ use egui::text::{LayoutJob, TextWrapping};
 use egui::{Align, FontId, Id, Layout, Rect, Response, Stroke, TextFormat, Ui, pos2, vec2};
 
 use crate::components::foundation::chrome::{
-    Radius, STROKE_HAIRLINE, TOGGLE_ANIM_SECS, control_height,
+    Radius, STROKE_HAIRLINE, TOGGLE_ANIM_SECS, control_height, phosphor, phosphor_ui_font_id,
 };
-use crate::components::foundation::color::Theme;
+use crate::components::foundation::color::{FG_HOVER, Theme};
 use crate::components::foundation::interact::sense_click;
-use crate::components::foundation::layout::{claim, origin, place_at};
+use crate::components::foundation::layout::{claim, origin, place_at, ui_width};
 use crate::components::foundation::space::Space;
 use crate::components::foundation::spacer::Spacer;
 use crate::components::foundation::typography::TypeRole;
@@ -316,4 +316,57 @@ pub fn form_picker(
         out = Some(crate::components::atoms::picker::picker(ui, t, options, selected));
     });
     out.expect("form_row always runs trailing")
+}
+
+/// Checkbox + wrapping copy; the whole row toggles (logout / key-backup ack).
+pub fn ack_row(ui: &mut Ui, t: &Theme, label: &str, on: &mut bool) {
+    let box_s = TypeRole::Body.line_height().min(control_height() * 0.85);
+    let gap = Space::Sm.pts();
+    let max_w = ui_width(ui).max(1.0);
+    let text_w = (max_w - box_s - gap).max(1.0);
+    let galley =
+        ui.painter()
+            .layout(label.to_owned(), TypeRole::Body.font_id(), t.neutral_fg(), text_w);
+    let row_h = galley.size().y.max(box_s);
+    let (row, resp) = ui.allocate_exact_size(egui::vec2(max_w, row_h), sense_click());
+    if resp.clicked() {
+        *on = !*on;
+    }
+    let over = ui.ctx().rect_contains_pointer(ui.layer_id(), row);
+    let box_rect = egui::Rect::from_min_size(
+        egui::pos2(row.left(), row.center().y - box_s / 2.0),
+        egui::vec2(box_s, box_s),
+    );
+    let ground = t.neutral_bg();
+    let fill = if *on {
+        t.accent()
+    } else if over {
+        t.wash_toward_neutral_fg(ground, FG_HOVER)
+    } else {
+        ground
+    };
+    ui.painter().rect(
+        box_rect,
+        Radius::Sm.corner(),
+        fill,
+        Stroke::new(STROKE_HAIRLINE, if *on { t.accent() } else { t.neutral() }),
+        egui::StrokeKind::Inside,
+    );
+    if *on {
+        let ig = ui.painter().layout_no_wrap(
+            phosphor::CHECK.into(),
+            phosphor_ui_font_id(),
+            t.neutral_bg(),
+        );
+        ui.painter().galley(
+            egui::pos2(
+                box_rect.center().x - ig.size().x / 2.0,
+                box_rect.center().y - ig.size().y / 2.0,
+            ),
+            ig,
+            t.neutral_bg(),
+        );
+    }
+    ui.painter()
+        .galley(egui::pos2(row.left() + box_s + gap, row.top()), galley, t.neutral_fg());
 }

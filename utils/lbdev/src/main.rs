@@ -5,6 +5,7 @@ mod releaser;
 mod utils;
 
 use cli_rs::arg::Arg;
+use cli_rs::cli_error::Exit;
 use cli_rs::command::Command;
 use cli_rs::parser::Cmd;
 use releaser::version::BumpType;
@@ -78,7 +79,10 @@ fn main() {
                         .subcommand(Command::name("desktop").handler(releaser::windows::desktop::release))
                         .subcommand(Command::name("desktop-arm").handler(releaser::windows::desktop::release_arm))
                         .subcommand(Command::name("desktop-build").handler(releaser::windows::desktop::build))
-                        .subcommand(Command::name("desktop-build-arm").handler(releaser::windows::desktop::build_arm)),
+                        .subcommand(Command::name("desktop-build-arm").handler(releaser::windows::desktop::build_arm))
+                        .subcommand(Command::name("store-pack").handler(releaser::windows::store::pack))
+                        .subcommand(Command::name("store-pack-arm").handler(releaser::windows::store::pack_arm))
+                        .subcommand(Command::name("store-bundle").handler(releaser::windows::store::bundle)),
                 )
                 .subcommand(
                     Command::name("linux")
@@ -132,5 +136,6 @@ fn main() {
                 .subcommand(Command::name("assert-git-clean").handler(ci::assert_git_clean))
                 .subcommand(Command::name("assert-no-udeps").handler(ci::assert_no_udeps))
         )
-        .parse();
+        .parse()
+        .exit();
 }

@@ -31,6 +31,8 @@ use lb::subscribers::status::Status;
 use workspace_rs::file_cache::FileCache;
 use workspace_rs::workspace::Workspace;
 
+use super::action::OnboardMode;
+
 pub enum CoreLoad {
     Ready {
         core: Lb,
@@ -43,9 +45,18 @@ pub enum CoreLoad {
     /// Create/import/sync failed — keep `core` for retry (may already hold keys).
     OnboardFailed {
         core: Lb,
-        err: String,
+        fail: OnboardFail,
     },
     Failed(String),
+}
+
+/// Form to restore after a **manual** onboard failure (errors stay on the sheet).
+pub struct OnboardFail {
+    pub err: String,
+    pub mode: OnboardMode,
+    pub uname: String,
+    pub account_key: String,
+    pub api_url: String,
 }
 
 /// Shared boot status for [`Session::Loading`] (worker may update mid-flight).
@@ -69,17 +80,13 @@ pub fn read_load_status(status: &LoadStatus) -> String {
         .unwrap_or_else(|| "Loading…".into())
 }
 
-/// Clipboard of file ids for cut/copy/paste.
-#[derive(Clone, Debug, Default)]
-pub struct FileClipboard {
-    pub ids: Vec<Uuid>,
-    pub cut: bool,
-}
-
 pub struct Ready {
     pub workspace: Workspace,
     pub expanded: HashSet<Uuid>,
-    /// Primary cursor (last click / open).
+    /// Tree / list selection (highlight, multi-select, context-menu targets).
+    /// Import dest uses it (folder, or parent of a selected file), then the
+    /// open tab, then home. Create still ignores it. Right-clicking a folder
+    /// updates this without opening a file.
     pub cursor: Option<Uuid>,
     /// Shift-range anchor (Finder-style).
     pub anchor: Option<Uuid>,
@@ -89,7 +96,6 @@ pub struct Ready {
     pub status_msg: String,
     pub syncing: bool,
     pub pinned: Vec<Uuid>,
-    pub clipboard: FileClipboard,
     pub sub_info: Option<SubscriptionInfo>,
     /// Flattened visible tree order (Shift-range select).
     pub nav_order: Vec<Uuid>,
@@ -104,6 +110,7 @@ pub struct Ready {
 }
 
 impl Ready {
+    #[tracing::instrument(name = "Ready::new", level = "trace", skip_all)]
     pub fn new(
         core: Lb, files: FileCache, ctx: &Context, sub_info: Option<SubscriptionInfo>,
     ) -> Self {
@@ -126,7 +133,6 @@ impl Ready {
             status_msg: "Up to date".into(),
             syncing: false,
             pinned,
-            clipboard: FileClipboard::default(),
             sub_info,
             nav_order: Vec::new(),
             // Start at 1 so empty caches (epoch 0) rebuild on first paint.
@@ -293,9 +299,9 @@ impl Session {
         Self::Loading { kind: LoadKind::Cold, status: load_status(""), rx }
     }
 
-    /// Poll a background load. Returns an onboard error string when sign-in
+    /// Poll a background load. Returns form state when a **manual** sign-in
     /// failed but we still have a usable `SignedOut` core to retry with.
-    pub fn poll(&mut self, ctx: &Context) -> Option<String> {
+    pub fn poll(&mut self, ctx: &Context) -> Option<OnboardFail> {
         let Session::Loading { rx, .. } = self else {
             return None;
         };
@@ -309,9 +315,9 @@ impl Session {
                 *self = Session::SignedOut { core };
                 None
             }
-            CoreLoad::OnboardFailed { core, err } => {
+            CoreLoad::OnboardFailed { core, fail } => {
                 *self = Session::SignedOut { core };
-                Some(err)
+                Some(fail)
             }
             CoreLoad::Failed(e) => {
                 *self = Session::Error(e);
