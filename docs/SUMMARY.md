@@ -1,9 +1,10 @@
-[Welcome!](book.md)
+[Home](book.md)
 [Values](values.md)
 
 # Using Lockbook
 
 - [Installing](installing.md)
+- [Account](account.md)
 - [File Management](file-management.md)
 - [Collaboration](collaboration.md)
 - [Editing Markdown](editor.md)
