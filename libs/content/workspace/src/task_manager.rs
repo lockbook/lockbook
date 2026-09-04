@@ -284,7 +284,7 @@ impl TaskManager {
     /// done - so it's the UI's responsibility to check in on it from time-to-time. This is necessary so that the UI
     /// can interject between tasks that are queued and tasks that they are queued behind i.e. to provide the latest
     /// hmac and file content so that a save succeeds.
-    pub fn check_launch(&self, tabs: &TabCache) {
+    pub fn check_launch(&self, tabs: &mut TabCache) {
         let mut tasks = self.tasks.lock().unwrap();
 
         // Prioritize loads over saves because when they are both queued, it's likely because a sync pulled updates to
@@ -368,17 +368,24 @@ impl TaskManager {
             let request = queued_save.request.clone();
             let in_progress_save = InProgressSave::new(queued_save);
             let (old_hmac, seq, content) = {
-                let Some(tab) = tabs.get_any(&request.origin) else {
+                let Some(tab) = tabs.get_any_mut(&request.origin) else {
                     error!("could not launch save because its tab does not exist");
                     continue;
                 };
 
                 let start = Instant::now();
 
-                let old_hmac = tab.hmac();
-                let seq = tab.seq();
-                let Some(content) = tab.clone_content() else {
-                    break;
+                let (old_hmac, seq, content) = if let Some(md) = tab.markdown_mut() {
+                    let (hmac, text) = md.flush_for_save();
+                    let seq = md.edit.renderer.buffer.current.seq;
+                    (hmac, seq, TabSaveContent::String(text))
+                } else {
+                    let old_hmac = tab.hmac();
+                    let seq = tab.seq();
+                    let Some(content) = tab.clone_content() else {
+                        break;
+                    };
+                    (old_hmac, seq, content)
                 };
 
                 let time = Instant::now().duration_since(start);
