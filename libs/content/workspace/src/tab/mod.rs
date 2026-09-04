@@ -230,7 +230,7 @@ impl Tab {
 
     pub fn hmac(&self) -> Option<DocumentHmac> {
         match &self.content {
-            ContentState::Open(TabContent::Markdown(md)) => md.hmac,
+            ContentState::Open(TabContent::Markdown(md)) => md.hmac(),
             ContentState::Open(TabContent::Svg(svg)) => svg.open_file_hmac,
             #[cfg(not(target_family = "wasm"))]
             ContentState::Open(TabContent::Chat(chat)) => chat.hmac,
@@ -491,7 +491,7 @@ impl TabContent {
         match self {
             #[cfg(not(target_family = "wasm"))]
             TabContent::Chat(chat) => chat.hmac,
-            TabContent::Markdown(md) => md.hmac,
+            TabContent::Markdown(md) => md.hmac(),
             TabContent::Svg(svg) => svg.open_file_hmac,
             _ => None,
         }

@@ -566,7 +566,7 @@ impl Workspace {
             }
         }
         self.queue_save_for_session(tab_id);
-        self.tasks.check_launch(&self.tabs);
+        self.tasks.check_launch(&mut self.tabs);
     }
 
     fn image_content(&self, id: Uuid) -> ContentState {
@@ -1275,11 +1275,10 @@ impl Workspace {
                                     )));
                             } else {
                                 let md = tab.markdown_mut().unwrap();
-                                md.edit
-                                    .renderer
-                                    .buffer
-                                    .reload(String::from_utf8_lossy(&bytes).into());
-                                md.hmac = maybe_hmac;
+                                md.apply_disk_version(
+                                    String::from_utf8_lossy(&bytes).into(),
+                                    maybe_hmac,
+                                );
                             }
                         }
                         _ => {
@@ -1345,8 +1344,7 @@ impl Workspace {
                                 tab.last_saved = started_at;
                                 if let Some(md) = tab.markdown_mut() {
                                     if let TabSaveContent::String(content) = content {
-                                        md.hmac = Some(hmac);
-                                        md.edit.renderer.buffer.saved(seq, content);
+                                        md.record_disk_save(hmac, seq, content);
                                     }
                                 } else if let Some(svg) = tab.svg_mut() {
                                     if let TabSaveContent::Svg(content) = content {
@@ -1410,7 +1408,7 @@ impl Workspace {
 
         // background work: launch
         let start = Instant::now();
-        self.tasks.check_launch(&self.tabs);
+        self.tasks.check_launch(&mut self.tabs);
         start.warn_after("processing task launch", Duration::from_millis(100));
     }
 

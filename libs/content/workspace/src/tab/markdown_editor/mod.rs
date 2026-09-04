@@ -331,7 +331,9 @@ pub struct Editor {
 
     // document identity
     pub id_salt: Id,
-    pub hmac: Option<DocumentHmac>,
+    /// Version of the *displayed* buffer. Only written with the matching
+    /// text via [`Self::apply_disk_version`] / [`Self::record_disk_save`].
+    hmac: Option<DocumentHmac>,
     pub initialized: bool,
 
     // change detection
@@ -841,6 +843,40 @@ impl Editor {
 
     pub fn id(&self) -> Id {
         Id::new(self.edit.file_id).with(self.id_salt)
+    }
+
+    /// Last disk hmac adopted with the displayed buffer.
+    pub fn hmac(&self) -> Option<DocumentHmac> {
+        self.hmac
+    }
+
+    fn apply_pending_buffer(&mut self) {
+        let resp = self.edit.renderer.buffer.update();
+        if resp.text_updated {
+            self.edit.renderer.bump_text_seq();
+        }
+    }
+
+    /// Merge `text` into the live buffer (applies queued OT), then store
+    /// `hmac` as the version of that displayed text. The two are always set
+    /// together so a later save cannot clone a stale body under a new hmac.
+    pub fn apply_disk_version(&mut self, text: String, hmac: Option<DocumentHmac>) {
+        self.edit.renderer.buffer.reload(text);
+        self.apply_pending_buffer();
+        self.hmac = hmac;
+    }
+
+    /// Apply queued buffer ops, then return hmac + text as one snapshot
+    /// for CAS write. Side effect: mutates the buffer if ops were pending.
+    pub fn flush_for_save(&mut self) -> (Option<DocumentHmac>, String) {
+        self.apply_pending_buffer();
+        (self.hmac, self.edit.renderer.buffer.current.text.clone())
+    }
+
+    /// Record a successful CAS: this hmac is the on-disk version of `content`.
+    pub fn record_disk_save(&mut self, hmac: DocumentHmac, seq: usize, content: String) {
+        self.edit.renderer.buffer.saved(seq, content);
+        self.hmac = Some(hmac);
     }
 
     pub fn focus(&self, ctx: &Context) {
