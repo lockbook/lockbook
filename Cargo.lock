@@ -9816,6 +9816,7 @@ dependencies = [
  "colors-transform",
  "comrak",
  "content_inspector",
+ "db-rs",
  "egui",
  "egui_animation",
  "egui_wgpu_renderer",

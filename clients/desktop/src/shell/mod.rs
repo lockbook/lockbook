@@ -95,8 +95,6 @@ pub struct ShellApp {
     pub recents_cache: RecentsCache,
     /// Derived Shared lists; same epoch rule.
     pub shared_cache: SharedCache,
-    /// Flattened Files-tree walk; same epoch + expanded-set rule.
-    pub tree_walk: tree::TreeWalkCache,
     theme_applied: bool,
     /// Debounced per-file sync dots (Files tree only).
     pub sync_dots: sync_dots::SyncDots,
@@ -164,7 +162,6 @@ impl Default for ShellApp {
             lb_rx: None,
             recents_cache: RecentsCache::default(),
             shared_cache: SharedCache::default(),
-            tree_walk: tree::TreeWalkCache::default(),
             theme_applied: false,
             sync_dots: sync_dots::SyncDots::default(),
             sync_footer: footer::SyncFooterState::default(),

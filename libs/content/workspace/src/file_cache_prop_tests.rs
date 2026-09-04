@@ -41,8 +41,6 @@
 //! - **Excessive `..` in a relative path saturates silently** at the tree
 //!   root instead of returning None.
 
-use std::collections::HashMap;
-
 use lb_rs::Uuid;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
@@ -142,17 +140,7 @@ fn cache(src: &mut ByteSource) -> FileCache {
         }
     }
 
-    FileCache {
-        root: own_root,
-        files: files.into_iter().map(|f| (f.id, f)).collect(),
-        shared: shared.into_iter().map(|f| (f.id, f)).collect(),
-        suggested: vec![],
-        size_bytes_recursive: HashMap::new(),
-        last_modified_recursive: HashMap::new(),
-        last_modified_by_recursive: HashMap::new(),
-        last_modified: 0,
-        shared_roots: vec![],
-    }
+    FileCache::from_owned_and_shared(own_root, files, shared)
 }
 
 /// Round-trips absolute / relative / percent-encoded paths for own-tree docs,
@@ -425,10 +413,9 @@ fn run(check: fn(&[u8]) -> Result<(), &'static str>) {
             let mut src = ByteSource::new(&shrunk);
             let cache = cache(&mut src);
             panic!(
-                "seed {seed} {reason}\nshrunk ({} bytes): {shrunk:?}\nfiles:\n{:#?}\nshared:\n{:#?}",
+                "seed {seed} {reason}\nshrunk ({} bytes): {shrunk:?}\nfiles:\n{:#?}",
                 shrunk.len(),
-                cache.files,
-                cache.shared,
+                cache.iter_files().collect::<Vec<_>>(),
             );
         }
     }

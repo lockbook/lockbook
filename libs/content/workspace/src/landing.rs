@@ -55,11 +55,8 @@ const RECENTS_ROW_HORIZONTAL_PADDING: f32 = 18.0;
 impl LandingPage {
     #[tracing::instrument(level = "trace", skip_all)]
     pub fn update_recent_files(&mut self, files: &FileCache) {
-        let root = files.root().id;
         let mut recent: Vec<_> = files
-            .descendents(root)
-            .into_iter()
-            .chain(files.shared.values())
+            .iter_files()
             .filter(|file| file.is_document())
             .map(|file| {
                 let mut parent_segments = files.path_segments(file.id);
