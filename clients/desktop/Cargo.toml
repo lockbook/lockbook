@@ -1,6 +1,6 @@
 [package]
 name = "lockbook-desktop"
-version = "26.8.12"
+version = "26.9.3"
 edition = "2021"
 
 [dependencies]
@@ -22,12 +22,16 @@ image = { version = "0.25", default-features = false, features = [
 ] }
 lb = { package = "lb-rs", path = "../../libs/lb/lb-rs", default-features = false }
 log = "0.4"
+tracing = "0.1"
 rfd = { version = "0.11.4", default-features = false, features = ["xdg-portal"] }
 serde = { version = "1.0.140", features = ["derive"] }
 serde_json = "1.0.82"
 wgpu = "25"
 workspace = { path = "../../libs/content/workspace" }
 winit = "0.30"
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 x11rb = "0.13"
@@ -37,11 +41,18 @@ objc2 = "0.5.2"
 objc2-app-kit = { version = "0.2.2", default-features = false, features = [
     "std",
     "NSApplication",
+    "NSButton",
+    "NSControl",
+    "NSEvent",
     "NSImage",
     "NSBitmapImageRep",
     "NSGraphics",
     "NSView",
     "NSWindow",
 ] }
-objc2-foundation = { version = "0.2.2", default-features = false, features = ["std"] }
+objc2-foundation = { version = "0.2.2", default-features = false, features = [
+    "std",
+    "NSString",
+    "NSUserDefaults",
+] }
 raw-window-handle = "0.6"

@@ -9,7 +9,6 @@ use std::collections::HashMap;
 use std::fmt::Display;
 use std::mem;
 use std::sync::{Arc, Mutex};
-use tracing::instrument;
 use web_time::{Duration, Instant};
 
 use crate::file_cache::{FilesExt as _, ResolvedLink};
@@ -18,6 +17,7 @@ use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, TabStatus, image_viewer};
 use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt;
+use crate::theme::visuals;
 use crate::widgets::glyphon_cache::GlyphonCache;
 use crate::widgets::{GlyphonLabel, GlyphonTextEdit, IconButton};
 use crate::workspace::Workspace;
@@ -29,8 +29,9 @@ pub const SEARCH_SHORTCUT: egui::KeyboardShortcut =
     egui::KeyboardShortcut::new(Modifiers::COMMAND, Key::O);
 
 impl Workspace {
-    #[instrument(level = "trace", skip_all)]
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
+        visuals::apply(ui.style_mut());
+
         if let Some(cache) = self
             .ctx
             .data(|d| d.get_temp::<Arc<Mutex<GlyphonCache>>>(egui::Id::NULL))

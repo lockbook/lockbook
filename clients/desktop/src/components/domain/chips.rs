@@ -1,6 +1,6 @@
-//! Files-pane action chips: Create / Import / Search.
+//! Files / Recents action chips: Create / Import / Search.
 //!
-//! Equal-width quiet chips ([`quiet_chip`]) on surface chrome.
+//! Equal-width quiet chips ([`quiet_chip`]) on canvas.
 //! Widths from [`EqualCells::measure`]; cells placed at absolute x.
 
 use egui::{Align, Layout};

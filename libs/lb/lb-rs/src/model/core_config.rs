@@ -68,18 +68,22 @@ impl Config {
     /// Produces a full writable path for lockbook to use based on environment variables and platform. Useful for
     /// initializing the Config struct.
     pub fn writeable_path(writeable_path_subfolder: &str) -> String {
-        let specified_path = env::var("LOCKBOOK_PATH");
+        if let Ok(specified_path) = env::var("LOCKBOOK_PATH") {
+            return specified_path;
+        }
 
-        let default_path =
-            env::var("HOME") // unix
-                .or(env::var("HOMEPATH")) // windows
-                .map(|home| format!("{home}/.lockbook/{writeable_path_subfolder}"));
-
-        let Ok(writeable_path) = specified_path.or(default_path) else {
+        // `env::home_dir` is `HOME` then `getpwuid_r` on unix, and `USERPROFILE` then `GetUserProfileDirectory` on
+        // windows. It notably never consults `HOME` on windows: we used to fall back to `HOMEPATH`, which omits the
+        // drive letter (`\Users\parth`), so the data directory silently followed whichever drive the process happened
+        // to be running from.
+        let Some(home) = env::home_dir() else {
             panic!("no location for lockbook to initialize");
         };
 
-        writeable_path
+        home.join(".lockbook")
+            .join(writeable_path_subfolder)
+            .to_string_lossy()
+            .into_owned()
     }
 }
 

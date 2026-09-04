@@ -1,6 +1,6 @@
 use std::collections::HashMap;
+use std::mem;
 use std::sync::{Arc, Mutex};
-use std::{mem, thread};
 use web_time::{Duration, Instant};
 
 use egui::Context;
@@ -9,7 +9,7 @@ use lb_rs::model::crypto::DecryptedDocument;
 use lb_rs::model::errors::LbResult;
 use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::{Uuid, spawn};
-use tracing::{Level, debug, error, instrument, span, trace, warn};
+use tracing::{Level, error, instrument, span, trace, warn};
 
 use crate::tab::{SessionId, TabSaveContent};
 use crate::widgets::tab_cache::TabCache;
@@ -415,7 +415,7 @@ impl TaskManager {
     }
 
     /// Move a request to in-progress, then call this from a background thread
-    #[instrument(level = "warn", skip(self), fields(thread = format!("{:?}", thread::current().id())))]
+    #[instrument(level = "trace", skip(self, request), fields(id = %request.id))]
     fn background_load(&self, request: LoadRequest) {
         let id = request.id;
         let content_result = self.core.read_document_with_hmac(id, true);
@@ -436,17 +436,12 @@ impl TaskManager {
             // ^ above error may indicate concurrent loads to the same file, which would cause problems
 
             let timing = CompletedTiming::new(in_progress_load.timing);
-            let in_progress_time = timing.completed_at.duration_since(timing.started_at);
-            match &content_result {
-                Ok((hmac, _)) if in_progress_time > Duration::from_secs(1) => {
-                    warn!(?hmac, "loaded ({:?})", in_progress_time);
-                }
-                Ok((hmac, _)) => {
-                    debug!(?hmac, "loaded ({:?})", in_progress_time);
-                }
-                Err(err) => {
-                    error!("load failed ({:?}): {:?}", in_progress_time, err);
-                }
+            if let Err(err) = &content_result {
+                error!(
+                    "load failed ({:?}): {:?}",
+                    timing.completed_at.duration_since(timing.started_at),
+                    err
+                );
             }
 
             let completed_load =
@@ -458,7 +453,7 @@ impl TaskManager {
     }
 
     /// Move a request to in-progress, then call this from a background thread
-    #[instrument(level = "debug", skip(self, content), fields(thread = format!("{:?}", thread::current().id())))]
+    #[instrument(level = "trace", skip(self, content, request), fields(id = %request.id))]
     fn background_save(
         &self, request: SaveRequest, old_hmac: Option<DocumentHmac>, seq: usize,
         content: TabSaveContent,
@@ -487,17 +482,12 @@ impl TaskManager {
             // ^ above error may indicate concurrent saves to the same file, which would cause problems
 
             let timing = CompletedTiming::new(in_progress_save.timing);
-            let in_progress_time = timing.completed_at.duration_since(timing.started_at);
-            match &new_hmac_result {
-                Ok(new_hmac) if in_progress_time > Duration::from_secs(1) => {
-                    warn!(?new_hmac, "saved ({:?})", in_progress_time);
-                }
-                Ok(new_hmac) => {
-                    debug!(?new_hmac, "saved ({:?})", in_progress_time);
-                }
-                Err(err) => {
-                    error!("save failed ({:?}): {:?}", in_progress_time, err);
-                }
+            if let Err(err) = &new_hmac_result {
+                error!(
+                    "save failed ({:?}): {:?}",
+                    timing.completed_at.duration_since(timing.started_at),
+                    err
+                );
             }
 
             let completed_save = CompletedSave {

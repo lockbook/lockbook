@@ -19,7 +19,7 @@ use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::{Receiver, Sender};
 use std::sync::{Arc, RwLock, mpsc};
-use tracing::{debug, error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, trace_span, warn};
 use web_time::{Duration, Instant};
 
 use crate::file_cache::{FileCache, FilesExt};
@@ -127,6 +127,7 @@ pub enum WsUpdates {
 }
 
 impl Workspace {
+    #[instrument(name = "Workspace::new", level = "trace", skip_all)]
     pub fn new(
         core: &Lb, ctx: &Context, show_tabs: bool, persist: bool,
         file_cache: Option<Arc<RwLock<FileCache>>>,
@@ -137,15 +138,11 @@ impl Workspace {
         let files = file_cache.unwrap_or_else(|| {
             Arc::new(RwLock::new(FileCache::new(core).expect("failed to initialize file cache")))
         });
-        let cfg =
-            WsPersistentStore::new(core.recent_panic().unwrap_or(true), writeable_path, persist);
-        let images = ImageCache::new(
-            ctx.clone(),
-            HttpClient::default(),
-            core.clone(),
-            Arc::clone(&files),
-            cfg.clone(),
-        );
+        let recent_crash = core.recent_panic().unwrap_or(true);
+        let cfg = WsPersistentStore::new(recent_crash, writeable_path, persist);
+        let http = HttpClient::default();
+        let images =
+            ImageCache::new(ctx.clone(), http, core.clone(), Arc::clone(&files), cfg.clone());
         ctx.set_zoom_factor(cfg.get_zoom_factor());
 
         let (ws_tx, ws_rx) = mpsc::channel();
@@ -191,8 +188,7 @@ impl Workspace {
         };
 
         {
-            let files = Arc::clone(&ws.files);
-            let files = files.read().unwrap();
+            let files = ws.files.read().unwrap();
             ws.landing_page.update_recent_files(&files);
         }
 
@@ -308,6 +304,7 @@ impl Workspace {
         }
     }
 
+    #[instrument(level = "trace", skip_all)]
     pub fn create_tab(&mut self, dest: Destination, make_current: bool) {
         self.resume_session(Session::new(dest), make_current);
     }
@@ -433,6 +430,10 @@ impl Workspace {
     }
     pub fn current_tab_svg_mut(&mut self) -> Option<&mut SVGEditor> {
         self.current_tab_mut()?.svg_mut()
+    }
+
+    pub fn current_tab_image(&self) -> Option<&ImageViewer> {
+        self.current_tab()?.image_viewer()
     }
 
     /// The active editable text widget for native (iOS) text input — the
@@ -981,7 +982,6 @@ impl Workspace {
         }
     }
 
-    #[instrument(level = "trace", skip_all)]
     pub fn process_lb_updates(&mut self) {
         loop {
             match self.lb_rx.try_recv() {
@@ -1050,7 +1050,6 @@ impl Workspace {
     /// Only runs when the current tab is a non-readonly markdown editor —
     /// other tab types (SVG, image viewer, PDF) handle clipboard events
     /// themselves. Non-clip events are left in the queue.
-    #[instrument(level = "trace", skip_all)]
     pub fn process_clip_events(&mut self) {
         let Some(file_id) = self.current_tab().and_then(|tab| {
             let md = tab.markdown()?;
@@ -1115,11 +1114,13 @@ impl Workspace {
         }
     }
 
-    // #[instrument(level = "trace", skip_all)]
     pub fn process_task_updates(&mut self) {
         let task_manager::Response { completed_loads, completed_saves } = self.tasks.update();
 
         let start = Instant::now();
+        let _loads = (!completed_loads.is_empty()).then(|| {
+            trace_span!("Workspace::apply_completed_loads", n = completed_loads.len()).entered()
+        });
         for load in completed_loads {
             // scope indentation preserves git history
             {
@@ -1315,9 +1316,13 @@ impl Workspace {
                 }
             }
         }
+        drop(_loads);
         start.warn_after("processing completed loads", Duration::from_millis(100));
 
         let start = Instant::now();
+        let _saves = (!completed_saves.is_empty()).then(|| {
+            trace_span!("Workspace::apply_completed_saves", n = completed_saves.len()).entered()
+        });
         for save in completed_saves {
             // nested scope indentation preserves git history
             {
@@ -1381,6 +1386,7 @@ impl Workspace {
                 }
             }
         }
+        drop(_saves);
         start.warn_after("processing completed saves", Duration::from_millis(100));
 
         // background work: queue
@@ -1711,6 +1717,7 @@ impl Default for WsPresistentData {
 }
 
 impl WsPersistentStore {
+    #[instrument(name = "WsPersistentStore::new", level = "trace", skip_all)]
     pub fn new(recent_crash: bool, path: PathBuf, enabled: bool) -> Self {
         let default = WsPresistentData::default();
 
@@ -1883,30 +1890,20 @@ impl WsPersistentStore {
         let data = self.data.clone();
         let path = self.path.clone();
         spawn!({
-            let started = web_time::Instant::now();
-            let data = data.read().unwrap().clone(); // clone to avoid holding lock during serialization or file write
-            let content = serde_json::to_string(&data).unwrap();
-            let bytes = content.len();
-            match fs::write(&path, content) {
-                Ok(()) if started.elapsed() > Duration::from_millis(50) => {
-                    warn!(?path, bytes, "ws persistence written ({:?})", started.elapsed());
-                }
-                Ok(()) => {
-                    debug!(?path, bytes, "ws persistence written ({:?})", started.elapsed());
-                }
-                Err(err) => {
-                    error!(
-                        ?path,
-                        bytes,
-                        "ws persistence write failed ({:?}): {:?}",
-                        started.elapsed(),
-                        err
-                    );
-                }
-            }
+            persist_ws_file(&data, &path);
         });
     }
 }
+
+#[instrument(name = "WsPersistentStore::write_to_file", level = "trace", skip_all)]
+fn persist_ws_file(data: &Arc<RwLock<WsPresistentData>>, path: &Path) {
+    let data = data.read().unwrap().clone(); // clone to avoid holding lock during serialization or file write
+    let content = serde_json::to_string(&data).unwrap();
+    if let Err(err) = fs::write(path, content) {
+        error!(?path, "ws persistence write failed: {err:?}");
+    }
+}
+
 pub fn lb_bg_worker(ctx: Context, lb: Lb, ws_tx: Sender<WsUpdates>) {
     let mut events = lb.subscribe();
 

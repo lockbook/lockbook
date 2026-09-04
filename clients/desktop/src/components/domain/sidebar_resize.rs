@@ -8,11 +8,66 @@ use crate::components::foundation::{STROKE_HAIRLINE, Theme};
 
 /// Must match [`egui::SidePanel::left`] id in the shell.
 pub const PANEL_ID: &str = "shell_sidebar";
-/// Keep in sync with SidePanel `.width_range` in the shell.
-pub const WIDTH_MIN: f32 = 268.0;
-pub const WIDTH_MAX: f32 = 500.0;
+/// Keep in sync with SidePanel `.default_width` in the shell.
+pub const WIDTH_DEFAULT: f32 = 300.0;
+/// Sidebar min width = titleband controls' right edge, so a min-width split
+/// lines up with parked tabs (open vs closed, tabs do not move).
+pub fn width_min() -> f32 {
+    crate::shell::titlebar::controls_right()
+}
+
+/// `max(min, half the window)`. Never below min, even on a narrow window.
+pub fn width_max(ctx: &egui::Context) -> f32 {
+    width_min().max(ctx.screen_rect().width() * 0.5)
+}
 /// Into each side of the edge (default egui is 5). Smaller = less fight with the bar.
 pub const RESIZE_GRAB: f32 = 3.0;
+
+/// Open/close t (0 closed, 1 open). Stable id — not [`egui::Id::with`] (call-site unique).
+pub fn animation_id() -> egui::Id {
+    egui::Id::new((PANEL_ID, "animation"))
+}
+
+/// 0 = closed, 1 = open. First call at a target snaps (no launch animation).
+pub fn open_t(ctx: &egui::Context, open: bool) -> f32 {
+    ctx.animate_bool_responsive(animation_id(), open)
+}
+
+fn resting_width_id() -> egui::Id {
+    egui::Id::new((PANEL_ID, "resting_width"))
+}
+
+fn panel_id() -> egui::Id {
+    egui::Id::new(PANEL_ID)
+}
+
+/// User's sidebar width. Independent of the slide so `exact_width` during
+/// the wipe does not persist a shrinking panel.
+pub fn resting_width(ctx: &egui::Context) -> f32 {
+    ctx.data_mut(|d| d.get_persisted::<f32>(resting_width_id()))
+        .unwrap_or(WIDTH_DEFAULT)
+        .clamp(width_min(), width_max(ctx))
+}
+
+pub fn remember_resting_width(ctx: &egui::Context, w: f32) {
+    let w = w.clamp(width_min(), width_max(ctx));
+    ctx.data_mut(|d| d.insert_persisted(resting_width_id(), w));
+}
+
+/// After a close/open slide, [`PANEL_ID`] may still be 1px wide. Restore the
+/// last resting width. No-op when already in range (live resize).
+pub fn restore_panel_width_if_collapsed(ctx: &egui::Context) {
+    let id = panel_id();
+    let Some(mut state) = egui::containers::panel::PanelState::load(ctx, id) else {
+        return;
+    };
+    if state.rect.width() >= width_min() - 0.5 {
+        return;
+    }
+    let w = resting_width(ctx);
+    state.rect.set_right(state.rect.left() + w);
+    ctx.data_mut(|d| d.insert_persisted(id, state));
+}
 
 fn resize_drag_ids() -> (egui::Id, egui::Id) {
     (
@@ -68,28 +123,33 @@ pub fn sync_resizing_latch(ctx: &egui::Context) {
     }
 }
 
-/// Content-side half of the resize grab (workspace covers SidePanel’s right half).
-///
-/// `header_h` = shell tab strip height when tabs are open (`HEADER_H`), else **0**
-/// so the hairline runs full height when workspace is flush to the top.
-/// When `header_h > 0`, the line starts below the strip (sidebar head + tabs
-/// read as one continuous top chrome).
+fn resize_cursor(width: f32, max: f32) -> egui::CursorIcon {
+    if width <= width_min() + 0.5 {
+        egui::CursorIcon::ResizeEast
+    } else if width >= max - 0.5 {
+        egui::CursorIcon::ResizeWest
+    } else {
+        egui::CursorIcon::ResizeHorizontal
+    }
+}
+
+/// Resize handle straddling the split. SidePanel's built-in grab is off.
 pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
-    let panel_id = egui::Id::new(PANEL_ID);
+    let panel_id = panel_id();
     let Some(state) = egui::containers::panel::PanelState::load(ctx, panel_id) else {
         return;
     };
 
     let edge_x = state.rect.right();
-    let h = state.rect.height().max(1.0);
     let grab_w = RESIZE_GRAB.max(1.0);
-    // Grab still spans the full edge (resize near the top is fine).
-    let rect =
-        egui::Rect::from_min_size(egui::pos2(edge_x, state.rect.top()), egui::vec2(grab_w, h));
-    // Painted separator: only under the tab/title strip.
+    let rect = egui::Rect::from_min_max(
+        egui::pos2(edge_x - grab_w, state.rect.top()),
+        egui::pos2(edge_x + grab_w, state.rect.bottom()),
+    );
     let line_top = (state.rect.top() + header_h.max(0.0)).min(state.rect.bottom());
     let line_y = egui::Rangef::new(line_top, state.rect.bottom());
-
+    let max_w = width_max(ctx);
+    let cursor = resize_cursor(state.rect.width(), max_w);
     let drag_id = resize_drag_ids().1;
     let diag = std::env::var_os("LOCKBOOK_RESIZE_DIAG").is_some();
 
@@ -97,24 +157,24 @@ pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
         .order(egui::Order::Middle)
         .fixed_pos(rect.min)
         .default_size(rect.size())
-        .sense(egui::Sense::hover())
+        .sense(egui::Sense::click_and_drag())
         .show(ctx, |ui| {
             ui.set_min_size(rect.size());
             ui.set_max_size(rect.size());
-            let (hit, _) = ui.allocate_exact_size(rect.size(), egui::Sense::hover());
             let resp = ui
-                .interact(hit, drag_id, egui::Sense::drag())
-                .on_hover_cursor(egui::CursorIcon::ResizeHorizontal);
+                .interact(ui.max_rect(), drag_id, egui::Sense::click_and_drag())
+                .on_hover_cursor(cursor);
+            if resp.hovered() || resp.dragged() {
+                ui.ctx().set_cursor_icon(cursor);
+            }
 
             let line_x = edge_x + STROKE_HAIRLINE * 0.5;
-            let stroke = egui::Stroke::new(STROKE_HAIRLINE, t.neutral());
-            ui.painter().vline(line_x, line_y, stroke);
-            // Hover uses the same segment (no second thicker line through the strip).
+            ui.painter()
+                .vline(line_x, line_y, egui::Stroke::new(STROKE_HAIRLINE, t.neutral()));
 
-            let primary = ui.input(|i| i.pointer.primary_down());
-            if resp.dragged() && primary {
+            if resp.dragged() {
                 if let Some(p) = resp.interact_pointer_pos() {
-                    let new_w = (p.x - state.rect.left()).clamp(WIDTH_MIN, WIDTH_MAX);
+                    let new_w = (p.x - state.rect.left()).clamp(width_min(), max_w);
                     if diag {
                         eprintln!(
                             "[resize] drag edge={edge_x:.1} ptr.x={:.1} w {:.1}→{new_w:.1}",
@@ -134,7 +194,7 @@ pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
                 }
             } else if diag && (resp.hovered() || resp.dragged()) {
                 eprintln!(
-                    "[resize] hover={} dragged={} primary={primary} w={:.1}",
+                    "[resize] hover={} dragged={} w={:.1}",
                     resp.hovered(),
                     resp.dragged(),
                     state.rect.width(),
@@ -142,4 +202,23 @@ pub fn resize_over_workspace(ctx: &egui::Context, t: &Theme, header_h: f32) {
             }
         });
     sync_resizing_latch(ctx);
+}
+
+/// Split hairline only (no resize hit). Used while the sidebar is sliding.
+pub fn paint_split_line(ctx: &egui::Context, t: &Theme, header_h: f32) {
+    let Some(state) = egui::containers::panel::PanelState::load(ctx, panel_id()) else {
+        return;
+    };
+    let edge_x = state.rect.right();
+    let line_top = (state.rect.top() + header_h.max(0.0)).min(state.rect.bottom());
+    if line_top >= state.rect.bottom() - 0.5 {
+        return;
+    }
+    let line_x = edge_x + STROKE_HAIRLINE * 0.5;
+    ctx.layer_painter(egui::LayerId::new(egui::Order::Middle, resize_area_id()))
+        .vline(
+            line_x,
+            egui::Rangef::new(line_top, state.rect.bottom()),
+            egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
+        );
 }

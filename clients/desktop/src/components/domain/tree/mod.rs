@@ -40,7 +40,7 @@ use crate::components::{
 };
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
-use crate::shell::ops::is_pinned;
+use crate::shell::ops::{ids_are_saved_shares, is_pinned};
 
 /// Dwell before expanding a collapsed folder under a drag.
 const DROP_EXPAND_SECS: f64 = 0.6;
@@ -49,7 +49,7 @@ const DROP_EDGE_BAND: f32 = 28.0;
 /// Max edge-scroll speed (points / second) at full band penetration.
 const DROP_EDGE_SPEED: f32 = 900.0;
 
-// ── Files tree scroll animator (reveal / tab open → sticky-aware center) ─────
+// ── Files tree scroll animator (reveal / tab open → into view, not center) ─────
 /// Snap if closer than this (no tween noise).
 const SCROLL_SNAP_PX: f32 = 4.0;
 /// Distance → duration scale; clamped by min/max below.
@@ -100,12 +100,29 @@ fn scroll_duration(dist: f32) -> f32 {
     }
 }
 
-/// Center row in free viewport under sticky pins (reveal / tab open).
-fn offset_center_row(flat: &[FlatRow], geom: &RowGeom, i: usize, band_h: f32, max_off: f32) -> f32 {
+/// Scroll offset that shows row `i` in the free viewport under sticky pins.
+/// Already fully visible → keep `cur_off` (no re-center on click).
+fn offset_reveal_row(
+    flat: &[FlatRow], geom: &RowGeom, i: usize, band_h: f32, max_off: f32, cur_off: f32,
+) -> f32 {
     let sticky_h = folder::sticky_band_above(flat, geom, i);
-    let free_h = (band_h - sticky_h).max(geom.height(i));
-    let target_vy = sticky_h + (free_h - geom.height(i)) * 0.5;
-    (geom.top(i) - target_vy).clamp(0.0, max_off)
+    let row_h = geom.height(i);
+    let row_top = geom.top(i);
+    let row_bot = row_top + row_h;
+    let pad = Space::Xs.pts();
+    let vis_top = cur_off + sticky_h + pad;
+    let vis_bot = cur_off + band_h - pad;
+    let free_h = (band_h - sticky_h - 2.0 * pad).max(0.0);
+    if row_h >= free_h {
+        return (row_top - sticky_h - pad).clamp(0.0, max_off);
+    }
+    if row_top >= vis_top && row_bot <= vis_bot {
+        return cur_off.clamp(0.0, max_off);
+    }
+    if row_top < vis_top {
+        return (row_top - sticky_h - pad).clamp(0.0, max_off);
+    }
+    (row_bot - band_h + pad).clamp(0.0, max_off)
 }
 
 #[derive(Clone, Debug)]
@@ -368,7 +385,7 @@ fn drop_group_outline(
 fn finish_tree_drop(
     ui: &Ui, t: &Theme, queue: &mut Vec<Action>, files: &FileCache, flat: &[FlatRow],
     geom: &RowGeom, viewport: Rect, content_pad: f32, content_total: f32,
-    expanded: &std::collections::HashSet<Uuid>,
+    expanded: &std::collections::HashSet<Uuid>, root: Uuid,
 ) -> Option<Uuid> {
     let hits = drop_hit_take(ui);
     let Some(payload) = DragAndDrop::payload::<DragIds>(ui.ctx()) else {
@@ -382,6 +399,11 @@ fn finish_tree_drop(
 
     paint_drag_ghost(ui, t, files, &payload.0, pointer);
     tree_edge_scroll(ui, viewport, content_total);
+
+    let content_min = ui.max_rect().min;
+    let view_screen = Rect::from_min_size(content_min + viewport.min.to_vec2(), viewport.size());
+    let clip = view_screen.intersect(ui.clip_rect());
+    let sticky = sticky_layout(flat, geom, viewport.min.y);
 
     // Sticky last in the hit list → prefer topmost under the pointer.
     let hover = hits.iter().rev().find(|r| r.hit_rect.contains(pointer));
@@ -401,10 +423,16 @@ fn finish_tree_drop(
     let already = expand_candidate.is_some_and(|id| expanded.contains(&id));
     let expand = try_drop_expand(ui, expand_candidate, already);
 
-    let Some(hover) = hover else {
+    // Empty canvas below the last row is the account root (same as the
+    // background context menu). Gutters beside a row are not — those stay a miss
+    // so they don't steal a folder dest.
+    let parent = if let Some(hover) = hover {
+        drop_dest_parent(*hover)
+    } else if pointer_below_tree(pointer, clip, flat, geom, &sticky, content_min, view_screen) {
+        root
+    } else {
         return expand;
     };
-    let parent = drop_dest_parent(*hover);
     if !move_into_ok(files, &payload.0, parent) {
         return expand;
     }
@@ -417,14 +445,13 @@ fn finish_tree_drop(
         return expand;
     }
 
-    let content_min = ui.max_rect().min;
-    let view_screen = Rect::from_min_size(content_min + viewport.min.to_vec2(), viewport.size());
-    let sticky = sticky_layout(flat, geom, viewport.min.y);
-    if let Some(group) =
+    let group = if parent == root {
+        root_drop_outline(view_screen, content_pad)
+    } else {
         drop_group_outline(flat, geom, &sticky, parent, content_min, view_screen, content_pad)
-    {
+    };
+    if let Some(group) = group {
         // Clip to scroll viewport — outline is content, not a separate layer.
-        let clip = view_screen.intersect(ui.clip_rect());
         ui.painter().with_clip_rect(clip).rect_stroke(
             group,
             Radius::Control.pts() as f32,
@@ -440,11 +467,48 @@ fn finish_tree_drop(
     expand
 }
 
+/// Pointer is in the tree viewport, below the last painted row (or the tree is empty).
+fn pointer_below_tree(
+    pointer: egui::Pos2, clip: Rect, flat: &[FlatRow], geom: &RowGeom, sticky: &[Stuck],
+    content_min: egui::Pos2, view_screen: Rect,
+) -> bool {
+    if !clip.contains(pointer) {
+        return false;
+    }
+    if flat.is_empty() {
+        return true;
+    }
+    let last = flat.len() - 1;
+    let last_bot = row_abs_bottom(last, flat, geom, sticky, content_min, view_screen.top());
+    pointer.y >= last_bot
+}
+
+/// Accent plate around the whole Files list (account root drop).
+fn root_drop_outline(view_screen: Rect, content_pad: f32) -> Option<Rect> {
+    let left = view_screen.left() + content_pad;
+    let right = view_screen.right() - content_pad;
+    if right <= left + 1.0 || view_screen.height() < 4.0 {
+        return None;
+    }
+    Some(Rect::from_min_max(pos2(left, view_screen.top()), pos2(right, view_screen.bottom())))
+}
+
 #[derive(Clone, Copy, Debug)]
 pub(crate) struct FlatRow {
     id: Uuid,
     depth: usize,
     is_folder: bool,
+    /// Folder with no children (context menu hides Expand/Collapse all).
+    kids_empty: bool,
+}
+
+/// Flattened Files-tree walk. Rebuilt when [`Ready::files_epoch`] or `expanded` changes.
+#[derive(Default)]
+pub struct TreeWalkCache {
+    epoch: u64,
+    expanded: std::collections::HashSet<Uuid>,
+    root: Option<Uuid>,
+    flat: Vec<FlatRow>,
 }
 
 // ── Shared FileRow chrome (every sticky / virtualized tree) ─────────────────
@@ -561,30 +625,23 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
     if let Some(ready) = app.session.ready() {
         let pins = ready.pinned.clone();
         let files = ready.workspace.files.read().unwrap();
-        pins::show(ui, t, &*files, &pins, queue);
+        pins::show(ui, t, &*files, &pins, &ready.workspace.account.username, queue);
     }
 
-    let (root, flat) = {
-        let Some(ready) = app.session.ready() else {
-            return;
-        };
-        let files = ready.workspace.files.read().unwrap();
-        let root = files.root().id;
-        let mut flat = Vec::new();
-        flatten(&*files, &ready.expanded, root, 0, &mut flat, true);
-        (root, flat)
+    let Some(root) = ensure_tree_walk(app) else {
+        return;
     };
+    let flat = app.tree_walk.flat.clone();
 
-    if let Some(r) = app.session.ready_mut() {
-        r.expanded.insert(root);
-        r.nav_order = flat.iter().map(|r| r.id).collect();
+    if flat.is_empty() {
+        empty_state(ui, t, "No files");
+        return;
     }
 
     if let Some(ready) = app.session.ready() {
-        let expanded = ready.expanded.clone();
-        let status = ready.status.clone();
         let files = ready.workspace.files.read().unwrap();
-        app.sync_dots.refresh(ui.ctx(), &status, &expanded, &*files);
+        app.sync_dots
+            .refresh(ui.ctx(), &ready.status, &ready.expanded, &*files);
     }
 
     // Files tree: uniform single-line pitch (variable path ready for Shared).
@@ -636,21 +693,23 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
         let intent = app.session.ready().and_then(|r| r.tree_scroll);
         if let Some(id) = intent {
             if let Some(i) = flat.iter().position(|r| r.id == id) {
-                let to = offset_center_row(&flat, &geom, i, band_h, max_off);
                 let from = cur_y;
+                let to = offset_reveal_row(&flat, &geom, i, band_h, max_off, from);
                 let dist = (to - from).abs();
-                let duration = scroll_duration(dist);
-                let prev = ui
-                    .ctx()
-                    .data(|d| d.get_temp::<TreeScrollAnim>(tree_scroll_anim_id()));
-                let retarget = prev.is_none_or(|a| a.id != id || (a.to - to).abs() > 1.0);
-                if retarget {
-                    ui.ctx().data_mut(|d| {
-                        d.insert_temp(
-                            tree_scroll_anim_id(),
-                            TreeScrollAnim { id, from, to, t0: now, duration },
-                        );
-                    });
+                if dist >= SCROLL_SNAP_PX {
+                    let duration = scroll_duration(dist);
+                    let prev = ui
+                        .ctx()
+                        .data(|d| d.get_temp::<TreeScrollAnim>(tree_scroll_anim_id()));
+                    let retarget = prev.is_none_or(|a| a.id != id || (a.to - to).abs() > 1.0);
+                    if retarget {
+                        ui.ctx().data_mut(|d| {
+                            d.insert_temp(
+                                tree_scroll_anim_id(),
+                                TreeScrollAnim { id, from, to, t0: now, duration },
+                            );
+                        });
+                    }
                 }
                 // Consumed once the row exists — anim carries the rest.
                 if let Some(r) = app.session.ready_mut() {
@@ -666,7 +725,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
             .data(|d| d.get_temp::<TreeScrollAnim>(tree_scroll_anim_id()));
         if let Some(mut anim) = anim {
             if let Some(i) = flat.iter().position(|r| r.id == anim.id) {
-                anim.to = offset_center_row(&flat, &geom, i, band_h, max_off);
+                anim.to = offset_reveal_row(&flat, &geom, i, band_h, max_off, anim.from);
                 let y = if anim.duration <= 0.0 {
                     anim.to
                 } else {
@@ -741,6 +800,7 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
                             content_pad,
                             content_total,
                             &expanded,
+                            root,
                         )
                     } else {
                         let _ = drop_hit_take(ui);
@@ -755,10 +815,26 @@ pub fn show_tree(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Act
                     if bg.clicked() {
                         queue.push(Action::SetSelection(vec![]));
                     }
-                    if let Some(FileCmd::Create) = context_menu::show(&bg, t, |e| {
+                    if let Some(cmd) = context_menu::show(&bg, t, |e| {
                         e.item(phosphor::NOTE_PENCIL, "Create…", FileCmd::Create);
+                        if flat.iter().any(|r| r.is_folder) {
+                            e.separator();
+                            e.item(phosphor::CARET_DOWN, "Expand all", FileCmd::ExpandAll);
+                            e.item(phosphor::CARET_LEFT, "Collapse all", FileCmd::CollapseAll);
+                        }
                     }) {
-                        queue.push(Action::OpenCreate { parent: Some(root), is_folder: false });
+                        match cmd {
+                            FileCmd::Create => {
+                                queue.push(Action::OpenCreate {
+                                    folder: Some(root),
+                                    alongside: None,
+                                    is_folder: false,
+                                });
+                            }
+                            FileCmd::ExpandAll => queue.push(Action::ExpandSubtree(root)),
+                            FileCmd::CollapseAll => queue.push(Action::CollapseSubtree(root)),
+                            _ => {}
+                        }
                     }
                 });
             // Feed next frame's animator / ensure-visible baseline.
@@ -892,22 +968,60 @@ pub(crate) fn paint_sticky_viewport(
     bg_resp
 }
 
+/// Rebuild [`ShellApp::tree_walk`] when the file cache or expand set changed.
+/// Returns the tree root, or `None` when there is no Ready session.
+fn ensure_tree_walk(app: &mut ShellApp) -> Option<Uuid> {
+    let ready = app.session.ready_mut()?;
+    let files = ready.workspace.files.read().unwrap();
+    let root = files.root().id;
+    ready.expanded.insert(root);
+    let epoch = ready.files_epoch;
+    if app.tree_walk.epoch == epoch
+        && app.tree_walk.root == Some(root)
+        && app.tree_walk.expanded == ready.expanded
+    {
+        return Some(root);
+    }
+    let mut flat = Vec::new();
+    flatten(&*files, &ready.expanded, root, 0, &mut flat, true);
+    ready.nav_order = flat.iter().map(|r| r.id).collect();
+    drop(files);
+    app.tree_walk =
+        TreeWalkCache { epoch, expanded: ready.expanded.clone(), root: Some(root), flat };
+    Some(root)
+}
+
 pub(crate) fn flatten(
     files: &impl FilesExt, expanded: &std::collections::HashSet<Uuid>, id: Uuid, depth: usize,
     out: &mut Vec<FlatRow>, skip_self: bool,
 ) {
     if !skip_self {
         let is_folder = files.get_by_id(id).map(|f| f.is_folder()).unwrap_or(false);
-        out.push(FlatRow { id, depth, is_folder });
-        if !is_folder || !expanded.contains(&id) {
+        if !is_folder {
+            out.push(FlatRow { id, depth, is_folder: false, kids_empty: false });
+            return;
+        }
+        if !expanded.contains(&id) {
+            out.push(FlatRow {
+                id,
+                depth,
+                is_folder: true,
+                kids_empty: files.children(id).is_empty(),
+            });
             return;
         }
     }
-    for kid in files.children(id) {
-        if kid.id == id {
-            continue;
-        }
-        flatten(files, expanded, kid.id, if skip_self { 0 } else { depth + 1 }, out, false);
+    let kids: Vec<_> = files
+        .children(id)
+        .into_iter()
+        .filter(|kid| kid.id != id)
+        .collect();
+    if !skip_self {
+        out.push(FlatRow { id, depth, is_folder: true, kids_empty: kids.is_empty() });
+    }
+    let child_depth = if skip_self { 0 } else { depth + 1 };
+    for kid in kids {
+        flatten(files, expanded, kid.id, child_depth, out, false);
     }
 }
 
@@ -1109,22 +1223,25 @@ fn paint_row(
     let Some(ready) = app.session.ready() else {
         return;
     };
-    let (name, kids_empty, create_parent, is_shared) = {
-        let files = ready.workspace.files.read().unwrap();
-        let Some(f) = files.get_by_id(row.id) else {
-            return;
-        };
-        let empty = row.is_folder && files.children(row.id).is_empty();
-        // Create under a folder, or alongside a document (same parent).
-        let parent = if row.is_folder { row.id } else { f.parent };
-        // Classic tree: share chrome when the file itself carries share metadata.
-        let shared = !f.shares.is_empty();
-        (f.name.clone(), empty, parent, shared)
-    };
+    let kids_empty = row.kids_empty;
     let selected = ready.selected.contains(&row.id) || ready.cursor == Some(row.id);
     let expanded = ready.expanded.contains(&row.id);
     let pinned = is_pinned(ready, row.id);
     let multi = ready.selection_vec();
+    let (name, create_parent, is_shared, targets_are_saved_shares) = {
+        let files = ready.workspace.files.read().unwrap();
+        let Some(f) = files.get_by_id(row.id) else {
+            return;
+        };
+        // Drop dest: into a folder, or alongside a document (same parent).
+        let parent = if row.is_folder { row.id } else { f.parent };
+        // Classic tree: share chrome when the file itself carries share metadata.
+        let shared = !f.shares.is_empty();
+        let targets =
+            if multi.len() > 1 && multi.contains(&row.id) { &multi[..] } else { &[row.id][..] };
+        let links = ids_are_saved_shares(&*files, targets, &ready.workspace.account.username);
+        (f.name.clone(), parent, shared, links)
+    };
     let sync_dot = app.sync_dots.color_for(row.id, t);
 
     // Open/closed folder icon (no chevron). Whole-row click toggles.
@@ -1177,7 +1294,7 @@ fn paint_row(
     let _ = over;
 
     let modifiers = ui.input(|i| i.modifiers);
-    if resp.clicked() {
+    if resp.clicked() && !resp.double_clicked() {
         if modifiers.shift {
             queue.push(Action::SelectRange(row.id));
         } else if modifiers.command {
@@ -1189,7 +1306,7 @@ fn paint_row(
             queue.push(Action::OpenFile(row.id));
         }
     }
-    if resp.double_clicked() && !row.is_folder {
+    if resp.middle_clicked() && !row.is_folder {
         queue.push(Action::OpenFileNewTab(row.id));
     }
     if resp.secondary_clicked() && !selected {
@@ -1219,7 +1336,9 @@ fn paint_row(
         if !multi_sel {
             e.item(phosphor::PENCIL, "Rename…", FileCmd::Rename);
         }
-        e.item(phosphor::PUSH_PIN, if pinned { "Unpin" } else { "Pin" }, FileCmd::Pin);
+        if !row.is_folder {
+            e.item(phosphor::PUSH_PIN, if pinned { "Unpin" } else { "Pin" }, FileCmd::Pin);
+        }
         e.item(phosphor::FOLDERS, "Move…", FileCmd::Move);
         if !row.is_folder {
             e.item(phosphor::COPY, "Duplicate", FileCmd::Duplicate);
@@ -1236,7 +1355,12 @@ fn paint_row(
             e.item(phosphor::DOWNLOAD_SIMPLE, "Export…", FileCmd::Export);
         }
         e.separator();
-        e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
+        if targets_are_saved_shares {
+            // Opposite of Shared with me → "Save to your files…".
+            e.item(phosphor::FOLDER_MINUS, "Remove from files…", FileCmd::Delete);
+        } else {
+            e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
+        }
     }) {
         match cmd {
             FileCmd::Open => {
@@ -1257,9 +1381,21 @@ fn paint_row(
             FileCmd::Move => queue.push(Action::OpenMove(targets.clone())),
             FileCmd::Delete => queue.push(Action::OpenDelete(targets.clone())),
             FileCmd::Create => {
-                // Location = into folder / alongside file; type stays Note (not “Folder”
-                // just because the row is a folder — users pick Folder on the sheet).
-                queue.push(Action::OpenCreate { parent: Some(create_parent), is_folder: false });
+                // Folder-context selects Choose; file-context selects Alongside.
+                // Type stays Note (not “Folder” just because the row is a folder).
+                if row.is_folder {
+                    queue.push(Action::OpenCreate {
+                        folder: Some(row.id),
+                        alongside: None,
+                        is_folder: false,
+                    });
+                } else {
+                    queue.push(Action::OpenCreate {
+                        folder: None,
+                        alongside: Some(row.id),
+                        is_folder: false,
+                    });
+                }
             }
             FileCmd::Duplicate => queue.push(Action::Duplicate(targets.clone())),
             FileCmd::Export => queue.push(Action::Export(targets.clone())),
@@ -1284,10 +1420,10 @@ mod sticky_tests {
     use lb::Uuid;
 
     fn folder(id: u128, depth: usize) -> FlatRow {
-        FlatRow { id: Uuid::from_u128(id), depth, is_folder: true }
+        FlatRow { id: Uuid::from_u128(id), depth, is_folder: true, kids_empty: false }
     }
     fn doc(id: u128, depth: usize) -> FlatRow {
-        FlatRow { id: Uuid::from_u128(id), depth, is_folder: false }
+        FlatRow { id: Uuid::from_u128(id), depth, is_folder: false, kids_empty: false }
     }
     fn uni(flat: &[FlatRow]) -> RowGeom {
         RowGeom::uniform(flat.len(), ROW_H)

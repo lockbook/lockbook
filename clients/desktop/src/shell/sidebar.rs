@@ -1,9 +1,9 @@
-//! Sidebar: surface chrome + canvas body + surface foot.
+//! Sidebar: canvas head + canvas body + surface foot.
 //!
 //! Layout is **top → bottom · middle**. Resize vs overlay scroll policy lives in
 //! [`crate::components::domain::sidebar_resize`].
 
-use egui::{Frame, Id, Rect, Sense, Ui, vec2};
+use egui::{Align, Frame, Id, Layout, Rect, Sense, Ui, UiBuilder, pos2, vec2};
 
 use crate::components::domain::chips;
 use crate::components::{
@@ -17,7 +17,9 @@ use super::action::{Action, SidebarPane};
 use super::titlebar::HEADER_H;
 
 pub use crate::components::domain::sidebar_resize::{
-    PANEL_ID, WIDTH_MAX, WIDTH_MIN, begin_resize_style, end_resize_style, resize_over_workspace,
+    PANEL_ID, WIDTH_DEFAULT, begin_resize_style, end_resize_style, open_t, paint_split_line,
+    remember_resting_width, resize_over_workspace, resting_width, restore_panel_width_if_collapsed,
+    width_max, width_min,
 };
 
 /// Landmarks for the Files head (title clearance + chip row). Tests only.
@@ -53,22 +55,52 @@ pub fn take_head_readout(ctx: &egui::Context) -> Option<SidebarHeadReadout> {
     ctx.data_mut(|d| d.remove_temp::<SidebarHeadReadout>(head_readout_id()))
 }
 
+/// Paint the sidebar at resting width with its **right** edge on this ui's
+/// right (slide in/out). Clip so the left runs off-screen.
+pub fn show_sliding(
+    app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>, full_w: f32,
+) {
+    let vis = ui.max_rect();
+    ui.set_clip_rect(vis.intersect(ui.clip_rect()));
+    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+    let full_w = full_w.max(vis.width());
+    let full =
+        Rect::from_min_size(pos2(vis.right() - full_w, vis.top()), vec2(full_w, vis.height()));
+    ui.scope_builder(
+        UiBuilder::new()
+            .id_salt((PANEL_ID, "slide_body"))
+            .max_rect(full)
+            .layout(Layout::top_down(Align::Min)),
+        |ui| {
+            ui.set_min_size(full.size());
+            ui.set_max_size(full.size());
+            ui.set_clip_rect(vis.intersect(ui.clip_rect()));
+            show(app, ui, t, queue);
+        },
+    );
+}
+
 pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>) {
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-    ui.set_clip_rect(ui.max_rect());
+    ui.set_clip_rect(ui.max_rect().intersect(ui.clip_rect()));
 
-    let show_chips = app.pane == SidebarPane::Files;
-    let head_fill = if show_chips { t.neutral_bg_secondary() } else { t.neutral_bg() };
+    let show_chips = matches!(app.pane, SidebarPane::Files | SidebarPane::Recents);
     egui::TopBottomPanel::top("shell_sidebar_head")
         .resizable(false)
         .show_separator_line(false)
-        .frame(Frame::new().fill(head_fill).inner_margin(0.0))
+        .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
         .show_inside(ui, |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             let mut head = SidebarHeadReadout::default();
             let (clear_rect, _) =
                 ui.allocate_exact_size(vec2(ui_width(ui), HEADER_H), Sense::hover());
             head.header_clearance = clear_rect;
+            // Same y as the tab-strip hairline — one titleband edge across the window.
+            ui.painter().hline(
+                clear_rect.x_range(),
+                clear_rect.bottom() - STROKE_HAIRLINE * 0.5,
+                egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
+            );
             if show_chips {
                 ui.add(Spacer::new(Space::Sm));
                 let row_h = control_height();
@@ -136,7 +168,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
 #[cfg(test)]
 mod head_diag {
     use super::*;
-    use crate::components::domain::sidebar_resize::{PANEL_ID, WIDTH_MAX, WIDTH_MIN};
+    use crate::components::domain::sidebar_resize::{PANEL_ID, width_max, width_min};
     use crate::components::{
         Space, ThemeExt, begin_spacer_record, control_height, install, take_spacer_record,
     };
@@ -181,7 +213,7 @@ mod head_diag {
             SidePanel::left(PANEL_ID)
                 .resizable(false)
                 .default_width(300.0)
-                .width_range(WIDTH_MIN..=WIDTH_MAX)
+                .width_range(width_min()..=width_max(ctx))
                 .show_separator_line(false)
                 .frame(Frame::new().inner_margin(0.0))
                 .show(ctx, |ui| {

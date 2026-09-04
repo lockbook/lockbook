@@ -18,6 +18,8 @@
 //! area, so it wins shared pixels. [`BAR_OUTER_MARGIN`] (= sidebar `RESIZE_GRAB`)
 //! keeps the floating bar left of that strip.
 
+use std::time::Duration;
+
 use egui::{Context, Id, Ui};
 
 /// How long the bar stays fully “active” after the last scroll / bar leave.
@@ -37,11 +39,13 @@ struct State {
     last_offset_y: f32,
     /// `f64::NEG_INFINITY` until the first real scroll / bar hold.
     last_active: f64,
+    /// Last frame's thumb hover/drag — `prepare` runs before the bar exists.
+    thumb_held: bool,
 }
 
 impl Default for State {
     fn default() -> Self {
-        Self { last_offset_y: f32::NAN, last_active: f64::NEG_INFINITY }
+        Self { last_offset_y: f32::NAN, last_active: f64::NEG_INFINITY, thumb_held: false }
     }
 }
 
@@ -74,10 +78,12 @@ pub fn prepare(ui: &mut Ui, id: Id) {
         .ctx()
         .data(|d| d.get_temp::<State>(id))
         .unwrap_or_default();
-    let show = !separator_dragging(ui) && now - st.last_active < FADE_SECS;
+    let show = !separator_dragging(ui) && (st.thumb_held || now - st.last_active < FADE_SECS);
 
-    if show {
-        ui.ctx().request_repaint();
+    if show && !st.thumb_held {
+        let remaining = (FADE_SECS - (now - st.last_active)).max(0.0);
+        ui.ctx()
+            .request_repaint_after(Duration::from_secs_f64(remaining.max(1.0 / 120.0)));
     }
 
     // egui paints the thumb with *widget* visuals: track hover → `inactive`,
@@ -147,14 +153,20 @@ pub fn note_offset(ui: &Ui, id: Id, offset_y: f32) {
 
 /// Keep the bar in the “active” window while the thumb is hovered or dragged.
 pub fn note_bar_interaction(ui: &Ui, id: Id, bar_held: bool) {
-    if !bar_held {
-        return;
-    }
     let now = ui.input(|i| i.time);
-    ui.ctx().data_mut(|d| {
-        d.get_temp_mut_or_default::<State>(id).last_active = now;
+    let left = ui.ctx().data_mut(|d| {
+        let st = d.get_temp_mut_or_default::<State>(id);
+        let was = st.thumb_held;
+        st.thumb_held = bar_held;
+        if bar_held || was {
+            st.last_active = now;
+        }
+        was && !bar_held
     });
-    ui.ctx().request_repaint();
+    if left {
+        ui.ctx()
+            .request_repaint_after(Duration::from_secs_f64(FADE_SECS));
+    }
 }
 
 /// Scope + prepare style, run `f`, then note offset and bar hold.

@@ -1,48 +1,44 @@
 use egui::{Align, Area, Id, Layout, Order};
 
 use crate::components::{
-    Button, Field, SheetFooterOpts, Space, Spacer, Theme, TypeRole, phosphor, segmented,
-    sheet_band_centered, sheet_dim, sheet_footer, sheet_panel_fit, shortcut_cmd_i, shortcut_cmd_n,
-    shortcut_return,
+    Button, Field, Radius, SheetFooterOpts, Space, Spacer, Theme, TypeRole, control_height,
+    phosphor, plate_content, sense_click, sheet_dim, sheet_footer, sheet_panel_fit, shortcut_cmd_i,
+    shortcut_cmd_n, shortcut_return, ui_width, with_pad_fit,
 };
 
 use super::ShellApp;
 use super::action::Action as A;
-use super::action::{Action, Modal, OnboardImportKind, OnboardLookup, OnboardMode};
+use super::action::{Action, Modal, OnboardLookup, OnboardMode};
+use super::apply_onboard::{
+    display_server_host, onboard_server_editing_key, onboard_server_snap_key,
+    uname_check_matches_core,
+};
 
 pub(crate) fn show_onboard(
     app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>,
 ) {
-    let (mode, uname_lookup, uname_lookup_for, import_kind, busy, err) = match &app.modal {
+    let (mode, uname_lookup, uname_lookup_for, busy, err, api_url) = match &app.modal {
         Some(Modal::Onboard {
-            mode,
-            uname_lookup,
-            uname_lookup_for,
-            import_kind,
-            busy,
-            err,
-            ..
+            mode, uname_lookup, uname_lookup_for, busy, err, api_url, ..
         }) => (
             *mode,
             uname_lookup.clone(),
             uname_lookup_for.clone(),
-            *import_kind,
             *busy,
             err.clone(),
+            api_url.clone(),
         ),
         _ => return,
     };
 
     let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_onboard"));
-    // Don't dismiss create/import by dim-click while busy.
+    // Don't dismiss create/import by dim-click while busy, or the backup step at all.
     if !busy && sheet_dim(ctx, Id::new("shell_onboard_dim"), layer) {
         // Stay on onboard when signed out — only cancel sub-modes.
-        if mode != OnboardMode::Choice {
+        if mode != OnboardMode::Choice && mode != OnboardMode::Backup {
             queue.push(A::OnboardSetMode(OnboardMode::Choice));
         }
     }
-
-    let mut kind_i = import_kind.index();
 
     if matches!(mode, OnboardMode::Create) {
         let q_trim = match &app.modal {
@@ -60,14 +56,7 @@ pub(crate) fn show_onboard(
         }
     }
 
-    // Wider plate when the 24-word grid is up.
-    let panel_w = if matches!(mode, OnboardMode::Import)
-        && matches!(import_kind, OnboardImportKind::Phrase)
-    {
-        440.0
-    } else {
-        380.0
-    };
+    const PANEL_W: f32 = 380.0;
 
     // Create: Found = taken, NotFound = available.
     let uname_snap = match &app.modal {
@@ -86,7 +75,7 @@ pub(crate) fn show_onboard(
         .show(ctx, |ui| {
             // Welcome title is brand, not a task sheet — keep strong Title (no muted X).
             // Form sub-modes use Create/Rename field rhythm: secondary label · Xs · field · Md · footer.
-            sheet_panel_fit(ui, t, panel_w, |ui| {
+            sheet_panel_fit(ui, t, PANEL_W, |ui| {
                 // Classic onboard header is just "Lockbook" (not "Welcome to…").
                 ui.label(
                     TypeRole::Title
@@ -149,6 +138,8 @@ pub(crate) fn show_onboard(
                                 },
                             );
                         });
+                        ui.add(Spacer::new(Space::Md));
+                        onboard_server_row(app, ui, t, &api_url);
                     }
                     OnboardMode::Create => {
                         ui.label(
@@ -219,7 +210,13 @@ pub(crate) fn show_onboard(
                             ("Checking…", t.neutral_fg_secondary())
                         } else {
                             match &uname_lookup {
-                                OnboardLookup::Available => ("Available", t.accent()),
+                                OnboardLookup::Available => {
+                                    if uname_check_matches_core(&api_url) {
+                                        ("Available", t.accent())
+                                    } else {
+                                        ("", t.neutral_fg_secondary())
+                                    }
+                                }
                                 OnboardLookup::Taken => ("Username taken", t.danger()),
                                 OnboardLookup::Error(e) => (e.as_str(), t.danger()),
                                 OnboardLookup::Idle | OnboardLookup::Checking => {
@@ -266,74 +263,41 @@ pub(crate) fn show_onboard(
                         }
                     }
                     OnboardMode::Import => {
-                        // Compact key (default) vs structured 24-word phrase (web3-style grid).
-                        sheet_band_centered(ui, crate::components::segmented_h(), |ui| {
-                            if segmented(
-                                ui,
-                                t,
-                                &["Compact key", "Phrase"],
-                                &mut kind_i,
-                            )
-                            .changed()
-                            {
-                                queue.push(A::OnboardImportKind(
-                                    OnboardImportKind::from_index(kind_i),
-                                ));
-                            }
+                        ui.label(
+                            TypeRole::Body
+                                .rich("Account key")
+                                .color(t.neutral_fg_secondary()),
+                        );
+                        ui.add(Spacer::new(Space::Xs));
+                        let edit_id = Id::new("onboard_account_key").with("edit");
+                        let need_focus = ui.ctx().data(|d| {
+                            d.get_temp::<bool>(Id::new("onboard_account_key_need_focus"))
+                                .unwrap_or(false)
                         });
-                        ui.add(Spacer::new(Space::Md));
-                        match OnboardImportKind::from_index(kind_i) {
-                            OnboardImportKind::CompactKey => {
-                                ui.label(
-                                    TypeRole::Body
-                                        .rich("Compact key")
-                                        .color(t.neutral_fg_secondary()),
-                                );
-                                ui.add(Spacer::new(Space::Xs));
-                                let edit_id = Id::new("onboard_compact").with("edit");
-                                let need_focus = ui.ctx().data(|d| {
-                                    d.get_temp::<bool>(Id::new("onboard_compact_need_focus"))
-                                        .unwrap_or(false)
-                                });
-                                {
-                                    let Some(Modal::Onboard { compact, .. }) = &mut app.modal
-                                    else {
-                                        return;
-                                    };
-                                    let _ = Field::new(t, compact)
-                                        .hint("Paste your compact account key")
-                                        .id("onboard_compact")
-                                        .password(true)
-                                        .show(ui);
-                                    if need_focus {
-                                        ui.memory_mut(|m| m.request_focus(edit_id));
-                                        if ui.memory(|m| m.has_focus(edit_id)) {
-                                            ui.ctx().data_mut(|d| {
-                                                d.insert_temp(
-                                                    Id::new("onboard_compact_need_focus"),
-                                                    false,
-                                                );
-                                            });
-                                        }
-                                    }
+                        {
+                            let Some(Modal::Onboard { account_key, err, .. }) = &mut app.modal
+                            else {
+                                return;
+                            };
+                            let before = account_key.clone();
+                            let _ = Field::new(t, account_key)
+                                .hint("Phrase or compact key")
+                                .id("onboard_account_key")
+                                .password(true)
+                                .show(ui);
+                            if need_focus {
+                                ui.memory_mut(|m| m.request_focus(edit_id));
+                                if ui.memory(|m| m.has_focus(edit_id)) {
+                                    ui.ctx().data_mut(|d| {
+                                        d.insert_temp(
+                                            Id::new("onboard_account_key_need_focus"),
+                                            false,
+                                        );
+                                    });
                                 }
                             }
-                            OnboardImportKind::Phrase => {
-                                ui.label(
-                                    TypeRole::Body
-                                        .rich("24-word phrase")
-                                        .color(t.neutral_fg_secondary()),
-                                );
-                                ui.add(Spacer::new(Space::Xs));
-                                {
-                                    let Some(Modal::Onboard { words, .. }) = &mut app.modal else {
-                                        return;
-                                    };
-                                    if words.len() < 24 {
-                                        words.resize(24, String::new());
-                                    }
-                                    onboard_phrase_grid(ui, t, words);
-                                }
+                            if *account_key != before {
+                                *err = None;
                             }
                         }
                         if let Some(e) = err {
@@ -341,43 +305,22 @@ pub(crate) fn show_onboard(
                             ui.label(TypeRole::Body.rich(e).color(t.danger()));
                         }
                         ui.add(Spacer::new(Space::Md));
-                        let can_import = match (&app.modal, OnboardImportKind::from_index(kind_i)) {
-                            (
-                                Some(Modal::Onboard { compact, .. }),
-                                OnboardImportKind::CompactKey,
-                            ) => !compact.trim().is_empty(),
-                            (Some(Modal::Onboard { words, .. }), OnboardImportKind::Phrase) => {
-                                words.iter().filter(|w| !w.trim().is_empty()).count() == 24
+                        let secret = match &app.modal {
+                            Some(Modal::Onboard { account_key, .. }) => {
+                                account_key.trim().to_owned()
                             }
-                            _ => false,
+                            _ => String::new(),
                         };
-                        // Auto-submit once per secret when valid. Failures stay silent
-                        // until the secret changes or the user hits Import manually.
+                        let can_import = !secret.is_empty();
+                        // Auto-submit on every change. Failures stay silent
+                        // until the user hits Import.
                         if can_import && !busy {
-                            let secret = match (&app.modal, OnboardImportKind::from_index(kind_i)) {
-                                (
-                                    Some(Modal::Onboard { compact, .. }),
-                                    OnboardImportKind::CompactKey,
-                                ) => compact.trim().to_owned(),
-                                (Some(Modal::Onboard { words, .. }), OnboardImportKind::Phrase) => {
-                                    words
-                                        .iter()
-                                        .map(|w| w.trim())
-                                        .filter(|w| !w.is_empty())
-                                        .collect::<Vec<_>>()
-                                        .join(" ")
-                                }
-                                _ => String::new(),
-                            };
                             let last = ui.ctx().data(|d| {
                                 d.get_temp::<String>(Id::new("onboard_auto_submit_secret"))
                             });
                             if last.as_deref() != Some(secret.as_str()) {
                                 ui.ctx().data_mut(|d| {
-                                    d.insert_temp(
-                                        Id::new("onboard_auto_submit_secret"),
-                                        secret,
-                                    );
+                                    d.insert_temp(Id::new("onboard_auto_submit_secret"), secret);
                                 });
                                 queue.push(A::OnboardSubmit { show_error: false });
                             }
@@ -398,122 +341,211 @@ pub(crate) fn show_onboard(
                             queue.push(A::OnboardSubmit { show_error: true });
                         }
                     }
+                    OnboardMode::Backup => {
+                        onboard_backup(app, ui, t, queue);
+                    }
                 }
             });
         });
 }
 
-/// 4×6 numbered word slots (BIP-39 / web3 recovery-style entry).
-/// Paste of a full phrase into any cell distributes across the grid and focuses
-/// the **last** filled slot (so that word is revealed, not the paste source).
-fn onboard_phrase_grid(ui: &mut egui::Ui, t: &Theme, words: &mut [String]) {
-    const COLS: usize = 4;
-    let n = words.len().min(24);
-    let gap = Space::Xs.pts();
-    let max_w = crate::components::ui_width(ui).max(1.0);
-    let col_w = ((max_w - gap * (COLS as f32 - 1.0)) / COLS as f32).max(40.0);
-    let row_h = crate::components::control_height();
-    let focus_idx = ui
-        .ctx()
-        .data(|d| d.get_temp::<usize>(Id::new("onboard_word_need_focus")));
-    // Paste into cell `i` may request focus on the last distributed word.
-    let mut focus_after_paste: Option<usize> = None;
+fn onboard_backup(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, queue: &mut Vec<Action>) {
+    ui.label(
+        TypeRole::Heading
+            .rich("Your secret key")
+            .color(t.neutral_fg()),
+    );
+    ui.add(Spacer::new(Space::Sm));
+    ui.label(
+        TypeRole::Body
+            .rich(
+                "This 24-word phrase is your password — sign in on another device, write it down, or save it in a password manager.",
+            )
+            .color(t.neutral_fg()),
+    );
+    ui.add(Spacer::new(Space::Sm));
+    ui.label(
+        TypeRole::Body
+            .rich(
+                "Anyone with it can read your notes. If you lose your last copy, we can’t help you recover your files. You can always find it in Settings.",
+            )
+            .color(t.neutral_fg_secondary()),
+    );
+    ui.add(Spacer::new(Space::Md));
 
-    let rows = n.div_ceil(COLS);
-    for row in 0..rows {
-        if row > 0 {
-            ui.add(Spacer::new(Space::Xs));
+    if app
+        .phrase_cache
+        .as_deref()
+        .is_none_or(|p| p.split_whitespace().count() != 24)
+    {
+        if let Some(r) = app.session.ready() {
+            if let Ok(p) = r.workspace.core.export_account_phrase() {
+                app.phrase_cache = Some(p);
+            }
         }
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-            ui.set_min_height(row_h);
-            ui.set_max_height(row_h);
-            for col in 0..COLS {
-                let i = row * COLS + col;
-                if i >= n {
-                    break;
-                }
-                if col > 0 {
-                    ui.add(Spacer::new(Space::Xs));
-                }
-                // Fixed band per cell so col 0 doesn’t grow from label metrics.
-                ui.allocate_ui_with_layout(
-                    egui::vec2(col_w, row_h),
-                    Layout::left_to_right(Align::Center),
-                    |ui| {
-                        ui.set_width(col_w);
-                        ui.set_min_height(row_h);
-                        ui.set_max_height(row_h);
-                        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+    }
+    let phrase = app.phrase_cache.as_deref().unwrap_or("");
+    let phrase_ok = phrase.split_whitespace().count() == 24;
+    plate_content(ui, t.neutral_bg_secondary(), t.neutral(), Radius::Control.corner(), |ui| {
+        ui.set_width(ui_width(ui));
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        with_pad_fit(ui, Space::Md, |ui| {
+            onboard_phrase_columns(ui, t, phrase);
+        });
+    });
 
-                        // Index (01–24) — painter, not `ui.label` (avoids extra pitch).
-                        let idx = format!("{:02}", i + 1);
-                        let idx_g = ui.painter().layout_no_wrap(
-                            idx,
-                            TypeRole::Mono.font_id(),
-                            t.neutral_fg_secondary(),
-                        );
-                        let idx_w = idx_g.size().x + Space::Xxs.pts();
-                        let (ir, _) =
-                            ui.allocate_exact_size(egui::vec2(idx_w, row_h), egui::Sense::hover());
-                        ui.painter().galley(
-                            egui::pos2(ir.left(), ir.center().y - idx_g.size().y / 2.0),
-                            idx_g,
-                            t.neutral_fg_secondary(),
-                        );
+    ui.add(Spacer::new(Space::Md));
+    {
+        let Some(Modal::Onboard { key_stored, .. }) = &mut app.modal else {
+            return;
+        };
+        crate::components::ack_row(ui, t, "I’ve stored my secret key in a safe place.", key_stored);
+    }
+    let stored = match &app.modal {
+        Some(Modal::Onboard { key_stored, .. }) => *key_stored,
+        _ => false,
+    };
 
-                        let field_w = (col_w - idx_w).max(20.0);
-                        let id_salt = format!("onboard_word_{i}");
-                        let edit_id = Id::new(&id_salt).with("edit");
-                        // After multi-word paste we focus the last slot with caret at end.
-                        let cursor_end = focus_idx == Some(i);
-                        let _ = Field::new(t, &mut words[i])
-                            .id(id_salt)
-                            .width(field_w)
-                            // Reveal only the focused word; others stay masked.
-                            .password_when_unfocused(true)
-                            .cursor_at_end_on_focus(cursor_end)
-                            // Tab / Shift+Tab walk the 24 slots (not claim-for-complete).
-                            .tab_navigates(true)
-                            .show(ui);
-                        if focus_idx == Some(i) {
-                            ui.memory_mut(|m| m.request_focus(edit_id));
-                            if ui.memory(|m| m.has_focus(edit_id)) {
-                                ui.ctx().data_mut(|d| {
-                                    d.remove_temp::<usize>(Id::new("onboard_word_need_focus"));
-                                });
-                            }
-                        }
-                        // Paste of full phrase → fill the grid (wallet pattern).
-                        let parts: Vec<&str> = words[i]
-                            .split([' ', ',', '\n', '\t'])
-                            .map(str::trim)
-                            .filter(|s| !s.is_empty())
-                            .collect();
-                        if parts.len() > 1 {
-                            let fill_n = parts.len().min(24);
-                            let owned: Vec<String> =
-                                parts.iter().take(fill_n).map(|p| (*p).to_owned()).collect();
-                            for (j, next) in owned.into_iter().enumerate() {
-                                words[j] = next;
-                            }
-                            // Prefer last filled word focused/revealed (not paste source).
-                            focus_after_paste = Some(fill_n.saturating_sub(1));
-                        }
-                        // Single-word edits stay in `words[i]` via Field (no dual buffer).
-                    },
-                );
+    ui.add(Spacer::new(Space::Md));
+    let row_w = ui_width(ui);
+    let row_h = control_height();
+    let gap = Space::Sm;
+    ui.horizontal(|ui| {
+        ui.set_min_height(row_h);
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        let copy = Button::quiet(t, "Copy")
+            .copy_feedback("shell_onboard_copy_phrase")
+            .height(row_h)
+            .show(ui);
+        if copy.clicked() {
+            queue.push(A::CopyPhrase);
+        }
+        let copy_w = copy.rect.width();
+        ui.add(Spacer::new(gap).fill_cross(row_h));
+        let primary_max = (row_w - copy_w - gap.pts()).max(Space::Xl.pts() * 2.4);
+        ui.allocate_ui_with_layout(
+            egui::vec2(primary_max, row_h),
+            Layout::right_to_left(Align::Center),
+            |ui| {
+                ui.set_max_width(primary_max);
+                if Button::primary(t, "Done")
+                    .shortcut(shortcut_return())
+                    .height(row_h)
+                    .max_width(primary_max)
+                    .enabled(stored && phrase_ok)
+                    .show(ui)
+                    .clicked()
+                {
+                    queue.push(A::OnboardFinishBackup);
+                }
+            },
+        );
+    });
+}
+
+fn onboard_phrase_columns(ui: &mut egui::Ui, t: &Theme, phrase: &str) {
+    let words: Vec<&str> = phrase.split_whitespace().collect();
+    if words.len() != 24 {
+        ui.label(
+            TypeRole::Mono
+                .rich(if phrase.is_empty() { "Preparing phrase…" } else { phrase })
+                .color(t.neutral_fg()),
+        );
+        return;
+    }
+    let col_w = (ui_width(ui) / 2.0).max(1.0);
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        ui.vertical(|ui| {
+            ui.set_width(col_w);
+            for (i, word) in words.iter().take(12).enumerate() {
+                onboard_phrase_word(ui, t, i + 1, word);
             }
         });
+        ui.vertical(|ui| {
+            ui.set_width(col_w);
+            for (i, word) in words.iter().skip(12).enumerate() {
+                onboard_phrase_word(ui, t, i + 13, word);
+            }
+        });
+    });
+}
+
+fn onboard_phrase_word(ui: &mut egui::Ui, t: &Theme, n: usize, word: &str) {
+    ui.horizontal(|ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(Space::Xs.pts(), 0.0);
+        ui.label(TypeRole::Mono.rich(format!("{n}.")).color(t.accent()));
+        ui.label(TypeRole::Mono.rich(word).color(t.neutral_fg()));
+    });
+}
+
+fn onboard_server_edit_id() -> Id {
+    Id::new("onboard_server").with("edit")
+}
+
+fn onboard_server_need_focus_key() -> Id {
+    Id::new("onboard_server_need_focus")
+}
+
+/// Rest: hostname caption. Click: field. Blur / Enter commit; Esc reverts; × defaults.
+fn onboard_server_row(app: &mut ShellApp, ui: &mut egui::Ui, t: &Theme, api_url: &str) {
+    let editing_key = onboard_server_editing_key();
+    let snap_key = onboard_server_snap_key();
+    let mut editing = ui
+        .ctx()
+        .data(|d| d.get_temp::<bool>(editing_key))
+        .unwrap_or(false);
+    let mut need_focus = ui
+        .ctx()
+        .data(|d| d.get_temp::<bool>(onboard_server_need_focus_key()))
+        .unwrap_or(false);
+
+    if editing {
+        {
+            let Some(Modal::Onboard { api_url, .. }) = &mut app.modal else {
+                return;
+            };
+            let _ = Field::new(t, api_url)
+                .hint(lb::DEFAULT_API_LOCATION)
+                .id("onboard_server")
+                .clearable(true)
+                .sticky(false)
+                .show(ui);
+            if need_focus {
+                ui.memory_mut(|m| m.request_focus(onboard_server_edit_id()));
+                if ui.memory(|m| m.has_focus(onboard_server_edit_id())) {
+                    need_focus = false;
+                }
+            }
+        }
+        let focused = ui.memory(|m| m.has_focus(onboard_server_edit_id()));
+        if !need_focus && !focused {
+            editing = false;
+        }
+    } else if onboard_server_caption(ui, t, &display_server_host(api_url)) {
+        editing = true;
+        need_focus = true;
+        ui.ctx()
+            .data_mut(|d| d.insert_temp(snap_key, api_url.to_owned()));
     }
 
-    if let Some(last) = focus_after_paste {
-        let edit_id = Id::new(format!("onboard_word_{last}")).with("edit");
-        let len = words.get(last).map(|s| s.len()).unwrap_or(0);
-        ui.memory_mut(|m| m.request_focus(edit_id));
-        workspace_rs::widgets::GlyphonTextEdit::place_cursor_at_end(ui, edit_id, len);
-        ui.ctx().data_mut(|d| {
-            d.insert_temp(Id::new("onboard_word_need_focus"), last);
-        });
-    }
+    ui.ctx().data_mut(|d| {
+        d.insert_temp(editing_key, editing);
+        d.insert_temp(onboard_server_need_focus_key(), need_focus);
+    });
+}
+
+fn onboard_server_caption(ui: &mut egui::Ui, t: &Theme, host: &str) -> bool {
+    let rest = t.neutral_fg_secondary();
+    let g = ui
+        .painter()
+        .layout_no_wrap(host.to_owned(), TypeRole::Body.font_id(), rest);
+    let h = crate::components::control_height();
+    let w = crate::components::ui_width(ui).max(1.0);
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), sense_click());
+    let over = ui.ctx().rect_contains_pointer(ui.layer_id(), rect);
+    let ink = if over { t.neutral_fg() } else { rest };
+    ui.painter()
+        .galley(egui::pos2(rect.left(), rect.center().y - g.size().y / 2.0), g, ink);
+    resp.clicked()
 }

@@ -55,6 +55,7 @@ impl From<crate::Response> for AndroidResponse {
                 },
             redraw_in,
             copied_text,
+            copied_image: _,
             urls_opened,
             cursor: _,
             virtual_keyboard_shown,

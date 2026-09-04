@@ -37,7 +37,7 @@ use serde::{Deserialize, Serialize};
 pub use toolbar::Tool;
 use toolbar::{ToolContext, ToolbarContext};
 use tools::pen::PenSettings;
-use tracing::{Level, info, span};
+use tracing::info;
 
 pub struct SVGEditor {
     pub buffer: Buffer,
@@ -212,9 +212,6 @@ impl SVGEditor {
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
         set_style(ui);
-
-        let span = span!(Level::TRACE, "showing canvas widget");
-        let _ = span.enter();
 
         self.viewport_settings.container_rect = ui.available_rect_before_wrap();
         self.input_ctx.update(ui);

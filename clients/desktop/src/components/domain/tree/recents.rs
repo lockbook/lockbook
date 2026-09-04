@@ -4,12 +4,14 @@ use egui::{Id, Rect, ScrollArea, Sense, Ui, pos2, vec2};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
 
+use crate::components::domain::pins;
 use crate::components::{
-    FileRow, LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, Theme, TypeRole, context_menu, phosphor,
-    with_overlay_scroll,
+    FileRow, LIST_PAD, SECTION_GAP, SECTION_HEAD_GAP, Theme, TypeRole, context_menu,
+    paint_list_section, phosphor, with_overlay_scroll,
 };
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
+use crate::shell::ops::is_saved_share;
 use crate::shell::prefs::recents_bucket;
 
 use super::{FileCmd, RowGeom, TreeRowChrome, empty_state, paint_tree_file_row, row_type_icon};
@@ -19,6 +21,13 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
     if app.session.ready().is_none() {
         return;
     }
+
+    if let Some(ready) = app.session.ready() {
+        let pins = ready.pinned.clone();
+        let files = ready.workspace.files.read().unwrap();
+        pins::show(ui, t, &*files, &pins, &ready.workspace.account.username, queue);
+    }
+
     // Clone row ids/meta once; paint path is virtualized (was full-list every frame).
     let docs = app.recents_cache.rows.clone();
 
@@ -74,7 +83,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                 let inner_w = (view_screen.width() - pad * 2.0).max(1.0);
                 let text_left = view_screen.left() + pad;
 
-                // Visible doc ids → parents (one lock, only rows we paint).
+                // Visible doc ids → saved-share (one lock, only rows we paint).
                 let mut visible_doc_ids: Vec<Uuid> = Vec::new();
                 for (i, item) in items.iter().enumerate() {
                     let y0 = pad + geom.top(i);
@@ -86,14 +95,19 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                         visible_doc_ids.push(docs[*idx].0);
                     }
                 }
-                let parents: std::collections::HashMap<Uuid, Uuid> = app
+                let saved_shares: std::collections::HashMap<Uuid, bool> = app
                     .session
                     .ready()
                     .map(|r| {
+                        let me = r.workspace.account.username.as_str();
                         let files = r.workspace.files.read().unwrap();
                         visible_doc_ids
                             .iter()
-                            .filter_map(|id| files.get_by_id(*id).map(|f| (*id, f.parent)))
+                            .filter_map(|id| {
+                                files.get_by_id(*id).map(|f| {
+                                    (*id, is_saved_share(f, files.get_by_id(f.parent), me))
+                                })
+                            })
                             .collect()
                     })
                     .unwrap_or_default();
@@ -111,17 +125,7 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                             if *h > TypeRole::Body.line_height() + SECTION_HEAD_GAP.pts() + 0.5 {
                                 y += SECTION_GAP.pts();
                             }
-                            // Match `list_section_header` (strong body, muted).
-                            let g = ui.painter().layout_no_wrap(
-                                (*title).to_owned(),
-                                egui::FontId::new(
-                                    TypeRole::Body.size(),
-                                    egui::FontFamily::Name(std::sync::Arc::from("Bold")),
-                                ),
-                                t.neutral_fg_secondary(),
-                            );
-                            ui.painter()
-                                .galley(pos2(text_left, y), g, t.neutral_fg_secondary());
+                            paint_list_section(ui, t, title, pos2(text_left, y));
                         }
                         RecentItem::Doc { idx, h } => {
                             let (id, name, _mod, crumbs, pinned) = &docs[*idx];
@@ -142,10 +146,13 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                 rect,
                                 |r| r.subtitle(path),
                             );
-                            if resp.clicked() {
+                            if resp.clicked() && !resp.double_clicked() {
                                 queue.push(Action::OpenFile(*id));
                             }
-                            let parent = parents.get(id).copied();
+                            if resp.middle_clicked() {
+                                queue.push(Action::OpenFileNewTab(*id));
+                            }
+                            let saved_share = saved_shares.get(id).copied().unwrap_or(false);
                             let pinned = *pinned;
                             if let Some(cmd) = context_menu::show(&resp, t, |e| {
                                 e.item(phosphor::ARROW_SQUARE_OUT, "Open", FileCmd::Open);
@@ -170,14 +177,24 @@ pub fn show_recents(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<
                                 e.item(phosphor::LINK, "Copy link", FileCmd::CopyLink);
                                 e.item(phosphor::DOWNLOAD_SIMPLE, "Export…", FileCmd::Export);
                                 e.separator();
-                                e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
+                                if saved_share {
+                                    e.item(
+                                        phosphor::FOLDER_MINUS,
+                                        "Remove from files…",
+                                        FileCmd::Delete,
+                                    );
+                                } else {
+                                    e.item_danger(phosphor::TRASH, "Delete…", FileCmd::Delete);
+                                }
                             }) {
                                 match cmd {
                                     FileCmd::Open => queue.push(Action::OpenFile(*id)),
                                     FileCmd::OpenNewTab => queue.push(Action::OpenFileNewTab(*id)),
-                                    FileCmd::Create => {
-                                        queue.push(Action::OpenCreate { parent, is_folder: false })
-                                    }
+                                    FileCmd::Create => queue.push(Action::OpenCreate {
+                                        folder: None,
+                                        alongside: Some(*id),
+                                        is_folder: false,
+                                    }),
                                     FileCmd::Rename => queue.push(Action::OpenRename(*id)),
                                     FileCmd::Pin => queue.push(Action::TogglePin(*id)),
                                     FileCmd::Move => queue.push(Action::OpenMove(vec![*id])),

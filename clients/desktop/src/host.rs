@@ -75,14 +75,10 @@ impl ApplicationHandler<UserEvent> for App {
         #[cfg(target_os = "macos")]
         {
             crate::shell::macos_window::disable_automatic_titlebar_drag(window.as_ref());
+            crate::shell::macos_window::pin_traffic_lights(window.as_ref());
         }
 
         let mut lb = init_app(Arc::clone(&window));
-
-        #[cfg(target_os = "macos")]
-        {
-            lb.app.macos_window_tweaked = true;
-        }
 
         let proxy = self.proxy.clone();
         lb.renderer
@@ -106,7 +102,7 @@ impl ApplicationHandler<UserEvent> for App {
             lb.renderer.context.viewport_id(),
             &window,
             Some(window.scale_factor() as f32),
-            None,
+            window.theme(),
             None,
         );
 
@@ -151,7 +147,7 @@ impl ApplicationHandler<UserEvent> for App {
         if is_paste_shortcut(&state.egui_winit, &event) {
             state.pending_paste = true;
             state.window.request_redraw();
-        } else if !matches!(event, WindowEvent::ThemeChanged(_)) {
+        } else {
             let response = state.egui_winit.on_window_event(&state.window, &event);
 
             if response.repaint && !matches!(event, WindowEvent::RedrawRequested) {
@@ -161,12 +157,27 @@ impl ApplicationHandler<UserEvent> for App {
 
         match event {
             WindowEvent::CloseRequested => {
+                // Native file dialogs (NSOpenPanel) synthesize a window-close on
+                // cancel. Ignore it while a picker is in flight.
+                if crate::shell::native_file_dialog_open() {
+                    return;
+                }
                 state.close_requested = true;
                 state.window.request_redraw();
             }
             WindowEvent::Resized(size) => {
                 state.lb.renderer.screen.size_in_pixels = [size.width, size.height];
-                state.window.request_redraw();
+                #[cfg(target_os = "macos")]
+                crate::shell::macos_window::pin_traffic_lights(state.window.as_ref());
+                // Nested WM_SIZE loop: paint now or the swapchain lags the HWND.
+                #[cfg(target_os = "windows")]
+                if size.width > 0 && size.height > 0 {
+                    state.render(event_loop);
+                }
+                #[cfg(not(target_os = "windows"))]
+                {
+                    state.window.request_redraw();
+                }
             }
             WindowEvent::ScaleFactorChanged { scale_factor, .. } => {
                 state
@@ -225,7 +236,25 @@ impl ApplicationHandler<UserEvent> for App {
 
 impl AppState {
     fn render(&mut self, _event_loop: &ActiveEventLoop) {
+        let size = self.window.inner_size();
+        if size.width > 0 && size.height > 0 {
+            self.lb.renderer.screen.size_in_pixels = [size.width, size.height];
+        }
+
+        #[cfg(target_os = "macos")]
+        crate::shell::macos_window::pin_traffic_lights(self.window.as_ref());
+
         let mut raw_input = self.egui_winit.take_egui_input(&self.window);
+        // Frameless chrome reads `viewport.maximized` to toggle restore. Without
+        // this, the flag stays unset and double-click / caption max always send
+        // Maximized(true). Skipped on macOS inside the helper (AppKit deadlock).
+        {
+            let info = raw_input
+                .viewports
+                .entry(raw_input.viewport_id)
+                .or_default();
+            egui_winit::update_viewport_info(info, &self.lb.renderer.context, &self.window, false);
+        }
 
         // Images/files are not in egui's clipboard; text goes through arboard too.
         if self.pending_paste {
@@ -268,10 +297,15 @@ impl AppState {
                     let _ = self.clipboard.set_text(text.clone());
                 }
                 egui::OutputCommand::CopyImage(image) => {
+                    let bytes: Vec<u8> = image
+                        .pixels
+                        .iter()
+                        .flat_map(|px| px.to_srgba_unmultiplied())
+                        .collect();
                     let _ = self.clipboard.set_image(arboard::ImageData {
                         width: image.width(),
                         height: image.height(),
-                        bytes: std::borrow::Cow::Borrowed(image.as_raw()),
+                        bytes: std::borrow::Cow::Owned(bytes),
                     });
                 }
                 _ => {}
@@ -301,6 +335,23 @@ impl AppState {
         if actions.contains(&egui_winit::ActionRequested::Paste) {
             self.handle_paste();
         }
+
+        if let Some(pos) =
+            crate::shell::titlebar::take_window_menu_request(&self.lb.renderer.context)
+        {
+            self.window
+                .show_window_menu(winit::dpi::LogicalPosition::new(pos.x as f64, pos.y as f64));
+        }
+
+        #[cfg(target_os = "macos")]
+        if crate::shell::titlebar::take_titlebar_double_click(&self.lb.renderer.context) {
+            crate::shell::macos_window::perform_titlebar_double_click(self.window.as_ref());
+        }
+
+        // Title (and other viewport cmds) make AppKit re-layout the titlebar
+        // after paint — Back is a common trigger. Re-pin after those cmds.
+        #[cfg(target_os = "macos")]
+        crate::shell::macos_window::pin_traffic_lights(self.window.as_ref());
 
         if info
             .events
@@ -537,6 +588,10 @@ fn resources_declare_xft_dpi(resources: &str) -> bool {
 /// Product shell.
 pub fn run() {
     env_logger::init();
+
+    let config = lb::model::core_config::Config::ui_config("egui");
+    lb::service::logging::init(&config).expect("install lockbook logging");
+    crate::perf::install_exit_flush();
 
     let mut builder = EventLoop::<UserEvent>::with_user_event();
 

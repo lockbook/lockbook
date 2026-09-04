@@ -17,7 +17,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, RwLock};
 
 use egui::{ColorImage, Context, TextureId, Vec2};
-use image::{DynamicImage, ImageDecoder};
+use image::{DynamicImage, ImageDecoder, ImageEncoder as _};
 use lb_rs::blocking::Lb;
 use lb_rs::{Uuid, spawn};
 use resvg::tiny_skia::Pixmap;
@@ -147,6 +147,16 @@ impl ImageCache {
             .map(|[w, h]| Vec2::new(w, h))
     }
 
+    pub fn color_image(&self, id: Uuid) -> Result<ColorImage, String> {
+        let bytes = self
+            .core
+            .read_document(id, false)
+            .map_err(|e| e.to_string())?;
+        let image = decode_with_orientation(&bytes)?;
+        let size = [image.width() as usize, image.height() as usize];
+        Ok(ColorImage::from_rgba_unmultiplied(size, &image.to_rgba8()))
+    }
+
     /// Whether `url`'s texture is decoded and ready to paint this session — the
     /// real `Loaded` state, not just persisted dims (which outlive the texture).
     pub fn is_loaded(&self, url: &str) -> bool {
@@ -211,6 +221,7 @@ impl ImageCache {
         let pixels_per_point = ctx.pixels_per_point();
 
         spawn!({
+            let _span = tracing::trace_span!("ImageCache::load").entered();
             let texture_manager = ctx.tex_manager();
 
             let texture_closure = async_on_wasm!({
@@ -332,6 +343,25 @@ fn rasterize_svg(
         .map_err(|e| e.to_string())?;
     resvg::render(&tree, transform, &mut pix_map.as_mut());
     pix_map.encode_png().map_err(|e| e.to_string())
+}
+
+pub fn encode_png(color_image: &ColorImage) -> Result<Vec<u8>, String> {
+    let pixels: Vec<u8> = color_image
+        .pixels
+        .iter()
+        .flat_map(|px| px.to_srgba_unmultiplied())
+        .collect();
+
+    let mut png = Vec::new();
+    image::codecs::png::PngEncoder::new(&mut png)
+        .write_image(
+            &pixels,
+            color_image.width() as u32,
+            color_image.height() as u32,
+            image::ExtendedColorType::Rgba8,
+        )
+        .map_err(|e| e.to_string())?;
+    Ok(png)
 }
 
 /// Decode image bytes into a `DynamicImage` with EXIF orientation applied.

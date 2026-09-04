@@ -9,6 +9,8 @@ use super::typography;
 
 const MODE_PREF_ID: &str = "design_mode_preference";
 const THEME_FAMILY_ID: &str = "design_theme_family";
+const DETECTED_MODE_ID: &str = "design_detected_system_mode";
+const OS_PROBE_TTL_SECS: f64 = 1.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Default, serde::Serialize, serde::Deserialize)]
 pub enum ModePreference {
@@ -156,7 +158,9 @@ pub fn resolved_mode(ctx: &Context) -> Mode {
     }
 }
 
-/// OS appearance: egui `system_theme`, else `dark_light`; unspecified → light.
+/// OS appearance: egui `system_theme`, else a TTL-cached `dark_light` probe.
+///
+/// `dark_light::detect()` blocks on a portal / registry read — not every frame.
 pub fn system_mode(ctx: &Context) -> Mode {
     if let Some(theme) = ctx.system_theme() {
         return egui_theme_to_mode(theme);
@@ -164,10 +168,21 @@ pub fn system_mode(ctx: &Context) -> Mode {
     if let Some(theme) = ctx.input(|i| i.raw.system_theme) {
         return egui_theme_to_mode(theme);
     }
-    match dark_light::detect() {
+    let now = ctx.input(|i| i.time);
+    if let Some((cached, at)) = ctx.data(|d| d.get_temp::<(Mode, f64)>(Id::new(DETECTED_MODE_ID))) {
+        let remaining = OS_PROBE_TTL_SECS - (now - at);
+        if remaining > 0.0 {
+            ctx.request_repaint_after_secs(remaining.max(0.05) as f32);
+            return cached;
+        }
+    }
+    let mode = match dark_light::detect() {
         Ok(dark_light::Mode::Dark) => Mode::Dark,
         Ok(dark_light::Mode::Light | dark_light::Mode::Unspecified) | Err(_) => Mode::Light,
-    }
+    };
+    ctx.data_mut(|d| d.insert_temp(Id::new(DETECTED_MODE_ID), (mode, now)));
+    ctx.request_repaint_after_secs(OS_PROBE_TTL_SECS as f32);
+    mode
 }
 
 fn egui_theme_to_mode(theme: EguiTheme) -> Mode {

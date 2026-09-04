@@ -12,9 +12,10 @@ pub mod tree_metrics;
 pub mod typography;
 
 pub use chrome::{
-    Radius, STROKE_HAIRLINE, control_height, file_row_icon, fit_outside_stroke_fill, paint_plate,
-    paint_plate_stroke, phosphor, phosphor_ui_font_id, plate_content, shortcut_cmd_i,
-    shortcut_cmd_n, shortcut_enter, shortcut_esc, shortcut_return,
+    Radius, STROKE_HAIRLINE, control_height, display_file_name, file_row_icon,
+    fit_outside_stroke_fill, paint_plate, paint_plate_stroke, phosphor, phosphor_font_id,
+    phosphor_ui_font_id, plate_content, shortcut_cmd_i, shortcut_cmd_n, shortcut_enter,
+    shortcut_esc, shortcut_return, tab_icon,
 };
 pub use color::{FG_HOVER, FG_PRESS, Theme, ThemeExt};
 pub use interact::sense_click;

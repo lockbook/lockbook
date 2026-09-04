@@ -26,6 +26,7 @@ pub mod titlebar;
 pub mod toasts;
 
 pub use action::{Modal, SidebarPane};
+pub(crate) use apply::native_file_dialog_open;
 
 // Domain surfaces live in the component library; re-export for shell-local paths.
 pub use crate::components::domain::{footer, sync_dots, tabs, tree};
@@ -33,6 +34,7 @@ pub use crate::components::domain::{footer, sync_dots, tabs, tree};
 // OnboardMode / SettingsCat / Ready are used via module paths; re-export only what
 // other crates/bin need from `shell::`.
 
+use std::sync::mpsc;
 use std::sync::{Arc, Mutex};
 
 use egui::{Area, CentralPanel, Frame, Id, Order, SidePanel};
@@ -93,11 +95,9 @@ pub struct ShellApp {
     pub recents_cache: RecentsCache,
     /// Derived Shared lists; same epoch rule.
     pub shared_cache: SharedCache,
+    /// Flattened Files-tree walk; same epoch + expanded-set rule.
+    pub tree_walk: tree::TreeWalkCache,
     theme_applied: bool,
-    /// macOS: one-shot NSWindow.isMovable=false (see [`macos_window`]).
-    /// Set by the host after window creation.
-    #[cfg(target_os = "macos")]
-    pub macos_window_tweaked: bool,
     /// Debounced per-file sync dots (Files tree only).
     pub sync_dots: sync_dots::SyncDots,
     /// Footer stable message + spin-after-tap.
@@ -107,6 +107,12 @@ pub struct ShellApp {
     session_stress: Option<SessionStress>,
     /// Transient errors / short notices (import, rename, workspace failures).
     pub toasts: ToastHost,
+    /// In-flight system file/folder picker (import / export).
+    pub(crate) native_dialog_rx: Option<mpsc::Receiver<apply::NativeDialogResult>>,
+    /// Auto-import worker (paste / complete key). Failures do not surface.
+    pub(crate) onboard_auto_rx: Option<mpsc::Receiver<apply_onboard::AutoOnboard>>,
+    /// After a successful create, show the account-key backup sheet.
+    pub(crate) onboard_backup_pending: bool,
 }
 
 /// Dev harness: bounce Ready ↔ SignedOut without clicking UI.
@@ -135,8 +141,8 @@ pub struct RecentsCache {
 #[derive(Default)]
 pub struct SharedCache {
     pub epoch: u64,
-    /// `(id, name, shared_by, is_folder)`
-    pub pending: Vec<(Uuid, String, String, bool)>,
+    /// `(id, name, shared_by, is_folder, last_modified_ms)`
+    pub pending: Vec<(Uuid, String, String, bool, u64)>,
 }
 
 impl Default for ShellApp {
@@ -158,9 +164,8 @@ impl Default for ShellApp {
             lb_rx: None,
             recents_cache: RecentsCache::default(),
             shared_cache: SharedCache::default(),
+            tree_walk: tree::TreeWalkCache::default(),
             theme_applied: false,
-            #[cfg(target_os = "macos")]
-            macos_window_tweaked: false,
             sync_dots: sync_dots::SyncDots::default(),
             sync_footer: footer::SyncFooterState::default(),
             session_stress: std::env::var_os("LOCKBOOK_SESSION_STRESS").map(|_| SessionStress {
@@ -172,6 +177,9 @@ impl Default for ShellApp {
                 last_kind: StressKind::Loading,
             }),
             toasts: ToastHost::default(),
+            native_dialog_rx: None,
+            onboard_auto_rx: None,
+            onboard_backup_pending: false,
         }
     }
 }
@@ -189,8 +197,21 @@ impl ShellApp {
             .unwrap_or(false)
     }
 
+    fn showing_backup(&self) -> bool {
+        matches!(&self.modal, Some(Modal::Onboard { mode: action::OnboardMode::Backup, .. }))
+    }
+
+    /// Sidebar, editor, pane toggles. Hidden while the post-create key backup
+    /// sheet is up — that step is still onboard, not the signed-in app.
+    pub(crate) fn product_open(&self) -> bool {
+        matches!(self.session, Session::Ready(_)) && !self.showing_backup()
+    }
+
     /// Auto logout / re-import loop for crash hunting (`LOCKBOOK_SESSION_STRESS=1`).
     fn session_stress_tick(&mut self, ctx: &egui::Context) {
+        if self.showing_backup() {
+            return;
+        }
         let Some(stress) = self.session_stress.as_mut() else {
             return;
         };
@@ -252,10 +273,8 @@ impl ShellApp {
                 eprintln!("[session-stress] → import + promote");
                 // Drive onboard import via actions.
                 apply::apply(self, ctx, A::OnboardSetMode(action::OnboardMode::Import));
-                if let Some(Modal::Onboard { import_kind, compact, words, .. }) = &mut self.modal {
-                    *import_kind = action::OnboardImportKind::CompactKey;
-                    *compact = key.trim().to_owned();
-                    words.fill(String::new());
+                if let Some(Modal::Onboard { account_key, .. }) = &mut self.modal {
+                    *account_key = key.trim().to_owned();
                 }
                 apply::apply(self, ctx, A::OnboardSubmit { show_error: true });
             }
@@ -274,20 +293,38 @@ impl ShellApp {
         if matches!(&self.session, Session::Error(s) if s == "not started") {
             self.session = Session::start(ctx);
         }
-        if let Some(err) = self.session.poll(ctx) {
-            // Sign-in worker failed; session is SignedOut again — show onboard error.
-            self.modal = Some(Modal::Onboard {
-                mode: action::OnboardMode::Import,
-                uname: String::new(),
-                uname_lookup: action::OnboardLookup::Idle,
-                uname_lookup_for: String::new(),
-                import_kind: action::OnboardImportKind::default(),
-                compact: String::new(),
-                words: action::empty_phrase_words(),
-                busy: false,
-                err: Some(err),
-            });
+        if let Some(fail) = self.session.poll(ctx) {
+            // Manual sign-in failed; restore the form with the error.
+            self.onboard_backup_pending = false;
+            let mode = fail.mode;
+            self.modal = Some(apply_onboard::onboard_form(
+                fail.mode,
+                fail.uname,
+                fail.account_key,
+                fail.api_url,
+                Some(fail.err),
+            ));
+            if mode == action::OnboardMode::Import {
+                apply_onboard::onboard_import_focus(ctx);
+            }
         }
+        if self.onboard_backup_pending && matches!(self.session, Session::Ready(_)) {
+            self.onboard_backup_pending = false;
+            if let Some(r) = self.session.ready() {
+                if let Ok(p) = r.workspace.core.export_account_phrase() {
+                    self.phrase_cache = Some(p);
+                }
+            }
+            self.modal = Some(apply_onboard::onboard_form(
+                action::OnboardMode::Backup,
+                String::new(),
+                String::new(),
+                apply_onboard::initial_api_url(),
+                None,
+            ));
+        }
+        apply_onboard::poll_auto_import(self, ctx);
+        apply::poll_native_dialog(self, ctx);
         if let Session::Ready(r) = &self.session {
             if self.lb_rx.is_none() {
                 self.lb_rx = Some(r.workspace.core.subscribe());
@@ -295,7 +332,9 @@ impl ShellApp {
         }
         self.drain_events();
         self.process_keys(ctx);
-        self.process_drops(ctx);
+        if self.product_open() {
+            self.process_drops(ctx);
+        }
 
         // Close window: save workspace tabs
         if ctx.input(|i| i.viewport().close_requested()) {
@@ -310,7 +349,6 @@ impl ShellApp {
         match &self.session {
             Session::Loading { kind: session::LoadKind::Cold, .. } => {
                 // Opening local account — empty chrome, no plate / no spinner.
-                ctx.request_repaint();
                 CentralPanel::default()
                     .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
                     .show(ctx, |_| {});
@@ -323,7 +361,6 @@ impl ShellApp {
             Session::Loading { kind: session::LoadKind::Onboard, status, .. } => {
                 let msg = session::read_load_status(status);
                 boot_screen(ctx, &t, &msg, true);
-                ctx.request_repaint();
                 titlebar::show(self, ctx, &t, &mut queue);
                 for a in queue {
                     apply::apply(self, ctx, a);
@@ -341,17 +378,8 @@ impl ShellApp {
             Session::SignedOut { .. } => {
                 // Offer onboard immediately
                 if self.modal.is_none() {
-                    self.modal = Some(Modal::Onboard {
-                        mode: action::OnboardMode::Choice,
-                        uname: String::new(),
-                        uname_lookup: action::OnboardLookup::Idle,
-                        uname_lookup_for: String::new(),
-                        import_kind: action::OnboardImportKind::default(),
-                        compact: String::new(),
-                        words: action::empty_phrase_words(),
-                        busy: false,
-                        err: None,
-                    });
+                    self.modal =
+                        Some(apply_onboard::onboard_modal(action::OnboardMode::Choice, None));
                 }
             }
             Session::Ready(_) => {}
@@ -361,38 +389,54 @@ impl ShellApp {
             sheets::show_modals(self, ctx, &t, &mut queue);
         }
 
-        let show_side =
-            matches!(self.session, Session::Ready(_)) && self.sidebar_open && !self.defaults_zen();
+        let show_side = self.product_open() && self.sidebar_open && !self.defaults_zen();
 
-        // Soften resize stroke + shrink grab (scroll bar shares the right edge).
-        let resize_style =
-            if show_side { Some(sidebar::begin_resize_style(ctx, &t)) } else { None };
-        SidePanel::left(sidebar::PANEL_ID)
-            .resizable(true)
-            .default_width(300.0)
-            .width_range(sidebar::WIDTH_MIN..=sidebar::WIDTH_MAX)
-            .show_separator_line(false)
-            .frame(
-                Frame::new()
-                    .fill(t.neutral_bg_secondary())
-                    .inner_margin(0.0),
-            )
-            .show_animated(ctx, show_side, |ui| {
-                // Do **not** `ui.disable()` under a sheet: egui fades disabled paint
-                // (sticky elevated plates look transparent). Input is blocked by the
-                // full-window dim + Foreground sheet; keys are gated in `process_keys`.
-                sidebar::show(self, ui, &t, &mut queue);
-            });
-        if let Some(saved) = resize_style {
-            sidebar::end_resize_style(ctx, saved);
+        // One SidePanel: slide its contents (right edge glued to visible width).
+        // Resting width is stored separately so the wipe does not persist 1px.
+        let how = sidebar::open_t(ctx, show_side);
+        let side_frame = Frame::new().fill(t.neutral_bg()).inner_margin(0.0);
+        if how >= 1.0 {
+            // Only after a slide: wipe uses exact_width down to 1px on this same
+            // panel id. Don't restore every resting frame — that undoes drag.
+            sidebar::restore_panel_width_if_collapsed(ctx);
+            let resize_style = sidebar::begin_resize_style(ctx, &t);
+            SidePanel::left(sidebar::PANEL_ID)
+                .resizable(false)
+                .default_width(sidebar::WIDTH_DEFAULT)
+                .width_range(sidebar::width_min()..=sidebar::width_max(ctx))
+                .show_separator_line(false)
+                .frame(side_frame)
+                .show(ctx, |ui| {
+                    // Same paint path as the slide so tree/recents scroll ids match.
+                    sidebar::show_sliding(self, ui, &t, &mut queue, ui.max_rect().width());
+                });
+            sidebar::end_resize_style(ctx, resize_style);
+            sidebar::resize_over_workspace(ctx, &t, titlebar::HEADER_H);
+            if let Some(state) =
+                egui::containers::panel::PanelState::load(ctx, egui::Id::new(sidebar::PANEL_ID))
+            {
+                sidebar::remember_resting_width(ctx, state.rect.width());
+            }
+        } else if how > 0.0 {
+            let full_w = sidebar::resting_width(ctx);
+            let w = (how * full_w).max(1.0);
+            SidePanel::left(sidebar::PANEL_ID)
+                .resizable(false)
+                .exact_width(w)
+                .show_separator_line(false)
+                .frame(side_frame)
+                .show(ctx, |ui| {
+                    sidebar::show_sliding(self, ui, &t, &mut queue, full_w);
+                });
+            sidebar::paint_split_line(ctx, &t, titlebar::HEADER_H);
         }
 
         CentralPanel::default()
             .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
             .show(ctx, |ui| {
-                if matches!(self.session, Session::Ready(_)) {
+                if self.product_open() {
                     editor::show(self, ui, &t, &mut queue);
-                } else {
+                } else if !self.showing_backup() {
                     ui.centered_and_justified(|ui| {
                         ui.label(
                             TypeRole::Body
@@ -402,18 +446,6 @@ impl ShellApp {
                     });
                 }
             });
-
-        // SidePanel's content-side grab is covered by CentralPanel — reclaim it.
-        // Separator starts below the tab strip when tabs are open; full height
-        // when the strip is hidden (workspace flush to the top).
-        if show_side {
-            let strip_h = self
-                .session
-                .ready()
-                .map(|r| if r.workspace.tab_strip.is_empty() { 0.0 } else { titlebar::HEADER_H })
-                .unwrap_or(0.0);
-            sidebar::resize_over_workspace(ctx, &t, strip_h);
-        }
 
         titlebar::show(self, ctx, &t, &mut queue);
 
@@ -482,7 +514,7 @@ impl ShellApp {
         if self.shared_cache.epoch == epoch {
             return;
         }
-        let pending = {
+        let mut pending = {
             let files = ready.workspace.files.read().unwrap();
             // Pending share roots only — not yet organized into the user's tree.
             files
@@ -494,10 +526,16 @@ impl ShellApp {
                         .first()
                         .map(|s| s.shared_by.clone())
                         .unwrap_or_else(|| "someone".into());
-                    (f.id, f.name.clone(), from, f.is_folder())
+                    (f.id, f.name.clone(), from, f.is_folder(), f.last_modified)
                 })
                 .collect::<Vec<_>>()
         };
+        // Group order for the pane: sharer, then name (same buckets Recents uses for time).
+        pending.sort_by(|a, b| {
+            a.2.to_ascii_lowercase()
+                .cmp(&b.2.to_ascii_lowercase())
+                .then_with(|| a.1.to_ascii_lowercase().cmp(&b.1.to_ascii_lowercase()))
+        });
         self.shared_cache = SharedCache { epoch, pending };
     }
 
@@ -542,26 +580,48 @@ impl ShellApp {
     fn process_keys(&mut self, ctx: &egui::Context) {
         const CMD: egui::Modifiers = egui::Modifiers::COMMAND;
 
-        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) {
-            if let Some(modal) = &self.modal {
-                let action = match modal {
-                    // Account subpanels (incl. upgrade) stay in Settings — Esc backs the panel.
-                    Modal::Settings { .. } => match &self.account_panel {
-                        AccountPanel::Upgrade {
-                            stage: action::UpgradeStage::Paying,
-                            done: None,
-                            ..
-                        } => None, // mid-charge
-                        AccountPanel::Upgrade { .. } => Some(A::UpgradeBack),
-                        AccountPanel::Closed => Some(A::CloseModal),
-                        _ => Some(A::HideAccountKey),
-                    },
-                    _ => Some(A::CloseModal),
-                };
-                if let Some(a) = action {
-                    self.queue.push(a);
+        if ctx.input(|i| i.key_pressed(egui::Key::Escape)) && self.modal.is_some() {
+            let revert_server = matches!(
+                &self.modal,
+                Some(Modal::Onboard { mode: action::OnboardMode::Choice, .. })
+            ) && ctx.data(|d| {
+                d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())
+                    .unwrap_or(false)
+            });
+            let action = match &self.modal {
+                // Account subpanels (incl. upgrade) stay in Settings — Esc backs the panel.
+                Some(Modal::Settings { .. }) => match &self.account_panel {
+                    AccountPanel::Upgrade {
+                        stage: action::UpgradeStage::Paying,
+                        done: None,
+                        ..
+                    } => None, // mid-charge
+                    AccountPanel::Upgrade { .. } => Some(A::UpgradeBack),
+                    AccountPanel::Closed => Some(A::CloseModal),
+                    _ => Some(A::HideAccountKey),
+                },
+                Some(Modal::Onboard { mode, .. }) => match mode {
+                    action::OnboardMode::Choice | action::OnboardMode::Backup => None,
+                    _ => Some(A::OnboardSetMode(action::OnboardMode::Choice)),
+                },
+                Some(_) => Some(A::CloseModal),
+                None => None,
+            };
+            if let Some(a) = action {
+                self.queue.push(a);
+            }
+            ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+            if revert_server {
+                if let Some(snap) =
+                    ctx.data(|d| d.get_temp::<String>(apply_onboard::onboard_server_snap_key()))
+                {
+                    if let Some(Modal::Onboard { api_url, .. }) = &mut self.modal {
+                        *api_url = snap;
+                    }
                 }
-                ctx.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape));
+                ctx.data_mut(|d| {
+                    d.insert_temp(apply_onboard::onboard_server_editing_key(), false);
+                });
             }
         }
 
@@ -580,7 +640,7 @@ impl ShellApp {
             }
         }
 
-        if matches!(self.session, Session::Ready(_)) {
+        if self.product_open() {
             // Help / Settings toggle even while open (same shortcut again closes).
             // Nested sheets over Settings (QR, upgrade, …) leave these alone.
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::Slash)) {
@@ -599,7 +659,7 @@ impl ShellApp {
             }
         }
 
-        if self.modal.is_none() && matches!(self.session, Session::Ready(_)) {
+        if self.modal.is_none() && self.product_open() {
             // Global chrome shortcuts — safe while editing.
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::N)) {
                 self.queue.push(A::Create);
@@ -613,9 +673,39 @@ impl ShellApp {
             if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::O)) {
                 self.queue.push(A::OpenSearch);
             }
+            // History: Cmd+[ ] on Apple (Option+arrows are word motion).
+            // Elsewhere Alt+arrows (exact, so Alt+Shift still reaches the editor).
+            #[cfg(target_os = "macos")]
+            {
+                if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::OpenBracket)) {
+                    self.queue.push(A::NavBack);
+                }
+                if ctx.input_mut(|i| i.consume_key(CMD, egui::Key::CloseBracket)) {
+                    self.queue.push(A::NavForward);
+                }
+            }
+            #[cfg(not(target_os = "macos"))]
+            {
+                let alt_arrows = ctx.input(|i| {
+                    i.modifiers.alt
+                        && !i.modifiers.shift
+                        && !i.modifiers.ctrl
+                        && !i.modifiers.command
+                });
+                if alt_arrows
+                    && ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::ArrowLeft))
+                {
+                    self.queue.push(A::NavBack);
+                }
+                if alt_arrows
+                    && ctx.input_mut(|i| i.consume_key(egui::Modifiers::ALT, egui::Key::ArrowRight))
+                {
+                    self.queue.push(A::NavForward);
+                }
+            }
             // No Files-tree keybinding surface: the editor holds focus whenever a
-            // doc is open, so ↑↓/⌘C/… almost never hit the tree. Rename / cut /
-            // copy / paste / delete stay on context menus (and global chrome above).
+            // doc is open, so ↑↓/⌘C/… almost never hit the tree. Rename / delete
+            // stay on context menus (and global chrome above).
         }
 
         if let Some(modal) = &self.modal {
@@ -686,9 +776,34 @@ impl ShellApp {
                             _ => {}
                         },
                         Modal::ImportParent { .. } => self.queue.push(A::ConfirmImportParent),
-                        Modal::Onboard { .. } => {
-                            self.queue.push(A::OnboardSubmit { show_error: true })
-                        }
+                        Modal::Onboard { mode, key_stored, .. } => match mode {
+                            action::OnboardMode::Create | action::OnboardMode::Import => {
+                                self.queue.push(A::OnboardSubmit { show_error: true })
+                            }
+                            action::OnboardMode::Backup
+                                if *key_stored
+                                    && self
+                                        .phrase_cache
+                                        .as_deref()
+                                        .is_some_and(|p| p.split_whitespace().count() == 24) =>
+                            {
+                                self.queue.push(A::OnboardFinishBackup)
+                            }
+                            action::OnboardMode::Backup => {}
+                            action::OnboardMode::Choice => {
+                                if ctx.data(|d| {
+                                    d.get_temp::<bool>(apply_onboard::onboard_server_editing_key())
+                                        .unwrap_or(false)
+                                }) {
+                                    ctx.data_mut(|d| {
+                                        d.insert_temp(
+                                            apply_onboard::onboard_server_editing_key(),
+                                            false,
+                                        );
+                                    });
+                                }
+                            }
+                        },
                         Modal::Share { .. } => unreachable!(),
                         _ => {}
                     }
@@ -706,18 +821,8 @@ impl ShellApp {
         if paths.is_empty() {
             return;
         }
-        // Pick parent when drop lands (folder picker), unless a folder is cursored.
-        let parent = self.session.ready().and_then(|r| {
-            let id = r.cursor?;
-            let files = r.workspace.files.read().unwrap();
-            let f = files.get_by_id(id)?;
-            if f.is_folder() { Some(f.id) } else { None }
-        });
-        if let Some(parent) = parent {
-            self.queue.push(A::ImportPaths { paths, parent });
-        } else {
-            self.queue.push(A::OpenImportParent { paths });
-        }
+        // Folder picker, pre-selected from tree context (then open tab / home).
+        self.queue.push(A::OpenImportParent { paths });
     }
 }
 
@@ -733,7 +838,7 @@ pub(crate) fn reveal_in_tree(r: &mut ReadyState, id: Uuid) {
     }
 }
 
-/// Expand ancestors and animate the Files tree to center `id` (tab / open / restore).
+/// Expand ancestors and scroll the Files tree just enough to show `id`.
 pub(crate) fn reveal_and_scroll(r: &mut ReadyState, id: Uuid) {
     reveal_in_tree(r, id);
     r.request_tree_scroll(id);
