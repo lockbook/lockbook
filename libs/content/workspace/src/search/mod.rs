@@ -423,7 +423,7 @@ impl Workspace {
             // executor handle is cloned out so the results pass can borrow the
             // workspace (for the preview) without holding the tab borrow.
             let extracted = {
-                let Some(tab) = self.tabs.get_mut(&Destination::Search) else {
+                let Some(tab) = self.current_tab_mut() else {
                     return;
                 };
                 let ContentState::Open(TabContent::Search(search)) = &mut tab.content else {
@@ -445,7 +445,7 @@ impl Workspace {
             {
                 if self.is_folder(id) {
                     let path = self.files.read().unwrap().path(id);
-                    if let Some(tab) = self.tabs.get_mut(&Destination::Search) {
+                    if let Some(tab) = self.current_tab_mut() {
                         if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
                             search.scope_path = path;
                             search.query.clear();
@@ -573,7 +573,7 @@ use crate::{
     file_cache::FilesExt,
     search::{content::ContentSearch, path::PathSearch},
     show::InputStateExt,
-    tab::{ContentState, Destination, TabContent},
+    tab::{ContentState, TabContent},
     theme::{icons::Icon, palette_v2::ThemeExt},
     widgets::IconButton,
     workspace::Workspace,

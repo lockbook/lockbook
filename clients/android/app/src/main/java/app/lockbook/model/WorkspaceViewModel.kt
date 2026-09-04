@@ -38,7 +38,7 @@ class WorkspaceViewModel : ViewModel() {
     val hideToolbar: LiveData<Float>
         get() = _hideToolbar
 
-    var tabs = emptyDataSourceTyped<File>()
+    var tabs = emptyDataSourceTyped<OpenTab>()
 
     val _keyboardVisible = MutableLiveData<Boolean>()
     val keyboardVisible: LiveData<Boolean>
@@ -105,12 +105,18 @@ enum class OpenFilePresentation {
 data class WorkspaceTab(
     val id: String,
     val type: WorkspaceTabType,
+    val sessionId: String = NULL_UUID,
 ) {
     companion object {
         // Helper to represent the "empty" or default welcome state
         val welcome = WorkspaceTab(NULL_UUID, WorkspaceTabType.Welcome)
     }
 }
+
+data class OpenTab(
+    val sessionId: String,
+    val file: File,
+)
 
 enum class WorkspaceTabType(
     val value: Int,

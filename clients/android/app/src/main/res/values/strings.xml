@@ -54,6 +54,7 @@
     <string name="menu_list_files_info">File info</string>
     <string name="menu_list_files_move">Move</string>
     <string name="menu_list_files_share">Share</string>
+    <string name="menu_list_files_open_in_new_tab">New tab</string>
     <string name="workspace_share_externally">Share externally</string>
     <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>

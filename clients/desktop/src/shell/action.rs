@@ -395,6 +395,7 @@ pub enum Action {
     SetThemeMode(crate::components::ModePreference),
     SetThemeFamily(crate::components::ThemeFamily),
     SetPrefLinkPreviews(bool),
+    SetPrefOpenInNewTab(bool),
     SetPrefSidebarUsage(bool),
 
     /// Linux only — persisted; takes effect after restart.
@@ -508,6 +509,7 @@ impl Action {
             Self::SetThemeMode(_) => "SetThemeMode",
             Self::SetThemeFamily(_) => "SetThemeFamily",
             Self::SetPrefLinkPreviews(_) => "SetPrefLinkPreviews",
+            Self::SetPrefOpenInNewTab(_) => "SetPrefOpenInNewTab",
             Self::SetPrefSidebarUsage(_) => "SetPrefSidebarUsage",
             Self::SetPrefAllowWayland(_) => "SetPrefAllowWayland",
             Self::RevealPhrase => "RevealPhrase",

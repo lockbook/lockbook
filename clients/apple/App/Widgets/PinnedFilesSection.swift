@@ -90,6 +90,12 @@ struct PinnedFilesSection: View {
             open(file)
         }
         .contextMenu {
+            if !file.isFolder {
+                contextMenuItem("Open in New Tab", systemImage: "plus.rectangle.on.rectangle") {
+                    workspaceInput.openFile(id: file.id, newTab: true)
+                    homeState.compactColumn = .detail
+                }
+            }
             contextMenuItem("Unpin", systemImage: "pin.slash") {
                 filesModel.togglePin(file.id)
             }

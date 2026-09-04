@@ -1,4 +1,4 @@
-//! Shell tab strip + Workspace content (`show_tabs = false`).
+//! Shell tab strip + Workspace content (`show_tabs = false`, desktop tab policy).
 
 use egui::{Align, Layout, Ui};
 
@@ -23,6 +23,7 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
         };
 
         ready.workspace.show_tabs = false;
+        ready.workspace.desktop_tab_policy = true;
         ready.workspace.sidebar_open = sidebar_open;
         // Workspace create-dest follows the open tab. Tree `cursor` is selection
         // only — a folder right-click must not retarget ⌘N / landing create.
@@ -38,9 +39,8 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
 
         if let Some(Ok(file)) = out.file_created {
             if file.is_document() {
-                ready.workspace.open_file(file.id, true, true);
                 ready.select_only(file.id);
-                // Workspace created → expand + reveal in the Files tree.
+                // Workspace already opened the doc; expand + reveal in the Files tree.
                 super::reveal_and_scroll(ready, file.id);
             }
         }

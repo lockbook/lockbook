@@ -192,7 +192,7 @@ import SwiftUI
                 // feed Rust-side changes to UIKit's inputDelegate, and a deaf
                 // delegate desyncs autocorrect and keyboard state.
                 switch newCurrentTab {
-                case .Welcome, .Pdf, .Loading, .SpaceInspector:
+                case .Welcome, .Pdf, .Loading, .SpaceInspector, .Search:
                     if currentWrapper == nil {
                         return
                     }

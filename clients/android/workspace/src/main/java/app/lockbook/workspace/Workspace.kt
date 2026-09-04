@@ -64,10 +64,12 @@ object Workspace {
 
     external fun sendKeyEvent(rustObj: Long, keyCode: Int, content: String, pressed: Boolean, alt: Boolean, ctrl: Boolean, shift: Boolean): Int
     external fun openDoc(rustObj: Long, id: String, newFile: Boolean) : Int
+    external fun activateDoc(rustObj: Long, id: String) : Int
 
     external fun createDocAt(rustObj: Long, isDrawing: Boolean, parent: String)
 
     external fun closeDoc(rustObj: Long, id: String)
+    external fun closeSession(rustObj: Long, id: String)
     external fun closeAllTabs(rustObj: Long)
     external fun back(rustObj: Long): Boolean
     external fun forward(rustObj: Long): Boolean
@@ -110,6 +112,7 @@ object Workspace {
 data class NativeWorkspaceTab(
     val id: String,
     val type: Int,
+    val sessionId: String,
 )
 
 

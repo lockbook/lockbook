@@ -41,7 +41,7 @@ impl Workspace {
         self.images.begin_frame();
         self.tabs.begin_frame();
         for slot in &self.tab_strip {
-            self.tabs.promote(&slot.dest);
+            self.tabs.promote(&slot.id);
         }
 
         if self.ctx.input(|inp| !inp.raw.events.is_empty()) {
@@ -163,13 +163,25 @@ impl Workspace {
                     });
                 }
                 for (id, new_tab) in open_ids {
-                    self.open_file(id, true, new_tab);
+                    if new_tab {
+                        self.open_file(id, true, true);
+                    } else {
+                        self.navigate_to(crate::tab::Destination::File(id));
+                    }
                 }
                 for (id, new_tab) in ui.ctx().pop_open_files() {
-                    self.open_file(id, true, new_tab);
+                    if new_tab {
+                        self.open_file(id, true, true);
+                    } else {
+                        self.navigate_to(crate::tab::Destination::File(id));
+                    }
                 }
                 for (id, range, new_tab) in ui.ctx().pop_open_ranges() {
-                    self.open_file_at_range(id, range, new_tab);
+                    if new_tab {
+                        self.open_file_at_range(id, range, true);
+                    } else {
+                        self.navigate_to_range(id, range);
+                    }
                 }
             });
         });
@@ -178,7 +190,7 @@ impl Workspace {
     fn show_current_tab_content(&mut self, ui: &mut egui::Ui) {
         // Search renders here (not via `Tab::show`) so its preview pane can use
         // the workspace's async file loader.
-        if matches!(self.current_tab, Some(crate::tab::Destination::Search)) {
+        if matches!(self.current_dest(), Some(crate::tab::Destination::Search)) {
             self.show_search_tab(ui);
             return;
         }
@@ -206,7 +218,7 @@ impl Workspace {
                 self.out.markdown_editor_scroll_updated = true;
             }
             if let Some(file) = resp.open_file {
-                self.open_file(file, true, false);
+                self.navigate_to(crate::tab::Destination::File(file));
             }
         }
     }
@@ -231,9 +243,8 @@ impl Workspace {
                         }
                         if IconButton::new(Icon::ARROW_LEFT)
                             .disabled(
-                                self.current_tab
-                                    .as_ref()
-                                    .and_then(|d| self.tab_strip.iter().find(|s| &s.dest == d))
+                                self.current_slot_index()
+                                    .and_then(|i| self.tab_strip.get(i))
                                     .map(|s| s.back.is_empty())
                                     .unwrap_or(true),
                             )
@@ -246,9 +257,8 @@ impl Workspace {
                         }
                         if IconButton::new(Icon::ARROW_RIGHT)
                             .disabled(
-                                self.current_tab
-                                    .as_ref()
-                                    .and_then(|d| self.tab_strip.iter().find(|s| &s.dest == d))
+                                self.current_slot_index()
+                                    .and_then(|i| self.tab_strip.get(i))
                                     .map(|s| s.forward.is_empty())
                                     .unwrap_or(true),
                             )
@@ -265,8 +275,7 @@ impl Workspace {
                             .show(ui, |ui| {
                                 let mut responses = HashMap::new();
                                 for i in 0..self.tab_strip.len() {
-                                    let dest = &self.tab_strip[i].dest;
-                                    let is_current = self.current_tab.as_ref() == Some(dest);
+                                    let is_current = self.current_tab == Some(self.tab_strip[i].id);
                                     if let Some(resp) =
                                         self.tab_label(ui, i, is_current, active_tab_changed)
                                     {
@@ -277,18 +286,18 @@ impl Workspace {
                                 // handle responses after showing all tabs because closing a tab invalidates tab indexes
                                 for (i, resp) in responses {
                                     let dest = self.tab_strip.get(i).map(|s| s.dest.clone());
+                                    let tab_id = self.tab_strip.get(i).map(|s| s.id);
                                     match resp {
                                         TabLabelResponse::Clicked => {
-                                            let Some(dest) = dest else { continue };
-                                            let is_current =
-                                                self.current_tab.as_ref() == Some(&dest);
+                                            let Some(tab_id) = tab_id else { continue };
+                                            let is_current = self.current_tab == Some(tab_id);
                                             if is_current {
                                                 self.out.tab_title_clicked = true;
-                                                let tab = self.tabs.get(&dest).unwrap();
+                                                let tab = self.tabs.get(&tab_id).unwrap();
                                                 let active_name = self.tab_title(tab);
-                                                self.tab_strip[i].rename = Some(active_name);
+                                                self.begin_tab_rename(tab_id, active_name);
                                             } else {
-                                                self.tab_strip[i].rename = None;
+                                                self.clear_tab_rename(tab_id);
                                                 self.make_current(i);
                                             }
                                         }
@@ -308,10 +317,10 @@ impl Workspace {
                                             self.close_all_tabs();
                                         }
                                         TabLabelResponse::Rename => {
-                                            let Some(dest) = dest else { continue };
-                                            if let Some(tab) = self.tabs.get(&dest) {
+                                            let Some(tab_id) = tab_id else { continue };
+                                            if let Some(tab) = self.tabs.get(&tab_id) {
                                                 let name = self.tab_title(tab);
-                                                self.tab_strip[i].rename = Some(name);
+                                                self.begin_tab_rename(tab_id, name);
                                                 self.out.tab_title_clicked = true;
                                             }
                                         }
@@ -321,12 +330,14 @@ impl Workspace {
                                         }
                                         TabLabelResponse::Renamed(name) => {
                                             let Some(dest) = dest else { continue };
-                                            self.tab_strip[i].rename = None;
+                                            if let Some(tab_id) = tab_id {
+                                                self.clear_tab_rename(tab_id);
+                                            }
                                             let id = dest.id();
                                             self.rename_file((id, name.clone()), true);
                                         }
                                         TabLabelResponse::Reordered { src, mut dst } => {
-                                            let current = self.current_tab_id();
+                                            let current = self.current_tab;
 
                                             let d = self.tab_strip.remove(src);
                                             if src < dst {
@@ -334,8 +345,12 @@ impl Workspace {
                                             }
                                             self.tab_strip.insert(dst, d);
 
-                                            if let Some(current) = current {
-                                                self.make_current_by_id(current);
+                                            if let Some(id) = current {
+                                                if let Some(idx) =
+                                                    self.tab_strip.iter().position(|s| s.id == id)
+                                                {
+                                                    self.make_current(idx);
+                                                }
                                             }
                                         }
                                     }
@@ -404,11 +419,7 @@ impl Workspace {
             .ctx
             .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::S))
         {
-            if let Some(idx) = self
-                .current_tab
-                .as_ref()
-                .and_then(|d| self.tab_strip.iter().position(|s| s.dest == *d))
-            {
+            if let Some(idx) = self.current_slot_index() {
                 self.save_tab(idx);
             }
         }
@@ -440,11 +451,7 @@ impl Workspace {
             .input_mut(|i| i.consume_key_exact(COMMAND, egui::Key::W))
         {
             if !self.is_empty() {
-                if let Some(idx) = self
-                    .current_tab
-                    .as_ref()
-                    .and_then(|d| self.tab_strip.iter().position(|s| s.dest == *d))
-                {
+                if let Some(idx) = self.current_slot_index() {
                     self.close_tab(idx);
                 }
                 self.out.selected_file = self.current_tab_id();
@@ -498,10 +505,7 @@ impl Workspace {
             }
         });
         if change != 0 {
-            let current_idx = self
-                .current_tab
-                .as_ref()
-                .and_then(|d| self.tab_strip.iter().position(|s| s.dest == *d));
+            let current_idx = self.current_slot_index();
             if let Some(old) = current_idx {
                 let new = old as i32 + change;
                 if new >= 0 && new < self.tab_strip.len() as i32 {
@@ -517,12 +521,8 @@ impl Workspace {
             .is_some_and(|md| md.edit.emoji_completions.active || md.edit.link_completions.active);
         // The search tab claims Cmd+1–9 to quick-open results, so don't let the
         // workspace consume them for tab switching while search is showing.
-        let search_active = matches!(self.current_tab, Some(crate::tab::Destination::Search));
-        let current_idx = self
-            .current_tab
-            .as_ref()
-            .and_then(|d| self.tab_strip.iter().position(|s| s.dest == *d))
-            .unwrap_or(0);
+        let search_active = matches!(self.current_dest(), Some(crate::tab::Destination::Search));
+        let current_idx = self.current_slot_index().unwrap_or(0);
         let mut goto_tab = None;
         self.ctx.input_mut(|input| {
             // Cmd+1 through Cmd+8 to select tab by cardinal index
@@ -615,6 +615,7 @@ impl Workspace {
         &mut self, ui: &mut egui::Ui, t: usize, is_active: bool, active_tab_changed: bool,
     ) -> Option<TabLabelResponse> {
         let dest = self.tab_strip[t].dest.clone();
+        let tab_id = self.tab_strip[t].id;
         let mut result = None;
         let icon_size = 15.0;
         let x_icon = Icon::CLOSE.size(icon_size);
@@ -640,12 +641,17 @@ impl Workspace {
 
         let rename_id = egui::Id::new("rename_tab").with(t);
         let mut rename_submitted = false;
-        let slot = &mut self.tab_strip[t];
-        if let Some(ref mut str) = slot.rename {
-            rename_submitted = GlyphonTextEdit::process_events(ui, rename_id, str);
+        if let Some(tab) = self.tabs.get_mut(&tab_id) {
+            if let Some(ref mut str) = tab.rename {
+                rename_submitted = GlyphonTextEdit::process_events(ui, rename_id, str);
+            }
         }
-        let rename_text_for_sizing = slot.rename.clone().unwrap_or_default();
-        let is_renaming = slot.rename.is_some();
+        let rename_text_for_sizing = self
+            .tabs
+            .get(&tab_id)
+            .and_then(|t| t.rename.clone())
+            .unwrap_or_default();
+        let is_renaming = self.tabs.get(&tab_id).is_some_and(|t| t.rename.is_some());
         let tab_label = egui::Frame::default()
             .fill(tab_bg)
             .inner_margin(tab_padding)
@@ -661,7 +667,7 @@ impl Workspace {
                     let tab_max_width = 200.0;
                     let raw_title = self
                         .tabs
-                        .get(&dest)
+                        .get(&tab_id)
                         .map(|tab| self.tab_title(tab))
                         .unwrap_or_else(|| "Unknown".into());
                     let title = DocType::from_name(&raw_title)
@@ -785,33 +791,39 @@ impl Workspace {
                     };
 
                     if is_renaming {
-                        if let Some(ref mut str) = self.tab_strip[t].rename {
-                            let stem_end = str.rfind('.').unwrap_or(str.len());
-                            let res = ui.put(
-                                text_rect,
-                                GlyphonTextEdit::new(str)
-                                    .id(rename_id)
-                                    .font_size(14.0)
-                                    .select_on_focus(0, stem_end),
-                            );
+                        let mut clear_rename = false;
+                        if let Some(tab) = self.tabs.get_mut(&tab_id) {
+                            if let Some(ref mut str) = tab.rename {
+                                let stem_end = str.rfind('.').unwrap_or(str.len());
+                                let res = ui.put(
+                                    text_rect,
+                                    GlyphonTextEdit::new(str)
+                                        .id(rename_id)
+                                        .font_size(14.0)
+                                        .select_on_focus(0, stem_end),
+                                );
 
-                            // Keep focus while editing, but not while the user
-                            // is on the close control (or we re-steal focus and
-                            // the close click is lost).
-                            let on_close = close_resp.hovered()
-                                || close_resp.is_pointer_button_down_on()
-                                || close_button_clicked;
-                            if !res.has_focus() && !res.lost_focus() && !on_close {
-                                ui.memory_mut(|m| m.request_focus(res.id));
-                            }
+                                // Keep focus while editing, but not while the user
+                                // is on the close control (or we re-steal focus and
+                                // the close click is lost).
+                                let on_close = close_resp.hovered()
+                                    || close_resp.is_pointer_button_down_on()
+                                    || close_button_clicked;
+                                if !res.has_focus() && !res.lost_focus() && !on_close {
+                                    ui.memory_mut(|m| m.request_focus(res.id));
+                                }
 
-                            if rename_submitted {
-                                result = Some(TabLabelResponse::Renamed(str.to_owned()));
-                            }
+                                if rename_submitted {
+                                    result = Some(TabLabelResponse::Renamed(str.to_owned()));
+                                }
 
-                            if res.lost_focus() && !close_button_clicked {
-                                self.tab_strip[t].rename = None;
+                                if res.lost_focus() && !close_button_clicked {
+                                    clear_rename = true;
+                                }
                             }
+                        }
+                        if clear_rename {
+                            self.clear_tab_rename(tab_id);
                         }
                     } else {
                         ui.put(
@@ -826,7 +838,7 @@ impl Workspace {
                     if close_button_clicked {
                         if is_renaming {
                             ui.memory_mut(|m| m.surrender_focus(rename_id));
-                            self.tab_strip[t].rename = None;
+                            self.clear_tab_rename(tab_id);
                         }
                         result = Some(TabLabelResponse::Closed);
                     }
@@ -992,7 +1004,7 @@ impl Workspace {
 
         let last_saved_str = self
             .tabs
-            .get(&dest)
+            .get(&tab_id)
             .map(|tab| tab.last_saved.elapsed_human_string())
             .unwrap_or_else(|| "unknown".to_string());
         let status_summary = self.tab_status(t).summary();

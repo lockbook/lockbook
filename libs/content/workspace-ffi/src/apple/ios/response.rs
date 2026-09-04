@@ -19,6 +19,7 @@ pub struct IOSResponse {
 
     // widget response
     pub selected_file: CUuid,
+    pub selected_tab: CUuid,
     pub doc_created: CUuid,
     pub tabs_changed: bool,
 
@@ -52,6 +53,7 @@ impl From<crate::Response> for IOSResponse {
             workspace:
                 workspace_rs::Response {
                     selected_file,
+                    selected_session,
                     file_renamed: _,
                     file_moved: _,
                     file_deleted: _,
@@ -94,6 +96,10 @@ impl From<crate::Response> for IOSResponse {
         };
         Self {
             selected_file: selected_file.unwrap_or_default().into(),
+            selected_tab: selected_session
+                .map(|id| id.as_uuid())
+                .unwrap_or_default()
+                .into(),
             doc_created,
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
@@ -141,10 +147,18 @@ pub struct UITextSelectionRects {
 }
 
 #[repr(C)]
+#[derive(Debug, Clone)]
+pub struct CTabInfo {
+    pub session_id: CUuid,
+    pub dest_kind: i32,
+    pub dest_file: CUuid,
+}
+
+#[repr(C)]
 #[derive(Debug)]
-pub struct TabsIds {
+pub struct CTabs {
     pub size: i32,
-    pub ids: *const CUuid,
+    pub tabs: *const CTabInfo,
 }
 
 impl Default for UITextSelectionRects {

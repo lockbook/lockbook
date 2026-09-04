@@ -5,6 +5,7 @@ import Observation
 
 @Observable public class WorkspaceOutputState {
     public var openDoc: UUID? = nil
+    public var currentSession: UUID? = nil
     public var selectedFolder: UUID? = nil
     public var currentTab: WorkspaceTab = .Welcome
     public var urlsOpened: [URL] = []
@@ -25,6 +26,7 @@ import Observation
         didSet {
             guard let wsHandle else { return }
             set_sidebar_open(wsHandle, nativeSidebarOpen)
+            set_desktop_tab_policy(wsHandle, desktopTabPolicy)
 
             guard !pendingOpens.isEmpty else { return }
             let queued = pendingOpens
@@ -37,6 +39,7 @@ import Observation
 
     @ObservationIgnored private var nativeSidebarOpen = false
     @ObservationIgnored private var pendingOpens: [UUID] = []
+    @ObservationIgnored private var desktopTabPolicy = false
 
     @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
     @ObservationIgnored public var focus = PassthroughSubject<Void, Never>()
@@ -56,9 +59,21 @@ import Observation
         }
     #endif
 
-    /// Open a file. Default is a new tab. Pass `newTab: false` to navigate the
-    /// current tab in place (e.g. special surfaces that intentionally replace).
-    public func openFile(id: UUID, newTab: Bool = true) {
+    public func activateTab(id: UUID) {
+        guard let wsHandle else { return }
+
+        activate_tab(wsHandle, CUuid(_0: id.uuid))
+        redraw.send(())
+    }
+
+    public func setDesktopTabPolicy(_ desktop: Bool) {
+        desktopTabPolicy = desktop
+        guard let wsHandle else { return }
+        set_desktop_tab_policy(wsHandle, desktop)
+        redraw.send(())
+    }
+
+    public func openFile(id: UUID, newTab: Bool = false) {
         guard let wsHandle else {
             pendingOpens.append(id)
             return
@@ -72,7 +87,21 @@ import Observation
         //        focus.send(())
     }
 
-    public func openFile(id: UUID, rangeStart: Int, rangeEnd: Int, newTab: Bool = true) {
+    public func navigateToFile(id: UUID) {
+        guard let wsHandle else { return }
+
+        navigate_to_file(wsHandle, CUuid(_0: id.uuid))
+        redraw.send(())
+    }
+
+    public func navigateToFile(id: UUID, rangeStart: Int, rangeEnd: Int) {
+        guard let wsHandle else { return }
+
+        navigate_to_file_at(wsHandle, CUuid(_0: id.uuid), UInt(rangeStart), UInt(rangeEnd))
+        redraw.send(())
+    }
+
+    public func openFile(id: UUID, rangeStart: Int, rangeEnd: Int, newTab: Bool = false) {
         guard let wsHandle else { return }
 
         let uuid = CUuid(_0: id.uuid)
@@ -157,6 +186,13 @@ import Observation
         redraw.send(())
     }
 
+    public func closeTab(id: UUID) {
+        guard let wsHandle else { return }
+
+        close_session(wsHandle, CUuid(_0: id.uuid))
+        redraw.send(())
+    }
+
     public func closeAllTabs() {
         guard let wsHandle else { return }
 
@@ -189,20 +225,18 @@ import Observation
         redraw.send(())
     }
 
-    /// IDEALLY PROVIDED WITHIN WORKSPACE RESP
-    public func getTabsIds() -> [UUID] {
+    public func getTabs() -> [WorkspaceTabInfo] {
         guard let wsHandle else { return [] }
 
-        return tabIds(from: get_tabs_ids(wsHandle))
+        return tabInfos(from: get_tabs(wsHandle))
     }
 
-    public func getRecentlyClosedTabs() -> [UUID] {
+    public func getRecentlyClosedTabs() -> [WorkspaceTabInfo] {
         guard let wsHandle else { return [] }
 
-        return tabIds(from: get_recently_closed_tabs(wsHandle))
+        return tabInfos(from: get_recently_closed_tabs(wsHandle))
     }
 
-    /// Restores the most recently closed tab with its back/forward history.
     public func reopenLastClosedTab() {
         guard let wsHandle else { return }
 
@@ -210,11 +244,10 @@ import Observation
         redraw.send(())
     }
 
-    /// Restores a closed file tab by id (full slot history + placement).
-    public func reopenClosedFile(id: UUID) {
+    public func reopenClosedTab(id: UUID) {
         guard let wsHandle else { return }
 
-        reopen_closed_file(wsHandle, CUuid(_0: id.uuid))
+        reopen_closed_tab(wsHandle, CUuid(_0: id.uuid))
         redraw.send(())
     }
 
@@ -234,18 +267,43 @@ import Observation
         }
     }
 
-    private func tabIds(from result: TabsIds) -> [UUID] {
-        let buffer: [CUuid] = Array(
-            UnsafeBufferPointer(start: result.ids, count: Int(result.size))
+    private func tabInfos(from result: CTabs) -> [WorkspaceTabInfo] {
+        let buffer: [CTabInfo] = Array(
+            UnsafeBufferPointer(start: result.tabs, count: Int(result.size))
         )
 
-        let newBuffer = buffer.map { id in
-            UUID(uuid: id._0)
+        let infos = buffer.map(WorkspaceTabInfo.init)
+        free_tabs(result)
+        return infos
+    }
+}
+
+public enum WorkspaceDestKind: Int32 {
+    case file = 0
+    case search = 1
+    case mindMap = 2
+    case spaceInspector = 3
+}
+
+public struct WorkspaceTabInfo: Identifiable, Hashable {
+    public let id: UUID
+    public let destKind: WorkspaceDestKind
+    public let destFile: UUID?
+
+    init(_ info: CTabInfo) {
+        id = UUID(uuid: info.session_id._0)
+        destKind = WorkspaceDestKind(rawValue: info.dest_kind) ?? .file
+        let file = UUID(uuid: info.dest_file._0)
+        destFile = file.isNil() ? nil : file
+    }
+
+    public var displayName: String {
+        switch destKind {
+        case .search: "Search"
+        case .mindMap: "Mind Map"
+        case .spaceInspector: "Space Inspector"
+        case .file: "unknown"
         }
-
-        free_tab_ids(result)
-
-        return newBuffer
     }
 }
 

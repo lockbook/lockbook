@@ -265,7 +265,7 @@ class TabFragment : Fragment() {
             }
             setFilesGroupedByDate()
         } else {
-            mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = true))
+            mainScreenModel.navigate(MainNavigationAction.OpenDocument(item.id, newFile = false))
         }
     }
 
