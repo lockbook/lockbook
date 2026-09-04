@@ -3,6 +3,7 @@ use std::collections::HashMap;
 use std::fmt::{self, Debug, Formatter};
 use std::iter;
 
+use db_rs::hasher::UuidIdentityHasherBuilder;
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::access_info::UserAccessMode;
@@ -18,17 +19,27 @@ pub enum ResolvedLink {
     External(String),
 }
 
+type UuidMap<V> = HashMap<Uuid, V, UuidIdentityHasherBuilder>;
+
+fn uuid_map<V>() -> UuidMap<V> {
+    HashMap::with_hasher(UuidIdentityHasherBuilder)
+}
+
+fn uuid_map_with_capacity<V>(n: usize) -> UuidMap<V> {
+    HashMap::with_capacity_and_hasher(n, UuidIdentityHasherBuilder)
+}
+
 pub struct FileCache {
     pub root: File,
     /// Clustered covering index: own tree + pending shares, sorted by
     /// `(parent, is_document, name)`. `(parent, name)` is unique.
     rows: Vec<File>,
-    by_id: HashMap<Uuid, u32>,
+    by_id: UuidMap<u32>,
     pub shared_roots: Vec<File>,
     pub suggested: Vec<Uuid>,
-    pub size_bytes_recursive: HashMap<Uuid, u64>,
-    pub last_modified_recursive: HashMap<Uuid, u64>,
-    pub last_modified_by_recursive: HashMap<Uuid, String>,
+    pub size_bytes_recursive: UuidMap<u64>,
+    pub last_modified_recursive: UuidMap<u64>,
+    pub last_modified_by_recursive: UuidMap<String>,
     /// Max last_modified across all files. Used as a cache invalidation key
     /// by the landing page sort cache — changes whenever the file tree changes.
     pub last_modified: u64,
@@ -42,7 +53,7 @@ fn cmp_cluster(a: &File, b: &File) -> Ordering {
         .then_with(|| a.name.cmp(&b.name))
 }
 
-fn index_rows(rows: &[File]) -> HashMap<Uuid, u32> {
+fn index_rows(rows: &[File]) -> UuidMap<u32> {
     rows.iter()
         .enumerate()
         .map(|(i, f)| (f.id, i as u32))
@@ -101,9 +112,9 @@ impl FileCache {
             by_id,
             shared_roots,
             suggested,
-            size_bytes_recursive: HashMap::new(),
-            last_modified_recursive: HashMap::new(),
-            last_modified_by_recursive: HashMap::new(),
+            size_bytes_recursive: uuid_map(),
+            last_modified_recursive: uuid_map(),
+            last_modified_by_recursive: uuid_map(),
             last_modified,
         }
     }
@@ -126,9 +137,9 @@ impl FileCache {
     fn fill_recursive(&mut self) {
         tracing::Span::current().record("n", self.rows.len());
         let ids: Vec<Uuid> = self.rows.iter().map(|f| f.id).collect();
-        let mut size = HashMap::with_capacity(ids.len());
-        let mut modified = HashMap::with_capacity(ids.len());
-        let mut modified_by = HashMap::with_capacity(ids.len());
+        let mut size = uuid_map_with_capacity(ids.len());
+        let mut modified = uuid_map_with_capacity(ids.len());
+        let mut modified_by = uuid_map_with_capacity(ids.len());
         for id in ids {
             let me = self.get_by_id(id).unwrap();
             let mut sum = me.size_bytes;
