@@ -1294,7 +1294,7 @@ fn paint_row(
     let _ = over;
 
     let modifiers = ui.input(|i| i.modifiers);
-    if resp.clicked() {
+    if resp.clicked() && !resp.double_clicked() {
         if modifiers.shift {
             queue.push(Action::SelectRange(row.id));
         } else if modifiers.command {
@@ -1307,9 +1307,6 @@ fn paint_row(
         }
     }
     if resp.middle_clicked() && !row.is_folder {
-        queue.push(Action::OpenFileNewTab(row.id));
-    }
-    if resp.double_clicked() && !row.is_folder {
         queue.push(Action::OpenFileNewTab(row.id));
     }
     if resp.secondary_clicked() && !selected {
