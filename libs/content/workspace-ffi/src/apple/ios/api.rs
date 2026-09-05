@@ -151,6 +151,10 @@ pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *const c_char {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+    let is_chat = obj
+        .workspace
+        .current_tab()
+        .is_some_and(|tab| tab.chat().is_some());
     let markdown = match obj.workspace.focused_mdedit_mut() {
         Some(markdown) => markdown,
         None => return null(),
@@ -158,6 +162,11 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
 
     let range: Option<(Grapheme, Grapheme)> = range.into();
     if let Some(range) = range {
+        let last = markdown.renderer.buffer.current.segs.last_cursor_position();
+        // Chat send-clear: UIKit still holds pre-clear positions and asks
+        // text(in:) during textDidChange. Clamp like a normal UITextInput.
+        // Notes keep the index so a bad range stays loud.
+        let range = if is_chat { (range.start().min(last), range.end().min(last)) } else { range };
         CString::new(&markdown.renderer.buffer[range])
             .expect("Could not Rust String -> C String")
             .into_raw()

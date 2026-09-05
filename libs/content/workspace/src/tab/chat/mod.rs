@@ -364,6 +364,10 @@ pub struct Chat {
     /// (iOS) text bridge didn't originate — a send-clear, edit-prefill, or
     /// stash-restore — so we tell it to re-sync its caret.
     composer_seq: usize,
+    /// `MdRender::text_seq` last frame. Unlike `composer_seq`, this ignores
+    /// caret-only changes — send-clear must report `text_updated` so iOS
+    /// drops UITextPositions from the message that was just sent.
+    composer_text_seq: u64,
     /// Sending while scrolled up jumps back to the bottom (which also
     /// re-sticks the scroll). Set on submit, consumed next frame.
     scroll_to_bottom: bool,
@@ -675,6 +679,7 @@ impl Chat {
             key_field_hit_rect: Rect::NOTHING,
             composer_rect: Rect::NOTHING,
             composer_seq: 0,
+            composer_text_seq: 0,
             scroll_to_bottom: false,
             branch_choice: HashMap::new(),
             branch_anchor: None,

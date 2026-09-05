@@ -374,14 +374,16 @@ impl Tab {
                 match content {
                     #[cfg(not(target_family = "wasm"))]
                     TabContent::Chat(chat) => {
-                        let (sent, interaction_rect, composer_updated) = chat.show(ui);
+                        let (sent, interaction_rect, composer_updated, composer_text_updated) =
+                            chat.show(ui);
                         if sent {
                             self.last_changed = Instant::now();
                         }
                         // App-driven composer edits (send-clear, prefill) must
-                        // re-sync the native text view's caret, same as the
-                        // markdown editor reports.
+                        // re-sync the native text view. `text_updated` is the
+                        // document replacement; selection-only is the caret.
                         resp.selection_updated = composer_updated;
+                        resp.text_updated = composer_text_updated;
                         // `Rect::NOTHING` means "no text field this frame" —
                         // report None like the markdown editor does. Forwarded
                         // as Some it sets the native iOS text view's frame to
