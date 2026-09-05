@@ -172,9 +172,10 @@ impl Chat {
     }
     /// Renders the transcript + composer. Returns whether the transcript
     /// changed this frame (user sent or the agent replied — triggers a save),
-    /// and the composer's text rect (egui points) used to position the native
-    /// iOS text-interaction overlay.
-    pub fn show(&mut self, ui: &mut Ui) -> (bool, Rect, bool) {
+    /// the composer's text rect (egui points) used to position the native
+    /// iOS text-interaction overlay, whether the composer selection moved,
+    /// and whether the composer text itself changed (send-clear, prefill).
+    pub fn show(&mut self, ui: &mut Ui) -> (bool, Rect, bool, bool) {
         self.kick_initial_config_load();
         self.pump_models();
         self.pump_config();
@@ -2813,7 +2814,15 @@ impl Chat {
         let composer_seq = self.composer.renderer.buffer.current.seq;
         let composer_updated = composer_seq != self.composer_seq;
         self.composer_seq = composer_seq;
+        let text_seq = self.composer.renderer.text_seq;
+        let composer_text_updated = text_seq != self.composer_text_seq;
+        self.composer_text_seq = text_seq;
 
-        (sent || agent_changed || changed, interaction_rect, composer_updated)
+        (
+            sent || agent_changed || changed,
+            interaction_rect,
+            composer_updated,
+            composer_text_updated,
+        )
     }
 }
