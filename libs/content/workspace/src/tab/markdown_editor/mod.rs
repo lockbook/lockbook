@@ -226,9 +226,8 @@ pub struct MdEdit {
     /// when `None`.
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
 
-    /// Offset of the selection handle being dragged (Android), so auto-scroll
-    /// follows the moving handle rather than always the selection end. `None`
-    /// outside a handle drag — scroll then falls back to the selection end.
+    /// Endpoint the last Select / handle-drag moved. `scroll_to_cursor`
+    /// follows this when set, then it is cleared.
     pub in_progress_handle: Option<Grapheme>,
 
     /// Active list-item drag-to-reorder — `Some` from grab until release.
@@ -1512,6 +1511,30 @@ impl Editor {
                                     top += height;
                                     walked += height;
                                     id = next_id;
+                                }
+                            }
+                            // Also paint the two selection-endpoint rows so
+                            // off-screen iOS caret/selection geometry still
+                            // resolves.
+                            let sel = self.edit.renderer.buffer.current.selection;
+                            for offset in [sel.0, sel.1] {
+                                let Some(target) = content.find_text_row(offset) else {
+                                    continue;
+                                };
+                                if resp
+                                    .visible
+                                    .iter()
+                                    .chain(neighbors.iter())
+                                    .any(|r| r.id == target)
+                                {
+                                    continue;
+                                }
+                                if let Some(row) = scroll_content::row_from_visible(
+                                    &content,
+                                    &resp.visible,
+                                    target,
+                                ) {
+                                    neighbors.push(row);
                                 }
                             }
                             (resp.visible, neighbors, resp.scrollbar_grab)
