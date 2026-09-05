@@ -883,6 +883,7 @@ impl MdEdit {
             self.pending_scroll = None;
             self.scroll_to_cursor(rect);
         }
+        self.in_progress_handle = None;
 
         // lock focus filter so arrow keys / tab / shift+enter keep reaching us
         if focused {

@@ -17,6 +17,17 @@ use lb_rs::model::text::operation_types::{Operation, Replace};
 
 use super::{Advance, Bound, Location, Region};
 
+/// The endpoint that moved. If both (or neither) of the new ends were
+/// already endpoints, the active end (`.1`).
+fn moving_selection_end(old: (Grapheme, Grapheme), new: (Grapheme, Grapheme)) -> Grapheme {
+    let old_has = |g| g == old.0 || g == old.1;
+    match (old_has(new.0), old_has(new.1)) {
+        (true, false) => new.1,
+        (false, true) => new.0,
+        _ => new.1,
+    }
+}
+
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
 pub struct EventState {
@@ -67,6 +78,7 @@ impl<'ast> MdEdit {
             Event::Select { region } => {
                 let range = self.region_to_range(region);
                 let range = self.renderer.snap_selection_out_of_fold_tags(range);
+                self.in_progress_handle = Some(moving_selection_end(current_selection, range));
                 operations.push(Operation::Select(range));
             }
             Event::Replace { region, text, advance_cursor } => {
