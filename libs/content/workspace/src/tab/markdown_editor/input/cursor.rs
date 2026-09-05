@@ -174,8 +174,8 @@ impl MdEdit {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
         use crate::widgets::affine_scroll::Align;
 
-        // Make the moving end of the selection visible. During a handle drag
-        // that's the dragged handle (either end); otherwise the selection end.
+        // Make the moving end of the selection visible. Handle drag sets
+        // `in_progress_handle`; otherwise the active end.
         // Passed as a zero-length range — `build_target_reveal` handles
         // single-point and multi-line ranges identically.
         let cursor = self.in_progress_handle.unwrap_or_else(|| {
