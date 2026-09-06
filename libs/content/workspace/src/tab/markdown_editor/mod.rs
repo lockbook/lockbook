@@ -544,7 +544,7 @@ impl MdRender {
 
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
-        let ctx = Context::default();
+        let ctx = test_egui_ctx();
         let ws_seq = crate::seq::ws_seq(&ctx);
         Self {
             ctx,
@@ -811,7 +811,7 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         let files = Arc::new(RwLock::new(FileCache::empty()));
-        let ctx = Context::default();
+        let ctx = test_egui_ctx();
         let core = Lb::init(lb_rs::model::core_config::Config {
             writeable_path: format!("/tmp/{}", Uuid::new_v4()),
             logs: false,
@@ -2084,6 +2084,16 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
+}
+
+/// Headless egui context with the same families as production (including Phosphor).
+#[cfg(test)]
+pub(crate) fn test_egui_ctx() -> Context {
+    let ctx = Context::default();
+    let mut fonts = FontDefinitions::default();
+    register_fonts(&mut fonts);
+    ctx.set_fonts(fonts);
+    ctx
 }
 
 /// Headless editor harness matching the Android FFI surface so tests read

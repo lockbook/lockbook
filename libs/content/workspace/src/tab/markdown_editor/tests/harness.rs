@@ -11,7 +11,7 @@ use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::{Editor, MdConfig, MdResources};
 use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use crate::workspace::WsPersistentStore;
-use egui::{Context, Pos2, RawInput, Rect, Ui, Vec2};
+use egui::{Pos2, RawInput, Rect, Ui, Vec2};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::core_config::ClientType;
@@ -250,7 +250,7 @@ impl LinkResolver for TestLinks {
 /// pipeline; `""` or `"txt"` renders each line as plain text.
 fn build_editor(core: Lb, md: &str, ext: &str, embeds: Box<dyn EmbedResolver>) -> Editor {
     let files = Arc::new(RwLock::new(FileCache::empty()));
-    let ctx = Context::default();
+    let ctx = super::super::test_egui_ctx();
     Editor::new(
         md,
         Uuid::new_v4(),
