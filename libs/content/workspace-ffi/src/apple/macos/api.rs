@@ -84,19 +84,3 @@ pub unsafe extern "C" fn magnify_gesture(obj: *mut c_void, factor: f32) {
 
     obj.renderer.raw_input.events.push(Event::Zoom(factor))
 }
-
-/// # Safety
-/// obj must be a valid pointer to WgpuWorkspace
-#[no_mangle]
-pub unsafe extern "C" fn set_tab_strip_inset(obj: *mut c_void, inset: f32) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.workspace.tab_strip_left_inset = inset;
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuWorkspace
-#[no_mangle]
-pub unsafe extern "C" fn set_tab_strip_height(obj: *mut c_void, height: f32) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.workspace.tab_strip_min_height = height;
-}

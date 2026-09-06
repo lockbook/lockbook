@@ -95,7 +95,7 @@ impl ContentSearcher {
             .into_inner()
             .unwrap();
 
-        Self {
+        let mut searcher = Self {
             documents,
             results: Vec::new(),
             submitted_query: String::new(),
@@ -103,7 +103,9 @@ impl ContentSearcher {
             descendants,
             path_to_id,
             filter_ids: None,
-        }
+        };
+        searcher.rebuild();
+        searcher
     }
 
     /// Update the active filter and refresh results for the current query.
@@ -127,6 +129,26 @@ impl ContentSearcher {
     fn rebuild(&mut self) {
         self.results.clear();
         if self.submitted_query.is_empty() {
+            let mut docs: Vec<&Document> = self
+                .documents
+                .iter()
+                .filter(|d| {
+                    self.filter_ids
+                        .as_ref()
+                        .is_none_or(|ids| ids.contains(&d.file.id))
+                })
+                .collect();
+            docs.sort_by_key(|d| Reverse(d.file.last_modified));
+            self.results
+                .extend(docs.into_iter().take(100).map(|d| SearchResult {
+                    id: d.file.id,
+                    filename: d.filename.clone(),
+                    parent_path: d.parent_path.clone(),
+                    is_folder: false,
+                    path_indices: Vec::new(),
+                    path_matches: Vec::new(),
+                    content_matches: Vec::new(),
+                }));
             return;
         }
 

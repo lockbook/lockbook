@@ -40,7 +40,8 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
     ContentState, Destination, ExtendedInput as _, Session, SessionId, Tab, TabAction, TabContent,
-    TabFailure, TabSaveContent, index_of_dest_to_activate, tab_action_for_open,
+    TabFailure, TabSaveContent, index_of_dest_to_activate, session_is_disposable_search,
+    tab_action_for_open,
 };
 use crate::task_manager;
 use crate::task_manager::{
@@ -80,6 +81,9 @@ pub struct Workspace {
     pub account: Account,
 
     pub preview: Option<Tab>,
+    /// In-flight search preview load. Displayed pane stays on [`Self::preview`]
+    /// until this is Open/Failed (or 200ms, then a spinner).
+    pub preview_pending: Option<Tab>,
 
     pending_open_range: Option<(Uuid, std::ops::Range<usize>)>,
 
@@ -100,12 +104,9 @@ pub struct Workspace {
     pub core: Lb,
     pub lb_rx: events::Receiver<Event>,
 
-    pub show_tabs: bool, // draw the egui tab strip
-    /// Activate-if-open / honor open-in-new-tab. Independent of `show_tabs`
-    /// so Apple can keep its own strip while using desktop policy.
+    /// Activate-if-open / honor open-in-new-tab. Apple sets this from size
+    /// class (`horizontalSizeClass == .regular`); desktop always true.
     pub desktop_tab_policy: bool,
-    pub tab_strip_left_inset: f32,
-    pub tab_strip_min_height: f32,
     pub sidebar_open: bool,
     pub focused_parent: Option<Uuid>, // set to the folder where new files should be created
 
@@ -129,7 +130,7 @@ pub enum WsUpdates {
 impl Workspace {
     #[instrument(name = "Workspace::new", level = "trace", skip_all)]
     pub fn new(
-        core: &Lb, ctx: &Context, show_tabs: bool, persist: bool,
+        core: &Lb, ctx: &Context, desktop_tab_policy: bool, persist: bool,
         file_cache: Option<Arc<RwLock<FileCache>>>,
     ) -> Self {
         let writable_dir = core.get_config().writeable_path;
@@ -168,10 +169,7 @@ impl Workspace {
             ctx: ctx.clone(),
             core: core.clone(),
 
-            show_tabs,
-            desktop_tab_policy: show_tabs,
-            tab_strip_left_inset: 0.0,
-            tab_strip_min_height: 0.0,
+            desktop_tab_policy,
             sidebar_open: false,
             focused_parent: Default::default(),
 
@@ -183,6 +181,7 @@ impl Workspace {
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
             preview: None,
+            preview_pending: None,
             pending_open_range: None,
             ws_rx,
         };
@@ -322,38 +321,57 @@ impl Workspace {
     }
 
     pub fn set_preview(&mut self, id: Option<lb_rs::Uuid>) {
-        let id = id.filter(|id| {
-            self.files
-                .read()
-                .unwrap()
-                .get_by_id(*id)
-                .is_some_and(|f| f.is_document())
-        });
+        let Some(id) = id else {
+            self.preview = None;
+            self.preview_pending = None;
+            return;
+        };
 
-        if self.preview.as_ref().and_then(|t| t.id()) == id {
+        let is_doc = self
+            .files
+            .read()
+            .unwrap()
+            .get_by_id(id)
+            .is_some_and(|f| f.is_document());
+        if !is_doc {
+            // Folder / non-doc: keep the last preview, drop an in-flight load.
+            self.preview_pending = None;
             return;
         }
 
-        match id {
-            Some(id) => {
-                let now = Instant::now();
-                self.preview = Some(Tab {
-                    destination: Destination::File(id),
-                    content: ContentState::Loading(id),
-                    last_changed: now,
-                    last_saved: now,
-                    read_only: true,
-                    rename: None,
-                });
-                self.tasks.queue_load(LoadRequest {
-                    id,
-                    tab_created: true,
-                    make_current: false,
-                    is_preview: true,
-                    target: None,
-                });
+        if self.preview.as_ref().and_then(|t| t.id()) == Some(id) {
+            self.preview_pending = None;
+            return;
+        }
+        if self.preview_pending.as_ref().and_then(|t| t.id()) == Some(id) {
+            return;
+        }
+
+        let now = Instant::now();
+        self.preview_pending = Some(Tab {
+            destination: Destination::File(id),
+            content: ContentState::Loading(id),
+            last_changed: now,
+            last_saved: now,
+            read_only: true,
+            rename: None,
+        });
+        self.tasks.queue_load(LoadRequest {
+            id,
+            tab_created: true,
+            make_current: false,
+            is_preview: true,
+            target: None,
+        });
+    }
+
+    /// Move a finished pending preview into the displayed slot.
+    pub fn promote_preview(&mut self) {
+        if let Some(pending) = &self.preview_pending {
+            pending.warm_preview();
+            if pending.preview_ready() {
+                self.preview = self.preview_pending.take();
             }
-            None => self.preview = None,
         }
     }
 
@@ -607,6 +625,24 @@ impl Workspace {
         self.open_dest_as_session(Destination::File(id), make_current, in_new_tab);
     }
 
+    /// Activate an existing file session, or create one. Never Replace/Navigate
+    /// the current tab (Search must stay in the strip).
+    pub(crate) fn focus_or_create_file(&mut self, id: Uuid, make_current: bool) {
+        let dest = Destination::File(id);
+        if let Some(pos) = index_of_dest_to_activate(
+            &self.tab_strip,
+            self.current_tab,
+            &self.activation_history,
+            &dest,
+        ) {
+            if make_current {
+                self.make_current(pos);
+            }
+        } else {
+            self.create_tab(dest, make_current);
+        }
+    }
+
     pub fn open_dest_as_session(
         &mut self, dest: Destination, make_current: bool, in_new_tab: bool,
     ) {
@@ -674,34 +710,22 @@ impl Workspace {
         self.set_current_tab(Some(tab_id));
     }
 
-    /// Replace the current Search session with `dest`. If that dest is already
-    /// open, focus it and close this Search session instead.
-    pub fn open_file_replacing_search(&mut self, id: Uuid) {
-        let dest = Destination::File(id);
-        let current_search = self.current_slot_index().filter(|&i| {
-            self.tab_strip
+    /// Esc after chip/query: Back if this session has history, else close a
+    /// disposable Search tab.
+    pub(crate) fn dismiss_search(&mut self) {
+        if self.can_back() {
+            self.back();
+            return;
+        }
+        if let Some(i) = self.current_slot_index() {
+            if self
+                .tab_strip
                 .get(i)
-                .is_some_and(|s| matches!(s.dest, Destination::Search))
-        });
-        if self.tab_strip.iter().any(|s| s.dest == dest) {
-            if let Some(i) = current_search {
+                .is_some_and(session_is_disposable_search)
+            {
                 self.close_tab(i);
             }
-            if let Some(pos) = index_of_dest_to_activate(
-                &self.tab_strip,
-                self.current_tab,
-                &self.activation_history,
-                &dest,
-            ) {
-                self.make_current(pos);
-            }
-            return;
         }
-        if current_search.is_some() {
-            self.replace_current_session(dest, true);
-            return;
-        }
-        self.create_tab(dest, true);
     }
 
     pub fn open_file_at_range(
@@ -1132,10 +1156,13 @@ impl Workspace {
 
                 let ctx = self.ctx.clone();
                 let core = self.core.clone();
-                let show_tabs = self.show_tabs;
+                let desktop_tab_policy = self.desktop_tab_policy;
 
                 let tab_opt = if is_preview {
-                    self.preview.as_mut().filter(|t| t.id() == Some(id))
+                    self.preview_pending
+                        .as_mut()
+                        .filter(|t| t.id() == Some(id))
+                        .or_else(|| self.preview.as_mut().filter(|t| t.id() == Some(id)))
                 } else {
                     self.tabs.find_for_load_mut(id, target)
                 };
@@ -1188,8 +1215,10 @@ impl Workspace {
                         }
                         DocType::PDF => {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
-                                id, bytes, &ctx,
-                                !show_tabs, // todo: use settings to determine toolbar visibility
+                                id,
+                                bytes,
+                                &ctx,
+                                !self.desktop_tab_policy,
                             )));
                         }
                         DocType::SVG => {
@@ -1270,7 +1299,7 @@ impl Workspace {
                                         MdConfig {
                                             readonly: tab.read_only,
                                             ext: ext.clone(),
-                                            tablet_or_desktop: show_tabs,
+                                            tablet_or_desktop: desktop_tab_policy,
                                         },
                                     )));
                             } else {
@@ -1293,8 +1322,12 @@ impl Workspace {
                             md.initialized = true;
                             md.id_salt = egui::Id::new("search_preview");
                         }
-                        // A chat's first frame would focus its composer,
-                        // stealing focus from the search query.
+                        // Search preview sets `tab.read_only`; markdown/SVG honor
+                        // it. Chat does not — it still mounts a live session
+                        // (composer, send, agent, auto-focus). Come back: preview
+                        // should be a transcript viewer only. Until then, skip
+                        // the first-frame composer focus so it doesn't steal the
+                        // search query.
                         #[cfg(not(target_family = "wasm"))]
                         if let Some(chat) = tab.chat_mut() {
                             chat.initialized = true;
@@ -1529,21 +1562,29 @@ impl Workspace {
         if cfg!(target_os = "ios") {
             return;
         }
-        if let Some(i) = self
-            .tab_strip
-            .iter()
-            .position(|s| matches!(s.dest, Destination::Search))
-        {
-            self.make_current(i);
+        let dest = Destination::Search;
+        // Search is its own tab — never navigate the current note into it.
+        if let Some(pos) = index_of_dest_to_activate(
+            &self.tab_strip,
+            self.current_tab,
+            &self.activation_history,
+            &dest,
+        ) {
+            self.make_current(pos);
         } else {
-            self.open_dest_as_session(Destination::Search, true, false);
+            self.create_tab(dest, true);
         }
-        // refocus the query field each time the tab is opened/focused
+        // Whole tree every time this command runs. Folder-scoped search is
+        // `search_in_folder` (or the chip) — not tree focus.
         if let Some(tab) = self.current_tab_mut() {
             if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
                 if let Some(search_type) = search_type {
+                    if search.search_type != search_type {
+                        search.query.clear();
+                    }
                     search.search_type = search_type;
                 }
+                search.clear_scope();
                 search.initialized = false;
             }
         }
@@ -1555,7 +1596,6 @@ impl Workspace {
         if let Some(tab) = self.current_tab_mut() {
             if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
                 search.scope_path = path;
-                search.filters_open = true;
             }
         }
         self.out.selected_file = Some(folder_id);

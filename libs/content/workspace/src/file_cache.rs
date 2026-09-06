@@ -178,6 +178,14 @@ impl FileCache {
         self.rows.iter()
     }
 
+    /// `(file, path)` rows for [`lb_rs::search::PathSearcher::from_files`].
+    pub fn path_index(&self) -> Vec<(File, String)> {
+        self.all_files()
+            .filter(|f| !f.is_root())
+            .map(|f| (f.clone(), self.path(f.id)))
+            .collect()
+    }
+
     /// Returns path segments for a file, each annotated with whether that file
     /// has any shares on it. Segments are in root-to-leaf order. The leading `/`
     /// is included as a separate segment for own-tree files.

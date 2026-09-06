@@ -554,7 +554,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OpenSearch => {
             if let Some(r) = app.session.ready_mut() {
-                r.workspace.upsert_search(None);
+                r.workspace
+                    .upsert_search(Some(workspace_rs::search::SearchType::Path));
             }
         }
         A::CancelSubscription => {

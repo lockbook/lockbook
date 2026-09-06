@@ -159,6 +159,11 @@ impl Session {
     }
 }
 
+/// Search tab that was created (not navigated to): safe to close when leaving.
+pub fn session_is_disposable_search(s: &Session) -> bool {
+    matches!(s.dest, Destination::Search) && s.back.is_empty() && s.forward.is_empty()
+}
+
 /// How an "open from sidebar" action should treat the tab strip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TabAction {
@@ -169,8 +174,7 @@ pub enum TabAction {
 }
 
 /// `in_new_tab` is the explicit menu/cmd-click request. `desktop_tab_policy`
-/// is activate-if-open / honor the open-in-new-tab setting. Distinct from
-/// drawing the egui tab strip (`Workspace::show_tabs`). Desktop with the
+/// is activate-if-open / honor the open-in-new-tab setting. Desktop with the
 /// setting off navigates in the current session so back still works.
 pub fn tab_action_for_open(
     dest_already_open: bool, in_new_tab: bool, desktop_tab_policy: bool, open_in_new_tab: bool,
@@ -284,6 +288,29 @@ impl Tab {
         }
     }
 
+    pub fn pdf_mut(&mut self) -> Option<&mut PdfViewer> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Pdf(pdf)) => Some(pdf),
+            _ => None,
+        }
+    }
+
+    /// Pin derived work (image decode) without painting. No-op for other kinds.
+    pub fn warm_preview(&self) {
+        if let Some(img) = self.image_viewer() {
+            img.warm();
+        }
+    }
+
+    /// Safe to put on screen: bytes are in, and images have a texture (or failed).
+    pub fn preview_ready(&self) -> bool {
+        match &self.content {
+            ContentState::Loading(_) => false,
+            ContentState::Open(TabContent::Image(img)) => img.paint_ready(),
+            ContentState::Open(_) | ContentState::Failed(_) => true,
+        }
+    }
+
     pub fn svg(&self) -> Option<&SVGEditor> {
         match &self.content {
             ContentState::Open(TabContent::Svg(svg)) => Some(svg),
@@ -362,7 +389,7 @@ impl Tab {
     fn show_inner(&mut self, ui: &mut egui::Ui) -> Response {
         match &mut self.content {
             ContentState::Loading(_) => {
-                ui.spinner();
+                crate::style::loading_indicator(ui);
                 Response::default()
             }
             ContentState::Failed(fail) => {
@@ -1019,6 +1046,15 @@ mod nav_tests {
         assert_eq!(session.id, id);
         assert!(session.forward.is_empty());
         assert!(session.back.is_empty());
+    }
+
+    #[test]
+    fn disposable_search_is_empty_history_only() {
+        let s = Session::new(Destination::Search);
+        assert!(session_is_disposable_search(&s));
+        let mut from_file = Session::new(file(1));
+        from_file.navigate(Destination::Search);
+        assert!(!session_is_disposable_search(&from_file));
     }
 
     #[test]

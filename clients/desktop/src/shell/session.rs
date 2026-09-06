@@ -117,7 +117,6 @@ impl Ready {
         let file_cache = Arc::new(RwLock::new(files));
         let root = file_cache.read().unwrap().root.id;
         let mut workspace = Workspace::new(&core, ctx, false, true, Some(file_cache));
-        workspace.show_tabs = false;
         workspace.desktop_tab_policy = true;
         workspace.sidebar_open = true;
 

@@ -1,11 +1,12 @@
-//! Shell tab strip + Workspace content (`show_tabs = false`, desktop tab policy).
+//! Shell tab strip + Workspace content (desktop tab policy).
 
 use egui::{Align, Layout, Ui};
 
 use crate::components::{Theme, claim, place_at};
+use workspace_rs::file_cache::FilesExt;
 
 use super::ShellApp;
-use super::action::Action;
+use super::action::{Action, SidebarPane};
 use super::tabs;
 
 pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>) {
@@ -17,12 +18,12 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
     // the titleband — that fill would cover traffic lights / pane cluster.
     let rest = ui.available_rect_before_wrap();
     let sidebar_open = app.sidebar_open;
+    let mut show_files_pane = false;
     let failures = {
         let Some(ready) = app.session.ready_mut() else {
             return;
         };
 
-        ready.workspace.show_tabs = false;
         ready.workspace.desktop_tab_policy = true;
         ready.workspace.sidebar_open = sidebar_open;
         // Workspace create-dest follows the open tab. Tree `cursor` is selection
@@ -45,14 +46,36 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
             }
         }
 
-        // Tab focus / persistence restore: workspace says which file is current;
+        // Tab focus / persistence restore: workspace says which file is current.
+        // Folder activation from search also lands here: select, reveal, expand.
         if let Some(id) = out.selected_file {
             ready.select_only(id);
             super::reveal_and_scroll(ready, id);
+            let is_folder = ready
+                .workspace
+                .files
+                .read()
+                .ok()
+                .and_then(|files| files.get_by_id(id).map(|f| f.is_folder()))
+                .unwrap_or(false);
+            if is_folder {
+                ready.expanded.insert(id);
+                show_files_pane = true;
+            }
         }
 
         out.failure_messages
     };
+    if show_files_pane {
+        app.pane = SidebarPane::Files;
+        app.sidebar_open = true;
+        if let Some(ready) = app.session.ready_mut() {
+            ready.workspace.sidebar_open = true;
+        }
+        if app.settings.zen_mode {
+            let _ = app.settings.write_zen_mode(false);
+        }
+    }
     for msg in failures {
         app.toasts.error(msg);
     }

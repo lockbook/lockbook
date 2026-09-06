@@ -54,6 +54,14 @@ impl ImageViewer {
         }
     }
 
+    /// Decode/upload without painting. Search preview waits on this.
+    pub fn warm(&self) {}
+
+    /// Texture is ready to put on screen (or the load failed).
+    pub fn paint_ready(&self) -> bool {
+        true
+    }
+
     pub fn show(&mut self, ui: &mut egui::Ui) {
         set_style(ui);
 

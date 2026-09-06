@@ -161,7 +161,7 @@ impl Workspace {
             self.create_doc(false);
         }
         if search {
-            self.upsert_search(None);
+            self.upsert_search(Some(crate::search::SearchType::Path));
         }
         if let Some(id) = open {
             self.open_file(id, true, false);
