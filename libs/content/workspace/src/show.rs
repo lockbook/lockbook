@@ -189,6 +189,9 @@ impl Workspace {
             if let Some(md) = tab.markdown_mut() {
                 md.edit.phone_mode = md.edit.renderer.touch_mode && compact;
             }
+            if let Some(pdf) = tab.pdf_mut() {
+                pdf.compact = compact;
+            }
 
             let resp = tab.show(ui);
 

@@ -1215,10 +1215,7 @@ impl Workspace {
                         }
                         DocType::PDF => {
                             tab.content = ContentState::Open(TabContent::Pdf(PdfViewer::new(
-                                id,
-                                bytes,
-                                &ctx,
-                                !self.desktop_tab_policy,
+                                id, bytes, &ctx,
                             )));
                         }
                         DocType::SVG => {
