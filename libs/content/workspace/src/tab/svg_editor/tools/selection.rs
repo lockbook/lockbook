@@ -13,16 +13,15 @@ use resvg::usvg::Transform;
 use lb_rs::model::svg::buffer::serialize_inner;
 
 use crate::style::{
-    Button, SECTION_GAP, SECTION_HEAD_GAP, Space, ThemeExt as _, canvas_overlay_frame, island,
-    phosphor,
+    Button, SECTION_GAP, SECTION_HEAD_GAP, Space, ThemeExt as _, canvas_overlay_frame,
+    color_swatch, island, phosphor,
 };
 use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::{self, TransformElement};
 use crate::tab::svg_editor::toolbar::{
-    ToolContext, overlay_icon, show_color_btn, show_opacity_slider, show_section_header,
-    show_thickness_slider,
+    ToolContext, overlay_icon, show_opacity_slider, show_section_header, show_thickness_slider,
 };
 use crate::tab::svg_editor::tools::pen::DEFAULT_PEN_STROKE_WIDTH;
 use crate::tab::svg_editor::tools::{InputControllerTool, selection};
@@ -541,7 +540,7 @@ impl InputControllerTool for Selection {
     }
 }
 impl Selection {
-    fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
+    pub(crate) fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
         let elements = self
             .selected_elements
             .iter()
@@ -977,12 +976,13 @@ impl Selection {
 
         let colors = get_pen_colors();
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            let t = ui.ctx().get_lb_theme();
+            let hit = island::icon_hit();
+            let ground = t.neutral_bg();
             colors.iter().for_each(|&c| {
                 let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
-                let active_color =
-                    ThemePalette::resolve_dynamic_color(stroke.color, ui.visuals().dark_mode);
-
-                let color_btn = show_color_btn(ui, color, active_color, None);
+                let color_btn = color_swatch(ui, &t, color, c == stroke.color, ground, hit);
                 if color_btn.clicked() || color_btn.drag_started() {
                     let event = history::Event::StrokeChange(
                         self.selected_elements

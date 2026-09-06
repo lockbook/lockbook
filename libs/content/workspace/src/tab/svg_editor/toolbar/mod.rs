@@ -4,7 +4,7 @@ mod tools_island;
 mod viewport_island;
 
 use crate::style::{
-    ANIM_MAX_SECS, CHROME_BAND_GLYPH, Theme, ThemeExt as _, icon_button_glyph, island, phosphor,
+    ANIM_MAX_SECS, CHROME_BAND_GLYPH, Theme, ThemeExt as _, icon_button_circle, island, phosphor,
     tip_text,
 };
 use crate::tab::svg_editor::tools::DynInputControllerTool;
@@ -29,7 +29,6 @@ use super::tools::{eraser::Eraser, pen::Pen};
 use super::{CanvasSettings, ViewportSettings};
 pub const MINI_MAP_WIDTH: f32 = 100.0;
 
-const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
 const SCREEN_PADDING: egui::Pos2 =
     if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
@@ -388,6 +387,24 @@ impl Toolbar {
         if ui.input(|r| r.key_pressed(egui::Key::Tab)) {
             self.toggle_at_cursor_tool_popover();
         }
+
+        if self.active_tool == Tool::Selection
+            && !self.selection.selected_elements.is_empty()
+            && ui.input_mut(|i| {
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)
+                    || i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace)
+            })
+        {
+            self.selection.delete_selection(&mut ToolContext {
+                painter: tlbr_ctx.painter,
+                buffer: tlbr_ctx.buffer,
+                history: tlbr_ctx.history,
+                settings: tlbr_ctx.settings,
+                viewport_settings: tlbr_ctx.viewport_settings,
+            });
+            res = true;
+        }
+
         res
     }
 
@@ -477,35 +494,14 @@ pub(crate) fn overlay_icon(
     ui: &mut egui::Ui, t: &Theme, icon: &'static str, active: bool, ground: egui::Color32,
     tip: &str,
 ) -> egui::Response {
-    let r = icon_button_glyph(ui, t, icon, active, ground, island::icon_hit(), CHROME_BAND_GLYPH);
+    let r = icon_button_circle(ui, t, icon, active, ground, island::icon_hit(), CHROME_BAND_GLYPH);
     if !tip.is_empty() {
         tip_text(ui.ctx(), &r, tip);
     }
     r
 }
 
-pub fn show_color_btn(
-    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32, maybe_radius: Option<f32>,
-) -> egui::Response {
-    let circle_diameter = maybe_radius.unwrap_or(COLOR_SWATCH_BTN_RADIUS) * 2.0;
-    let margin = 6.0;
-    let (id, rect) =
-        ui.allocate_space(egui::vec2(circle_diameter + margin, circle_diameter + margin));
-
-    ui.painter()
-        .circle_filled(rect.center(), circle_diameter / 2.0, color);
-
-    if get_non_additive(&active_color).eq(&color) {
-        ui.painter().circle_stroke(
-            rect.center(),
-            circle_diameter / 2.0 - 3.0,
-            egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
-        );
-    }
-    ui.interact(rect, id, egui::Sense::click_and_drag())
-}
-
-fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
+pub(crate) fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
     egui::Color32::from_rgb(color.r(), color.g(), color.b())
 }
 

@@ -153,24 +153,25 @@ pub fn canvas_overlay_frame(t: &Theme, inner_pad: Space) -> Frame {
 /// Compact floating toolbar — image / canvas viewport islands.
 ///
 /// Raised capsule (secondary fill, no hairline, overlay shadow). Height matches
-/// the titleband ([`CHROME_BAND_H`]); icon hit is [`control_height`], glyph is
+/// the titleband ([`CHROME_BAND_H`]). End-cap icon squares are concentric with
+/// the stadium (`pad + hit/2 == height/2`); hover wash is a circle. Glyph is
 /// [`CHROME_BAND_GLYPH`]. Not [`canvas_overlay_frame`] (menus / pickers).
 pub mod island {
     use egui::{Frame, Margin, Stroke};
 
     use super::{CHROME_BAND_H, overlay_shadow};
     use crate::style::color::Theme;
+    use crate::style::space::Space;
 
-    /// Horizontal inset inside the capsule.
-    pub const PAD_X: f32 = 8.0;
-    /// Vertical inset — same air as titleband (`Space::Xs`).
-    pub const PAD_Y: f32 = 5.0;
+    /// Inset that puts the first/last icon center on the cap center.
+    pub const PAD_X: f32 = Space::Xs.pts();
+    pub const PAD_Y: f32 = Space::Xs.pts();
     /// Large enough to fully round [`height`].
     pub const RADIUS: u8 = 30;
 
-    /// Icon / percent hit — same as titleband / markdown toolbar.
+    /// Square hit, fills the inner band so end washes share the cap center.
     pub fn icon_hit() -> f32 {
-        super::control_height()
+        CHROME_BAND_H - PAD_Y * 2.0
     }
 
     pub fn height() -> f32 {
@@ -189,6 +190,20 @@ pub mod island {
             .corner_radius(egui::CornerRadius::same(RADIUS))
             .inner_margin(Margin::symmetric(PAD_X as i8, PAD_Y as i8))
             .shadow(overlay_shadow())
+    }
+
+    #[cfg(test)]
+    mod tests {
+        use super::*;
+
+        #[test]
+        fn end_icon_concentric_with_cap() {
+            let cx = PAD_X + icon_hit() / 2.0;
+            let cy = PAD_Y + icon_hit() / 2.0;
+            let cap = height() / 2.0;
+            assert!((cx - cap).abs() < 0.01);
+            assert!((cy - cap).abs() < 0.01);
+        }
     }
 }
 

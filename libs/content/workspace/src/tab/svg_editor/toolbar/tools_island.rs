@@ -7,10 +7,12 @@ use lb_rs::model::svg::element::{DynamicColor, ManipulatorGroupId};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
 
 use crate::set_tool;
-use crate::style::{ThemeExt as _, TypeRole, canvas_overlay_frame, island, phosphor};
+use crate::style::{
+    Space, ThemeExt as _, TypeRole, canvas_overlay_frame, color_swatch, island, phosphor,
+};
 use crate::tab::svg_editor::renderer::VertexConstructor;
 use crate::tab::svg_editor::toolbar::{
-    island_icon, overlay_icon, show_color_btn, show_opacity_slider, show_thickness_slider,
+    island_icon, overlay_icon, show_opacity_slider, show_thickness_slider,
 };
 use crate::tab::svg_editor::tools::eraser::DEFAULT_ERASER_RADIUS;
 use crate::tab::svg_editor::tools::pen::{
@@ -84,20 +86,21 @@ impl Toolbar {
                         Tool::Shapes => shapes_btn.rect,
                     };
 
+                    let inset = Space::Xs.pts();
                     let min_x = animate_eased(
                         ui.ctx(),
-                        "min",
-                        active_rect.left() + 3.0,
-                        crate::style::ANIM_MAX_SECS,
-                        easing::cubic_in_out,
+                        "tools_island_sel_min",
+                        active_rect.left() + inset,
+                        crate::style::TOGGLE_ANIM_SECS,
+                        easing::cubic_out,
                     );
 
                     let max_x = animate_eased(
                         ui.ctx(),
-                        "max",
-                        active_rect.right() - 3.0,
-                        crate::style::ANIM_MAX_SECS,
-                        easing::cubic_in_out,
+                        "tools_island_sel_max",
+                        active_rect.right() - inset,
+                        crate::style::TOGGLE_ANIM_SECS,
+                        easing::cubic_out,
                     );
 
                     let color = if self.active_tool == Tool::Pen {
@@ -106,24 +109,16 @@ impl Toolbar {
                             ui.visuals().dark_mode,
                         )
                         .linear_multiply(self.pen.active_opacity)
-                    } else if self.active_tool == Tool::Highlighter {
-                        ThemePalette::resolve_dynamic_color(
-                            self.highlighter.active_color,
-                            ui.visuals().dark_mode,
-                        )
-                        .linear_multiply(self.highlighter.active_opacity)
                     } else {
                         t.neutral_fg()
                     };
 
-                    // Sit in the island's bottom pad so the capsule still clips the bar.
-                    let y = active_rect.bottom() + island::PAD_Y * 0.5;
+                    // In the hit, not the bottom pad — the stadium pinches there.
+                    let y = active_rect.bottom() - 1.0;
                     ui.painter().line_segment(
                         [egui::pos2(min_x, y), egui::pos2(max_x, y)],
                         egui::Stroke { width: 2.0, color },
                     );
-
-                    ui.add_space(8.0);
 
                     self.show_tool_quick_controls(ui);
                 })
@@ -133,30 +128,23 @@ impl Toolbar {
     }
 
     fn show_tool_quick_controls(&mut self, ui: &mut egui::Ui) {
+        let t = ui.ctx().get_lb_theme();
+        let hit = island::icon_hit();
+        let ground = island::ground(&t);
         match self.active_tool {
-            Tool::Pen => {
+            Tool::Pen | Tool::Selection => {
                 for color in self.pen.colors_history {
-                    let res = show_color_btn(
-                        ui,
-                        ThemePalette::resolve_dynamic_color(color, ui.visuals().dark_mode),
-                        ThemePalette::resolve_dynamic_color(
-                            self.pen.active_color,
-                            ui.visuals().dark_mode,
-                        ),
-                        Some(8.0),
-                    );
+                    let resolved =
+                        ThemePalette::resolve_dynamic_color(color, ui.visuals().dark_mode);
+                    let res =
+                        color_swatch(ui, &t, resolved, color == self.pen.active_color, ground, hit);
                     if res.clicked() || res.drag_started() {
                         change_pen_color(&mut self.pen, color);
                     }
                 }
             }
             _ => {
-                let dims = egui::vec2(44.0, 0.0);
-                ui.painter().line_segment(
-                    [ui.cursor().left_center(), ui.cursor().left_center() + dims],
-                    ui.visuals().widgets.noninteractive.bg_stroke,
-                );
-                ui.add_space(44.0);
+                ui.add_space(hit * 2.0);
             }
         }
     }
@@ -356,19 +344,24 @@ impl Toolbar {
         ui.add_space(20.0);
 
         ui.horizontal_wrapped(|ui| {
-            let colors = get_pen_colors();
-
-            colors.iter().for_each(|&c| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            let t = ui.ctx().get_lb_theme();
+            let hit = island::icon_hit();
+            let ground = t.neutral_bg();
+            for &c in &get_pen_colors() {
                 let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
-                let active_color = ThemePalette::resolve_dynamic_color(
-                    self.shapes_tool.active_stroke.color,
-                    ui.visuals().dark_mode,
+                let color_btn = color_swatch(
+                    ui,
+                    &t,
+                    color,
+                    c == self.shapes_tool.active_stroke.color,
+                    ground,
+                    hit,
                 );
-                let color_btn = show_color_btn(ui, color, active_color, None);
                 if color_btn.clicked() || color_btn.drag_started() {
                     self.shapes_tool.active_stroke.color = c;
                 }
-            });
+            }
         });
 
         ui.add_space(10.0);
@@ -469,15 +462,17 @@ fn show_highlighter_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut Too
 }
 
 fn show_color_swatches(ui: &mut egui::Ui, colors: Vec<DynamicColor>, pen: &mut Pen) {
-    colors.iter().for_each(|&c| {
+    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+    let t = ui.ctx().get_lb_theme();
+    let hit = island::icon_hit();
+    let ground = t.neutral_bg();
+    for c in colors {
         let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
-        let active_color =
-            ThemePalette::resolve_dynamic_color(pen.active_color, ui.visuals().dark_mode);
-        let color_btn = show_color_btn(ui, color, active_color, None);
+        let color_btn = color_swatch(ui, &t, color, c == pen.active_color, ground, hit);
         if color_btn.clicked() || color_btn.drag_started() {
             change_pen_color(pen, c);
         }
-    });
+    }
 }
 
 fn change_pen_color(pen: &mut Pen, new_color: DynamicColor) {

@@ -12,9 +12,10 @@ use crate::style::chrome::{
     HOVER_ANIM_SECS, KbdPart, Radius, STROKE_HAIRLINE, Shortcut, control_height, phosphor,
     phosphor_font_id, phosphor_ui_font_id,
 };
-use crate::style::color::{BG_HOVER, BG_PRESS, FG_HOVER, FG_PRESS, Theme};
+use crate::style::color::{BG_HOVER, BG_PRESS, FG_HOVER, Theme};
 use crate::style::interact::{ControlFills, sense_click};
 use crate::style::layout::{inset, paint_control_pads};
+use crate::style::space::Space;
 use crate::style::space::control as control_space;
 use crate::style::typography::TypeRole;
 
@@ -461,21 +462,45 @@ pub fn icon_button_hit(
 pub fn icon_button_glyph(
     ui: &mut Ui, t: &Theme, icon: &'static str, active: bool, ground: Color32, hit: f32, glyph: f32,
 ) -> Response {
+    icon_mark(ui, t, icon, active, ground, hit, glyph, IconWash::Rounded)
+}
+
+/// Square hit, circular hover wash — capsule islands (end caps concentric
+/// with the stadium). Titleband / markdown keep [`icon_button_glyph`].
+pub fn icon_button_circle(
+    ui: &mut Ui, t: &Theme, icon: &'static str, active: bool, ground: Color32, hit: f32, glyph: f32,
+) -> Response {
+    icon_mark(ui, t, icon, active, ground, hit, glyph, IconWash::Circle)
+}
+
+#[derive(Clone, Copy)]
+enum IconWash {
+    Rounded,
+    Circle,
+}
+
+#[allow(clippy::too_many_arguments)]
+fn icon_mark(
+    ui: &mut Ui, t: &Theme, icon: &'static str, active: bool, ground: Color32, hit: f32,
+    glyph: f32, wash_kind: IconWash,
+) -> Response {
     let hit = hit.max(1.0);
     let (rect, resp) = ui.allocate_exact_size(vec2(hit, hit), sense_click());
     let hover = icon_hover_t(ui, &resp, rect);
     // Ghost wash on hover only — darkens `ground`, never replaces it with canvas.
+    // Same amount whether or not the mark is active (active is ink, not plate).
     if hover > 0.0 {
-        let amt = if active {
-            // Slightly stronger so active still reads pressable.
-            FG_PRESS * hover
-        } else {
-            FG_HOVER * hover
-        };
-        let wash = t.wash_toward_neutral_fg(ground, amt);
-        // Sm matches compact icon hits (tab close X); Control reads as a pill
-        // on titleband-sized (~22pt) washes.
-        ui.painter().rect_filled(rect, Radius::Sm.corner(), wash);
+        let wash = t.wash_toward_neutral_fg(ground, FG_HOVER * hover);
+        match wash_kind {
+            IconWash::Circle => {
+                ui.painter().circle_filled(rect.center(), hit * 0.5, wash);
+            }
+            IconWash::Rounded => {
+                // Sm matches compact icon hits (tab close X); Control reads as a
+                // pill on titleband-sized (~22pt) washes.
+                ui.painter().rect_filled(rect, Radius::Sm.corner(), wash);
+            }
+        }
     }
     // Idle muted → primary on hover; active stays primary.
     let color = if active {
@@ -489,6 +514,33 @@ pub fn icon_button_glyph(
         .layout_no_wrap(icon.into(), phosphor_font_id(glyph), Color32::PLACEHOLDER);
     ui.painter()
         .galley(rect.center() - g.size() / 2.0, g, color);
+    resp
+}
+
+/// Color disc on a square hit. Hover paints the same circular wash as
+/// [`icon_button_circle`], behind the disc, so it reads as a ring. `hit` is
+/// the island icon cell ([`super::chrome::island::icon_hit`]).
+pub fn color_swatch(
+    ui: &mut Ui, t: &Theme, color: Color32, selected: bool, ground: Color32, hit: f32,
+) -> Response {
+    let hit = hit.max(1.0);
+    let (rect, resp) = ui.allocate_exact_size(vec2(hit, hit), Sense::click_and_drag());
+    let hover = icon_hover_t(ui, &resp, rect);
+    if hover > 0.0 {
+        let wash = t.wash_toward_neutral_fg(ground, FG_HOVER * hover);
+        ui.painter().circle_filled(rect.center(), hit * 0.5, wash);
+    }
+    let wash_r = hit * 0.5;
+    let color_r = (wash_r - Space::Xs.pts()).max(1.0);
+    ui.painter().circle_filled(rect.center(), color_r, color);
+    if selected {
+        let ring_w = Space::Xxs.pts();
+        ui.painter().circle_stroke(
+            rect.center(),
+            color_r + ring_w,
+            Stroke { width: ring_w, color },
+        );
+    }
     resp
 }
 

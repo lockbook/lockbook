@@ -7,7 +7,7 @@ use resvg::usvg::Transform;
 use tracing::error;
 
 use crate::style::{
-    Button, CHROME_BAND_GLYPH, Space, ThemeExt, TypeRole, canvas_overlay_frame, icon_button_glyph,
+    Button, CHROME_BAND_GLYPH, Space, ThemeExt, TypeRole, canvas_overlay_frame, icon_button_circle,
     island, loading_indicator, phosphor, quiet_canvas_fills, sense_click, tip_text,
 };
 use crate::tab::input_controller::{
@@ -210,7 +210,7 @@ impl ImageViewer {
             let hit = island::icon_hit();
             let ground = island::ground(t);
 
-            let minus = icon_button_glyph(
+            let minus = icon_button_circle(
                 ui,
                 t,
                 phosphor::MAGNIFYING_GLASS_MINUS,
@@ -242,7 +242,7 @@ impl ImageViewer {
                 self.toggle_viewport_popover(Some(ImageViewportPopover::ZoomStops));
             }
 
-            let plus = icon_button_glyph(
+            let plus = icon_button_circle(
                 ui,
                 t,
                 phosphor::MAGNIFYING_GLASS_PLUS,
