@@ -1,9 +1,8 @@
 use egui::UiBuilder;
 
-use crate::theme::icons::Icon;
-use crate::widgets::Button;
+use crate::style::{ThemeExt as _, island, phosphor};
 
-use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
+use super::{SCREEN_PADDING, Toolbar, ToolbarContext, island_icon};
 
 impl Toolbar {
     pub fn show_history_island(
@@ -21,33 +20,28 @@ impl Toolbar {
             max: egui::Pos2 { x: history_island_x_start, y: history_island_y_start },
         };
 
+        let t = ui.ctx().get_lb_theme();
         let res = ui.scope_builder(UiBuilder::new().max_rect(history_rect), |ui| {
-            egui::Frame::window(ui.style())
-                .inner_margin(egui::Margin::symmetric(8, 4))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let undo_btn = ui
-                            .add_enabled_ui(tlbr_ctx.history.has_undo(), |ui| {
-                                Button::default().icon(&Icon::UNDO).show(ui)
-                            })
-                            .inner;
-                        if undo_btn.clicked() || undo_btn.drag_started() {
-                            tlbr_ctx.history.undo(tlbr_ctx.buffer);
-                            dirty = true;
-                        }
+            island::frame(&t).show(ui, |ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                ui.horizontal(|ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                    let can_undo = tlbr_ctx.history.has_undo();
+                    let undo_btn =
+                        island_icon(ui, &t, phosphor::ARROW_COUNTER_CLOCKWISE, can_undo, "Undo");
+                    if can_undo && (undo_btn.clicked() || undo_btn.drag_started()) {
+                        tlbr_ctx.history.undo(tlbr_ctx.buffer);
+                        dirty = true;
+                    }
 
-                        let redo_btn = ui
-                            .add_enabled_ui(tlbr_ctx.history.has_redo(), |ui| {
-                                Button::default().icon(&Icon::REDO).show(ui)
-                            })
-                            .inner;
-
-                        if redo_btn.clicked() || redo_btn.drag_started() {
-                            tlbr_ctx.history.redo(tlbr_ctx.buffer);
-                            dirty = true;
-                        }
-                    })
+                    let can_redo = tlbr_ctx.history.has_redo();
+                    let redo_btn = island_icon(ui, &t, phosphor::ARROW_CLOCKWISE, can_redo, "Redo");
+                    if can_redo && (redo_btn.clicked() || redo_btn.drag_started()) {
+                        tlbr_ctx.history.redo(tlbr_ctx.buffer);
+                        dirty = true;
+                    }
                 })
+            })
         });
         self.layout.history_island = Some(res.response.rect);
         (res.inner.response, dirty)

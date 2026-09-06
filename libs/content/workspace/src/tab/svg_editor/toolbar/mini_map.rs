@@ -198,7 +198,7 @@ impl Toolbar {
             egui::vec2(scrollarea_size.x / 3.0, container_rect.height() * scale_down_factor),
         );
         let blue = ui.visuals().widgets.active.bg_fill;
-        painter.rect_filled(scrollbar_rect, ui.visuals().window_corner_radius, blue);
+        painter.rect_filled(scrollbar_rect, crate::style::Radius::Control.corner(), blue);
 
         let scrollarea_res = ui.interact(
             scrollarea_rect,

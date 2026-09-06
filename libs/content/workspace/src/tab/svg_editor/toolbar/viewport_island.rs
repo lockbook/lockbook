@@ -4,6 +4,10 @@ use egui::{Response, UiBuilder};
 use lb_rs::model::svg::buffer::get_background_colors;
 use resvg::usvg::Transform;
 
+use crate::style::{
+    Button, Radius, Space, ThemeExt as _, TypeRole, canvas_overlay_frame, interact_fill_response,
+    island, phosphor, quiet_canvas_fills, sense_click, tip_text,
+};
 use crate::tab::svg_editor::background::{show_dot_grid, show_lines_background};
 use crate::tab::svg_editor::toolbar::get_non_additive;
 use crate::tab::svg_editor::toolbar::show_section_header;
@@ -13,11 +17,10 @@ use crate::tab::svg_editor::viewport::{
     zoom_percentage_to_transform,
 };
 use crate::tab::svg_editor::{BackgroundOverlay, get_secondary_color};
-use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
-use crate::widgets::{Button, switch};
+use crate::widgets::switch;
 
-use super::{Toolbar, ToolbarContext};
+use super::{Toolbar, ToolbarContext, island_icon};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 pub enum ViewportPopover {
@@ -78,11 +81,13 @@ impl Toolbar {
             },
         };
 
+        let t = ui.ctx().get_lb_theme();
         let mut island_res = ui
             .scope_builder(UiBuilder::new().max_rect(viewport_rect), |ui| {
-                egui::Frame::window(ui.style())
-                    .inner_margin(egui::Margin::symmetric(8, 4))
-                    .show(ui, |ui| self.show_inner_island(ui, tlbr_ctx))
+                island::frame(&t).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                    self.show_inner_island(ui, tlbr_ctx, &t)
+                })
             })
             .inner
             .response;
@@ -104,22 +109,19 @@ impl Toolbar {
     }
 
     fn show_inner_island(
-        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>,
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>, t: &crate::style::Theme,
     ) -> egui::InnerResponse<()> {
         ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             let zoom_percentage = (tlbr_ctx.viewport_settings.master_transform.sx * 100.0).round();
 
             let mut transform = None;
             let zoom_step = 10.0;
-            let size = 15.;
+            let can_zoom_out = zoom_percentage > zoom_step;
 
-            if ui
-                .add_enabled_ui(zoom_percentage > zoom_step, |ui| {
-                    Button::default().icon(&Icon::ZOOM_OUT.size(size)).show(ui)
-                })
-                .inner
-                .clicked()
-            {
+            let minus =
+                island_icon(ui, t, phosphor::MAGNIFYING_GLASS_MINUS, can_zoom_out, "Zoom out");
+            if can_zoom_out && minus.clicked() {
                 let target_zoom_percentage =
                     ((zoom_percentage / zoom_step).floor() - 1.0) * zoom_step;
 
@@ -132,23 +134,23 @@ impl Toolbar {
 
             let zoom_percentage_label =
                 if tlbr_ctx.viewport_settings.master_transform.sx <= MIN_ZOOM_LEVEL {
-                    "MAX"
+                    "MAX".to_string()
                 } else {
-                    &format!("{}%", zoom_percentage as i32)
+                    format!("{}%", zoom_percentage as i32)
                 };
 
-            let zoom_pct_btn = Button::default().text(zoom_percentage_label).show(ui);
+            let zoom_pct_btn = Button::secondary(t, zoom_percentage_label)
+                .height(island::ICON_HIT)
+                .show(ui);
+            tip_text(ui.ctx(), &zoom_pct_btn, "Zoom");
             self.layout.zoom_pct_btn = Some(zoom_pct_btn.rect);
 
             if zoom_pct_btn.clicked() || zoom_pct_btn.drag_started() {
                 self.toggle_viewport_popover(Some(ViewportPopover::ZoomStops));
             }
 
-            if Button::default()
-                .icon(&Icon::ZOOM_IN.size(size))
-                .show(ui)
-                .clicked()
-            {
+            let plus = island_icon(ui, t, phosphor::MAGNIFYING_GLASS_PLUS, true, "Zoom in");
+            if plus.clicked() {
                 let target_zoom_percentage =
                     ((zoom_percentage / zoom_step).floor() + 1.0) * zoom_step;
 
@@ -159,23 +161,16 @@ impl Toolbar {
                 ));
             };
 
-            if let Some(t) = transform {
-                transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, t);
+            if let Some(xf) = transform {
+                transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, xf);
             };
 
             // fixes the jitter
             ui.add_space((50.0 - zoom_pct_btn.rect.width()).max(0.0));
 
-            ui.add(egui::Separator::default().shrink(ui.available_height() * 0.3));
-
-            let icon = if let Some(ViewportPopover::More) = self.viewport_popover {
-                Icon::CHEVRON_UP
-            } else {
-                Icon::CHEVRON_DOWN
-            }
-            .size(size);
-
-            let more_btn = Button::default().icon(&icon).show(ui);
+            let more_open = matches!(self.viewport_popover, Some(ViewportPopover::More));
+            let more_icon = if more_open { phosphor::CARET_UP } else { phosphor::CARET_DOWN };
+            let more_btn = island_icon(ui, t, more_icon, more_open, "More");
             if more_btn.clicked() || more_btn.drag_started() {
                 self.toggle_viewport_popover(Some(ViewportPopover::More))
             }
@@ -204,7 +199,6 @@ impl Toolbar {
                         egui::Rect { min, max: min + egui::vec2(parent_container.width(), 0.0) }
                     }
                     ViewportPopover::ZoomStops => {
-                        ui.visuals_mut().window_corner_radius /= 2.0;
                         let min = egui::pos2(
                             parent_container.center().x,
                             parent_container.bottom() + 10.0,
@@ -214,18 +208,18 @@ impl Toolbar {
                     }
                 };
 
+                let t = ui.ctx().get_lb_theme();
                 let popover_res = ui
                     .scope_builder(UiBuilder::new().max_rect(popover_rect), |ui| {
-                        egui::Frame::window(ui.style()).show(ui, |ui| {
-                            ui.set_min_width(
-                                popover_rect.width()
-                                    - ui.style().spacing.window_margin.left as f32
-                                    - ui.style().spacing.window_margin.right as f32,
-                            );
+                        canvas_overlay_frame(&t, Space::Xs).show(ui, |ui| {
+                            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                            if popover_rect.width() > 1.0 {
+                                ui.set_min_width(popover_rect.width());
+                            }
 
                             match popover {
                                 ViewportPopover::ZoomStops => {
-                                    self.show_zoom_stops_popover(ui, tlbr_ctx)
+                                    self.show_zoom_stops_popover(ui, tlbr_ctx, &t)
                                 }
                                 ViewportPopover::More => self.show_more_popover(ui, tlbr_ctx),
                             }
@@ -248,24 +242,26 @@ impl Toolbar {
         .inner
     }
 
-    fn show_zoom_stops_popover(&self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext) {
-        // without this fit text gets clipped
-        ui.set_max_width(f32::INFINITY);
-        if Button::default().text("FIT").show(ui).clicked() {
-            let transform = get_zoom_fit_transform(tlbr_ctx.viewport_settings).unwrap_or_default();
+    fn show_zoom_stops_popover(
+        &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext, t: &crate::style::Theme,
+    ) {
+        let w = ui.available_width().max(island::ICON_HIT * 3.0);
+        ui.set_min_width(w);
+        ui.set_max_width(w);
+        let row_h = island::ICON_HIT;
 
+        if zoom_stop_row(ui, t, "Fit", w, row_h) {
+            let transform = get_zoom_fit_transform(tlbr_ctx.viewport_settings).unwrap_or_default();
             transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
+            self.viewport_popover = None;
         }
 
         for zoom_percentage in [120.0, 100.0, 80.0] {
-            if Button::default()
-                .text(format!("{}%", (zoom_percentage as i32)))
-                .show(ui)
-                .clicked()
-            {
+            if zoom_stop_row(ui, t, &format!("{}%", zoom_percentage as i32), w, row_h) {
                 let transform =
                     zoom_percentage_to_transform(zoom_percentage, tlbr_ctx.viewport_settings, ui);
                 transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
+                self.viewport_popover = None;
             }
         }
     }
@@ -283,7 +279,7 @@ impl Toolbar {
         });
 
         ui.add_space(20.0);
-        show_section_header(ui, "layout");
+        show_section_header(ui, "Layout");
 
         egui::Frame::default()
             .fill(ThemePalette::resolve_dynamic_color(
@@ -292,7 +288,7 @@ impl Toolbar {
             ))
             .inner_margin(egui::Margin::same(30))
             .outer_margin(egui::Margin::symmetric(0, 5))
-            .corner_radius(ui.visuals().window_corner_radius / 2.0)
+            .corner_radius(crate::style::Radius::Control.corner())
             .show(ui, |ui| {
                 // let's take the full width
                 ui.set_width(ui.available_width());
@@ -360,22 +356,45 @@ impl Toolbar {
                     preview_rect.max + egui::vec2(-preview_rect.width(), 100.0),
                 );
 
-                show_side_controls(
-                    ui,
-                    Side::Left,
-                    left_bound_rect,
-                    shadow.clone().into(),
-                    tlbr_ctx,
-                );
-                show_side_controls(
-                    ui,
-                    Side::Right,
-                    right_bound_rect,
-                    shadow.clone().into(),
-                    tlbr_ctx,
-                );
-                show_side_controls(ui, Side::Top, top_bound_rect, shadow.clone().into(), tlbr_ctx);
-                show_side_controls(ui, Side::Bottom, bottom_bound_rect, shadow.into(), tlbr_ctx);
+                let mut lock_changed = false;
+                for res in [
+                    show_side_controls(
+                        ui,
+                        Side::Left,
+                        left_bound_rect,
+                        shadow.clone().into(),
+                        tlbr_ctx,
+                    ),
+                    show_side_controls(
+                        ui,
+                        Side::Right,
+                        right_bound_rect,
+                        shadow.clone().into(),
+                        tlbr_ctx,
+                    ),
+                    show_side_controls(
+                        ui,
+                        Side::Top,
+                        top_bound_rect,
+                        shadow.clone().into(),
+                        tlbr_ctx,
+                    ),
+                    show_side_controls(
+                        ui,
+                        Side::Bottom,
+                        bottom_bound_rect,
+                        shadow.into(),
+                        tlbr_ctx,
+                    ),
+                ] {
+                    lock_changed |= res.clicked() || res.drag_started();
+                }
+                if lock_changed {
+                    tlbr_ctx
+                        .settings
+                        .update_viewport_settings(tlbr_ctx.viewport_settings);
+                    tlbr_ctx.cfg.set_canvas_settings(*tlbr_ctx.settings);
+                }
             });
 
         ui.add_space(5.0);
@@ -486,41 +505,26 @@ impl Toolbar {
                 },
             };
 
+            let t = ui.ctx().get_lb_theme();
             let res = ui.scope_builder(UiBuilder::new().max_rect(bring_home_rect), |ui| {
-                egui::Frame::window(ui.style())
-                    .inner_margin(egui::Margin::symmetric(8, 4))
-                    .show(ui, |ui| {
-                        ui.horizontal(|ui| {
-                            let text_stroke = egui::Stroke {
-                                color: ui.visuals().widgets.active.bg_fill,
-                                ..Default::default()
-                            };
+                island::frame(&t).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                    if Button::secondary(&t, "Focus back to content")
+                        .height(island::ICON_HIT)
+                        .show(ui)
+                        .clicked()
+                    {
+                        let transform = get_rect_identity_transform(
+                            tlbr_ctx.viewport_settings.container_rect,
+                            elements_bound,
+                            0.7,
+                            tlbr_ctx.viewport_settings.container_rect.center(),
+                        )
+                        .unwrap_or_default();
 
-                            ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-                            ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-                            ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-
-                            if Button::default()
-                                .text("Focus back to content")
-                                .show(ui)
-                                .clicked()
-                            {
-                                let transform = get_rect_identity_transform(
-                                    tlbr_ctx.viewport_settings.container_rect,
-                                    elements_bound,
-                                    0.7,
-                                    tlbr_ctx.viewport_settings.container_rect.center(),
-                                )
-                                .unwrap_or_default();
-
-                                transform_canvas(
-                                    tlbr_ctx.buffer,
-                                    tlbr_ctx.viewport_settings,
-                                    transform,
-                                );
-                            }
-                        })
-                    })
+                        transform_canvas(tlbr_ctx.buffer, tlbr_ctx.viewport_settings, transform);
+                    }
+                })
             });
             Some(res.inner.response)
         } else {
@@ -566,7 +570,7 @@ fn show_background_color_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarConte
 }
 
 fn show_background_selector(ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext<'_>) {
-    show_section_header(ui, "background");
+    show_section_header(ui, "Background");
 
     ui.add_space(5.0);
 
@@ -791,9 +795,13 @@ fn show_side_controls(
 
     child_ui.set_opacity(opacity);
 
-    let icon = if *is_locked { Icon::LOCK_CLOSED } else { Icon::LOCK_OPEN };
-
-    let res = Button::default().icon(&icon.size(13.0)).show(child_ui);
+    let t = child_ui.ctx().get_lb_theme();
+    let icon = if *is_locked { phosphor::LOCK_SIMPLE } else { phosphor::LOCK_SIMPLE_OPEN };
+    let tip = if *is_locked { "Unlock" } else { "Lock" };
+    let res = island_icon(child_ui, &t, icon, *is_locked, tip);
+    if res.clicked() || res.drag_started() {
+        *is_locked = !*is_locked;
+    }
 
     if *is_locked {
         ui.painter().line_segment(segment_edges, locked_stroke);
@@ -802,4 +810,26 @@ fn show_side_controls(
     }
 
     res
+}
+
+/// Full-width picker row: hover wash + hit span the menu, not the label.
+fn zoom_stop_row(ui: &mut egui::Ui, t: &crate::style::Theme, label: &str, w: f32, h: f32) -> bool {
+    use crate::style::chrome::row_wash_inset;
+
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), sense_click());
+    let fill = interact_fill_response(ui.ctx(), &resp, quiet_canvas_fills(t));
+    if fill != t.neutral_bg() {
+        ui.painter()
+            .rect_filled(rect.shrink(row_wash_inset()), Radius::Sm.corner(), fill);
+    }
+    let g = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), TypeRole::Body.font_id(), t.neutral_fg());
+    let pad = Space::Xs.pts();
+    ui.painter().galley(
+        egui::pos2(rect.left() + pad, rect.center().y - g.size().y / 2.0),
+        g,
+        t.neutral_fg(),
+    );
+    resp.clicked()
 }

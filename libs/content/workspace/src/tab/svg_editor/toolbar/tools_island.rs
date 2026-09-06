@@ -1,5 +1,5 @@
 use bezier_rs::{Cap, Subpath};
-use egui::{InnerResponse, Response, RichText, UiBuilder};
+use egui::{Response, UiBuilder};
 use egui_animation::{animate_eased, easing};
 use glam::DVec2;
 use lb_rs::model::svg::buffer::{get_highlighter_colors, get_pen_colors};
@@ -7,8 +7,11 @@ use lb_rs::model::svg::element::{DynamicColor, ManipulatorGroupId};
 use lyon::tessellation::{BuffersBuilder, FillOptions, FillTessellator, VertexBuffers};
 
 use crate::set_tool;
+use crate::style::{ThemeExt as _, TypeRole, canvas_overlay_frame, island, phosphor};
 use crate::tab::svg_editor::renderer::VertexConstructor;
-use crate::tab::svg_editor::toolbar::{show_color_btn, show_opacity_slider, show_thickness_slider};
+use crate::tab::svg_editor::toolbar::{
+    island_icon, overlay_icon, show_color_btn, show_opacity_slider, show_thickness_slider,
+};
 use crate::tab::svg_editor::tools::eraser::DEFAULT_ERASER_RADIUS;
 use crate::tab::svg_editor::tools::pen::{
     DEFAULT_HIGHLIGHTER_STROKE_WIDTH, DEFAULT_PEN_STROKE_WIDTH, Pen, PenSettings,
@@ -17,17 +20,14 @@ use crate::tab::svg_editor::tools::shapes::ShapeType;
 use crate::tab::svg_editor::util::{bb_to_rect, devc_to_point};
 use crate::tab::svg_editor::viewport::get_rect_identity_transform;
 use crate::tab::svg_editor::{CanvasSettings, Tool};
-use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
-use crate::widgets::{Button, switch};
+use crate::widgets::switch;
 use crate::workspace::WsPersistentStore;
 
 use super::{SCREEN_PADDING, Toolbar, ToolbarContext};
 
 impl Toolbar {
-    pub fn show_tools_island(
-        &mut self, ui: &mut egui::Ui,
-    ) -> InnerResponse<InnerResponse<InnerResponse<()>>> {
+    pub fn show_tools_island(&mut self, ui: &mut egui::Ui) {
         let tools_island_size = self.layout.tools_island.unwrap_or(egui::Rect::ZERO).size();
 
         let tools_island_x_start = ui.available_rect_before_wrap().left()
@@ -43,42 +43,35 @@ impl Toolbar {
             ),
         };
 
+        let t = ui.ctx().get_lb_theme();
         let res = ui.scope_builder(UiBuilder::new().max_rect(tools_island_rect), |ui| {
-            egui::Frame::window(ui.style()).show(ui, |ui| {
+            island::frame(&t).show(ui, |ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                 ui.horizontal(|ui| {
-                    let tool_icon_size = 20.0;
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-                    let selection_btn = Button::default()
-                        .icon(&Icon::HAND.size(tool_icon_size))
-                        .show(ui);
+                    let selection_btn = island_icon(ui, &t, phosphor::CURSOR, true, "Select");
                     if selection_btn.clicked() || selection_btn.drag_started() {
                         set_tool!(self, Tool::Selection);
                     }
 
-                    let pen_btn = Button::default()
-                        .icon(&Icon::BRUSH.size(tool_icon_size))
-                        .show(ui);
+                    let pen_btn = island_icon(ui, &t, phosphor::PAINT_BRUSH, true, "Pen");
                     if pen_btn.clicked() || pen_btn.drag_started() {
                         set_tool!(self, Tool::Pen);
                     }
 
-                    let highlighter_btn = Button::default()
-                        .icon(&Icon::PENCIL.size(tool_icon_size))
-                        .show(ui);
+                    let highlighter_btn =
+                        island_icon(ui, &t, phosphor::HIGHLIGHTER, true, "Highlighter");
                     if highlighter_btn.clicked() || highlighter_btn.drag_started() {
                         set_tool!(self, Tool::Highlighter);
                     }
 
-                    let eraser_btn = Button::default()
-                        .icon(&Icon::ERASER.size(tool_icon_size))
-                        .show(ui);
+                    let eraser_btn = island_icon(ui, &t, phosphor::ERASER, true, "Eraser");
                     if eraser_btn.clicked() || eraser_btn.drag_started() {
                         set_tool!(self, Tool::Eraser);
                     }
 
-                    let shapes_btn = Button::default()
-                        .icon(&Icon::SHAPES.size(tool_icon_size))
-                        .show(ui);
+                    let shapes_btn = island_icon(ui, &t, phosphor::POLYGON, true, "Shapes");
                     if shapes_btn.clicked() || shapes_btn.drag_started() {
                         set_tool!(self, Tool::Shapes);
                     }
@@ -106,7 +99,6 @@ impl Toolbar {
                         0.5,
                         easing::cubic_in_out,
                     );
-                    ui.style_mut().animation_time = 2.0;
 
                     let color = if self.active_tool == Tool::Pen {
                         ThemePalette::resolve_dynamic_color(
@@ -121,29 +113,23 @@ impl Toolbar {
                         )
                         .linear_multiply(self.highlighter.active_opacity)
                     } else {
-                        ui.visuals().text_color().linear_multiply(0.2)
+                        t.neutral_fg()
                     };
 
+                    // Sit in the island's bottom pad so the capsule still clips the bar.
+                    let y = active_rect.bottom() + island::PAD_Y * 0.5;
                     ui.painter().line_segment(
-                        [
-                            egui::pos2(min_x, active_rect.bottom() + 6.0),
-                            egui::pos2(max_x, active_rect.bottom() + 6.0),
-                        ],
-                        egui::Stroke { width: 3.0, color },
+                        [egui::pos2(min_x, y), egui::pos2(max_x, y)],
+                        egui::Stroke { width: 2.0, color },
                     );
 
-                    ui.add(
-                        egui::Separator::default()
-                            .shrink(ui.available_height() * 0.3)
-                            .spacing(20.),
-                    );
+                    ui.add_space(8.0);
 
                     self.show_tool_quick_controls(ui);
                 })
             })
         });
         self.layout.tools_island = Some(res.response.rect);
-        res
     }
 
     fn show_tool_quick_controls(&mut self, ui: &mut egui::Ui) {
@@ -235,18 +221,20 @@ impl Toolbar {
                 .max_rect(ui.clip_rect())
                 .layout(egui::Layout::default()),
         );
+        let t = ui.ctx().get_lb_theme();
         let out = ui.scope(|ui| {
             ui.scope_builder(UiBuilder::new().max_rect(tool_popover_rect), |ui| {
-                egui::Frame::window(ui.style()).show(ui, |ui| match self.active_tool {
-                    Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
-                    Tool::Eraser => self.show_eraser_popover(ui),
-                    Tool::Highlighter => {
-                        show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
+                canvas_overlay_frame(&t, crate::style::Space::Xs).show(ui, |ui| {
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                    match self.active_tool {
+                        Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
+                        Tool::Eraser => self.show_eraser_popover(ui),
+                        Tool::Highlighter => {
+                            show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
+                        }
+                        Tool::Selection => {}
+                        Tool::Shapes => self.show_shapes_popover(ui),
                     }
-                    Tool::Selection => {
-                        // self.show_selection_popover(ui, tlbr_ctx);
-                    }
-                    Tool::Shapes => self.show_shapes_popover(ui),
                 })
             })
         });
@@ -277,20 +265,20 @@ impl Toolbar {
             max: egui::pos2(tool_popover_x_start + tool_popovers_size.x, tool_popover_y_start),
         };
         if self.show_tool_popover {
+            let t = ui.ctx().get_lb_theme();
             let tool_popover =
                 ui.scope_builder(UiBuilder::new().max_rect(tool_popover_rect), |ui| {
-                    egui::Frame::window(ui.style()).show(ui, |ui| {
+                    canvas_overlay_frame(&t, crate::style::Space::Xs).show(ui, |ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                         match self.active_tool {
                             Tool::Pen => show_pen_popover(ui, &mut self.pen, tlbr_ctx),
                             Tool::Eraser => self.show_eraser_popover(ui),
                             Tool::Highlighter => {
                                 show_highlighter_popover(ui, &mut self.highlighter, tlbr_ctx)
                             }
-                            Tool::Selection => {
-                                // buffer_changed = self.show_selection_popover(ui, tlbr_ctx)
-                            }
+                            Tool::Selection => {}
                             Tool::Shapes => self.show_shapes_popover(ui),
-                        };
+                        }
                     })
                 });
 
@@ -350,14 +338,13 @@ impl Toolbar {
         let shapes = [ShapeType::Rectangle, ShapeType::Circle, ShapeType::Line];
 
         ui.horizontal(|ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             ui.add_space(57.0);
 
+            let t = ui.ctx().get_lb_theme();
             for shape in shapes.iter() {
-                let btn = Button::default()
-                    .frame(self.shapes_tool.active_shape == *shape)
-                    .rounding(5.0)
-                    .icon(&shape.icon())
-                    .show(ui);
+                let active = self.shapes_tool.active_shape == *shape;
+                let btn = overlay_icon(ui, &t, shape.icon(), active, t.neutral_bg(), shape.label());
                 if btn.clicked() || btn.drag_started() {
                     self.shapes_tool.active_shape = *shape;
                 };
@@ -394,7 +381,7 @@ impl Toolbar {
         ui.add_space(10.0);
 
         ui.horizontal(|ui| {
-            ui.label(RichText::new("Thickness").size(13.0));
+            ui.label(TypeRole::Body.rich("Thickness"));
             ui.add_space(10.0);
             ui.spacing_mut().slider_width = ui.available_width();
             ui.spacing_mut().slider_rail_height = self.shapes_tool.active_stroke.width;
@@ -417,9 +404,7 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
     ui.set_width(width);
 
     show_stroke_preview(ui, pen, tlbr_ctx);
-    // a bit hacky but without this there will be collision with
-    // thickness hints.
-    ui.add_space(20.0);
+    ui.add_space(10.0);
 
     show_thickness_slider(ui, &mut pen.active_stroke_width, DEFAULT_PEN_STROKE_WIDTH..=10.0, 1.0);
 
@@ -453,7 +438,7 @@ fn show_pen_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut ToolbarCont
 }
 
 fn show_pressure_alpha_slider(ui: &mut egui::Ui, pen: &mut Pen) {
-    ui.label(RichText::new("Pressure Sensitivity").size(13.0));
+    ui.label(TypeRole::Body.rich("Pressure Sensitivity"));
     ui.horizontal(|ui| {
         ui.add(egui::Slider::new(&mut pen.pressure_alpha, 0.0..=1.0).show_value(false));
     });
@@ -465,10 +450,7 @@ fn show_highlighter_popover(ui: &mut egui::Ui, pen: &mut Pen, tlbr_ctx: &mut Too
     ui.set_width(width);
 
     show_stroke_preview(ui, pen, tlbr_ctx);
-
-    // a bit hacky but without this there will be collision with
-    // thickness hints.
-    ui.add_space(20.0);
+    ui.add_space(10.0);
 
     show_thickness_slider(
         ui,
