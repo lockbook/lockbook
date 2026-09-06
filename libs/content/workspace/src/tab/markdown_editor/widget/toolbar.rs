@@ -13,22 +13,38 @@ use lb_rs::model::text::offset_types::{IntoRangeExt, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 use serde::{Deserialize, Serialize};
 
+use crate::style::{
+    CHROME_BAND_GLYPH, CHROME_BAND_H, STROKE_HAIRLINE, ThemeExt, control_height, icon_button_glyph,
+    phosphor, place_at, tip_text,
+};
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
 use crate::tab::{ExtendedInput as _, ExtendedOutput as _};
-use crate::theme::icons::Icon;
-use crate::theme::palette_v2::ThemeExt;
-use crate::widgets::IconButton;
 
 use crate::tab::markdown_editor::{self, Editor};
 use markdown_editor::Event;
 use markdown_editor::input::Region;
 
-pub const MOBILE_TOOL_BAR_SIZE: f32 = 45.0;
-pub const ICON_SIZE: f32 = 16.0;
-pub const BUTTON_SIZE: f32 = 27.0;
+pub const MOBILE_TOOL_BAR_SIZE: f32 = CHROME_BAND_H;
 pub const MENU_SPACE: f32 = 20.; // space used for separators between menu sections
 pub const MENU_MARGIN: f32 = 20.; // space on left and right side
+
+fn toolbar_icon(
+    ui: &mut Ui, t: &crate::style::Theme, icon: &'static str, applied: bool, menu_open: bool,
+    tip: &str,
+) -> bool {
+    let r = icon_button_glyph(
+        ui,
+        t,
+        icon,
+        applied && !menu_open,
+        t.neutral_bg(),
+        control_height(),
+        CHROME_BAND_GLYPH,
+    );
+    tip_text(ui.ctx(), &r, tip);
+    !menu_open && r.clicked()
+}
 
 pub struct Toolbar {
     pub menu_open: bool,
@@ -67,15 +83,18 @@ pub struct ToolbarPersistence {
 
 impl<'ast> Editor {
     pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
-        Frame::NONE
-            .inner_margin(Margin::symmetric(0, 10))
-            .show(ui, |ui| self.show_toolbar_inner(root, ui))
-            .inner
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        let w = ui.available_width();
+        let (band, _) = ui.allocate_exact_size(egui::vec2(w, CHROME_BAND_H), egui::Sense::hover());
+        place_at(ui, band, Layout::left_to_right(egui::Align::Center), |ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            self.show_toolbar_inner(root, ui);
+        });
     }
 
     /// Computes the toolbar's content width without drawing it.
     pub fn toolbar_width(&self) -> f32 {
-        let btn = BUTTON_SIZE;
+        let btn = control_height();
         let sep = 20.; // separator with .spacing(20.)
         let gap = 5.; // explicit add_space(5.) between buttons
         let margin = 10.; // padding on each side
@@ -139,14 +158,13 @@ impl<'ast> Editor {
 
         ScrollArea::horizontal()
             .scroll_bar_visibility(ScrollBarVisibility::AlwaysHidden)
+            .max_height(control_height())
             .show(ui, |ui| {
                 ui.horizontal(|ui| {
-                    ui.visuals_mut().widgets.active.bg_fill =
-                        self.edit.renderer.ctx.get_lb_theme().fg().blue;
-
+                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                    let t = ui.ctx().get_lb_theme();
+                    let menu_open = self.toolbar.menu_open;
                     let is_ios = cfg!(target_os = "ios");
-
-                    ui.spacing_mut().button_padding = egui::vec2(5., 5.);
 
                     let toolbar_margin = 10.;
                     // offset centers the full toolbar_w (including margins);
@@ -160,14 +178,7 @@ impl<'ast> Editor {
 
                     if is_ios && (persistence.search || toolbar_is_default) {
                         let find_open = self.find.term.is_some();
-                        if IconButton::new(Icon::SEARCH.size(ICON_SIZE))
-                            .size(BUTTON_SIZE)
-                            .tooltip("Search")
-                            .colored(find_open)
-                            .disabled(self.toolbar.menu_open)
-                            .show(ui)
-                            .clicked()
-                        {
+                        if toolbar_icon(ui, &t, phosphor::SEARCH, find_open, menu_open, "Search") {
                             if find_open {
                                 self.find.term = None;
                                 self.find.matches.clear();
@@ -181,13 +192,14 @@ impl<'ast> Editor {
 
                     let mut any_undo_redo = false;
                     if persistence.undo || toolbar_is_default {
-                        if IconButton::new(Icon::UNDO.size(ICON_SIZE))
-                            .size(BUTTON_SIZE)
-                            .disabled(self.toolbar.menu_open)
-                            .tooltip("Undo")
-                            .show(ui)
-                            .clicked()
-                        {
+                        if toolbar_icon(
+                            ui,
+                            &t,
+                            phosphor::ARROW_COUNTER_CLOCKWISE,
+                            true,
+                            menu_open,
+                            "Undo",
+                        ) {
                             events.push(Event::Undo);
                         }
                         any_undo_redo = true;
@@ -196,12 +208,7 @@ impl<'ast> Editor {
                         if any_undo_redo {
                             ui.add_space(5.);
                         }
-                        if IconButton::new(Icon::REDO.size(ICON_SIZE))
-                            .size(BUTTON_SIZE)
-                            .disabled(self.toolbar.menu_open)
-                            .tooltip("Redo")
-                            .show(ui)
-                            .clicked()
+                        if toolbar_icon(ui, &t, phosphor::ARROW_CLOCKWISE, true, menu_open, "Redo")
                         {
                             events.push(Event::Redo);
                         }
@@ -220,7 +227,7 @@ impl<'ast> Editor {
                         if any_style {
                             ui.add_space(5.);
                         }
-                        self.style(Icon::BOLD.size(ICON_SIZE), NodeValue::Strong, root, ui)
+                        self.style(phosphor::TEXT_B, NodeValue::Strong, root, ui)
                             .map(|e| events.push(e));
                         any_style = true;
                     }
@@ -228,7 +235,7 @@ impl<'ast> Editor {
                         if any_style {
                             ui.add_space(5.);
                         }
-                        self.style(Icon::ITALIC.size(ICON_SIZE), NodeValue::Emph, root, ui)
+                        self.style(phosphor::TEXT_ITALIC, NodeValue::Emph, root, ui)
                             .map(|e| events.push(e));
                         any_style = true;
                     }
@@ -236,13 +243,8 @@ impl<'ast> Editor {
                         if any_style {
                             ui.add_space(5.);
                         }
-                        self.style(
-                            Icon::CODE.size(ICON_SIZE),
-                            NodeValue::Code(Default::default()),
-                            root,
-                            ui,
-                        )
-                        .map(|e| events.push(e));
+                        self.style(phosphor::CODE, NodeValue::Code(Default::default()), root, ui)
+                            .map(|e| events.push(e));
                         any_style = true;
                     }
                     if persistence.strikethrough || toolbar_is_default {
@@ -250,7 +252,7 @@ impl<'ast> Editor {
                             ui.add_space(5.);
                         }
                         self.style(
-                            Icon::STRIKETHROUGH.size(ICON_SIZE),
+                            phosphor::TEXT_STRIKETHROUGH,
                             NodeValue::Strikethrough,
                             root,
                             ui,
@@ -262,7 +264,7 @@ impl<'ast> Editor {
                         if any_style {
                             ui.add_space(5.);
                         }
-                        self.style(Icon::HIGHLIGHT.size(ICON_SIZE), NodeValue::Highlight, root, ui)
+                        self.style(phosphor::HIGHLIGHTER, NodeValue::Highlight, root, ui)
                             .map(|e| events.push(e));
                         any_style = true;
                     }
@@ -270,7 +272,7 @@ impl<'ast> Editor {
                         if any_style {
                             ui.add_space(5.);
                         }
-                        self.style(Icon::UNDERLINE.size(ICON_SIZE), NodeValue::Underline, root, ui)
+                        self.style(phosphor::TEXT_UNDERLINE, NodeValue::Underline, root, ui)
                             .map(|e| events.push(e));
                         any_style = true;
                     }
@@ -278,20 +280,15 @@ impl<'ast> Editor {
                         if any_style {
                             ui.add_space(5.);
                         }
-                        self.style(
-                            Icon::SPOILER.size(ICON_SIZE),
-                            NodeValue::SpoileredText,
-                            root,
-                            ui,
-                        )
-                        .map(|e| events.push(e));
+                        self.style(phosphor::EYE_SLASH, NodeValue::SpoileredText, root, ui)
+                            .map(|e| events.push(e));
                         any_style = true;
                     }
                     if persistence.subscript || toolbar_is_default {
                         if any_style {
                             ui.add_space(5.);
                         }
-                        self.style(Icon::SUBSCRIPT.size(ICON_SIZE), NodeValue::Subscript, root, ui)
+                        self.style(phosphor::TEXT_SUBSCRIPT, NodeValue::Subscript, root, ui)
                             .map(|e| events.push(e));
                         any_style = true;
                     }
@@ -299,13 +296,8 @@ impl<'ast> Editor {
                         if any_style {
                             ui.add_space(5.);
                         }
-                        self.style(
-                            Icon::SUPERSCRIPT.size(ICON_SIZE),
-                            NodeValue::Superscript,
-                            root,
-                            ui,
-                        )
-                        .map(|e| events.push(e));
+                        self.style(phosphor::TEXT_SUPERSCRIPT, NodeValue::Superscript, root, ui)
+                            .map(|e| events.push(e));
                         any_style = true;
                     }
                     if any_style {
@@ -315,7 +307,7 @@ impl<'ast> Editor {
                     let mut any_list = false;
                     if persistence.ordered_list || toolbar_is_default {
                         self.style(
-                            Icon::NUMBER_LIST.size(ICON_SIZE),
+                            phosphor::LIST_NUMBERS,
                             NodeValue::List(NodeList {
                                 list_type: ListType::Ordered,
                                 ..Default::default()
@@ -331,7 +323,7 @@ impl<'ast> Editor {
                             ui.add_space(5.);
                         }
                         self.style(
-                            Icon::BULLET_LIST.size(ICON_SIZE),
+                            phosphor::LIST_BULLETS,
                             NodeValue::List(NodeList {
                                 list_type: ListType::Bullet,
                                 ..Default::default()
@@ -347,7 +339,7 @@ impl<'ast> Editor {
                             ui.add_space(5.);
                         }
                         self.style(
-                            Icon::TODO_LIST.size(ICON_SIZE),
+                            phosphor::CHECK_SQUARE,
                             NodeValue::List(NodeList {
                                 list_type: ListType::Bullet,
                                 is_task_list: true,
@@ -365,13 +357,8 @@ impl<'ast> Editor {
 
                     let mut any_media = false;
                     if persistence.link || toolbar_is_default {
-                        self.style(
-                            Icon::LINK.size(ICON_SIZE),
-                            NodeValue::Link(Default::default()),
-                            root,
-                            ui,
-                        )
-                        .map(|e| events.push(e));
+                        self.style(phosphor::LINK, NodeValue::Link(Default::default()), root, ui)
+                            .map(|e| events.push(e));
                         any_media = true;
                     }
                     if persistence.image || toolbar_is_default {
@@ -380,13 +367,7 @@ impl<'ast> Editor {
                             if any_media {
                                 ui.add_space(5.);
                             }
-                            if IconButton::new(Icon::CAMERA.size(ICON_SIZE))
-                                .size(BUTTON_SIZE)
-                                .tooltip("Camera")
-                                .disabled(self.toolbar.menu_open)
-                                .show(ui)
-                                .clicked()
-                            {
+                            if toolbar_icon(ui, &t, phosphor::CAMERA, true, menu_open, "Camera") {
                                 events.push(Event::Camera);
                             }
                             any_media = true;
@@ -398,13 +379,7 @@ impl<'ast> Editor {
 
                     let mut any_indent = false;
                     if persistence.indent || toolbar_is_default {
-                        if IconButton::new(Icon::INDENT.size(ICON_SIZE))
-                            .size(BUTTON_SIZE)
-                            .tooltip("Indent")
-                            .disabled(self.toolbar.menu_open)
-                            .show(ui)
-                            .clicked()
-                        {
+                        if toolbar_icon(ui, &t, phosphor::TEXT_INDENT, true, menu_open, "Indent") {
                             events.push(Event::Indent { deindent: false });
                         }
                         any_indent = true;
@@ -413,13 +388,14 @@ impl<'ast> Editor {
                         if any_indent {
                             ui.add_space(5.);
                         }
-                        if IconButton::new(Icon::DEINDENT.size(ICON_SIZE))
-                            .size(BUTTON_SIZE)
-                            .tooltip("De-indent")
-                            .disabled(self.toolbar.menu_open)
-                            .show(ui)
-                            .clicked()
-                        {
+                        if toolbar_icon(
+                            ui,
+                            &t,
+                            phosphor::TEXT_OUTDENT,
+                            true,
+                            menu_open,
+                            "De-indent",
+                        ) {
                             events.push(Event::Indent { deindent: true });
                         }
                         any_indent = true;
@@ -436,20 +412,19 @@ impl<'ast> Editor {
                             ui.add_space(ui.available_width() - MENU_TOGGLE_SPACE);
                         }
 
-                        if IconButton::new(
-                            if self.toolbar.menu_open {
-                                Icon::CHEVRON_DOWN
-                            } else {
-                                Icon::CHEVRON_UP
-                            }
-                            .size(ICON_SIZE),
-                        )
-                        .size(BUTTON_SIZE)
-                        .tooltip("Toolbar Settings")
-                        .colored(self.toolbar.menu_open)
-                        .show(ui)
-                        .clicked()
-                        {
+                        let chevron = if self.toolbar.menu_open {
+                            phosphor::CARET_DOWN
+                        } else {
+                            phosphor::CARET_UP
+                        };
+                        if toolbar_icon(
+                            ui,
+                            &t,
+                            chevron,
+                            self.toolbar.menu_open,
+                            false,
+                            "Toolbar Settings",
+                        ) {
                             self.toolbar.menu_open = !self.toolbar.menu_open;
                             ui.ctx().set_virtual_keyboard_shown(false);
                         }
@@ -495,13 +470,9 @@ impl<'ast> Editor {
         };
         let style = NodeValue::Heading(NodeHeading { level, ..Default::default() });
 
-        let resp = IconButton::new(Icon::HEADER_1.size(ICON_SIZE))
-            .size(BUTTON_SIZE)
-            .colored(applied)
-            .tooltip(style.name())
-            .disabled(self.toolbar.menu_open)
-            .show(ui);
-        if resp.clicked() {
+        let t = ui.ctx().get_lb_theme();
+        if toolbar_icon(ui, &t, phosphor::TEXT_H_ONE, applied, self.toolbar.menu_open, style.name())
+        {
             self.toolbar.heading_last_click_at = Instant::now();
             Some(Event::ToggleStyle { region: Region::Selection, style })
         } else {
@@ -510,7 +481,7 @@ impl<'ast> Editor {
     }
 
     fn style(
-        &self, icon: Icon, style: NodeValue, root: &'ast AstNode<'ast>, ui: &mut Ui,
+        &self, icon: &'static str, style: NodeValue, root: &'ast AstNode<'ast>, ui: &mut Ui,
     ) -> Option<Event> {
         let applied = if style.is_inline() {
             self.edit
@@ -522,14 +493,11 @@ impl<'ast> Editor {
         self.button(icon, style, applied, ui)
     }
 
-    fn button(&self, icon: Icon, style: NodeValue, applied: bool, ui: &mut Ui) -> Option<Event> {
-        let resp = IconButton::new(icon)
-            .size(BUTTON_SIZE)
-            .colored(applied)
-            .tooltip(style.name())
-            .disabled(self.toolbar.menu_open)
-            .show(ui);
-        if resp.clicked() {
+    fn button(
+        &self, icon: &'static str, style: NodeValue, applied: bool, ui: &mut Ui,
+    ) -> Option<Event> {
+        let t = ui.ctx().get_lb_theme();
+        if toolbar_icon(ui, &t, icon, applied, self.toolbar.menu_open, style.name()) {
             Some(Event::ToggleStyle { region: Region::Selection, style })
         } else {
             None
@@ -550,9 +518,7 @@ impl<'ast> Editor {
                         .stroke(Stroke::NONE)
                         .fill(self.edit.renderer.ctx.get_lb_theme().neutral_bg())
                         .show(ui, |ui| {
-                            // setup
-                            ui.visuals_mut().widgets.active.bg_fill =
-                                self.edit.renderer.ctx.get_lb_theme().fg().blue;
+                            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
                             let is_android = cfg!(target_os = "android");
                             let is_ios = cfg!(target_os = "ios");
@@ -615,8 +581,8 @@ impl<'ast> Editor {
                                         top_left,
                                         md_width,
                                         "Search",
-                                        IconButton::new(Icon::SEARCH.size(ICON_SIZE))
-                                            .colored(persistence.search),
+                                        phosphor::SEARCH,
+                                        persistence.search,
                                     )
                                     .clicked()
                                 {
@@ -638,8 +604,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "Undo",
-                                    IconButton::new(Icon::UNDO.size(ICON_SIZE))
-                                        .colored(persistence.undo),
+                                    phosphor::ARROW_COUNTER_CLOCKWISE,
+                                    persistence.undo,
                                 )
                                 .clicked()
                             {
@@ -656,8 +622,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "Redo",
-                                    IconButton::new(Icon::REDO.size(ICON_SIZE))
-                                        .colored(persistence.redo),
+                                    phosphor::ARROW_CLOCKWISE,
+                                    persistence.redo,
                                 )
                                 .clicked()
                             {
@@ -678,8 +644,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "### Heading",
-                                    IconButton::new(Icon::HEADER_1.size(ICON_SIZE))
-                                        .colored(persistence.heading),
+                                    phosphor::TEXT_H_ONE,
+                                    persistence.heading,
                                 )
                                 .clicked()
                             {
@@ -696,8 +662,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "**Bold**",
-                                    IconButton::new(Icon::BOLD.size(ICON_SIZE))
-                                        .colored(persistence.bold),
+                                    phosphor::TEXT_B,
+                                    persistence.bold,
                                 )
                                 .clicked()
                             {
@@ -714,8 +680,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "*Italic*",
-                                    IconButton::new(Icon::ITALIC.size(ICON_SIZE))
-                                        .colored(persistence.emph),
+                                    phosphor::TEXT_ITALIC,
+                                    persistence.emph,
                                 )
                                 .clicked()
                             {
@@ -732,8 +698,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "`Code`",
-                                    IconButton::new(Icon::CODE.size(ICON_SIZE))
-                                        .colored(persistence.code),
+                                    phosphor::CODE,
+                                    persistence.code,
                                 )
                                 .clicked()
                             {
@@ -750,8 +716,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "~~Strikethrough~~",
-                                    IconButton::new(Icon::STRIKETHROUGH.size(ICON_SIZE))
-                                        .colored(persistence.strikethrough),
+                                    phosphor::TEXT_STRIKETHROUGH,
+                                    persistence.strikethrough,
                                 )
                                 .clicked()
                             {
@@ -768,8 +734,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "==Highlight==",
-                                    IconButton::new(Icon::HIGHLIGHT.size(ICON_SIZE))
-                                        .colored(persistence.highlight),
+                                    phosphor::HIGHLIGHTER,
+                                    persistence.highlight,
                                 )
                                 .clicked()
                             {
@@ -786,8 +752,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "__Underline__",
-                                    IconButton::new(Icon::UNDERLINE.size(ICON_SIZE))
-                                        .colored(persistence.underline),
+                                    phosphor::TEXT_UNDERLINE,
+                                    persistence.underline,
                                 )
                                 .clicked()
                             {
@@ -804,8 +770,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "||Spoiler||",
-                                    IconButton::new(Icon::SPOILER.size(ICON_SIZE))
-                                        .colored(persistence.spoiler),
+                                    phosphor::EYE_SLASH,
+                                    persistence.spoiler,
                                 )
                                 .clicked()
                             {
@@ -822,8 +788,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "~Subscript~",
-                                    IconButton::new(Icon::SUBSCRIPT.size(ICON_SIZE))
-                                        .colored(persistence.subscript),
+                                    phosphor::TEXT_SUBSCRIPT,
+                                    persistence.subscript,
                                 )
                                 .clicked()
                             {
@@ -840,8 +806,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "^Superscript^",
-                                    IconButton::new(Icon::SUPERSCRIPT.size(ICON_SIZE))
-                                        .colored(persistence.superscript),
+                                    phosphor::TEXT_SUPERSCRIPT,
+                                    persistence.superscript,
                                 )
                                 .clicked()
                             {
@@ -862,8 +828,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "1. Ordered List",
-                                    IconButton::new(Icon::NUMBER_LIST.size(ICON_SIZE))
-                                        .colored(persistence.ordered_list),
+                                    phosphor::LIST_NUMBERS,
+                                    persistence.ordered_list,
                                 )
                                 .clicked()
                             {
@@ -880,8 +846,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "- Unordered List",
-                                    IconButton::new(Icon::BULLET_LIST.size(ICON_SIZE))
-                                        .colored(persistence.unordered_list),
+                                    phosphor::LIST_BULLETS,
+                                    persistence.unordered_list,
                                 )
                                 .clicked()
                             {
@@ -898,8 +864,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "- [ ] Task List",
-                                    IconButton::new(Icon::TODO_LIST.size(ICON_SIZE))
-                                        .colored(persistence.task_list),
+                                    phosphor::CHECK_SQUARE,
+                                    persistence.task_list,
                                 )
                                 .clicked()
                             {
@@ -920,8 +886,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "[Link](url)",
-                                    IconButton::new(Icon::LINK.size(ICON_SIZE))
-                                        .colored(persistence.link),
+                                    phosphor::LINK,
+                                    persistence.link,
                                 )
                                 .clicked()
                             {
@@ -939,8 +905,8 @@ impl<'ast> Editor {
                                         top_left,
                                         md_width,
                                         "![Image](url)",
-                                        IconButton::new(Icon::CAMERA.size(ICON_SIZE))
-                                            .colored(persistence.image),
+                                        phosphor::CAMERA,
+                                        persistence.image,
                                     )
                                     .clicked()
                                 {
@@ -962,8 +928,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "Indent",
-                                    IconButton::new(Icon::INDENT.size(ICON_SIZE))
-                                        .colored(persistence.indent),
+                                    phosphor::TEXT_INDENT,
+                                    persistence.indent,
                                 )
                                 .clicked()
                             {
@@ -980,8 +946,8 @@ impl<'ast> Editor {
                                     top_left,
                                     md_width,
                                     "De-indent",
-                                    IconButton::new(Icon::DEINDENT.size(ICON_SIZE))
-                                        .colored(persistence.deindent),
+                                    phosphor::TEXT_OUTDENT,
+                                    persistence.deindent,
                                 )
                                 .clicked()
                             {
@@ -1043,7 +1009,7 @@ impl<'ast> Editor {
     }
 
     pub fn menu_toggle(
-        &mut self, ui: &mut Ui, top_left: Pos2, width: f32, md: &str, icon_button: IconButton,
+        &mut self, ui: &mut Ui, top_left: Pos2, width: f32, md: &str, icon: &'static str, on: bool,
     ) -> Response {
         let md_height = self.markdown_label_height(md);
         let height = md_height.max(40.);
@@ -1053,12 +1019,23 @@ impl<'ast> Editor {
         self.markdown_label(ui, md_top_left, width, md);
 
         let padding = (ui.max_rect().width() - width) / 2.;
+        let t = ui.ctx().get_lb_theme();
         let resp = ui.allocate_ui_with_layout(
             Vec2::new(width, height),
             Layout::right_to_left(egui::Align::Center),
             |ui| {
                 ui.add_space(padding);
-                icon_button.show(ui)
+                let r = icon_button_glyph(
+                    ui,
+                    &t,
+                    icon,
+                    on,
+                    t.neutral_bg(),
+                    control_height(),
+                    CHROME_BAND_GLYPH,
+                );
+                tip_text(ui.ctx(), &r, md);
+                r
             },
         );
 
@@ -1146,10 +1123,16 @@ impl<'ast> Editor {
 }
 
 fn add_seperator(ui: &mut Ui) {
-    ui.add(
-        Separator::default()
-            .shrink(ui.available_height() * 0.3)
-            .spacing(20.),
+    let t = ui.ctx().get_lb_theme();
+    // Fixed to the icon row. Stock Separator in a horizontal layout uses
+    // available_height (the leftover editor), which stretched the strip.
+    let hit = control_height();
+    let (rect, _) = ui.allocate_exact_size(egui::vec2(20.0, hit), egui::Sense::hover());
+    let h = hit * 0.7;
+    ui.painter().vline(
+        rect.center().x,
+        rect.center().y - h / 2.0..=rect.center().y + h / 2.0,
+        Stroke::new(STROKE_HAIRLINE, t.neutral()),
     );
 }
 

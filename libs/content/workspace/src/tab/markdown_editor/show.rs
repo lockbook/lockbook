@@ -18,18 +18,24 @@ use egui::{Context, EventFilter, Id, Pos2, Rect, Sense, Stroke, Ui, UiBuilder, V
 use lb_rs::model::text::buffer::{self, Buffer};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
+use crate::style::{ThemeExt as _, phosphor};
 use crate::tab::markdown_editor::ScrollTarget;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
-use crate::theme::icons::Icon;
-use crate::theme::palette_v2::ThemeExt as _;
-use crate::widgets::IconButton;
 
 use super::MdEdit;
 use super::input::cursor::SELECTION_HANDLE_HEIGHT;
 use super::input::{Bound, Event, Location, Region};
 use super::widget::block::drag::{BlockBox, BlockDragAction, TouchReorder};
-use super::widget::inline::link::{LinkMenuAction, link_menu_buttons};
+use super::widget::inline::link::{LinkMenuAction, fill_link_menu};
+
+#[derive(Clone)]
+enum EditorMenuCmd {
+    Link(LinkMenuAction),
+    Cut,
+    Copy,
+    Paste,
+}
 
 /// Hand-off between [`MdEdit::pre_render`] and [`MdEdit::post_render`].
 pub struct PreRenderState {
@@ -311,18 +317,16 @@ impl MdEdit {
         }
     }
 
-    /// Overlay scrollbar on the right edge of an overflowing bounded field,
-    /// styled after the document scroll area's bar. Same semantics too: a
-    /// thumb grab drags relatively; any other press jumps the thumb to the
-    /// pointer.
+    /// Overlay scrollbar on the right edge of an overflowing bounded field.
+    /// Same grab semantics as the document bar; paint/fade matches Files.
     fn show_overflow_scrollbar(
         &mut self, ui: &mut Ui, rect: Rect, id: Id, height: f32, overflow: f32,
     ) {
-        const BAR_WIDTH: f32 = 10.0;
-        const BAR_INSET: f32 = 3.0;
+        use crate::style::overlay_scroll;
+        const BAR_INSET: f32 = 2.0;
         const MIN_THUMB: f32 = 12.0;
         let track = Rect::from_min_max(
-            Pos2::new(rect.max.x - BAR_WIDTH - BAR_INSET, rect.min.y),
+            Pos2::new(rect.max.x - overlay_scroll::BAR_WIDTH - BAR_INSET, rect.min.y),
             Pos2::new(rect.max.x - BAR_INSET, rect.max.y),
         );
         let thumb_h = (track.height() * rect.height() / height).max(MIN_THUMB);
@@ -351,16 +355,10 @@ impl MdEdit {
             }
         }
 
-        let theme = ui.ctx().get_lb_theme();
-        let track_color = theme.neutral_bg().lerp_to_gamma(theme.neutral(), 0.3);
-        ui.painter().rect_filled(track, 3.0, track_color);
-        ui.painter().rect(
-            thumb_at(self.overflow_scroll),
-            3.0,
-            theme.neutral(),
-            Stroke::NONE,
-            egui::epaint::StrokeKind::Inside,
-        );
+        let bar_held = resp.hovered() || resp.dragged() || resp.is_pointer_button_down_on();
+        if overlay_scroll::tick(ui, id.with("overflow_overlay"), self.overflow_scroll, bar_held) {
+            overlay_scroll::paint(ui, track, thumb_at(self.overflow_scroll), bar_held);
+        }
     }
 
     /// Consume the marker's [`BlockDragAction`] for the frame and, on
@@ -630,14 +628,7 @@ impl MdEdit {
         self.handle_link_menu_taps(root, ui, id, &mut ops);
 
         // --- context menu (desktop only) -------------------------------------
-        ui.ctx()
-            .style_mut(|s| s.spacing.menu_margin = egui::vec2(10., 5.).into());
-        ui.ctx()
-            .style_mut(|s| s.visuals.menu_corner_radius = egui::CornerRadius::same(2));
-        ui.ctx()
-            .style_mut(|s| s.visuals.window_fill = s.visuals.extreme_bg_color);
-        ui.ctx()
-            .style_mut(|s| s.visuals.window_stroke = Stroke::NONE);
+        // DS menu — do not mutate global egui menu_margin / window chrome (#5036).
         if !cfg!(target_os = "ios") && !cfg!(target_os = "android") {
             // Capture the link under the click when it lands, so the menu's
             // link section stays stable while the pointer moves over it.
@@ -647,75 +638,59 @@ impl MdEdit {
                     .and_then(|pos| self.link_target_at_pos(root, pos));
             }
             let link_target = self.context_menu_link.clone();
-            let mut link_action = None;
-
             let readonly = self.renderer.readonly;
-            let mut menu_events: Vec<Event> = Vec::new();
-            response.context_menu(|ui| {
-                if let Some(t) = &link_target {
+            let t = ui.ctx().get_lb_theme();
+            let chosen = crate::style::context_menu::show(&response, &t, |e| {
+                if let Some(link) = &link_target {
                     // plain links never render a preview — nothing to refresh
-                    link_action = link_menu_buttons(ui, t.is_image, !readonly, false);
-                    ui.separator();
+                    fill_link_menu(e, link.is_image, !readonly, false, EditorMenuCmd::Link);
+                    e.separator();
                 }
-                ui.horizontal(|ui| {
-                    ui.set_min_height(30.);
-                    ui.style_mut().spacing.button_padding = egui::vec2(5.0, 5.0);
-
-                    if IconButton::new(Icon::CONTENT_CUT)
-                        .tooltip("Cut")
-                        .disabled(readonly)
-                        .show(ui)
-                        .clicked()
-                    {
-                        menu_events.push(Event::Cut);
-                        ui.close();
-                    }
-                    ui.add_space(5.);
-                    if IconButton::new(Icon::CONTENT_COPY)
-                        .tooltip("Copy")
-                        .show(ui)
-                        .clicked()
-                    {
-                        menu_events.push(Event::Copy);
-                        ui.close();
-                    }
-                    ui.add_space(5.);
-                    if IconButton::new(Icon::CONTENT_PASTE)
-                        .tooltip("Paste")
-                        .disabled(readonly)
-                        .show(ui)
-                        .clicked()
-                    {
-                        ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
-                        ui.close();
-                    }
-                });
+                if !readonly {
+                    e.item(phosphor::SCISSORS, "Cut", EditorMenuCmd::Cut);
+                }
+                e.item(phosphor::COPY, "Copy", EditorMenuCmd::Copy);
+                if !readonly {
+                    e.item(phosphor::CLIPBOARD_TEXT, "Paste", EditorMenuCmd::Paste);
+                }
             });
-            if let (Some(action), Some(t)) = (link_action, &link_target) {
-                match action {
-                    LinkMenuAction::Open => {
-                        if t.is_wikilink {
-                            if let Some(file_id) = self.renderer.resolve_wikilink(&t.url) {
-                                ui.ctx().open_file(file_id, false);
+            let mut menu_events: Vec<Event> = Vec::new();
+            match chosen {
+                Some(EditorMenuCmd::Link(action)) => {
+                    if let Some(link) = &link_target {
+                        match action {
+                            LinkMenuAction::Open => {
+                                if link.is_wikilink {
+                                    if let Some(file_id) = self.renderer.resolve_wikilink(&link.url)
+                                    {
+                                        ui.ctx().open_file(file_id, false);
+                                    }
+                                } else {
+                                    self.renderer.open_resolved_link(&link.url, ui.ctx(), false);
+                                }
                             }
-                        } else {
-                            self.renderer.open_resolved_link(&t.url, ui.ctx(), false);
+                            LinkMenuAction::Copy => ui.ctx().copy_text(link.url.clone()),
+                            LinkMenuAction::Refresh => self.renderer.refresh_link_meta(&link.url),
+                            LinkMenuAction::Edit => {
+                                if link.force_reveal {
+                                    self.renderer.entered_atom = Some(link.node_range);
+                                }
+                                menu_events.push(Event::Select {
+                                    region: Region::BetweenLocations {
+                                        start: Location::Grapheme(link.select.start()),
+                                        end: Location::Grapheme(link.select.end()),
+                                    },
+                                });
+                            }
                         }
-                    }
-                    LinkMenuAction::Copy => ui.ctx().copy_text(t.url.clone()),
-                    LinkMenuAction::Refresh => self.renderer.refresh_link_meta(&t.url),
-                    LinkMenuAction::Edit => {
-                        if t.force_reveal {
-                            self.renderer.entered_atom = Some(t.node_range);
-                        }
-                        menu_events.push(Event::Select {
-                            region: Region::BetweenLocations {
-                                start: Location::Grapheme(t.select.start()),
-                                end: Location::Grapheme(t.select.end()),
-                            },
-                        });
                     }
                 }
+                Some(EditorMenuCmd::Cut) => menu_events.push(Event::Cut),
+                Some(EditorMenuCmd::Copy) => menu_events.push(Event::Copy),
+                Some(EditorMenuCmd::Paste) => {
+                    ui.ctx().send_viewport_cmd(ViewportCommand::RequestPaste);
+                }
+                None => {}
             }
             for ev in menu_events {
                 self.calc_operations(ui.ctx(), root, ev, &mut ops);

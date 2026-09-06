@@ -1,9 +1,11 @@
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
-use egui::{CornerRadius, Pos2, Rect, Stroke, StrokeKind, Ui, UiBuilder, Vec2};
+use egui::{Pos2, Rect, Sense, Ui, UiBuilder, Vec2, pos2, vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _, RangeIterExt as _};
 
+use crate::style::chrome::{control_line_height, row_wash_inset};
+use crate::style::typography::TypeRole;
+use crate::style::{FG_HOVER, Radius, Space, ThemeExt as _, control_height};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
-use crate::theme::palette_v2::ThemeExt as _;
 
 use super::MdRender;
 use super::bounds::RangesExt as _;
@@ -467,42 +469,95 @@ impl<'ast> MdRender {
         }
     }
 
-    /// Draws the background frame and per-row highlights for a completion popup.
-    /// Text rendering is handled separately by each completion type.
+    /// Overlay plate + row washes for a completion popup. Text is glyphon,
+    /// painted by each completion type after this.
     pub fn draw_completion_popup(
-        &self, ui: &Ui, popup_rect: Rect, row_rects: &[Rect], selected: usize,
+        &self, ui: &mut Ui, popup_rect: Rect, row_rects: &[Rect], selected: usize,
         hover_pos: Option<egui::Pos2>,
     ) {
-        let vis = ui.visuals();
-        let bg = vis.extreme_bg_color;
-        let hover_bg = vis.widgets.hovered.bg_fill;
-        let selected_bg = vis.selection.bg_fill.gamma_multiply(0.3);
-        let border_color = vis.widgets.noninteractive.bg_stroke.color;
+        let t = ui.ctx().get_lb_theme();
+        let mut child = ui.new_child(UiBuilder::new().max_rect(popup_rect));
+        crate::style::chrome::canvas_overlay_frame(&t, Space::Xxs)
+            .inner_margin(0.0)
+            .show(&mut child, |ui| {
+                ui.allocate_exact_size(popup_rect.size(), Sense::hover());
+            });
 
-        let cr = CornerRadius::same(self.layout.completion_corner_radius);
-        let painter = ui.painter();
-        painter.rect(popup_rect, cr, bg, Stroke::new(1.0, border_color), StrokeKind::Outside);
-        let last = row_rects.len().saturating_sub(1);
         for (idx, rect) in row_rects.iter().enumerate() {
-            let row_cr = CornerRadius {
-                nw: if idx == 0 { self.layout.completion_corner_radius } else { 0 },
-                ne: if idx == 0 { self.layout.completion_corner_radius } else { 0 },
-                sw: if idx == last { self.layout.completion_corner_radius } else { 0 },
-                se: if idx == last { self.layout.completion_corner_radius } else { 0 },
-            };
-            if idx == selected {
-                painter.rect_filled(*rect, row_cr, selected_bg);
-            } else if hover_pos.is_some_and(|p| rect.contains(p)) {
-                painter.rect_filled(*rect, row_cr, hover_bg);
+            let over = idx == selected || hover_pos.is_some_and(|p| rect.contains(p));
+            if !over {
+                continue;
             }
+            let wash = rect.shrink(row_wash_inset());
+            ui.painter().rect_filled(
+                wash,
+                Radius::Sm.corner(),
+                t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER),
+            );
         }
     }
 }
 
+pub(crate) fn completion_row_h() -> f32 {
+    control_height()
+}
+
+pub(crate) fn completion_font() -> f32 {
+    TypeRole::Body.size()
+}
+
+pub(crate) fn completion_line_h() -> f32 {
+    control_line_height()
+}
+
+pub(crate) fn completion_path_font() -> f32 {
+    TypeRole::Mono.size()
+}
+
+fn completion_plate_pad() -> f32 {
+    Space::Xs.pts()
+}
+
+fn completion_row_pad_x() -> f32 {
+    Space::Sm.pts()
+}
+
+/// Plate pad + row inset on both sides (width beyond the glyphon content).
+pub(crate) fn completion_chrome_w() -> f32 {
+    2.0 * (completion_plate_pad() + completion_row_pad_x())
+}
+
+pub(crate) fn completion_popup_size(content_w: f32, n: usize) -> Vec2 {
+    vec2(
+        content_w + completion_chrome_w(),
+        n as f32 * completion_row_h() + 2.0 * completion_plate_pad(),
+    )
+}
+
+pub(crate) fn completion_row_rects(popup: Rect, n: usize) -> Vec<Rect> {
+    let pad = completion_plate_pad();
+    let h = completion_row_h();
+    let w = (popup.width() - 2.0 * pad).max(1.0);
+    let x = popup.left() + pad;
+    let y0 = popup.top() + pad;
+    (0..n)
+        .map(|i| Rect::from_min_size(pos2(x, y0 + i as f32 * h), vec2(w, h)))
+        .collect()
+}
+
+pub(crate) fn completion_text_rect(row: Rect) -> Rect {
+    let pad = completion_row_pad_x();
+    let lh = completion_line_h();
+    Rect::from_min_size(
+        pos2(row.left() + pad, row.center().y - lh / 2.0),
+        vec2((row.width() - 2.0 * pad).max(1.0), lh),
+    )
+}
+
 /// Gap kept between the completion popup and every window edge. Matches
-/// the scroll area's scrollbar footprint (`BAR_WIDTH` 10 + `BAR_INSET` 3
-/// in `affine_scroll.rs`) so the popup also clears the scrollbar.
-const COMPLETION_POPUP_MARGIN: f32 = 13.0;
+/// the overlay scrollbar footprint (`BAR_WIDTH` 6 + inset 2) plus a little
+/// air so the popup clears the bar.
+const COMPLETION_POPUP_MARGIN: f32 = 12.0;
 
 /// Positions a completion popup near the text cursor while keeping it
 /// inside the visible window with a [`COMPLETION_POPUP_MARGIN`] gap from
