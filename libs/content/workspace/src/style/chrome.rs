@@ -23,6 +23,9 @@ use super::typography::TypeRole;
 
 /// Control transition duration (also `Style::animation_time`).
 pub const HOVER_ANIM_SECS: f32 = 0.20;
+/// Hard cap for chrome motion (sidebar, surface reveal, overlay fades).
+/// Hover/toggle may be shorter; nothing should run longer.
+pub const ANIM_MAX_SECS: f32 = 0.22;
 /// Toggle thumb travel — snappier than general hover.
 pub const TOGGLE_ANIM_SECS: f32 = 0.14;
 /// After leaving a tip host, stay “hot” this long so the next host can chain
@@ -149,27 +152,29 @@ pub fn canvas_overlay_frame(t: &Theme, inner_pad: Space) -> Frame {
 
 /// Compact floating toolbar — image / canvas viewport islands.
 ///
-/// Raised capsule (secondary fill, no hairline, overlay shadow). Tighter Y pad
-/// than Control so the bar stays ~35pt. Not [`canvas_overlay_frame`] (menus /
-/// pickers, Control radius + hairline). Icons on this plate use full `fg` ink
-/// (`icon_button` `active`).
+/// Raised capsule (secondary fill, no hairline, overlay shadow). Height matches
+/// the titleband ([`CHROME_BAND_H`]); icon hit is [`control_height`], glyph is
+/// [`CHROME_BAND_GLYPH`]. Not [`canvas_overlay_frame`] (menus / pickers).
 pub mod island {
     use egui::{Frame, Margin, Stroke};
 
-    use super::overlay_shadow;
+    use super::{CHROME_BAND_H, overlay_shadow};
     use crate::style::color::Theme;
 
     /// Horizontal inset inside the capsule.
     pub const PAD_X: f32 = 8.0;
-    /// Vertical inset — keeps the pill short.
-    pub const PAD_Y: f32 = 4.0;
+    /// Vertical inset — same air as titleband (`Space::Xs`).
+    pub const PAD_Y: f32 = 5.0;
     /// Large enough to fully round [`height`].
     pub const RADIUS: u8 = 30;
-    /// Icon / percent hit inside the capsule (old island was 15pt glyphs).
-    pub const ICON_HIT: f32 = 22.0;
+
+    /// Icon / percent hit — same as titleband / markdown toolbar.
+    pub fn icon_hit() -> f32 {
+        super::control_height()
+    }
 
     pub fn height() -> f32 {
-        PAD_Y * 2.0 + ICON_HIT
+        CHROME_BAND_H
     }
 
     /// Opaque fill under island controls — pass as `icon_button` `ground`.

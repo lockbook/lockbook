@@ -140,7 +140,7 @@ impl Toolbar {
                 };
 
             let zoom_pct_btn = Button::secondary(t, zoom_percentage_label)
-                .height(island::ICON_HIT)
+                .height(island::icon_hit())
                 .show(ui);
             tip_text(ui.ctx(), &zoom_pct_btn, "Zoom");
             self.layout.zoom_pct_btn = Some(zoom_pct_btn.rect);
@@ -245,10 +245,10 @@ impl Toolbar {
     fn show_zoom_stops_popover(
         &mut self, ui: &mut egui::Ui, tlbr_ctx: &mut ToolbarContext, t: &crate::style::Theme,
     ) {
-        let w = ui.available_width().max(island::ICON_HIT * 3.0);
+        let w = ui.available_width().max(island::icon_hit() * 3.0);
         ui.set_min_width(w);
         ui.set_max_width(w);
-        let row_h = island::ICON_HIT;
+        let row_h = island::icon_hit();
 
         if zoom_stop_row(ui, t, "Fit", w, row_h) {
             let transform = get_zoom_fit_transform(tlbr_ctx.viewport_settings).unwrap_or_default();
@@ -510,7 +510,7 @@ impl Toolbar {
                 island::frame(&t).show(ui, |ui| {
                     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                     if Button::secondary(&t, "Focus back to content")
-                        .height(island::ICON_HIT)
+                        .height(island::icon_hit())
                         .show(ui)
                         .clicked()
                     {

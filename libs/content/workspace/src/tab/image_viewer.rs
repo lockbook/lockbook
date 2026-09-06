@@ -7,8 +7,8 @@ use resvg::usvg::Transform;
 use tracing::error;
 
 use crate::style::{
-    Button, Space, ThemeExt, TypeRole, canvas_overlay_frame, icon_button_hit, island,
-    loading_indicator, phosphor, quiet_canvas_fills, sense_click, tip_text,
+    Button, CHROME_BAND_GLYPH, Space, ThemeExt, TypeRole, canvas_overlay_frame, icon_button_glyph,
+    island, loading_indicator, phosphor, quiet_canvas_fills, sense_click, tip_text,
 };
 use crate::tab::input_controller::{
     InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
@@ -207,10 +207,18 @@ impl ImageViewer {
     ) {
         ui.horizontal(|ui| {
             let zoom_percentage = (self.master_transform.sx * 100.0).round();
-            let hit = island::ICON_HIT;
+            let hit = island::icon_hit();
             let ground = island::ground(t);
 
-            let minus = icon_button_hit(ui, t, phosphor::MAGNIFYING_GLASS_MINUS, true, ground, hit);
+            let minus = icon_button_glyph(
+                ui,
+                t,
+                phosphor::MAGNIFYING_GLASS_MINUS,
+                true,
+                ground,
+                hit,
+                CHROME_BAND_GLYPH,
+            );
             tip_text(ui.ctx(), &minus, "Zoom out");
             if minus.clicked() && zoom_percentage > ZOOM_STEP {
                 let target_zoom_percentage =
@@ -234,7 +242,15 @@ impl ImageViewer {
                 self.toggle_viewport_popover(Some(ImageViewportPopover::ZoomStops));
             }
 
-            let plus = icon_button_hit(ui, t, phosphor::MAGNIFYING_GLASS_PLUS, true, ground, hit);
+            let plus = icon_button_glyph(
+                ui,
+                t,
+                phosphor::MAGNIFYING_GLASS_PLUS,
+                true,
+                ground,
+                hit,
+                CHROME_BAND_GLYPH,
+            );
             tip_text(ui.ctx(), &plus, "Zoom in");
             if plus.clicked() {
                 let target_zoom_percentage =
@@ -331,7 +347,7 @@ impl ImageViewer {
         let inner_w = (ZOOM_STOPS_POPOVER_WIDTH - Space::Xs.pts() * 2.0).max(1.0);
         ui.set_min_width(inner_w);
         ui.set_max_width(inner_w);
-        let row_h = island::ICON_HIT;
+        let row_h = island::icon_hit();
 
         if zoom_stop_row(ui, t, "Fit", inner_w, row_h) {
             self.reset_viewport();
@@ -380,7 +396,7 @@ impl ImageViewer {
         let res = ui.scope_builder(egui::UiBuilder::new().max_rect(bring_home_rect), |ui| {
             island::frame(&t).show(ui, |ui| {
                 if Button::secondary(&t, "Focus back to content")
-                    .height(island::ICON_HIT)
+                    .height(island::icon_hit())
                     .show(ui)
                     .clicked()
                 {

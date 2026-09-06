@@ -88,7 +88,7 @@ impl Toolbar {
                         ui.ctx(),
                         "min",
                         active_rect.left() + 3.0,
-                        0.5,
+                        crate::style::ANIM_MAX_SECS,
                         easing::cubic_in_out,
                     );
 
@@ -96,7 +96,7 @@ impl Toolbar {
                         ui.ctx(),
                         "max",
                         active_rect.right() - 3.0,
-                        0.5,
+                        crate::style::ANIM_MAX_SECS,
                         easing::cubic_in_out,
                     );
 

@@ -5,8 +5,10 @@
 
 use egui::Id;
 
-/// Reveal and hide share this duration.
-pub const SURFACE_SECS: f32 = 0.72;
+use super::chrome::ANIM_MAX_SECS;
+
+/// Reveal and hide share this duration (capped with other chrome motion).
+pub const SURFACE_SECS: f32 = ANIM_MAX_SECS;
 
 #[derive(Clone, Copy, Debug)]
 pub struct SurfaceMotion {

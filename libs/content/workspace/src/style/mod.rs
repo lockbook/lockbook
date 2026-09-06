@@ -27,11 +27,11 @@ pub mod tree_metrics;
 pub mod typography;
 
 pub use chrome::{
-    CHROME_BAND_GLYPH, CHROME_BAND_H, Radius, STROKE_HAIRLINE, canvas_overlay_frame,
-    control_height, control_icon_hit, display_file_name, file_row_icon, fit_outside_stroke_fill,
-    island, loading_indicator, paint_plate, paint_plate_stroke, phosphor, phosphor_font_id,
-    phosphor_ui_font_id, plate_content, shortcut_cmd_i, shortcut_cmd_n, shortcut_cmd_o,
-    shortcut_enter, shortcut_esc, shortcut_return, tab_icon,
+    ANIM_MAX_SECS, CHROME_BAND_GLYPH, CHROME_BAND_H, HOVER_ANIM_SECS, Radius, STROKE_HAIRLINE,
+    canvas_overlay_frame, control_height, control_icon_hit, display_file_name, file_row_icon,
+    fit_outside_stroke_fill, island, loading_indicator, paint_plate, paint_plate_stroke, phosphor,
+    phosphor_font_id, phosphor_ui_font_id, plate_content, shortcut_cmd_i, shortcut_cmd_n,
+    shortcut_cmd_o, shortcut_enter, shortcut_esc, shortcut_return, tab_icon,
 };
 pub use color::{FG_HOVER, FG_PRESS, Theme, ThemeExt};
 pub use file_row::{ellipsize_path, parent_crumbs, path_crumbs};

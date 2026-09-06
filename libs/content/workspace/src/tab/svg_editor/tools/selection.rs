@@ -744,7 +744,7 @@ impl Selection {
         }
 
         if Button::quiet(&t, "Copy")
-            .height(island::ICON_HIT)
+            .height(island::icon_hit())
             .show(ui)
             .clicked()
         {
@@ -753,7 +753,7 @@ impl Selection {
         }
 
         if Button::quiet(&t, "Delete")
-            .height(island::ICON_HIT)
+            .height(island::icon_hit())
             .show(ui)
             .clicked()
         {

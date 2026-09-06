@@ -9,9 +9,9 @@ use std::{
 };
 
 use crate::style::{
-    Radius, ThemeExt, TypeRole, control_height, control_icon_hit, icon_button_hit,
-    interact_fill_response, loading_indicator, phosphor, quiet_canvas_fills, sense_click, tip_text,
-    with_overlay_scroll,
+    CHROME_BAND_GLYPH, CHROME_BAND_H, Radius, ThemeExt, TypeRole, control_height,
+    icon_button_glyph, interact_fill_response, loading_indicator, phosphor, quiet_canvas_fills,
+    sense_click, tip_text, with_overlay_scroll,
 };
 use egui::{
     Align, CentralPanel, ColorImage, Context, Event, Id, Image, ImageSource, Key, Modifiers, Pos2,
@@ -148,7 +148,7 @@ const LOAD_SPINNER_DELAY: f32 = 0.20;
 /// SidePanel / CentralPanel consume leftover and clip to it. Painting the
 /// strip after them lands in a 0-height sliver at the bottom (invisible).
 fn pdf_bands(host: Rect) -> (Rect, Rect) {
-    let h = control_height().min(host.height().max(0.0));
+    let h = CHROME_BAND_H.min(host.height().max(0.0));
     let split_y = host.top() + h;
     let toolbar = Rect::from_min_max(host.min, egui::pos2(host.right(), split_y));
     let body = Rect::from_min_max(egui::pos2(host.left(), split_y), host.max);
@@ -159,7 +159,7 @@ fn toolbar_icon(
     ui: &mut Ui, t: &crate::style::Theme, icon: &'static str, ground: egui::Color32, hit: f32,
     tip: &str,
 ) -> bool {
-    let r = icon_button_hit(ui, t, icon, true, ground, hit);
+    let r = icon_button_glyph(ui, t, icon, true, ground, hit, CHROME_BAND_GLYPH);
     tip_text(ui.ctx(), &r, tip);
     r.clicked()
 }
@@ -377,8 +377,8 @@ impl PdfViewer {
             None => false,
         };
 
-        // Icon wash is the inner slot, not the full strip — same air as a field.
-        let hit = control_icon_hit();
+        // Icon wash is the inner slot, not the full strip — same air as titleband.
+        let hit = control_height();
         let ground = t.neutral_bg();
         // Full ink — muted idle on canvas reads as missing.
         let zoom_w = hit * 5.0 + 56.0;
@@ -882,18 +882,17 @@ fn spawn_worker(
 #[cfg(test)]
 mod layout_diag {
     use super::{SIDEBAR_WIDTH, pdf_bands};
-    use crate::style::control_height;
+    use crate::style::CHROME_BAND_H;
     use egui::{Rect, pos2, vec2};
 
     #[test]
     fn diagnose_pdf_toolbar_band() {
         let host = Rect::from_min_size(pos2(80.0, 40.0), vec2(1200.0, 760.0));
-        let ch = control_height();
         let (toolbar, body) = pdf_bands(host);
 
         assert!(
-            (toolbar.height() - ch).abs() < 0.01,
-            "toolbar height {} != {ch}",
+            (toolbar.height() - CHROME_BAND_H).abs() < 0.01,
+            "toolbar height {} != {CHROME_BAND_H}",
             toolbar.height()
         );
         assert!((toolbar.top() - host.top()).abs() < 0.01);
@@ -905,7 +904,7 @@ mod layout_diag {
             (toolbar.height() + body.height() - host.height()).abs() < 0.01,
             "bands must cover host"
         );
-        assert!(body.height() > ch, "pages must keep a real viewport under the strip");
+        assert!(body.height() > CHROME_BAND_H, "pages must keep a real viewport under the strip");
 
         // CentralPanel leftover after eating the host is a 0-height sliver at
         // the bottom — that is not the toolbar.
@@ -954,7 +953,7 @@ mod layout_diag {
         );
         assert!(leftover_h > 500.0, "leftover h={leftover_h} is a sliver, not the page viewport");
         assert!(
-            (toolbar_bottom - host_top - control_height()).abs() < 1.0,
+            (toolbar_bottom - host_top - CHROME_BAND_H).abs() < 1.0,
             "strip must sit at the top of the host"
         );
     }

@@ -3,7 +3,10 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
-use crate::style::{Theme, ThemeExt as _, icon_button_hit, island, phosphor, tip_text};
+use crate::style::{
+    ANIM_MAX_SECS, CHROME_BAND_GLYPH, Theme, ThemeExt as _, icon_button_glyph, island, phosphor,
+    tip_text,
+};
 use crate::tab::svg_editor::tools::DynInputControllerTool;
 use crate::tab::svg_editor::tools::pen::PenSettings;
 use crate::tab::svg_editor::tools::selection::Selection;
@@ -278,9 +281,11 @@ impl Toolbar {
         } else {
             1.0
         };
-        let opacity =
-            ui.ctx()
-                .animate_value_with_time(egui::Id::new("overlay_opacity"), target_opacity, 0.3);
+        let opacity = ui.ctx().animate_value_with_time(
+            egui::Id::new("overlay_opacity"),
+            target_opacity,
+            ANIM_MAX_SECS,
+        );
 
         ui.set_opacity(opacity);
 
@@ -472,7 +477,7 @@ pub(crate) fn overlay_icon(
     ui: &mut egui::Ui, t: &Theme, icon: &'static str, active: bool, ground: egui::Color32,
     tip: &str,
 ) -> egui::Response {
-    let r = icon_button_hit(ui, t, icon, active, ground, island::ICON_HIT);
+    let r = icon_button_glyph(ui, t, icon, active, ground, island::icon_hit(), CHROME_BAND_GLYPH);
     if !tip.is_empty() {
         tip_text(ui.ctx(), &r, tip);
     }

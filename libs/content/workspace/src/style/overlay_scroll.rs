@@ -13,7 +13,7 @@ use egui::{Context, Id, Rect, Ui};
 
 use super::color::ThemeExt;
 
-const FADE_SECS: f64 = 0.85;
+const FADE_SECS: f64 = super::chrome::ANIM_MAX_SECS as f64;
 
 /// Host sets this while a sidebar splitter is mid-drag.
 pub const SIDEBAR_RESIZING_LATCH: &str = "lb_sidebar_resizing";
