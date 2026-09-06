@@ -4,6 +4,7 @@
 //! | Name | ~pts | Role |
 //! |------|------|------|
 //! | [`control_height`] | ~28 | buttons, field, picker, menu rows |
+//! | [`CHROME_BAND_H`] | 40 | desktop titleband, markdown toolbar |
 //! | segmented | ≈ control | exclusive strip (see `segmented`) |
 //! | form row | control | labeled settings rows (group pad is Spacers) |
 //! | toggle | ~22 | switch thumb track (intentionally smaller) |
@@ -11,11 +12,11 @@
 use std::sync::Arc;
 
 use egui::{
-    Color32, CornerRadius, FontFamily, FontId, Frame, Margin, Rect, Response, Shadow, Stroke,
-    StrokeKind, Ui,
+    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Rect,
+    Response, Sense, Shadow, Stroke, StrokeKind, Ui, pos2, vec2,
 };
 
-use super::color::Theme;
+use super::color::{Theme, ThemeExt};
 use super::space::Space;
 use super::space::control as control_space;
 use super::typography::TypeRole;
@@ -102,6 +103,20 @@ pub fn control_height() -> f32 {
     control_space::PAD_Y.pts() * 2.0 + control_line_height()
 }
 
+/// Desktop titleband and markdown toolbar — same strip.
+pub const CHROME_BAND_H: f32 = 40.0;
+/// Phosphor on [`CHROME_BAND_H`] (titleband pane/nav, markdown toolbar).
+pub const CHROME_BAND_GLYPH: f32 = 18.0;
+
+/// Square hit for a Phosphor mark inside a control (field clear, chip dismiss).
+///
+/// Glyph is body-size Phosphor ([`phosphor_ui_font_id`] via
+/// [`super::button::icon_button_hit`]); this is only the hover/click square —
+/// the inner band after vertical pads, same height as a field’s leading icon slot.
+pub fn control_icon_hit() -> f32 {
+    control_line_height()
+}
+
 /// Uniform inset for row hover/select washes (all four sides).
 ///
 /// File rows, menu rows, nav: **1 px** air so adjacent washes read as separate
@@ -130,6 +145,46 @@ pub fn canvas_overlay_frame(t: &Theme, inner_pad: Space) -> Frame {
         .corner_radius(Radius::Control.corner())
         .inner_margin(Margin::same(p))
         .shadow(overlay_shadow())
+}
+
+/// Compact floating toolbar — image / canvas viewport islands.
+///
+/// Raised capsule (secondary fill, no hairline, overlay shadow). Tighter Y pad
+/// than Control so the bar stays ~35pt. Not [`canvas_overlay_frame`] (menus /
+/// pickers, Control radius + hairline). Icons on this plate use full `fg` ink
+/// (`icon_button` `active`).
+pub mod island {
+    use egui::{Frame, Margin, Stroke};
+
+    use super::overlay_shadow;
+    use crate::style::color::Theme;
+
+    /// Horizontal inset inside the capsule.
+    pub const PAD_X: f32 = 8.0;
+    /// Vertical inset — keeps the pill short.
+    pub const PAD_Y: f32 = 4.0;
+    /// Large enough to fully round [`height`].
+    pub const RADIUS: u8 = 30;
+    /// Icon / percent hit inside the capsule (old island was 15pt glyphs).
+    pub const ICON_HIT: f32 = 22.0;
+
+    pub fn height() -> f32 {
+        PAD_Y * 2.0 + ICON_HIT
+    }
+
+    /// Opaque fill under island controls — pass as `icon_button` `ground`.
+    pub fn ground(t: &Theme) -> egui::Color32 {
+        t.neutral_bg_secondary()
+    }
+
+    pub fn frame(t: &Theme) -> Frame {
+        Frame::new()
+            .fill(ground(t))
+            .stroke(Stroke::NONE)
+            .corner_radius(egui::CornerRadius::same(RADIUS))
+            .inner_margin(Margin::symmetric(PAD_X as i8, PAD_Y as i8))
+            .shadow(overlay_shadow())
+    }
 }
 
 /// Fill + hairline on a known rect. **`StrokeKind::Outside`** so later child
@@ -219,6 +274,10 @@ pub mod phosphor {
     pub const MARKDOWN_LOGO: &str = "\u{e508}";
     pub const CHAT: &str = "\u{e15c}";
     pub const SEARCH: &str = "\u{e30c}";
+    /// Zoom out (`ph-magnifying-glass-minus`).
+    pub const MAGNIFYING_GLASS_MINUS: &str = "\u{e30e}";
+    /// Zoom in (`ph-magnifying-glass-plus`).
+    pub const MAGNIFYING_GLASS_PLUS: &str = "\u{e310}";
     /// Filter / funnel.
     pub const FUNNEL: &str = "\u{e268}";
     pub const GEAR: &str = "\u{e270}";
@@ -264,6 +323,37 @@ pub mod phosphor {
     pub const CARET_DOWN: &str = "\u{e136}";
     pub const CARET_LEFT: &str = "\u{e138}";
     pub const CARET_RIGHT: &str = "\u{e13a}";
+    pub const CARET_UP: &str = "\u{e13c}";
+    /// Undo (`ph-arrow-counter-clockwise`).
+    pub const ARROW_COUNTER_CLOCKWISE: &str = "\u{e038}";
+    /// Redo (`ph-arrow-clockwise`).
+    pub const ARROW_CLOCKWISE: &str = "\u{e036}";
+    /// Markdown toolbar.
+    pub const TEXT_B: &str = "\u{e5be}";
+    pub const TEXT_ITALIC: &str = "\u{e5c0}";
+    pub const TEXT_H_ONE: &str = "\u{e6bc}";
+    pub const TEXT_STRIKETHROUGH: &str = "\u{e5c2}";
+    pub const TEXT_UNDERLINE: &str = "\u{e5c4}";
+    pub const TEXT_SUBSCRIPT: &str = "\u{ec98}";
+    pub const TEXT_SUPERSCRIPT: &str = "\u{ec9a}";
+    pub const TEXT_INDENT: &str = "\u{ea1e}";
+    pub const TEXT_OUTDENT: &str = "\u{ea1c}";
+    pub const LIST_BULLETS: &str = "\u{e2f2}";
+    pub const LIST_NUMBERS: &str = "\u{e2f6}";
+    pub const CHECK_SQUARE: &str = "\u{e186}";
+    pub const HIGHLIGHTER: &str = "\u{ec76}";
+    pub const EYE_SLASH: &str = "\u{e224}";
+    pub const CAMERA: &str = "\u{e10e}";
+    /// Find bar: match case / whole word / regex / replace.
+    pub const TEXT_AA: &str = "\u{e6ee}";
+    pub const TEXT_T: &str = "\u{e48a}";
+    pub const FUNCTION: &str = "\u{ebe4}";
+    pub const SWAP: &str = "\u{e83c}";
+    pub const REPEAT: &str = "\u{e3f6}";
+    /// Content-search “Show N matches” (`ph-arrows-vertical`).
+    pub const ARROWS_VERTICAL: &str = "\u{eb04}";
+    /// Fit width (`ph-arrows-horizontal`).
+    pub const ARROWS_HORIZONTAL: &str = "\u{eb06}";
     /// Titleband back / forward.
     pub const ARROW_LEFT: &str = "\u{e058}";
     pub const ARROW_RIGHT: &str = "\u{e06c}";
@@ -277,8 +367,8 @@ pub mod phosphor {
     pub const SELECTION_ALL: &str = "\u{e746}";
     /// Sync / refresh (sidebar footer).
     pub const ARROWS_CLOCKWISE: &str = "\u{e094}";
-    /// Zen / hide sidebar.
-    pub const SIDEBAR_SIMPLE: &str = "\u{e9d0}";
+    /// Panel with a leading strip (`ph-sidebar-simple`).
+    pub const SIDEBAR_SIMPLE: &str = "\u{ec24}";
     /// Dismiss / close sheet.
     pub const X: &str = "\u{e4f6}";
     /// Help / shortcuts.
@@ -291,6 +381,21 @@ pub mod phosphor {
     /// Linux maximize / restore (two diagonal arrows).
     pub const ARROWS_OUT_SIMPLE: &str = "\u{e0a6}";
     pub const ARROWS_IN_SIMPLE: &str = "\u{e09e}";
+    /// Canvas tools.
+    pub const HAND: &str = "\u{e298}";
+    /// Select tool (`ph-cursor`).
+    pub const CURSOR: &str = "\u{e1dc}";
+    pub const ERASER: &str = "\u{e21e}";
+    pub const POLYGON: &str = "\u{e6d0}";
+    pub const LOCK_SIMPLE: &str = "\u{e308}";
+    pub const LOCK_SIMPLE_OPEN: &str = "\u{e30a}";
+    /// Shape tools (`ph-rectangle` / `ph-circle` / `ph-line-segment`).
+    pub const RECTANGLE: &str = "\u{e3f0}";
+    pub const CIRCLE: &str = "\u{e18a}";
+    pub const LINE_SEGMENT: &str = "\u{e6d2}";
+    /// Layer order (`ph-arrow-line-up` / `ph-arrow-line-down`).
+    pub const ARROW_LINE_UP: &str = "\u{e066}";
+    pub const ARROW_LINE_DOWN: &str = "\u{e05c}";
     /// Mind map tab (connected nodes).
     pub const GRAPH: &str = "\u{eb58}";
     /// Space inspector tab (share of disk).
@@ -352,6 +457,41 @@ pub fn phosphor_font_id(size: f32) -> FontId {
 /// Phosphor at body size (leading button icons / file rows).
 pub fn phosphor_ui_font_id() -> FontId {
     phosphor_font_id(TypeRole::Body.size())
+}
+
+/// Centered Phosphor spinner + muted caption. Call every frame while waiting.
+pub fn loading_indicator(ui: &mut Ui) {
+    let t = ui.ctx().get_lb_theme();
+    ui.ctx().request_repaint();
+    let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
+    let g = ui.painter().layout_no_wrap(
+        phosphor::SPINNER_GAP.into(),
+        phosphor_ui_font_id(),
+        t.accent(),
+    );
+    let gap = Space::Xs.pts();
+    let cap_h = TypeRole::Body.line_height();
+    let content_h = g.size().y + gap + cap_h;
+    let rect = ui.available_rect_before_wrap();
+    let y = (rect.center().y - content_h / 2.0).max(rect.top());
+    let block = Rect::from_min_size(
+        pos2(rect.left(), y),
+        vec2(rect.width(), content_h.min(rect.height()).max(1.0)),
+    );
+    super::layout::place_at(ui, block, Layout::top_down(Align::Center), |ui| {
+        let (icon_rect, _) = ui.allocate_exact_size(g.size(), Sense::hover());
+        ui.painter().add(
+            egui::epaint::TextShape::new(icon_rect.min, g, t.accent())
+                .with_angle_and_anchor(angle, Align2::CENTER_CENTER),
+        );
+        ui.add_space(gap);
+        ui.label(
+            TypeRole::Body
+                .rich("Loading…")
+                .color(t.neutral_fg_secondary()),
+        );
+    });
+    let _ = ui.allocate_rect(rect, Sense::hover());
 }
 
 /// Commit shortcut badge (⌘⏎ on macOS, Ctrl+⏎ elsewhere).

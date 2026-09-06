@@ -296,6 +296,7 @@ fn paint_rows<T>(
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 fn paint_one_row(
     ui: &mut Ui, t: &Theme, row_id: Id, content_w: f32, with_icons: bool,
     icon: Option<&'static str>, label: &str, danger: bool,

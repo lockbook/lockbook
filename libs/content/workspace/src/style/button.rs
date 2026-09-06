@@ -1,6 +1,6 @@
-//! Buttons: primary (ink fill) or quiet (canvas rest). Danger / accent are tones
-//! on the solid primary plate (same hover/press wash toward `neutral_bg`; label
-//! and kbd use `neutral_bg` ink).
+//! Buttons: primary (ink fill), secondary (off-canvas plate), or quiet (canvas
+//! rest). Danger / accent are tones on the solid primary plate (same hover/press
+//! wash toward `neutral_bg`; label and kbd use `neutral_bg` ink).
 //! Padding uses [`Spacer`]s (`control` space tokens) so F2 paints pad bands.
 
 use egui::{
@@ -21,6 +21,9 @@ use crate::style::typography::TypeRole;
 #[derive(Clone, Copy)]
 enum Treatment {
     Primary,
+    /// Off-canvas plate (`neutral_bg_secondary`) — quieter than primary, visible
+    /// on canvas (unlike quiet, whose rest matches the surface).
+    Secondary,
     Quiet,
 }
 
@@ -57,6 +60,12 @@ impl<'a> Button<'a> {
     /// Solid commit — one per decision region.
     pub fn primary(t: &'a Theme, label: impl Into<String>) -> Self {
         Self::new(t, label, Treatment::Primary)
+    }
+
+    /// Secondary plate on canvas — `neutral_bg_secondary` rest, same ground as
+    /// chips / unfocused fields. Visible without the ink fill of [`Self::primary`].
+    pub fn secondary(t: &'a Theme, label: impl Into<String>) -> Self {
+        Self::new(t, label, Treatment::Secondary)
     }
 
     /// Quiet action — canvas rest.
@@ -221,7 +230,7 @@ impl<'a> Button<'a> {
         let kbd = match self.treatment {
             // Same ink as the label on the solid plate (brand or danger).
             Treatment::Primary => text,
-            Treatment::Quiet => {
+            Treatment::Secondary | Treatment::Quiet => {
                 if self.enabled {
                     t.neutral_fg_secondary()
                 } else {
@@ -284,7 +293,7 @@ impl<'a> Button<'a> {
         if self.enabled && response.has_focus() {
             let focus_c = match self.treatment {
                 Treatment::Primary => t.neutral(),
-                Treatment::Quiet => t.neutral_fg(),
+                Treatment::Secondary | Treatment::Quiet => t.neutral_fg(),
             };
             ui.painter().rect_stroke(
                 rect,
@@ -322,6 +331,14 @@ impl<'a> Button<'a> {
                     },
                     t.neutral_fg_secondary(),
                 ),
+                Treatment::Secondary => (
+                    ControlFills {
+                        rest: t.neutral_bg_secondary(),
+                        hover: t.neutral_bg_secondary(),
+                        press: t.neutral_bg_secondary(),
+                    },
+                    t.neutral_fg_secondary(),
+                ),
                 Treatment::Quiet => (
                     ControlFills {
                         rest: t.neutral_bg(),
@@ -348,6 +365,14 @@ impl<'a> Button<'a> {
                     },
                     t.neutral_bg(),
                 )
+            }
+            Treatment::Secondary => {
+                let ink = match self.tone {
+                    Tone::Brand => t.neutral_fg(),
+                    Tone::Danger => t.danger(),
+                    Tone::Accent => t.accent(),
+                };
+                (crate::style::interact::quiet_secondary_fills(t), ink)
             }
             Treatment::Quiet => {
                 let ink = match self.tone {

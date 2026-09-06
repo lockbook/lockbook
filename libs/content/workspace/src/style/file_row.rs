@@ -11,7 +11,8 @@
 //!
 //! ## Looks
 //! Canvas (or elevated sticky) ground; idle transparent; hover/selection ink
-//! wash. Label always body `fg`. Folder icons accent. Optional sync + pin.
+//! wash. Label body `fg` (muted / hanging continuations use secondary). Folder
+//! icons accent. Optional sync + pin.
 
 use egui::{Color32, Id, Rect, Response, Sense, Ui, pos2, vec2};
 
@@ -24,6 +25,7 @@ use crate::style::interact::sense_click;
 use crate::style::space::Space;
 use crate::style::tree_metrics::{ICON_SLOT, INDENT_BASE, INDENT_STEP, ROW_H};
 use crate::style::typography::TypeRole;
+use crate::widgets::glyphon_label::{GlyphonLabel, TextOverflow};
 
 /// Secondary path line under the name (Recents crumbs).
 const SUB_SIZE: f32 = 12.0;
@@ -38,8 +40,12 @@ const SUB_ICON_EXTRA: f32 = Space::Sm.pts();
 pub struct FileRow<'a> {
     tokens: &'a Theme,
     label: String,
-    /// Optional second line (path). Joined into the same hover/select plate.
+    /// Optional second line (path crumbs). Joined into the same hover/select plate.
     subtitle: Option<String>,
+    /// Optional second line that is **not** a path (search snippets). Bold spans
+    /// mark the query; end-ellipsis when it doesn't fit. Takes precedence over
+    /// [`Self::subtitle`].
+    caption: Option<Vec<(String, bool)>>,
     selected: bool,
     icon: &'static str,
     depth: usize,
@@ -60,6 +66,15 @@ pub struct FileRow<'a> {
     sense: Sense,
     /// When false: no hover/press wash (static display — e.g. non-folder delete rows).
     interactive: bool,
+    /// Hang under a two-line file's caption column: no type icon, caption-size
+    /// type. Content-search extra hits / “Show N more matches”.
+    continuation: bool,
+    /// Label (and continuation mark) in secondary ink.
+    muted: bool,
+    /// Keyboard/cursor plate at hover wash (not press). Files-tree hover.
+    highlighted: bool,
+    /// Center the hanging mark + label (content-search “Show more”).
+    centered: bool,
 }
 
 impl<'a> FileRow<'a> {
@@ -68,6 +83,7 @@ impl<'a> FileRow<'a> {
             tokens,
             label: label.into(),
             subtitle: None,
+            caption: None,
             selected: false,
             icon: phosphor::FILE,
             depth: 0,
@@ -80,11 +96,22 @@ impl<'a> FileRow<'a> {
             trail_reserve: 0.0,
             sense: sense_click(),
             interactive: true,
+            continuation: false,
+            muted: false,
+            highlighted: false,
+            centered: false,
         }
     }
 
     pub fn selected(mut self, selected: bool) -> Self {
         self.selected = selected;
+        self
+    }
+
+    /// Hover-strength plate without a pointer (search keyboard cursor).
+    /// Same wash as Files-tree hover; [`Self::selected`] is press.
+    pub fn highlighted(mut self, on: bool) -> Self {
+        self.highlighted = on;
         self
     }
 
@@ -98,6 +125,12 @@ impl<'a> FileRow<'a> {
     pub fn subtitle(mut self, s: impl Into<String>) -> Self {
         let s = s.into();
         self.subtitle = if s.is_empty() { None } else { Some(s) };
+        self
+    }
+
+    /// Rich second line (search snippets). `(text, bold)` spans; empty ignored.
+    pub fn caption_spans(mut self, spans: Vec<(String, bool)>) -> Self {
+        self.caption = if spans.is_empty() { None } else { Some(spans) };
         self
     }
 
@@ -164,14 +197,41 @@ impl<'a> FileRow<'a> {
         self
     }
 
+    /// Hang under a parent file's name/caption column (no type icon).
+    pub fn continuation(mut self, on: bool) -> Self {
+        self.continuation = on;
+        self
+    }
+
+    /// Secondary ink for the label / continuation mark.
+    pub fn muted(mut self, on: bool) -> Self {
+        self.muted = on;
+        self
+    }
+
+    /// Center hanging mark + label in the row (not under the parent caption).
+    pub fn centered(mut self, on: bool) -> Self {
+        self.centered = on;
+        self
+    }
+
     /// Pitch for virtualized lists (sticky tree, Shared) without building a row.
     pub const fn height_for(has_subtitle: bool) -> f32 {
         if has_subtitle { ROW_H + SUB_GAP + SUB_LINE_H } else { ROW_H }
     }
 
+    /// Pitch for hanging continuation rows (caption size + pad).
+    pub const fn continuation_height() -> f32 {
+        SUB_LINE_H + Space::Xs.pts() * 2.0
+    }
+
     /// Allocate a full-width row and paint it (landing, non-virtualized lists).
     pub fn show(self, ui: &mut Ui, id: Id) -> Response {
-        let h = Self::height_for(self.subtitle.is_some());
+        let h = if self.continuation {
+            Self::continuation_height()
+        } else {
+            Self::height_for(self.subtitle.is_some() || self.caption.is_some())
+        };
         let w = ui.available_width().max(1.0);
         let (rect, _) = ui.allocate_exact_size(vec2(w, h), Sense::hover());
         self.paint_at_hit(ui, rect, rect, id)
@@ -191,7 +251,8 @@ impl<'a> FileRow<'a> {
 
         // Dense lists: pure geometry only — `hovered()` includes interact_radius
         // and would light a pin and the underlapping file at once (geometry-only hit testing).
-        let over = self.interactive && ui.ctx().rect_contains_pointer(ui.layer_id(), hit);
+        let over = self.interactive
+            && (self.highlighted || ui.ctx().rect_contains_pointer(ui.layer_id(), hit));
         let hover_t = ui
             .ctx()
             .animate_bool_with_time(resp.id.with("hov"), over, HOVER_ANIM_SECS);
@@ -226,7 +287,8 @@ impl<'a> FileRow<'a> {
                 .rect_filled(wash, corners, fill);
         }
 
-        let ink = t.neutral_fg();
+        let hanging = self.continuation;
+        let ink = if self.muted { t.neutral_fg_secondary() } else { t.neutral_fg() };
         let is_folder = self.icon == phosphor::FOLDER || self.icon == phosphor::FOLDER_OPEN;
         let icon_ink = if is_folder { t.accent() } else { ink };
         let painter = ui
@@ -238,14 +300,18 @@ impl<'a> FileRow<'a> {
         let content_right = paint_rect.right() - self.content_inset - self.trail_reserve;
 
         let icon_x = content_left + INDENT_BASE + self.depth as f32 * INDENT_STEP;
-        // Icon centered on the full plate (name + optional path).
         let icon_cy = paint_rect.center().y;
-        let ig = painter.layout_no_wrap(self.icon.into(), phosphor_ui_font_id(), icon_ink);
-        painter.galley(pos2(icon_x, icon_cy - ig.size().y / 2.0), ig, icon_ink);
-
-        // Two-line recents rows: wider icon column so name/path don't crowd the glyph.
-        let icon_col = if self.subtitle.is_some() { ICON_SLOT + SUB_ICON_EXTRA } else { ICON_SLOT };
+        let two_line = !hanging && (self.subtitle.is_some() || self.caption.is_some());
+        // Two-line recents rows (and hanging continuations): wider icon column so
+        // name/path don't crowd the glyph. Continuations share that column so
+        // extra hits line up under the parent's caption.
+        let icon_col = if two_line || hanging { ICON_SLOT + SUB_ICON_EXTRA } else { ICON_SLOT };
         let text_x = icon_x + icon_col;
+
+        if !hanging {
+            let ig = painter.layout_no_wrap(self.icon.into(), phosphor_ui_font_id(), icon_ink);
+            painter.galley(pos2(icon_x, icon_cy - ig.size().y / 2.0), ig, icon_ink);
+        }
 
         // Trailing marks from the right: end pad · pin? · share?
         let trail_slot = Space::Md.pts();
@@ -261,9 +327,56 @@ impl<'a> FileRow<'a> {
         let sync_reserve = if self.sync_dot.is_some() { SYNC_GAP + 2.0 * SYNC_R } else { 0.0 };
         let max_w = (content_right - trail_w - sync_reserve - text_x).max(Space::Sm.pts());
 
+        if hanging {
+            let cy = paint_rect.center().y;
+            let mark = if self.icon != phosphor::FILE {
+                Some(painter.layout_no_wrap(
+                    self.icon.into(),
+                    phosphor_ui_font_id(),
+                    t.neutral_fg_secondary(),
+                ))
+            } else {
+                None
+            };
+            let mark_w = mark.as_ref().map(|g| g.size().x).unwrap_or(0.0);
+            let mark_gap = if mark.is_some() { Space::Xs.pts() } else { 0.0 };
+            let label_w = if self.caption.is_none() && !self.label.is_empty() {
+                file_name::measure_sized(ui, &self.label, SUB_SIZE, SUB_LINE_H, f32::MAX)
+            } else {
+                0.0
+            };
+            let cluster = mark_w + mark_gap + label_w;
+            let mut body_x = if self.centered {
+                (paint_rect.center().x - cluster / 2.0)
+                    .clamp(content_left, (content_right - cluster).max(content_left))
+            } else {
+                text_x
+            };
+            if let Some(ig) = mark {
+                let mark_sz = ig.size();
+                painter.galley(pos2(body_x, cy - mark_sz.y / 2.0), ig, t.neutral_fg_secondary());
+                body_x += mark_sz.x + mark_gap;
+            }
+            let hang_w = (content_right - body_x).max(Space::Sm.pts());
+            if let Some(spans) = &self.caption {
+                let slot = Rect::from_min_size(
+                    pos2(body_x, cy - SUB_LINE_H / 2.0),
+                    vec2(hang_w, SUB_LINE_H),
+                );
+                paint_caption(ui, spans, t.neutral_fg_secondary(), slot, SUB_SIZE, SUB_LINE_H);
+            } else if !self.label.is_empty() {
+                let slot = Rect::from_min_size(
+                    pos2(body_x, cy - SUB_LINE_H / 2.0),
+                    vec2(hang_w, SUB_LINE_H),
+                );
+                file_name::paint(ui, &self.label, ink, slot, SUB_SIZE, SUB_LINE_H);
+            }
+            return resp;
+        }
+
         // Name sits in the upper band; subtitle under it when present.
         let name_lh = TypeRole::Body.line_height();
-        let (name_cy, sub_cy) = if self.subtitle.is_some() {
+        let (name_cy, sub_cy) = if two_line {
             // Vertically stack within the rect with even-ish air.
             let block_h = name_lh + SUB_GAP + SUB_LINE_H;
             let block_top = paint_rect.center().y - block_h / 2.0;
@@ -282,11 +395,18 @@ impl<'a> FileRow<'a> {
             painter.circle_filled(pos2(cx, name_cy), SYNC_R, c);
         }
 
-        if let Some(sub) = &self.subtitle {
+        if let Some(spans) = &self.caption {
+            let sub_font_size = SUB_SIZE;
+            let sub_lh = SUB_LINE_H;
+            let sub_slot =
+                Rect::from_min_size(pos2(text_x, sub_cy - sub_lh / 2.0), vec2(max_w, sub_lh));
+            paint_caption(ui, spans, t.neutral_fg_secondary(), sub_slot, sub_font_size, sub_lh);
+        } else if let Some(sub) = &self.subtitle {
             // Middle-ellipsis for path segments, then glyphon paint (folder names may be emoji).
             let sub_font_size = SUB_SIZE;
             let sub_lh = SUB_LINE_H;
-            let shown = middle_ellipsize_path_glyphon(ui, sub, max_w, sub_font_size, sub_lh);
+            let crumbs = path_crumbs(sub);
+            let shown = middle_ellipsize_path_glyphon(ui, &crumbs, max_w, sub_font_size, sub_lh);
             let sub_slot =
                 Rect::from_min_size(pos2(text_x, sub_cy - sub_lh / 2.0), vec2(max_w, sub_lh));
             file_name::paint(ui, &shown, t.neutral_fg_secondary(), sub_slot, sub_font_size, sub_lh);
@@ -325,6 +445,65 @@ impl<'a> FileRow<'a> {
 
         resp
     }
+}
+
+fn paint_caption(
+    ui: &mut Ui, spans: &[(String, bool)], color: Color32, slot: Rect, font_size: f32,
+    line_height: f32,
+) {
+    let max_w = slot.width().max(0.0);
+    if max_w < 0.5 || spans.is_empty() {
+        return;
+    }
+    let refs: Vec<(&str, bool)> = spans.iter().map(|(s, b)| (s.as_str(), *b)).collect();
+    let shaped = GlyphonLabel::new_rich(refs, color)
+        .font_size(font_size)
+        .line_height(line_height)
+        .max_width(max_w)
+        .text_overflow(TextOverflow::EndEllipsis)
+        .build(ui.ctx());
+    let drawn_w = shaped.size.x.min(max_w);
+    let y = slot.center().y - line_height / 2.0;
+    let text_rect = Rect::from_min_size(pos2(slot.left(), y), vec2(drawn_w, line_height));
+    let clip = text_rect.intersect(ui.clip_rect()).intersect(slot);
+    if clip.width() > 0.5 && clip.height() > 0.5 && ui.is_rect_visible(clip) {
+        let area = shaped.text_area(text_rect, ui.ctx(), clip);
+        ui.painter()
+            .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
+                clip,
+                crate::GlyphonRendererCallback::new(vec![area]),
+            ));
+    }
+}
+
+fn path_parts(path: &str) -> Vec<&str> {
+    if path.contains(" / ") {
+        path.split(" / ").filter(|p| !p.is_empty()).collect()
+    } else {
+        path.split('/').filter(|p| !p.is_empty()).collect()
+    }
+}
+
+/// Display crumbs for a stored path (`/a/b/c` or `a / b / c`) → `a / b / c`.
+pub fn path_crumbs(path: &str) -> String {
+    let parts = path_parts(path);
+    if parts.is_empty() { "Home".into() } else { parts.join(" / ") }
+}
+
+/// Parent crumbs of a stored path (`/a/b/c` → `a / b`). Root → `Home`.
+pub fn parent_crumbs(path: &str) -> String {
+    let parts = path_parts(path);
+    match parts.split_last() {
+        Some((_, parent)) if !parent.is_empty() => parent.join(" / "),
+        _ => "Home".into(),
+    }
+}
+
+/// Middle-ellipsis for ` / `-joined path segments: `a / b / c / d` → `a / … / d`.
+///
+/// Width measured with glyphon so emoji folder names size correctly.
+pub fn ellipsize_path(ui: &Ui, path: &str, max_w: f32) -> String {
+    middle_ellipsize_path_glyphon(ui, path, max_w, SUB_SIZE, SUB_LINE_H)
 }
 
 /// Middle-ellipsis for ` / `-joined path segments: `a / b / c / d` → `a / … / d`.

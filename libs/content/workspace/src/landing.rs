@@ -74,9 +74,7 @@ impl Workspace {
         let recents = self.landing_page.recents_rows.clone();
         let motion = surface_motion(ui.ctx(), Id::new("landing_recents"), want_recents);
 
-        let col_w = (ui.max_rect().width() - Space::Xl.pts() * 2.0)
-            .min(COL_W)
-            .max(0.0);
+        let col_w = (ui.max_rect().width() - Space::Xl.pts() * 2.0).clamp(0.0, COL_W);
         let status_h = TypeRole::Body.line_height();
         let cmd_h = control_height() * 2.0;
         let core_h = status_h + Space::Xl.pts() + cmd_h;

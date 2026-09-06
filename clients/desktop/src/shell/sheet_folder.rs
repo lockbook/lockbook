@@ -475,22 +475,12 @@ fn folder_picker_sheet(
                 ui.add(Spacer::new(Space::Sm));
                 // Flush sticky fills + Outside hairline (not Frame Inside).
                 let tree_h = super::tree::folder_tree_default_height();
-                let tw = crate::components::ui_width(ui);
-                let (slot, _) =
-                    ui.allocate_exact_size(egui::vec2(tw, tree_h), egui::Sense::hover());
-                crate::components::paint_plate_stroke(
-                    ui,
-                    slot,
-                    crate::components::Radius::Control.corner(),
-                    t.neutral(),
-                );
-                ui.scope_builder(egui::UiBuilder::new().max_rect(slot), |ui| {
-                    ui.spacing_mut().item_spacing.y = 0.0;
-                    ui.set_clip_rect(slot.intersect(ui.clip_rect()));
-                    if let Some(id) = super::tree::show_folder_tree(
-                        app,
+                if let Some(ready) = app.session.ready() {
+                    let files = ready.workspace.files.read().unwrap();
+                    if let Some(id) = workspace_rs::style::show_folder_tree_plate(
                         ui,
                         t,
+                        &*files,
                         &mut expanded,
                         dest,
                         exclude,
@@ -503,7 +493,7 @@ fn folder_picker_sheet(
                             FolderPickKind::ImportParent => queue.push(A::ImportParentSelect(id)),
                         }
                     }
-                });
+                }
                 // Commit copy when a folder is chosen (footer spacing: Xl · copy · Md · footer).
                 // Move has its own cascade summary; Accept/Import use a simple dest line.
                 let show_summary = dest.is_some();
