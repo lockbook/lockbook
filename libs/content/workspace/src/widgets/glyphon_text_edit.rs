@@ -5,11 +5,34 @@ use glyphon::{Attrs, Family, FontSystem, Metrics, Shaping};
 
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
-// Base filter for arrows / text. Tab is claimed only when the buffer is
-// non-empty (complete or no-op in-place). Empty field leaves Tab for focus
-// navigation (tab into the field → type → Enter → Tab out).
-fn event_filter(claim_tab: bool) -> EventFilter {
+// Tab is claimed only when the buffer is non-empty (complete or no-op).
+// Empty field leaves Tab for focus navigation.
+//
+// `vertical_arrows` must be true on the *lock* filter: egui's focus pass
+// treats unmatched Up/Down as spatial focus moves, which yanks a search
+// query into the preview tab (and chat then swallows further arrows).
+// Single-line apply_event ignores Up/Down; the drain filter leaves them
+// in the queue for list nav.
+fn lock_filter(claim_tab: bool) -> EventFilter {
+    EventFilter { horizontal_arrows: true, vertical_arrows: true, tab: claim_tab, escape: false }
+}
+
+fn drain_filter(claim_tab: bool) -> EventFilter {
     EventFilter { horizontal_arrows: true, vertical_arrows: false, tab: claim_tab, escape: false }
+}
+
+/// Keys the focused field should take out of the queue.
+///
+/// egui's [`EventFilter`] matches *all* non-arrow keys, which would swallow
+/// workspace chords (⌘1–9 open a search hit, ⌘O, …). Only drain unmodified
+/// typing plus the chords the field itself handles (⌘A / ⌘Backspace).
+fn field_should_drain(event: &Event, drain: &EventFilter) -> bool {
+    if let Event::Key { modifiers, key, .. } = event {
+        if modifiers.command || modifiers.ctrl || modifiers.alt || modifiers.mac_cmd {
+            return modifiers.command && matches!(key, Key::A | Key::Backspace);
+        }
+    }
+    drain.matches(event)
 }
 
 /// Apply one editor event to `state` and `text`.
@@ -308,13 +331,13 @@ impl<'a> GlyphonTextEdit<'a> {
 
         // Non-empty → claim Tab (complete / stay). Empty / grid → let egui Tab-focus.
         let claim_tab = claim_tab_when_nonempty && !text.trim().is_empty();
-        let filter = event_filter(claim_tab);
-        ui.memory_mut(|m| m.set_focus_lock_filter(id, filter));
+        ui.memory_mut(|m| m.set_focus_lock_filter(id, lock_filter(claim_tab)));
+        let drain = drain_filter(claim_tab);
 
         let events = ui.input_mut(|i| {
             let (matching, remaining): (Vec<_>, Vec<_>) = std::mem::take(&mut i.events)
                 .into_iter()
-                .partition(|e| filter.matches(e));
+                .partition(|e| field_should_drain(e, &drain));
             i.events = remaining;
             matching
         });
@@ -388,10 +411,10 @@ impl<'a> GlyphonTextEdit<'a> {
         let mut text_changed = false;
         if focused {
             let claim_tab = self.claim_tab_when_nonempty && !self.text.trim().is_empty();
-            let filter = event_filter(claim_tab);
-            ui.memory_mut(|m| m.set_focus_lock_filter(id, filter));
+            ui.memory_mut(|m| m.set_focus_lock_filter(id, lock_filter(claim_tab)));
+            let drain = drain_filter(claim_tab);
 
-            let events = ui.input_mut(|i| i.filtered_events(&filter));
+            let events = ui.input_mut(|i| i.filtered_events(&drain));
             for event in events {
                 if matches!(event, Event::Key { key: Key::Tab, pressed: true, .. }) {
                     // Non-empty only (filter claimed Tab). Stay put if already full.
