@@ -14,6 +14,7 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
+use crate::style::{phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
@@ -22,7 +23,6 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
-use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -282,8 +282,8 @@ impl<'ast> MdRender {
                     ui.painter().text(
                         icon_rect.center(),
                         egui::Align2::CENTER_CENTER,
-                        Icon::LINK.icon,
-                        egui::FontId::monospace(size),
+                        phosphor::LINK,
+                        phosphor_font_id(size),
                         self.ctx.get_lb_theme().neutral_fg_secondary(),
                     );
                 }

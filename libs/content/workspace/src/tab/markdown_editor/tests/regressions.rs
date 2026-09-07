@@ -425,6 +425,7 @@ fn adjacent_inline_code_backgrounds_dont_overlap() {
 
 #[test]
 fn icon_glyphs_skip_emoji_font() {
+    use crate::style::phosphor;
     use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, shape_as_emoji};
     use crate::theme::icons::Icon;
 
@@ -433,6 +434,7 @@ fn icon_glyphs_skip_emoji_font() {
     // route to the colorless emoji font, or it renders in the default fg
     // instead of blue (#4653).
     assert!(!shape_as_emoji(&FontFamily::Icons, Icon::OPEN_IN_NEW.icon));
+    assert!(!shape_as_emoji(&FontFamily::Phosphor, phosphor::ARROW_SQUARE_OUT));
 
     // Emoji in regular text still route to the emoji font — the Icons guard
     // must not regress this. `:warning:` carries VS-16, which the editor needs

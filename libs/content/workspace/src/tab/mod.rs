@@ -9,9 +9,9 @@ use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 
+use crate::style::phosphor;
 use crate::tab::svg_editor::SVGEditor;
 use crate::task_manager::TaskManager;
-use crate::theme::icons::Icon;
 use crate::workspace::Workspace;
 
 use chrono::DateTime;
@@ -648,14 +648,12 @@ pub enum TabStatus {
 }
 
 impl TabStatus {
-    pub fn icon(&self) -> Icon {
+    pub fn icon(&self) -> &'static str {
         match self {
-            TabStatus::Dirty => Icon::CIRCLE,
-            TabStatus::LoadQueued => Icon::SCHEDULE,
-            TabStatus::LoadInProgress => Icon::SAVE,
-            TabStatus::SaveQueued => Icon::SCHEDULE,
-            TabStatus::SaveInProgress => Icon::SAVE,
-            TabStatus::Clean => Icon::CHECK_CIRCLE,
+            TabStatus::Dirty => phosphor::CIRCLE,
+            TabStatus::LoadQueued | TabStatus::SaveQueued => phosphor::CLOCK,
+            TabStatus::LoadInProgress | TabStatus::SaveInProgress => phosphor::FLOPPY_DISK,
+            TabStatus::Clean => phosphor::CHECK_CIRCLE,
         }
     }
 

@@ -319,6 +319,17 @@ pub mod phosphor {
     pub const CLOUD_ARROW_UP: &str = "\u{e1ae}";
     pub const WARNING_CIRCLE: &str = "\u{e4e2}";
     pub const CHECK_CIRCLE: &str = "\u{e184}";
+    /// Horizontal ellipsis (`ph-dots-three`).
+    pub const DOTS_THREE: &str = "\u{e1fe}";
+    /// GFM alert / status.
+    pub const INFO: &str = "\u{e2ce}";
+    pub const LIGHTBULB: &str = "\u{e2dc}";
+    pub const MEGAPHONE: &str = "\u{e324}";
+    pub const WARNING: &str = "\u{e4e0}";
+    pub const WARNING_OCTAGON: &str = "\u{e4e4}";
+    pub const IMAGE: &str = "\u{e2ca}";
+    pub const IMAGE_BROKEN: &str = "\u{e7a8}";
+    pub const FLOPPY_DISK: &str = "\u{e248}";
     /// Bare check (confirm checkbox fill).
     pub const CHECK: &str = "\u{e182}";
     /// Not-found / clear fail (share field) — improvise; phosphor has no `user-x`.

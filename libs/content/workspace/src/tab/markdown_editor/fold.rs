@@ -16,20 +16,20 @@ use lb_rs::model::text::buffer;
 use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as _};
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
+use crate::style::phosphor;
 use crate::tab::markdown_editor::bounds::FoldBounds;
 use crate::tab::markdown_editor::input::{Advance, Bound, Increment, Region};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
     FontFamily, Format, Layout, StyleInfo,
 };
 use crate::tab::markdown_editor::{Event, MdEdit, MdRender};
-use crate::theme::icons::Icon;
 
 pub const FOLD_TAG: &str = "<!-- {\"fold\":true} -->";
 
 /// Visible glyph of the chip a folded section's tag renders as — a
-/// single icon, so the dots are spaced as drawn rather than as three
-/// text glyphs ([`Icon::DOTS_HORIZONTAL`]).
-pub const FOLD_CHIP_TEXT: &str = Icon::DOTS_HORIZONTAL.icon;
+/// single Phosphor mark, so the dots are spaced as drawn rather than
+/// as three text glyphs.
+pub const FOLD_CHIP_TEXT: &str = phosphor::DOTS_THREE;
 
 /// Click-target id for a fold's chip. Keyed by tag range so layout and
 /// interaction handling derive the same id without the AST node.
@@ -122,7 +122,8 @@ impl<'ast> MdRender {
         layout.push_override(node_range.start().into_range(), " ", self.text_format(parent));
         // Interaction outside the style scope so the capsule's side
         // pads are part of the click target.
-        let format = Format { family: FontFamily::Icons, ..self.text_format_html_inline(parent) };
+        let format =
+            Format { family: FontFamily::Phosphor, ..self.text_format_html_inline(parent) };
         layout.interaction_open(fold_chip_id_salt(fold.tag), egui::Sense::click());
         layout.style_open(StyleInfo {
             format: format.clone(),

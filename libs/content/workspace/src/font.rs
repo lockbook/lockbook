@@ -11,6 +11,7 @@ pub fn load(db: &mut Database) {
     for font in lb_fonts::SYMBOLS {
         db.load_font_source(Source::Binary(Arc::new(font) as _));
     }
+    db.load_font_source(Source::Binary(Arc::new(lb_fonts::PHOSPHOR) as _));
 
     #[cfg(target_vendor = "apple")]
     {

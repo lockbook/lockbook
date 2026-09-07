@@ -100,7 +100,8 @@ impl Workspace {
         let hairline_y = upper_rect.bottom() + md;
         let cluster = Rect::from_min_size(pos2(left, top), vec2(col_w, cluster_h));
 
-        let mut open: Option<Uuid> = None;
+        let mut file_cmd: Option<(Uuid, RecentCmd)> = None;
+        let pinned_ids = self.core.list_pinned().unwrap_or_default();
         if shown_lower > 0.5 && !recents.is_empty() {
             let lower_top = hairline_y - lower_h * (1.0 - motion.slide);
             let lower_full = Rect::from_min_size(pos2(left, lower_top), vec2(col_w, lower_h));
@@ -119,8 +120,34 @@ impl Workspace {
                 paint_list_section(ui, &t, "Recents", head.min);
                 ui.add(Spacer::new(SECTION_HEAD_GAP));
                 for (id, name) in &recents {
-                    if recent_row(ui, &t, name, Id::new("landing_recent").with(*id)).clicked() {
-                        open = Some(*id);
+                    let pinned = pinned_ids.contains(id);
+                    let resp =
+                        recent_row(ui, &t, name, Id::new("landing_recent").with(*id), pinned);
+                    if resp.clicked() {
+                        file_cmd = Some((
+                            *id,
+                            if ui.input(|i| i.modifiers.command) {
+                                RecentCmd::OpenNewTab
+                            } else {
+                                RecentCmd::Open
+                            },
+                        ));
+                    }
+                    if resp.middle_clicked() {
+                        file_cmd = Some((*id, RecentCmd::OpenNewTab));
+                    }
+                    if let Some(cmd) = crate::style::context_menu::show(&resp, &t, |e| {
+                        e.item(phosphor::ARROW_SQUARE_OUT, "Open", RecentCmd::Open);
+                        e.item(phosphor::APP_WINDOW, "Open in new tab", RecentCmd::OpenNewTab);
+                        e.separator();
+                        e.item(
+                            phosphor::PUSH_PIN,
+                            if pinned { "Unpin" } else { "Pin" },
+                            RecentCmd::Pin,
+                        );
+                        e.item(phosphor::COPY, "Duplicate", RecentCmd::Duplicate);
+                    }) {
+                        file_cmd = Some((*id, cmd));
                     }
                 }
             });
@@ -163,8 +190,57 @@ impl Workspace {
         if search {
             self.upsert_search(Some(crate::search::SearchType::Path));
         }
-        if let Some(id) = open {
-            self.open_file(id, true, false);
+        if let Some((id, cmd)) = file_cmd {
+            match cmd {
+                RecentCmd::Open => self.open_file(id, true, false),
+                RecentCmd::OpenNewTab => self.open_file(id, true, true),
+                RecentCmd::Pin => self.toggle_pin(id),
+                RecentCmd::Duplicate => self.duplicate_doc(id),
+            }
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+enum RecentCmd {
+    Open,
+    OpenNewTab,
+    Pin,
+    Duplicate,
+}
+
+impl Workspace {
+    fn toggle_pin(&mut self, id: Uuid) {
+        let pinned = self.core.list_pinned().unwrap_or_default();
+        let res =
+            if pinned.contains(&id) { self.core.unpin_file(id) } else { self.core.pin_file(id) };
+        match res {
+            Ok(()) => {
+                self.out.file_cache_updated = true;
+                self.ctx.request_repaint();
+            }
+            Err(err) => self.out.failure_messages.push(format!("Pin failed: {err}")),
+        }
+    }
+
+    fn duplicate_doc(&mut self, id: Uuid) {
+        match self.core.duplicate_file(&id) {
+            Ok(file) => {
+                self.files
+                    .write()
+                    .unwrap()
+                    .insert_created_file(file.clone());
+                self.out.file_cache_updated = true;
+                self.out.file_created = Some(Ok(file.clone()));
+                if file.is_document() {
+                    self.open_file(file.id, true, false);
+                }
+                self.ctx.request_repaint();
+            }
+            Err(err) => self
+                .out
+                .failure_messages
+                .push(format!("Duplicate failed: {err}")),
         }
     }
 }
@@ -239,16 +315,32 @@ fn command_row(
     resp
 }
 
-fn recent_row(ui: &mut Ui, t: &Theme, name: &str, id: Id) -> egui::Response {
+fn recent_row(ui: &mut Ui, t: &Theme, name: &str, id: Id, pinned: bool) -> egui::Response {
     let (rect, resp) = row_plate(ui, t, Some(id));
     let pad = control_space::PAD_X.pts();
     let icon_gap = control_space::ICON_GAP.pts();
     let icon_x = rect.left() + pad;
     let icon_w =
         paint_row_icon(ui, file_row_icon(name, false), t.neutral_fg(), icon_x, rect.center().y);
+    let mut right = rect.right() - pad;
+    if pinned {
+        let pin_w = ui
+            .painter()
+            .layout_no_wrap(phosphor::PUSH_PIN.into(), phosphor_ui_font_id(), Color32::PLACEHOLDER)
+            .size()
+            .x;
+        paint_row_icon(
+            ui,
+            phosphor::PUSH_PIN,
+            t.neutral_fg_secondary(),
+            right - pin_w,
+            rect.center().y,
+        );
+        right -= pin_w + icon_gap;
+    }
     let slot = Rect::from_min_max(
         pos2(icon_x + icon_w + icon_gap, rect.top()),
-        pos2(rect.right() - pad, rect.bottom()),
+        pos2(right, rect.bottom()),
     );
     paint_file_name(ui, display_file_name(name), t.neutral_fg(), slot);
     resp
