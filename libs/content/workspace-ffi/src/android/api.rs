@@ -75,6 +75,16 @@ fn android_response_to_java<'local>(
     let copied_text = env
         .new_string(response.copied_text)
         .expect("create copied_text string");
+    let copied_image: Vec<i8> = response
+        .copied_image
+        .into_iter()
+        .map(|byte| byte as i8)
+        .collect();
+    let copied_image_array = env
+        .new_byte_array(copied_image.len() as i32)
+        .expect("create copied_image byte array");
+    env.set_byte_array_region(&copied_image_array, 0, &copied_image)
+        .expect("populate copied_image byte array");
     let url_opened = env
         .new_string(response.url_opened)
         .expect("create url_opened string");
@@ -98,10 +108,11 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZ)V",
+        "(JLjava/lang/String;[BZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZ)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
+            JValue::Object(&JObject::from(copied_image_array)),
             JValue::Bool(if response.has_url_opened { 1 } else { 0 }),
             JValue::Object(&JObject::from(url_opened)),
             JValue::Object(&virtual_keyboard_shown),
@@ -112,6 +123,7 @@ fn android_response_to_java<'local>(
             JValue::Float(response.edit_menu_x),
             JValue::Float(response.edit_menu_y),
             JValue::Bool(if response.edit_menu_for_atom { 1 } else { 0 }),
+            JValue::Bool(if response.edit_menu_for_image { 1 } else { 0 }),
             JValue::Bool(if response.selection_updated { 1 } else { 0 }),
             JValue::Bool(if response.text_updated { 1 } else { 0 }),
         ],
@@ -831,6 +843,16 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardCopy(
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     obj.renderer.context.push_markdown_event(Event::Copy);
+}
+
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_copyImage(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(image_viewer) = obj.workspace.current_tab_image() {
+        image_viewer.copy_image(&obj.renderer.context);
+    }
 }
 
 #[no_mangle]
