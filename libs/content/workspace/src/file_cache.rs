@@ -667,7 +667,7 @@ fn match_title(docs: &[&File], title: &str) -> Option<Uuid> {
 }
 
 /// A lockbook path split into its non-empty segments — the shared step
-/// behind every path-boundary comparison here (and `chat::tools::in_scope`):
+/// behind every path-boundary comparison here:
 /// segment-vector equality is immune to the sibling-prefix trap raw string
 /// slicing invites (`/notes` is not a prefix-match for `/notes2/a.md` once
 /// paths are segments rather than characters).
