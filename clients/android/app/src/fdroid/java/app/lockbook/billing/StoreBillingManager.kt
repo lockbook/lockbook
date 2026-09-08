@@ -6,6 +6,7 @@ import android.view.View
 import android.view.WindowManager
 import android.view.inputmethod.InputMethodManager
 import androidx.appcompat.app.AppCompatActivity
+import androidx.core.widget.doAfterTextChanged
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
@@ -49,6 +50,7 @@ class StoreBillingManager(
         val binding = DialogStripeCardBinding.inflate(activity.layoutInflater)
         val dialog = BottomSheetDialog(activity)
 
+        clearCardErrorsWhenEdited(binding)
         dialog.setContentView(binding.root)
         dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         dialog.behavior.skipCollapsed = true
@@ -72,37 +74,8 @@ class StoreBillingManager(
             dialog.dismiss()
         }
         binding.cardSubscribe.setOnClickListener {
-            binding.cardNumberLayout.error = null
-            binding.cardExpirationMonthLayout.error = null
-            binding.cardExpirationYearLayout.error = null
-            binding.cardCvcLayout.error = null
             binding.cardPaymentError.visibility = View.GONE
-
-            val cardNumber = binding.cardNumber.text.toString().filter(Char::isDigit)
-            val expirationMonth = binding.cardExpirationMonth.text.toString().toIntOrNull()
-            val expirationYear = parseExpirationYear(binding.cardExpirationYear.text.toString())
-            val cardCvc = binding.cardCvc.text.toString()
-
-            var isValid = true
-            if (cardNumber.length !in 12..19) {
-                binding.cardNumberLayout.error = activity.getString(R.string.invalid_card_number)
-                isValid = false
-            }
-            if (expirationMonth !in 1..12) {
-                binding.cardExpirationMonthLayout.error = activity.getString(R.string.invalid_expiration_month)
-                isValid = false
-            }
-            if (expirationYear == null) {
-                binding.cardExpirationYearLayout.error = activity.getString(R.string.invalid_expiration_year)
-                isValid = false
-            }
-            if (cardCvc.length !in 3..4 || !cardCvc.all(Char::isDigit)) {
-                binding.cardCvcLayout.error = activity.getString(R.string.invalid_card_cvc)
-                isValid = false
-            }
-            if (!isValid) {
-                return@setOnClickListener
-            }
+            val card = validateCardForm(binding, activity) ?: return@setOnClickListener
 
             setPaymentFormEnabled(binding, false)
             binding.cardSubscribe.isEnabled = false
@@ -116,10 +89,10 @@ class StoreBillingManager(
                     withContext(Dispatchers.IO) {
                         try {
                             Lb.upgradeAccountStripe(
-                                cardNumber,
-                                checkNotNull(expirationYear),
-                                checkNotNull(expirationMonth),
-                                cardCvc,
+                                card.number,
+                                card.expirationYear,
+                                card.expirationMonth,
+                                card.cvc,
                             )
                             null
                         } catch (error: CancellationException) {
@@ -139,6 +112,58 @@ class StoreBillingManager(
             }
         }
         dialog.show()
+    }
+
+    private fun clearCardErrorsWhenEdited(binding: DialogStripeCardBinding) {
+        binding.cardNumber.doAfterTextChanged {
+            binding.cardNumberLayout.error = null
+            binding.cardPaymentError.visibility = View.GONE
+        }
+        binding.cardExpirationMonth.doAfterTextChanged {
+            binding.cardExpirationMonthLayout.error = null
+            binding.cardPaymentError.visibility = View.GONE
+        }
+        binding.cardExpirationYear.doAfterTextChanged {
+            binding.cardExpirationYearLayout.error = null
+            binding.cardPaymentError.visibility = View.GONE
+        }
+        binding.cardCvc.doAfterTextChanged {
+            binding.cardCvcLayout.error = null
+            binding.cardPaymentError.visibility = View.GONE
+        }
+    }
+
+    private fun validateCardForm(
+        binding: DialogStripeCardBinding,
+        activity: AppCompatActivity,
+    ): CardDetails? {
+        val number = binding.cardNumber.text.toString().filter(Char::isDigit)
+        val expirationMonth = binding.cardExpirationMonth.text.toString().toIntOrNull()
+        val expirationYear = parseExpirationYear(binding.cardExpirationYear.text.toString())
+        val cvc = binding.cardCvc.text.toString()
+        val errors =
+            listOf(
+                binding.cardNumberLayout to
+                    activity.getString(R.string.invalid_card_number).takeIf { number.length !in 12..19 },
+                binding.cardExpirationMonthLayout to
+                    activity.getString(R.string.invalid_expiration_month).takeIf { expirationMonth !in 1..12 },
+                binding.cardExpirationYearLayout to
+                    activity.getString(R.string.invalid_expiration_year).takeIf { expirationYear == null },
+                binding.cardCvcLayout to
+                    activity.getString(R.string.invalid_card_cvc).takeIf {
+                        cvc.length !in 3..4 || !cvc.all(Char::isDigit)
+                    },
+            )
+
+        errors.forEach { (layout, error) -> layout.error = error }
+        if (errors.any { it.second != null }) return null
+
+        return CardDetails(
+            number = number,
+            expirationMonth = checkNotNull(expirationMonth),
+            expirationYear = checkNotNull(expirationYear),
+            cvc = cvc,
+        )
     }
 
     private fun setPaymentFormEnabled(
@@ -209,4 +234,11 @@ class StoreBillingManager(
             4 -> value.toIntOrNull()
             else -> null
         }
+
+    private data class CardDetails(
+        val number: String,
+        val expirationMonth: Int,
+        val expirationYear: Int,
+        val cvc: String,
+    )
 }
