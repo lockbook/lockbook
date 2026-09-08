@@ -116,6 +116,18 @@ impl<'a> Button<'a> {
         self
     }
 
+    pub fn min_width(mut self, w: f32) -> Self {
+        self.min_width = Some(w);
+        self
+    }
+
+    /// Leading Phosphor glyph. Combine with a label so the mark is not the
+    /// only way to read the control.
+    pub fn icon(mut self, icon: &'static str) -> Self {
+        self.icon = Some(icon);
+        self
+    }
+
     pub fn shortcut(mut self, s: Shortcut) -> Self {
         self.shortcut = Some(s);
         self

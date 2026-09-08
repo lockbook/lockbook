@@ -368,17 +368,36 @@ async fn concurrent_chat_appends_union_cleanly() {
     let c1 = test_core_with_account().await;
     let doc = c1.create_at_path("convo.chat").await.unwrap();
 
-    let base = "{\"from\":\"a\",\"content\":\"hello\",\"ts\":1}\n";
-    c1.write_document(doc.id, base.as_bytes()).await.unwrap();
+    fn turn(from: &str, ts: i64, body: &str) -> Vec<lb_rs::model::chat::Event> {
+        use lb_rs::model::chat::{Content, Event, EventBody, ItemKind, Status};
+        let item = uuid::Uuid::from_u128(ts as u128);
+        vec![
+            Event::new(from, ts, EventBody::Open { item, parent: None, kind: ItemKind::User }),
+            Event::new(
+                from,
+                ts + 1,
+                EventBody::Replace { item, blocks: vec![Content::Text { text: body.into() }] },
+            ),
+            Event::new(from, ts + 2, EventBody::SetStatus { item, status: Status::Done }),
+        ]
+    }
+    fn ser(events: &[lb_rs::model::chat::Event]) -> Vec<u8> {
+        lb_rs::model::chat::Buffer { events: events.to_vec() }.serialize()
+    }
+
+    let hello = turn("a", 10, "hello");
+    c1.write_document(doc.id, &ser(&hello)).await.unwrap();
     c1.sync().await.unwrap();
 
     let c2 = test_core_from(&c1).await;
 
     // each device appends its own turn on top of the shared base
-    let turn1 = format!("{base}{{\"from\":\"a\",\"content\":\"one\",\"ts\":2}}\n");
-    let turn2 = format!("{base}{{\"from\":\"b\",\"content\":\"two\",\"ts\":3}}\n");
-    c1.write_document(doc.id, turn1.as_bytes()).await.unwrap();
-    c2.write_document(doc.id, turn2.as_bytes()).await.unwrap();
+    let mut one = hello.clone();
+    one.extend(turn("a", 20, "one"));
+    let mut two = hello.clone();
+    two.extend(turn("b", 30, "two"));
+    c1.write_document(doc.id, &ser(&one)).await.unwrap();
+    c2.write_document(doc.id, &ser(&two)).await.unwrap();
 
     c1.sync().await.unwrap();
     c2.sync().await.unwrap();
@@ -397,9 +416,9 @@ async fn concurrent_chat_appends_union_cleanly() {
         assert_eq!(chats, 1, "expected line-union, found a conflict copy");
 
         let merged = String::from_utf8(c.read_document(doc.id, false).await.unwrap()).unwrap();
-        assert_eq!(merged.matches("\"content\":\"one\"").count(), 1);
-        assert_eq!(merged.matches("\"content\":\"two\"").count(), 1);
-        assert_eq!(merged.matches("\"content\":\"hello\"").count(), 1);
+        assert_eq!(merged.matches("\"text\":\"one\"").count(), 1);
+        assert_eq!(merged.matches("\"text\":\"two\"").count(), 1);
+        assert_eq!(merged.matches("\"text\":\"hello\"").count(), 1);
     }
     assert::cores_equal(&c1, &c2).await;
 }

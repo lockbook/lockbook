@@ -27,14 +27,15 @@ impl MdRender {
 
 impl<'ast> MdRender {
     pub fn image_size(&self, texture_size: Vec2, width: f32, requested: ImageDims) -> Vec2 {
-        // Constrain the image to fit the renderer with a margin of breathing
-        // room. Clamp to non-negative — when the renderer is too small to
-        // satisfy the margin (initial frames before viewport is known,
-        // zero-height containers), the image collapses to 0 rather than
-        // letting negative dimensions corrupt the surrounding block layout.
-        let image_max_size = (Vec2::new(self.width, self.viewport_height)
-            - Vec2::splat(self.layout.margin))
-        .max(Vec2::ZERO);
+        // Width always wraps. Height is capped by the editor clip rect;
+        // labels never set a viewport (0), so height follows aspect only.
+        let max_w = (self.width - self.layout.margin).max(0.0);
+        let max_h = if self.viewport_height > 0.0 {
+            (self.viewport_height - self.layout.margin).max(0.0)
+        } else {
+            f32::MAX
+        };
+        let image_max_size = Vec2::new(max_w, max_h);
 
         // Texture dims are device pixels; the layout works in logical points.
         // Convert so a Retina screenshot (ppp 2) isn't shown at 2x real size.

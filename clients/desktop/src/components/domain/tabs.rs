@@ -15,8 +15,9 @@ use workspace_rs::file_cache::FilesExt;
 use workspace_rs::tab::Destination;
 
 use crate::components::{
-    FG_HOVER, FG_PRESS, Radius, STROKE_HAIRLINE, Space, Theme, TypeRole, claim, context_menu,
-    display_file_name, fit_outside_stroke_fill, phosphor, place_at, tab_icon, ui_width,
+    FG_HOVER, FG_PRESS, Radius, STROKE_HAIRLINE, Space, Theme, TypeRole, claim,
+    context_menu, display_file_name, fit_outside_stroke_fill, phosphor, place_at, tab_icon,
+    ui_width,
 };
 
 use crate::shell::ShellApp;
@@ -72,7 +73,13 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
                         Destination::File(id) => Some(*id),
                         _ => None,
                     };
-                    TabInfo { idx: i, title, active, file_id, dest: slot.dest.clone() }
+                    let live = ready
+                        .workspace
+                        .tabs
+                        .get(&slot.id)
+                        .and_then(|tab| tab.chat())
+                        .is_some_and(|c| c.on_call());
+                    TabInfo { idx: i, title, active, file_id, dest: slot.dest.clone(), live }
                 })
                 .collect();
             (tabs, can_reopen)
@@ -250,6 +257,8 @@ struct TabInfo {
     active: bool,
     file_id: Option<Uuid>,
     dest: Destination,
+    /// Live voice call on this tab (keeps running while the tab is backgrounded).
+    live: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -416,8 +425,16 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
 
     let cy = body.center().y;
     let mut cx = body.left() + TAB_PAD_X;
-    ui.painter()
-        .galley(pos2(cx, cy - icon_g.size().y / 2.0), icon_g.clone(), ink);
+    let icon_pos = pos2(cx, cy - icon_g.size().y / 2.0);
+    ui.painter().galley(icon_pos, icon_g.clone(), ink);
+    if tab.live {
+        let r = 3.0;
+        ui.painter().circle_filled(
+            pos2(icon_pos.x + icon_g.size().x - 1.0, icon_pos.y + 1.0),
+            r,
+            t.danger(),
+        );
+    }
     cx += icon_g.size().x + Space::Xs.pts();
     let name_lh = TypeRole::Body.line_height();
     crate::components::paint_file_name(

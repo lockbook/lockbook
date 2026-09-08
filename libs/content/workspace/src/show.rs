@@ -45,6 +45,8 @@ impl Workspace {
         self.process_bg_tasks();
         self.process_lb_updates();
         self.process_task_updates();
+        self.pump_live_calls();
+        self.sync_tab_bridge();
         self.process_keys();
         self.process_clip_events();
         self.apply_pending_open_range();

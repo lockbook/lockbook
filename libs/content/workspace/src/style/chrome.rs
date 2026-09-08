@@ -293,7 +293,23 @@ pub mod phosphor {
 
     pub const MARKDOWN_LOGO: &str = "\u{e508}";
     pub const CHAT: &str = "\u{e15c}";
+    /// `ph-phone` (IcoMoon 2.1). Not U+E3D4.
+    pub const PHONE: &str = "\u{e3b8}";
+    /// `ph-phone-disconnect`.
+    pub const PHONE_DISCONNECT: &str = "\u{e3bc}";
+    /// `ph-phone-slash`.
+    pub const PHONE_SLASH: &str = "\u{e3c2}";
+    /// `ph-microphone`. U+E328 is `microphone-slash`.
+    pub const MICROPHONE: &str = "\u{e326}";
+    /// `ph-microphone-slash`.
+    pub const MICROPHONE_SLASH: &str = "\u{e328}";
+    /// `ph-paper-plane-tilt` (regular). Not U+E38A (`number-square-zero`).
+    pub const PAPER_PLANE_TILT: &str = "\u{e398}";
     pub const SEARCH: &str = "\u{e30c}";
+    /// Web search tool row (`ph-globe`).
+    pub const GLOBE: &str = "\u{e288}";
+    /// X search tool row (`ph-x-logo`).
+    pub const X_LOGO: &str = "\u{e4bc}";
     /// Zoom out (`ph-magnifying-glass-minus`).
     pub const MAGNIFYING_GLASS_MINUS: &str = "\u{e30e}";
     /// Zoom in (`ph-magnifying-glass-plus`).

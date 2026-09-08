@@ -60,7 +60,17 @@ pub struct Network {
 impl Default for Network {
     fn default() -> Self {
         Self {
-            client: Default::default(),
+            client: {
+                let mut builder = Client::builder();
+                // Offline DNS/TCP can otherwise hang until the network returns.
+                // Overall request timeout is not set: large doc push/pull can
+                // legitimately take longer than a connect.
+                #[cfg(not(target_family = "wasm"))]
+                {
+                    builder = builder.connect_timeout(std::time::Duration::from_secs(10));
+                }
+                builder.build().unwrap_or_else(|_| Client::new())
+            },
             get_code_version,
             get_time,
             client_type: ClientType::Unknown,

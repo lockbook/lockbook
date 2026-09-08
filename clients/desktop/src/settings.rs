@@ -9,6 +9,9 @@ pub struct Settings {
     pub theme_mode: ModePreference,
     pub theme_name: String,
     pub sidebar_usage: bool,
+    /// Last create-sheet type (`note` / `drawing` / `chat` / `folder` / `other`).
+    #[serde(default)]
+    pub create_kind: String,
     pub zen_mode: bool, // hide side panel and maximize the content workspace
     #[cfg(target_os = "linux")]
     pub allow_wayland: bool,
@@ -77,6 +80,7 @@ impl Default for Settings {
             theme_mode: ModePreference::System,
             theme_name: "default".to_string(),
             sidebar_usage: true,
+            create_kind: String::new(),
             path: "".to_string(),
             zen_mode: false,
             #[cfg(target_os = "linux")]

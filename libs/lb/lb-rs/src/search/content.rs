@@ -2,6 +2,7 @@ use super::path::split_path;
 use super::{ContentMatch, SearchFilter, SearchResult, build_descendants};
 use crate::blocking::Lb;
 use crate::model::file::File;
+use crate::model::media_text;
 use std::cmp::Reverse;
 use std::collections::{HashMap, HashSet};
 use std::ops::Range;
@@ -38,7 +39,7 @@ impl ContentSearcher {
 
         let md_files: Vec<File> = metas
             .into_iter()
-            .filter(|m| m.is_document() && m.name.ends_with(".md"))
+            .filter(|m| m.is_document() && media_text::indexable(&m.name))
             .collect();
 
         let queue = Arc::new(Mutex::new(md_files));
@@ -62,7 +63,7 @@ impl ContentSearcher {
                         let doc = lb
                             .read_document(meta.id, false)
                             .ok()
-                            .and_then(|bytes| String::from_utf8(bytes).ok());
+                            .and_then(|bytes| media_text::extract_index_text(&meta.name, &bytes));
 
                         if let Some(content) = doc {
                             let path = paths

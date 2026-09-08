@@ -255,6 +255,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                     *name = s;
                 }
             }
+            app.settings.create_kind = kind.as_key().to_string();
+            let _ = app.settings.to_file();
         }
         A::CreateSetLoc(loc) => {
             let (alongside, kind, dirty, chosen) = match &app.modal {
@@ -883,7 +885,11 @@ fn open_create_sheet(
     };
     let plan = create_sheet_plan(root, folder, alongside);
 
-    let kind = if prefer_folder { CreateKind::Folder } else { CreateKind::Note };
+    let kind = if prefer_folder {
+        CreateKind::Folder
+    } else {
+        CreateKind::from_key(&app.settings.create_kind)
+    };
     let name = suggested_create_name(app, plan.parent, kind);
     app.modal = Some(Modal::Create {
         name,

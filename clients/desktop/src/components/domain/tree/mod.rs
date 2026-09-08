@@ -507,7 +507,7 @@ pub(crate) enum FileCmd {
     Pin,
     Move,
     Delete,
-    /// Opens create sheet (location from row; type always Note).
+    /// Opens create sheet (location from row; type is the last used).
     Create,
     Duplicate,
     Export,
@@ -930,7 +930,7 @@ fn paint_row(
             FileCmd::Delete => queue.push(Action::OpenDelete(targets.clone())),
             FileCmd::Create => {
                 // Folder-context selects Choose; file-context selects Alongside.
-                // Type stays Note (not “Folder” just because the row is a folder).
+                // Type is the last used (not “Folder” just because the row is a folder).
                 if row.is_folder {
                     queue.push(Action::OpenCreate {
                         folder: Some(row.id),

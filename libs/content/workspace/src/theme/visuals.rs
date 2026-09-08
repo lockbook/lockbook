@@ -28,6 +28,14 @@ pub fn apply(style: &mut egui::Style) {
     style
         .text_styles
         .insert(egui::TextStyle::Button, egui::FontId::new(17.0, egui::FontFamily::Proportional));
+
+    // egui debug builds paint orange "Unaligned" on sub-pixel rects (common
+    // while a ScrollArea offset is fractional). That is a toolkit overlay, not
+    // product chrome.
+    #[cfg(debug_assertions)]
+    {
+        style.debug.show_unaligned = false;
+    }
 }
 
 pub fn init(ctx: &egui::Context) {

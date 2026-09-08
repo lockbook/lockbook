@@ -401,9 +401,12 @@ impl Tab {
                 match content {
                     #[cfg(not(target_family = "wasm"))]
                     TabContent::Chat(chat) => {
+                        let seq_before = chat.seq;
                         let (sent, interaction_rect, composer_updated, composer_text_updated) =
                             chat.show(ui);
-                        if sent {
+                        // Streamed assistant tokens (and salvage) must dirty
+                        // the tab — `sent` is only the user hitting Send.
+                        if sent || chat.seq != seq_before {
                             self.last_changed = Instant::now();
                         }
                         // App-driven composer edits (send-clear, prefill) must

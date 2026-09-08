@@ -37,7 +37,8 @@ pub use chrome::{
 pub use color::{FG_HOVER, FG_PRESS, Theme, ThemeExt};
 pub use file_row::{ellipsize_path, parent_crumbs, path_crumbs};
 pub use interact::{
-    interact_fill, interact_fill_response, quiet_canvas_fills, quiet_secondary_fills, sense_click,
+    canvas_selected_fills, interact_fill, interact_fill_response, quiet_canvas_fills,
+    quiet_secondary_fills, sense_click,
 };
 pub use layout::{
     FixedPadContent, claim, origin, place_at, remaining_height, ui_width, with_h_pad,

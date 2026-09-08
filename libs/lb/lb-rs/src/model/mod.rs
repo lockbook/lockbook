@@ -22,6 +22,7 @@ pub mod file_like;
 pub mod file_metadata;
 pub mod filename;
 pub mod lazy;
+pub mod media_text;
 pub mod meta;
 pub mod meta_conversions;
 pub mod path_ops;

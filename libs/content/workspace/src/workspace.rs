@@ -18,7 +18,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
 use std::sync::mpsc::{Receiver, Sender};
-use std::sync::{Arc, RwLock, mpsc};
+use std::sync::{Arc, Mutex, RwLock, mpsc};
 use tracing::{debug, error, info, instrument, trace_span, warn};
 use web_time::{Duration, Instant};
 
@@ -31,7 +31,7 @@ use crate::search::{Search, SearchType};
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 #[cfg(not(target_family = "wasm"))]
-use crate::tab::chat::Chat;
+use crate::tab::chat::{Chat, TabBridge};
 use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::{
     Editor as Markdown, HttpClient, MdConfig, MdEdit, MdPersistence, MdResources,
@@ -74,6 +74,8 @@ pub struct Workspace {
 
     /// Most-recently-active last; used to pick focus when the current tab closes.
     activation_history: Vec<SessionId>,
+    /// Tabs left by agent tab-back when there was no in-tab history.
+    tab_fwd: Vec<SessionId>,
     /// Closed tabs, most recent last (LIFO for `reopen_closed_tab`).
     closed_tabs: Vec<ClosedTab>,
 
@@ -115,6 +117,9 @@ pub struct Workspace {
     pub current_tab_changed: bool, // used to scroll to current tab when it changes
     pub last_touch_event: Option<Instant>, // used to disable tooltips on touch devices
     pub last_set_title: Option<String>, // used to avoid re-setting the window title every frame
+    /// Shared with chat tabs so tools can list/open/close/reorder the strip.
+    #[cfg(not(target_family = "wasm"))]
+    tab_bridge: Arc<Mutex<TabBridge>>,
 
     // Transient rename state for the landing page file table
     pub landing_rename_target: Option<lb_rs::Uuid>,
@@ -153,6 +158,7 @@ impl Workspace {
             tab_strip: Vec::new(),
             current_tab: None,
             activation_history: Vec::new(),
+            tab_fwd: Vec::new(),
             closed_tabs: Vec::new(),
             landing_page: cfg.get_landing_page(),
             account: core.get_account().expect("failed to get account"),
@@ -177,6 +183,8 @@ impl Workspace {
             current_tab_changed: Default::default(),
             last_touch_event: Default::default(),
             last_set_title: Default::default(),
+            #[cfg(not(target_family = "wasm"))]
+            tab_bridge: Arc::new(Mutex::new(TabBridge::default())),
             landing_rename_target: None,
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
@@ -807,6 +815,9 @@ impl Workspace {
             if let ContentState::Open(TabContent::MindMap(mm)) = &mut tab.content {
                 mm.stop();
             }
+            if let Some(chat) = tab.chat_mut() {
+                chat.hangup_for_close();
+            }
         }
 
         self.save_tab(i);
@@ -827,6 +838,7 @@ impl Workspace {
         let closed_slot = self.tab_strip.remove(i);
         self.out.tabs_changed = true;
         self.activation_history.retain(|id| *id != tab_id);
+        self.tab_fwd.retain(|id| *id != tab_id);
         self.closed_tabs.retain(|c| c.slot.id != tab_id);
         self.closed_tabs
             .push(ClosedTab { slot: closed_slot, left, right, index: i });
@@ -1001,6 +1013,150 @@ impl Workspace {
                 Err(mpsc::TryRecvError::Disconnected) => {
                     error!("ws_rx disconnected");
                     break;
+                }
+            }
+        }
+    }
+
+    pub(crate) fn sync_tab_bridge(&mut self) {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let files = self.files.read().unwrap();
+            let has_prev_tab = self.activation_history.iter().rev().any(|id| {
+                Some(*id) != self.current_tab && self.tab_strip.iter().any(|s| s.id == *id)
+            });
+            let has_fwd_tab = self.tab_fwd.iter().rev().any(|id| {
+                Some(*id) != self.current_tab && self.tab_strip.iter().any(|s| s.id == *id)
+            });
+            let snaps: Vec<crate::tab::chat::tools::TabSnap> = self
+                .tab_strip
+                .iter()
+                .map(|s| {
+                    let file_id = s.dest.id();
+                    let path = match &s.dest {
+                        Destination::File(id) => files.path(*id),
+                        Destination::Search => "search".into(),
+                        Destination::MindMap(_) => "mind map".into(),
+                        Destination::SpaceInspector(_) => "space inspector".into(),
+                    };
+                    let live = self
+                        .tabs
+                        .get(&s.id)
+                        .and_then(|t| t.chat())
+                        .is_some_and(|c| c.on_call());
+                    let active = self.current_tab == Some(s.id);
+                    crate::tab::chat::tools::TabSnap {
+                        file_id,
+                        path,
+                        active,
+                        live,
+                        can_back: s.can_back() || (active && has_prev_tab),
+                        can_forward: s.can_forward() || (active && has_fwd_tab),
+                    }
+                })
+                .collect();
+            drop(files);
+            let cmds = {
+                let mut b = self.tab_bridge.lock().unwrap();
+                b.snaps = snaps;
+                std::mem::take(&mut b.cmds)
+            };
+            for op in cmds {
+                self.apply_tab_op(op);
+            }
+        }
+    }
+
+    #[cfg(not(target_family = "wasm"))]
+    fn apply_tab_op(&mut self, op: crate::tab::chat::tools::TabOp) {
+        use crate::tab::chat::tools::TabOp;
+        match op {
+            TabOp::Open(id) => {
+                self.tab_fwd.clear();
+                self.focus_or_create_file(id, true);
+            }
+            TabOp::Close(id) => {
+                if let Some(i) = index_of_dest_to_activate(
+                    &self.tab_strip,
+                    self.current_tab,
+                    &self.activation_history,
+                    &Destination::File(id),
+                ) {
+                    self.close_tab(i);
+                }
+            }
+            TabOp::Move { id, to } => {
+                if let Some(from) = index_of_dest_to_activate(
+                    &self.tab_strip,
+                    self.current_tab,
+                    &self.activation_history,
+                    &Destination::File(id),
+                ) {
+                    let to = to.min(self.tab_strip.len().saturating_sub(1));
+                    self.move_tab(from, to);
+                }
+            }
+            TabOp::Back => self.tab_nav_back(),
+            TabOp::Forward => self.tab_nav_forward(),
+        }
+    }
+
+    fn tab_nav_back(&mut self) {
+        if self.can_back() {
+            self.back();
+            return;
+        }
+        let leaving = self.current_tab;
+        while let Some(id) = self.activation_history.pop() {
+            if Some(id) == leaving {
+                continue;
+            }
+            if self.tab_strip.iter().any(|s| s.id == id) {
+                if let Some(cur) = leaving {
+                    self.tab_fwd.retain(|x| *x != cur);
+                    self.tab_fwd.push(cur);
+                }
+                self.make_current_by_session(id);
+                return;
+            }
+        }
+    }
+
+    fn tab_nav_forward(&mut self) {
+        if self.can_forward() {
+            self.forward();
+            return;
+        }
+        while let Some(id) = self.tab_fwd.pop() {
+            if Some(id) == self.current_tab {
+                continue;
+            }
+            if self.tab_strip.iter().any(|s| s.id == id) {
+                self.make_current_by_session(id);
+                return;
+            }
+        }
+    }
+
+    /// Apply call / stream events on backgrounded chat tabs. The strip already
+    /// keeps those tabs warm; without this, `pump` only ran while the chat was
+    /// the current tab.
+    pub fn pump_live_calls(&mut self) {
+        #[cfg(not(target_family = "wasm"))]
+        {
+            let now = Instant::now();
+            let ids: Vec<_> = self.tab_strip.iter().map(|s| s.id).collect();
+            for id in ids {
+                let Some(tab) = self.tabs.get_mut(&id) else {
+                    continue;
+                };
+                let Some(chat) = tab.chat_mut() else {
+                    continue;
+                };
+                let seq = chat.seq;
+                chat.pump();
+                if chat.seq != seq {
+                    tab.last_changed = now;
                 }
             }
         }
@@ -1259,6 +1415,9 @@ impl Workspace {
                                     self.ctx.clone(),
                                     Arc::clone(&self.files),
                                     &self.core,
+                                    self.cfg.clone(),
+                                    Arc::clone(&self.tab_bridge),
+                                    self.images.clone(),
                                 )));
                             } else {
                                 let chat = tab.chat_mut().unwrap();
@@ -1385,7 +1544,7 @@ impl Workspace {
                                     #[cfg(not(target_family = "wasm"))]
                                     if let Some(chat) = tab.chat_mut() {
                                         if let TabSaveContent::Bytes(content) = content {
-                                            chat.saved(hmac, content);
+                                            chat.saved(hmac, seq, content);
                                         }
                                     }
                                 }
@@ -1729,6 +1888,26 @@ pub struct WsPresistentData {
     /// replaces.
     #[serde(default = "default_open_in_new_tab")]
     open_in_new_tab: bool,
+    /// Device-local Grok session: SuperGrok tokens plus call voice / IO.
+    /// Not synced; never written into a `.chat` file.
+    #[serde(default)]
+    grok: GrokPrefs,
+}
+
+/// SuperGrok sign-in and call audio, persisted with the rest of workspace
+/// settings so every new chat is signed in and remembers voice / devices.
+#[derive(Clone, Debug, Default, Serialize, Deserialize, PartialEq)]
+#[serde(default)]
+pub struct GrokPrefs {
+    pub access_token: String,
+    pub refresh_token: String,
+    pub id_token: String,
+    pub expires_at: u64,
+    pub token_endpoint: String,
+    pub voice: String,
+    pub input: String,
+    pub output: String,
+    pub model: String,
 }
 
 impl Default for WsPresistentData {
@@ -1747,6 +1926,7 @@ impl Default for WsPresistentData {
             zoom_factor: 1.,
             image_dims: HashMap::default(),
             contact_linked_sites: false,
+            grok: GrokPrefs::default(),
         }
     }
 }
@@ -1913,6 +2093,20 @@ impl WsPersistentStore {
     pub fn merge_image_dims(&self, new_dims: HashMap<String, [f32; 2]>) {
         let mut data_lock = self.data.write().unwrap();
         data_lock.image_dims.extend(new_dims);
+        drop(data_lock);
+        self.write_to_file();
+    }
+
+    pub fn grok(&self) -> GrokPrefs {
+        self.data.read().unwrap().grok.clone()
+    }
+
+    pub fn set_grok(&self, grok: GrokPrefs) {
+        let mut data_lock = self.data.write().unwrap();
+        if data_lock.grok == grok {
+            return;
+        }
+        data_lock.grok = grok;
         drop(data_lock);
         self.write_to_file();
     }
