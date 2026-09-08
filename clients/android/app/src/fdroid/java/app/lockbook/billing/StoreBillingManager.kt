@@ -144,15 +144,21 @@ class StoreBillingManager(
         val errors =
             listOf(
                 binding.cardNumberLayout to
-                    activity.getString(R.string.invalid_card_number).takeIf { number.length !in 12..19 },
+                    activity
+                        .getString(R.string.invalid_card_number)
+                        .takeIf { number.length !in 12..19 },
                 binding.cardExpirationMonthLayout to
-                    activity.getString(R.string.invalid_expiration_month).takeIf { expirationMonth !in 1..12 },
+                    activity
+                        .getString(R.string.invalid_expiration_month)
+                        .takeIf { expirationMonth !in 1..12 },
                 binding.cardExpirationYearLayout to
-                    activity.getString(R.string.invalid_expiration_year).takeIf { expirationYear == null },
+                    activity
+                        .getString(R.string.invalid_expiration_year)
+                        .takeIf { expirationYear == null },
                 binding.cardCvcLayout to
-                    activity.getString(R.string.invalid_card_cvc).takeIf {
-                        cvc.length !in 3..4 || !cvc.all(Char::isDigit)
-                    },
+                    activity
+                        .getString(R.string.invalid_card_cvc)
+                        .takeIf { cvc.length !in 3..4 || !cvc.all(Char::isDigit) },
             )
 
         errors.forEach { (layout, error) -> layout.error = error }
