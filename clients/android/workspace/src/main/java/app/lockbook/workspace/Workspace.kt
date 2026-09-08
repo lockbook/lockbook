@@ -17,6 +17,7 @@ import java.math.BigInteger
 data class AndroidResponse(
     val redrawIn: Long,
     val copiedText: String,
+    val copiedImage: ByteArray,
     val hasURLOpened: Boolean,
     val urlOpened: String,
     val virtualKeyboardShown: Boolean?,
@@ -27,6 +28,7 @@ data class AndroidResponse(
     val editMenuX: Float,
     val editMenuY: Float,
     val editMenuForAtom: Boolean,
+    val editMenuForImage: Boolean,
     val selectionUpdated: Boolean,
     val textUpdated: Boolean
 )
@@ -98,6 +100,7 @@ object Workspace {
     external fun selectAll(rustObj: Long)
     external fun clipboardCut(rustObj: Long)
     external fun clipboardCopy(rustObj: Long)
+    external fun copyImage(rustObj: Long)
     external fun clipboardPaste(rustObj: Long, content: String)
     external fun clipboardSendImage(rustObj: Long, content: ByteArray, isPaste: Boolean)
     external fun isPenOnlyDraw(rustObj: Long) : Boolean

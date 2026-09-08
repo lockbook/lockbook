@@ -8,6 +8,7 @@ pub struct AndroidResponse {
     // platform response
     pub redraw_in: u64,
     pub copied_text: String,
+    pub copied_image: Vec<u8>,
     pub has_url_opened: bool,
     pub url_opened: String,
     pub virtual_keyboard_shown: Option<bool>,
@@ -24,6 +25,8 @@ pub struct AndroidResponse {
     /// The menu is over a selected atom (image, link card/capsule) — offer "Edit"
     /// (`enterSelectedAtom`) alongside the standard actions.
     pub edit_menu_for_atom: bool,
+    /// The menu is over an image viewer — offer "Copy image".
+    pub edit_menu_for_image: bool,
 
     pub selection_updated: bool,
     pub text_updated: bool,
@@ -55,7 +58,7 @@ impl From<crate::Response> for AndroidResponse {
                 },
             redraw_in,
             copied_text,
-            copied_image: _,
+            copied_image,
             urls_opened,
             cursor: _,
             virtual_keyboard_shown,
@@ -74,6 +77,7 @@ impl From<crate::Response> for AndroidResponse {
             tabs_changed,
             redraw_in: redraw_in.unwrap_or(u64::MAX),
             copied_text,
+            copied_image,
             has_url_opened: !urls_opened.is_empty(),
             url_opened: urls_opened.into_iter().next().unwrap_or_default(),
             text_updated: markdown_editor_text_updated,
@@ -84,6 +88,10 @@ impl From<crate::Response> for AndroidResponse {
             edit_menu_for_atom: matches!(
                 context_menu,
                 Some((_, workspace_rs::tab::ContextMenuTarget::Atom))
+            ),
+            edit_menu_for_image: matches!(
+                context_menu,
+                Some((_, workspace_rs::tab::ContextMenuTarget::Image))
             ),
             virtual_keyboard_shown,
         }
