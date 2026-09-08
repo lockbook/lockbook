@@ -16,7 +16,10 @@ mod ws;
 
 const OUTPUTS: &str = "clients/android/app/build/outputs";
 const PACKAGE: &str = "app.lockbook";
-const RELEASE: &str = "release/app-release";
+// Google Play distributes the `play` flavor. Keep this explicit so adding
+// another flavor cannot change the artifact that release automation uploads.
+const PLAY_RELEASE_APK: &str = "apk/play/release/app-play-release.apk";
+const PLAY_RELEASE_BUNDLE: &str = "bundle/playRelease/app-play-release.aab";
 
 const RELEASES: &str = "https://github.com/lockbook/lockbook/releases/tag";
 
@@ -58,12 +61,12 @@ pub fn release(play_store: bool, gh: bool, track: AndroidTrack) -> CliResult<()>
 
 fn build_android() -> CliResult<()> {
     Command::new("./gradlew")
-        .args(["assembleRelease"])
+        .args(["assemblePlayRelease"])
         .current_dir("clients/android")
         .assert_success()?;
 
     Command::new("./gradlew")
-        .args(["bundleRelease"])
+        .args(["bundlePlayRelease"])
         .current_dir("clients/android")
         .assert_success()?;
 
@@ -77,7 +80,7 @@ fn release_gh() -> CliResult<()> {
     let release = client
         .get_release_by_tag_name(&lb_repo(), &lb_version())
         .unwrap();
-    let file = File::open(format!("{OUTPUTS}/apk/{RELEASE}.apk")).unwrap();
+    let file = File::open(format!("{OUTPUTS}/{PLAY_RELEASE_APK}")).unwrap();
 
     client
         .upload_release_asset(
@@ -149,7 +152,7 @@ fn release_play_store(track: AndroidTrack) -> CliResult<()> {
             .edits()
             .bundles_upload(PACKAGE, &id)
             .upload(
-                File::open(format!("{OUTPUTS}/bundle/{RELEASE}.aab")).unwrap(),
+                File::open(format!("{OUTPUTS}/{PLAY_RELEASE_BUNDLE}")).unwrap(),
                 MIME.parse().unwrap(),
             )
             .await

@@ -185,7 +185,11 @@ class MainScreenActivity : AppCompatActivity() {
             this@MainScreenActivity.lifecycle.addObserver(this)
             billingEvent.observe(this@MainScreenActivity) { billingEvent ->
                 when (billingEvent) {
-                    is BillingEvent.SuccessfulPurchase -> {
+                    BillingEvent.SuccessfulPurchase -> {
+                        handleMainUiEffect(MainUiEffect.ShowSubscriptionConfirmed)
+                    }
+
+                    is BillingEvent.GooglePlayPurchase -> {
                         mainScreenModel.confirmSubscription(billingEvent.purchaseToken, billingEvent.accountId)
                     }
 
@@ -717,7 +721,7 @@ class MainScreenActivity : AppCompatActivity() {
             uris.add(
                 FileProvider.getUriForFile(
                     this,
-                    "app.lockbook.fileprovider",
+                    "$packageName.fileprovider",
                     file,
                 ),
             )

@@ -15,7 +15,8 @@ import androidx.lifecycle.ProcessLifecycleOwner
 import androidx.preference.PreferenceManager
 import androidx.work.*
 import app.lockbook.App.Companion.PERIODIC_SYNC_TAG
-import app.lockbook.billing.BillingClientLifecycle
+import app.lockbook.billing.BillingManager
+import app.lockbook.billing.StoreBillingManager
 import app.lockbook.util.*
 import app.lockbook.workspace.Workspace
 import com.google.android.material.color.DynamicColors
@@ -27,8 +28,9 @@ import java.io.StringWriter
 import java.util.concurrent.TimeUnit
 
 class App : Application() {
-    val billingClientLifecycle: BillingClientLifecycle
-        get() = BillingClientLifecycle.getInstance(this)
+    val billingClientLifecycle: BillingManager by lazy {
+        StoreBillingManager(this)
+    }
 
     var isInImportSync = false
 

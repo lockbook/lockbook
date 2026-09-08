@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="billing_not_ready">Billing is not ready yet. Please try again.</string>
+</resources>

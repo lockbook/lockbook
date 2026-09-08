@@ -24,6 +24,10 @@
 # boundary stable while allowing the rest of the app release build to be minified.
 -keep class net.lockbook.** { *; }
 
+# javax.annotation is compile-only in lb-java; its nullability metadata is not
+# needed at runtime.
+-dontwarn javax.annotation.Nonnull
+
 # workspace-ffi constructs these app-side theme data classes through JNI using
 # their concrete package names and constructor signatures.
 -keep class app.lockbook.util.WorkspaceTheme { *; }

@@ -1,189 +1,142 @@
 <?xml version="1.0" encoding="utf-8"?>
-<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+<androidx.core.widget.NestedScrollView xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     xmlns:tools="http://schemas.android.com/tools"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:orientation="vertical"
-    android:padding="25dp"
-    android:layout_marginTop="20dp">
+    android:fillViewport="true"
+    android:fitsSystemWindows="true">
 
     <LinearLayout
-        android:layout_width="wrap_content"
+        android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:minWidth="550dp"
         android:orientation="vertical"
-        android:layout_gravity="center_horizontal">
+        android:paddingHorizontal="25dp"
+        android:paddingTop="20dp"
+        android:paddingBottom="32dp">
 
-        <ImageView
-            android:id="@+id/exit_billing"
-            android:layout_width="30dp"
-            android:layout_height="30dp"
-            android:layout_gravity="end"
-            android:layout_marginTop="25dp"
-            android:layout_marginEnd="15dp"
-            android:contentDescription="@string/exit"
-            android:src="@drawable/ic_outline_clear_24"
-            android:background="?android:selectableItemBackgroundBorderless" />
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal">
+
+            <ImageButton
+                android:id="@+id/exit_billing"
+                android:layout_width="48dp"
+                android:layout_height="48dp"
+                android:background="?android:selectableItemBackgroundBorderless"
+                android:contentDescription="@string/back"
+                android:padding="12dp"
+                android:src="@drawable/ic_baseline_arrow_back_24"
+                app:tint="?attr/colorOnSurface" />
+
+            <com.google.android.material.textview.MaterialTextView
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="8dp"
+                android:layout_weight="1"
+                android:text="@string/choose_your_plan"
+                android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium" />
+
+        </LinearLayout>
 
         <com.google.android.material.textview.MaterialTextView
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:text="@string/choose_your_plan"
-            android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
-            android:paddingTop="10dp"
-            android:paddingBottom="40dp"/>
+            android:layout_marginTop="24dp"
+            android:text="@string/premium_value_detail"
+            android:textAppearance="@style/TextAppearance.Material3.BodyLarge"
+            android:textColor="?attr/colorOnSurfaceVariant" />
 
         <com.google.android.material.card.MaterialCardView
-            android:id="@+id/upgrade_account_tier_free"
             android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:checkable="true"
-            android:foreground="?android:attr/selectableItemBackground"
-            app:strokeWidth="1dp">
+            android:layout_height="wrap_content"
+            android:layout_marginTop="32dp"
+            app:cardBackgroundColor="?attr/colorSurfaceContainerHigh"
+            app:strokeWidth="0dp">
 
             <LinearLayout
                 android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:padding="10dp"
-                android:orientation="vertical">
-
-                <com.google.android.material.textview.MaterialTextView
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:text="@string/free_tier_current"
-                    android:textColor="?attr/colorPrimary"
-                    android:textStyle="bold"
-                    style="@style/TextAppearance.Material3.TitleMedium"/>
-
-                <LinearLayout
-                    android:layout_width="wrap_content"
-                    android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginVertical="10dp"  >
-
-                    <com.google.android.material.textview.MaterialTextView
-                        android:id="@+id/free_tier_size"
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/twenty_five_mb"
-                        android:textStyle="bold"
-                        android:paddingEnd="30dp"
-                        android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                        tools:ignore="RtlSymmetry" />
-
-                    <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/premium_space"
-                        android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
-
-                </LinearLayout>
-            </LinearLayout>
-
-        </com.google.android.material.card.MaterialCardView>
-
-        <com.google.android.material.card.MaterialCardView
-            android:id="@+id/upgrade_account_tier_premium_monthly"
-            android:layout_width="match_parent"
-            android:layout_height="120dp"
-            android:clickable="true"
-            android:focusable="true"
-            android:checkable="true"
-            android:foreground="?android:attr/selectableItemBackground"
-            app:strokeWidth="1dp"
-            android:layout_marginVertical="30dp">
-
-            <LinearLayout
-                android:layout_width="match_parent"
-                android:layout_height="match_parent"
-                android:padding="10dp"
-                android:orientation="vertical">
+                android:layout_height="wrap_content"
+                android:orientation="vertical"
+                android:padding="24dp">
 
                 <com.google.android.material.textview.MaterialTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
                     android:text="@string/monthly_plan"
-                    style="@style/TextAppearance.Material3.TitleMedium"
+                    android:textAppearance="@style/TextAppearance.Material3.HeadlineLarge"
                     android:textColor="?attr/colorPrimary"
-                    android:textStyle="bold"/>
+                    android:textStyle="bold" />
 
-                <LinearLayout
+                <com.google.android.material.textview.MaterialTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"
-                    android:layout_marginVertical="10dp"  >
+                    android:layout_marginTop="16dp"
+                    android:text="@string/premium_gb"
+                    android:textAppearance="@style/TextAppearance.Material3.HeadlineMedium"
+                    android:textStyle="bold" />
 
-                    <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/premium_gb"
-                        android:textStyle="bold"
-                        android:paddingEnd="30dp"
-                        android:textAppearance="@style/TextAppearance.Material3.TitleMedium"
-                        tools:ignore="RtlSymmetry" />
-
-                    <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/premium_space"
-                        android:textAppearance="@style/TextAppearance.Material3.BodyLarge" />
-
-                </LinearLayout>
-
-                <LinearLayout
+                <com.google.android.material.textview.MaterialTextView
                     android:layout_width="wrap_content"
                     android:layout_height="wrap_content"
-                    android:orientation="horizontal"  >
+                    android:layout_marginTop="2dp"
+                    android:text="@string/premium_space"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
 
-                    <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/premium_price"
-                        android:textStyle="bold"
-                        android:paddingEnd="5dp"
-                        tools:ignore="RtlSymmetry" />
+                <com.google.android.material.textview.MaterialTextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="8dp"
+                    android:text="@string/storage_comparison"
+                    android:textAppearance="@style/TextAppearance.Material3.BodyMedium"
+                    android:textColor="?attr/colorOnSurfaceVariant" />
 
-                    <com.google.android.material.textview.MaterialTextView
-                        android:layout_width="wrap_content"
-                        android:layout_height="wrap_content"
-                        android:text="@string/per_month" />
+                <com.google.android.material.divider.MaterialDivider
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginVertical="20dp" />
 
-                </LinearLayout>
+                <com.google.android.material.textview.MaterialTextView
+                    android:id="@+id/premium_price"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/loading_price"
+                    android:textAppearance="@style/TextAppearance.Material3.TitleLarge"
+                    tools:text="$2.99 / month" />
 
             </LinearLayout>
 
         </com.google.android.material.card.MaterialCardView>
 
-    </LinearLayout>
-
-    <LinearLayout
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:orientation="vertical"
-        android:layout_weight="1"
-        android:gravity="center_vertical">
-
         <com.google.android.material.button.MaterialButton
             android:id="@+id/subscribe_to_plan"
-            android:layout_width="wrap_content"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:minWidth="200dp"
-            android:layout_gravity="center_horizontal"
-            android:layout_marginVertical="20dp"
-            android:layout_marginHorizontal="40dp"
+            android:layout_marginTop="32dp"
+            android:minHeight="56dp"
             android:text="@string/subscribe" />
+
+        <com.google.android.material.textview.MaterialTextView
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:layout_marginTop="10dp"
+            android:gravity="center"
+            android:text="@string/billing_reassurance"
+            android:textAppearance="@style/TextAppearance.Material3.BodySmall"
+            android:textColor="?attr/colorOnSurfaceVariant" />
 
         <com.google.android.material.progressindicator.CircularProgressIndicator
             android:id="@+id/progress_overlay"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
-            android:layout_gravity="center"
-            android:visibility="gone"
-            android:indeterminate="true" />
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="20dp"
+            android:indeterminate="true"
+            android:visibility="gone" />
 
     </LinearLayout>
 
-</LinearLayout>
+</androidx.core.widget.NestedScrollView>
