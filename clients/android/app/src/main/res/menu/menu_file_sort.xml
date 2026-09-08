@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group
+        android:id="@+id/file_sort_criterion_group"
+        android:checkableBehavior="single">
+        <item
+            android:id="@+id/sort_by_last_modified"
+            android:title="@string/sort_date_last_modified" />
+        <item
+            android:id="@+id/sort_by_alphabetical"
+            android:title="@string/sort_alphabetical" />
+    </group>
+
+    <group
+        android:id="@+id/file_sort_direction_group"
+        android:checkableBehavior="single">
+        <item
+            android:id="@+id/sort_ascending"
+            android:title="@string/sort_ascending_a_to_z" />
+        <item
+            android:id="@+id/sort_descending"
+            android:title="@string/sort_descending_z_to_a" />
+    </group>
+</menu>
