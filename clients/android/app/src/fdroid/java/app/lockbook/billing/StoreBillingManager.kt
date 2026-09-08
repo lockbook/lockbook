@@ -10,14 +10,10 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.lifecycleScope
 import app.lockbook.R
+import app.lockbook.databinding.DialogStripeCardBinding
 import app.lockbook.util.SingleMutableLiveData
 import com.google.android.material.bottomsheet.BottomSheetBehavior
 import com.google.android.material.bottomsheet.BottomSheetDialog
-import com.google.android.material.button.MaterialButton
-import com.google.android.material.progressindicator.CircularProgressIndicator
-import com.google.android.material.textfield.TextInputEditText
-import com.google.android.material.textfield.TextInputLayout
-import com.google.android.material.textview.MaterialTextView
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -50,83 +46,70 @@ class StoreBillingManager(
     }
 
     private fun showCardDialog(activity: AppCompatActivity) {
-        val view = activity.layoutInflater.inflate(R.layout.dialog_stripe_card, null)
-        val numberLayout = view.findViewById<TextInputLayout>(R.id.card_number_layout)
-        val number = view.findViewById<TextInputEditText>(R.id.card_number)
-        val monthLayout = view.findViewById<TextInputLayout>(R.id.card_expiration_month_layout)
-        val month = view.findViewById<TextInputEditText>(R.id.card_expiration_month)
-        val yearLayout = view.findViewById<TextInputLayout>(R.id.card_expiration_year_layout)
-        val year = view.findViewById<TextInputEditText>(R.id.card_expiration_year)
-        val cvcLayout = view.findViewById<TextInputLayout>(R.id.card_cvc_layout)
-        val cvc = view.findViewById<TextInputEditText>(R.id.card_cvc)
-        val paymentError = view.findViewById<MaterialTextView>(R.id.card_payment_error)
-        val progress = view.findViewById<CircularProgressIndicator>(R.id.card_payment_progress)
-
-        val subscribeButton = view.findViewById<MaterialButton>(R.id.card_subscribe)
-        val cancelButton = view.findViewById<MaterialButton>(R.id.card_cancel)
+        val binding = DialogStripeCardBinding.inflate(activity.layoutInflater)
         val dialog = BottomSheetDialog(activity)
 
-        dialog.setContentView(view)
+        dialog.setContentView(binding.root)
         dialog.window?.addFlags(WindowManager.LayoutParams.FLAG_SECURE)
         dialog.behavior.skipCollapsed = true
         dialog.behavior.state = BottomSheetBehavior.STATE_EXPANDED
         dialog.setOnShowListener {
-            number.requestFocus()
+            binding.cardNumber.requestFocus()
             dialog.window?.setSoftInputMode(WindowManager.LayoutParams.SOFT_INPUT_STATE_ALWAYS_VISIBLE)
-            number.post {
+            binding.cardNumber.post {
                 val inputMethodManager =
                     activity.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager
-                inputMethodManager.showSoftInput(number, InputMethodManager.SHOW_IMPLICIT)
+                inputMethodManager.showSoftInput(binding.cardNumber, InputMethodManager.SHOW_IMPLICIT)
             }
         }
         dialog.setOnDismissListener {
-            number.text?.clear()
-            month.text?.clear()
-            year.text?.clear()
-            cvc.text?.clear()
+            binding.cardNumber.text?.clear()
+            binding.cardExpirationMonth.text?.clear()
+            binding.cardExpirationYear.text?.clear()
+            binding.cardCvc.text?.clear()
         }
-        cancelButton.setOnClickListener {
+        binding.cardCancel.setOnClickListener {
             dialog.dismiss()
         }
-        subscribeButton.setOnClickListener {
-            numberLayout.error = null
-            monthLayout.error = null
-            yearLayout.error = null
-            cvcLayout.error = null
-            paymentError.visibility = View.GONE
+        binding.cardSubscribe.setOnClickListener {
+            binding.cardNumberLayout.error = null
+            binding.cardExpirationMonthLayout.error = null
+            binding.cardExpirationYearLayout.error = null
+            binding.cardCvcLayout.error = null
+            binding.cardPaymentError.visibility = View.GONE
 
-            val cardNumber = number.text.toString().filter(Char::isDigit)
-            val expirationMonth = month.text.toString().toIntOrNull()
-            val expirationYear = parseExpirationYear(year.text.toString())
-            val cardCvc = cvc.text.toString()
+            val cardNumber = binding.cardNumber.text.toString().filter(Char::isDigit)
+            val expirationMonth = binding.cardExpirationMonth.text.toString().toIntOrNull()
+            val expirationYear = parseExpirationYear(binding.cardExpirationYear.text.toString())
+            val cardCvc = binding.cardCvc.text.toString()
 
             var isValid = true
             if (cardNumber.length !in 12..19) {
-                numberLayout.error = activity.getString(R.string.invalid_card_number)
+                binding.cardNumberLayout.error = activity.getString(R.string.invalid_card_number)
                 isValid = false
             }
             if (expirationMonth !in 1..12) {
-                monthLayout.error = activity.getString(R.string.invalid_expiration_month)
+                binding.cardExpirationMonthLayout.error = activity.getString(R.string.invalid_expiration_month)
                 isValid = false
             }
             if (expirationYear == null) {
-                yearLayout.error = activity.getString(R.string.invalid_expiration_year)
+                binding.cardExpirationYearLayout.error = activity.getString(R.string.invalid_expiration_year)
                 isValid = false
             }
             if (cardCvc.length !in 3..4 || !cardCvc.all(Char::isDigit)) {
-                cvcLayout.error = activity.getString(R.string.invalid_card_cvc)
+                binding.cardCvcLayout.error = activity.getString(R.string.invalid_card_cvc)
                 isValid = false
             }
             if (!isValid) {
                 return@setOnClickListener
             }
 
-            setPaymentFormEnabled(view, false)
-            subscribeButton.isEnabled = false
-            cancelButton.isEnabled = false
+            setPaymentFormEnabled(binding, false)
+            binding.cardSubscribe.isEnabled = false
+            binding.cardCancel.isEnabled = false
             dialog.setCancelable(false)
             dialog.setCanceledOnTouchOutside(false)
-            progress.visibility = View.VISIBLE
+            binding.cardPaymentProgress.visibility = View.VISIBLE
 
             activity.lifecycleScope.launch {
                 val error: Throwable? =
@@ -150,15 +133,8 @@ class StoreBillingManager(
                     dialog.dismiss()
                     _billingEvent.value = BillingEvent.SuccessfulPurchase
                 } else {
-                    restorePaymentForm(view, subscribeButton, cancelButton, dialog, progress)
-                    showPaymentError(
-                        error,
-                        paymentError,
-                        numberLayout,
-                        monthLayout,
-                        yearLayout,
-                        cvcLayout,
-                    )
+                    restorePaymentForm(binding, dialog)
+                    showPaymentError(error, binding)
                 }
             }
         }
@@ -166,70 +142,63 @@ class StoreBillingManager(
     }
 
     private fun setPaymentFormEnabled(
-        view: View,
+        binding: DialogStripeCardBinding,
         isEnabled: Boolean,
     ) {
-        view.findViewById<TextInputEditText>(R.id.card_number).isEnabled = isEnabled
-        view.findViewById<TextInputEditText>(R.id.card_expiration_month).isEnabled = isEnabled
-        view.findViewById<TextInputEditText>(R.id.card_expiration_year).isEnabled = isEnabled
-        view.findViewById<TextInputEditText>(R.id.card_cvc).isEnabled = isEnabled
+        binding.cardNumber.isEnabled = isEnabled
+        binding.cardExpirationMonth.isEnabled = isEnabled
+        binding.cardExpirationYear.isEnabled = isEnabled
+        binding.cardCvc.isEnabled = isEnabled
     }
 
     private fun restorePaymentForm(
-        view: View,
-        subscribeButton: MaterialButton,
-        cancelButton: MaterialButton,
+        binding: DialogStripeCardBinding,
         dialog: BottomSheetDialog,
-        progress: CircularProgressIndicator,
     ) {
-        setPaymentFormEnabled(view, true)
-        subscribeButton.isEnabled = true
-        cancelButton.isEnabled = true
+        setPaymentFormEnabled(binding, true)
+        binding.cardSubscribe.isEnabled = true
+        binding.cardCancel.isEnabled = true
         dialog.setCancelable(true)
         dialog.setCanceledOnTouchOutside(true)
-        progress.visibility = View.GONE
+        binding.cardPaymentProgress.visibility = View.GONE
     }
 
     private fun showPaymentError(
         error: Throwable,
-        paymentError: MaterialTextView,
-        numberLayout: TextInputLayout,
-        monthLayout: TextInputLayout,
-        yearLayout: TextInputLayout,
-        cvcLayout: TextInputLayout,
+        binding: DialogStripeCardBinding,
     ) {
         if (error !is LbError) {
             Timber.e(error, "Unexpected Stripe payment error")
-            paymentError.setText(R.string.basic_error)
-            paymentError.visibility = View.VISIBLE
+            binding.cardPaymentError.setText(R.string.basic_error)
+            binding.cardPaymentError.visibility = View.VISIBLE
             return
         }
 
         when (error.kind) {
             LbEC.CardInvalidNumber -> {
-                numberLayout.error = error.msg
+                binding.cardNumberLayout.error = error.msg
             }
 
             LbEC.CardInvalidExpMonth -> {
-                monthLayout.error = error.msg
+                binding.cardExpirationMonthLayout.error = error.msg
             }
 
             LbEC.CardInvalidExpYear, LbEC.CardExpired -> {
-                yearLayout.error = error.msg
+                binding.cardExpirationYearLayout.error = error.msg
             }
 
             LbEC.CardInvalidCvc -> {
-                cvcLayout.error = error.msg
+                binding.cardCvcLayout.error = error.msg
             }
 
             else -> {
                 if (error.kind == LbEC.Unexpected) {
                     Timber.e(error, "Unexpected Stripe payment error")
-                    paymentError.setText(R.string.basic_error)
+                    binding.cardPaymentError.setText(R.string.basic_error)
                 } else {
-                    paymentError.text = error.msg
+                    binding.cardPaymentError.text = error.msg
                 }
-                paymentError.visibility = View.VISIBLE
+                binding.cardPaymentError.visibility = View.VISIBLE
             }
         }
     }
