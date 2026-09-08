@@ -137,9 +137,19 @@ class StoreBillingManager(
         binding: DialogStripeCardBinding,
         activity: AppCompatActivity,
     ): CardDetails? {
-        val number = binding.cardNumber.text.toString().filter(Char::isDigit)
-        val expirationMonth = binding.cardExpirationMonth.text.toString().toIntOrNull()
-        val expirationYear = parseExpirationYear(binding.cardExpirationYear.text.toString())
+        val number =
+            binding.cardNumber.text
+                .toString()
+                .filter(Char::isDigit)
+        val expirationMonth =
+            binding.cardExpirationMonth.text
+                .toString()
+                .toIntOrNull()
+        val expirationYear =
+            parseExpirationYear(
+                binding.cardExpirationYear.text
+                    .toString(),
+            )
         val cvc = binding.cardCvc.text.toString()
         val errors =
             listOf(
