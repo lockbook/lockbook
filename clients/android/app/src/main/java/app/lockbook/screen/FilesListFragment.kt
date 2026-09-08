@@ -245,8 +245,9 @@ class FilesListFragment :
         popup.menu.syncCheckedSortOptions(sortOptions)
 
         popup.setOnMenuItemClickListener { item ->
-            val updatedOptions = sortOptions.withMenuSelection(item.itemId)
-                ?: return@setOnMenuItemClickListener false
+            val updatedOptions =
+                sortOptions.withMenuSelection(item.itemId)
+                    ?: return@setOnMenuItemClickListener false
 
             sortOptions = updatedOptions
             popup.menu.syncCheckedSortOptions(sortOptions)
