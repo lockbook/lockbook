@@ -102,11 +102,13 @@ pub fn is_client(name: &str) -> bool {
             | "share"
             | "contacts"
             | "account"
+            | "now"
             | "settings"
             | "tabs"
             | "hangup"
             | "imagine"
             | "look"
+            | "download"
             | "transcribe"
             | "record"
             | "caption"
@@ -369,6 +371,11 @@ pub fn function_tools() -> Value {
             json!({ "type": "object", "properties": {} }),
         ),
         fn_tool(
+            "now",
+            "Current local date and time. Call when scheduling or referring to today, this week, or a deadline.",
+            json!({ "type": "object", "properties": {} }),
+        ),
+        fn_tool(
             "tabs",
             "Workspace tabs: omit action to list (current marked, live = on a call). \
              open/focus a path (`.` is this chat), close a tab, move it \
@@ -428,6 +435,18 @@ pub fn function_tools() -> Value {
                     "path": { "type": "string", "description": "Image path" }
                 },
                 "required": ["path"]
+            }),
+        ),
+        fn_tool(
+            "download",
+            "Download an http(s) URL into a Lockbook file. Omit path to write next to this chat under assets/. Images can be embedded with markdown ![](path).",
+            json!({
+                "type": "object",
+                "properties": {
+                    "url": { "type": "string", "description": "http(s) URL" },
+                    "path": { "type": "string", "description": "Destination file path. Created if missing." }
+                },
+                "required": ["url"]
             }),
         ),
         fn_tool(
@@ -548,6 +567,7 @@ pub fn summary(name: &str, args: &Value) -> String {
             if q.is_empty() { "contacts".into() } else { format!("contacts {q}") }
         }
         "account" => "account".into(),
+        "now" => "now".into(),
         "hangup" => "hang up".into(),
         "imagine" => {
             let prompt = args.get("prompt").and_then(Value::as_str).unwrap_or("");
@@ -561,6 +581,13 @@ pub fn summary(name: &str, args: &Value) -> String {
             }
         }
         "look" => format!("look {path}"),
+        "download" => {
+            if args.get("path").and_then(Value::as_str).is_some() && path != "/" {
+                format!("download {path}")
+            } else {
+                format!("download {}", url_arg(args))
+            }
+        }
         "caption" => {
             if args.get("text").and_then(Value::as_str).is_some() {
                 format!("caption {path}")
@@ -888,6 +915,17 @@ fn fence(lang: &str, body: &str) -> String {
     }
 }
 
+fn now() -> String {
+    format_now(chrono::Local::now())
+}
+
+fn format_now<Tz: chrono::TimeZone>(t: chrono::DateTime<Tz>) -> String
+where
+    Tz::Offset: std::fmt::Display,
+{
+    t.format("%A %Y-%m-%d %H:%M %z").to_string()
+}
+
 pub fn run(core: &Lb, chat_id: lb_rs::Uuid, name: &str, args: &Value) -> Result<String, String> {
     let path = path_arg(args);
     info!(tool = name, %path, "chat tool run");
@@ -908,12 +946,14 @@ pub fn run(core: &Lb, chat_id: lb_rs::Uuid, name: &str, args: &Value) -> Result<
         "share" => share(core, chat_id, args),
         "contacts" => contacts(core, args),
         "account" => account(core),
+        "now" => Ok(now()),
         "hangup" => Ok("not on a call".into()),
         "caption" => caption(core, chat_id, args),
         "transcript" => transcript(core, chat_id, args),
         "imagine" | "look" | "transcribe" | "record" => {
             Err(format!("{name} needs Grok auth; dispatched by chat"))
         }
+        "download" => Err("download is dispatched by chat".into()),
         other => Err(format!("unknown tool {other}")),
     };
     if let Err(e) = &result {
@@ -2047,6 +2087,10 @@ mod tests {
         assert_eq!(summary("contacts", &json!({"query": "sam"})), "contacts sam");
         assert!(is_client("contacts"));
         assert_eq!(summary("account", &json!({})), "account");
+        assert_eq!(summary("now", &json!({})), "now");
+        assert!(is_client("now"));
+        let t = chrono::DateTime::parse_from_rfc3339("2026-09-08T15:04:00-05:00").unwrap();
+        assert_eq!(format_now(t), "Tuesday 2026-09-08 15:04 -0500");
         assert_eq!(summary("hangup", &json!({})), "hang up");
         assert!(is_client("hangup"));
         assert_eq!(summary("imagine", &json!({"prompt": "a red cube"})), "imagine a red cube");
@@ -2055,6 +2099,14 @@ mod tests {
             "imagine /assets/a.png"
         );
         assert_eq!(summary("look", &json!({"path": "/a.png"})), "look /a.png");
+        assert_eq!(
+            summary("download", &json!({"url": "https://example.com/a.png"})),
+            "download https://example.com/a.png"
+        );
+        assert_eq!(
+            summary("download", &json!({"url": "https://example.com/a.png", "path": "/a.png"})),
+            "download /a.png"
+        );
         assert_eq!(summary("transcribe", &json!({"path": "/a.mp3"})), "transcribe /a.mp3");
         assert_eq!(summary("caption", &json!({"path": "/a.png"})), "read caption /a.png");
         assert_eq!(summary("caption", &json!({"path": "/a.png", "text": "red"})), "caption /a.png");
@@ -2063,6 +2115,7 @@ mod tests {
         assert!(
             is_client("imagine")
                 && is_client("look")
+                && is_client("download")
                 && is_client("transcribe")
                 && is_client("record")
                 && is_client("caption")
@@ -2089,6 +2142,7 @@ mod tests {
                 && is_client("duplicate")
                 && is_client("share")
                 && is_client("account")
+                && is_client("now")
                 && is_client("settings")
                 && is_client("info")
                 && is_client("contacts")
@@ -2097,6 +2151,7 @@ mod tests {
                 && is_client("hangup")
                 && is_client("imagine")
                 && is_client("look")
+                && is_client("download")
                 && is_client("transcribe")
                 && is_client("record")
                 && is_client("caption")
@@ -2177,8 +2232,10 @@ mod tests {
         assert!(arr.iter().any(|t| t["name"] == "this"));
         assert!(arr.iter().any(|t| t["name"] == "tabs"));
         assert!(arr.iter().any(|t| t["name"] == "hangup"));
+        assert!(arr.iter().any(|t| t["name"] == "now"));
         assert!(arr.iter().any(|t| t["name"] == "imagine"));
         assert!(arr.iter().any(|t| t["name"] == "look"));
+        assert!(arr.iter().any(|t| t["name"] == "download"));
         assert!(arr.iter().any(|t| t["name"] == "transcribe"));
         assert!(arr.iter().any(|t| t["name"] == "record"));
         assert!(arr.iter().any(|t| t["name"] == "caption"));

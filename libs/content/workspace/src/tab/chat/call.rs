@@ -148,16 +148,16 @@ async fn run(
         cfg: opts.cfg,
         tabs: opts.tabs,
         voice: opts.voice,
-        staging: Staging::default(),
         user_id: None,
         asr_draft: String::new(),
-        asst_text: String::new(),
         last_heard: None,
         pending_create: None,
         seen_calls: HashSet::new(),
         hung_up: false,
         tool_tx,
         muted_wires: HashSet::new(),
+        held_audio: Vec::new(),
+        held_wire: None,
         think_at: None,
         last_stall_warn: None,
     };
@@ -176,7 +176,7 @@ async fn run(
         match cmd_rx.try_recv() {
             Ok(CallCmd::Hangup) | Err(std::sync::mpsc::TryRecvError::Disconnected) => break,
             Ok(CallCmd::Barge) => {
-                call.barge_if_needed(&mut ws, audio.as_ref()).await?;
+                call.barge_if_needed(&mut ws, audio.as_ref(), true).await?;
             }
             Ok(CallCmd::Say(text)) => {
                 call.try_say(&mut ws, audio.as_ref(), text).await?;
@@ -272,73 +272,6 @@ fn session_body(instructions: &str, voice: &str) -> Value {
     })
 }
 
-#[derive(Default)]
-struct StagedReply {
-    wire: String,
-    audio: Vec<u8>,
-    text: String,
-    done: bool,
-}
-
-#[derive(Default)]
-struct Staging {
-    active: bool,
-    catchup: bool,
-    replies: Vec<StagedReply>,
-}
-
-impl Staging {
-    fn start(&mut self) {
-        self.active = true;
-        self.catchup = false;
-        self.replies.clear();
-    }
-
-    fn on_created(&mut self, wire: String) -> bool {
-        if self.active || self.catchup {
-            self.replies.push(StagedReply {
-                wire,
-                audio: Vec::new(),
-                text: String::new(),
-                done: false,
-            });
-            true
-        } else {
-            false
-        }
-    }
-
-    fn by_wire_mut(&mut self, wire: &str) -> Option<&mut StagedReply> {
-        self.replies.iter_mut().rev().find(|r| r.wire == wire)
-    }
-
-    fn on_stop(&mut self) -> Option<StagedReply> {
-        self.catchup = self.replies.is_empty();
-        if self.catchup {
-            self.active = false;
-            return None;
-        }
-        self.active = false;
-        let last = self.replies.pop();
-        self.replies.clear();
-        last
-    }
-
-    fn take_last(&mut self) -> Option<StagedReply> {
-        self.catchup = false;
-        self.active = false;
-        let last = self.replies.pop();
-        self.replies.clear();
-        last
-    }
-
-    fn abort(&mut self) {
-        self.active = false;
-        self.catchup = false;
-        self.replies.clear();
-    }
-}
-
 #[cfg(all(not(target_family = "wasm"), not(target_os = "android")))]
 struct Call {
     transcript: Transcript,
@@ -351,17 +284,20 @@ struct Call {
     cfg: WsPersistentStore,
     tabs: std::sync::Arc<std::sync::Mutex<TabBridge>>,
     voice: String,
-    staging: Staging,
     user_id: Option<Uuid>,
     asr_draft: String,
-    asst_text: String,
     last_heard: Option<Uuid>,
     pending_create: Option<Uuid>,
     seen_calls: HashSet<String>,
     hung_up: bool,
     tool_tx: Sender<ToolDone>,
-    /// Response ids whose audio/text we refused to play (log once).
+    /// Response ids we sent `response.cancel` for. Leftover deltas stay silent.
     muted_wires: HashSet<String>,
+    /// PCM held while server VAD still has the user floor. The server often
+    /// starts a reply before `speech_stopped`; we must not play over you, and
+    /// we must not cancel that reply (that was dead air).
+    held_audio: Vec<u8>,
+    held_wire: Option<String>,
     /// First empty in-flight assistant, for stall warnings.
     think_at: Option<Instant>,
     last_stall_warn: Option<Instant>,
@@ -427,13 +363,10 @@ impl Call {
             think = self.n_thinking(),
             user = ?self.user_id,
             floor = self.transcript.user_floor.is_some(),
-            staging = self.staging.active,
-            catchup = self.staging.catchup,
-            staged = self.staging.replies.len(),
             pending = self.pending_create.is_some(),
             on_turn = self.transcript.on_turn_assistant().is_some(),
             asr = self.asr_draft.len(),
-            should_create = self.transcript.should_create(),
+            follow_up = self.transcript.tools_awaiting_follow_up(),
             "chat call thinking stalled"
         );
     }
@@ -450,9 +383,6 @@ impl Call {
             response = response_id(ev).unwrap_or(""),
             user = ?self.user_id,
             floor = self.transcript.user_floor.is_some(),
-            staging = self.staging.active,
-            catchup = self.staging.catchup,
-            staged = self.staging.replies.len(),
             pending = self.pending_create.is_some(),
             think = self.n_thinking(),
             on_turn = self.transcript.on_turn_assistant().is_some(),
@@ -461,11 +391,38 @@ impl Call {
         );
     }
 
+    fn stamp_wire(&mut self, item: Uuid, wire: &str) {
+        if wire.is_empty() {
+            return;
+        }
+        if self
+            .transcript
+            .by_id(item)
+            .and_then(|i| i.meta.wire_id.as_deref())
+            == Some(wire)
+        {
+            return;
+        }
+        self.emit(EventBody::SetMeta {
+            item,
+            meta: ItemMeta { wire_id: Some(wire.to_string()), ..ItemMeta::default() },
+        });
+    }
+
+    /// Server VAD owns unanswered user turns. We only `response.create` after
+    /// a client tool finishes (and after typed-into-call `try_say`).
     async fn maybe_create(&mut self, ws: &mut super::realtime::VoiceConn) -> Result<(), String> {
-        if self.staging.active || self.staging.catchup {
+        if self.transcript.user_floor.is_some() || self.transcript.on_turn_assistant().is_some() {
             return Ok(());
         }
-        if !self.transcript.should_create() || self.transcript.items.is_empty() {
+        if !self.transcript.tools_awaiting_follow_up() {
+            return Ok(());
+        }
+        self.create_response(ws).await
+    }
+
+    async fn create_response(&mut self, ws: &mut super::realtime::VoiceConn) -> Result<(), String> {
+        if self.transcript.on_turn_assistant().is_some() {
             return Ok(());
         }
         let item = Uuid::new_v4();
@@ -474,12 +431,7 @@ impl Call {
         self.emit(EventBody::SetStatus { item, status: Status::Running });
         self.pending_create = Some(item);
         self.note_thinking();
-        info!(
-            %item,
-            floor = self.transcript.user_floor.is_some(),
-            think = self.n_thinking(),
-            "chat call response.create"
-        );
+        info!(%item, think = self.n_thinking(), "chat call response.create");
         ws.response_create().await
     }
 
@@ -491,10 +443,7 @@ impl Call {
         if text.is_empty() {
             return Ok(());
         }
-        self.staging.abort();
-        if self.transcript.on_turn_assistant().is_some() {
-            self.barge_if_needed(ws, audio).await?;
-        }
+        self.barge_if_needed(ws, audio, true).await?;
         if self.user_id.is_some() {
             self.close_user_item();
         }
@@ -506,76 +455,117 @@ impl Call {
         self.last_heard = Some(item);
         info!(chars = text.len(), "chat call say");
         ws.user_text(&text).await?;
-        self.maybe_create(ws).await
+        // `user_text` does not auto-respond; this is not a VAD substitute.
+        self.create_response(ws).await
     }
 
     async fn user_began(
-        &mut self, ws: &mut super::realtime::VoiceConn, audio: &super::audio::Duplex,
+        &mut self, ws: &mut super::realtime::VoiceConn, audio: &super::audio::Duplex, wire: &str,
     ) -> Result<(), String> {
-        // Server VAD restarts after a short pause. If the assistant has not
-        // produced audio or text yet, that restart is a continuation of the
-        // same turn — cancelling it is what left unanswered questions until
-        // a follow-up "Hello?". A Running client tool is a real wait; speech
-        // then is a barge, not a blip.
-        if self.transcript.on_turn_assistant().is_some()
-            && !reply_has_begun(&self.asst_text, audio.queue_len())
-            && !self.tools_running()
-        {
-            let elapsed_ms = self
-                .think_at
-                .map(|t| t.elapsed().as_millis() as u64)
-                .unwrap_or(0);
-            if self.user_id.is_none() {
-                warn!(
-                    think = self.n_thinking(),
-                    elapsed_ms,
-                    queue = audio.queue_len(),
-                    "chat call speech hidden: pending reply"
-                );
-            } else {
-                info!(
-                    user = %self.user_id.unwrap(),
-                    think = self.n_thinking(),
-                    elapsed_ms,
-                    "chat call vad continue pending reply"
-                );
+        // Barge only if the assistant is actually speaking, or a client tool
+        // is running. Idle Thinking is not a lock and must not hide this
+        // utterance — VAD owns the reply; we still bind the user row.
+        let begun = reply_has_begun(
+            &self.in_flight_asst_text(),
+            audio.queue_len(),
+            !self.held_audio.is_empty(),
+        );
+        if begun || self.tools_running() {
+            self.barge_if_needed(ws, Some(audio), false).await?;
+        } else if self.transcript.on_turn_assistant().is_some() {
+            info!(
+                think = self.n_thinking(),
+                queue = audio.queue_len(),
+                wire,
+                "chat call vad during pending reply"
+            );
+        }
+        self.bind_live_user(wire);
+        Ok(())
+    }
+
+    fn bind_live_user(&mut self, wire: &str) {
+        if !wire.is_empty() {
+            if let Some(id) = self.transcript.by_wire(wire) {
+                if self.transcript.by_id(id).map(|i| i.kind) == Some(ItemKind::User) {
+                    if self.user_id.is_some() && self.user_id != Some(id) {
+                        self.close_user_item();
+                    }
+                    self.take_user(id, wire);
+                    info!(%id, wire, "chat call vad reuse wire");
+                    return;
+                }
             }
-            return Ok(());
         }
-        self.barge_if_needed(ws, Some(audio)).await?;
         if let Some(id) = self.user_id {
-            info!(%id, "chat call vad already on user");
-            return Ok(());
+            let existing = self
+                .transcript
+                .by_id(id)
+                .and_then(|i| i.meta.wire_id.clone());
+            if let (Some(old), true) = (existing.as_deref(), !wire.is_empty()) {
+                if old != wire {
+                    self.close_user_item();
+                } else {
+                    self.take_user(id, wire);
+                    info!(%id, wire, "chat call vad continue");
+                    return;
+                }
+            } else {
+                self.take_user(id, wire);
+                info!(%id, wire, "chat call vad already on user");
+                return;
+            }
         }
-        self.staging.start();
         if let Some(id) = self.resume_user() {
-            info!(%id, "chat call vad resume empty user");
-            self.emit(EventBody::Speech { item: id, phase: SpeechPhase::Start });
-            self.emit(EventBody::SetStatus { item: id, status: Status::Open });
-            self.user_id = Some(id);
-            return Ok(());
+            self.take_user(id, wire);
+            info!(%id, wire, "chat call vad resume empty user");
+            return;
         }
         let item = Uuid::new_v4();
         let parent = self.transcript.items.last().map(|i| i.id);
         self.emit(EventBody::Open { item, parent, kind: ItemKind::User });
         self.emit(EventBody::Speech { item, phase: SpeechPhase::Start });
+        self.stamp_wire(item, wire);
         self.user_id = Some(item);
         self.asr_draft.clear();
-        info!(%item, "chat call vad start");
-        Ok(())
+        info!(%item, wire, "chat call vad start");
+    }
+
+    fn take_user(&mut self, item: Uuid, wire: &str) {
+        self.stamp_wire(item, wire);
+        if self.transcript.user_floor != Some(item) {
+            self.emit(EventBody::Speech { item, phase: SpeechPhase::Start });
+        }
+        if self.transcript.by_id(item).map(|i| i.status) != Some(Status::Open) {
+            self.emit(EventBody::SetStatus { item, status: Status::Open });
+        }
+        self.user_id = Some(item);
+        if self.asr_draft.is_empty() {
+            self.asr_draft = self
+                .transcript
+                .by_id(item)
+                .map(|i| i.text())
+                .unwrap_or_default();
+        }
     }
 
     fn resume_user(&self) -> Option<Uuid> {
         let id = self.last_heard?;
         let item = self.transcript.by_id(id)?;
-        if item.kind == ItemKind::User && !item.has_text() { Some(id) } else { None }
+        if item.kind == ItemKind::User && !item.has_text() && item.meta.wire_id.is_none() {
+            Some(id)
+        } else {
+            None
+        }
     }
 
     fn close_user_item(&mut self) {
         let Some(item) = self.user_id.take() else {
             return;
         };
-        self.emit(EventBody::Speech { item, phase: SpeechPhase::Stop });
+        if self.transcript.user_floor == Some(item) {
+            self.emit(EventBody::Speech { item, phase: SpeechPhase::Stop });
+        }
         if !self.asr_draft.is_empty() {
             self.emit(EventBody::Replace {
                 item,
@@ -588,80 +578,33 @@ impl Call {
         self.asr_draft.clear();
     }
 
-    fn promote_staged(&mut self, reply: StagedReply, audio: Option<&super::audio::Duplex>) {
-        self.staging.active = false;
-        self.staging.catchup = false;
-        let item = Uuid::new_v4();
-        let parent = self.transcript.items.last().map(|i| i.id);
-        self.emit(EventBody::Open { item, parent, kind: ItemKind::Assistant });
-        self.emit(EventBody::SetMeta {
-            item,
-            meta: ItemMeta { wire_id: Some(reply.wire.clone()), ..ItemMeta::default() },
-        });
-        if !reply.text.is_empty() {
-            self.emit(EventBody::Replace {
-                item,
-                blocks: vec![Content::Text { text: reply.text.clone() }],
-            });
-        }
-        if let Some(audio) = audio {
-            audio.barge_in();
-            if !reply.audio.is_empty() {
-                audio.push_voice_pcm16(&reply.audio);
-            }
-        }
-        let chars = reply.text.len();
-        let audio_n = reply.audio.len();
-        if reply.done {
-            self.emit(EventBody::SetStatus { item, status: Status::Done });
-            self.asst_text.clear();
-        } else {
-            self.emit(EventBody::SetStatus { item, status: Status::Running });
-            self.asst_text = reply.text;
-        }
-        self.note_thinking();
-        info!(
-            %item,
-            wire = %reply.wire,
-            chars,
-            audio = audio_n,
-            done = reply.done,
-            "chat call promote staged"
-        );
-    }
-
-    fn catch_up(&mut self, audio: Option<&super::audio::Duplex>) {
-        if self.asr_draft.is_empty() {
-            // VAD often ends before ASR. Keep the user row open and accept the
-            // server-started response instead of aborting the turn.
-            let staged = self.staging.replies.len();
-            let reply = self.staging.on_stop();
-            if let Some(reply) = reply {
-                warn!(
-                    wire = %reply.wire,
-                    chars = reply.text.len(),
-                    audio = reply.audio.len(),
-                    done = reply.done,
-                    "chat call drop staged: empty asr"
-                );
-            } else {
-                info!(
-                    catchup = self.staging.catchup,
-                    staged,
-                    user = ?self.user_id,
-                    "chat call speech_stopped empty asr"
-                );
-            }
+    fn speech_stopped(&mut self) {
+        let Some(item) = self.user_id else {
             return;
+        };
+        if self.transcript.user_floor == Some(item) {
+            self.emit(EventBody::Speech { item, phase: SpeechPhase::Stop });
         }
-        self.close_user_item();
-        if let Some(reply) = self.staging.on_stop() {
-            self.promote_staged(reply, audio);
+        let has_text = !self.asr_draft.is_empty()
+            || self
+                .transcript
+                .by_id(item)
+                .map(|i| i.has_text())
+                .unwrap_or(false);
+        if has_text {
+            self.close_user_item();
+        } else {
+            // VAD often ends before ASR. Leave the row Open so later events
+            // with this item_id update the same UUID. Do not drop replies.
+            info!(%item, "chat call speech_stopped waiting asr");
         }
     }
 
-    fn apply_asr(&mut self, item: Uuid, text: String) {
+    fn apply_asr(&mut self, item: Uuid, text: String, completed: bool) {
         if text.is_empty() {
+            if completed {
+                self.finish_user_if_silent(item);
+            }
             return;
         }
         let prev = self
@@ -669,12 +612,9 @@ impl Call {
             .by_id(item)
             .map(|i| i.text())
             .unwrap_or_default();
-        if prev == text {
-            return;
-        }
         if self.user_id == Some(item) {
             self.asr_draft = text.clone();
-        } else {
+        } else if self.user_id.is_some() {
             info!(
                 target = %item,
                 user = ?self.user_id,
@@ -683,42 +623,215 @@ impl Call {
                 "chat call asr on other item"
             );
         }
-        self.emit(EventBody::Replace { item, blocks: vec![Content::Text { text }] });
-        if self.user_id == Some(item) && !self.staging.active {
-            self.close_user_item();
+        if prev != text {
+            self.emit(EventBody::Replace { item, blocks: vec![Content::Text { text }] });
         }
+        if completed {
+            self.finish_user_if_silent(item);
+        }
+    }
+
+    fn finish_user_if_silent(&mut self, item: Uuid) {
+        if self.transcript.user_floor == Some(item) {
+            return;
+        }
+        let Some(it) = self.transcript.by_id(item) else {
+            return;
+        };
+        if it.kind != ItemKind::User || !it.status.in_flight() {
+            return;
+        }
+        let chars = it.text().len();
+        self.emit(EventBody::SetStatus { item, status: Status::Done });
+        self.last_heard = Some(item);
+        if self.user_id == Some(item) {
+            self.user_id = None;
+            self.asr_draft.clear();
+        }
+        info!(%item, chars, "chat call user asr done");
+    }
+
+    fn in_flight_asst_text(&self) -> String {
+        self.transcript
+            .items
+            .iter()
+            .find(|i| i.kind == ItemKind::Assistant && i.status.in_flight() && i.has_text())
+            .map(|i| i.text())
+            .unwrap_or_default()
+    }
+
+    fn bind_assistant(&mut self, wire: &str) -> Option<Uuid> {
+        if !wire.is_empty() {
+            if let Some(id) = self.transcript.by_wire(wire) {
+                if let Some(pending) = self.pending_create {
+                    if pending != id {
+                        self.emit(EventBody::SetStatus {
+                            item: pending,
+                            status: Status::Cancelled,
+                        });
+                        info!(%pending, %id, wire, "chat call drop duplicate pending");
+                    }
+                    self.pending_create = None;
+                }
+                return Some(id);
+            }
+        }
+        if let Some(item) = self.pending_create.take() {
+            self.stamp_wire(item, wire);
+            info!(%item, wire, "chat call response bind pending");
+            return Some(item);
+        }
+        if let Some(item) = self.transcript.on_turn_assistant().filter(|&id| {
+            self.transcript
+                .by_id(id)
+                .and_then(|i| i.meta.wire_id.as_deref())
+                .is_none()
+        }) {
+            self.stamp_wire(item, wire);
+            info!(%item, wire, "chat call response bind on_turn");
+            return Some(item);
+        }
+        if wire.is_empty() {
+            warn!("chat call response missing id");
+            return None;
+        }
+        let item = Uuid::new_v4();
+        let parent = self.transcript.items.last().map(|i| i.id);
+        self.emit(EventBody::Open { item, parent, kind: ItemKind::Assistant });
+        self.stamp_wire(item, wire);
+        self.emit(EventBody::SetStatus { item, status: Status::Running });
+        self.note_thinking();
+        info!(%item, wire, "chat call response created");
+        Some(item)
+    }
+
+    fn live_assistant(&mut self, wire: &str) -> Option<Uuid> {
+        if wire.is_empty() || self.muted_wires.contains(wire) {
+            return None;
+        }
+        let id = self.bind_assistant(wire)?;
+        let live = self
+            .transcript
+            .by_id(id)
+            .map(|i| i.kind == ItemKind::Assistant && i.status.in_flight())
+            .unwrap_or(false);
+        if live { Some(id) } else { None }
+    }
+
+    fn cancel_assistant(&mut self, item: Uuid) {
+        if let Some(wire) = self
+            .transcript
+            .by_id(item)
+            .and_then(|i| i.meta.wire_id.clone())
+        {
+            self.muted_wires.insert(wire);
+        }
+        if self.pending_create == Some(item) {
+            self.pending_create = None;
+        }
+        self.drop_held();
+        self.emit(EventBody::SetStatus { item, status: Status::Cancelled });
+    }
+
+    /// Server VAD (`speech_started` … `speech_stopped`) is how we know you're
+    /// talking. Waiting on ASR (`user_id` with the floor cleared) is not.
+    fn user_is_talking(&self) -> bool {
+        self.transcript.user_floor.is_some()
+    }
+
+    fn drop_held(&mut self) {
+        self.held_audio.clear();
+        self.held_wire = None;
+    }
+
+    fn release_held(&mut self, audio: Option<&super::audio::Duplex>) {
+        if self.held_audio.is_empty() {
+            self.held_wire = None;
+            return;
+        }
+        if let Some(audio) = audio {
+            audio.push_voice_pcm16(&self.held_audio);
+        }
+        self.drop_held();
+    }
+
+    /// Queue PCM, or hold it while the user floor is up. Returns true when the
+    /// hold overflowed — the caller should cancel that response.
+    fn enqueue_voice(
+        &mut self, audio: Option<&super::audio::Duplex>, wire: &str, bytes: &[u8],
+    ) -> bool {
+        if bytes.is_empty() || wire.is_empty() || self.muted_wires.contains(wire) {
+            return false;
+        }
+        if self.user_is_talking() {
+            if self.held_wire.as_deref() != Some(wire) {
+                self.held_audio.clear();
+                self.held_wire = Some(wire.to_string());
+            }
+            self.held_audio.extend_from_slice(bytes);
+            // Late `speech_stopped` is hundreds of ms. A full second of hold
+            // means you're talking over a reply — drop it, don't dump a backlog.
+            if self.held_audio.len() > HOLD_AUDIO_CAP {
+                warn!(
+                    wire,
+                    held = self.held_audio.len(),
+                    "chat call drop held audio: talking over"
+                );
+                self.drop_held();
+                self.muted_wires.insert(wire.to_string());
+                return true;
+            }
+            return false;
+        }
+        let Some(audio) = audio else {
+            return false;
+        };
+        if self.held_wire.as_deref() == Some(wire) && !self.held_audio.is_empty() {
+            audio.push_voice_pcm16(&self.held_audio);
+            self.drop_held();
+        }
+        audio.push_voice_pcm16(bytes);
+        false
     }
 
     async fn barge_if_needed(
         &mut self, ws: &mut super::realtime::VoiceConn, audio: Option<&super::audio::Duplex>,
+        force: bool,
     ) -> Result<(), String> {
-        let on_turn = self.transcript.on_turn_assistant();
+        let queue = audio.map(|a| a.queue_len()).unwrap_or(0);
+        let begun =
+            reply_has_begun(&self.in_flight_asst_text(), queue, !self.held_audio.is_empty());
+        if !force && !begun && !self.tools_running() {
+            return Ok(());
+        }
         if let Some(audio) = audio {
-            if audio.queue_len() > 0 {
+            if queue > 0 {
                 audio.barge_in();
             }
         }
-        let Some(item) = on_turn else {
+        self.drop_held();
+        let tools = self.tools_running();
+        let targets: Vec<Uuid> = self
+            .transcript
+            .items
+            .iter()
+            .filter(|i| i.kind == ItemKind::Assistant && i.status.in_flight())
+            .filter(|i| force || tools || i.has_text())
+            .map(|i| i.id)
+            .collect();
+        if targets.is_empty() {
             return Ok(());
-        };
-        if self.pending_create == Some(item) {
-            self.pending_create = None;
         }
         let _ = ws.response_cancel().await;
-        info!(
-            %item,
-            chars = self.asst_text.len(),
-            pending = self.pending_create.is_some(),
-            "chat call barge"
-        );
-        if !self.asst_text.is_empty() {
-            self.emit(EventBody::Replace {
-                item,
-                blocks: vec![Content::Text { text: self.asst_text.clone() }],
-            });
+        for item in targets {
+            let chars = self
+                .transcript
+                .by_id(item)
+                .map(|i| i.text().len())
+                .unwrap_or(0);
+            info!(%item, chars, force, "chat call barge");
+            self.cancel_assistant(item);
         }
-        self.emit(EventBody::SetStatus { item, status: Status::Cancelled });
-        self.asst_text.clear();
         self.clear_thinking_if_idle();
         Ok(())
     }
@@ -728,17 +841,9 @@ impl Call {
             return;
         }
         self.hung_up = true;
+        self.drop_held();
         if self.user_id.is_some() {
             self.close_user_item();
-        }
-        if let Some(item) = self.transcript.on_turn_assistant() {
-            if !self.asst_text.is_empty() {
-                self.emit(EventBody::Replace {
-                    item,
-                    blocks: vec![Content::Text { text: self.asst_text.clone() }],
-                });
-                self.asst_text.clear();
-            }
         }
         let stale: Vec<Uuid> = self
             .transcript
@@ -761,105 +866,63 @@ impl Call {
         self.log_ws(ev);
         match ev_type(ev) {
             "input_audio_buffer.speech_started" => {
+                let wire = item_id(ev).unwrap_or("");
                 if let Some(duplex) = audio.as_deref() {
-                    self.user_began(ws, duplex).await?;
-                }
-                if let (Some(id), Some(wire)) = (self.user_id, item_id(ev)) {
-                    self.emit(EventBody::SetMeta {
-                        item: id,
-                        meta: ItemMeta { wire_id: Some(wire.to_string()), ..ItemMeta::default() },
-                    });
+                    self.user_began(ws, duplex, wire).await?;
+                } else {
+                    self.bind_live_user(wire);
                 }
             }
             "input_audio_buffer.speech_stopped" => {
-                self.catch_up(audio.as_deref());
+                self.speech_stopped();
+                self.release_held(audio.as_deref());
             }
             "response.created" => {
-                let wire = response_id(ev).unwrap_or("").to_string();
-                if self.staging.on_created(wire.clone()) {
-                    info!(wire, catchup = self.staging.catchup, "chat call response staged");
-                    if self.staging.catchup {
-                        if let Some(reply) = self.staging.take_last() {
-                            self.promote_staged(reply, audio.as_deref());
-                        }
-                    }
-                } else if let Some(item) = self.pending_create.take() {
-                    info!(%item, wire, "chat call response bind pending");
-                    self.emit(EventBody::SetMeta {
-                        item,
-                        meta: ItemMeta { wire_id: Some(wire), ..ItemMeta::default() },
-                    });
-                } else if let Some(item) = self.transcript.on_turn_assistant().filter(|id| {
-                    self.transcript
-                        .by_id(*id)
-                        .and_then(|i| i.meta.wire_id.as_deref())
-                        .is_none()
-                }) {
-                    info!(%item, wire, "chat call response bind on_turn");
-                    self.emit(EventBody::SetMeta {
-                        item,
-                        meta: ItemMeta { wire_id: Some(wire), ..ItemMeta::default() },
-                    });
+                let wire = response_id(ev).unwrap_or("");
+                if self.muted_wires.contains(wire) {
+                    info!(wire, "chat call response.created after cancel");
                 } else {
-                    let item = Uuid::new_v4();
-                    let parent = self.transcript.items.last().map(|i| i.id);
-                    warn!(
-                        %item,
-                        wire,
-                        think = self.n_thinking(),
-                        on_turn = self.transcript.on_turn_assistant().is_some(),
-                        "chat call extra thinking"
-                    );
-                    self.emit(EventBody::Open { item, parent, kind: ItemKind::Assistant });
-                    self.emit(EventBody::SetMeta {
-                        item,
-                        meta: ItemMeta { wire_id: Some(wire), ..ItemMeta::default() },
-                    });
-                    self.emit(EventBody::SetStatus { item, status: Status::Running });
-                    self.asst_text.clear();
-                    self.note_thinking();
+                    let _ = self.bind_assistant(wire);
                 }
             }
             "response.output_audio.delta" | "response.audio.delta" => {
-                if let Some(wire) = response_id(ev) {
-                    if let Some(staged) = self.staging.by_wire_mut(wire) {
-                        if let Some(b64) = ev.get("delta").and_then(|v| v.as_str()) {
-                            if let Ok(bytes) = decode_b64(b64) {
-                                staged.audio.extend_from_slice(&bytes);
-                            }
-                        }
-                        return Ok(());
-                    }
-                }
-                if self.should_play(ev) {
-                    if let (Some(duplex), Some(b64)) =
-                        (audio, ev.get("delta").and_then(|v| v.as_str()))
-                    {
+                let wire = response_id(ev).unwrap_or("");
+                if self.live_assistant(wire).is_some() {
+                    if let Some(b64) = ev.get("delta").and_then(|v| v.as_str()) {
                         if let Ok(bytes) = decode_b64(b64) {
-                            duplex.push_voice_pcm16(&bytes);
+                            if self.enqueue_voice(audio.as_deref(), wire, &bytes) {
+                                if let Some(duplex) = audio.as_deref() {
+                                    if duplex.queue_len() > 0 {
+                                        duplex.barge_in();
+                                    }
+                                }
+                                let _ = ws.response_cancel().await;
+                                if let Some(id) = self.transcript.by_wire(wire) {
+                                    self.cancel_assistant(id);
+                                }
+                                info!(wire, "chat call barge held overflow");
+                            }
                         }
                     }
                 }
             }
             "response.output_audio_transcript.delta" | "response.output_text.delta" => {
-                if let Some(wire) = response_id(ev) {
-                    if let Some(staged) = self.staging.by_wire_mut(wire) {
-                        if let Some(d) = ev.get("delta").and_then(|v| v.as_str()) {
-                            staged.text.push_str(d);
-                        }
-                        return Ok(());
-                    }
-                }
-                if self.should_play(ev) {
-                    if let Some(d) = ev.get("delta").and_then(|v| v.as_str()) {
-                        self.asst_text.push_str(d);
-                        if let Some(item) = self.transcript.on_turn_assistant() {
-                            self.emit(EventBody::Replace {
-                                item,
-                                blocks: vec![Content::Text { text: self.asst_text.clone() }],
-                            });
-                            self.clear_thinking_if_idle();
-                        }
+                let wire = response_id(ev).unwrap_or("");
+                if let (Some(item), Some(d)) =
+                    (self.live_assistant(wire), ev.get("delta").and_then(|v| v.as_str()))
+                {
+                    if !d.is_empty() {
+                        let mut text = self
+                            .transcript
+                            .by_id(item)
+                            .map(|i| i.text())
+                            .unwrap_or_default();
+                        text.push_str(d);
+                        self.emit(EventBody::Replace {
+                            item,
+                            blocks: vec![Content::Text { text }],
+                        });
+                        self.clear_thinking_if_idle();
                     }
                 }
             }
@@ -867,8 +930,7 @@ impl Call {
                 let Some(wire) = response_id(ev) else {
                     return Ok(());
                 };
-                if let Some(staged) = self.staging.by_wire_mut(wire) {
-                    staged.done = true;
+                if self.muted_wires.contains(wire) {
                     return Ok(());
                 }
                 let Some(item) = self.transcript.by_wire(wire) else {
@@ -882,37 +944,30 @@ impl Call {
                     info!(%item, wire, status = ?it.status, "chat call response.done not in-flight");
                     return Ok(());
                 }
-                if !self.asst_text.is_empty() {
-                    self.emit(EventBody::Replace {
-                        item,
-                        blocks: vec![Content::Text { text: self.asst_text.clone() }],
-                    });
-                    self.asst_text.clear();
-                }
                 self.emit(EventBody::SetStatus { item, status: Status::Done });
                 self.clear_thinking_if_idle();
             }
             "response.function_call_arguments.done" => {
-                if self.staging.active || self.staging.catchup {
-                    warn!(
-                        staging = self.staging.active,
-                        catchup = self.staging.catchup,
-                        "chat call drop function_call: staging"
-                    );
-                    return Ok(());
+                if let Some(wire) = response_id(ev) {
+                    if self.muted_wires.contains(wire) {
+                        info!(wire, "chat call drop function_call: cancelled");
+                        return Ok(());
+                    }
+                    let _ = self.bind_assistant(wire);
                 }
                 self.handle_tool(ev, ws, audio).await?;
             }
             "conversation.item.input_audio_transcription.updated"
             | "conversation.item.input_audio_transcription.completed" => {
+                let completed = ev_type(ev).ends_with("completed");
                 if let Some(text) = transcript_text(ev) {
                     let id = item_id(ev)
                         .and_then(|w| self.transcript.by_wire(w))
                         .or(self.user_id)
                         .or(self.last_heard);
                     if let Some(id) = id {
-                        self.apply_asr(id, text);
-                    } else if ev_type(ev).ends_with("completed") {
+                        self.apply_asr(id, text, completed);
+                    } else if completed {
                         warn!(
                             wire = item_id(ev).unwrap_or(""),
                             chars = text.len(),
@@ -946,9 +1001,9 @@ impl Call {
         if !tools::is_client(&name) && !tools::is_server(&name) {
             return Ok(());
         }
-        let parent = self
-            .transcript
-            .on_turn_assistant()
+        let parent = response_id(ev)
+            .and_then(|w| self.transcript.by_wire(w))
+            .or_else(|| self.transcript.on_turn_assistant())
             .or_else(|| self.transcript.last_assistant());
         let item = Uuid::new_v4();
         self.emit(EventBody::Open { item, parent, kind: ItemKind::Tool });
@@ -1085,42 +1140,23 @@ impl Call {
             .iter()
             .any(|i| i.kind == ItemKind::Tool && i.status == Status::Running)
     }
-
-    fn should_play(&mut self, ev: &Value) -> bool {
-        let wire = response_id(ev).unwrap_or("");
-        if self.user_id.is_some() || self.transcript.user_floor.is_some() {
-            if !wire.is_empty() && self.muted_wires.insert(wire.to_string()) {
-                warn!(
-                    wire,
-                    user = ?self.user_id,
-                    floor = self.transcript.user_floor.is_some(),
-                    "chat call mute response"
-                );
-            }
-            return false;
-        }
-        if wire.is_empty() {
-            return false;
-        }
-        let play = self
-            .transcript
-            .on_turn_assistant()
-            .and_then(|id| self.transcript.by_id(id))
-            .and_then(|item| item.meta.wire_id.as_deref())
-            == Some(wire);
-        if !play && self.muted_wires.insert(wire.to_string()) {
-            warn!(
-                wire,
-                on_turn = ?self.transcript.on_turn_assistant(),
-                "chat call mute unmatched wire"
-            );
-        }
-        play
-    }
 }
 
-fn reply_has_begun(asst_text: &str, queue_len: usize) -> bool {
-    !asst_text.is_empty() || queue_len > 0
+/// pcm16 @ 24kHz, ~1s. Longer than late `speech_stopped`; shorter than talking over.
+const HOLD_AUDIO_CAP: usize = 24_000 * 2;
+
+fn reply_has_begun(asst_text: &str, queue_len: usize, held: bool) -> bool {
+    !asst_text.is_empty() || queue_len > 0 || held
+}
+
+fn play_response(transcript: &Transcript, muted: &HashSet<String>, wire: &str) -> bool {
+    if wire.is_empty() || muted.contains(wire) {
+        return false;
+    }
+    match transcript.by_wire(wire).and_then(|id| transcript.by_id(id)) {
+        Some(i) if i.kind == ItemKind::Assistant && i.status.in_flight() => true,
+        _ => false,
+    }
 }
 
 fn item_id(ev: &Value) -> Option<&str> {
@@ -1159,16 +1195,146 @@ fn error_summary(ev: &Value) -> String {
 
 #[cfg(test)]
 mod tests {
-    use super::reply_has_begun;
+    use super::{play_response, reply_has_begun};
+    use lb_rs::Uuid;
+    use lb_rs::model::chat::{Content, Event, EventBody, ItemKind, ItemMeta, Status, Transcript};
+    use std::collections::HashSet;
+
+    fn open(item: Uuid, kind: ItemKind) -> Event {
+        Event::new("t", 1, EventBody::Open { item, parent: None, kind })
+    }
+
+    fn wire(item: Uuid, id: &str) -> Event {
+        Event::new(
+            "t",
+            2,
+            EventBody::SetMeta {
+                item,
+                meta: ItemMeta { wire_id: Some(id.into()), ..ItemMeta::default() },
+            },
+        )
+    }
+
+    fn running(item: Uuid) -> Event {
+        Event::new("t", 3, EventBody::SetStatus { item, status: Status::Running })
+    }
+
+    fn text(item: Uuid, s: &str) -> Event {
+        Event::new(
+            "t",
+            4,
+            EventBody::Replace { item, blocks: vec![Content::Text { text: s.into() }] },
+        )
+    }
+
+    fn done(item: Uuid) -> Event {
+        Event::new("t", 5, EventBody::SetStatus { item, status: Status::Done })
+    }
+
+    fn cancelled(item: Uuid) -> Event {
+        Event::new("t", 5, EventBody::SetStatus { item, status: Status::Cancelled })
+    }
 
     #[test]
     fn idle_assistant_has_not_begun() {
-        assert!(!reply_has_begun("", 0));
+        assert!(!reply_has_begun("", 0, false));
     }
 
     #[test]
     fn text_or_queued_audio_has_begun() {
-        assert!(reply_has_begun("hi", 0));
-        assert!(reply_has_begun("", 1));
+        assert!(reply_has_begun("hi", 0, false));
+        assert!(reply_has_begun("", 1, false));
+        assert!(reply_has_begun("", 0, true));
+    }
+
+    #[test]
+    fn play_in_flight_assistant_by_wire() {
+        let item = Uuid::from_u128(1);
+        let t =
+            Transcript::fold(&[open(item, ItemKind::Assistant), wire(item, "r1"), running(item)]);
+        let muted = HashSet::new();
+        assert!(play_response(&t, &muted, "r1"));
+        assert!(!play_response(&t, &muted, "other"));
+    }
+
+    #[test]
+    fn talking_is_vad_floor_not_waiting_asr() {
+        let user = Uuid::from_u128(1);
+        let speaking = Transcript::fold(&[
+            Event::new("t", 1, EventBody::Open { item: user, parent: None, kind: ItemKind::User }),
+            Event::new(
+                "t",
+                2,
+                EventBody::Speech { item: user, phase: lb_rs::model::chat::SpeechPhase::Start },
+            ),
+        ]);
+        assert!(speaking.user_floor.is_some());
+
+        let waiting_asr = Transcript::fold(&[
+            Event::new("t", 1, EventBody::Open { item: user, parent: None, kind: ItemKind::User }),
+            Event::new(
+                "t",
+                2,
+                EventBody::Speech { item: user, phase: lb_rs::model::chat::SpeechPhase::Start },
+            ),
+            Event::new(
+                "t",
+                3,
+                EventBody::Speech { item: user, phase: lb_rs::model::chat::SpeechPhase::Stop },
+            ),
+        ]);
+        assert!(waiting_asr.user_floor.is_none());
+        assert_eq!(waiting_asr.items[0].status, Status::Open);
+    }
+
+    #[test]
+    fn play_ignores_user_floor() {
+        let user = Uuid::from_u128(1);
+        let asst = Uuid::from_u128(2);
+        let t = Transcript::fold(&[
+            Event::new("t", 1, EventBody::Open { item: user, parent: None, kind: ItemKind::User }),
+            Event::new(
+                "t",
+                2,
+                EventBody::Speech { item: user, phase: lb_rs::model::chat::SpeechPhase::Start },
+            ),
+            Event::new(
+                "t",
+                3,
+                EventBody::Open { item: asst, parent: Some(user), kind: ItemKind::Assistant },
+            ),
+            wire(asst, "r1"),
+            running(asst),
+            text(asst, "hello"),
+        ]);
+        assert!(t.user_floor.is_some());
+        assert!(play_response(&t, &HashSet::new(), "r1"));
+    }
+
+    #[test]
+    fn play_skips_muted_and_cancelled() {
+        let item = Uuid::from_u128(1);
+        let live =
+            Transcript::fold(&[open(item, ItemKind::Assistant), wire(item, "r1"), running(item)]);
+        let mut muted = HashSet::new();
+        muted.insert("r1".into());
+        assert!(!play_response(&live, &muted, "r1"));
+
+        let done_t = Transcript::fold(&[
+            open(item, ItemKind::Assistant),
+            wire(item, "r1"),
+            running(item),
+            cancelled(item),
+        ]);
+        assert!(!play_response(&done_t, &HashSet::new(), "r1"));
+
+        let finished = Transcript::fold(&[
+            open(item, ItemKind::Assistant),
+            wire(item, "r1"),
+            running(item),
+            text(item, "hi"),
+            done(item),
+        ]);
+        assert!(!play_response(&finished, &HashSet::new(), "r1"));
     }
 }

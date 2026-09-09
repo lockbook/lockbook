@@ -347,7 +347,7 @@ impl Transcript {
             .any(|i| i.kind == ItemKind::Assistant && i.status == Status::Done)
     }
 
-    fn tools_awaiting_follow_up(&self) -> bool {
+    pub fn tools_awaiting_follow_up(&self) -> bool {
         let Some(asst) = self
             .items
             .iter()
@@ -717,6 +717,25 @@ mod tests {
             done("travis", 9, tool),
         ]);
         assert!(t.should_create());
+    }
+
+    #[test]
+    fn set_meta_stamps_wire_on_existing_item() {
+        let item = Uuid::from_u128(1);
+        let t = Transcript::fold(&[
+            open("travis", 1, item, ItemKind::User),
+            Event::new(
+                "travis",
+                2,
+                EventBody::SetMeta {
+                    item,
+                    meta: ItemMeta { wire_id: Some("s1".into()), ..ItemMeta::default() },
+                },
+            ),
+        ]);
+        assert_eq!(t.items.len(), 1);
+        assert_eq!(t.items[0].id, item);
+        assert_eq!(t.by_wire("s1"), Some(item));
     }
 
     #[test]

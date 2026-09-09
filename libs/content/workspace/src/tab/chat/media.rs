@@ -1,5 +1,5 @@
-//! Imagine, look, STT, and record (TTS to a file). Worker-thread only
-//! (typed spawn / call `spawn_blocking`) — these hit xAI and `block_on` Lb.
+//! Imagine, look, download, STT, and record (TTS to a file). Worker-thread
+//! only (typed spawn / call `spawn_blocking`) — HTTP and `block_on` Lb.
 
 use std::io::Cursor;
 use std::time::Duration;
@@ -19,6 +19,7 @@ use lb_rs::model::media_text::{self, Transcript};
 
 const IMAGINE_MODEL: &str = "grok-imagine-image-2.0";
 const LOOK_CAP: usize = 12 * 1024 * 1024;
+const DOWNLOAD_CAP: usize = 32 * 1024 * 1024;
 
 pub fn imagine(
     core: &Lb, chat_id: lb_rs::Uuid, args: &Value, cfg: &WsPersistentStore,
@@ -68,6 +69,26 @@ pub fn look(
         return Ok(ClientToolOut::text(text));
     }
     Ok(ClientToolOut { text: format!("attached {path}"), image: Some((mime, bytes)) })
+}
+
+pub fn download(core: &Lb, chat_id: lb_rs::Uuid, args: &Value) -> Result<ClientToolOut, String> {
+    let raw = args
+        .get("url")
+        .and_then(Value::as_str)
+        .map(str::trim)
+        .filter(|s| !s.is_empty())
+        .ok_or_else(|| "download needs an http(s) URL".to_string())?;
+    let got = fetch_url(&parse_http_url(raw)?)?;
+    let ext = download_ext(&got.bytes, &got.url, got.mime.as_deref());
+    let path = write_asset(
+        core,
+        chat_id,
+        args.get("path").and_then(Value::as_str),
+        &download_stem(&got.url),
+        &ext,
+        &got.bytes,
+    )?;
+    Ok(ClientToolOut::text(format!("wrote {path}")))
 }
 
 pub fn transcribe(
@@ -191,7 +212,19 @@ fn vision_bytes(bytes: &[u8]) -> Result<(String, Vec<u8>), String> {
                 .map_err(|e| format!("encode png: {e}"))?;
             Ok(("image/png".into(), out))
         }
-        Err(_) => Err("not a jpeg or png".into()),
+        Err(_) => Err(not_an_image(bytes)),
+    }
+}
+
+fn not_an_image(bytes: &[u8]) -> String {
+    let n = bytes.len().min(80);
+    let head = String::from_utf8_lossy(&bytes[..n]).to_ascii_lowercase();
+    if head.contains("<svg") {
+        "that's an SVG, not a raster image".into()
+    } else if head.contains("<html") || head.contains("<!doctype") {
+        "got a web page, not an image".into()
+    } else {
+        "not a jpeg or png".into()
     }
 }
 
@@ -245,17 +278,20 @@ fn ensure_assets(core: &Lb, chat_id: lb_rs::Uuid) -> Result<File, String> {
 
 fn unique_name(core: &Lb, folder: &File, stem: &str, ext: &str) -> String {
     let kids = core.get_children(&folder.id).unwrap_or_default();
-    let mut name = format!("{stem}.{ext}");
+    let file_name = |stem: &str| {
+        if ext.is_empty() { stem.to_string() } else { format!("{stem}.{ext}") }
+    };
+    let mut name = file_name(stem);
     if !kids.iter().any(|k| k.name == name) {
         return name;
     }
     for i in 2..50 {
-        name = format!("{stem}-{i}.{ext}");
+        name = file_name(&format!("{stem}-{i}"));
         if !kids.iter().any(|k| k.name == name) {
             return name;
         }
     }
-    format!("{stem}-{}.{}", stamp(), ext)
+    file_name(&format!("{stem}-{}", stamp()))
 }
 
 fn stamp() -> String {
@@ -268,6 +304,153 @@ fn http() -> Result<reqwest::blocking::Client, String> {
         .timeout(Duration::from_secs(120))
         .build()
         .map_err(|e| e.to_string())
+}
+
+fn parse_http_url(raw: &str) -> Result<reqwest::Url, String> {
+    let url = reqwest::Url::parse(raw).map_err(|_| "needs an http(s) URL".to_string())?;
+    if !matches!(url.scheme(), "http" | "https") || url.host_str().is_none() {
+        return Err("needs an http(s) URL".into());
+    }
+    Ok(url)
+}
+
+fn download_stem(url: &reqwest::Url) -> String {
+    let name = url.path_segments().and_then(|s| s.last()).unwrap_or("");
+    let stem = name
+        .rsplit_once('.')
+        .map(|(s, _)| s)
+        .filter(|s| !s.is_empty())
+        .unwrap_or(name);
+    let clean: String = stem
+        .chars()
+        .filter(|c| c.is_ascii_alphanumeric() || *c == '-' || *c == '_')
+        .take(40)
+        .collect();
+    if clean.is_empty() { "download".into() } else { clean }
+}
+
+fn download_ext(bytes: &[u8], url: &reqwest::Url, mime: Option<&str>) -> String {
+    if let Some(ext) = sniff_ext(bytes) {
+        return ext.to_string();
+    }
+    if let Some(ext) = url_ext(url) {
+        return ext;
+    }
+    ext_for_mime(mime.unwrap_or("")).unwrap_or("").to_string()
+}
+
+fn url_ext(url: &reqwest::Url) -> Option<String> {
+    let name = url.path_segments().and_then(|s| s.last())?;
+    let ext = name.rsplit_once('.')?.1;
+    if ext.is_empty() || ext.len() > 8 || !ext.chars().all(|c| c.is_ascii_alphanumeric()) {
+        return None;
+    }
+    let ext = ext.to_ascii_lowercase();
+    Some(if ext == "jpeg" { "jpg".into() } else { ext })
+}
+
+fn ext_for_mime(mime: &str) -> Option<&'static str> {
+    let mime = mime
+        .split(';')
+        .next()
+        .unwrap_or(mime)
+        .trim()
+        .to_ascii_lowercase();
+    Some(match mime.as_str() {
+        "image/jpeg" | "image/jpg" => "jpg",
+        "image/png" => "png",
+        "image/gif" => "gif",
+        "image/webp" => "webp",
+        "image/svg+xml" => "svg",
+        "image/bmp" => "bmp",
+        "image/tiff" => "tiff",
+        "application/pdf" => "pdf",
+        "audio/mpeg" | "audio/mp3" => "mp3",
+        "audio/wav" | "audio/x-wav" => "wav",
+        "video/mp4" => "mp4",
+        "application/zip" => "zip",
+        "text/markdown" => "md",
+        "text/plain" => "txt",
+        "text/html" => "html",
+        "application/json" => "json",
+        "application/xml" | "text/xml" => "xml",
+        "text/csv" => "csv",
+        _ => return None,
+    })
+}
+
+fn sniff_ext(bytes: &[u8]) -> Option<&'static str> {
+    if bytes.len() >= 3 && bytes[0] == 0xff && bytes[1] == 0xd8 && bytes[2] == 0xff {
+        return Some("jpg");
+    }
+    if bytes.starts_with(b"\x89PNG\r\n\x1a\n") {
+        return Some("png");
+    }
+    if bytes.starts_with(b"GIF87a") || bytes.starts_with(b"GIF89a") {
+        return Some("gif");
+    }
+    if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WEBP" {
+        return Some("webp");
+    }
+    if bytes.len() >= 12 && bytes.starts_with(b"RIFF") && &bytes[8..12] == b"WAVE" {
+        return Some("wav");
+    }
+    if bytes.starts_with(b"%PDF") {
+        return Some("pdf");
+    }
+    if bytes.starts_with(b"PK\x03\x04") {
+        return Some("zip");
+    }
+    if bytes.starts_with(b"ID3") {
+        return Some("mp3");
+    }
+    let head = String::from_utf8_lossy(&bytes[..bytes.len().min(160)]).to_ascii_lowercase();
+    if head.contains("<svg") {
+        return Some("svg");
+    }
+    None
+}
+
+struct Fetched {
+    bytes: Vec<u8>,
+    mime: Option<String>,
+    url: reqwest::Url,
+}
+
+fn fetch_url(url: &reqwest::Url) -> Result<Fetched, String> {
+    let resp = http()?
+        .get(url.clone())
+        .header("Accept", "*/*")
+        .header("User-Agent", "Lockbook")
+        .send()
+        .map_err(|e| format!("download: {e}"))?;
+    let status = resp.status();
+    if !status.is_success() {
+        warn!(url = %url, status = %status, "chat download http");
+        return Err(format!("download HTTP {status}"));
+    }
+    let final_url = resp.url().clone();
+    if final_url.scheme() != "http" && final_url.scheme() != "https" {
+        return Err("needs an http(s) URL".into());
+    }
+    let mime = resp
+        .headers()
+        .get(reqwest::header::CONTENT_TYPE)
+        .and_then(|v| v.to_str().ok())
+        .map(|s| s.to_string());
+    if let Some(len) = resp.content_length() {
+        if len > DOWNLOAD_CAP as u64 {
+            return Err("file is too large".into());
+        }
+    }
+    let bytes = resp.bytes().map_err(|e| format!("download: {e}"))?;
+    if bytes.len() > DOWNLOAD_CAP {
+        return Err("file is too large".into());
+    }
+    if bytes.is_empty() {
+        return Err("download was empty".into());
+    }
+    Ok(Fetched { bytes: bytes.to_vec(), mime, url: final_url })
 }
 
 fn imagine_generate(bearer: &str, prompt: &str, args: &Value) -> Result<Vec<u8>, String> {
@@ -493,5 +676,52 @@ mod tests {
         let src = b"hello image";
         let enc = b64(src);
         assert_eq!(decode_b64(&enc).unwrap(), src);
+    }
+
+    #[test]
+    fn download_url_must_be_http() {
+        assert!(parse_http_url("https://example.com/a.png").is_ok());
+        assert!(parse_http_url("http://example.com/a.pdf").is_ok());
+        assert!(parse_http_url("file:///tmp/a.png").is_err());
+        assert!(parse_http_url("ftp://example.com/a.png").is_err());
+        assert!(parse_http_url("not a url").is_err());
+    }
+
+    #[test]
+    fn download_stem_from_path() {
+        let url = parse_http_url("https://cdn.example.com/photos/cat-photo.png?w=800").unwrap();
+        assert_eq!(download_stem(&url), "cat-photo");
+        let bare = parse_http_url("https://example.com/").unwrap();
+        assert_eq!(download_stem(&bare), "download");
+    }
+
+    #[test]
+    fn download_ext_sniffs_then_url_then_mime() {
+        let png_url = parse_http_url("https://example.com/x.bin").unwrap();
+        assert_eq!(
+            download_ext(b"\x89PNG\r\n\x1a\nrest", &png_url, Some("application/octet-stream")),
+            "png"
+        );
+        let pdf_url = parse_http_url("https://example.com/report.pdf").unwrap();
+        assert_eq!(download_ext(b"not magic", &pdf_url, None), "pdf");
+        let rs = parse_http_url("https://example.com/main.rs").unwrap();
+        assert_eq!(download_ext(b"fn main() {}", &rs, None), "rs");
+        let typed = parse_http_url("https://example.com/blob").unwrap();
+        assert_eq!(
+            download_ext(b"not magic", &typed, Some("application/pdf; charset=binary")),
+            "pdf"
+        );
+        let none = parse_http_url("https://example.com/blob").unwrap();
+        assert_eq!(download_ext(b"not magic", &none, None), "");
+        assert_eq!(sniff_ext(b"%PDF-1.4"), Some("pdf"));
+        assert_eq!(sniff_ext(b"ID3...."), Some("mp3"));
+        assert_eq!(sniff_ext(b"<svg xmlns='http://www.w3.org/2000/svg'>"), Some("svg"));
+    }
+
+    #[test]
+    fn not_an_image_messages() {
+        assert!(not_an_image(b"<svg xmlns='http://www.w3.org/2000/svg'>").contains("SVG"));
+        assert!(not_an_image(b"<!DOCTYPE html><html>").contains("web page"));
+        assert_eq!(not_an_image(b"\x00\x01\x02"), "not a jpeg or png");
     }
 }
