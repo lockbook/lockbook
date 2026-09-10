@@ -8,158 +8,140 @@
       <h1>
         <span class="hero-lead">The best place for your</span>
         <span class="sr-only">notes</span>
-        <span class="rot-line" aria-hidden="true"><b class="rot" id="rot-word">notes</b><span class="caret"></span></span>
+        <span class="rot-line" aria-hidden="true"><b class="rot" id="rot-word"><span class="rot-text" id="rot-text">notes</span></b><b class="rot rot-measure" id="rot-measure"></b></span>
       </h1>
       <p class="hero-sub">
-        respects your <a href="#encryption">privacy</a>,
-        has no <a href="#formats">lock-in</a>,
-        works <a href="#encryption">offline</a>,
-        lets you collaborate,
-        runs <a href="#platforms">native</a> on every platform,
-        and is <a href="#developers">extensible</a>.
+        Lockbook is an <a href="https://github.com/lockbook/lockbook">open-source</a> notebook
+        for <a href="#formats">markdown</a> notes &amp; <a href="#formats">SVG</a> drawings &mdash;
+        <a href="#encryption">encrypted</a> on your device and shared only by invitation.
       </p>
-      <p class="hero-close">See why that place is Lockbook.</p>
       <div class="hero-cta">
-        <a class="btn btn-primary btn-lg" id="hero-download" href="#download">Download</a>
-        <a class="btn btn-quiet btn-lg" href="#formats">See it work</a>
+        <a class="btn btn-primary btn-lg" id="hero-download" href="/download">Download</a>
+        <a class="btn btn-quiet btn-lg" href="/download">Other platforms</a>
       </div>
       <p class="hero-proof">
-        Open source since 2020 &nbsp;·&nbsp; 25&nbsp;MB free &nbsp;·&nbsp; No account required
+        Open source since 2020 &nbsp;·&nbsp; 25&nbsp;MB free &nbsp;·&nbsp; No email required
       </p>
     </div>
     <a class="hero-shot" href="#screenshots" aria-label="See Lockbook on every platform">
-      <span class="ph" data-ratio="16/10">
-        <span><b id="hero-shot-name">macOS client</b>screenshot &mdash; see every platform &rarr;</span>
-      </span>
+      <img class="shot" id="hero-img" src="/shots/mac-editor.png" width="1600" height="1107"
+           alt="Lockbook on macOS: a Markdown note open beside the file tree" />
     </a>
-  </div>
-</section>
-
-<section class="section" id="encryption">
-  <div class="wrap">
-    <div class="measure">
-      <p class="eyebrow">Encryption</p>
-      <h2>We built a notebook we can&rsquo;t read.</h2>
-      <p class="lede">
-        Your keys are generated on your device and never leave it. Everything is
-        encrypted before it syncs, so what reaches our servers is noise. Your
-        notes live on your device first, so offline isn&rsquo;t a mode — it&rsquo;s the
-        default. Sharing hands a key to a person you name — never to us.
-      </p>
-    </div>
-
-    <div class="arch" role="img" aria-label="Diagram: a note is encrypted on your device before it leaves, and the server only ever stores ciphertext">
-      <figure class="arch-node" id="arch-device">
-        <figcaption>
-          <svg width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
-            <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
-            <path d="M.65 4.2h14.7" stroke="currentColor" stroke-width="1.1"/>
-          </svg>
-          your device
-          <span class="arch-tag">plaintext</span>
-        </figcaption>
-        <pre class="arch-note">Thursday
-
-Dr. Reyes moved my
-follow-up to the 14th
-bp 118/76 &middot; resting 58</pre>
-      </figure>
-
-      <div class="arch-wire" id="arch-wire">
-        <span class="lock-badge" aria-hidden="true">
-          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
-            <rect x="2.2" y="6.4" width="9.6" height="5.9" rx="1.6" stroke="currentColor" stroke-width="1.1"/>
-            <path d="M4.5 6.2V4.4a2.5 2.5 0 0 1 5 0v1.8" stroke="currentColor" stroke-width="1.1"/>
-          </svg>
-        </span>
-        <span class="lock-note">encrypted before it leaves</span>
-        <span class="arch-packet" id="arch-packet" aria-hidden="true"><svg width="12" height="13" viewBox="0 0 12 13" fill="none"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span id="packet-label">notes.md</span></span>
-      </div>
-
-      <figure class="arch-node" id="arch-server">
-        <figcaption>
-          <svg width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
-            <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
-            <path d="M.65 4.55h14.7M.65 8.45h14.7" stroke="currentColor" stroke-width="1.1"/>
-          </svg>
-          our server
-          <span class="arch-tag">ciphertext</span>
-        </figcaption>
-        <pre class="arch-store" id="arch-store">mK2x+9QfLw3eYaZv0d
-u8PJq4Tn6RcXbGdV1e+
-Hs5AyEw7Zk+jMoN2iQd
-p7Rc/Xw2mBhT4nEuJ8f
-d3FrUvLB9tXq/W6pCsA</pre>
-      </figure>
-    </div>
-
-    <p class="after-note">
-      <a href="/security">How the cryptography works &rarr;</a>
-    </p>
   </div>
 </section>
 
 <section class="section" id="formats">
   <div class="wrap">
-    <div class="split">
-      <div class="split-text">
+    <div class="measure">
       <p class="eyebrow">Open formats</p>
       <h2>Files you could still read if we disappeared.</h2>
-      <p class="lede">
-        There is no proprietary container and no database you need our app to
-        open. Folders are folders, notes are Markdown, drawings are SVG. Export
-        writes exactly what you see here to disk — and every one of these opens
-        in software that has nothing to do with us.
-      </p>
-        <div class="fmt-caption" id="fmt-caption">
-      <p data-for="tree"><b>Ordinary files.</b> Export writes your notebook to disk exactly like this — folders you named, Markdown and SVG inside. No manifest, no database, nothing to reconstruct.</p>
-      <p data-for="md" hidden><b>CommonMark.</b> Tables, task lists, footnotes and Obsidian-style <code>[[wikilinks]]</code>. The same file renders on GitHub, converts with <code>pandoc</code>, and opens in every editor you already have.</p>
-      <p data-for="svg" hidden><b>SVG.</b> Every stroke is a path in an open vector format. Drop the file into Inkscape, Illustrator, Figma or a browser and it opens — because it is not a picture of a drawing, it is the drawing.</p>
     </div>
-      </div>
-      <div class="split-visual">
-        <figure class="window fmt" id="fmt-window">
-      <div class="window-bar">
-        <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
-          <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
-          <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
-        </svg>
-        <span class="window-label" id="fmt-title">documents/</span>
-        <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
-          <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
-          <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
-          <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
-        </svg>
-      </div>
 
-      <div class="window-body fmt-split">
-        <div class="fmt-rail" id="fmt-rail" role="tablist" aria-orientation="vertical" aria-label="Open formats">
-          <button role="tab" id="tab-tree" aria-controls="panel-tree" aria-selected="true" data-panel="tree" data-title="documents/">
-            <span class="fr-head">
-              <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg>
-              <span class="fr-name">documents/</span>
-            </span>
-            <span class="fr-desc">plain folders on disk</span>
-          </button>
-          <button role="tab" id="tab-md" aria-controls="panel-md" aria-selected="false" data-panel="md" data-title="documents/notes.md" tabindex="-1">
-            <span class="fr-head">
-              <svg width="12" height="13" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg>
-              <span class="fr-name">notes.md</span>
-            </span>
-            <span class="fr-desc">CommonMark &middot; live editor</span>
-          </button>
-          <button role="tab" id="tab-svg" aria-controls="panel-svg" aria-selected="false" data-panel="svg" data-title="documents/sketch.svg" tabindex="-1">
-            <span class="fr-head">
-              <svg width="14" height="12" viewBox="0 0 14 12" fill="none" aria-hidden="true"><rect x=".65" y=".65" width="12.7" height="10.7" rx="1.6" stroke="currentColor" stroke-width="1.1"/><circle cx="4.35" cy="4.1" r="1.15" stroke="currentColor" stroke-width="1.1"/><path d="M2.2 9.3l2.9-2.9 2.1 2.1 2-2 2.6 2.8" stroke="currentColor" stroke-width="1.1"/></svg>
-              <span class="fr-name">sketch.svg</span>
-            </span>
-            <span class="fr-desc">SVG &middot; live canvas</span>
-          </button>
+    <div class="fmt-body">
+      <div class="fmt-col">
+        <div class="seg seg-lg" id="fmt-rail" role="tablist" aria-label="Open formats">
+          <span class="seg-thumb" id="fmt-thumb" aria-hidden="true"></span>
+          <button role="tab" id="tab-md" aria-controls="text-md visual-md" aria-selected="true" data-panel="md">Markdown</button>
+          <button role="tab" id="tab-svg" aria-controls="text-svg visual-svg" aria-selected="false" data-panel="svg" tabindex="-1">SVG</button>
+          <button role="tab" id="tab-tree" aria-controls="text-tree visual-tree" aria-selected="false" data-panel="tree" tabindex="-1">Files</button>
         </div>
 
-        <div class="fmt-stage">
-          <div class="fmt-panel is-on" id="panel-tree" role="tabpanel" aria-labelledby="tab-tree">
-            <div class="fs">
+        <div class="fmt-texts">
+          <div class="fmt-text is-on" id="text-md" role="tabpanel" aria-labelledby="tab-md">
+            <h3>Notes are Markdown.</h3>
+            <p>
+              CommonMark with tables, task lists, footnotes and Obsidian-style
+              <code>[[wikilinks]]</code>. The file you write here is the file on
+              disk &mdash; it renders on GitHub, converts with <code>pandoc</code>,
+              and opens in every editor you already have.
+            </p>
+            <p class="fmt-opens">Also opens in GitHub, Obsidian, VS Code, pandoc.</p>
+          </div>
+          <div class="fmt-text" id="text-svg" role="tabpanel" aria-labelledby="tab-svg">
+            <h3>Drawings are SVG.</h3>
+            <p>
+              Every stroke is a path in an open vector format. It is not a picture
+              of a drawing, it is the drawing &mdash; drop the file into Inkscape,
+              Illustrator, Figma or a browser and it opens.
+            </p>
+            <p class="fmt-opens">Also opens in Inkscape, Illustrator, Figma, any browser.</p>
+          </div>
+          <div class="fmt-text" id="text-tree" role="tabpanel" aria-labelledby="tab-tree">
+            <h3>Folders are folders.</h3>
+            <p>
+              Export writes your notebook to disk exactly like this &mdash; folders
+              you named, Markdown and SVG inside. No manifest, no database, nothing
+              to reconstruct.
+            </p>
+            <p class="fmt-opens">Back it up with anything: rsync, git, a USB stick.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="fmt-col">
+        <div class="fmt-visuals" id="fmt-visuals">
+          <div class="fmt-visual is-on" id="visual-md">
+            <figure class="window">
+              <div class="window-bar">
+                <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+                  <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+                  <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="window-label">documents/notes.md</span>
+                <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+                  <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                </svg>
+              </div>
+              <div class="window-body fmt-demo">
+                <canvas id="editor-demo" tabindex="0"></canvas>
+                <div class="demo-overlay" id="editor-loading">
+                  <div class="spinner"></div>
+                  <span>Loading the live editor&hellip;</span>
+                </div>
+              </div>
+            </figure>
+          </div>
+          <div class="fmt-visual" id="visual-svg">
+            <figure class="window">
+              <div class="window-bar">
+                <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+                  <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+                  <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="window-label">documents/sketch.svg</span>
+                <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+                  <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                </svg>
+              </div>
+              <div class="window-body fmt-demo">
+                <canvas id="canvas-demo" tabindex="0"></canvas>
+                <div class="demo-overlay" id="canvas-loading">
+                  <div class="spinner"></div>
+                  <span>Loading the live canvas&hellip;</span>
+                </div>
+              </div>
+            </figure>
+          </div>
+          <div class="fmt-visual" id="visual-tree">
+            <figure class="window">
+              <div class="window-bar">
+                <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+                  <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+                  <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="window-label">documents/</span>
+                <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+                  <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                </svg>
+              </div>
+              <div class="window-body fmt-demo">
+                <div class="fs">
               <div class="fs-bar">
                 <span class="fs-cmd">$ lockbook export / ~/documents</span>
                 <span class="fs-count">12 items</span>
@@ -179,28 +161,77 @@ d3FrUvLB9tXq/W6pCsA</pre>
               <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>packing.md</span></div>
               </div>
             </div>
-          </div>
-
-          <div class="fmt-panel" id="panel-md" role="tabpanel" aria-labelledby="tab-md">
-            <canvas id="editor-demo" tabindex="0"></canvas>
-            <div class="demo-overlay" id="editor-loading">
-              <div class="spinner"></div>
-              <span>Loading the live editor&hellip;</span>
-            </div>
-          </div>
-
-          <div class="fmt-panel" id="panel-svg" role="tabpanel" aria-labelledby="tab-svg">
-            <canvas id="canvas-demo" tabindex="0"></canvas>
-            <div class="demo-overlay" id="canvas-loading">
-              <div class="spinner"></div>
-              <span>Loading the live canvas&hellip;</span>
-            </div>
+              </div>
+            </figure>
           </div>
         </div>
       </div>
-    </figure>
-      </div>
     </div>
+  </div>
+</section>
+
+<section class="section" id="encryption">
+  <div class="wrap">
+    <div class="measure">
+      <p class="eyebrow">Encryption</p>
+      <h2>We built a notebook we can&rsquo;t read.</h2>
+      <p class="lede">
+        Your keys are generated on your device and never leave it. Everything is
+        encrypted before it syncs, so what reaches our servers is noise. Your
+        notes live on your device first, so offline isn&rsquo;t a mode — it&rsquo;s the
+        default. Sharing hands a key to a person you name — never to us.
+      </p>
+    </div>
+
+    <div class="arch" role="img" aria-label="Diagram: a note is encrypted on your phone before it leaves, and the server only ever stores ciphertext">
+      <figure class="arch-node phone" id="arch-device">
+        <figcaption>your phone <span class="arch-tag">plaintext</span></figcaption>
+        <div class="phone-shell">
+          <div class="phone-screen" id="phone-screen">
+            <span class="phone-island"></span>
+            <div class="phone-app"><span class="phone-back">&lsaquo;</span>1984.md</div>
+            <div class="arch-note">
+              <p><b>Finished 1984 on the train.</b></p>
+              <p>The telescreen never had to watch everyone. It only had to make everyone feel watched.</p>
+              <p>I write differently when I feel watched. So this lives here now.</p>
+            </div>
+            <span class="phone-home"></span>
+          </div>
+        </div>
+      </figure>
+
+      <div class="arch-wire" id="arch-wire">
+        <span class="lock-badge" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="2.2" y="6.4" width="9.6" height="5.9" rx="1.6" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M4.5 6.2V4.4a2.5 2.5 0 0 1 5 0v1.8" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+        </span>
+        <span class="lock-note">encrypted before it leaves</span>
+        <span class="arch-packet" id="arch-packet" aria-hidden="true"><svg width="12" height="13" viewBox="0 0 12 13" fill="none"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span id="packet-label">1984.md</span></span>
+      </div>
+
+      <figure class="arch-node rack" id="arch-server">
+        <figcaption>our server <span class="arch-tag">ciphertext</span></figcaption>
+        <div class="rack-shell" id="rack">
+          <div class="rack-bar"><i></i><i></i><i class="on"></i></div>
+          <pre class="arch-store" id="arch-store">mK2x+9QfLw3eYaZv0dR
+u8PJq4Tn6RcXbGdV1e+
+Hs5AyEw7Zk+jMoN2iQd
+p7Rc/Xw2mBhT4nEuJ8f
+d3FrUvLB9tXq/W6pCsA
+Qn9tYe2L+cVw4xKzM0b
+aZ7fHs1Dm8Rj/Ep3TvW
+kW4uNc6Bx9Ly+Gq2Pf0
+tJ1oRd5Va3Zm/Ck8Xy+
+e6Ms2Hf9Ub7Nw0Lq+Yi</pre>
+        </div>
+      </figure>
+    </div>
+
+    <p class="after-note">
+      <a href="/security">How the cryptography works &rarr;</a>
+    </p>
   </div>
 </section>
 
@@ -249,8 +280,16 @@ d3FrUvLB9tXq/W6pCsA</pre>
     </div>
 
       <div class="shots" id="screenshots">
-      <div class="ph" data-ratio="16/10" id="platform-shot">
-        <span><b>macOS client</b>screenshot · 16:10 · 2× · matches viewer&rsquo;s theme</span>
+      <div class="shot-stage" id="platform-shot">
+        <img class="shot is-on" data-platform="macos" src="/shots/mac-editor.png" width="1600" height="1107" loading="lazy"
+             alt="Lockbook on macOS: a Markdown note open beside the file tree" />
+        <img class="shot shot-phone" data-platform="ios" src="/shots/iphone-editor.png" width="552" height="1200" loading="lazy"
+             alt="Lockbook on iPhone: editing a Markdown note" />
+        <img class="shot shot-phone" data-platform="android" src="/shots/android-editor.png" width="806" height="1458" loading="lazy"
+             alt="Lockbook on Android: a travel plan with a checklist and a table" />
+        <div class="ph" data-ratio="16/10" data-platform="linux"><span><b>Linux client</b>screenshot coming soon</span></div>
+        <div class="ph" data-ratio="16/10" data-platform="windows"><span><b>Windows client</b>screenshot coming soon</span></div>
+        <div class="ph" data-ratio="16/10" data-platform="cli"><span><b>CLI</b>screenshot coming soon</span></div>
       </div>
     </div>
     </div>
@@ -274,14 +313,14 @@ d3FrUvLB9tXq/W6pCsA</pre>
         <p class="plan-price">$0</p>
         <p class="plan-cap">25&nbsp;MB of encrypted storage</p>
         <p class="plan-note">Thousands of notes &mdash; it is text, and text is small. Every feature included, sharing included.</p>
-        <a class="btn btn-quiet" href="#download">Download</a>
+        <a class="btn btn-quiet" href="/download">Download</a>
       </div>
       <div class="card plan featured">
         <p class="plan-name">Premium</p>
         <p class="plan-price">$2.99<span>/month</span></p>
         <p class="plan-cap">30&nbsp;GB of encrypted storage</p>
         <p class="plan-note">Room for images, scans and PDFs. Funds the work.</p>
-        <a class="btn btn-primary" href="#download">Subscribe in the app</a>
+        <a class="btn btn-primary" href="/download">Subscribe in the app</a>
       </div>
     </div>
   </div>
@@ -349,45 +388,40 @@ COMMANDS
   </div>
 </section>
 
-<section class="section" id="download">
-  <div class="wrap">
-    <div class="measure" style="margin-bottom:var(--s-xl)">
-      <h2>Get Lockbook</h2>
-      <p class="lede">Direct downloads. No sign-up, no email.</p>
-    </div>
-    <div class="dl-grid">
-      <a class="btn btn-quiet dl" href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-macos.app.zip" data-platform="macos">macOS</a>
-      <a class="btn btn-quiet dl" href="https://apps.apple.com/us/app/lockbook/id1526775001" data-platform="ios">iOS</a>
-      <a class="btn btn-quiet dl" href="https://play.google.com/store/apps/details?id=app.lockbook" data-platform="android">Android</a>
-      <a class="btn btn-quiet dl" href="https://flathub.org/apps/net.lockbook.Lockbook" data-platform="linux">Linux</a>
-      <a class="btn btn-quiet dl" href="https://github.com/lockbook/lockbook/releases/latest" data-platform="windows">Windows</a>
-      <a class="btn btn-quiet dl" href="https://github.com/lockbook/lockbook/tree/master/clients/cli" data-platform="cli">CLI</a>
-    </div>
-  </div>
-</section>
-
 <style>{% raw %}
   .hero{padding:var(--s-3xl) 0 var(--s-2xl);border-top:0}
   .hero-grid{display:grid;gap:var(--s-xl);align-items:center}
-  .hero-lead{display:block;font-size:clamp(22px,2.8vw,28px);font-weight:500;letter-spacing:-.015em;line-height:1.3}
-  .rot-line{display:block;margin-top:var(--s-xs);font-size:clamp(42px,6.5vw,60px);font-weight:600;letter-spacing:-.03em;line-height:1.15;white-space:nowrap}
-  .rot{color:var(--accent);background:color-mix(in srgb,var(--accent) 12%,transparent);border-radius:var(--r-sm);padding:0 .09em;margin-left:-.09em}
-  .caret{display:inline-block;width:3px;height:.82em;margin-left:.09em;background:var(--accent);vertical-align:-.06em;animation:caret 1.1s steps(1) infinite}
-  @keyframes caret{50%{opacity:0}}
-  @media (prefers-reduced-motion:reduce){.caret{display:none}}
+  .hero h1{font-size:clamp(28px,3.4vw,36px);line-height:1.25}
+  .hero-lead{display:block}
+  .rot-line{position:relative;display:block;margin-top:var(--s-xs);white-space:nowrap}
+  .rot{
+    display:inline-block;vertical-align:top;overflow:hidden;text-align:center;
+    font-weight:inherit;color:var(--accent);
+    background:color-mix(in srgb,var(--accent) 12%,transparent);
+    border-radius:var(--r-sm);padding:0 .12em;margin-left:-.12em;
+    transition:width .38s ease;
+  }
+  .rot-text{display:inline-block;will-change:filter}
+  .rot-measure{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;width:auto !important;transition:none}
   .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
   .hero-sub{margin-top:var(--s-md);color:var(--fg-2);font-size:19px;max-width:30em;text-wrap:pretty}
-  .hero-close{margin-top:var(--s-md);font-size:19px;font-weight:500}
   .hero-cta{display:flex;flex-wrap:wrap;gap:var(--s-sm);margin-top:var(--s-lg)}
   .hero-proof{margin-top:var(--s-md);color:var(--fg-3);font-family:var(--mono);font-size:12px}
   .hero-shot{display:none}
   @media (min-width:900px){
-    .hero-grid{grid-template-columns:minmax(0,6fr) minmax(0,5fr);gap:var(--s-2xl)}
-    .hero-shot{display:block}
+    .hero{overflow-x:clip}
+    .hero-grid{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--s-xl)}
+    .hero-shot{display:block;margin-right:calc(-1 * max(0px, (100vw - var(--page)) / 2))}
   }
-  .hero-shot .ph{transition:border-color var(--anim) ease}
+  .shot{display:block;width:100%;height:auto;border-radius:9px;
+    box-shadow:0 0 0 1px var(--divider),0 30px 60px -30px rgba(0,0,0,.6)}
   .hero-shot:hover{text-decoration:none}
-  .hero-shot:hover .ph{border-color:var(--fg-3)}
+  .hero-shot .shot{transition:transform var(--anim) ease}
+  .hero-shot:hover .shot{transform:translateY(-2px)}
+  .shot-stage{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1}
+  .shot-stage > *{display:none}
+  .shot-stage > .is-on{display:block}
+  .shot-stage .shot-phone{width:auto;height:100%;border-radius:18px}
 
   .shots{scroll-margin-top:calc(60px + var(--s-md))}
   #platform-shot{margin-top:var(--s-md)}
@@ -395,19 +429,46 @@ COMMANDS
   .after-note{margin-top:var(--s-lg)}
 
   .arch{margin-top:var(--s-xl);display:flex;flex-direction:column;gap:var(--s-lg)}
-  .arch-node{margin:0;border:1px solid var(--stroke);border-radius:var(--r-surface);
-    background:var(--bg-panel);padding:var(--s-md) var(--s-md) var(--s-lg)}
+  .arch-node{margin:0;display:flex;flex-direction:column}
   .arch-node figcaption{
-    display:flex;align-items:center;gap:var(--s-xs);margin-bottom:var(--s-md);
+    display:flex;align-items:center;gap:var(--s-xs);margin-bottom:var(--s-sm);
     font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);
   }
-  .arch-node figcaption svg{flex:none}
   .arch-tag{margin-left:auto}
-  .arch-note,.arch-store{margin:0;font-family:var(--mono);font-size:13px;line-height:2;white-space:pre;overflow-x:auto}
-  .arch-note{color:var(--fg)}
-  .arch-store{color:var(--fg-3)}
-  .arch-node.flash{animation:archflash .55s ease}
-  @keyframes archflash{0%{background:color-mix(in srgb,var(--accent) 9%,var(--bg-panel))}100%{background:var(--bg-panel)}}
+
+  .phone{align-self:center;width:190px}
+  .phone-shell{height:380px;padding:8px;border:1px solid var(--stroke);border-radius:30px;background:var(--bg-panel)}
+  .phone-screen{
+    --base:var(--bg);position:relative;height:100%;overflow:hidden;
+    border:1px solid var(--divider);border-radius:22px;background:var(--base);
+    padding:32px 14px 20px;
+  }
+  .phone-island{position:absolute;top:9px;left:50%;width:42px;height:11px;transform:translateX(-50%);border-radius:6px;background:var(--fg);opacity:.85}
+  .phone-home{position:absolute;bottom:7px;left:50%;width:54px;height:3px;transform:translateX(-50%);border-radius:2px;background:var(--fg);opacity:.35}
+  .phone-app{
+    display:flex;align-items:center;gap:var(--s-xs);margin-bottom:var(--s-sm);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--fg-3);
+  }
+  .phone-back{font-family:var(--sans);font-size:17px;line-height:1;color:var(--accent)}
+  .arch-note{font-size:12.5px;line-height:1.5;color:var(--fg);text-wrap:pretty}
+  .arch-note p{margin:0 0 .6em}
+  .arch-note b{font-weight:600}
+
+  .rack{align-self:center;width:100%;max-width:360px}
+  .rack-shell{
+    --base:var(--bg-panel);flex:1;display:flex;flex-direction:column;
+    border:1px solid var(--stroke);border-radius:var(--r-surface);background:var(--base);
+  }
+  .rack-bar{display:flex;gap:5px;padding:11px 14px;border-bottom:1px solid var(--divider)}
+  .rack-bar i{width:6px;height:6px;border-radius:50%;background:var(--bg-control)}
+  .rack-bar i.on{background:var(--accent)}
+  .arch-store{
+    flex:1;margin:0;padding:var(--s-md);min-height:120px;
+    font-family:var(--mono);font-size:13px;line-height:2;color:var(--fg-3);white-space:pre;overflow:hidden;
+    transition:opacity .25s ease;
+  }
+  .arch-flash{animation:archflash .55s ease}
+  @keyframes archflash{0%{background:color-mix(in srgb,var(--accent) 10%,var(--base))}100%{background:var(--base)}}
 
   .arch-wire{position:relative;min-height:120px}
   .arch-wire::before{
@@ -424,8 +485,8 @@ COMMANDS
     border:1px solid var(--stroke);border-radius:50%;color:var(--accent);
   }
   .lock-note{
-    position:absolute;z-index:2;left:calc(50% + 18px);top:0;transform:translateY(-50%);
-    font-family:var(--mono);font-size:11px;color:var(--fg-3);white-space:nowrap;
+    position:absolute;z-index:2;left:calc(50% + 18px);right:0;top:0;transform:translateY(-50%);
+    font-family:var(--mono);font-size:11px;line-height:1.4;color:var(--fg-3);
   }
   .arch-packet{
     position:absolute;z-index:1;left:0;top:0;opacity:0;will-change:transform;
@@ -439,7 +500,8 @@ COMMANDS
 
   @media (min-width:860px){
     .arch{flex-direction:row;align-items:stretch;gap:0}
-    .arch-node{width:300px;flex:none}
+    .phone{align-self:auto;flex:none}
+    .rack{align-self:auto;width:260px;max-width:none;flex:none}
     .arch-wire{flex:1;min-height:0}
     .arch-wire::before{
       left:0;right:0;top:50%;bottom:auto;width:auto;height:1px;
@@ -450,42 +512,28 @@ COMMANDS
       border:5px solid transparent;border-left-color:var(--stroke);border-right:0;
     }
     .lock-badge{left:0;top:50%}
-    .lock-note{left:var(--s-sm);top:calc(50% + 16px);transform:none}
+    .lock-note{left:var(--s-sm);right:auto;top:calc(50% + 16px);transform:none;white-space:nowrap}
   }
 
-  .fmt{margin:0}
-  .fmt-split{display:flex;align-items:stretch}
-  @media (min-width:760px){.fmt-split{height:440px}}
-  .fmt-rail{
-    width:190px;flex:none;display:flex;flex-direction:column;gap:var(--s-xxs);
-    padding:var(--s-sm);border-right:1px solid var(--divider);background:var(--bg-panel);
+  .fmt-body{display:grid;gap:var(--s-xl);margin-top:var(--s-lg)}
+  @media (min-width:900px){
+    .fmt-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--s-2xl);align-items:start}
   }
-  .fmt-rail button{
-    appearance:none;border:0;background:transparent;cursor:pointer;text-align:left;
-    display:block;width:100%;padding:var(--s-sm);border-radius:var(--r-control);
-    font:inherit;color:var(--fg-2);
-    transition:background-color var(--anim) ease,color var(--anim) ease,box-shadow var(--anim) ease;
-  }
-  .fmt-rail button:hover{background:var(--wash-1);color:var(--fg)}
-  .fmt-rail button[aria-selected="true"]{background:var(--bg);color:var(--fg);box-shadow:0 0 0 1px var(--divider)}
-  .fr-head{display:flex;align-items:center;gap:var(--s-xs)}
-  .fr-head svg{flex:none;color:var(--fg-3)}
-  .fmt-rail button[aria-selected="true"] .fr-head svg{color:var(--accent)}
-  .fr-name{font-family:var(--mono);font-size:13px;letter-spacing:.02em}
-  .fr-desc{display:block;margin-top:var(--s-xxs);padding-left:19px;font-family:var(--mono);font-size:11px;color:var(--fg-3)}
-  .fmt-stage{position:relative;flex:1;min-width:0}
-  @media (max-width:759px){
-    .fmt-split{flex-direction:column;aspect-ratio:auto}
-    .fmt-rail{width:auto;border-right:0;border-bottom:1px solid var(--divider)}
-    .fmt-stage{aspect-ratio:4/3}
-  }
-  .fmt-panel{
-    position:absolute;inset:0;
+  .fmt-texts,.fmt-visuals{position:relative}
+  .fmt-texts{margin-top:var(--s-lg)}
+  .fmt-text,.fmt-visual{
+    position:absolute;left:0;right:0;top:0;
     opacity:0;visibility:hidden;pointer-events:none;
     transition:opacity var(--anim) ease;
   }
-  .fmt-panel.is-on{opacity:1;visibility:visible;pointer-events:auto}
-  .fmt-panel canvas{display:block;width:100%;height:100%}
+  .fmt-text.is-on,.fmt-visual.is-on{position:relative;opacity:1;visibility:visible;pointer-events:auto}
+  .fmt-text h3{font-size:var(--t-heading);margin-bottom:var(--s-sm)}
+  .fmt-text p{color:var(--fg-2)}
+  .fmt-text .fmt-opens{margin-top:var(--s-md);font-family:var(--mono);font-size:12px;color:var(--fg-3)}
+  .fmt-demo{position:relative}
+  @media (min-width:760px){.fmt-demo{height:400px}}
+  @media (max-width:759px){.fmt-demo{aspect-ratio:4/3}}
+  .fmt-demo canvas{display:block;width:100%;height:100%}
 
   .fs{position:absolute;inset:0;display:flex;flex-direction:column}
   .fs-bar{
@@ -507,9 +555,6 @@ COMMANDS
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
   }
 
-  .fmt-caption{margin-top:var(--s-lg)}
-  .fmt-caption p{color:var(--fg-2);font-size:16px}
-  .fmt-caption b{color:var(--fg);font-weight:500}
 
   .platform-duo{margin-top:var(--s-xl);display:grid;gap:var(--s-xl)}
   @media (min-width:860px){
@@ -540,13 +585,13 @@ COMMANDS
   .stack-mid + .stack-under + .stack-bar{margin-top:var(--s-sm)}
   @media (min-width:760px){
     .stack-row{grid-template-columns:repeat(6,minmax(0,1fr))}
-    .stack-links{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));height:var(--s-lg)}
+    .stack-links{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0 var(--s-sm);height:var(--s-lg)}
     .stack-links i{display:block;width:1px;height:100%;margin:0 auto;background:var(--divider)}
     .stack-mid{margin-top:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--s-sm)}
     .stack-mid .stack-bar{grid-column:1/6}
     .stack-pass{display:block;grid-column:6}
     .stack-pass i{display:block;width:1px;height:100%;margin:0 auto;background:var(--divider)}
-    .stack-under{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));height:var(--s-lg)}
+    .stack-under{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0 var(--s-sm);height:var(--s-lg)}
     .stack-under .u-ws{grid-column:1/6;width:1px;height:100%;margin:0 auto;background:var(--divider)}
     .stack-under .u-cli{grid-column:6;width:1px;height:100%;margin:0 auto;background:var(--divider)}
     .stack-mid + .stack-under + .stack-bar{margin-top:0}
@@ -582,11 +627,6 @@ COMMANDS
   .plan-cap{font-size:18px;font-weight:500;margin-bottom:var(--s-sm)}
   .plan-note{color:var(--fg-2);font-size:16px;margin-bottom:var(--s-lg);flex:1}
 
-  .dl-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:var(--s-sm)}
-  @media (min-width:640px){.dl-grid{grid-template-columns:repeat(3,1fr)}}
-  @media (min-width:960px){.dl-grid{grid-template-columns:repeat(6,1fr)}}
-  .dl{min-height:46px}
-  .dl.is-you{border-color:var(--accent)}
 {% endraw %}</style>
 
 {% endblock content %}
@@ -594,28 +634,84 @@ COMMANDS
 {% block scripts %}
 <script>{% raw %}
   (function () {
-    var el = document.getElementById('rot-word');
-    if (!el) return;
+    var box = document.getElementById('rot-word');
+    var text = document.getElementById('rot-text');
+    var measure = document.getElementById('rot-measure');
+    if (!box || !text || !measure) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
     var WORDS = ['notes', 'sketches', 'todos', 'diagrams', 'journal',
                  'meeting notes', 'recipes', 'research', 'drafts', 'field notes',
                  'poems', 'diary', 'thesis', 'novel', 'wiki', 'ideas'];
-    var i = 0, txt = WORDS[0], deleting = true;
-    function step() {
-      var word = WORDS[i];
-      if (!deleting) {
-        txt = word.slice(0, txt.length + 1);
-        el.textContent = txt;
-        if (txt === word) { deleting = true; setTimeout(step, 2100); return; }
-        setTimeout(step, 70);
-      } else {
-        txt = txt.slice(0, -1);
-        el.textContent = txt;
-        if (!txt) { deleting = false; i = (i + 1) % WORDS.length; setTimeout(step, 350); return; }
-        setTimeout(step, 40);
-      }
+    var GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var HOLD = 1300, FIRST_HOLD = 1000, OUT = 300, IN = 700, LOCK = 0.7, CHURN = 55;
+
+    var i = 0, word = WORDS[0], cur = [], lockAt = [];
+    var phase = 'hold', first = true, t0 = null, churnedAt = 0, raf = null, running = false;
+    var peak = maxBlur();
+
+    function maxBlur() { return parseFloat(getComputedStyle(text).fontSize) * 0.22; }
+    function glyph() { return GLYPHS[(Math.random() * GLYPHS.length) | 0]; }
+    function fit(w) {
+      measure.textContent = w;
+      box.style.width = Math.ceil(measure.getBoundingClientRect().width) + 'px';
     }
-    setTimeout(step, 1400);
+    function blur(px) { text.style.filter = px > 0.05 ? 'blur(' + px.toFixed(2) + 'px)' : ''; }
+    function tint(p) {
+      text.style.color = p >= 1 ? '' :
+        'color-mix(in srgb, var(--accent) ' + Math.round(p * 100) + '%, var(--fg-3))';
+    }
+    function easeIn(p) { return p * p; }
+    function easeOut(p) { return 1 - (1 - p) * (1 - p); }
+
+    function scramble(p, now) {
+      var churn = now - churnedAt > CHURN;
+      if (churn) churnedAt = now;
+      for (var k = 0; k < word.length; k++) {
+        if (word[k] === ' ' || p >= lockAt[k]) cur[k] = word[k];
+        else if (churn || cur[k] === undefined) cur[k] = glyph();
+      }
+      text.textContent = cur.join('');
+    }
+
+    function next() {
+      i = (i + 1) % WORDS.length;
+      word = WORDS[i];
+      cur = []; lockAt = [];
+      for (var k = 0; k < word.length; k++) {
+        lockAt.push(LOCK * (k + 0.4 + Math.random() * 0.6) / word.length);
+      }
+      fit(word);
+    }
+
+    function settle() { text.textContent = word; blur(0); tint(1); phase = 'hold'; }
+
+    function frame(now) {
+      if (t0 === null) t0 = now;
+      var t = now - t0;
+      if (phase === 'hold') {
+        if (t >= (first ? FIRST_HOLD : HOLD)) { first = false; phase = 'out'; t0 = now; }
+      } else if (phase === 'out') {
+        var p = Math.min(1, t / OUT);
+        blur(easeIn(p) * peak); tint(1 - p);
+        if (p >= 1) { next(); churnedAt = 0; phase = 'in'; t0 = now; }
+      } else {
+        var q = Math.min(1, t / IN);
+        scramble(q, now);
+        blur((1 - easeOut(q)) * peak); tint(q);
+        if (q >= 1) { settle(); t0 = now; }
+      }
+      raf = requestAnimationFrame(frame);
+    }
+
+    function start() { if (running) return; running = true; t0 = null; raf = requestAnimationFrame(frame); }
+    function stop() { if (!running) return; running = false; cancelAnimationFrame(raf); settle(); }
+
+    fit(word);
+    new ResizeObserver(function () { peak = maxBlur(); fit(word); }).observe(box.parentNode);
+    new IntersectionObserver(function (entries) {
+      entries[0].isIntersecting ? start() : stop();
+    }, { threshold: 0.2 }).observe(box);
   })();
 
   (function () {
@@ -623,18 +719,19 @@ COMMANDS
     var packet = document.getElementById('arch-packet');
     var label = document.getElementById('packet-label');
     var store = document.getElementById('arch-store');
-    var device = document.getElementById('arch-device');
-    var server = document.getElementById('arch-server');
-    if (!wire || !packet || !label || !store || !device || !server) return;
+    var screen = document.getElementById('phone-screen');
+    var rack = document.getElementById('rack');
+    if (!wire || !packet || !label || !store || !screen || !rack) return;
     if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
 
     var GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
-    var NAME = 'notes.md';
-    var READ = 600, SEAL = 500, SEND = 1500, LAND = 250, REST = 950;
+    var NAME = '1984.md';
+    var READ = 600, SEAL = 500, SEND = 1500, LAND = 400, REST = 1400;
     var TOTAL = READ + SEAL + SEND + LAND + REST;
     var wide = window.matchMedia('(min-width: 860px)');
 
     var shape = store.textContent.split('\n').map(function (l) { return l.length; });
+    var blob = [], revealed = 0, cleared = false;
     var start = null, sealed = false, landed = false, churnedAt = 0, raf = null, running = false;
 
     function noise(n) {
@@ -656,16 +753,17 @@ COMMANDS
     }
 
     function flash(node) {
-      node.classList.remove('flash');
+      node.classList.remove('arch-flash');
       void node.offsetWidth;
-      node.classList.add('flash');
+      node.classList.add('arch-flash');
     }
 
     function beginCycle() {
-      sealed = false; landed = false;
+      sealed = false; landed = false; cleared = false;
       packet.classList.remove('is-cipher');
       label.textContent = NAME;
-      flash(device);
+      store.style.opacity = 0;
+      flash(screen);
     }
 
     function seal() {
@@ -676,17 +774,29 @@ COMMANDS
 
     function land() {
       landed = true;
-      store.textContent = shape.map(function (n) { return noise(n); }).join('\n');
-      flash(server);
+      blob = shape.map(function (n) { return noise(n); });
+      revealed = 0;
+      store.style.opacity = 1;
+      flash(rack);
+    }
+
+    function reveal(q) {
+      var n = Math.max(1, Math.ceil(Math.min(1, q) * blob.length));
+      if (n === revealed) return;
+      revealed = n;
+      store.textContent = blob.slice(0, n).join('\n');
     }
 
     function frame(now) {
       if (start === null) { start = now; beginCycle(); }
       var t = now - start;
       if (t >= TOTAL) {
-        if (!landed && sealed) land();
         start = now; t = 0;
         beginCycle();
+      }
+      if (!cleared && t >= 250) {
+        store.textContent = '';
+        revealed = 0; cleared = true;
       }
       if (t >= READ + SEAL + SEND && !landed) {
         if (!sealed) seal();
@@ -700,8 +810,11 @@ COMMANDS
       } else if (t < READ + SEAL + SEND) {
         place(ease((t - READ - SEAL) / SEND), 1);
       } else if (t < READ + SEAL + SEND + LAND) {
-        place(1, 1 - (t - READ - SEAL - SEND) / LAND);
+        var q = (t - READ - SEAL - SEND) / LAND;
+        reveal(q);
+        place(1, 1 - q);
       } else {
+        reveal(1);
         place(1, 0);
       }
       raf = requestAnimationFrame(frame);
@@ -709,41 +822,41 @@ COMMANDS
 
     var io = new IntersectionObserver(function (entries) {
       var vis = entries[0].isIntersecting;
-      if (vis && !running) { running = true; start = null; raf = requestAnimationFrame(frame); }
-      else if (!vis && running) { running = false; cancelAnimationFrame(raf); packet.style.opacity = 0; }
+      if (vis && !running) {
+        running = true; start = null; blob = []; revealed = 0;
+        store.textContent = '';
+        raf = requestAnimationFrame(frame);
+      } else if (!vis && running) {
+        running = false; cancelAnimationFrame(raf); packet.style.opacity = 0;
+      }
     }, { threshold: 0.2 });
     io.observe(wire);
   })();
 
   (function () {
     var rail = document.getElementById('fmt-rail');
-    var caption = document.getElementById('fmt-caption');
-    var title = document.getElementById('fmt-title');
     if (!rail) return;
     var tabs = [].slice.call(rail.querySelectorAll('button'));
+    var thumb = document.getElementById('fmt-thumb');
 
     function show(tab) {
       tabs.forEach(function (t) {
         var on = t === tab;
         t.setAttribute('aria-selected', on ? 'true' : 'false');
         t.tabIndex = on ? 0 : -1;
-        var panel = document.getElementById(t.getAttribute('aria-controls'));
-        if (panel) panel.classList.toggle('is-on', on);
-      });
-      if (title) title.textContent = tab.dataset.title;
-      if (caption) {
-        [].forEach.call(caption.children, function (p) {
-          p.hidden = p.getAttribute('data-for') !== tab.dataset.panel;
+        (t.getAttribute('aria-controls') || '').split(/\s+/).forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.classList.toggle('is-on', on);
         });
-      }
+      });
+      if (thumb) thumb.style.transform = 'translateX(' + (tabs.indexOf(tab) * 100) + '%)';
       if (tab.dataset.panel !== 'tree' && window.lbLoadDemos) window.lbLoadDemos();
     }
 
     tabs.forEach(function (t, i) {
       t.addEventListener('click', function () { show(t); });
       t.addEventListener('keydown', function (e) {
-        var d = (e.key === 'ArrowDown' || e.key === 'ArrowRight') ? 1 :
-                (e.key === 'ArrowUp' || e.key === 'ArrowLeft') ? -1 : 0;
+        var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
         if (!d) return;
         e.preventDefault();
         var next = tabs[(i + d + tabs.length) % tabs.length];
@@ -774,17 +887,13 @@ COMMANDS
       line.innerHTML =
         '\n<span class="term-sigil">$</span> <b>lockbook</b> ' + esc(cmd) +
         '\n<span class="err">error</span>: the developers were too lazy to build a working shell here.' +
-        '\n       The real one ships with every desktop build — <a href="#download">grab it</a>.';
+        '\n       The real one ships with every desktop build — <a href="/download">grab it</a>.';
       out.appendChild(line);
       out.scrollTop = out.scrollHeight;
     });
   })();
 
   (function () {
-    var LABELS = {
-      macos:'macOS client', ios:'iOS client', windows:'Windows client',
-      linux:'Linux client', android:'Android client', cli:'CLI'
-    };
     var strip = document.getElementById('platform-switch');
     var shot  = document.getElementById('platform-shot');
     if (!strip || !shot) return;
@@ -795,8 +904,9 @@ COMMANDS
         t.setAttribute('aria-selected', on ? 'true' : 'false');
         t.tabIndex = on ? 0 : -1;
       });
-      shot.innerHTML = '<span><b>' + LABELS[tab.dataset.platform] +
-        '</b>screenshot · 16:10 · 2× · matches viewer’s theme</span>';
+      [].forEach.call(shot.children, function (c) {
+        c.classList.toggle('is-on', c.getAttribute('data-platform') === tab.dataset.platform);
+      });
     }
     tabs.forEach(function (t, i) {
       t.addEventListener('click', function () { show(t); });
@@ -825,16 +935,23 @@ COMMANDS
     if (!os) return;
 
     var NAMES = { macos:'macOS', ios:'iOS', android:'Android', linux:'Linux', windows:'Windows' };
-    var tile = document.querySelector('.dl[data-platform="' + os + '"]');
-    if (tile) tile.classList.add('is-you');
-
+    var STORE = {
+      macos: 'https://apps.apple.com/us/app/lockbook/id1526775001',
+      ios: 'https://apps.apple.com/us/app/lockbook/id1526775001',
+      android: 'https://play.google.com/store/apps/details?id=app.lockbook'
+    };
     var hero = document.getElementById('hero-download');
-    var nav  = document.getElementById('nav-download');
-    if (tile && hero) { hero.textContent = 'Download for ' + NAMES[os]; hero.href = tile.href; }
-    if (tile && nav) nav.href = tile.href;
+    if (hero) {
+      hero.textContent = 'Download for ' + NAMES[os];
+      hero.href = STORE[os] || ('/download#' + os);
+    }
 
-    var shotName = document.getElementById('hero-shot-name');
-    if (shotName) shotName.textContent = NAMES[os] + ' client';
+    var heroImg = document.getElementById('hero-img');
+    if (heroImg && os === 'ios') {
+      heroImg.src = '/shots/ipad-editor.png';
+      heroImg.width = 1600; heroImg.height = 1103;
+      heroImg.alt = 'Lockbook on iPad: a Markdown note open beside the file tree';
+    }
     var strip = document.getElementById('platform-switch');
     var btn = strip && strip.querySelector('button[data-platform="' + os + '"]');
     if (btn) btn.click();
@@ -842,8 +959,8 @@ COMMANDS
 
   (function () {
     var FRAMES = [
-      { panel: 'panel-md',  overlay: 'editor-loading' },
-      { panel: 'panel-svg', overlay: 'canvas-loading' }
+      { panel: 'visual-md',  overlay: 'editor-loading' },
+      { panel: 'visual-svg', overlay: 'canvas-loading' }
     ];
 
     if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
@@ -854,7 +971,7 @@ COMMANDS
       return;
     }
 
-    var stage = document.querySelector('.fmt-stage');
+    var stage = document.getElementById('fmt-visuals');
     if (stage) {
       stage.addEventListener('wheel', function (e) { e.stopPropagation(); },
                              { capture: true, passive: true });
@@ -878,11 +995,19 @@ COMMANDS
           FRAMES.forEach(function (f) {
             var o = document.getElementById(f.overlay);
             if (o) o.innerHTML =
-              '<span>The live demo didn’t load. <a href="#download">Download the app</a> instead.</span>';
+              '<span>The live demo didn’t load. <a href="/download">Download the app</a> instead.</span>';
           });
         });
     }
     window.lbLoadDemos = start;
+
+    var section = document.getElementById('formats');
+    if (section && 'IntersectionObserver' in window) {
+      var near = new IntersectionObserver(function (entries) {
+        if (entries[0].isIntersecting) { near.disconnect(); start(); }
+      }, { rootMargin: '300px 0px' });
+      near.observe(section);
+    }
 
     var rail = document.getElementById('fmt-rail');
     if (rail) {

@@ -1,6 +1,6 @@
 base_url = "https://lockbook.net"
 title = "Lockbook"
-description = "An open-source, end-to-end encrypted notebook."
+description = "Lockbook is an open-source notebook for markdown notes and SVG drawings, encrypted on your device and shared only by invitation."
 
 compile_sass = false
 build_search_index = false
