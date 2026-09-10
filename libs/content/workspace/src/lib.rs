@@ -1,3 +1,4 @@
+pub mod doc_index;
 pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
@@ -10,6 +11,7 @@ pub mod search;
 pub mod seq;
 pub mod show;
 pub mod space_inspector;
+pub mod style;
 pub mod tab;
 pub mod task_manager;
 pub mod theme;

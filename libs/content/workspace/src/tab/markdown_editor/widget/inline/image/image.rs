@@ -5,8 +5,9 @@ use egui::{self, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
+use crate::style::ThemeExt;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
-use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, link_menu_buttons};
+use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
@@ -26,14 +27,15 @@ impl MdRender {
 
 impl<'ast> MdRender {
     pub fn image_size(&self, texture_size: Vec2, width: f32, requested: ImageDims) -> Vec2 {
-        // Constrain the image to fit the renderer with a margin of breathing
-        // room. Clamp to non-negative — when the renderer is too small to
-        // satisfy the margin (initial frames before viewport is known,
-        // zero-height containers), the image collapses to 0 rather than
-        // letting negative dimensions corrupt the surrounding block layout.
-        let image_max_size = (Vec2::new(self.width, self.viewport_height)
-            - Vec2::splat(self.layout.margin))
-        .max(Vec2::ZERO);
+        // Width always wraps. Height is capped by the editor clip rect;
+        // labels never set a viewport (0), so height follows aspect only.
+        let max_w = (self.width - self.layout.margin).max(0.0);
+        let max_h = if self.viewport_height > 0.0 {
+            (self.viewport_height - self.layout.margin).max(0.0)
+        } else {
+            f32::MAX
+        };
+        let image_max_size = Vec2::new(max_w, max_h);
 
         // Texture dims are device pixels; the layout works in logical points.
         // Convert so a Retina screenshot (ppp 2) isn't shown at 2x real size.
@@ -165,7 +167,7 @@ impl<'ast> MdEdit {
     /// capsule): when `open`, a click opens `url`, else it selects the node
     /// and (touch) pops the edit menu as an `Atom` target, so the platform
     /// offers "Edit" (`Event::EnterAtom`). Desktop right-click shows the link
-    /// menu ([`link_menu_buttons`]). Registers the fragment rects in
+    /// menu ([`fill_link_menu`]). Registers the fragment rects in
     /// `touch_consuming_rects` so iOS routes the tap here; `salt` identifies
     /// the fragment's `Sense::click` scope. No-op if the embed wasn't rendered
     /// this frame. The per-kind handlers differ only in node lookup.
@@ -208,9 +210,10 @@ impl<'ast> MdEdit {
             let editable = !self.renderer.readonly;
             // cards/capsules render fetched previews; images don't
             let refreshable = !is_image && self.renderer.contact_linked_sites;
-            let mut action = None;
-            response
-                .context_menu(|ui| action = link_menu_buttons(ui, is_image, editable, refreshable));
+            let t = ui.ctx().get_lb_theme();
+            let action = crate::style::context_menu::show(&response, &t, |e| {
+                fill_link_menu(e, is_image, editable, refreshable, |a| a);
+            });
             match action {
                 Some(LinkMenuAction::Open) => {
                     self.renderer.open_resolved_link(url, ui.ctx(), false)

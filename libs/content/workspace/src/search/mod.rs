@@ -6,15 +6,23 @@ pub struct Search {
     pub query: String,
     pub initialized: bool,
     pub executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
-    pub filters_open: bool,
     pub scope_path: String,
-    folders: Arc<RwLock<Vec<(lb_rs::Uuid, String)>>>,
-    scope_selected: usize,
-    scope_was_focused: bool,
+    scope_open: bool,
+    /// Draft dest while the folder sheet is open (commit on Search).
+    scope_dest: Option<lb_rs::Uuid>,
+    /// Expanded folders in the scope tree picker.
+    scope_expanded: std::collections::HashSet<lb_rs::Uuid>,
     query_focused: bool,
+    /// Enter in the query field: activate the highlighted result this frame.
+    enter_activate: bool,
+    /// ⌘Enter: same as Enter, but open in a new tab.
+    enter_new_tab: bool,
+    /// Esc after chip/query: leave search (back, or close a disposable tab).
+    dismiss: bool,
     dispatched_query: String,
     dispatched_filter: String,
     building: Arc<AtomicBool>,
+    building_started: web_time::Instant,
 
     core: Lb,
 }
@@ -53,6 +61,8 @@ pub struct PickerResponse {
     /// Byte range of the highlighted snippet within the selected file's
     /// content (content search only). Drives preview scroll/highlight.
     pub selected_range: Option<std::ops::Range<usize>>,
+    /// Empty-state control: clear the folder chip and search everywhere.
+    pub clear_scope: bool,
 }
 
 pub trait SearchExecutor: Send + Sync {
@@ -60,10 +70,17 @@ pub trait SearchExecutor: Send + Sync {
     fn handle_query(&mut self, query: &str);
     fn update_filter(&mut self, filter: Option<SearchFilter>);
     fn set_kb_mode(&mut self, kb_mode: bool);
+    /// Activate the highlighted result (query-field Enter).
+    fn request_activate(&mut self);
+    /// Activate the highlighted result in a new tab (⌘Enter).
+    fn request_activate_in_new_tab(&mut self);
+    fn has_rows(&self) -> bool;
     /// Render the result list. `activated` is set when the user opens a result
     /// (e.g. Enter or row shortcut); `selected` tracks the highlighted row for
-    /// the preview pane.
-    fn show_result_picker(&mut self, ui: &mut Ui, allow_kb_nav: bool) -> PickerResponse;
+    /// the preview pane. `scope_name` is the chip folder (glyphon, may contain emoji).
+    fn show_result_picker(
+        &mut self, ui: &mut Ui, allow_kb_nav: bool, scope_name: &str, empty_centered: bool,
+    ) -> PickerResponse;
 }
 
 impl Search {
@@ -73,31 +90,34 @@ impl Search {
             query: String::new(),
             initialized: false,
             executor: Arc::new(RwLock::new(None)),
-            filters_open: false,
             scope_path: String::new(),
-            folders: Arc::new(RwLock::new(Vec::new())),
-            scope_selected: 0,
-            scope_was_focused: false,
+            scope_open: false,
+            scope_dest: None,
+            scope_expanded: std::collections::HashSet::new(),
             query_focused: false,
+            enter_activate: false,
+            enter_new_tab: false,
+            dismiss: false,
             dispatched_query: String::new(),
             dispatched_filter: String::new(),
             building: Arc::new(AtomicBool::new(false)),
+            building_started: web_time::Instant::now(),
             core: lb.clone(),
         };
         search.spawn_build(ctx);
-        search.spawn_load_folders(ctx);
         search
     }
 
-    fn spawn_load_folders(&self, ctx: &Context) {
-        let folders = self.folders.clone();
-        let core = self.core.clone();
-        let ctx = ctx.clone();
-        thread::spawn(move || load_folders(folders, core, ctx));
+    /// Home / whole tree. Used when opening search via ⌘O / ⌘⇧F.
+    pub fn clear_scope(&mut self) {
+        self.scope_path.clear();
+        self.scope_open = false;
+        self.scope_dest = None;
     }
 
     fn spawn_build(&mut self, ctx: &Context) {
         self.building.store(true, Ordering::SeqCst);
+        self.building_started = web_time::Instant::now();
         self.dispatched_query.clear();
         self.dispatched_filter.clear();
 
@@ -130,463 +150,755 @@ impl Search {
             return;
         }
 
+        // Query/filter are in-memory; run them here so the UI isn't locked
+        // out (a background write made try_write fail and flashed a spinner
+        // between keystrokes). Index construction stays on a thread.
         if self.query != self.dispatched_query {
-            self.dispatched_query = self.query.clone();
-
-            let executor = self.executor.clone();
-            let ctx = ctx.clone();
-            let query = self.query.clone();
-            thread::spawn(move || run_query(executor, ctx, query));
+            if let Ok(mut guard) = self.executor.try_write() {
+                if let Some(e) = guard.as_mut() {
+                    e.handle_query(&self.query);
+                    self.dispatched_query = self.query.clone();
+                }
+            }
         }
 
         if self.scope_path != self.dispatched_filter {
-            self.dispatched_filter = self.scope_path.clone();
-
-            let filter = if self.scope_path.is_empty() {
-                None
-            } else {
-                Some(SearchFilter::Path(self.scope_path.clone()))
-            };
-
-            let executor = self.executor.clone();
-            let ctx = ctx.clone();
-            thread::spawn(move || update_filter(executor, ctx, filter));
-        }
-    }
-
-    /// The big "Open Quickly"-style query field: a centered, rounded, subtly
-    /// filled box with a leading magnifying glass, large text, executor radio
-    /// buttons, and an accent focus ring.
-    fn show_query_box(&mut self, ui: &mut Ui) {
-        let max_w = 720.0_f32.min(ui.available_width() - 48.0);
-        let side = ((ui.available_width() - max_w) / 2.0).max(0.0);
-
-        ui.horizontal(|ui| {
-            ui.add_space(side);
-            ui.allocate_ui_with_layout(
-                Vec2::new(max_w, 0.0),
-                egui::Layout::top_down(egui::Align::Min),
-                |ui| self.show_query_box_inner(ui),
-            );
-        });
-    }
-
-    fn show_query_box_inner(&mut self, ui: &mut Ui) {
-        let theme = ui.ctx().get_lb_theme();
-        let accent = theme.fg().get_color(theme.prefs().primary);
-
-        let hint = match self.search_type {
-            SearchType::Path => "Search Filenames",
-            SearchType::Content => "Search Contents",
-        };
-
-        let text_id = ui.id().with("search_query_input");
-        let focused = ui.memory(|m| m.has_focus(text_id));
-        self.query_focused = focused;
-
-        let fill =
-            if focused { ui.visuals().extreme_bg_color } else { theme.neutral_bg_secondary() };
-
-        let frame = Frame::new()
-            .fill(fill)
-            .corner_radius(CornerRadius::same(12))
-            .inner_margin(Margin::symmetric(20, 16));
-
-        let out = frame.show(ui, |ui| {
-            ui.vertical(|ui| {
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 12.0;
-
-                    Icon::SEARCH
-                        .size(22.0)
-                        .color(theme.neutral_fg_secondary())
-                        .show(ui);
-
-                    ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                        let filter = IconButton::new(Icon::FILTER.size(18.0))
-                            .tooltip("Filters")
-                            .colored(self.filters_open)
-                            .show(ui);
-                        if filter.clicked() {
-                            self.filters_open = !self.filters_open;
-                            if !self.filters_open {
-                                self.scope_path.clear();
-                            }
-                        }
-
-                        let resp = TextEdit::singleline(&mut self.query)
-                            .id(text_id)
-                            .frame(false)
-                            .hint_text(
-                                RichText::new(hint)
-                                    .size(22.0)
-                                    .color(theme.neutral_fg_secondary()),
-                            )
-                            .text_color(theme.neutral_fg())
-                            .font(egui::FontId::proportional(22.0))
-                            .vertical_align(egui::Align::Center)
-                            .desired_width(ui.available_width())
-                            .margin(Margin::ZERO)
-                            .show(ui)
-                            .response;
-
-                        if !self.initialized || ui.ctx().memory(|m| m.focused().is_none()) {
-                            self.initialized = true;
-                            resp.request_focus();
-                        }
-                    });
-                });
-
-                // Executor selector along the bottom of the box.
-                ui.add_space(12.0);
-                ui.horizontal(|ui| {
-                    ui.spacing_mut().item_spacing.x = 16.0;
-                    let label = |text: &str| {
-                        RichText::new(text)
-                            .size(14.0)
-                            .color(theme.neutral_fg_secondary())
+            if let Ok(mut guard) = self.executor.try_write() {
+                if let Some(e) = guard.as_mut() {
+                    let filter = if self.scope_path.is_empty() {
+                        None
+                    } else {
+                        Some(SearchFilter::Path(self.scope_path.clone()))
                     };
-                    ui.radio_value(&mut self.search_type, SearchType::Path, label("Filenames"));
-                    ui.radio_value(&mut self.search_type, SearchType::Content, label("Contents"));
-                });
-
-                if self.filters_open {
-                    ui.add_space(8.0);
-                    self.show_filter_bar(ui);
+                    e.update_filter(filter);
+                    self.dispatched_filter = self.scope_path.clone();
                 }
-            });
-        });
+            }
+        }
+    }
 
-        let filters_shown = !self.scope_path.is_empty() || self.filters_open;
-        if (filters_shown || !self.query.is_empty())
-            && ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape))
-        {
-            if filters_shown {
+    /// Prompt row: field + folder-name chip + picker switch.
+    ///
+    /// Measure trailing chrome first (chip, then segmented), then shrink the
+    /// field into the remainder. Chip is accent folder + name; a trailing X
+    /// appears only when scoped away from home. Click opens a light folder sheet.
+    fn show_prompt(
+        &mut self, ui: &mut Ui, t: &Theme,
+        files: &std::sync::Arc<std::sync::RwLock<crate::file_cache::FileCache>>,
+    ) {
+        let h = control_height();
+        let pad = Space::Sm.pts();
+        let gap = Space::Xs.pts();
+        let host = egui::Id::new("search_query");
+        let edit_id = host.with("edit");
+        // Sheet / this prompt own Enter/Esc before the query Field (it swallows
+        // both while focused). Sticky restore would also steal focus back after
+        // the chip click that opened the sheet.
+        let mut sheet_enter = false;
+        if self.scope_open {
+            ui.memory_mut(|m| m.surrender_focus(edit_id));
+            sheet_enter = ui.input_mut(|i| {
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)
+                    || i.consume_key(egui::Modifiers::COMMAND, egui::Key::Enter)
+            });
+        } else if ui.input_mut(|i| i.consume_key(egui::Modifiers::COMMAND, egui::Key::Enter)) {
+            self.enter_activate = true;
+            self.enter_new_tab = true;
+        } else if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Enter)) {
+            // Query field would swallow Enter; activate the highlighted result instead.
+            self.enter_activate = true;
+        }
+        if ui.input_mut(|i| i.consume_key(egui::Modifiers::NONE, egui::Key::Escape)) {
+            if self.scope_open {
+                self.close_scope_sheet();
+            } else if !self.scope_path.is_empty() {
                 self.scope_path.clear();
-                self.filters_open = false;
-            } else {
+            } else if !self.query.is_empty() {
                 self.query.clear();
+            } else {
+                self.dismiss = true;
             }
         }
-
-        if focused {
-            ui.painter().rect_stroke(
-                out.response.rect,
-                CornerRadius::same(12),
-                egui::Stroke::new(2.0, accent),
-                egui::epaint::StrokeKind::Inside,
-            );
-        }
-    }
-
-    fn show_filter_bar(&mut self, ui: &mut Ui) {
-        let theme = ui.ctx().get_lb_theme();
-        ui.horizontal(|ui| {
-            ui.spacing_mut().item_spacing.x = 8.0;
-            ui.set_min_height(22.0);
-            ui.label(
-                RichText::new("Searching inside")
-                    .size(14.0)
-                    .color(theme.neutral_fg_secondary()),
-            );
-            let home = IconButton::new(Icon::HOME.size(16.0))
-                .size(22.0)
-                .tooltip("Home")
-                .colored(self.scope_path.is_empty())
-                .show(ui);
-            if home.clicked() {
-                self.scope_path.clear();
-            }
-
-            let resp = TextEdit::singleline(&mut self.scope_path)
-                .frame(false)
-                .text_color(theme.neutral_fg())
-                .font(egui::FontId::proportional(14.0))
-                .vertical_align(egui::Align::Center)
-                .desired_width(ui.available_width())
-                .margin(Margin::ZERO)
-                .show(ui)
-                .response;
-
-            if resp.changed() {
-                self.scope_selected = 0;
-            }
-            self.show_folder_dropdown(&resp);
-        });
-    }
-
-    fn show_folder_dropdown(&mut self, anchor: &egui::Response) {
-        let focused = anchor.has_focus();
-        let open = focused || self.scope_was_focused;
-        self.scope_was_focused = focused;
-        if !open {
-            return;
-        }
-
-        let needle = self.scope_path.to_lowercase();
-        let matches: Vec<String> = {
-            let folders = self.folders.read().unwrap();
-            let mut matches: Vec<String> = folders
-                .iter()
-                .filter(|(_, path)| needle.is_empty() || path.to_lowercase().contains(&needle))
-                .map(|(_, path)| path.clone())
-                .collect();
-            matches.sort_by(|a, b| {
-                let depth = |p: &str| p.matches('/').count();
-                depth(a)
-                    .cmp(&depth(b))
-                    .then_with(|| a.len().cmp(&b.len()))
-                    .then_with(|| a.to_lowercase().cmp(&b.to_lowercase()))
-            });
-            matches.truncate(50);
-            matches
+        let hint = match self.search_type {
+            SearchType::Path => "Find files",
+            SearchType::Content => "Search in files",
         };
-        if matches.is_empty() {
+        let opts = ["Filenames", "Contents"];
+        let mut kind = match self.search_type {
+            SearchType::Path => 0,
+            SearchType::Content => 1,
+        };
+
+        let folder_name = {
+            let files = files.read().unwrap();
+            scope_folder_name(&files, &self.scope_path)
+        };
+
+        let at_home = self.scope_path.is_empty();
+        let full_w = crate::style::ui_width(ui);
+        let inner_w = (full_w - pad * 2.0).max(1.0);
+        let seg_w = segmented_width(ui, t, &opts);
+        let chip_w = scope_chip_width(ui, &folder_name, !at_home);
+        let field_w = (inner_w - chip_w - gap - seg_w - gap).max(1.0);
+
+        let origin = crate::style::origin(ui);
+        let row = Rect::from_min_size(pos2(origin.x + pad, origin.y), vec2(inner_w, h));
+        let mut x = row.left();
+
+        crate::style::place_at(
+            ui,
+            Rect::from_min_size(pos2(x, row.top()), vec2(field_w, h)),
+            Layout::left_to_right(Align::Center),
+            |ui| {
+                Field::new(t, &mut self.query)
+                    .id(host)
+                    .hint(hint)
+                    .leading(phosphor::SEARCH)
+                    .clearable(true)
+                    .sticky(!self.scope_open)
+                    .width(field_w)
+                    .show(ui);
+            },
+        );
+        x += field_w + gap;
+
+        let chip_r = Rect::from_min_size(pos2(x, row.top()), vec2(chip_w, h));
+        let (chip, cleared) =
+            paint_scope_chip(ui, t, chip_r, &folder_name, self.scope_open, !at_home);
+        crate::style::tip_text(
+            ui.ctx(),
+            &chip,
+            "Search is scoped to this folder. Click to choose another.",
+        );
+        x += chip_w + gap;
+        if cleared {
+            self.scope_path.clear();
+            self.close_scope_sheet();
+        }
+
+        crate::style::place_at(
+            ui,
+            Rect::from_min_size(pos2(x, row.top()), vec2(seg_w, h)),
+            Layout::left_to_right(Align::Center),
+            |ui| {
+                if segmented(ui, t, &opts, &mut kind).changed() {
+                    self.search_type =
+                        if kind == 0 { SearchType::Path } else { SearchType::Content };
+                    self.query.clear();
+                }
+            },
+        );
+
+        crate::style::claim(ui, Rect::from_min_size(origin, vec2(full_w, h)));
+
+        let mut opened = false;
+        if !cleared && chip.clicked() {
+            if self.scope_open {
+                self.close_scope_sheet();
+            } else {
+                self.open_scope_sheet(ui.ctx(), files);
+                opened = true;
+            }
+        }
+        self.show_scope_sheet(ui.ctx(), t, files, opened, sheet_enter);
+
+        self.query_focused = !self.scope_open && ui.memory(|m| m.has_focus(edit_id));
+        if !self.scope_open && (!self.initialized || ui.ctx().memory(|m| m.focused().is_none())) {
+            self.initialized = true;
+            ui.memory_mut(|m| m.request_focus(edit_id));
+        }
+    }
+
+    fn open_scope_sheet(
+        &mut self, ctx: &egui::Context,
+        files: &std::sync::Arc<std::sync::RwLock<crate::file_cache::FileCache>>,
+    ) {
+        let files = files.read().unwrap();
+        let root = files.root().id;
+        let id = files
+            .by_path(&self.scope_path)
+            .map(|f| f.id)
+            .unwrap_or(root);
+        crate::style::expand_ancestors_of(&*files, id, &mut self.scope_expanded);
+        ctx.data_mut(|d| {
+            d.remove::<bool>(crate::style::folder_tree_scroll_key("search_scope"));
+        });
+        self.scope_dest = Some(id);
+        self.scope_open = true;
+        ctx.memory_mut(|m| m.surrender_focus(egui::Id::new("search_query").with("edit")));
+    }
+
+    fn close_scope_sheet(&mut self) {
+        self.scope_open = false;
+        self.scope_dest = None;
+    }
+
+    fn show_scope_sheet(
+        &mut self, ctx: &egui::Context, t: &Theme,
+        files: &std::sync::Arc<std::sync::RwLock<crate::file_cache::FileCache>>,
+        opened_this_frame: bool, enter_commit: bool,
+    ) {
+        if !self.scope_open {
             return;
         }
 
-        self.scope_selected = self.scope_selected.min(matches.len() - 1);
-        anchor.ctx.input_mut(|i| {
-            if i.consume_key_exact(egui::Modifiers::NONE, egui::Key::ArrowDown) {
-                self.scope_selected = (self.scope_selected + 1).min(matches.len() - 1);
-            }
-            if i.consume_key_exact(egui::Modifiers::NONE, egui::Key::ArrowUp) {
-                self.scope_selected = self.scope_selected.saturating_sub(1);
-            }
-        });
+        let dest = {
+            let files = files.read().unwrap();
+            let root = files.root().id;
+            self.scope_dest
+                .or_else(|| files.by_path(&self.scope_path).map(|f| f.id))
+                .or(Some(root))
+        };
 
-        let mut chosen = None;
-        if anchor
-            .ctx
-            .input_mut(|i| i.consume_key_exact(egui::Modifiers::NONE, egui::Key::Enter))
-        {
-            chosen = matches.get(self.scope_selected).cloned();
+        let files_g = files.read().unwrap();
+        let mut out = crate::style::show_folder_sheet(
+            ctx,
+            t,
+            &*files_g,
+            &mut self.scope_expanded,
+            dest,
+            &[],
+            "search_scope",
+            "Folder",
+            "Choose a folder to search in.",
+            "Done",
+            crate::style::SheetFooterOpts::default()
+                .divider(false)
+                .quiet_primary(true)
+                .primary_shortcut(crate::style::shortcut_enter()),
+            |_| {},
+        );
+        drop(files_g);
+
+        if enter_commit && dest.is_some() {
+            out.confirm = true;
         }
 
-        egui::Popup::from_response(anchor)
-            .open(true)
-            .width(400.)
-            .close_behavior(egui::PopupCloseBehavior::CloseOnClickOutside)
-            .show(|ui| {
-                ui.set_min_width(400.0);
-                ui.spacing_mut().item_spacing.y = 2.0;
-                egui::ScrollArea::vertical()
-                    .max_height(600.0)
-                    .auto_shrink([false, true])
-                    .show(ui, |ui| {
-                        for (idx, path) in matches.iter().enumerate() {
-                            let selected = idx == self.scope_selected;
-                            let (rect, row) = ui.allocate_at_least(
-                                egui::vec2(ui.available_width(), 22.0),
-                                egui::Sense::click(),
-                            );
-                            let visuals = ui.style().interact_selectable(&row, selected);
-                            if selected || row.hovered() {
-                                ui.painter().rect_filled(rect, 4.0, visuals.bg_fill);
-                            }
-                            ui.painter().text(
-                                egui::pos2(rect.left() + 8.0, rect.center().y),
-                                egui::Align2::LEFT_CENTER,
-                                path,
-                                egui::FontId::proportional(13.0),
-                                visuals.text_color(),
-                            );
-                            if row.clicked() {
-                                chosen = Some(path.clone());
-                            }
-                            if selected {
-                                row.scroll_to_me(None);
-                            }
-                        }
-                    });
-            });
-
-        if let Some(path) = chosen {
-            self.scope_path = path;
-            self.scope_selected = 0;
-            self.scope_was_focused = false;
-            anchor.surrender_focus();
+        if let Some(id) = out.picked {
+            self.scope_dest = Some(id);
+        }
+        if out.dismiss && !opened_this_frame {
+            self.close_scope_sheet();
+        }
+        if out.confirm {
+            if let Some(id) = self.scope_dest.or(dest) {
+                let files = files.read().unwrap();
+                if id == files.root().id {
+                    self.scope_path.clear();
+                } else {
+                    self.scope_path = files.path(id);
+                }
+            }
+            self.close_scope_sheet();
         }
     }
 }
 
-impl Workspace {
-    /// Render the whole search tab: the query box, then a results list (left)
-    /// and read-only preview (right) filling the rest of the area.
-    ///
-    /// This is driven from `show_current_tab_content` rather than `Tab::show`
-    /// because the preview pane reuses `self.preview` and the workspace's async
-    /// file loader, which a `Tab` can't reach on its own.
-    pub(crate) fn show_search_tab(&mut self, ui: &mut Ui) {
-        ui.vertical(|ui| {
-            // Query box + executor management need the tab's `Search`; the
-            // executor handle is cloned out so the results pass can borrow the
-            // workspace (for the preview) without holding the tab borrow.
-            let extracted = {
-                let Some(tab) = self.current_tab_mut() else {
-                    return;
-                };
-                let ContentState::Open(TabContent::Search(search)) = &mut tab.content else {
-                    return;
-                };
-                search.manage_executors(ui.ctx());
-                ui.add_space(16.0);
-                search.show_query_box(ui);
-                (search.executor.clone(), search.search_type, search.query_focused)
-            };
-            let (executor, search_type, query_focused) = extracted;
+const SCOPE_CHIP_MAX_W: f32 = 180.0;
 
-            ui.add_space(10.0);
-            Self::hairline(ui, true);
-            ui.add_space(6.0);
+fn scope_clear_sz() -> f32 {
+    crate::style::control_icon_hit()
+}
 
-            if let Some((id, in_new_tab)) =
-                self.results_and_preview(ui, &executor, search_type, query_focused)
-            {
-                if self.is_folder(id) {
-                    let path = self.files.read().unwrap().path(id);
-                    if let Some(tab) = self.current_tab_mut() {
-                        if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
-                            search.scope_path = path;
-                            search.query.clear();
-                            search.filters_open = true;
-                        }
-                    }
-                    self.out.selected_file = Some(id);
-                } else if in_new_tab {
-                    self.open_file(id, false, true);
-                } else {
-                    self.open_file_replacing_search(id);
-                }
-            }
-        });
-    }
+fn scope_chip_width(ui: &Ui, name: &str, show_clear: bool) -> f32 {
+    let h = control_height();
+    let pad = crate::style::space::control::PAD_X.pts() * 2.0;
+    let icon = crate::style::tree_metrics::ICON_SLOT;
+    let clear =
+        if show_clear { crate::style::space::control::PAD_X.pts() + scope_clear_sz() } else { 0.0 };
+    let inner_max = (SCOPE_CHIP_MAX_W - pad - icon - clear).max(1.0);
+    let inner = crate::style::file_name::measure_sized(
+        ui,
+        name,
+        crate::style::file_name::body_font_size(),
+        crate::style::file_name::body_line_height(),
+        inner_max,
+    );
+    (pad + icon + inner + clear).clamp(h, SCOPE_CHIP_MAX_W)
+}
 
-    fn results_and_preview(
-        &mut self, ui: &mut Ui, executor: &Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
-        search_type: SearchType, allow_kb_nav: bool,
-    ) -> Option<(lb_rs::Uuid, bool)> {
-        const OUTER_PAD: f32 = 24.0;
-        const MIN_PREVIEW_WIDTH: f32 = 720.0;
+fn paint_scope_chip(
+    ui: &mut Ui, t: &Theme, rect: Rect, name: &str, open: bool, show_clear: bool,
+) -> (egui::Response, bool) {
+    let pad = crate::style::space::control::PAD_X.pts();
+    let clear_sz = scope_clear_sz();
+    let clear_reserve = if show_clear { pad + clear_sz } else { 0.0 };
+    let name_r = Rect::from_min_max(
+        pos2(rect.left(), rect.top()),
+        pos2((rect.right() - clear_reserve).max(rect.left() + pad), rect.bottom()),
+    );
+    let resp = ui.interact(name_r, ui.id().with("search_scope_chip"), crate::style::sense_click());
+    let fills = crate::style::quiet_canvas_fills(t);
+    let over = ui.ctx().rect_contains_pointer(ui.layer_id(), name_r) || open;
+    let fill = crate::style::interact_fill(
+        ui.ctx(),
+        resp.id,
+        over,
+        resp.is_pointer_button_down_on(),
+        resp.clicked(),
+        fills,
+    );
+    ui.painter()
+        .rect_filled(rect, crate::style::Radius::Control.corner(), fill);
 
-        let size = ui.available_size();
-        let show_preview = size.x >= MIN_PREVIEW_WIDTH;
-        ui.horizontal(|ui| {
-            ui.set_min_size(size);
-            ui.add_space(OUTER_PAD);
-            let picker_width = if show_preview {
-                (ui.available_width() - (21.0 + OUTER_PAD)) / 2.
-            } else {
-                ui.available_width() - OUTER_PAD
-            };
-            let (picker, picked) = ui
-                .allocate_ui_with_layout(
-                    Vec2::new(picker_width, ui.available_height()),
-                    egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| {
-                        let picker = executor.try_write().ok().and_then(|mut guard| {
-                            guard
-                                .as_mut()
-                                .map(|e| e.show_result_picker(ui, allow_kb_nav))
-                        });
-                        match picker {
-                            Some(picker) => (picker, true),
-                            None => {
-                                ui.centered_and_justified(|ui| ui.spinner());
-                                (PickerResponse::default(), false)
-                            }
-                        }
-                    },
-                )
-                .inner;
+    let icon_ink = t.accent();
+    let ig = ui.painter().layout_no_wrap(
+        phosphor::FOLDER.into(),
+        crate::style::phosphor_ui_font_id(),
+        icon_ink,
+    );
+    ui.painter()
+        .galley(pos2(rect.left() + pad, rect.center().y - ig.size().y / 2.0), ig, icon_ink);
+    let name_slot = Rect::from_min_max(
+        pos2(rect.left() + pad + crate::style::tree_metrics::ICON_SLOT, rect.top()),
+        pos2((rect.right() - pad - clear_reserve).max(rect.left() + pad), rect.bottom()),
+    );
+    crate::style::paint_file_name(ui, name, t.neutral_fg(), name_slot);
 
-            if picked {
-                if show_preview {
-                    self.set_preview(picker.selected);
-
-                    // For content search, steer the read-only preview to the
-                    // highlighted snippet.
-                    if search_type == SearchType::Content {
-                        if let Some(md) = self.preview.as_mut().and_then(|t| t.markdown_mut()) {
-                            md.preview_navigate(picker.selected_range.clone());
-                        }
-                    }
-                } else {
-                    self.preview = None;
-                }
-            }
-
-            if show_preview {
-                Self::hairline(ui, false);
-
-                ui.allocate_ui_with_layout(
-                    Vec2::new(ui.available_width() - OUTER_PAD, ui.available_height()),
-                    egui::Layout::top_down(egui::Align::LEFT),
-                    |ui| {
-                        // without clip_rect, toolbar glyphs bleed outside the preview pane
-                        ui.set_clip_rect(ui.max_rect());
-                        // without push_id, interactive widgets (e.g. checkboxes) in the preview
-                        // collide with identical widgets in a background tab (if same file)
-                        ui.push_id("search_preview", |ui| match &mut self.preview {
-                            Some(tab) => {
-                                tab.show(ui);
-                            }
-                            None => {
-                                ui.centered_and_justified(|ui| ui.spinner());
-                            }
-                        });
-                    },
-                );
-            }
-
-            picker.activated.map(|id| (id, picker.activated_in_new_tab))
+    let mut cleared = false;
+    if show_clear {
+        let xr = Rect::from_center_size(
+            pos2(rect.right() - pad - clear_sz / 2.0, rect.center().y),
+            vec2(clear_sz, clear_sz),
+        );
+        let x_resp = crate::style::place_at(ui, xr, Layout::left_to_right(Align::Center), |ui| {
+            crate::style::icon_button_hit(ui, t, phosphor::X, false, fill, clear_sz)
         })
-        .inner
+        .0;
+        cleared = x_resp.clicked();
     }
+    (resp, cleared)
+}
 
-    /// A 1px separator that matches the search panel's subtle divider treatment.
-    fn hairline(ui: &mut Ui, horizontal: bool) {
-        let color = ui.visuals().widgets.noninteractive.bg_stroke.color;
-        let stroke = egui::Stroke { width: 1.0, color };
-        if horizontal {
-            let (rect, _) =
-                ui.allocate_exact_size(Vec2::new(ui.available_width(), 1.0), egui::Sense::hover());
-            ui.painter().hline(rect.x_range(), rect.center().y, stroke);
+/// Prompt stack at the top of the picker (pads + field).
+fn prompt_band_h() -> f32 {
+    Space::Sm.pts() + control_height() + Space::Sm.pts()
+}
+
+/// Prompt above, results below. Adjacent, covering `max`.
+fn picker_bands(max: egui::Rect) -> (egui::Rect, egui::Rect) {
+    let ph = prompt_band_h().min(max.height().max(0.0));
+    let split_y = max.top() + ph;
+    let prompt = egui::Rect::from_min_max(max.min, egui::pos2(max.right(), split_y));
+    let results = egui::Rect::from_min_max(egui::pos2(max.left(), split_y), max.max);
+    (results, prompt)
+}
+
+impl Workspace {
+    /// Full-screen picker: prompt on top, results | preview below.
+    ///
+    /// Driven from `show_current_tab_content` rather than `Tab::show` so the
+    /// preview can use the workspace async file loader.
+    pub(crate) fn show_search_tab(&mut self, ui: &mut Ui) {
+        ui.spacing_mut().item_spacing = Vec2::ZERO;
+        let max = ui.max_rect();
+
+        let extracted = {
+            let Some(tab) = self.current_tab_mut() else {
+                return;
+            };
+            let ContentState::Open(TabContent::Search(search)) = &mut tab.content else {
+                return;
+            };
+            search.manage_executors(ui.ctx());
+            let index_age = search
+                .building
+                .load(Ordering::SeqCst)
+                .then(|| search.building_started.elapsed().as_secs_f32());
+            (
+                search.executor.clone(),
+                search.search_type,
+                search.query_focused && !search.scope_open,
+                index_age,
+                search.scope_path.clone(),
+            )
+        };
+        let (executor, search_type, query_focused, index_age, scope_path) = extracted;
+        let folder_name = {
+            let files = self.files.read().unwrap();
+            scope_folder_name(&files, &scope_path)
+        };
+        let (results_rect, prompt_rect) = picker_bands(max);
+
+        let t = ui.ctx().get_lb_theme();
+        let files = self.files.clone();
+        crate::style::place_at(ui, prompt_rect, egui::Layout::top_down(egui::Align::Min), |ui| {
+            ui.set_width(prompt_rect.width());
+            ui.spacing_mut().item_spacing = Vec2::ZERO;
+            ui.add(Spacer::new(Space::Sm));
+            if let Some(tab) = self.current_tab_mut() {
+                if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                    search.show_prompt(ui, &t, &files);
+                }
+            }
+            ui.add(Spacer::new(Space::Sm));
+        });
+
+        let (enter_activate, enter_new_tab, dismiss) = {
+            let Some(tab) = self.current_tab_mut() else {
+                return;
+            };
+            let ContentState::Open(TabContent::Search(search)) = &mut tab.content else {
+                return;
+            };
+            (
+                std::mem::take(&mut search.enter_activate),
+                std::mem::take(&mut search.enter_new_tab),
+                std::mem::take(&mut search.dismiss),
+            )
+        };
+        if dismiss {
+            self.dismiss_search();
+            return;
+        }
+
+        let ((activated, clear_scope), _) = crate::style::place_at(
+            ui,
+            results_rect,
+            egui::Layout::top_down(egui::Align::Min),
+            |ui| {
+                self.results_and_preview(
+                    ui,
+                    &executor,
+                    search_type,
+                    query_focused,
+                    enter_activate,
+                    enter_new_tab,
+                    index_age,
+                    &folder_name,
+                )
+            },
+        );
+        crate::style::claim(ui, max);
+
+        if clear_scope {
+            if let Some(tab) = self.current_tab_mut() {
+                if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                    search.scope_path.clear();
+                    search.dispatched_filter.clear();
+                }
+            }
+            if let Ok(mut guard) = executor.try_write() {
+                if let Some(e) = guard.as_mut() {
+                    e.update_filter(None);
+                }
+            }
+        }
+
+        let Some((id, new_tab)) = activated else {
+            return;
+        };
+        if self.is_folder(id) {
+            let files = self.files.read().unwrap();
+            let root = files.root().id;
+            let path = if id == root { String::new() } else { files.path(id) };
+            drop(files);
+            if let Some(tab) = self.current_tab_mut() {
+                if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                    search.scope_path = path.clone();
+                    search.query.clear();
+                    search.scope_open = false;
+                    search.dispatched_query.clear();
+                    search.dispatched_filter = path.clone();
+                }
+            }
+            if let Ok(mut guard) = executor.try_write() {
+                if let Some(e) = guard.as_mut() {
+                    e.handle_query("");
+                    let filter =
+                        if path.is_empty() { None } else { Some(SearchFilter::Path(path)) };
+                    e.update_filter(filter);
+                }
+            }
+            self.out.selected_file = Some(id);
+            self.out.selected_folder_changed = true;
+            self.focused_parent = Some(id);
         } else {
-            let (rect, _) =
-                ui.allocate_exact_size(Vec2::new(1.0, ui.available_height()), egui::Sense::hover());
-            ui.painter().vline(rect.center().x, rect.y_range(), stroke);
+            // Search stays in the strip. Activate an existing session; otherwise
+            // create. ⌘-click leaves Search current.
+            self.focus_or_create_file(id, !new_tab);
         }
     }
+
+    #[allow(clippy::too_many_arguments)]
+    fn results_and_preview(
+        &mut self, ui: &mut Ui, executor: &Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
+        search_type: SearchType, allow_kb_nav: bool, enter_activate: bool, enter_new_tab: bool,
+        index_age: Option<f32>, scope_name: &str,
+    ) -> (Option<(lb_rs::Uuid, bool)>, bool) {
+        const MIN_PREVIEW_WIDTH: f32 = 560.0;
+        let pad = LIST_PAD.pts();
+        let max = ui.max_rect();
+        let has_rows = executor
+            .try_read()
+            .ok()
+            .and_then(|g| g.as_ref().map(|e| e.has_rows()))
+            .unwrap_or(false);
+        let preview_idle = self.preview.is_none() && self.preview_pending.is_none();
+        // Nothing in either pane: one empty state, full width (no split / placeholder).
+        let unify_empty = !has_rows && preview_idle;
+        let show_preview = max.width() >= MIN_PREVIEW_WIDTH && !unify_empty;
+
+        // Split full-bleed. L/R LIST_PAD only — first row shares a top with
+        // the preview (Files tree), not Recents/Shared’s all-sides wrap.
+        let (list_band, preview_rect) = if show_preview {
+            let split = max.left() + max.width() * 0.33;
+            (
+                egui::Rect::from_min_max(max.min, egui::pos2(split, max.bottom())),
+                Some(egui::Rect::from_min_max(egui::pos2(split, max.top()), max.max)),
+            )
+        } else {
+            (max, None)
+        };
+        let list_rect = list_band.shrink2(egui::vec2(pad, 0.0));
+
+        let ((picker, picked), _) =
+            crate::style::place_at(ui, list_rect, egui::Layout::top_down(egui::Align::Min), |ui| {
+                match executor.try_write() {
+                    Ok(mut guard) => match guard.as_mut() {
+                        Some(e) => {
+                            if enter_activate {
+                                if enter_new_tab {
+                                    e.request_activate_in_new_tab();
+                                } else {
+                                    e.request_activate();
+                                }
+                            }
+                            (e.show_result_picker(ui, allow_kb_nav, scope_name, unify_empty), true)
+                        }
+                        None => (index_not_ready(ui, search_type, index_age, unify_empty), false),
+                    },
+                    // Query/build thread holds the lock — keep the pane, don't spinner.
+                    Err(_) => (PickerResponse::default(), false),
+                }
+            });
+        crate::style::claim(ui, list_band);
+
+        if picked {
+            if show_preview {
+                self.set_preview(picker.selected);
+                if let Some(pending) = &self.preview_pending {
+                    pending.warm_preview();
+                }
+                self.promote_preview();
+                if search_type == SearchType::Content {
+                    let id = picker.selected;
+                    let range = picker.selected_range.clone();
+                    if let Some(md) = self
+                        .preview
+                        .as_mut()
+                        .filter(|t| t.id() == id)
+                        .and_then(|t| t.markdown_mut())
+                    {
+                        md.preview_navigate(range);
+                    } else if let Some(md) = self
+                        .preview_pending
+                        .as_mut()
+                        .filter(|t| t.id() == id)
+                        .and_then(|t| t.markdown_mut())
+                    {
+                        md.preview_navigate(range);
+                    }
+                }
+            } else {
+                self.preview = None;
+                self.preview_pending = None;
+            }
+        }
+
+        if let Some(preview_rect) = preview_rect {
+            crate::style::place_at(
+                ui,
+                preview_rect,
+                egui::Layout::top_down(egui::Align::Min),
+                |ui| {
+                    ui.set_clip_rect(ui.max_rect());
+                    ui.push_id("search_preview", |ui| {
+                        const LOAD_DELAY_SECS: f32 = 0.20;
+                        if let Some(pending) = &self.preview_pending {
+                            pending.warm_preview();
+                        }
+                        let pending_loading = self
+                            .preview_pending
+                            .as_ref()
+                            .is_some_and(|tab| !tab.preview_ready());
+                        let elapsed = self
+                            .preview_pending
+                            .as_ref()
+                            .map(|tab| tab.last_changed.elapsed().as_secs_f32())
+                            .unwrap_or(0.0);
+                        if pending_loading && elapsed >= LOAD_DELAY_SECS {
+                            crate::style::loading_indicator(ui);
+                        } else if let Some(tab) = self.preview.as_mut() {
+                            if let Some(pdf) = tab.pdf_mut() {
+                                pdf.compact = !self.desktop_tab_policy;
+                            }
+                            tab.show(ui);
+                            if pending_loading {
+                                ui.ctx()
+                                    .request_repaint_after(std::time::Duration::from_secs_f32(
+                                        (LOAD_DELAY_SECS - elapsed).max(1.0 / 60.0),
+                                    ));
+                            }
+                        } else if pending_loading {
+                            ui.ctx()
+                                .request_repaint_after(std::time::Duration::from_secs_f32(
+                                    (LOAD_DELAY_SECS - elapsed).max(1.0 / 60.0),
+                                ));
+                            preview_placeholder(ui);
+                        } else {
+                            preview_placeholder(ui);
+                        }
+                    });
+                },
+            );
+            crate::style::claim(ui, preview_rect);
+        }
+
+        (picker.activated.map(|id| (id, picker.activated_in_new_tab)), picker.clear_scope)
+    }
+}
+
+fn paint_search_empty(
+    ui: &mut Ui, title: &str, subtitle: &str, offer_clear: bool, in_folder: Option<&str>,
+    center: bool,
+) -> bool {
+    let t = ui.ctx().get_lb_theme();
+    let muted = t.neutral_fg_secondary();
+    let rect = ui.available_rect_before_wrap();
+    let icon_g = ui.painter().layout_no_wrap(
+        phosphor::SEARCH.into(),
+        crate::style::phosphor_ui_font_id(),
+        t.accent(),
+    );
+    let mut content_h = icon_g.size().y + Space::Sm.pts() + TypeRole::Heading.line_height();
+    if !subtitle.is_empty() {
+        content_h += Space::Xxs.pts() + TypeRole::Body.line_height();
+    }
+    if offer_clear {
+        content_h += Space::Sm.pts() + control_height();
+    }
+    let y = if center {
+        (rect.center().y - content_h / 2.0).max(rect.top())
+    } else {
+        rect.top() + Space::Lg.pts()
+    };
+    let block = Rect::from_min_size(
+        pos2(rect.left(), y),
+        vec2(rect.width(), content_h.min(rect.height()).max(1.0)),
+    );
+    let (clear, _) = crate::style::place_at(ui, block, Layout::top_down(Align::Center), |ui| {
+        let (icon_rect, _) = ui.allocate_exact_size(icon_g.size(), egui::Sense::hover());
+        ui.painter().galley(icon_rect.min, icon_g, t.accent());
+        ui.add(Spacer::new(Space::Sm));
+        paint_empty_title(ui, &t, title, in_folder);
+        if !subtitle.is_empty() {
+            ui.add(Spacer::new(Space::Xxs));
+            ui.label(TypeRole::Body.rich(subtitle).color(muted));
+        }
+        let mut clear = false;
+        if offer_clear {
+            ui.add(Spacer::new(Space::Sm));
+            if crate::style::Button::secondary(&t, "Search everywhere")
+                .max_width(220.0)
+                .show(ui)
+                .clicked()
+            {
+                clear = true;
+            }
+        }
+        clear
+    });
+    crate::style::claim(ui, rect);
+    clear
+}
+
+/// Chip / empty-state folder: glyphon display name (emoji-safe).
+fn scope_folder_name(files: &crate::file_cache::FileCache, scope_path: &str) -> String {
+    let f = files.by_path(scope_path).unwrap_or_else(|| files.root());
+    crate::style::display_file_name(&f.name).to_owned()
+}
+
+/// Heading; when scoped, “{title} in **folder**” via glyphon so emoji names shape.
+fn paint_empty_title(ui: &mut Ui, t: &Theme, title: &str, in_folder: Option<&str>) {
+    let max_w = (ui.max_rect().width() - Space::Lg.pts() * 2.0).max(40.0);
+    let fs = TypeRole::Heading.size();
+    let lh = TypeRole::Heading.line_height();
+    let ink = t.neutral_fg();
+    if let Some(folder) = in_folder {
+        let prefix = format!("{title} in ");
+        ui.add(
+            crate::widgets::GlyphonLabel::new_rich(vec![(&prefix, false), (folder, true)], ink)
+                .font_size(fs)
+                .line_height(lh)
+                .max_width(max_w)
+                .text_overflow(crate::widgets::TextOverflow::EndEllipsis),
+        );
+    } else {
+        ui.add(
+            crate::widgets::GlyphonLabel::new(title, ink)
+                .font_size(fs)
+                .line_height(lh)
+                .max_width(max_w)
+                .text_overflow(crate::widgets::TextOverflow::EndEllipsis),
+        );
+    }
+}
+
+fn index_not_ready(
+    ui: &mut Ui, search_type: SearchType, index_age: Option<f32>, empty_centered: bool,
+) -> PickerResponse {
+    const DELAY: f32 = 0.20;
+    if index_age.is_none_or(|age| age >= DELAY) {
+        crate::style::loading_indicator(ui);
+    } else {
+        ui.ctx()
+            .request_repaint_after(std::time::Duration::from_secs_f32(
+                (DELAY - index_age.unwrap_or(0.0)).max(1.0 / 60.0),
+            ));
+        if search_type == SearchType::Content {
+            paint_search_empty(
+                ui,
+                "Search in files",
+                "Type to search file contents",
+                false,
+                None,
+                empty_centered,
+            );
+        }
+    }
+    PickerResponse::default()
+}
+
+fn preview_placeholder(ui: &mut Ui) {
+    let t = ui.ctx().get_lb_theme();
+    ui.centered_and_justified(|ui| {
+        ui.label(
+            TypeRole::Body
+                .rich("Select a result to preview")
+                .color(t.neutral_fg_secondary()),
+        );
+    });
 }
 
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, RwLock};
 use std::thread;
 
-use egui::{Context, CornerRadius, Frame, Margin, RichText, TextEdit, Ui, Vec2};
+use egui::{Align, Context, Layout, Rect, Ui, Vec2, pos2, vec2};
 use lb_rs::blocking::Lb;
-use lb_rs::model::path_ops::Filter;
 use lb_rs::search::SearchFilter;
 
 use crate::{
     file_cache::FilesExt,
     search::{content::ContentSearch, path::PathSearch},
-    show::InputStateExt,
+    style::{
+        Field, LIST_PAD, Space, Spacer, Theme, ThemeExt, TypeRole, control_height, phosphor,
+        segmented, segmented_width,
+    },
     tab::{ContentState, TabContent},
-    theme::{icons::Icon, palette_v2::ThemeExt},
-    widgets::IconButton,
     workspace::Workspace,
 };
-
-#[tracing::instrument(level = "trace", skip_all)]
-fn load_folders(folders: Arc<RwLock<Vec<(lb_rs::Uuid, String)>>>, core: Lb, ctx: Context) {
-    let loaded = core
-        .list_paths_with_ids(Some(Filter::FoldersOnly))
-        .unwrap_or_default();
-    *folders.write().unwrap() = loaded;
-    ctx.request_repaint();
-}
 
 #[tracing::instrument(level = "trace", skip_all)]
 fn build_index(
@@ -600,21 +912,54 @@ fn build_index(
     ctx.request_repaint();
 }
 
-#[tracing::instrument(level = "trace", skip_all)]
-fn run_query(executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>, ctx: Context, query: String) {
-    if let Some(executor) = executor.write().unwrap().as_mut() {
-        executor.handle_query(&query);
-    }
-    ctx.request_repaint();
-}
+#[cfg(test)]
+mod layout_diag {
+    use super::{picker_bands, prompt_band_h};
+    use crate::style::{STROKE_HAIRLINE, Space, control_height};
+    use egui::{Rect, pos2, vec2};
 
-#[tracing::instrument(level = "trace", skip_all)]
-fn update_filter(
-    executor: Arc<RwLock<Option<Box<dyn SearchExecutor>>>>, ctx: Context,
-    filter: Option<SearchFilter>,
-) {
-    if let Some(executor) = executor.write().unwrap().as_mut() {
-        executor.update_filter(filter);
+    fn fmt(r: Rect) -> String {
+        format!(
+            "x={:.1}..{:.1} y={:.1}..{:.1}  w={:.1} h={:.1}",
+            r.left(),
+            r.right(),
+            r.top(),
+            r.bottom(),
+            r.width(),
+            r.height()
+        )
     }
-    ctx.request_repaint();
+
+    /// Headless dump of picker bands (titleband + editor rest).
+    #[test]
+    fn diagnose_picker_bands() {
+        let max = Rect::from_min_size(pos2(0.0, 40.0), vec2(1200.0, 760.0));
+        let ch = control_height();
+        eprintln!("=== SEARCH PICKER BAND DIAG ===");
+        eprintln!(
+            "control_height={ch:.1} Sm={:.0} Xs={:.0} hairline={STROKE_HAIRLINE}",
+            Space::Sm.pts(),
+            Space::Xs.pts()
+        );
+        eprintln!("max {}", fmt(max));
+        let (results, prompt) = picker_bands(max);
+        let expect = prompt_band_h();
+        eprintln!("results {}", fmt(results));
+        eprintln!("prompt  {}", fmt(prompt));
+        eprintln!("prompt_h {:.1}  expected {:.1}", prompt.height(), expect);
+        eprintln!("gap prompt.bottom→results.top {:.1}", results.top() - prompt.bottom());
+        assert!(
+            (prompt.height() - expect).abs() < 0.01,
+            "prompt height {} != {expect}",
+            prompt.height()
+        );
+        assert!((prompt.bottom() - results.top()).abs() < 0.01, "bands must share the split");
+        assert!((prompt.top() - max.top()).abs() < 0.01);
+        assert!((results.bottom() - max.bottom()).abs() < 0.01);
+        assert!(
+            (results.height() + prompt.height() - max.height()).abs() < 0.01,
+            "bands must cover max"
+        );
+        assert!(results.height() > 200.0, "results pane collapsed");
+    }
 }

@@ -211,7 +211,7 @@ impl SVGEditor {
     }
 
     pub fn show(&mut self, ui: &mut egui::Ui) -> Response {
-        set_style(ui);
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
         self.viewport_settings.container_rect = ui.available_rect_before_wrap();
         self.input_ctx.update(ui);
@@ -429,38 +429,6 @@ impl SVGEditor {
                 format!("{} anchor | {} fps", anchor_count, 1000 / frame_cost.as_millis()),
             );
         }
-    }
-}
-
-fn set_style(ui: &mut egui::Ui) {
-    let toolbar_margin = egui::Margin::symmetric(15, 7);
-    ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(30);
-    ui.style_mut().spacing.window_margin = toolbar_margin;
-    ui.style_mut()
-        .text_styles
-        .insert(egui::TextStyle::Body, egui::FontId::new(13.0, egui::FontFamily::Proportional));
-    ui.style_mut()
-        .text_styles
-        .insert(egui::TextStyle::Button, egui::FontId::new(13.0, egui::FontFamily::Proportional));
-
-    ui.visuals_mut().widgets.active.bg_fill =
-        ui.visuals_mut().widgets.active.bg_fill.linear_multiply(0.7);
-
-    if ui.visuals().dark_mode {
-        ui.visuals_mut().window_stroke =
-            egui::Stroke::new(0.5, egui::Color32::from_rgb(56, 56, 56));
-        ui.visuals_mut().window_fill = egui::Color32::from_rgb(30, 30, 30);
-        ui.visuals_mut().window_shadow = egui::Shadow::NONE;
-    } else {
-        ui.visuals_mut().window_stroke =
-            egui::Stroke::new(0.5, egui::Color32::from_rgb(235, 235, 235));
-        ui.visuals_mut().window_shadow = egui::Shadow {
-            offset: [1, 8],
-            blur: 20,
-            spread: 0,
-            color: egui::Color32::from_black_alpha(10),
-        };
-        ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;
     }
 }
 

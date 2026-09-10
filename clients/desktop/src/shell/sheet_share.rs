@@ -243,10 +243,30 @@ pub(crate) fn show_share(
 
                 // Commit block (footer spacing): always Xl from Access; summary
                 // when anyone is in the batch (stage or settled Found field);
-                // Md groups copy with the footer.
+                // Md groups copy with the footer. Embeds of this file sit with
+                // that copy — same paragraph group as delete/move referrers.
+                let refs = super::sheets::referrer_names(
+                    app,
+                    ctx,
+                    &[id],
+                    super::sheets::ReferrerKind::Embeds,
+                );
                 ui.add(Spacer::new(Space::Xl));
                 if show_summary {
                     paint_share_summary(ui, t, &subject, &share_names, mode_buf == 0);
+                }
+                if !refs.is_empty() {
+                    if show_summary {
+                        ui.add(Spacer::new(Space::Md));
+                    }
+                    super::sheets::paint_referrers(
+                        ui,
+                        t,
+                        &refs,
+                        super::sheets::ReferrerKind::Embeds,
+                    );
+                }
+                if show_summary || !refs.is_empty() {
                     ui.add(Spacer::new(Space::Md));
                 }
 

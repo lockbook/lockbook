@@ -361,43 +361,6 @@
             return local
         }
 
-        func trafficLightRectInView() -> CGRect? {
-            guard let window else { return nil }
-            let buttons = [NSWindow.ButtonType.closeButton, .miniaturizeButton, .zoomButton]
-                .compactMap { window.standardWindowButton($0) }
-            guard !buttons.isEmpty else { return nil }
-            var union = CGRect.null
-            for button in buttons {
-                union = union.union(button.convert(button.bounds, to: self))
-            }
-            return union
-        }
-
-        func titlebarBandHeight() -> CGFloat {
-            guard let window, let content = window.contentView else { return 0 }
-            return content.bounds.height - window.contentLayoutRect.height
-        }
-
-        func sidebarIsCollapsed() -> Bool {
-            guard let rect = trafficLightRectInView() else { return false }
-            return rect.minX >= 0
-        }
-
-        func reservedChromeRectInView() -> CGRect? {
-            guard sidebarIsCollapsed() else { return nil }
-            let leadingWidth: CGFloat = 165
-            let band = titlebarBandHeight()
-            return CGRect(x: 0, y: bounds.height - band, width: leadingWidth, height: band)
-        }
-
-        func tabStripInset() -> CGFloat {
-            reservedChromeRectInView()?.maxX ?? 0
-        }
-
-        func tabStripMinHeight() -> CGFloat {
-            titlebarBandHeight()
-        }
-
         func syncAccentColor() {
             guard let wsHandle else { return }
             guard let light = packedAccent(for: .aqua),
@@ -451,9 +414,6 @@
             set_contact_linked_sites(wsHandle, UserDefaults.standard.bool(forKey: "contactLinkedSites"))
             set_open_in_new_tab(wsHandle, UserDefaults.standard.object(forKey: "openInNewTab") as? Bool ?? true)
             set_scale(wsHandle, scale)
-
-            set_tab_strip_inset(wsHandle, Float(tabStripInset()))
-            set_tab_strip_height(wsHandle, Float(tabStripMinHeight()))
 
             let output = macos_frame(wsHandle)
 

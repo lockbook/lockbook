@@ -6,11 +6,11 @@ use lb_rs::model::svg::{
 use resvg::usvg::Transform;
 
 use crate::{
+    style::phosphor,
     tab::input_controller::InputControllerEvent,
     tab::svg_editor::{
         Event, InsertElement, toolbar::ToolContext, tools::InputControllerTool, util::pos_to_dvec,
     },
-    theme::icons::Icon,
 };
 
 #[derive(Default)]
@@ -31,11 +31,19 @@ pub enum ShapeType {
 }
 
 impl ShapeType {
-    pub fn icon(&self) -> Icon {
+    pub fn icon(&self) -> &'static str {
         match self {
-            ShapeType::Rectangle => Icon::RECTANGLE,
-            ShapeType::Circle => Icon::CIRCLE,
-            ShapeType::Line => Icon::LINE,
+            ShapeType::Rectangle => phosphor::RECTANGLE,
+            ShapeType::Circle => phosphor::CIRCLE,
+            ShapeType::Line => phosphor::LINE_SEGMENT,
+        }
+    }
+
+    pub fn label(&self) -> &'static str {
+        match self {
+            ShapeType::Rectangle => "Rectangle",
+            ShapeType::Circle => "Circle",
+            ShapeType::Line => "Line",
         }
     }
 }

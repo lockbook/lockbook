@@ -12,20 +12,22 @@ use resvg::usvg::Transform;
 
 use lb_rs::model::svg::buffer::serialize_inner;
 
+use crate::style::{
+    Button, SECTION_GAP, SECTION_HEAD_GAP, Space, ThemeExt as _, canvas_overlay_frame,
+    color_swatch, island, phosphor,
+};
 use crate::tab::input_controller::InputControllerEvent;
 use crate::tab::svg_editor::clip::duplicate_elements;
 use crate::tab::svg_editor::element::BoundedElement;
 use crate::tab::svg_editor::history::{self, TransformElement};
 use crate::tab::svg_editor::toolbar::{
-    ToolContext, show_color_btn, show_opacity_slider, show_section_header, show_thickness_slider,
+    ToolContext, overlay_icon, show_opacity_slider, show_section_header, show_thickness_slider,
 };
 use crate::tab::svg_editor::tools::pen::DEFAULT_PEN_STROKE_WIDTH;
 use crate::tab::svg_editor::tools::{InputControllerTool, selection};
 use crate::tab::svg_editor::util::{pointer_intersects_element, transform_rect};
 use crate::tab::svg_editor::{DeleteElement, Event};
-use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
-use crate::widgets::Button;
 
 #[derive(Default)]
 pub struct Selection {
@@ -538,7 +540,7 @@ impl InputControllerTool for Selection {
     }
 }
 impl Selection {
-    fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
+    pub(crate) fn delete_selection(&mut self, selection_ctx: &mut ToolContext) {
         let elements = self
             .selected_elements
             .iter()
@@ -654,21 +656,6 @@ impl Selection {
             self.show_selection_container(ui, container);
         }
 
-        ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(7);
-        ui.style_mut()
-            .text_styles
-            .insert(egui::TextStyle::Body, egui::FontId::new(15.0, egui::FontFamily::Proportional));
-        ui.style_mut().text_styles.insert(
-            egui::TextStyle::Button,
-            egui::FontId::new(15.0, egui::FontFamily::Proportional),
-        );
-        ui.visuals_mut().window_shadow = egui::Shadow::NONE;
-
-        if ui.visuals().dark_mode {
-            ui.visuals_mut().window_stroke = egui::Stroke::NONE;
-            ui.visuals_mut().window_fill = egui::Color32::from_rgb(42, 42, 42);
-        }
-
         if let SelectionOperation::LasoBuild(_) = self.current_op {
             return;
         }
@@ -706,11 +693,12 @@ impl Selection {
                 id: "selection_tooltip".into(),
             }),
             |ui| {
+                let t = ui.ctx().get_lb_theme();
                 let res = ui.scope_builder(UiBuilder::new().max_rect(tooltip_rect), |ui| {
-                    ui.style_mut().spacing.window_margin = egui::Margin::symmetric(5, 0);
-
-                    egui::Frame::window(ui.style())
-                        .show(ui, |ui| ui.horizontal(|ui| self.show_tooltip(ui, selection_ctx)))
+                    canvas_overlay_frame(&t, Space::Xxs).show(ui, |ui| {
+                        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                        ui.horizontal(|ui| self.show_tooltip(ui, selection_ctx))
+                    })
                 });
                 let show_popover_toggled = res.inner.inner.inner;
 
@@ -720,7 +708,8 @@ impl Selection {
                 let rect = egui::Rect::from_min_size(popover_min, egui::vec2(0.0, 0.0));
                 let res = ui.scope_builder(UiBuilder::new().max_rect(rect), |ui| {
                     if self.show_selection_popover && !show_popover_toggled {
-                        egui::Frame::window(ui.style()).show(ui, |ui| {
+                        canvas_overlay_frame(&t, Space::Sm).show(ui, |ui| {
+                            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
                             ui.vertical(|ui| {
                                 self.show_selection_popover(ui, selection_ctx);
                             });
@@ -738,36 +727,23 @@ impl Selection {
     }
 
     fn show_tooltip(&mut self, ui: &mut egui::Ui, selection_ctx: &mut ToolContext) -> bool {
-        let btn_margin = egui::vec2(5.0, 2.0);
-        if ui.visuals().dark_mode {
-            ui.visuals_mut().window_stroke =
-                egui::Stroke { width: 1.5, color: egui::Color32::from_rgb(240, 240, 240) };
-        } else {
-            ui.visuals_mut().widgets.noninteractive.bg_stroke = ui.visuals().window_stroke;
-            ui.visuals_mut().widgets.noninteractive.bg_stroke.width = 1.0;
-        }
-
         // without this the buttons will be wrapped to a single letter
         ui.set_max_width(f32::INFINITY);
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-        let chevron_size = 13.0;
+        let t = ui.ctx().get_lb_theme();
 
         if self.show_selection_popover {
-            if Button::default()
-                .icon(&Icon::CHEVRON_LEFT.size(chevron_size))
-                .margin(egui::vec2(0.0, btn_margin.y))
-                .show(ui)
-                .clicked()
-            {
+            let close = overlay_icon(ui, &t, phosphor::CARET_LEFT, true, t.neutral_bg(), "Close");
+            if close.clicked() {
                 self.show_selection_popover = !self.show_selection_popover;
             }
 
             return false;
         }
 
-        if Button::default()
-            .text("Copy")
-            .margin(btn_margin)
+        if Button::quiet(&t, "Copy")
+            .height(island::icon_hit())
             .show(ui)
             .clicked()
         {
@@ -775,24 +751,16 @@ impl Selection {
             self.clear_selection_els();
         }
 
-        ui.separator();
-
-        if Button::default()
-            .text("Delete")
-            .margin(btn_margin)
+        if Button::quiet(&t, "Delete")
+            .height(island::icon_hit())
             .show(ui)
             .clicked()
         {
             self.delete_selection(selection_ctx);
         }
 
-        ui.separator();
-
-        if Button::default()
-            .icon(&Icon::CHEVRON_RIGHT.size(chevron_size))
-            .show(ui)
-            .clicked()
-        {
+        let more = overlay_icon(ui, &t, phosphor::CARET_RIGHT, true, t.neutral_bg(), "More");
+        if more.clicked() {
             self.show_selection_popover = !self.show_selection_popover;
             return true;
         }
@@ -907,7 +875,6 @@ impl Selection {
         ui.set_width(width);
 
         let mut buffer_changed = false;
-        ui.add_space(10.0);
         let mut properties = ElementEditableProperties::from_selection(
             &self.selected_elements,
             selection_ctx.buffer,
@@ -924,19 +891,17 @@ impl Selection {
             | ElementSpecificEditableProperties::Mixed => {}
         }
 
-        ui.add_space(20.0);
-
-        show_section_header(ui, "layer");
-        ui.add_space(5.0);
+        ui.add_space(SECTION_GAP.pts());
+        show_section_header(ui, "Layer");
+        ui.add_space(SECTION_HEAD_GAP.pts());
         ui.horizontal(|ui| {
             self.show_layer_controls(selection_ctx, ui);
         });
 
-        ui.add_space(7.5);
+        ui.add_space(SECTION_HEAD_GAP.pts());
         ui.horizontal(|ui| {
             self.show_action_controls(selection_ctx, ui);
         });
-        ui.add_space(10.0);
 
         self.properties = Some(properties);
 
@@ -949,8 +914,8 @@ impl Selection {
     ) -> bool {
         let mut buffer_changed = false;
 
-        show_section_header(ui, "opacity");
-        ui.add_space(10.0);
+        show_section_header(ui, "Opacity");
+        ui.add_space(SECTION_HEAD_GAP.pts());
 
         let slider_res =
             show_opacity_slider(ui, &mut common_properties.opacity, &DynamicColor::default());
@@ -1005,18 +970,19 @@ impl Selection {
     ) -> bool {
         let mut buffer_changed = false;
 
-        ui.add_space(25.0);
-        show_section_header(ui, "stroke");
-        ui.add_space(10.0);
+        ui.add_space(SECTION_GAP.pts());
+        show_section_header(ui, "Stroke");
+        ui.add_space(SECTION_HEAD_GAP.pts());
 
         let colors = get_pen_colors();
         ui.horizontal_wrapped(|ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            let t = ui.ctx().get_lb_theme();
+            let hit = island::icon_hit();
+            let ground = t.neutral_bg();
             colors.iter().for_each(|&c| {
                 let color = ThemePalette::resolve_dynamic_color(c, ui.visuals().dark_mode);
-                let active_color =
-                    ThemePalette::resolve_dynamic_color(stroke.color, ui.visuals().dark_mode);
-
-                let color_btn = show_color_btn(ui, color, active_color, None);
+                let color_btn = color_swatch(ui, &t, color, c == stroke.color, ground, hit);
                 if color_btn.clicked() || color_btn.drag_started() {
                     let event = history::Event::StrokeChange(
                         self.selected_elements
@@ -1048,7 +1014,7 @@ impl Selection {
             });
         });
 
-        ui.add_space(25.0);
+        ui.add_space(SECTION_HEAD_GAP.pts());
 
         let range = DEFAULT_PEN_STROKE_WIDTH..=10.0;
         let slider_res = show_thickness_slider(ui, &mut stroke.width, range, 0.0);
@@ -1103,8 +1069,8 @@ impl Selection {
 
     fn show_layer_controls(&mut self, selection_ctx: &mut ToolContext<'_>, ui: &mut egui::Ui) {
         ui.horizontal(|ui| {
-            let btn_rounding = 5.0;
-            let icon_size = 14.0;
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            let t = ui.ctx().get_lb_theme();
 
             let mut max_current_index = 0;
             let mut min_cureent_index = usize::MAX;
@@ -1117,20 +1083,12 @@ impl Selection {
                 }
             });
 
-            if Button::default()
-                .icon(&Icon::BRING_TO_BACK.size(icon_size).color(
-                    if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                        ui.visuals().text_color().linear_multiply(0.4)
-                    } else {
-                        ui.visuals().text_color()
-                    },
-                ))
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
+            let can_back = max_current_index != selection_ctx.buffer.elements.len() - 1;
+            let can_front = min_cureent_index != 0;
+
+            if overlay_icon(ui, &t, phosphor::ARROW_LINE_DOWN, can_back, t.neutral_bg(), "To back")
                 .clicked()
-                && max_current_index != selection_ctx.buffer.elements.len() - 1
+                && can_back
             {
                 self.selected_elements.iter().for_each(|selected_element| {
                     if let Some((el_id, _, _)) =
@@ -1144,20 +1102,9 @@ impl Selection {
                 });
             }
 
-            if Button::default()
-                .icon(&Icon::CHEVRON_LEFT.size(icon_size).color(
-                    if max_current_index == selection_ctx.buffer.elements.len() - 1 {
-                        ui.visuals().text_color().linear_multiply(0.4)
-                    } else {
-                        ui.visuals().text_color()
-                    },
-                ))
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
+            if overlay_icon(ui, &t, phosphor::CARET_LEFT, can_back, t.neutral_bg(), "Backward")
                 .clicked()
-                && max_current_index != selection_ctx.buffer.elements.len() - 1
+                && can_back
             {
                 self.selected_elements.iter().for_each(|selected_element| {
                     if let Some((el_id, _, _)) =
@@ -1170,22 +1117,9 @@ impl Selection {
                 });
             }
 
-            if Button::default()
-                .icon(
-                    &Icon::CHEVRON_RIGHT
-                        .size(icon_size)
-                        .color(if min_cureent_index == 0 {
-                            ui.visuals().text_color().linear_multiply(0.4)
-                        } else {
-                            ui.visuals().text_color()
-                        }),
-                )
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
+            if overlay_icon(ui, &t, phosphor::CARET_RIGHT, can_front, t.neutral_bg(), "Forward")
                 .clicked()
-                && min_cureent_index != 0
+                && can_front
             {
                 self.selected_elements.iter().for_each(|selected_element| {
                     if let Some((el_id, _, _)) =
@@ -1198,22 +1132,9 @@ impl Selection {
                 });
             }
 
-            if Button::default()
-                .icon(
-                    &Icon::BRING_TO_FRONT
-                        .size(icon_size)
-                        .color(if min_cureent_index == 0 {
-                            ui.visuals().text_color().linear_multiply(0.4)
-                        } else {
-                            ui.visuals().text_color()
-                        }),
-                )
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
+            if overlay_icon(ui, &t, phosphor::ARROW_LINE_UP, can_front, t.neutral_bg(), "To front")
                 .clicked()
-                && min_cureent_index != 0
+                && can_front
             {
                 self.selected_elements.iter().for_each(|selected_element| {
                     if let Some((el_id, _, _)) =
@@ -1227,27 +1148,14 @@ impl Selection {
     }
 
     fn show_action_controls(&mut self, selection_ctx: &mut ToolContext, ui: &mut egui::Ui) {
-        let btn_rounding = 5.0;
         ui.horizontal(|ui| {
-            if Button::default()
-                .icon(&Icon::CONTENT_COPY)
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-            {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+            let t = ui.ctx().get_lb_theme();
+            if overlay_icon(ui, &t, phosphor::COPY, true, t.neutral_bg(), "Copy").clicked() {
                 self.copy_selection(ui, selection_ctx);
                 self.clear_selection_els();
             }
-            if Button::default()
-                .icon(&Icon::CONTENT_CUT)
-                .frame(true)
-                .margin(egui::vec2(3.0, 0.0))
-                .rounding(btn_rounding)
-                .show(ui)
-                .clicked()
-            {
+            if overlay_icon(ui, &t, phosphor::SCISSORS, true, t.neutral_bg(), "Cut").clicked() {
                 self.cut_selection(ui, selection_ctx);
             }
         });

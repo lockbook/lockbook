@@ -1,11 +1,12 @@
 //! Titleband geometry shared by the toolbar, tab strip, and sidebar min width.
 
 use crate::components::{Space, control_height};
+use workspace_rs::style::{CHROME_BAND_GLYPH, CHROME_BAND_H};
 
 /// y-center of the title row (macOS traffic lights are aligned to this).
-pub const HEADER_CENTER: f32 = 20.0;
-/// Full title / tab strip height.
-pub const HEADER_H: f32 = HEADER_CENTER * 2.0;
+pub const HEADER_CENTER: f32 = CHROME_BAND_H / 2.0;
+/// Full title / tab strip height. Same token as the markdown toolbar.
+pub const HEADER_H: f32 = CHROME_BAND_H;
 
 /// Native close/miniaturize/zoom diameter (logical pt). Used for [`TOGGLE_X`].
 #[cfg(target_os = "macos")]
@@ -43,10 +44,8 @@ pub const LINUX_MIN_SHIFT: f32 = 3.0;
 
 const TOOLBAR_ICONS: usize = 3;
 const NAV_ICONS: usize = 2;
-const TITLEBAR_GLYPH: f32 = 18.0;
-
 pub fn titlebar_glyph() -> f32 {
-    TITLEBAR_GLYPH
+    CHROME_BAND_GLYPH
 }
 
 pub fn toolbar_gap() -> f32 {

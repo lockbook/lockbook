@@ -212,18 +212,25 @@ pub enum CreateKind {
     #[default]
     Note,
     Drawing,
+    Chat,
     Folder,
     Other,
 }
 
 impl CreateKind {
-    pub const ALL: [CreateKind; 4] =
-        [CreateKind::Note, CreateKind::Drawing, CreateKind::Folder, CreateKind::Other];
+    pub const ALL: [CreateKind; 5] = [
+        CreateKind::Note,
+        CreateKind::Drawing,
+        CreateKind::Chat,
+        CreateKind::Folder,
+        CreateKind::Other,
+    ];
 
     pub fn label(self) -> &'static str {
         match self {
             Self::Note => "Note",
             Self::Drawing => "Drawing",
+            Self::Chat => "Chat",
             Self::Folder => "Folder",
             Self::Other => "Other",
         }
@@ -233,6 +240,7 @@ impl CreateKind {
         match self {
             Self::Note => Some(".md"),
             Self::Drawing => Some(".svg"),
+            Self::Chat => Some(".chat"),
             Self::Folder | Self::Other => None,
         }
     }
@@ -241,13 +249,34 @@ impl CreateKind {
         match self {
             Self::Note => 0,
             Self::Drawing => 1,
-            Self::Folder => 2,
-            Self::Other => 3,
+            Self::Chat => 2,
+            Self::Folder => 3,
+            Self::Other => 4,
         }
     }
 
     pub fn from_index(i: usize) -> Self {
         Self::ALL.get(i).copied().unwrap_or(Self::Note)
+    }
+
+    pub fn as_key(self) -> &'static str {
+        match self {
+            Self::Note => "note",
+            Self::Drawing => "drawing",
+            Self::Chat => "chat",
+            Self::Folder => "folder",
+            Self::Other => "other",
+        }
+    }
+
+    pub fn from_key(s: &str) -> Self {
+        match s {
+            "drawing" => Self::Drawing,
+            "chat" => Self::Chat,
+            "folder" => Self::Folder,
+            "other" => Self::Other,
+            _ => Self::Note,
+        }
     }
 }
 
@@ -336,9 +365,13 @@ pub enum Action {
     ConfirmCreate,
     OpenMove(Vec<Uuid>),
     MoveSelect(Uuid),
-    ConfirmMove,
+    ConfirmMove {
+        update_refs: bool,
+    },
     OpenRename(Uuid),
-    ConfirmRename,
+    ConfirmRename {
+        update_refs: bool,
+    },
     OpenAcceptShare {
         id: Uuid,
         name: String,
@@ -478,9 +511,9 @@ impl Action {
             Self::ConfirmCreate => "ConfirmCreate",
             Self::OpenMove(_) => "OpenMove",
             Self::MoveSelect(_) => "MoveSelect",
-            Self::ConfirmMove => "ConfirmMove",
+            Self::ConfirmMove { .. } => "ConfirmMove",
             Self::OpenRename(_) => "OpenRename",
-            Self::ConfirmRename => "ConfirmRename",
+            Self::ConfirmRename { .. } => "ConfirmRename",
             Self::OpenAcceptShare { .. } => "OpenAcceptShare",
             Self::AcceptShareDest(_) => "AcceptShareDest",
             Self::ConfirmAcceptShare => "ConfirmAcceptShare",

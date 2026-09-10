@@ -6,12 +6,14 @@ use lb_rs::Uuid;
 use resvg::usvg::Transform;
 use tracing::error;
 
+use crate::style::{
+    Button, CHROME_BAND_GLYPH, Space, ThemeExt, TypeRole, canvas_overlay_frame, icon_button_circle,
+    island, loading_indicator, phosphor, quiet_canvas_fills, sense_click, tip_text,
+};
 use crate::tab::input_controller::{
     InputController, InputControllerConfig, InputControllerEvent, LayoutContext,
 };
 use crate::tab::{ContextMenuTarget, ExtendedInput as _, ExtendedOutput as _};
-use crate::theme::icons::Icon;
-use crate::widgets::Button;
 use crate::widgets::image_cache::{ImageCache, ImageState};
 
 const MIN_ZOOM_LEVEL: f32 = 0.1;
@@ -39,6 +41,14 @@ enum ImageViewportPopover {
     ZoomStops,
 }
 
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+enum ImageCmd {
+    Copy,
+    Fit,
+    ZoomIn,
+    ZoomOut,
+}
+
 impl ImageViewer {
     pub fn new(id: Uuid, images: ImageCache) -> Self {
         Self {
@@ -54,13 +64,32 @@ impl ImageViewer {
         }
     }
 
-    pub fn show(&mut self, ui: &mut egui::Ui) {
-        set_style(ui);
+    fn url(&self) -> String {
+        format!("lb://{}", self.id)
+    }
 
+    /// Start/pin decode without painting chrome. Search preview warms a pending
+    /// image then promotes only once [`Self::paint_ready`].
+    pub fn warm(&self) {
+        let _ = self.images.get_or_load(&self.url(), self.id, false);
+    }
+
+    /// Texture settled (`Loaded` or `Failed`) — safe to mount the viewer.
+    pub fn paint_ready(&self) -> bool {
+        let state = self.images.get_or_load(&self.url(), self.id, false);
+        let image_state = state.lock().unwrap().deref().clone();
+        !matches!(image_state, ImageState::Loading)
+    }
+
+    pub fn show(&mut self, ui: &mut egui::Ui) {
+        // Workspace `visuals::apply` restores default spacing / 17pt. DS chrome
+        // assumes 0 item_spacing (same as search / desktop context).
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        let t = ui.ctx().get_lb_theme();
         let mut painter = ui.painter().clone();
         let available = ui.available_rect_before_wrap();
         painter.set_clip_rect(available);
-        painter.rect_filled(painter.clip_rect(), 0., ui.visuals().extreme_bg_color);
+        painter.rect_filled(painter.clip_rect(), 0., t.neutral_bg());
 
         self.process_events(ui, available);
 
@@ -70,9 +99,7 @@ impl ImageViewer {
 
         match image_state {
             ImageState::Loading => {
-                ui.centered_and_justified(|ui| {
-                    ui.spinner();
-                });
+                loading_indicator(ui);
             }
             ImageState::Loaded(texture_id) => {
                 let [img_w, img_h] = ui.ctx().tex_manager().read().meta(texture_id).unwrap().size;
@@ -85,12 +112,16 @@ impl ImageViewer {
                     Rect::from_min_max(Pos2::new(0.0, 0.0), Pos2::new(1.0, 1.0)),
                 ));
 
-                self.show_image_context_menu(ui, available, rect);
+                self.show_image_context_menu(ui, available);
                 self.show_viewport_controls(ui, available, rect);
             }
             ImageState::Failed(ref msg) => {
                 ui.centered_and_justified(|ui| {
-                    ui.label(format!("Failed to load image: {msg}"));
+                    ui.label(
+                        TypeRole::Body
+                            .rich(format!("Failed to load image: {msg}"))
+                            .color(t.neutral_fg_secondary()),
+                    );
                 });
             }
         }
@@ -142,27 +173,20 @@ impl ImageViewer {
     }
 
     fn show_viewport_controls(&mut self, ui: &mut egui::Ui, available: Rect, image_rect: Rect) {
+        let t = ui.ctx().get_lb_theme();
         let viewport_island_width = self
             .viewport_island
             .map(|rect| rect.width())
             .unwrap_or(VIEWPORT_ISLAND_FALLBACK_WIDTH)
             .max(VIEWPORT_ISLAND_FALLBACK_WIDTH);
-        let viewport_rect = Rect {
-            min: egui::pos2(
-                available.left() + SCREEN_PADDING.x,
-                available.top() + SCREEN_PADDING.y,
-            ),
-            max: egui::Pos2 {
-                x: available.left() + SCREEN_PADDING.x + viewport_island_width,
-                y: available.top() + SCREEN_PADDING.y + 35.0,
-            },
-        };
+        let origin =
+            egui::pos2(available.left() + SCREEN_PADDING.x, available.top() + SCREEN_PADDING.y);
+        let viewport_rect =
+            Rect::from_min_size(origin, egui::vec2(viewport_island_width, island::height() + 2.0));
 
         let island_res = ui
             .scope_builder(egui::UiBuilder::new().max_rect(viewport_rect), |ui| {
-                egui::Frame::window(ui.style())
-                    .inner_margin(egui::Margin::symmetric(8, 4))
-                    .show(ui, |ui| self.show_inner_viewport_island(ui, available))
+                island::frame(&t).show(ui, |ui| self.show_inner_viewport_island(ui, available, &t))
             })
             .inner
             .response;
@@ -178,18 +202,25 @@ impl ImageViewer {
         }
     }
 
-    fn show_inner_viewport_island(&mut self, ui: &mut egui::Ui, available: Rect) {
+    fn show_inner_viewport_island(
+        &mut self, ui: &mut egui::Ui, available: Rect, t: &crate::style::Theme,
+    ) {
         ui.horizontal(|ui| {
             let zoom_percentage = (self.master_transform.sx * 100.0).round();
-            let size = 15.0;
+            let hit = island::icon_hit();
+            let ground = island::ground(t);
 
-            if ui
-                .add_enabled_ui(zoom_percentage > ZOOM_STEP, |ui| {
-                    Button::default().icon(&Icon::ZOOM_OUT.size(size)).show(ui)
-                })
-                .inner
-                .clicked()
-            {
+            let minus = icon_button_circle(
+                ui,
+                t,
+                phosphor::MAGNIFYING_GLASS_MINUS,
+                true,
+                ground,
+                hit,
+                CHROME_BAND_GLYPH,
+            );
+            tip_text(ui.ctx(), &minus, "Zoom out");
+            if minus.clicked() && zoom_percentage > ZOOM_STEP {
                 let target_zoom_percentage =
                     ((zoom_percentage / ZOOM_STEP).floor() - 1.0) * ZOOM_STEP;
                 self.zoom_to(target_zoom_percentage, available.center());
@@ -201,37 +232,39 @@ impl ImageViewer {
                 format!("{}%", zoom_percentage as i32)
             };
 
-            let zoom_pct_btn = Button::default().text(zoom_percentage_label).show(ui);
+            let zoom_pct_btn = Button::secondary(t, zoom_percentage_label)
+                .height(hit)
+                .show(ui);
             self.zoom_pct_btn = Some(zoom_pct_btn.rect);
+            tip_text(ui.ctx(), &zoom_pct_btn, "Zoom");
 
             if zoom_pct_btn.clicked() || zoom_pct_btn.drag_started() {
                 self.toggle_viewport_popover(Some(ImageViewportPopover::ZoomStops));
             }
 
-            if Button::default()
-                .icon(&Icon::ZOOM_IN.size(size))
-                .show(ui)
-                .clicked()
-            {
+            let plus = icon_button_circle(
+                ui,
+                t,
+                phosphor::MAGNIFYING_GLASS_PLUS,
+                true,
+                ground,
+                hit,
+                CHROME_BAND_GLYPH,
+            );
+            tip_text(ui.ctx(), &plus, "Zoom in");
+            if plus.clicked() {
                 let target_zoom_percentage =
                     ((zoom_percentage / ZOOM_STEP).floor() + 1.0) * ZOOM_STEP;
                 self.zoom_to(target_zoom_percentage, available.center());
-            };
+            }
 
             ui.add_space((50.0 - zoom_pct_btn.rect.width()).max(0.0));
         });
     }
 
-    fn show_image_context_menu(&mut self, ui: &mut egui::Ui, available: Rect, image_rect: Rect) {
-        if !available.intersects(image_rect) {
-            return;
-        }
-
-        let response = ui.interact(
-            available.intersect(image_rect),
-            ui.id().with("image_viewer_image"),
-            egui::Sense::click(),
-        );
+    fn show_image_context_menu(&mut self, ui: &mut egui::Ui, available: Rect) {
+        let response =
+            ui.interact(available, ui.id().with("image_viewer_image"), egui::Sense::click());
 
         if cfg!(target_os = "ios") {
             if response.clicked() {
@@ -242,15 +275,30 @@ impl ImageViewer {
             return;
         }
 
-        let mut copy = false;
-        response.context_menu(|ui| {
-            if ui.button("Copy image").clicked() {
-                copy = true;
-                ui.close();
+        let t = ui.ctx().get_lb_theme();
+        if let Some(cmd) = crate::style::context_menu::show(&response, &t, |e| {
+            e.item(phosphor::COPY, "Copy image", ImageCmd::Copy);
+            e.separator();
+            e.item(phosphor::ARROWS_OUT_SIMPLE, "Fit", ImageCmd::Fit);
+            e.item(phosphor::MAGNIFYING_GLASS_PLUS, "Zoom in", ImageCmd::ZoomIn);
+            e.item(phosphor::MAGNIFYING_GLASS_MINUS, "Zoom out", ImageCmd::ZoomOut);
+        }) {
+            match cmd {
+                ImageCmd::Copy => self.copy_image(ui.ctx()),
+                ImageCmd::Fit => self.reset_viewport(),
+                ImageCmd::ZoomIn => {
+                    let zoom_percentage = (self.master_transform.sx * 100.0).round();
+                    let target = ((zoom_percentage / ZOOM_STEP).floor() + 1.0) * ZOOM_STEP;
+                    self.zoom_to(target, available.center());
+                }
+                ImageCmd::ZoomOut => {
+                    let zoom_percentage = (self.master_transform.sx * 100.0).round();
+                    if zoom_percentage > ZOOM_STEP {
+                        let target = ((zoom_percentage / ZOOM_STEP).floor() - 1.0) * ZOOM_STEP;
+                        self.zoom_to(target, available.center());
+                    }
+                }
             }
-        });
-        if copy {
-            self.copy_image(ui.ctx());
         }
     }
 
@@ -263,25 +311,29 @@ impl ImageViewer {
 
     fn show_popovers(&mut self, ui: &mut egui::Ui, available: Rect, viewport_island_rect: Rect) {
         if let Some(ImageViewportPopover::ZoomStops) = self.viewport_popover {
-            ui.visuals_mut().window_corner_radius /= 2.0;
-
+            let t = ui.ctx().get_lb_theme();
             let popover_rect = {
                 let x_center = self.zoom_pct_btn.unwrap_or(viewport_island_rect).center().x;
                 let min = egui::pos2(
                     x_center - ZOOM_STOPS_POPOVER_WIDTH / 2.0,
-                    viewport_island_rect.bottom() + 10.0,
+                    viewport_island_rect.bottom() + Space::Sm.pts(),
                 );
-
-                Rect { min, max: min + egui::vec2(ZOOM_STOPS_POPOVER_WIDTH, 0.0) }
+                // Ceiling only — Frame hugs content. A tall slot under the
+                // workspace's justified layout stretched the first row (Fit).
+                Rect::from_min_size(min, egui::vec2(ZOOM_STOPS_POPOVER_WIDTH, 400.0))
             };
 
-            let popover_res = ui
-                .scope_builder(egui::UiBuilder::new().max_rect(popover_rect), |ui| {
-                    egui::Frame::window(ui.style())
-                        .show(ui, |ui| self.show_zoom_stops_popover(ui, available))
-                })
-                .inner
-                .response;
+            let (popover_res, _) = crate::style::place_at(
+                ui,
+                popover_rect,
+                egui::Layout::top_down(egui::Align::Center),
+                |ui| {
+                    ui.set_max_width(ZOOM_STOPS_POPOVER_WIDTH);
+                    canvas_overlay_frame(&t, Space::Xs)
+                        .show(ui, |ui| self.show_zoom_stops_popover(ui, available, &t))
+                        .response
+                },
+            );
 
             self.zoom_stops_popover = Some(popover_res.rect);
         } else {
@@ -289,24 +341,21 @@ impl ImageViewer {
         }
     }
 
-    fn show_zoom_stops_popover(&mut self, ui: &mut egui::Ui, available: Rect) {
-        ui.set_min_width(
-            ZOOM_STOPS_POPOVER_WIDTH
-                - ui.style().spacing.window_margin.left as f32
-                - ui.style().spacing.window_margin.right as f32,
-        );
+    fn show_zoom_stops_popover(
+        &mut self, ui: &mut egui::Ui, available: Rect, t: &crate::style::Theme,
+    ) {
+        let inner_w = (ZOOM_STOPS_POPOVER_WIDTH - Space::Xs.pts() * 2.0).max(1.0);
+        ui.set_min_width(inner_w);
+        ui.set_max_width(inner_w);
+        let row_h = island::icon_hit();
 
-        if Button::default().text("FIT").show(ui).clicked() {
+        if zoom_stop_row(ui, t, "Fit", inner_w, row_h) {
             self.reset_viewport();
             self.viewport_popover = None;
         }
 
         for zoom_percentage in [120.0, 100.0, 80.0] {
-            if Button::default()
-                .text(format!("{}%", zoom_percentage as i32))
-                .show(ui)
-                .clicked()
-            {
+            if zoom_stop_row(ui, t, &format!("{}%", zoom_percentage as i32), inner_w, row_h) {
                 self.zoom_to(zoom_percentage, available.center());
                 self.viewport_popover = None;
             }
@@ -343,29 +392,17 @@ impl ImageViewer {
             },
         };
 
+        let t = ui.ctx().get_lb_theme();
         let res = ui.scope_builder(egui::UiBuilder::new().max_rect(bring_home_rect), |ui| {
-            egui::Frame::window(ui.style())
-                .inner_margin(egui::Margin::symmetric(8, 4))
-                .show(ui, |ui| {
-                    ui.horizontal(|ui| {
-                        let text_stroke = egui::Stroke {
-                            color: ui.visuals().widgets.active.bg_fill,
-                            ..Default::default()
-                        };
-
-                        ui.visuals_mut().widgets.inactive.fg_stroke = text_stroke;
-                        ui.visuals_mut().widgets.active.fg_stroke = text_stroke;
-                        ui.visuals_mut().widgets.hovered.fg_stroke = text_stroke;
-
-                        if Button::default()
-                            .text("Focus back to content")
-                            .show(ui)
-                            .clicked()
-                        {
-                            self.reset_viewport();
-                        }
-                    })
-                })
+            island::frame(&t).show(ui, |ui| {
+                if Button::secondary(&t, "Focus back to content")
+                    .height(island::icon_hit())
+                    .show(ui)
+                    .clicked()
+                {
+                    self.reset_viewport();
+                }
+            })
         });
 
         Some(res.inner.response)
@@ -383,6 +420,29 @@ impl ImageViewer {
     fn reset_viewport(&mut self) {
         self.master_transform = Transform::identity();
     }
+}
+
+/// Full-width picker row: hover wash + hit span the menu, not the label.
+fn zoom_stop_row(ui: &mut egui::Ui, t: &crate::style::Theme, label: &str, w: f32, h: f32) -> bool {
+    use crate::style::chrome::row_wash_inset;
+    use crate::style::{Radius, interact_fill_response};
+
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(w, h), sense_click());
+    let fill = interact_fill_response(ui.ctx(), &resp, quiet_canvas_fills(t));
+    if fill != t.neutral_bg() {
+        ui.painter()
+            .rect_filled(rect.shrink(row_wash_inset()), Radius::Sm.corner(), fill);
+    }
+    let g = ui
+        .painter()
+        .layout_no_wrap(label.to_owned(), TypeRole::Body.font_id(), t.neutral_fg());
+    let pad = Space::Xs.pts();
+    ui.painter().galley(
+        egui::pos2(rect.left() + pad, rect.center().y - g.size().y / 2.0),
+        g,
+        t.neutral_fg(),
+    );
+    resp.clicked()
 }
 
 fn transform_point(point: Pos2, transform: Transform) -> Pos2 {
@@ -404,36 +464,4 @@ pub fn is_supported_image_fmt(ext: &str) -> bool {
         "tga", "tiff", "webp",
     ];
     IMG_FORMATS.contains(&ext)
-}
-
-fn set_style(ui: &mut egui::Ui) {
-    let toolbar_margin = egui::Margin::symmetric(15, 7);
-    ui.visuals_mut().window_corner_radius = egui::CornerRadius::same(30);
-    ui.style_mut().spacing.window_margin = toolbar_margin;
-    ui.style_mut()
-        .text_styles
-        .insert(egui::TextStyle::Body, egui::FontId::new(13.0, egui::FontFamily::Proportional));
-    ui.style_mut()
-        .text_styles
-        .insert(egui::TextStyle::Button, egui::FontId::new(13.0, egui::FontFamily::Proportional));
-
-    ui.visuals_mut().widgets.active.bg_fill =
-        ui.visuals_mut().widgets.active.bg_fill.linear_multiply(0.7);
-
-    if ui.visuals().dark_mode {
-        ui.visuals_mut().window_stroke =
-            egui::Stroke::new(0.5, egui::Color32::from_rgb(56, 56, 56));
-        ui.visuals_mut().window_fill = egui::Color32::from_rgb(30, 30, 30);
-        ui.visuals_mut().window_shadow = egui::Shadow::NONE;
-    } else {
-        ui.visuals_mut().window_stroke =
-            egui::Stroke::new(0.5, egui::Color32::from_rgb(235, 235, 235));
-        ui.visuals_mut().window_shadow = egui::Shadow {
-            offset: [1, 8],
-            blur: 20,
-            spread: 0,
-            color: egui::Color32::from_black_alpha(10),
-        };
-        ui.visuals_mut().window_fill = ui.visuals().extreme_bg_color;
-    }
 }

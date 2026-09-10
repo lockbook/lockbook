@@ -3,18 +3,19 @@ mod mini_map;
 mod tools_island;
 mod viewport_island;
 
+use crate::style::{
+    ANIM_MAX_SECS, CHROME_BAND_GLYPH, Theme, ThemeExt as _, icon_button_circle, island, phosphor,
+    tip_text,
+};
 use crate::tab::svg_editor::tools::DynInputControllerTool;
 use crate::tab::svg_editor::tools::pen::PenSettings;
 use crate::tab::svg_editor::tools::selection::Selection;
 use crate::tab::svg_editor::tools::shapes::ShapesTool;
 use crate::tab::svg_editor::viewport::calc_elements_bounds;
 use crate::tab::svg_editor::{InputContext, SVGEditor};
-use crate::theme::icons::Icon;
 use crate::theme::palette::ThemePalette;
-use crate::widgets::Button;
 use crate::workspace::WsPersistentStore;
 use std::ops::RangeInclusive;
-use std::sync::Arc;
 
 use egui::UiBuilder;
 use lb_rs::model::svg::buffer::Buffer;
@@ -28,7 +29,6 @@ use super::tools::{eraser::Eraser, pen::Pen};
 use super::{CanvasSettings, ViewportSettings};
 pub const MINI_MAP_WIDTH: f32 = 100.0;
 
-const COLOR_SWATCH_BTN_RADIUS: f32 = 11.0;
 const THICKNESS_BTN_WIDTH: f32 = 25.0;
 const SCREEN_PADDING: egui::Pos2 =
     if cfg!(target_os = "android") { egui::pos2(10.0, 50.0) } else { egui::pos2(20.0, 20.0) };
@@ -280,9 +280,11 @@ impl Toolbar {
         } else {
             1.0
         };
-        let opacity =
-            ui.ctx()
-                .animate_value_with_time(egui::Id::new("overlay_opacity"), target_opacity, 0.3);
+        let opacity = ui.ctx().animate_value_with_time(
+            egui::Id::new("overlay_opacity"),
+            target_opacity,
+            ANIM_MAX_SECS,
+        );
 
         ui.set_opacity(opacity);
 
@@ -385,6 +387,24 @@ impl Toolbar {
         if ui.input(|r| r.key_pressed(egui::Key::Tab)) {
             self.toggle_at_cursor_tool_popover();
         }
+
+        if self.active_tool == Tool::Selection
+            && !self.selection.selected_elements.is_empty()
+            && ui.input_mut(|i| {
+                i.consume_key(egui::Modifiers::NONE, egui::Key::Delete)
+                    || i.consume_key(egui::Modifiers::NONE, egui::Key::Backspace)
+            })
+        {
+            self.selection.delete_selection(&mut ToolContext {
+                painter: tlbr_ctx.painter,
+                buffer: tlbr_ctx.buffer,
+                history: tlbr_ctx.history,
+                settings: tlbr_ctx.settings,
+                viewport_settings: tlbr_ctx.viewport_settings,
+            });
+            res = true;
+        }
+
         res
     }
 
@@ -428,16 +448,20 @@ impl Toolbar {
             ),
         };
         let overlay_toggle = ui.scope_builder(UiBuilder::new().max_rect(island_rect), |ui| {
-            egui::Frame::window(ui.style())
-                .inner_margin(egui::Margin::symmetric(8, 4))
-                .show(ui, |ui| {
-                    let icon =
-                        if self.hide_overlay { Icon::FULLSCREEN_EXIT } else { Icon::FULLSCREEN };
-                    let toggle_btn = Button::default().icon(&icon).show(ui);
-                    if toggle_btn.clicked() || toggle_btn.drag_started() {
-                        self.hide_overlay = !self.hide_overlay;
-                    }
-                })
+            let t = ui.ctx().get_lb_theme();
+            island::frame(&t).show(ui, |ui| {
+                ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+                let icon = if self.hide_overlay {
+                    phosphor::ARROWS_OUT_SIMPLE
+                } else {
+                    phosphor::ARROWS_IN_SIMPLE
+                };
+                let tip = if self.hide_overlay { "Show overlay" } else { "Hide overlay" };
+                let toggle_btn = island_icon(ui, &t, icon, true, tip);
+                if toggle_btn.clicked() || toggle_btn.drag_started() {
+                    self.hide_overlay = !self.hide_overlay;
+                }
+            })
         });
 
         self.layout.overlay_toggle = Some(overlay_toggle.response.rect);
@@ -459,28 +483,25 @@ impl Toolbar {
     }
 }
 
-pub fn show_color_btn(
-    ui: &mut egui::Ui, color: egui::Color32, active_color: egui::Color32, maybe_radius: Option<f32>,
+pub(crate) fn island_icon(
+    ui: &mut egui::Ui, t: &Theme, icon: &'static str, active: bool, tip: &str,
 ) -> egui::Response {
-    let circle_diameter = maybe_radius.unwrap_or(COLOR_SWATCH_BTN_RADIUS) * 2.0;
-    let margin = 6.0;
-    let (id, rect) =
-        ui.allocate_space(egui::vec2(circle_diameter + margin, circle_diameter + margin));
-
-    ui.painter()
-        .circle_filled(rect.center(), circle_diameter / 2.0, color);
-
-    if get_non_additive(&active_color).eq(&color) {
-        ui.painter().circle_stroke(
-            rect.center(),
-            circle_diameter / 2.0 - 3.0,
-            egui::Stroke { width: 1.5, color: ui.visuals().extreme_bg_color },
-        );
-    }
-    ui.interact(rect, id, egui::Sense::click_and_drag())
+    overlay_icon(ui, t, icon, active, island::ground(t), tip)
 }
 
-fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
+/// Same mark as [`island_icon`], with an explicit plate fill (`icon_button` ground).
+pub(crate) fn overlay_icon(
+    ui: &mut egui::Ui, t: &Theme, icon: &'static str, active: bool, ground: egui::Color32,
+    tip: &str,
+) -> egui::Response {
+    let r = icon_button_circle(ui, t, icon, active, ground, island::icon_hit(), CHROME_BAND_GLYPH);
+    if !tip.is_empty() {
+        tip_text(ui.ctx(), &r, tip);
+    }
+    r
+}
+
+pub(crate) fn get_non_additive(color: &egui::Color32) -> egui::Color32 {
     egui::Color32::from_rgb(color.r(), color.g(), color.b())
 }
 
@@ -508,10 +529,14 @@ impl SVGEditor {
 }
 
 pub fn show_section_header(ui: &mut egui::Ui, label: &str) {
+    let t = ui.ctx().get_lb_theme();
     ui.label(
-        egui::RichText::new(label.to_uppercase())
-            .font(egui::FontId::new(12.0, egui::FontFamily::Name(Arc::from("Bold"))))
-            .color(egui::Color32::GRAY),
+        egui::RichText::new(label)
+            .font(egui::FontId::new(
+                crate::style::TypeRole::Body.size(),
+                egui::FontFamily::Name(std::sync::Arc::from("Bold")),
+            ))
+            .color(t.neutral_fg_secondary()),
     );
 }
 
@@ -532,7 +557,7 @@ pub fn show_opacity_slider(
         ui.visuals_mut().widgets.active.fg_stroke =
             egui::Stroke { width: 2.5, color: slider_color };
         ui.spacing_mut().slider_width = ui.available_width();
-        ui.spacing_mut().slider_rail_height = 2.0;
+        ui.spacing_mut().slider_rail_height = 8.0;
         ui.add(egui::Slider::new(active_opacity, 0.01..=1.0).show_value(false))
     })
     .inner
@@ -542,52 +567,39 @@ pub fn show_thickness_slider(
     ui: &mut egui::Ui, value: &mut f32, value_range: RangeInclusive<f32>, step_size: f64,
 ) -> egui::Response {
     let width = ui.available_width();
+    // Preset marks live in this band so they cannot paint into content above.
+    const TICK_BAND_H: f32 = 10.0;
+    let (tick_band, _) =
+        ui.allocate_exact_size(egui::vec2(width, TICK_BAND_H), egui::Sense::hover());
+
+    ui.spacing_mut().slider_width = width;
     let mut slider_res = ui.add(
         egui::Slider::new(value, value_range.clone())
             .show_value(false)
             .step_by(step_size)
             .handle_shape(egui::style::HandleShape::Rect { aspect_ratio: 0.5 }),
     );
-    let slider_rect = slider_res.rect;
 
     let middle_range = value_range.start() + (value_range.end() - value_range.start()).abs() / 2.0;
-    let ticks = [value_range.start(), &middle_range, value_range.end()];
+    let ticks = [*value_range.start(), middle_range, *value_range.end()];
 
-    for (i, t) in ticks.iter().enumerate() {
-        let margin = egui::vec2(2.0, 10.0);
-        let end_y = slider_rect.top() - margin.y + (i as f32 * 3.0 + 1.0);
-
-        let total_spacing = width - (THICKNESS_BTN_WIDTH * ticks.len() as f32);
-        let spacing_between = total_spacing / (ticks.len() as f32 + 1.0);
-
-        let rect_start_x = slider_rect.left()
-            + spacing_between
-            + i as f32 * (THICKNESS_BTN_WIDTH + spacing_between);
-
-        let rect = match i {
-            0 => egui::Rect {
-                min: egui::pos2(slider_rect.left() + margin.x, slider_rect.top() - margin.y),
-                max: egui::pos2(slider_rect.left() + margin.x + THICKNESS_BTN_WIDTH, end_y),
-            },
-            1 => egui::Rect {
-                min: egui::pos2(rect_start_x, slider_rect.top() - margin.y),
-                max: egui::pos2(rect_start_x + THICKNESS_BTN_WIDTH, end_y),
-            },
-            2 => egui::Rect {
-                min: egui::pos2(
-                    slider_rect.right() - margin.x - THICKNESS_BTN_WIDTH,
-                    slider_rect.top() - margin.y,
-                ),
-                max: egui::pos2(slider_rect.right() - margin.x, end_y),
-            },
-            _ => break,
+    for (i, preset) in ticks.iter().enumerate() {
+        let tick_h = i as f32 * 3.0 + 1.0;
+        let x = match i {
+            0 => tick_band.left(),
+            1 => tick_band.center().x - THICKNESS_BTN_WIDTH / 2.0,
+            _ => tick_band.right() - THICKNESS_BTN_WIDTH,
         };
+        let rect = egui::Rect::from_min_max(
+            egui::pos2(x, tick_band.bottom() - tick_h),
+            egui::pos2(x + THICKNESS_BTN_WIDTH, tick_band.bottom()),
+        );
+        let id = ui.id().with("thick_tick").with(i);
+        let response = ui.interact(rect.expand2(egui::vec2(2.0, 3.0)), id, egui::Sense::click());
 
-        let response = ui.allocate_rect(rect.expand2(egui::vec2(0.0, 5.0)), egui::Sense::click());
-
-        if t.eq(&value) {
+        if (preset - *value).abs() < f32::EPSILON {
             ui.painter().rect_filled(
-                rect.expand(5.0),
+                rect.expand(3.0),
                 egui::CornerRadius::same(8),
                 egui::Color32::GRAY.linear_multiply(0.1),
             );
@@ -600,10 +612,9 @@ pub fn show_thickness_slider(
         );
 
         if response.clicked() {
-            *value = **t;
+            *value = *preset;
         }
         slider_res = slider_res.union(response);
     }
-    ui.advance_cursor_after_rect(slider_rect);
     slider_res
 }

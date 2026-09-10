@@ -53,33 +53,48 @@ pub struct PathSearcher {
 impl PathSearcher {
     pub async fn new(lb: &Lb) -> Self {
         let files = lb.list_metadatas().await.unwrap_or_default();
-        let mut paths = lb.list_paths_with_ids(None).await.unwrap_or_default();
-        paths.retain(|(_, path)| path != "/");
+        let paths = lb.list_paths_with_ids(None).await.unwrap_or_default();
+        let by_id: HashMap<Uuid, File> = files.into_iter().map(|f| (f.id, f)).collect();
+        Self::from_files(
+            paths
+                .into_iter()
+                .filter_map(|(id, path)| by_id.get(&id).cloned().map(|file| (file, path))),
+        )
+    }
 
+    /// Build a path index from an in-memory file list (`File` + path string).
+    /// Same matcher as [`Self::new`]; used by editor link completions so they
+    /// share ranking (including empty-query recents) with filename search.
+    pub fn from_files(entries: impl IntoIterator<Item = (File, String)>) -> Self {
         let notify = Arc::new(|| {});
         let nucleo: Nucleo<PathEntry> = Nucleo::new(nucleo::Config::DEFAULT, notify, None, 1);
         let injector = nucleo.injector();
 
-        for (id, path) in &paths {
-            if let Some(file) = files.iter().find(|f| f.id == *id) {
-                let (parent_path, filename) = split_path(path);
-                injector.push(
-                    PathEntry {
-                        file: file.clone(),
-                        path: path.clone(),
-                        filename: filename.to_string(),
-                        parent_path: parent_path.to_string(),
-                    },
-                    |entry, cols| {
-                        cols[0] = entry.path.as_str().into();
-                    },
-                );
+        let mut files = Vec::new();
+        let mut path_to_id = HashMap::new();
+
+        for (file, path) in entries {
+            if path == "/" {
+                files.push(file);
+                continue;
             }
+            let (parent_path, filename) = split_path(&path);
+            injector.push(
+                PathEntry {
+                    file: file.clone(),
+                    path: path.clone(),
+                    filename: filename.to_string(),
+                    parent_path: parent_path.to_string(),
+                },
+                |entry, cols| {
+                    cols[0] = entry.path.as_str().into();
+                },
+            );
+            path_to_id.insert(path, file.id);
+            files.push(file);
         }
 
         let descendants = build_descendants(&files);
-        let path_to_id = paths.iter().map(|(id, path)| (path.clone(), *id)).collect();
-
         let mut searcher = Self {
             nucleo,
             results: Vec::new(),
@@ -124,9 +139,11 @@ impl PathSearcher {
             let mut entries: Vec<&PathEntry> = (0..snapshot.matched_item_count())
                 .filter_map(|i| snapshot.get_matched_item(i).map(|item| item.data))
                 .filter(|e| {
-                    self.filter_ids
-                        .as_ref()
-                        .is_none_or(|ids| ids.contains(&e.file.id))
+                    e.file.is_document()
+                        && self
+                            .filter_ids
+                            .as_ref()
+                            .is_none_or(|ids| ids.contains(&e.file.id))
                 })
                 .collect();
             entries.sort_by_key(|e| Reverse(e.file.last_modified));

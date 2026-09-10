@@ -3,7 +3,7 @@ use std::sync::atomic::AtomicU64;
 use std::sync::{Arc, Mutex, RwLock};
 use unicode_segmentation::UnicodeSegmentation as _;
 
-use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, Format};
+use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 
 use comrak::nodes::{AstNode, NodeHeading, NodeValue};
 use egui::ahash::HashMap;
@@ -817,11 +817,7 @@ impl MdRender {
         };
         let key = GlyphonCacheKey::single(
             text,
-            match format.family {
-                FontFamily::Sans => GlyphonFontFamily::SansSerif,
-                FontFamily::Mono => GlyphonFontFamily::Monospace,
-                FontFamily::Icons => GlyphonFontFamily::Named("Nerd Fonts Mono Symbols".into()),
-            },
+            format.family.glyphon_cache_family(),
             format.bold,
             format.italic,
             Some(format.color.to_array()),
@@ -834,11 +830,7 @@ impl MdRender {
         let mut cache = glyphon_cache.lock().unwrap();
         cache.get_or_shape(key, move || {
             let attrs = glyphon::Attrs::new()
-                .family(match format.family {
-                    FontFamily::Sans => glyphon::Family::SansSerif,
-                    FontFamily::Mono => glyphon::Family::Monospace,
-                    FontFamily::Icons => glyphon::Family::Name("Nerd Fonts Mono Symbols"),
-                })
+                .family(format.family.glyphon_family())
                 .weight(if format.bold { glyphon::Weight::BOLD } else { glyphon::Weight::NORMAL })
                 .style(if format.italic { glyphon::Style::Italic } else { glyphon::Style::Normal });
             let metrics = glyphon::Metrics::new(font_size, line_height);

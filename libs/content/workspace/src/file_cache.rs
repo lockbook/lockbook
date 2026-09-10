@@ -19,6 +19,21 @@ pub enum ResolvedLink {
     External(String),
 }
 
+/// Split an internal link into `(path, fragment)`.
+///
+/// `http(s)` / `mailto` URLs are returned unchanged — their `#` belongs to the
+/// browser. Everything else splits on the first `#`. Empty path with a
+/// fragment (`#heading`) means the current file.
+pub fn split_internal_fragment(url: &str) -> (&str, Option<&str>) {
+    if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("mailto:") {
+        return (url, None);
+    }
+    match url.split_once('#') {
+        Some((path, frag)) => (path, Some(frag)),
+        None => (url, None),
+    }
+}
+
 type UuidMap<V> = HashMap<Uuid, V, UuidIdentityHasherBuilder>;
 
 fn uuid_map<V>() -> UuidMap<V> {
@@ -106,7 +121,7 @@ impl FileCache {
         rows.sort_by(cmp_cluster);
         let last_modified = rows.iter().map(|f| f.last_modified).max().unwrap_or(0);
         let by_id = index_rows(&rows);
-        Self {
+        let mut cache = Self {
             root,
             rows,
             by_id,
@@ -116,7 +131,9 @@ impl FileCache {
             last_modified_recursive: uuid_map(),
             last_modified_by_recursive: uuid_map(),
             last_modified,
-        }
+        };
+        cache.fill_recursive();
+        cache
     }
 
     #[instrument(name = "FileCache::new", level = "trace", skip_all, fields(n_files = tracing::field::Empty))]
@@ -127,10 +144,7 @@ impl FileCache {
         let shared = lb.get_pending_share_files()?;
         let shared_roots = lb.get_pending_shares()?;
         tracing::Span::current().record("n_files", files.len() + shared.len());
-        let mut cache =
-            Self::from_rows(root, files.into_iter().chain(shared), shared_roots, suggested);
-        cache.fill_recursive();
-        Ok(cache)
+        Ok(Self::from_rows(root, files.into_iter().chain(shared), shared_roots, suggested))
     }
 
     #[instrument(level = "trace", skip_all, fields(n))]
@@ -176,6 +190,14 @@ impl FileCache {
     /// Iterates all known files: the user's own tree plus pending shares.
     pub fn all_files(&self) -> impl Iterator<Item = &File> {
         self.rows.iter()
+    }
+
+    /// `(file, path)` rows for [`lb_rs::search::PathSearcher::from_files`].
+    pub fn path_index(&self) -> Vec<(File, String)> {
+        self.all_files()
+            .filter(|f| !f.is_root())
+            .map(|f| (f.clone(), self.path(f.id)))
+            .collect()
     }
 
     /// Returns path segments for a file, each annotated with whether that file
@@ -260,6 +282,46 @@ impl FileCache {
                 *ancestor_modified = file_modified;
                 self.last_modified_by_recursive
                     .insert(ancestor, file_modified_by.clone());
+            }
+        }
+    }
+
+    /// Replace a cached file with a freshly decrypted `File` after a content
+    /// write. Cluster position is unchanged (writes don't rename/move).
+    /// Missing ids fall through to [`Self::insert_created_file`].
+    pub fn refresh_file(&mut self, file: File) {
+        let Some(&idx) = self.by_id.get(&file.id) else {
+            self.insert_created_file(file);
+            return;
+        };
+        let idx = idx as usize;
+        let file_id = file.id;
+        let old_size = self.rows[idx].size_bytes;
+        let file_size = file.size_bytes;
+        let file_modified = file.last_modified;
+        let file_modified_by = file.last_modified_by.clone();
+        self.rows[idx] = file;
+
+        let delta = file_size as i64 - old_size as i64;
+        let own_rec = self
+            .size_bytes_recursive
+            .get(&file_id)
+            .copied()
+            .unwrap_or(old_size);
+        self.size_bytes_recursive
+            .insert(file_id, own_rec.saturating_add_signed(delta));
+        for ancestor in self.ancestors(file_id) {
+            let rec = self.size_bytes_recursive.entry(ancestor).or_insert(0);
+            *rec = rec.saturating_add_signed(delta);
+        }
+
+        self.last_modified = self.last_modified.max(file_modified);
+        for id in iter::once(file_id).chain(self.ancestors(file_id)) {
+            let rec = self.last_modified_recursive.entry(id).or_insert(0);
+            if file_modified >= *rec {
+                *rec = file_modified;
+                self.last_modified_by_recursive
+                    .insert(id, file_modified_by.clone());
             }
         }
     }
@@ -392,15 +454,21 @@ pub trait FilesExt {
     /// Resolves a URL from a regular link or image.
     ///
     /// - `lb://uuid` — verified against cache, returned as `File(uuid)`
-    /// - external (http/https/mailto/#) — returned as `External(url)`
+    /// - external (http/https/mailto) — returned as `External(url)`
     /// - absolute path (`/foo`) — anchored at the user's own root only;
     ///   never resolves into a pending share tree.
     /// - relative path — resolved against `from_id`'s folder, within the
     ///   same tree only; cross-tree links return None.
     ///
+    /// A `#fragment` on an internal URL is stripped before resolving; the
+    /// empty path (`#heading`) is not a file and returns None — the
+    /// document-aware resolver maps it to the current file.
+    ///
     /// Only documents resolve to `File`; folders are treated as broken.
     /// Returns None if the URL is an internal path that doesn't resolve.
     fn resolve_link(&self, url: &str, from_id: Uuid) -> Option<ResolvedLink> {
+        let (url, _) = split_internal_fragment(url);
+
         if let Some(id_str) = url.strip_prefix("lb://") {
             let id = Uuid::parse_str(id_str).ok()?;
             let file = self.get_by_id(id)?;
@@ -410,12 +478,14 @@ pub trait FilesExt {
             return Some(ResolvedLink::File(id));
         }
 
-        if url.starts_with("http://")
-            || url.starts_with("https://")
-            || url.starts_with("mailto:")
-            || url.starts_with('#')
-        {
+        if url.starts_with("http://") || url.starts_with("https://") || url.starts_with("mailto:") {
             return Some(ResolvedLink::External(url.to_string()));
+        }
+
+        // Same-file fragment (`#heading`) has no path; the document resolver
+        // maps this to the current file. Folders must not resolve here.
+        if url.is_empty() {
+            return None;
         }
 
         let file = if url.starts_with('/') {
@@ -455,6 +525,10 @@ pub trait FilesExt {
     /// (multiple equally-specific, equally-near documents) — adding an extension
     /// or a path disambiguates.
     fn resolve_wikilink(&self, title: &str, from_id: Uuid) -> Option<Uuid> {
+        let (title, _) = split_internal_fragment(title);
+        if title.is_empty() {
+            return None;
+        }
         if let Some((dir, last)) = title.rsplit_once('/') {
             let dir_id = self.resolve_relative_path(from_id, dir)?.id;
             let docs: Vec<&File> = self
@@ -659,7 +733,7 @@ fn match_title(docs: &[&File], title: &str) -> Option<Uuid> {
 }
 
 /// A lockbook path split into its non-empty segments — the shared step
-/// behind every path-boundary comparison here (and `chat::tools::in_scope`):
+/// behind every path-boundary comparison here:
 /// segment-vector equality is immune to the sibling-prefix trap raw string
 /// slicing invites (`/notes` is not a prefix-match for `/notes2/a.md` once
 /// paths are segments rather than characters).
@@ -862,5 +936,55 @@ mod tests {
         assert_eq!(names, ["a", "b.md", "c.md"]);
         assert_eq!(cache.get_by_id(Uuid::from_u128(3)).unwrap().name, "a");
         assert_eq!(cache.get_by_id(Uuid::from_u128(4)).unwrap().name, "c.md");
+    }
+
+    #[test]
+    fn refresh_file_updates_mtime_size_and_ancestors() {
+        let root = Uuid::from_u128(1);
+        let folder = Uuid::from_u128(2);
+        let doc = Uuid::from_u128(3);
+        let mut cache = FileCache::from_owned_and_shared(
+            file(root, root, "root", FileType::Folder),
+            [
+                file(root, root, "root", FileType::Folder),
+                file(folder, root, "notes", FileType::Folder),
+                {
+                    let mut f = file(doc, folder, "meeting.md", FileType::Document);
+                    f.last_modified = 10;
+                    f.size_bytes = 100;
+                    f.last_modified_by = "travis".into();
+                    f
+                },
+            ],
+            [],
+        );
+        assert_eq!(cache.last_modified_recursive(doc), 10);
+        assert_eq!(cache.size_bytes_recursive[&doc], 100);
+
+        let mut fresh = file(doc, folder, "meeting.md", FileType::Document);
+        fresh.last_modified = 50;
+        fresh.size_bytes = 250;
+        fresh.last_modified_by = "parth".into();
+        cache.refresh_file(fresh);
+
+        let got = cache.get_by_id(doc).unwrap();
+        assert_eq!(got.last_modified, 50);
+        assert_eq!(got.size_bytes, 250);
+        assert_eq!(got.last_modified_by, "parth");
+        assert_eq!(cache.last_modified, 50);
+        assert_eq!(cache.last_modified_recursive(doc), 50);
+        assert_eq!(cache.last_modified_recursive(folder), 50);
+        assert_eq!(cache.last_modified_by_recursive(folder), "parth");
+        assert_eq!(cache.size_bytes_recursive[&doc], 250);
+        assert_eq!(
+            cache.size_bytes_recursive[&folder],
+            cache.size_bytes_recursive[&doc] // folder only contains this doc in the test tree
+        );
+        let names: Vec<&str> = cache
+            .children(folder)
+            .iter()
+            .map(|f| f.name.as_str())
+            .collect();
+        assert_eq!(names, ["meeting.md"]);
     }
 }

@@ -9,9 +9,9 @@ use crate::tab::image_viewer::ImageViewer;
 use crate::tab::markdown_editor::Editor as Markdown;
 use crate::tab::pdf_viewer::PdfViewer;
 
+use crate::style::phosphor;
 use crate::tab::svg_editor::SVGEditor;
 use crate::task_manager::TaskManager;
-use crate::theme::icons::Icon;
 use crate::workspace::Workspace;
 
 use chrono::DateTime;
@@ -159,6 +159,11 @@ impl Session {
     }
 }
 
+/// Search tab that was created (not navigated to): safe to close when leaving.
+pub fn session_is_disposable_search(s: &Session) -> bool {
+    matches!(s.dest, Destination::Search) && s.back.is_empty() && s.forward.is_empty()
+}
+
 /// How an "open from sidebar" action should treat the tab strip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TabAction {
@@ -169,8 +174,7 @@ pub enum TabAction {
 }
 
 /// `in_new_tab` is the explicit menu/cmd-click request. `desktop_tab_policy`
-/// is activate-if-open / honor the open-in-new-tab setting. Distinct from
-/// drawing the egui tab strip (`Workspace::show_tabs`). Desktop with the
+/// is activate-if-open / honor the open-in-new-tab setting. Desktop with the
 /// setting off navigates in the current session so back still works.
 pub fn tab_action_for_open(
     dest_already_open: bool, in_new_tab: bool, desktop_tab_policy: bool, open_in_new_tab: bool,
@@ -284,6 +288,29 @@ impl Tab {
         }
     }
 
+    pub fn pdf_mut(&mut self) -> Option<&mut PdfViewer> {
+        match &mut self.content {
+            ContentState::Open(TabContent::Pdf(pdf)) => Some(pdf),
+            _ => None,
+        }
+    }
+
+    /// Pin derived work (image decode) without painting. No-op for other kinds.
+    pub fn warm_preview(&self) {
+        if let Some(img) = self.image_viewer() {
+            img.warm();
+        }
+    }
+
+    /// Safe to put on screen: bytes are in, and images have a texture (or failed).
+    pub fn preview_ready(&self) -> bool {
+        match &self.content {
+            ContentState::Loading(_) => false,
+            ContentState::Open(TabContent::Image(img)) => img.paint_ready(),
+            ContentState::Open(_) | ContentState::Failed(_) => true,
+        }
+    }
+
     pub fn svg(&self) -> Option<&SVGEditor> {
         match &self.content {
             ContentState::Open(TabContent::Svg(svg)) => Some(svg),
@@ -362,7 +389,7 @@ impl Tab {
     fn show_inner(&mut self, ui: &mut egui::Ui) -> Response {
         match &mut self.content {
             ContentState::Loading(_) => {
-                ui.spinner();
+                crate::style::loading_indicator(ui);
                 Response::default()
             }
             ContentState::Failed(fail) => {
@@ -374,9 +401,12 @@ impl Tab {
                 match content {
                     #[cfg(not(target_family = "wasm"))]
                     TabContent::Chat(chat) => {
+                        let seq_before = chat.seq;
                         let (sent, interaction_rect, composer_updated, composer_text_updated) =
                             chat.show(ui);
-                        if sent {
+                        // Streamed assistant tokens (and salvage) must dirty
+                        // the tab — `sent` is only the user hitting Send.
+                        if sent || chat.seq != seq_before {
                             self.last_changed = Instant::now();
                         }
                         // App-driven composer edits (send-clear, prefill) must
@@ -621,14 +651,12 @@ pub enum TabStatus {
 }
 
 impl TabStatus {
-    pub fn icon(&self) -> Icon {
+    pub fn icon(&self) -> &'static str {
         match self {
-            TabStatus::Dirty => Icon::CIRCLE,
-            TabStatus::LoadQueued => Icon::SCHEDULE,
-            TabStatus::LoadInProgress => Icon::SAVE,
-            TabStatus::SaveQueued => Icon::SCHEDULE,
-            TabStatus::SaveInProgress => Icon::SAVE,
-            TabStatus::Clean => Icon::CHECK_CIRCLE,
+            TabStatus::Dirty => phosphor::CIRCLE,
+            TabStatus::LoadQueued | TabStatus::SaveQueued => phosphor::CLOCK,
+            TabStatus::LoadInProgress | TabStatus::SaveInProgress => phosphor::FLOPPY_DISK,
+            TabStatus::Clean => phosphor::CHECK_CIRCLE,
         }
     }
 
@@ -714,6 +742,12 @@ pub trait ExtendedOutput {
     /// to type over).
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
     fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)>;
+    /// Open a file and scroll to the heading matching `fragment`.
+    fn open_file_at_fragment(&self, id: Uuid, fragment: String, new_tab: bool);
+    fn pop_open_fragments(&self) -> Vec<(Uuid, String, bool)>;
+    /// Create the missing dest of a broken wiki/markdown link, then open it.
+    fn create_from_link(&self, from_id: Uuid, dest: String, is_wikilink: bool, new_tab: bool);
+    fn pop_create_from_links(&self) -> Vec<(Uuid, String, bool, bool)>;
 }
 
 impl ExtendedOutput for egui::Context {
@@ -768,6 +802,44 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| {
             m.data
                 .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_ranges"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn open_file_at_fragment(&self, id: Uuid, fragment: String, new_tab: bool) {
+        self.memory_mut(|m| {
+            let mut frags: Vec<(Uuid, String, bool)> = m
+                .data
+                .get_temp(Id::new("open_fragments"))
+                .unwrap_or_default();
+            frags.push((id, fragment, new_tab));
+            m.data.insert_temp(Id::new("open_fragments"), frags);
+        })
+    }
+
+    fn pop_open_fragments(&self) -> Vec<(Uuid, String, bool)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, String, bool)>>(Id::new("open_fragments"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn create_from_link(&self, from_id: Uuid, dest: String, is_wikilink: bool, new_tab: bool) {
+        self.memory_mut(|m| {
+            let mut reqs: Vec<(Uuid, String, bool, bool)> = m
+                .data
+                .get_temp(Id::new("create_from_links"))
+                .unwrap_or_default();
+            reqs.push((from_id, dest, is_wikilink, new_tab));
+            m.data.insert_temp(Id::new("create_from_links"), reqs);
+        })
+    }
+
+    fn pop_create_from_links(&self) -> Vec<(Uuid, String, bool, bool)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, String, bool, bool)>>(Id::new("create_from_links"))
                 .unwrap_or_default()
         })
     }
@@ -1019,6 +1091,15 @@ mod nav_tests {
         assert_eq!(session.id, id);
         assert!(session.forward.is_empty());
         assert!(session.back.is_empty());
+    }
+
+    #[test]
+    fn disposable_search_is_empty_history_only() {
+        let s = Session::new(Destination::Search);
+        assert!(session_is_disposable_search(&s));
+        let mut from_file = Session::new(file(1));
+        from_file.navigate(Destination::Search);
+        assert!(!session_is_disposable_search(&from_file));
     }
 
     #[test]

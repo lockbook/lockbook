@@ -255,6 +255,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                     *name = s;
                 }
             }
+            app.settings.create_kind = kind.as_key().to_string();
+            let _ = app.settings.to_file();
         }
         A::CreateSetLoc(loc) => {
             let (alongside, kind, dirty, chosen) = match &app.modal {
@@ -359,12 +361,10 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                 *dest = Some(id);
             }
         }
-        A::ConfirmMove => {
+        A::ConfirmMove { update_refs } => {
             if let Some(Modal::Move { ids, dest }) = app.modal.take() {
                 if let (Some(d), Some(r)) = (dest, app.session.ready_mut()) {
-                    for id in &ids {
-                        r.workspace.move_file((*id, d));
-                    }
+                    r.workspace.move_files(&ids, d, update_refs);
                     r.expanded.insert(d);
                 }
             }
@@ -392,7 +392,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
             app.modal = Some(Modal::Rename { id, name: stem, ext });
             ctx.data_mut(|d| d.insert_temp(egui::Id::new("shell_rename_need_focus"), true));
         }
-        A::ConfirmRename => {
+        A::ConfirmRename { update_refs } => {
             if let Some(Modal::Rename { id, name, ext }) = app.modal.take() {
                 let full = rename_join_name(name.trim(), ext.as_deref());
                 // Primary is disabled when invalid; Enter is gated the same way.
@@ -417,7 +417,7 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
                         return;
                     }
                     // Core failure lands on workspace.failure_messages → toast in editor.
-                    r.workspace.rename_file((id, full), true);
+                    r.workspace.rename_file((id, full), true, update_refs);
                 }
             }
         }
@@ -522,11 +522,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         A::TogglePinMany(ids) => toggle_pins(app, &ids),
         A::MoveInto { ids, parent } => {
             if let Some(r) = app.session.ready_mut() {
-                for id in &ids {
-                    if *id != parent {
-                        r.workspace.move_file((*id, parent));
-                    }
-                }
+                let ids: Vec<Uuid> = ids.into_iter().filter(|id| *id != parent).collect();
+                r.workspace.move_files(&ids, parent, false);
                 r.expanded.insert(parent);
             }
         }
@@ -554,7 +551,8 @@ pub fn apply(app: &mut ShellApp, ctx: &Context, action: A) {
         }
         A::OpenSearch => {
             if let Some(r) = app.session.ready_mut() {
-                r.workspace.upsert_search(None);
+                r.workspace
+                    .upsert_search(Some(workspace_rs::search::SearchType::Path));
             }
         }
         A::CancelSubscription => {
@@ -882,7 +880,11 @@ fn open_create_sheet(
     };
     let plan = create_sheet_plan(root, folder, alongside);
 
-    let kind = if prefer_folder { CreateKind::Folder } else { CreateKind::Note };
+    let kind = if prefer_folder {
+        CreateKind::Folder
+    } else {
+        CreateKind::from_key(&app.settings.create_kind)
+    };
     let name = suggested_create_name(app, plan.parent, kind);
     app.modal = Some(Modal::Create {
         name,

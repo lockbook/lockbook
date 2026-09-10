@@ -1,24 +1,27 @@
-use egui::{Context, CornerRadius, Frame, Key, Margin, Modifiers, Ui};
+use std::sync::Arc;
+
+use egui::{Color32, Context, FontFamily, FontId, Galley, Id, Key, Modifiers, Ui, pos2};
 use lb_rs::blocking::Lb;
 use lb_rs::search::SearchFilter;
 
 use crate::{
     search::{SearchExecutor, SearchType},
-    show::{DocType, InputStateExt},
-    theme::{
-        icons::Icon,
-        palette_v2::{Palette, ThemeExt},
+    show::InputStateExt,
+    style::{
+        FileRow, Space, ThemeExt, TypeRole, file_row_icon, parent_crumbs, phosphor,
+        phosphor_ui_font_id, with_overlay_scroll,
     },
-    widgets::GlyphonLabel,
 };
 
 pub struct PathSearch {
     searcher: lb_rs::search::PathSearcher,
     submitted_query: String,
-    selected: usize,
+    selected: Option<usize>,
     activate: bool,
+    activate_new_tab: bool,
     kb_mode: bool,
     selected_id: Option<lb_rs::Uuid>,
+    scoped: bool,
 }
 
 struct Row {
@@ -26,7 +29,6 @@ struct Row {
     filename: String,
     parent_path: String,
     is_folder: bool,
-    path_indices: Vec<u32>,
 }
 
 impl SearchExecutor for PathSearch {
@@ -37,49 +39,76 @@ impl SearchExecutor for PathSearch {
     fn handle_query(&mut self, query: &str) {
         self.submitted_query = query.to_string();
         self.searcher.query(query);
-        self.selected = 0;
-        self.kb_mode = true;
+        self.selected = None;
+        self.kb_mode = false;
+        self.selected_id = None;
     }
 
     fn update_filter(&mut self, filter: Option<SearchFilter>) {
+        self.scoped = filter.is_some();
         self.searcher.update_filter(filter);
-        self.selected = 0;
+        self.selected = None;
+        self.selected_id = None;
     }
 
     fn set_kb_mode(&mut self, kb_mode: bool) {
         self.kb_mode = kb_mode;
     }
 
-    fn show_result_picker(
-        &mut self, ui: &mut egui::Ui, allow_kb_nav: bool,
-    ) -> super::PickerResponse {
-        self.process_keys(ui.ctx(), allow_kb_nav);
+    fn request_activate(&mut self) {
+        self.activate = true;
+    }
 
+    fn request_activate_in_new_tab(&mut self) {
+        self.activate = true;
+        self.activate_new_tab = true;
+    }
+
+    fn has_rows(&self) -> bool {
+        !self.searcher.results().is_empty()
+    }
+
+    fn show_result_picker(
+        &mut self, ui: &mut egui::Ui, allow_kb_nav: bool, scope_name: &str, empty_centered: bool,
+    ) -> super::PickerResponse {
         let rows = self.rows();
         let n = rows.len();
+        if !self.submitted_query.is_empty() && n > 0 && self.selected.is_none() {
+            self.selected = Some(0);
+            self.kb_mode = true;
+        }
 
-        if n > 0 && self.selected >= n {
-            self.selected = n - 1;
+        self.process_keys(ui.ctx(), allow_kb_nav);
+
+        if let Some(i) = self.selected {
+            if n == 0 {
+                self.selected = None;
+            } else if i >= n {
+                self.selected = Some(n - 1);
+            }
         }
 
         if self.activate {
             self.activate = false;
-            let activated = rows.get(self.selected).map(|r| r.id);
+            let activated = self.selected.and_then(|i| rows.get(i).map(|r| r.id));
+            let in_new_tab = std::mem::take(&mut self.activate_new_tab);
             return super::PickerResponse {
                 activated,
-                activated_in_new_tab: false,
+                activated_in_new_tab: in_new_tab,
                 selected: self.selected_id,
                 selected_range: None,
+                clear_scope: false,
             };
         }
 
         if n == 0 {
-            self.show_empty_state(ui);
+            let clear_scope = self.show_empty_state(ui, scope_name, empty_centered);
             return super::PickerResponse {
                 activated: None,
                 activated_in_new_tab: false,
                 selected: self.selected_id,
                 selected_range: None,
+                clear_scope,
             };
         }
 
@@ -88,52 +117,55 @@ impl SearchExecutor for PathSearch {
         let mut clicked_id: Option<lb_rs::Uuid> = None;
         let mut clicked_new_tab = false;
 
-        const ROW_HEIGHT: f32 = 16.0 * 1.3 + 13.0 * 1.3 + 6.0;
+        const ROW_HEIGHT: f32 = FileRow::height_for(true);
 
-        ui.style_mut().spacing.scroll = egui::style::ScrollStyle::solid();
-        ui.style_mut().spacing.scroll.floating = true;
-        ui.style_mut().spacing.scroll.bar_width *= 2.0;
-        ui.spacing_mut().scroll.floating_width = 12.0;
-        ui.spacing_mut().scroll.dormant_handle_opacity = 0.5;
+        let highlight = self.selected;
+        let t = ui.ctx().get_lb_theme();
+        with_overlay_scroll(ui, Id::new("search_path_scroll"), |ui| {
+            let out = egui::ScrollArea::vertical()
+                .id_salt("search_path_rows")
+                .auto_shrink([false, false])
+                .show_rows(ui, ROW_HEIGHT, n, |ui, range| {
+                    ui.spacing_mut().item_spacing.y = 0.0;
 
-        let highlight = Some(self.selected);
+                    for index in range {
+                        let Some(row) = rows.get(index) else { continue };
 
-        egui::ScrollArea::vertical()
-            .scroll_bar_visibility(egui::scroll_area::ScrollBarVisibility::AlwaysVisible)
-            .show_rows(ui, ROW_HEIGHT, n, |ui, range| {
-                ui.spacing_mut().item_spacing.y = 0.0;
-
-                for index in range {
-                    let Some(row) = rows.get(index) else { continue };
-
-                    let resp = self.show_result_cell(ui, row, index, highlight == Some(index));
-                    if resp.hovered() {
-                        hovered = Some(index);
-                    }
-                    if resp.clicked() {
-                        clicked = Some(index);
-                        clicked_id = Some(row.id);
-                        clicked_new_tab = ui.input(|i| i.modifiers.command);
-                    }
-                    resp.context_menu(|ui| {
-                        if ui.button("Open in new tab").clicked() {
-                            clicked_id = Some(row.id);
-                            clicked_new_tab = true;
-                            ui.close();
+                        let resp = self.show_result_cell(ui, row, index, highlight == Some(index));
+                        if self.kb_mode && self.selected == Some(index) {
+                            resp.scroll_to_me(None);
                         }
-                    });
-                }
-            });
+                        if resp.hovered() {
+                            hovered = Some(index);
+                        }
+                        if resp.clicked() {
+                            clicked = Some(index);
+                            clicked_id = Some(row.id);
+                            clicked_new_tab = ui.input(|i| i.modifiers.command);
+                        }
+                        if let Some(new_tab) = crate::style::context_menu::show(&resp, &t, |e| {
+                            e.item(phosphor::ARROW_SQUARE_OUT, "Open", false);
+                            if !row.is_folder {
+                                e.item(phosphor::APP_WINDOW, "Open in new tab", true);
+                            }
+                        }) {
+                            clicked_id = Some(row.id);
+                            clicked_new_tab = new_tab;
+                        }
+                    }
+                });
+            ((), out.state.offset.y, out.id)
+        });
 
         if let Some(i) = clicked {
-            self.selected = i;
+            self.selected = Some(i);
         } else if !self.kb_mode {
             if let Some(i) = hovered {
-                self.selected = i;
+                self.selected = Some(i);
             }
         }
 
-        let new_id = rows.get(self.selected).map(|r| r.id);
+        let new_id = self.selected.and_then(|i| rows.get(i).map(|r| r.id));
         if new_id != self.selected_id {
             self.selected_id = new_id;
         }
@@ -143,6 +175,7 @@ impl SearchExecutor for PathSearch {
             activated_in_new_tab: clicked_new_tab,
             selected: self.selected_id,
             selected_range: None,
+            clear_scope: false,
         }
     }
 }
@@ -152,10 +185,12 @@ impl PathSearch {
         Self {
             searcher: lb.path_searcher(),
             submitted_query: String::new(),
-            selected: 0,
+            selected: None,
             activate: false,
-            kb_mode: true,
+            activate_new_tab: false,
+            kb_mode: false,
             selected_id: None,
+            scoped: false,
         }
     }
 
@@ -168,7 +203,6 @@ impl PathSearch {
                 filename: r.filename.clone(),
                 parent_path: r.parent_path.clone(),
                 is_folder: r.is_folder,
-                path_indices: r.path_indices.clone(),
             })
             .collect()
     }
@@ -189,161 +223,99 @@ impl PathSearch {
         if allow_kb_nav {
             ctx.input_mut(|i| {
                 if i.consume_key_exact(Modifiers::NONE, Key::ArrowDown) {
-                    self.selected = self.selected.saturating_add(1);
+                    self.selected = Some(self.selected.map_or(0, |i| i.saturating_add(1)));
                     self.kb_mode = true;
                 }
                 if i.consume_key_exact(Modifiers::NONE, Key::ArrowUp) {
-                    self.selected = self.selected.saturating_sub(1);
+                    self.selected = Some(self.selected.map_or(0, |i| i.saturating_sub(1)));
                     self.kb_mode = true;
                 }
-                if i.consume_key_exact(Modifiers::NONE, Key::Enter) {
+                if i.consume_key_exact(Modifiers::COMMAND, Key::Enter) && self.selected.is_some() {
+                    self.activate = true;
+                    self.activate_new_tab = true;
+                }
+                if i.consume_key_exact(Modifiers::NONE, Key::Enter) && self.selected.is_some() {
                     self.activate = true;
                 }
                 for (idx, &k) in NUM_KEYS.iter().enumerate() {
                     if i.consume_key_exact(Modifiers::COMMAND, k) {
-                        self.selected = idx;
+                        self.selected = Some(idx);
                         self.activate = true;
                     }
                 }
             });
         }
 
-        if ctx.input(|i| i.pointer.delta().length_sq() > 0.0) {
+        if ctx.input(|i| i.pointer.delta().length_sq() > 16.0) {
             self.kb_mode = false;
         }
     }
 
-    fn show_empty_state(&self, ui: &mut Ui) {
-        let theme = ui.ctx().get_lb_theme();
-        let muted = theme.neutral_fg_secondary();
-        let variant = theme.fg();
-
-        let (icon, title, subtitle, icon_color): (Icon, &str, &str, _) =
-            if self.submitted_query.is_empty() {
-                (
-                    Icon::SEARCH,
-                    "Find a file",
-                    "Start typing to search by name",
-                    variant.get_color(Palette::Blue),
-                )
-            } else {
-                (Icon::DOC_UNKNOWN, "No files found", "Try a different name", muted)
-            };
-
-        // Fill the available region so the pane doesn't collapse to 0 width.
-        let rect = ui.available_rect_before_wrap();
-        ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-            ui.with_layout(egui::Layout::centered_and_justified(egui::Direction::TopDown), |ui| {
-                ui.vertical_centered(|ui| {
-                    ui.add_space(24.0);
-                    icon.size(42.0).color(icon_color).show(ui);
-                    ui.add_space(14.0);
-                    ui.add(GlyphonLabel::new(title, theme.neutral_fg()).font_size(18.0));
-                    ui.add_space(6.0);
-                    ui.add(GlyphonLabel::new(subtitle, muted).font_size(13.0));
-                });
-            });
-        });
+    fn show_empty_state(&self, ui: &mut Ui, scope_name: &str, center: bool) -> bool {
+        let (title, subtitle, in_folder) = if self.submitted_query.is_empty() {
+            ("No recent files", "Start typing to search by name", None)
+        } else {
+            ("No files found", "", Some(scope_name))
+        };
+        super::paint_search_empty(ui, title, subtitle, self.scoped, in_folder, center)
     }
 
     fn show_result_cell(
         &self, ui: &mut Ui, row: &Row, index: usize, selected: bool,
     ) -> egui::Response {
-        let theme = ui.ctx().get_lb_theme();
-        let name_color = theme.neutral_fg();
-        let parent_color = theme.neutral_fg_secondary();
-
-        // Path indices are relative to full path; compute offset for filename
-        let parent_char_len =
-            row.parent_path.chars().count() as u32 + if row.parent_path.is_empty() { 0 } else { 1 }; // +1 for the '/'
-
-        let mut frame = Frame::new()
-            .inner_margin(Margin { left: 8, right: 8, top: 3, bottom: 3 })
-            .outer_margin(Margin { left: 0, right: 20, top: 0, bottom: 0 })
-            .corner_radius(CornerRadius::same(4));
-        if selected {
-            frame = frame.fill(theme.neutral_bg_tertiary());
+        let t = ui.ctx().get_lb_theme();
+        let trail = if index < 9 { shortcut_trail_w(ui, &t) } else { 0.0 };
+        let icon =
+            if row.is_folder { phosphor::FOLDER } else { file_row_icon(&row.filename, false) };
+        let resp = FileRow::new(&t, &row.filename)
+            .icon(icon)
+            .subtitle(parent_crumbs(&row.parent_path))
+            .selected(selected)
+            .trail_reserve(trail)
+            .show(ui, Id::new("search_row").with(row.id));
+        if index < 9 {
+            paint_row_shortcut(ui, &t, resp.rect, index + 1);
         }
-
-        let inner = frame.show(ui, |ui| {
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 10.0;
-                ui.set_min_height(16.0 * 1.3 + 13.0 * 1.3);
-
-                let icon_size = 19.;
-
-                let (icon, icon_color) = if !row.is_folder {
-                    (
-                        DocType::from_name(&row.filename).to_icon().size(icon_size),
-                        theme.neutral_fg_secondary(),
-                    )
-                } else {
-                    (Icon::FOLDER.size(icon_size), theme.fg().get_color(theme.prefs().primary))
-                };
-                icon.color(icon_color).show(ui);
-
-                ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
-                    ui.spacing_mut().item_spacing.x = 3.0;
-                    if index < 9 {
-                        let modifier = if cfg!(any(target_os = "macos", target_os = "ios")) {
-                            "⌘"
-                        } else {
-                            "Ctrl"
-                        };
-                        let number = (index + 1).to_string();
-                        for glyph in [number.as_str(), modifier] {
-                            ui.add(GlyphonLabel::new(glyph, parent_color).font_size(12.0));
-                        }
-                    }
-
-                    if row.is_folder {
-                        ui.add_space(6.0);
-                        Icon::FILTER.size(14.0).color(parent_color).show(ui);
-                    }
-
-                    ui.with_layout(egui::Layout::top_down(egui::Align::LEFT), |ui| {
-                        ui.spacing_mut().item_spacing.y = 0.0;
-                        Self::highlighted_line(
-                            ui,
-                            &row.filename,
-                            &row.path_indices,
-                            parent_char_len,
-                            name_color,
-                            16.0,
-                        );
-                        Self::highlighted_line(
-                            ui,
-                            &row.parent_path,
-                            &row.path_indices,
-                            0,
-                            parent_color,
-                            13.0,
-                        );
-                    });
-                });
-            });
-        });
-
-        ui.interact(inner.response.rect, ui.id().with(("search_row", row.id)), egui::Sense::click())
+        resp
     }
+}
 
-    fn highlighted_line(
-        ui: &mut Ui, text: &str, highlights: &[u32], char_offset: u32, color: egui::Color32,
-        size: f32,
-    ) {
-        let mut spans: Vec<(String, bool)> = Vec::new();
-        for (i, c) in text.chars().enumerate() {
-            let bold = highlights.contains(&(char_offset + i as u32));
-            match spans.last_mut() {
-                Some((s, b)) if *b == bold => s.push(c),
-                _ => spans.push((c.to_string(), bold)),
-            }
-        }
-        let span_refs: Vec<(&str, bool)> = spans.iter().map(|(s, b)| (s.as_str(), *b)).collect();
-        ui.add(
-            GlyphonLabel::new_rich(span_refs, color)
-                .font_size(size)
-                .max_width(ui.available_width()),
-        );
-    }
+fn shortcut_mod(ui: &Ui, ink: Color32) -> Arc<Galley> {
+    // Same language as button badges: Phosphor ⌘ at body, or “Ctrl” in body mono.
+    let (text, font) = if cfg!(any(target_os = "macos", target_os = "ios")) {
+        (phosphor::COMMAND.to_owned(), phosphor_ui_font_id())
+    } else {
+        ("Ctrl".to_owned(), FontId::new(TypeRole::Body.size(), FontFamily::Monospace))
+    };
+    ui.painter().layout_no_wrap(text, font, ink)
+}
+
+fn shortcut_num_font() -> FontId {
+    FontId::new(TypeRole::Body.size(), FontFamily::Monospace)
+}
+
+pub(crate) fn shortcut_trail_w(ui: &Ui, t: &crate::style::Theme) -> f32 {
+    let ink = t.neutral_fg_secondary();
+    let m = shortcut_mod(ui, ink);
+    let n = ui
+        .painter()
+        .layout_no_wrap("9".into(), shortcut_num_font(), ink);
+    // Same outer inset as the leading file icon (`INDENT_BASE`).
+    m.size().x + n.size().x + Space::Xxs.pts() + crate::style::tree_metrics::INDENT_BASE
+}
+
+pub(crate) fn paint_row_shortcut(ui: &Ui, t: &crate::style::Theme, row: egui::Rect, n: usize) {
+    let ink = t.neutral_fg_secondary();
+    let ng = ui
+        .painter()
+        .layout_no_wrap(n.to_string(), shortcut_num_font(), ink);
+    let mg = shortcut_mod(ui, ink);
+    let cy = row.center().y;
+    let mut x = row.right() - crate::style::tree_metrics::INDENT_BASE;
+    x -= ng.size().x;
+    ui.painter()
+        .galley(pos2(x, cy - ng.size().y / 2.0), ng, ink);
+    x -= Space::Xxs.pts() + mg.size().x;
+    ui.painter()
+        .galley(pos2(x, cy - mg.size().y / 2.0), mg, ink);
 }

@@ -116,7 +116,8 @@ pub extern "C" fn can_nav_forward(obj: *mut c_void) -> bool {
 #[no_mangle]
 pub extern "C" fn show_search(obj: *mut c_void) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.upsert_search(None);
+    obj.workspace
+        .upsert_search(Some(workspace_rs::search::SearchType::Path));
 }
 
 #[no_mangle]

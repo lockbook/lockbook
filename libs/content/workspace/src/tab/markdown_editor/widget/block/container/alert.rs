@@ -1,12 +1,11 @@
+use crate::style::{phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Format;
 use crate::theme::palette_v2::ThemeExt as _;
 use comrak::nodes::{AlertType, AstNode, NodeAlert};
-use egui::{Pos2, Rect, Stroke, TextStyle, TextWrapMode, Ui, Vec2, WidgetText};
+use egui::{Color32, Pos2, Rect, Stroke, Ui, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _, RangeIterExt as _};
 
 use crate::tab::markdown_editor::MdRender;
-
-use crate::theme::icons::Icon;
 
 impl<'ast> MdRender {
     pub fn text_format_alert(&self, parent: &AstNode<'_>, node_alert: &NodeAlert) -> Format {
@@ -180,20 +179,23 @@ impl<'ast> MdRender {
 
             // icon
             {
-                let icon = &match node_alert.alert_type {
-                    AlertType::Note => Icon::INFO,
-                    AlertType::Tip => Icon::LIGHT_BULB,
-                    AlertType::Important => Icon::FEEDBACK,
-                    AlertType::Warning => Icon::WARNING_2,
-                    AlertType::Caution => Icon::REPORT,
+                let glyph = match node_alert.alert_type {
+                    AlertType::Note => phosphor::INFO,
+                    AlertType::Tip => phosphor::LIGHTBULB,
+                    AlertType::Important => phosphor::MEGAPHONE,
+                    AlertType::Warning => phosphor::WARNING,
+                    AlertType::Caution => phosphor::WARNING_OCTAGON,
                 };
-
-                let icon_text: WidgetText = icon.into();
-                let galley =
-                    icon_text.into_galley(ui, Some(TextWrapMode::Extend), 0., TextStyle::Body);
-                let draw_pos = icon_space.center() - galley.size() / 2.;
-                ui.painter()
-                    .galley(draw_pos, galley, self.text_format(node).color);
+                let g = ui.painter().layout_no_wrap(
+                    glyph.into(),
+                    phosphor_font_id(icon_space.height() * 0.75),
+                    Color32::PLACEHOLDER,
+                );
+                ui.painter().galley(
+                    icon_space.center() - g.size() / 2.0,
+                    g,
+                    self.text_format(node).color,
+                );
             }
 
             let (_type, title) = self.alert_type_title_ranges(node);

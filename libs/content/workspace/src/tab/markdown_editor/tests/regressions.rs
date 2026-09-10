@@ -31,7 +31,7 @@ fn inline_image_advance_matches_rendered_width() {
     use std::sync::RwLock;
 
     let lb = super::harness::build_lb();
-    let ctx = egui::Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     ctx.set_pixels_per_point(2.0);
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
@@ -54,6 +54,7 @@ fn inline_image_advance_matches_rendered_width() {
             link_resolver: Box::new(()),
             embeds: embed,
             files,
+            doc_index: crate::doc_index::DocIndex::empty(),
         },
         super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
     );
@@ -425,6 +426,7 @@ fn adjacent_inline_code_backgrounds_dont_overlap() {
 
 #[test]
 fn icon_glyphs_skip_emoji_font() {
+    use crate::style::phosphor;
     use crate::tab::markdown_editor::widget::utils::wrap_layout::{FontFamily, shape_as_emoji};
     use crate::theme::icons::Icon;
 
@@ -433,6 +435,7 @@ fn icon_glyphs_skip_emoji_font() {
     // route to the colorless emoji font, or it renders in the default fg
     // instead of blue (#4653).
     assert!(!shape_as_emoji(&FontFamily::Icons, Icon::OPEN_IN_NEW.icon));
+    assert!(!shape_as_emoji(&FontFamily::Phosphor, phosphor::ARROW_SQUARE_OUT));
 
     // Emoji in regular text still route to the emoji font — the Icons guard
     // must not regress this. `:warning:` carries VS-16, which the editor needs
@@ -1184,7 +1187,7 @@ fn indentation_cursor_does_not_reveal_marker() {
 fn image_load_layout_consistent() {
     use std::sync::{Arc, RwLock};
 
-    use egui::{Color32, ColorImage, Context, ImageData, TextureOptions};
+    use egui::{Color32, ColorImage, ImageData, TextureOptions};
     use lb_rs::Uuid;
 
     use crate::file_cache::FileCache;
@@ -1193,7 +1196,7 @@ fn image_load_layout_consistent() {
     use crate::workspace::WsPersistentStore;
 
     let lb = super::harness::build_lb();
-    let ctx = Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let client = super::super::HttpClient::default();
     let files = Arc::new(RwLock::new(FileCache::empty()));
     let persistence =
@@ -1221,6 +1224,7 @@ fn image_load_layout_consistent() {
             link_resolver: Box::new(()),
             embeds: embed,
             files,
+            doc_index: crate::doc_index::DocIndex::empty(),
         },
         super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
     );
@@ -1769,7 +1773,7 @@ fn masked_plaintext_mdedit_renders_glyphs() {
     use crate::tab::markdown_editor::MdEdit;
     use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 
-    let ctx = egui::Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let mut edit = MdEdit::empty(ctx.clone());
     edit.renderer.plaintext = true;
     edit.renderer.mask = true;
@@ -1835,7 +1839,7 @@ fn bounded_composer_scrolls_cursor_into_view() {
     use crate::tab::markdown_editor::MdEdit;
     use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 
-    let ctx = egui::Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     let mut edit = MdEdit::empty(ctx.clone());
     // Enough lines that a 140px-tall composer must overflow several times over.
     let draft: String = (0..30).map(|i| format!("- line {i}\n")).collect();
@@ -2170,7 +2174,7 @@ fn phone_toolbar_never_pushed_off_screen() {
     use crate::workspace::WsPersistentStore;
 
     let lb = super::harness::build_lb();
-    let ctx = egui::Context::default();
+    let ctx = crate::tab::markdown_editor::test_egui_ctx();
     ctx.set_os(egui::os::OperatingSystem::IOS);
     ctx.set_pixels_per_point(3.0); // fractional row geometry, like a real phone
 
@@ -2203,6 +2207,7 @@ fn phone_toolbar_never_pushed_off_screen() {
             link_resolver: Box::new(super::harness::TestLinks),
             embeds: Box::new(embeds.clone()),
             files,
+            doc_index: crate::doc_index::DocIndex::empty(),
         },
         super::super::MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: false },
     );
@@ -2428,4 +2433,34 @@ fn phone_toolbar_never_pushed_off_screen() {
             }
         }
     }
+}
+
+// ── heading fragments ──
+
+#[test]
+fn open_navigate_fragment_selects_heading() {
+    let mut ws = TestEditor::new("# Intro\n\nhello\n\n# Link Fragments\n\nbody\n");
+    ws.editor.open_navigate_fragment("link-fragments");
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    let selected = &ws.editor.edit.renderer.buffer[sel];
+    assert!(
+        selected.contains("Link Fragments"),
+        "slug should select the heading, got {selected:?}"
+    );
+
+    ws.editor.open_navigate_fragment("Intro");
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    let selected = &ws.editor.edit.renderer.buffer[sel];
+    assert!(selected.contains("Intro"), "heading text should match, got {selected:?}");
+}
+
+#[test]
+fn open_navigate_fragment_unique_slug() {
+    let mut ws = TestEditor::new("# Foo\n\n# Foo\n");
+    ws.editor.open_navigate_fragment("foo-1");
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    // second heading starts after the first "Foo\n\n"
+    assert!(sel.0.0 > 0, "foo-1 should be the second heading, sel={sel:?}");
+    let selected = &ws.editor.edit.renderer.buffer[sel];
+    assert!(selected.contains("Foo"));
 }

@@ -672,7 +672,7 @@ impl InputController {
             let opacity = ui.ctx().animate_value_with_time(
                 egui::Id::new("tool_hover_indicator_ui"),
                 target_opacity,
-                0.3,
+                crate::style::ANIM_MAX_SECS,
             );
             ctx.painter.set_opacity(opacity);
             tool.show_hover_point(ui, self.tool_hover_pos.0, ctx);

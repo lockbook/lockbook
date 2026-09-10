@@ -115,8 +115,10 @@
 //!   bounds its walk — a `bound: f32` argument, the `delta` of
 //!   `scroll_by`, or the row-shrink excess in `normalize`.
 
-use egui::{Pos2, Rect, Response, Sense, Stroke, Ui, Vec2};
+use egui::{Pos2, Rect, Response, Sense, Ui, Vec2};
 use std::hash::Hash;
+
+use crate::style::overlay_scroll;
 
 // ============================================================================
 // Trait + offset
@@ -1133,11 +1135,12 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
 
         // Scrollbar hit area registered after content so it shadows
         // both the body and any embedder click rects in z-order.
-        const BAR_WIDTH: f32 = 10.0;
-        const BAR_INSET: f32 = 3.0;
-        let bar_x = rect.max.x - BAR_WIDTH - BAR_INSET;
-        let bar_track =
-            Rect::from_min_size(Pos2::new(bar_x, rect.min.y), Vec2::new(BAR_WIDTH, rect.height()));
+        const BAR_INSET: f32 = 2.0;
+        let bar_x = rect.max.x - overlay_scroll::BAR_WIDTH - BAR_INSET;
+        let bar_track = Rect::from_min_size(
+            Pos2::new(bar_x, rect.min.y),
+            Vec2::new(overlay_scroll::BAR_WIDTH, rect.height()),
+        );
         let bar_id = self.id_salt.with("scrollbar");
 
         self.state.handle(rows, Action::Resize(rect.height()));
@@ -1265,7 +1268,14 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         warm_around_visible(rows, &visible, rect.height());
 
         if scrollable {
-            draw_scrollbar(ui, self.state.scrollbar(rows, bar_track));
+            let bar = self.state.scrollbar(rows, bar_track);
+            let bar_held = bar_response
+                .as_ref()
+                .is_some_and(|r| r.hovered() || r.dragged() || r.is_pointer_button_down_on());
+            let overlay_id = self.id_salt.with("overlay_scroll");
+            if overlay_scroll::tick(ui, overlay_id, bar.thumb_approx, bar_held) {
+                overlay_scroll::paint(ui, bar.track, bar.thumb, bar_held);
+            }
         }
 
         ShowResponse { response, visible, scrollbar_grab: scrollable.then_some(bar_interact_rect) }
@@ -1330,14 +1340,4 @@ fn warm_around_visible<R: Rows>(rows: &R, visible: &[VisibleRow<R::RowId>], view
             None => break,
         }
     }
-}
-
-fn draw_scrollbar(ui: &Ui, bar: Scrollbar) {
-    use crate::theme::palette_v2::ThemeExt as _;
-    let theme = ui.ctx().get_lb_theme();
-    let track_color = theme.neutral_bg().lerp_to_gamma(theme.neutral(), 0.3);
-    let thumb_color = theme.neutral();
-    ui.painter().rect_filled(bar.track, 3.0, track_color);
-    ui.painter()
-        .rect(bar.thumb, 3.0, thumb_color, Stroke::NONE, egui::epaint::StrokeKind::Inside);
 }
