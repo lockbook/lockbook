@@ -989,10 +989,14 @@ impl Editor {
 
         let all_selected = self.edit.renderer.buffer.current.selection
             == (0.into(), self.edit.renderer.last_cursor_position());
+        // iOS handle touch-down re-sets the same range (no unique moving
+        // end). Don't scroll-to-cursor — that would follow `.1` and jump
+        // to the far end of a long selection.
         if self.initialized
             && buf_resp.selection_user_moved
             && !all_selected
             && self.edit.in_progress_block_drag.is_none()
+            && self.edit.in_progress_handle.is_some()
         {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
         }
