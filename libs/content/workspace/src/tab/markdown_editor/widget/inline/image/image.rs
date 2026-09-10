@@ -5,7 +5,9 @@ use egui::{self, Vec2};
 use lb_rs::model::text::offset_types::{Grapheme, RangeExt as _};
 use lb_rs::model::text::operation_types::Operation;
 
+use crate::file_cache::ResolvedLink;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
+use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, link_menu_buttons};
 use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{EmbedKind, EmbedSpec, Layout};
@@ -13,13 +15,36 @@ use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
 
 impl MdRender {
+    /// Prefetch textures under `node` so the image cache does not drop them.
+    /// Used for off-screen neighbors about to scroll into view. Covers
+    /// markdown `![]()` images and link-preview thumbnails/favicons.
     pub fn warm_images<'a>(&self, node: &'a comrak::nodes::AstNode<'a>) {
         for descendant in node.descendants() {
-            let url = match &descendant.data.borrow().value {
-                comrak::nodes::NodeValue::Image(link) => link.url.clone(),
-                _ => continue,
-            };
-            self.embeds.prefetch(&url);
+            match &descendant.data.borrow().value {
+                NodeValue::Image(link) => {
+                    self.embeds.prefetch(&link.url);
+                }
+                NodeValue::Link(link) => {
+                    let resolved = match self.resolve_link(&link.url) {
+                        Some(ResolvedLink::External(url)) => url,
+                        _ => continue,
+                    };
+                    let Some(arc) = self.layout_cache.link_meta.borrow().get(&resolved).cloned()
+                    else {
+                        continue;
+                    };
+                    let LinkMetaState::Loaded(meta) = &*arc.lock().unwrap() else {
+                        continue;
+                    };
+                    if let Some(url) = meta.thumbnail_url.as_deref() {
+                        self.embeds.prefetch(url);
+                    }
+                    if let Some(url) = meta.favicon_url.as_deref() {
+                        self.embeds.prefetch(url);
+                    }
+                }
+                _ => {}
+            }
         }
     }
 }

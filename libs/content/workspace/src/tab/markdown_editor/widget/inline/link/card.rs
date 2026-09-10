@@ -89,11 +89,9 @@ impl<'ast> MdRender {
                 self.ctx.fonts(|f| f.layout_job(job))
             };
 
-        // Warm so the texture (hence real aspect) loads before the first paint.
+        // Layout size only (declared og:image dims, else persisted
+        // texture size). Fetch is `embeds.show` / `warm_images`.
         let thumb = meta.thumbnail_url.as_deref();
-        if let Some(t) = thumb {
-            self.embeds.prefetch(t);
-        }
 
         // Hero (full-width landscape band) vs. horizontal (square/portrait
         // thumbnail beside text) vs. text-only.
