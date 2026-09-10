@@ -104,13 +104,24 @@ impl ImageCache {
 
     pub fn end_frame(&self) {
         let mut inner = self.inner.lock().unwrap();
-        // free textures for any URLs that weren't looked up this frame
+        // Unused Loaded textures are freed. Failed is dropped so a later
+        // lookup can retry. Loading stays so we don't spawn a second
+        // in-flight request.
         let texture_manager = self.ctx.tex_manager();
-        for (_, state) in inner.previous.drain() {
-            if let ImageState::Loaded(texture_id) = state.lock().unwrap().deref() {
-                texture_manager.write().free(*texture_id);
+        let mut keep = Vec::new();
+        for (url, state) in inner.previous.drain() {
+            let (keep_loading, free_id) = match state.lock().unwrap().deref() {
+                ImageState::Loading => (true, None),
+                ImageState::Loaded(id) => (false, Some(*id)),
+                ImageState::Failed(_) => (false, None),
+            };
+            if keep_loading {
+                keep.push((url, state));
+            } else if let Some(id) = free_id {
+                texture_manager.write().free(id);
             }
         }
+        inner.current.extend(keep);
         inner.began_this_frame = false;
     }
 
