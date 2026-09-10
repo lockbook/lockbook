@@ -1,3 +1,4 @@
+pub mod doc_index;
 pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;

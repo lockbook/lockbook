@@ -14,8 +14,8 @@ use lb_rs::model::text::operation_types::Operation;
 use serde::{Deserialize, Serialize};
 
 use crate::style::{
-    CHROME_BAND_GLYPH, CHROME_BAND_H, STROKE_HAIRLINE, ThemeExt, control_height, icon_button_glyph,
-    phosphor, place_at, tip_text,
+    CHROME_BAND_GLYPH, CHROME_BAND_H, STROKE_HAIRLINE, Space, ThemeExt, control_height,
+    icon_button_glyph, phosphor, place_at, tip_text,
 };
 use crate::tab::markdown_editor::MdRender;
 use crate::tab::markdown_editor::widget::utils::NodeValueExt;
@@ -90,6 +90,25 @@ impl<'ast> Editor {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             self.show_toolbar_inner(root, ui);
         });
+        // Outline toggle lives on the right of the band — same side the
+        // sidecar emerges from, not mixed into the format cluster.
+        if !self.edit.phone_mode && !self.edit.renderer.plaintext {
+            let h = control_height();
+            let pad = Space::Sm.pts();
+            let icon = egui::Rect::from_center_size(
+                egui::pos2(band.right() - pad - h / 2.0, band.center().y),
+                egui::vec2(h, h),
+            );
+            place_at(ui, icon, Layout::left_to_right(egui::Align::Center), |ui| {
+                let t = ui.ctx().get_lb_theme();
+                let on = self.persistence.get_markdown().outline;
+                if toolbar_icon(ui, &t, phosphor::LIST, on, self.toolbar.menu_open, "Outline") {
+                    let mut md = self.persistence.get_markdown();
+                    md.outline = !md.outline;
+                    self.persistence.set_markdown(md);
+                }
+            });
+        }
     }
 
     /// Computes the toolbar's content width without drawing it.

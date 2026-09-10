@@ -13,7 +13,9 @@ use serde_json::{Value, json};
 
 use tracing::{info, warn};
 
-use crate::file_cache::path_segments;
+use crate::doc_index::{DocIndex, LinkKind, Reloc};
+use crate::file_cache::{FileCache, FilesExt as _, path_segments, split_internal_fragment};
+use crate::task_manager::{RewriteRequest, TaskManager};
 
 pub const DEFAULT_VOICE: &str = "eve";
 pub const VOICES: &[&str] = &[
@@ -63,6 +65,7 @@ impl ClientToolOut {
 const READ_CAP: usize = 256 * 1024;
 const SEARCH_CAP: usize = 20;
 const LIST_CAP: usize = 100;
+const BROKEN_CAP: usize = 50;
 /// Search-UI snippets use 30 chars of context (file-row caption). Tool results
 /// need a readable span; 80/side is ~200–300 with the match, then SNIPPET_CAP.
 const SNIPPET_CONTEXT: usize = 80;
@@ -92,6 +95,9 @@ pub fn is_client(name: &str) -> bool {
             | "this"
             | "edit"
             | "search"
+            | "broken_links"
+            | "resolve_link"
+            | "unreferenced_images"
             | "create"
             | "rename"
             | "move"
@@ -253,6 +259,43 @@ pub fn function_tools() -> Value {
             }),
         ),
         fn_tool(
+            "broken_links",
+            "Scan markdown notes for wiki links, markdown links, and image embeds whose dest does not resolve to a Lockbook file. Omit path to scan all indexed notes. A folder path scans that folder recursively. External http(s) dests are ignored.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Note or folder to scan. `.` is this chat. Omit for all notes." }
+                }
+            }),
+        ),
+        fn_tool(
+            "resolve_link",
+            "Resolve a wiki title or markdown/image dest (including #heading) to a Lockbook file path, relative to a source note. `.` is this chat.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "dest": { "type": "string", "description": "Link dest, e.g. other.md#Hello or a wikilink title" },
+                    "path": { "type": "string", "description": "Source note the dest is relative to. `.` is this chat. Omit for this chat." },
+                    "kind": {
+                        "type": "string",
+                        "enum": ["wiki", "markdown", "embed"],
+                        "description": "Omit to try wiki then markdown"
+                    }
+                },
+                "required": ["dest"]
+            }),
+        ),
+        fn_tool(
+            "unreferenced_images",
+            "List image files in a folder (recursive) that no indexed markdown note links or embeds. Omit path to scan the whole tree. `.` is this chat's folder.",
+            json!({
+                "type": "object",
+                "properties": {
+                    "path": { "type": "string", "description": "Folder to scan. `.` is this chat's folder. Omit or `/` for the root." }
+                }
+            }),
+        ),
+        fn_tool(
             "create",
             "Create a note or folder. Trailing '/' makes a folder (and missing parents). Fails if the path exists. For file contents, create then edit.",
             json!({
@@ -265,24 +308,32 @@ pub fn function_tools() -> Value {
         ),
         fn_tool(
             "rename",
-            "Rename a note or folder (basename only). Use move to change folders.",
+            "Rename a note or folder (basename only). Use move to change folders. Set update_refs to rewrite dests in other notes so they keep pointing here.",
             json!({
                 "type": "object",
                 "properties": {
                     "path": { "type": "string" },
-                    "name": { "type": "string", "description": "New filename, no slashes" }
+                    "name": { "type": "string", "description": "New filename, no slashes" },
+                    "update_refs": {
+                        "type": "boolean",
+                        "description": "Rewrite wiki, markdown, and embed dests in other notes so they keep pointing here"
+                    }
                 },
                 "required": ["path", "name"]
             }),
         ),
         fn_tool(
             "move",
-            "Move a note or folder into another folder. `to` is the destination folder.",
+            "Move a note or folder into another folder. `to` is the destination folder. Set update_refs to rewrite dests in other notes so they keep pointing here.",
             json!({
                 "type": "object",
                 "properties": {
                     "path": { "type": "string" },
-                    "to": { "type": "string", "description": "Destination folder, e.g. /notes or /notes/" }
+                    "to": { "type": "string", "description": "Destination folder, e.g. /notes or /notes/" },
+                    "update_refs": {
+                        "type": "boolean",
+                        "description": "Rewrite wiki, markdown, and embed dests in other notes so they keep pointing here"
+                    }
                 },
                 "required": ["path", "to"]
             }),
@@ -536,14 +587,40 @@ pub fn summary(name: &str, args: &Value) -> String {
                 _ => format!("search {q}"),
             }
         }
+        "broken_links" => {
+            if args.get("path").and_then(Value::as_str).is_some() && path != "/" {
+                format!("broken links {path}")
+            } else {
+                "broken links".into()
+            }
+        }
+        "resolve_link" => {
+            let dest = args.get("dest").and_then(Value::as_str).unwrap_or("");
+            format!("resolve {dest}")
+        }
+        "unreferenced_images" => {
+            if args.get("path").and_then(Value::as_str).is_some() && path != "/" {
+                format!("unreferenced images {path}")
+            } else {
+                "unreferenced images".into()
+            }
+        }
         "create" => format!("create {path}"),
         "rename" => {
             let name = args.get("name").and_then(Value::as_str).unwrap_or("");
-            format!("rename {path} → {name}")
+            let mut s = format!("rename {path} → {name}");
+            if args.get("update_refs").and_then(Value::as_bool) == Some(true) {
+                s.push_str(" and update refs");
+            }
+            s
         }
         "move" => {
             let to = args.get("to").and_then(Value::as_str).unwrap_or("/");
-            format!("move {path} → {to}")
+            let mut s = format!("move {path} → {to}");
+            if args.get("update_refs").and_then(Value::as_bool) == Some(true) {
+                s.push_str(" and update refs");
+            }
+            s
         }
         "delete" => format!("delete {path}"),
         "recent" => "recent".into(),
@@ -937,8 +1014,6 @@ pub fn run(core: &Lb, chat_id: lb_rs::Uuid, name: &str, args: &Value) -> Result<
         "edit" => edit(core, chat_id, args),
         "search" => search(core, chat_id, args),
         "create" => create(core, args),
-        "rename" => rename(core, chat_id, args),
-        "move" => move_file(core, chat_id, args),
         "delete" => delete(core, chat_id, args),
         "recent" => recent(core, chat_id),
         "pin" => pin(core, chat_id, args),
@@ -1002,6 +1077,147 @@ pub(super) fn open_file(
     }
     core.get_by_path(path)
         .map_err(|e| format!("couldn't open {path}: {e}"))
+}
+
+pub fn broken_links(
+    core: &Lb, chat_id: lb_rs::Uuid, files: &FileCache, index: &DocIndex, args: &Value,
+) -> Result<String, String> {
+    let only = match args.get("path").and_then(Value::as_str) {
+        Some(p) if !p.is_empty() && p != "/" => Some(open_file(core, chat_id, p)?.id),
+        _ => None,
+    };
+    if index.indexed_len() == 0
+        && files.all_files().any(|f| {
+            f.is_document()
+                && f.name
+                    .rsplit('.')
+                    .next()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("md"))
+        })
+    {
+        return Ok("link index is still building; try again shortly".into());
+    }
+    let mut hits = index.broken(files, only);
+    hits.retain(|b| !is_hidden(&files.path(b.from)));
+    hits.sort_by_key(|b| (files.path(b.from), b.dest.clone()));
+    if hits.is_empty() {
+        return Ok("no broken links".into());
+    }
+    let extra = hits.len().saturating_sub(BROKEN_CAP);
+    let mut lines: Vec<String> = hits
+        .iter()
+        .take(BROKEN_CAP)
+        .map(|b| {
+            let kind = match b.kind {
+                LinkKind::Wiki => "wiki",
+                LinkKind::Markdown => "md",
+                LinkKind::Embed => "embed",
+            };
+            let shown = match b.kind {
+                LinkKind::Wiki => format!("[[{}]]", b.dest),
+                LinkKind::Embed => format!("![]({})", b.dest),
+                LinkKind::Markdown => b.dest.clone(),
+            };
+            format!("{}: {shown} ({kind})", files.path(b.from))
+        })
+        .collect();
+    if extra > 0 {
+        lines.push(format!("…and {extra} more"));
+    }
+    Ok(lines.join("\n"))
+}
+
+pub fn resolve_link(
+    core: &Lb, chat_id: lb_rs::Uuid, files: &FileCache, args: &Value,
+) -> Result<String, String> {
+    let dest = args
+        .get("dest")
+        .and_then(Value::as_str)
+        .unwrap_or("")
+        .trim();
+    if dest.is_empty() {
+        return Err("needs dest".into());
+    }
+    let from_path = args.get("path").and_then(Value::as_str).unwrap_or(".");
+    let from = open_file(core, chat_id, from_path)?;
+    let kind = match args.get("kind").and_then(Value::as_str) {
+        Some("wiki") => Some(LinkKind::Wiki),
+        Some("markdown") | Some("md") => Some(LinkKind::Markdown),
+        Some("embed") => Some(LinkKind::Embed),
+        Some(other) => return Err(format!("unknown kind {other}")),
+        None => None,
+    };
+    match DocIndex::resolve(files, from.id, dest, kind) {
+        Some(id) => {
+            let mut path = files.path(id);
+            if let (_, Some(frag)) = split_internal_fragment(dest) {
+                if !frag.is_empty() {
+                    path.push('#');
+                    path.push_str(frag);
+                }
+            }
+            Ok(path)
+        }
+        None => Ok(format!("unresolved: {dest}")),
+    }
+}
+
+pub fn unreferenced_images(
+    core: &Lb, chat_id: lb_rs::Uuid, files: &FileCache, index: &DocIndex, args: &Value,
+) -> Result<String, String> {
+    let path = path_arg(args);
+    let folder = if path == "/" {
+        refuse_hidden(&path)?;
+        core.get_root().map_err(|e| e.to_string())?
+    } else if path == "." {
+        let chat = core.get_file_by_id(chat_id).map_err(|e| e.to_string())?;
+        files
+            .get_by_id(chat.parent)
+            .cloned()
+            .ok_or_else(|| "couldn't find this chat's folder".to_string())?
+    } else {
+        let f = open_file(core, chat_id, &path)?;
+        if !f.is_folder() {
+            return Err(format!("{path} is not a folder"));
+        }
+        f
+    };
+    if index.indexed_len() == 0
+        && files.all_files().any(|f| {
+            f.is_document()
+                && f.name
+                    .rsplit('.')
+                    .next()
+                    .is_some_and(|e| e.eq_ignore_ascii_case("md"))
+        })
+    {
+        return Ok("link index is still building; try again shortly".into());
+    }
+    let referenced = index.referenced_ids(files);
+    let mut images: Vec<_> = files
+        .descendents(folder.id)
+        .into_iter()
+        .filter(|f| {
+            f.is_document()
+                && f.name
+                    .rsplit('.')
+                    .next()
+                    .is_some_and(crate::tab::image_viewer::is_supported_image_fmt)
+                && !is_hidden(&files.path(f.id))
+                && !referenced.contains(&f.id)
+        })
+        .map(|f| files.path(f.id))
+        .collect();
+    images.sort();
+    if images.is_empty() {
+        return Ok("no unreferenced images".into());
+    }
+    let extra = images.len().saturating_sub(BROKEN_CAP);
+    let mut lines: Vec<String> = images.into_iter().take(BROKEN_CAP).collect();
+    if extra > 0 {
+        lines.push(format!("…and {extra} more"));
+    }
+    Ok(lines.join("\n"))
 }
 
 fn list(core: &Lb, chat_id: lb_rs::Uuid, args: &Value) -> Result<String, String> {
@@ -1338,7 +1554,10 @@ fn create(core: &Lb, args: &Value) -> Result<String, String> {
     Ok(format!("created {path}"))
 }
 
-fn rename(core: &Lb, chat_id: lb_rs::Uuid, args: &Value) -> Result<String, String> {
+pub fn rename(
+    core: &Lb, chat_id: lb_rs::Uuid, files: &FileCache, index: &DocIndex, tasks: &TaskManager,
+    args: &Value,
+) -> Result<String, String> {
     let path = path_arg(args);
     let name = args
         .get("name")
@@ -1355,12 +1574,22 @@ fn rename(core: &Lb, chat_id: lb_rs::Uuid, args: &Value) -> Result<String, Strin
         return Err("can't rename to a hidden name".into());
     }
     let file = open_file(core, chat_id, &path)?;
+    let reloc = Reloc { id: file.id, new_name: name.to_string(), new_parent: file.parent };
+    let update_refs = args.get("update_refs").and_then(Value::as_bool) == Some(true);
     core.rename_file(&file.id, name)
         .map_err(|e| format!("couldn't rename {path}: {e}"))?;
-    Ok(format!("renamed {path} to {name}"))
+    let n = if update_refs { queue_dest_rewrites(index, files, tasks, &[reloc]) } else { 0 };
+    if n > 0 {
+        Ok(format!("renamed {path} to {name}; updating {n} notes"))
+    } else {
+        Ok(format!("renamed {path} to {name}"))
+    }
 }
 
-fn move_file(core: &Lb, chat_id: lb_rs::Uuid, args: &Value) -> Result<String, String> {
+pub fn move_file(
+    core: &Lb, chat_id: lb_rs::Uuid, files: &FileCache, index: &DocIndex, tasks: &TaskManager,
+    args: &Value,
+) -> Result<String, String> {
     let path = path_arg(args);
     let to = args.get("to").and_then(Value::as_str).unwrap_or("").trim();
     if path == "/" {
@@ -1381,9 +1610,27 @@ fn move_file(core: &Lb, chat_id: lb_rs::Uuid, args: &Value) -> Result<String, St
     if dest.id == file.id {
         return Err("can't move a folder into itself".into());
     }
+    let reloc = Reloc { id: file.id, new_name: file.name.clone(), new_parent: dest.id };
+    let update_refs = args.get("update_refs").and_then(Value::as_bool) == Some(true);
     core.move_file(&file.id, &dest.id)
         .map_err(|e| format!("couldn't move {path}: {e}"))?;
-    Ok(format!("moved {path} to {to}"))
+    let n = if update_refs { queue_dest_rewrites(index, files, tasks, &[reloc]) } else { 0 };
+    if n > 0 {
+        Ok(format!("moved {path} to {to}; updating {n} notes"))
+    } else {
+        Ok(format!("moved {path} to {to}"))
+    }
+}
+
+fn queue_dest_rewrites(
+    index: &DocIndex, files: &FileCache, tasks: &TaskManager, relocs: &[Reloc],
+) -> usize {
+    let changes = index.dest_changes(files, relocs);
+    let n = changes.len();
+    for (id, reps) in changes {
+        tasks.queue_rewrite(RewriteRequest { id, reps });
+    }
+    n
 }
 
 fn delete(core: &Lb, chat_id: lb_rs::Uuid, args: &Value) -> Result<String, String> {
@@ -2059,6 +2306,16 @@ mod tests {
         assert_eq!(summary("this", &json!({})), "this chat");
         assert!(is_client("info") && is_client("this"));
         assert_eq!(summary("search", &json!({"query": "journal"})), "search journal");
+        assert_eq!(summary("broken_links", &json!({})), "broken links");
+        assert_eq!(summary("broken_links", &json!({"path": "/a.md"})), "broken links /a.md");
+        assert_eq!(summary("resolve_link", &json!({"dest": "other.md"})), "resolve other.md");
+        assert!(is_client("broken_links") && is_client("resolve_link"));
+        assert_eq!(summary("unreferenced_images", &json!({})), "unreferenced images");
+        assert_eq!(
+            summary("unreferenced_images", &json!({"path": "/assets/"})),
+            "unreferenced images /assets/"
+        );
+        assert!(is_client("unreferenced_images"));
         assert_eq!(
             summary("search", &json!({"query": "todo", "in": "content"})),
             "search todo in contents"
@@ -2070,8 +2327,16 @@ mod tests {
             "rename /a.md → b.md"
         );
         assert_eq!(
+            summary("rename", &json!({"path": "/a.md", "name": "b.md", "update_refs": true})),
+            "rename /a.md → b.md and update refs"
+        );
+        assert_eq!(
             summary("move", &json!({"path": "/a.md", "to": "/notes/"})),
             "move /a.md → /notes/"
+        );
+        assert_eq!(
+            summary("move", &json!({"path": "/a.md", "to": "/notes/", "update_refs": true})),
+            "move /a.md → /notes/ and update refs"
         );
         assert_eq!(summary("delete", &json!({"path": "/a.md"})), "delete /a.md");
         assert_eq!(summary("recent", &json!({})), "recent");
@@ -2222,6 +2487,9 @@ mod tests {
         assert_eq!(carr[0]["enable_image_search"], true);
         assert!(carr.iter().all(|t| t["type"] != "code_interpreter"));
         assert!(arr.iter().any(|t| t["name"] == "list"));
+        assert!(arr.iter().any(|t| t["name"] == "broken_links"));
+        assert!(arr.iter().any(|t| t["name"] == "resolve_link"));
+        assert!(arr.iter().any(|t| t["name"] == "unreferenced_images"));
         assert!(
             arr.iter()
                 .any(|t| t["type"] == "function" && t["name"] == "read")

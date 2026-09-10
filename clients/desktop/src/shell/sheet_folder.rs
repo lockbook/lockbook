@@ -496,16 +496,49 @@ fn folder_picker_sheet(
                 }
                 // Commit copy when a folder is chosen (footer spacing: Xl · copy · Md · footer).
                 // Move has its own cascade summary; Accept/Import use a simple dest line.
+                // Referrers sit with that copy — same paragraph group, same as delete.
                 let show_summary = dest.is_some();
-                if show_summary {
+                let refs = if matches!(kind, FolderPickKind::Move) {
+                    super::sheets::referrer_names(
+                        app,
+                        ctx,
+                        exclude,
+                        super::sheets::ReferrerKind::Links,
+                    )
+                } else {
+                    Vec::new()
+                };
+                if show_summary || !refs.is_empty() {
                     ui.add(Spacer::new(Space::Xl));
-                    match kind {
-                        FolderPickKind::Move => move_summary_line(ui, t, app, exclude, dest),
-                        FolderPickKind::AcceptShare => {
-                            dest_action_summary(ui, t, app, subject, "will be saved to", dest)
+                    if show_summary {
+                        match kind {
+                            FolderPickKind::Move => move_summary_line(ui, t, app, exclude, dest),
+                            FolderPickKind::AcceptShare => {
+                                dest_action_summary(ui, t, app, subject, "will be saved to", dest)
+                            }
+                            FolderPickKind::ImportParent => dest_action_summary(
+                                ui,
+                                t,
+                                app,
+                                subject,
+                                "will be imported into",
+                                dest,
+                            ),
                         }
-                        FolderPickKind::ImportParent => {
-                            dest_action_summary(ui, t, app, subject, "will be imported into", dest)
+                    }
+                    if !refs.is_empty() {
+                        if show_summary {
+                            ui.add(Spacer::new(Space::Md));
+                        }
+                        super::sheets::paint_referrers(
+                            ui,
+                            t,
+                            &refs,
+                            super::sheets::ReferrerKind::Links,
+                        );
+                        ui.add(Spacer::new(Space::Xs));
+                        if super::sheets::paint_update_refs(ui, t, dest.is_some()) {
+                            queue.push(A::ConfirmMove { update_refs: true });
                         }
                     }
                 }
@@ -524,7 +557,7 @@ fn folder_picker_sheet(
                 }
                 if foot.primary {
                     match kind {
-                        FolderPickKind::Move => queue.push(A::ConfirmMove),
+                        FolderPickKind::Move => queue.push(A::ConfirmMove { update_refs: false }),
                         FolderPickKind::AcceptShare => queue.push(A::ConfirmAcceptShare),
                         FolderPickKind::ImportParent => queue.push(A::ConfirmImportParent),
                     }

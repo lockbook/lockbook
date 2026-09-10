@@ -5,7 +5,8 @@ use std::sync::OnceLock;
 use std::sync::{Arc, RwLock};
 use web_time::Instant;
 
-use crate::file_cache::FileCache;
+use crate::doc_index::DocIndex;
+use crate::file_cache::{FileCache, FilesExt as _, strip_ext};
 use crate::resolvers::{EmbedResolver, LinkResolver};
 use bounds::Bounds;
 use colored::Colorize as _;
@@ -60,6 +61,7 @@ pub fn syntax_theme() -> &'static Theme {
 
 pub mod bounds;
 pub mod fold;
+pub mod fragment;
 pub mod input;
 pub mod md_label;
 pub mod output;
@@ -107,6 +109,8 @@ pub struct MdRender {
     /// Set only while painting the floating drag-reorder card, so chrome
     /// that shouldn't travel with it (the fold button) can opt out.
     pub painting_drag_float: bool,
+    /// Permalink on a heading this frame: (slug, text, kind).
+    pub pending_heading_copy: Option<(String, String, fragment::HeadingLinkKind)>,
 
     // document
     pub buffer: Buffer,
@@ -181,6 +185,7 @@ pub struct MdRender {
     pub link_resolver: Box<dyn LinkResolver>,
     pub client: HttpClient,
     pub files: Arc<RwLock<FileCache>>,
+    pub doc_index: DocIndex,
     pub ws_seq: Arc<std::sync::atomic::AtomicU64>,
 
     // caches
@@ -347,6 +352,8 @@ pub struct Editor {
     // widgets moved onto MdEdit so a standalone composer inherits them)
     pub toolbar: Toolbar,
     pub find: Find,
+    /// Last outline rows — kept while the hide animation runs.
+    outline_items: Vec<fragment::OutlineItem>,
 
     // misc
     /// Where the phone toolbar was allocated this frame — the layout-level
@@ -370,6 +377,9 @@ static PRINT: bool = false;
 pub struct MdPersistence {
     toolbar: ToolbarPersistence,
     file: HashMap<Uuid, MdFilePersistence>,
+    /// Document outline sidecar. Workspace-wide, not per-file.
+    #[serde(default)]
+    pub outline: bool,
 }
 
 #[derive(Clone, Serialize, Deserialize, PartialEq, Default)]
@@ -388,6 +398,7 @@ pub struct MdResources {
     pub core: Lb,
     pub persistence: WsPersistentStore,
     pub files: Arc<RwLock<FileCache>>,
+    pub doc_index: DocIndex,
     pub link_resolver: Box<dyn LinkResolver>,
     pub embeds: Box<dyn EmbedResolver>,
 }
@@ -477,6 +488,7 @@ impl MdRender {
             ext: "md".into(),
             touch_mode,
             painting_drag_float: false,
+            pending_heading_copy: None,
             buffer: "".into(),
             bounds: Default::default(),
             bounds_seq: 0,
@@ -510,6 +522,7 @@ impl MdRender {
             link_resolver: Box::new(()),
             client: Default::default(),
             files: Arc::new(RwLock::new(FileCache::empty())),
+            doc_index: DocIndex::empty(),
             ws_seq,
             layout_cache: Default::default(),
             syntax: Default::default(),
@@ -553,6 +566,7 @@ impl MdRender {
             ext: "md".into(),
             touch_mode: false,
             painting_drag_float: false,
+            pending_heading_copy: None,
             bounds: Default::default(),
             buffer: md.into(),
             fragments: Vec::new(),
@@ -583,6 +597,7 @@ impl MdRender {
             link_resolver: Box::new(()),
             client: Default::default(),
             files: Arc::new(RwLock::new(FileCache::empty())),
+            doc_index: DocIndex::empty(),
             layout_cache: Default::default(),
             syntax: Default::default(),
             width: Default::default(),
@@ -690,7 +705,7 @@ impl Editor {
     pub fn new(
         md: &str, file_id: Uuid, hmac: Option<DocumentHmac>, res: MdResources, cfg: MdConfig,
     ) -> Self {
-        let MdResources { ctx, core, persistence, files, link_resolver, embeds } = res;
+        let MdResources { ctx, core, persistence, files, doc_index, link_resolver, embeds } = res;
         let MdConfig { readonly, ext, tablet_or_desktop } = cfg;
         let plaintext = ext.to_lowercase() != "md";
 
@@ -709,6 +724,7 @@ impl Editor {
             ext,
             touch_mode,
             painting_drag_float: false,
+            pending_heading_copy: None,
 
             bounds: Default::default(),
             buffer: md.into(),
@@ -743,6 +759,7 @@ impl Editor {
             link_resolver,
             client,
             files,
+            doc_index,
 
             layout_cache: Default::default(),
             syntax: Default::default(),
@@ -794,6 +811,7 @@ impl Editor {
 
             toolbar: Default::default(),
             find: Default::default(),
+            outline_items: Vec::new(),
 
             // this is used to toggle the mobile toolbar
             mobile_toolbar_rect: None,
@@ -836,6 +854,7 @@ impl Editor {
                 link_resolver: Box::new(()),
                 embeds: Box::new(()),
                 files,
+                doc_index: DocIndex::empty(),
             },
             MdConfig { readonly: false, ext: String::new(), tablet_or_desktop: true },
         )
@@ -1395,6 +1414,7 @@ impl Editor {
         // (find-match scroll) can position galleys against the canvas
         // origin without re-deriving it.
         let mut captured_canvas_rect: Option<Rect> = None;
+        let mut outline_jump: Option<String> = None;
 
         Frame::canvas(ui.style())
             .inner_margin(Margin::ZERO)
@@ -1417,22 +1437,37 @@ impl Editor {
                 let canvas_width = canvas_rect.width();
                 let layout_margin = self.edit.renderer.layout.margin;
 
+                // Outline sidecar: cluster (content + outline) stays
+                // centered; extra width comes out of the side margins.
+                let want_outline = !self.edit.phone_mode
+                    && !self.edit.renderer.plaintext
+                    && self.persistence.get_markdown().outline;
+                let outline_motion = widget::outline::motion(ui, self.edit.file_id, want_outline);
+                let sidecar = widget::outline::sidecar_width(outline_motion.slide);
+
                 // Content column width caps at `max_width`; the affine
                 // widget spans the full canvas so its scrollbar lands
                 // at the canvas right edge.
                 let max_width = self.edit.renderer.layout.max_width;
-                let col_width = (canvas_width - 2.0 * layout_margin).min(max_width).max(0.0);
+                let col_width = (canvas_width - 2.0 * layout_margin - sidecar)
+                    .min(max_width)
+                    .max(0.0);
                 self.edit.renderer.set_width(col_width);
 
                 let arena = Arena::new();
                 let root = self.edit.renderer.reparse(&arena);
+                let live_outline = fragment::outline_from_ast(root);
+                if want_outline {
+                    self.outline_items = live_outline;
+                }
 
                 // affine render: widget body spans the full canvas
-                // (scrollbar at canvas right); content centers within
-                // that body via `content_x`.
+                // (scrollbar at canvas right); content+sidecar cluster
+                // centers within that body via `content_x`.
                 let touch_scroll = self.edit.renderer.touch_mode;
-                let content_x = canvas_rect.min.x
-                    + ((canvas_rect.width() - self.edit.renderer.width) / 2.0).max(0.0);
+                let cluster_w = self.edit.renderer.width + sidecar;
+                let content_x =
+                    canvas_rect.min.x + ((canvas_rect.width() - cluster_w) / 2.0).max(0.0);
                 let pre = ui
                     .scope_builder(UiBuilder::new().max_rect(canvas_rect), |ui| {
                         ui.set_clip_rect(canvas_rect);
@@ -1593,8 +1628,29 @@ impl Editor {
 
                 self.edit.post_render(ui, canvas_rect, scroll_id, pre);
                 self.edit.draw_dragged_overlay(ui, root);
+                if outline_motion.slide > 0.0 {
+                    let t = self.edit.renderer.ctx.get_lb_theme();
+                    let hairline = content_x + self.edit.renderer.width;
+                    outline_jump = widget::outline::show(
+                        ui,
+                        &t,
+                        &self.outline_items,
+                        canvas_rect,
+                        hairline,
+                        outline_motion.slide,
+                        self.id(),
+                    );
+                }
                 ui.advance_cursor_after_rect(canvas_rect);
             });
+
+        if let Some(slug) = outline_jump {
+            self.open_navigate_fragment(&slug);
+        }
+        if let Some((slug, text, kind)) = self.edit.renderer.pending_heading_copy.take() {
+            ui.ctx()
+                .copy_text(self.heading_link_clipboard(&slug, &text, kind));
+        }
 
         self.find
             .ensure_matches(&self.edit.renderer.buffer, self.edit.renderer.text_seq);
@@ -1693,7 +1749,59 @@ impl Editor {
         let end = segs
             .byte_to_char_ceil(Byte(byte_range.end))
             .clamp(0.into(), last);
+        self.navigate_graphemes(start, end);
+    }
 
+    fn heading_link_clipboard(
+        &self, slug: &str, text: &str, kind: fragment::HeadingLinkKind,
+    ) -> String {
+        let files = self.edit.renderer.files.read().unwrap();
+        let name = files
+            .get_by_id(self.edit.file_id)
+            .map(|f| f.name.as_str())
+            .unwrap_or("");
+        match kind {
+            fragment::HeadingLinkKind::Wiki => {
+                let stem = strip_ext(name);
+                if stem.is_empty() { format!("[[#{slug}]]") } else { format!("[[{stem}#{slug}]]") }
+            }
+            fragment::HeadingLinkKind::Markdown => {
+                let path = files.path(self.edit.file_id);
+                let dest = if path.is_empty() || path == "/" { name.to_string() } else { path };
+                let label = if text.is_empty() { slug } else { text };
+                format!("[{label}]({dest}#{slug})")
+            }
+            fragment::HeadingLinkKind::Share => {
+                match self.core.get_file_link_url(self.edit.file_id) {
+                    Ok(url) => format!("{url}#{slug}"),
+                    Err(_) => format!("[[#{slug}]]"),
+                }
+            }
+        }
+    }
+
+    /// Scroll to and select the heading matching `fragment`. No-op if none
+    /// matches (the file is already open).
+    pub fn open_navigate_fragment(&mut self, fragment: &str) {
+        let range = {
+            let arena = Arena::new();
+            let root = self.edit.renderer.reparse(&arena);
+            fragment::find_heading_range(&self.edit.renderer, root, fragment)
+        };
+        let Some((start, end)) = range else { return };
+        self.navigate_graphemes(start, end);
+    }
+
+    fn navigate_graphemes(&mut self, start: Grapheme, end: Grapheme) {
+        let last = self
+            .edit
+            .renderer
+            .buffer
+            .current
+            .segs
+            .last_cursor_position();
+        let start = start.clamp(0.into(), last);
+        let end = end.clamp(0.into(), last);
         self.edit
             .renderer
             .buffer

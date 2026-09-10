@@ -746,13 +746,15 @@ impl ShellApp {
                     match modal {
                         Modal::Delete { .. } => self.queue.push(A::ConfirmDelete),
                         Modal::Create { .. } => self.queue.push(A::ConfirmCreate),
-                        Modal::Move { .. } => self.queue.push(A::ConfirmMove),
+                        Modal::Move { .. } => {
+                            self.queue.push(A::ConfirmMove { update_refs: false })
+                        }
                         Modal::Rename { id, name, ext } => {
                             // Match sheet primary_enabled — do not dismiss on Enter
                             // when live validation says the name cannot commit.
                             let live = apply::rename_live_status(self, *id, name, ext.as_deref());
                             if live.can_commit {
-                                self.queue.push(A::ConfirmRename);
+                                self.queue.push(A::ConfirmRename { update_refs: false });
                             }
                         }
                         Modal::AcceptShare { .. } => self.queue.push(A::ConfirmAcceptShare),

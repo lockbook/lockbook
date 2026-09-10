@@ -1,5 +1,7 @@
 //! Modal sheets: delete, share, create, move, help, onboard.
 
+use std::collections::HashSet;
+
 use egui::{Area, Id, Order};
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
@@ -184,6 +186,11 @@ fn show_delete(
                     ui.add(Spacer::new(Space::Md));
                 }
                 paint_delete_parts(ui, t, &parts);
+                let refs = referrer_names(app, ctx, ids, ReferrerKind::Links);
+                if !refs.is_empty() {
+                    ui.add(Spacer::new(Space::Md));
+                    paint_referrers(ui, t, &refs, ReferrerKind::Links);
+                }
                 ui.add(Spacer::new(Space::Md));
                 let foot = sheet_footer(
                     ui,
@@ -455,6 +462,131 @@ pub(crate) fn delete_is_strict_ancestor(
     false
 }
 
+/// Incoming-link warning: rename / move / delete use links; share uses embeds.
+#[derive(Clone, Copy)]
+pub(crate) enum ReferrerKind {
+    Links,
+    Embeds,
+}
+
+/// Unique referring note names. Cascade internals and hidden paths are omitted.
+///
+/// Cached for the sheet's lifetime: `incoming()` walks every indexed dest
+/// (wiki nearest-match included) and the rename field's caret blink would
+/// otherwise redo that every frame.
+pub(crate) fn referrer_names(
+    app: &ShellApp, ctx: &egui::Context, ids: &[Uuid], kind: ReferrerKind,
+) -> Vec<String> {
+    let gen = app
+        .session
+        .ready()
+        .map(|r| {
+            let files = r.workspace.files.read().unwrap();
+            (files.last_modified, r.workspace.doc_index.indexed_len())
+        })
+        .unwrap_or((0, 0));
+    let kind_u8 = match kind {
+        ReferrerKind::Links => 0u8,
+        ReferrerKind::Embeds => 1,
+    };
+    let key = Id::new(("shell_referrers", ids, kind_u8, gen.0, gen.1));
+    if let Some(v) = ctx.data(|d| d.get_temp::<Vec<String>>(key)) {
+        return v;
+    }
+    let names = referrer_names_uncached(app, ids, kind);
+    ctx.data_mut(|d| d.insert_temp(key, names.clone()));
+    names
+}
+
+fn referrer_names_uncached(app: &ShellApp, ids: &[Uuid], kind: ReferrerKind) -> Vec<String> {
+    let Some(ready) = app.session.ready() else {
+        return Vec::new();
+    };
+    let files = ready.workspace.files.read().unwrap();
+    let mut targets = HashSet::new();
+    for &id in ids {
+        targets.insert(id);
+        for d in files.descendents(id) {
+            targets.insert(d.id);
+        }
+    }
+    if targets.is_empty() {
+        return Vec::new();
+    }
+    let hits =
+        ready
+            .workspace
+            .doc_index
+            .incoming(&files, &targets, matches!(kind, ReferrerKind::Embeds));
+    let mut seen = HashSet::new();
+    let mut names = Vec::new();
+    for b in hits {
+        if !seen.insert(b.from) {
+            continue;
+        }
+        let Some(f) = files.get_by_id(b.from) else {
+            continue;
+        };
+        if files
+            .path(b.from)
+            .split('/')
+            .any(|s| !s.is_empty() && s.starts_with('.'))
+        {
+            continue;
+        }
+        names.push(display_file_name(&f.name).to_owned());
+    }
+    names.sort_by(|a, b| a.to_lowercase().cmp(&b.to_lowercase()));
+    names
+}
+
+/// Quiet action under the referrer line — rename/move and rewrite dests.
+pub(crate) fn paint_update_refs(ui: &mut egui::Ui, t: &Theme, enabled: bool) -> bool {
+    Button::secondary(t, "Update references")
+        .enabled(enabled)
+        .max_width(crate::components::ui_width(ui))
+        .show(ui)
+        .clicked()
+}
+
+/// **Journal** and **Inbox** link here. / **8 notes** embed this.
+pub(crate) fn paint_referrers(ui: &mut egui::Ui, t: &Theme, names: &[String], kind: ReferrerKind) {
+    use workspace_rs::widgets::GlyphonLabel;
+    if names.is_empty() {
+        return;
+    }
+    let ink = t.neutral_fg();
+    let fs = TypeRole::Body.size();
+    let lh = TypeRole::Body.line_height();
+    let max_w = crate::components::ui_width(ui).max(1.0);
+    let spans = referrer_spans(names, kind);
+    let rich: Vec<(&str, bool)> = spans.iter().map(|(s, b)| (s.as_str(), *b)).collect();
+    ui.add(
+        GlyphonLabel::new_rich(rich, ink)
+            .font_size(fs)
+            .line_height(lh)
+            .max_width(max_w),
+    );
+}
+
+fn referrer_spans(names: &[String], kind: ReferrerKind) -> Vec<(String, bool)> {
+    let mut spans = Vec::new();
+    if names.is_empty() {
+        return spans;
+    }
+    if names.len() <= 4 {
+        delete_push_name_list(&mut spans, names);
+    } else {
+        spans.push((delete_count_noun(names.len(), "note", "notes"), true));
+    }
+    let (one, many) = match kind {
+        ReferrerKind::Links => (" links here.", " link here."),
+        ReferrerKind::Embeds => (" embeds this.", " embed this."),
+    };
+    spans.push(((if names.len() == 1 { one } else { many }).into(), false));
+    spans
+}
+
 fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut Vec<Action>) {
     let layer = egui::LayerId::new(Order::Foreground, Id::new("shell_rename"));
     if sheet_dim(ctx, Id::new("shell_rename_dim"), layer) {
@@ -517,6 +649,15 @@ fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut V
                     ui.add(Spacer::new(Space::Xs));
                     ui.label(TypeRole::Body.rich(err).color(t.danger()));
                 }
+                let refs = referrer_names(app, ctx, &[id], ReferrerKind::Links);
+                if !refs.is_empty() {
+                    ui.add(Spacer::new(Space::Md));
+                    paint_referrers(ui, t, &refs, ReferrerKind::Links);
+                    ui.add(Spacer::new(Space::Xs));
+                    if paint_update_refs(ui, t, can_commit) {
+                        queue.push(A::ConfirmRename { update_refs: true });
+                    }
+                }
                 ui.add(Spacer::new(Space::Md));
                 let foot = sheet_footer(
                     ui,
@@ -531,7 +672,7 @@ fn show_rename(app: &mut ShellApp, ctx: &egui::Context, t: &Theme, queue: &mut V
                     queue.push(A::CloseModal);
                 }
                 if foot.primary {
-                    queue.push(A::ConfirmRename);
+                    queue.push(A::ConfirmRename { update_refs: false });
                 }
             });
         });
@@ -654,7 +795,7 @@ fn help_shortcut_row(ui: &mut egui::Ui, t: &Theme, key: &str, label: &str) {
 
 #[cfg(test)]
 mod delete_link_copy_tests {
-    use super::{delete_link_spans, delete_push_name_list};
+    use super::{ReferrerKind, delete_link_spans, delete_push_name_list, referrer_spans};
 
     fn text(spans: &[(String, bool)]) -> String {
         spans.iter().map(|(s, _)| s.as_str()).collect()
@@ -687,5 +828,30 @@ mod delete_link_copy_tests {
         let mut spans = Vec::new();
         delete_push_name_list(&mut spans, &["a".into(), "b".into(), "c".into()]);
         assert_eq!(text(&spans), "a, b, and c");
+    }
+
+    #[test]
+    fn referrer_one_links() {
+        assert_eq!(
+            text(&referrer_spans(&["Journal".into()], ReferrerKind::Links)),
+            "Journal links here."
+        );
+    }
+
+    #[test]
+    fn referrer_two_embeds() {
+        assert_eq!(
+            text(&referrer_spans(&["A".into(), "B".into()], ReferrerKind::Embeds)),
+            "A and B embed this."
+        );
+    }
+
+    #[test]
+    fn referrer_four_named_then_count() {
+        let four =
+            referrer_spans(&["a".into(), "b".into(), "c".into(), "d".into()], ReferrerKind::Links);
+        assert_eq!(text(&four), "a, b, c, and d link here.");
+        let five: Vec<String> = (0..5).map(|i| format!("n{i}")).collect();
+        assert_eq!(text(&referrer_spans(&five, ReferrerKind::Embeds)), "5 notes embed this.");
     }
 }

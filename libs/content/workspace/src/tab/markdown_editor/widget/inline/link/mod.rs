@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex};
 use lb_rs::model::text::operation_types::Operation;
 
 use crate::egress::{FetchError, fetch_html};
-use crate::file_cache::{FilesExt as _, ResolvedLink};
+use crate::file_cache::{FilesExt as _, ResolvedLink, split_internal_fragment};
 use crate::show::DocType;
 use crate::style::{phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
@@ -318,13 +318,60 @@ impl<'ast> MdRender {
 
     /// Open `url` in-app for internal file links and in the browser otherwise.
     /// `new_tab` is only for an explicit new-tab request (cmd-click / multi-open).
+    /// A `#fragment` on an internal link scrolls to that heading after open.
     pub fn open_resolved_link(&self, url: &str, ctx: &egui::Context, new_tab: bool) {
         match self.resolve_link(url) {
-            Some(ResolvedLink::File(file_id)) => ctx.open_file(file_id, new_tab),
+            Some(ResolvedLink::File(file_id)) => {
+                Self::open_file_maybe_fragment(ctx, file_id, url, new_tab)
+            }
             Some(ResolvedLink::External(target)) => {
                 ctx.open_url(egui::OpenUrl { url: target, new_tab: true })
             }
             None => ctx.open_url(egui::OpenUrl { url: url.into(), new_tab: true }),
+        }
+    }
+
+    /// Follow a wiki/markdown dest, or create the missing file and open it.
+    /// Raster image dests, `http`/`mailto`/`lb://`, and same-file fragments
+    /// are not created. `new_tab` is for an explicit new-tab / multi-open.
+    pub fn follow_or_create_link(
+        &self, url: &str, is_wikilink: bool, ctx: &egui::Context, new_tab: bool,
+    ) {
+        if is_wikilink {
+            if let Some(file_id) = self.resolve_wikilink(url) {
+                Self::open_file_maybe_fragment(ctx, file_id, url, new_tab);
+                return;
+            }
+        } else {
+            match self.resolve_link(url) {
+                Some(ResolvedLink::File(file_id)) => {
+                    Self::open_file_maybe_fragment(ctx, file_id, url, new_tab);
+                    return;
+                }
+                Some(ResolvedLink::External(target)) => {
+                    ctx.open_url(egui::OpenUrl { url: target, new_tab: true });
+                    return;
+                }
+                None => {}
+            }
+        }
+        let Some(from_id) = self.link_resolver.source_file() else { return };
+        let creatable = {
+            let files = self.files.read().unwrap();
+            crate::resolvers::link::create_spec_for_dest(&*files, from_id, url, is_wikilink)
+                .is_some()
+        };
+        if creatable {
+            ctx.create_from_link(from_id, url.to_string(), is_wikilink, new_tab);
+        }
+    }
+
+    pub(crate) fn open_file_maybe_fragment(
+        ctx: &egui::Context, file_id: lb_rs::Uuid, url: &str, new_tab: bool,
+    ) {
+        match split_internal_fragment(url).1.filter(|s| !s.is_empty()) {
+            Some(frag) => ctx.open_file_at_fragment(file_id, frag.to_string(), new_tab),
+            None => ctx.open_file(file_id, new_tab),
         }
     }
 
@@ -369,6 +416,7 @@ impl<'ast> MdRender {
 
         let mut file_ids = vec![];
         let mut urls = vec![];
+        let mut creates = vec![];
 
         for node in root.descendants() {
             let node_range = self.node_range(node);
@@ -376,37 +424,38 @@ impl<'ast> MdRender {
                 continue;
             }
 
-            let (url, is_wikilink) = {
+            let (url, is_wikilink, is_image) = {
                 let data = node.data.borrow();
                 match &data.value {
-                    NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
-                    NodeValue::Link(nl) => (nl.url.clone(), false),
-                    NodeValue::Image(ni) => (ni.url.clone(), false),
+                    NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                    NodeValue::Link(nl) => (nl.url.clone(), false, false),
+                    NodeValue::Image(ni) => (ni.url.clone(), false, true),
                     _ => continue,
                 }
             };
 
             if is_wikilink {
                 if let Some(id) = self.resolve_wikilink(&url) {
-                    file_ids.push(id);
+                    file_ids.push((id, url));
+                } else {
+                    creates.push((url, true));
                 }
                 continue;
             }
 
             match self.resolve_link(&url) {
-                Some(ResolvedLink::File(id)) => file_ids.push(id),
+                Some(ResolvedLink::File(id)) => file_ids.push((id, url)),
                 Some(ResolvedLink::External(url)) => {
                     urls.push(egui::OpenUrl { url, new_tab: false });
                 }
-                None => {
-                    urls.push(egui::OpenUrl { url, new_tab: false });
-                }
+                None if is_image => {}
+                None => creates.push((url, false)),
             }
         }
 
-        let new_tab = file_ids.len() + urls.len() > 1;
-        for id in file_ids {
-            ctx.open_file(id, new_tab);
+        let new_tab = file_ids.len() + urls.len() + creates.len() > 1;
+        for (id, url) in file_ids {
+            Self::open_file_maybe_fragment(ctx, id, &url, new_tab);
         }
         if new_tab {
             for url in &mut urls {
@@ -415,6 +464,9 @@ impl<'ast> MdRender {
         }
         for url in urls {
             ctx.open_url(url);
+        }
+        for (url, is_wikilink) in creates {
+            self.follow_or_create_link(&url, is_wikilink, ctx, new_tab);
         }
     }
 
@@ -425,9 +477,10 @@ impl<'ast> MdRender {
     pub fn handle_link_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.id();
         for node in root.descendants() {
-            let (url, is_wikilink) = match &node.data.borrow().value {
-                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true),
-                NodeValue::Link(nl) | NodeValue::Image(nl) => (nl.url.clone(), false),
+            let (url, is_wikilink, is_image) = match &node.data.borrow().value {
+                NodeValue::WikiLink(nwl) => (nwl.url.clone(), true, false),
+                NodeValue::Link(nl) => (nl.url.clone(), false, false),
+                NodeValue::Image(nl) => (nl.url.clone(), false, true),
                 _ => continue,
             };
             let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
@@ -465,12 +518,10 @@ impl<'ast> MdRender {
             }
 
             if response.clicked() && (self.readonly || !self.touch_mode) {
-                if is_wikilink {
-                    if let Some(file_id) = self.resolve_wikilink(&url) {
-                        ui.ctx().open_file(file_id, false);
-                    }
-                } else {
+                if is_image {
                     self.open_resolved_link(&url, ui.ctx(), false);
+                } else {
+                    self.follow_or_create_link(&url, is_wikilink, ui.ctx(), false);
                 }
                 return;
             }

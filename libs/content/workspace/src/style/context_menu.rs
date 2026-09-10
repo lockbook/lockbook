@@ -142,6 +142,33 @@ impl<T> Default for Entries<T> {
 pub fn show<T: Clone>(
     resp: &Response, t: &Theme, build: impl FnOnce(&mut Entries<T>),
 ) -> Option<T> {
+    show_open(resp, t, resp.secondary_clicked(), build)
+}
+
+/// Like [`show`], but a primary click opens the menu (picker / “copy as…”).
+pub fn show_click<T: Clone>(
+    resp: &Response, t: &Theme, build: impl FnOnce(&mut Entries<T>),
+) -> Option<T> {
+    show_open(resp, t, resp.clicked(), build)
+}
+
+/// True when this response is the host of the open menu.
+pub fn is_open(resp: &Response) -> bool {
+    is_open_id(&resp.ctx, resp.id)
+}
+
+/// True when `id` is the host of the open menu.
+pub fn is_open_id(ctx: &egui::Context, id: Id) -> bool {
+    ctx.memory(|m| {
+        m.data
+            .get_temp::<OpenState>(open_id())
+            .is_some_and(|s| s.host == id)
+    })
+}
+
+fn show_open<T: Clone>(
+    resp: &Response, t: &Theme, open: bool, build: impl FnOnce(&mut Entries<T>),
+) -> Option<T> {
     let ctx = &resp.ctx;
 
     let mut menu = Entries::new();
@@ -151,7 +178,7 @@ pub fn show<T: Clone>(
         return None;
     }
 
-    if resp.secondary_clicked() {
+    if open {
         let press = ctx
             .pointer_interact_pos()
             .or_else(|| ctx.input(|i| i.pointer.hover_pos()))
@@ -169,7 +196,7 @@ pub fn show<T: Clone>(
         return None;
     }
 
-    let just_opened = resp.secondary_clicked();
+    let just_opened = open;
     let mut chosen: Option<T> = None;
     let with_icons = menu.any_icon();
     let pointer = ctx

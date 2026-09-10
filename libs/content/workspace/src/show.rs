@@ -6,7 +6,7 @@ use std::mem;
 use std::sync::{Arc, Mutex};
 use web_time::{Duration, Instant};
 
-use crate::file_cache::{FilesExt as _, ResolvedLink};
+use crate::file_cache::{FilesExt as _, ResolvedLink, split_internal_fragment};
 use crate::output::Response;
 use crate::search::SearchType;
 use crate::tab::{ExtendedOutput as _, image_viewer};
@@ -50,6 +50,7 @@ impl Workspace {
         self.process_keys();
         self.process_clip_events();
         self.apply_pending_open_range();
+        self.apply_pending_open_fragment();
 
         if self.is_empty() {
             self.show_landing_page(ui);
@@ -122,15 +123,31 @@ impl Workspace {
                 self.show_current_tab_content(ui);
 
                 let mut open_ids: Vec<(Uuid, bool)> = Vec::new();
+                let mut open_frags: Vec<(Uuid, String, bool)> = Vec::new();
                 if let Some(id) = self.current_tab_id() {
                     ui.ctx().output_mut(|w| {
                         w.commands.retain(|c| {
                             let egui::OutputCommand::OpenUrl(url) = c else { return true };
 
+                            let (path, frag) = split_internal_fragment(&url.url);
+                            let frag = frag.filter(|s| !s.is_empty()).map(|s| s.to_string());
+
+                            // same-file fragment (`#heading`)
+                            if path.is_empty() {
+                                if let Some(frag) = frag {
+                                    open_frags.push((id, frag, url.new_tab));
+                                }
+                                return false;
+                            }
+
                             // lb://uuid — direct internal link
-                            if let Some(id_str) = url.url.strip_prefix("lb://") {
-                                if let Ok(id) = Uuid::parse_str(id_str) {
-                                    open_ids.push((id, url.new_tab));
+                            if let Some(id_str) = path.strip_prefix("lb://") {
+                                if let Ok(target) = Uuid::parse_str(id_str) {
+                                    if let Some(frag) = frag {
+                                        open_frags.push((target, frag, url.new_tab));
+                                    } else {
+                                        open_ids.push((target, url.new_tab));
+                                    }
                                 }
                                 return false;
                             }
@@ -142,12 +159,16 @@ impl Workspace {
                             };
 
                             let Some(ResolvedLink::File(file_id)) =
-                                files_guard.resolve_link(&url.url, from_id)
+                                files_guard.resolve_link(path, from_id)
                             else {
                                 return true;
                             };
 
-                            open_ids.push((file_id, url.new_tab));
+                            if let Some(frag) = frag {
+                                open_frags.push((file_id, frag, url.new_tab));
+                            } else {
+                                open_ids.push((file_id, url.new_tab));
+                            }
                             false
                         });
                     });
@@ -172,6 +193,18 @@ impl Workspace {
                     } else {
                         self.navigate_to_range(id, range);
                     }
+                }
+                for (id, fragment, new_tab) in
+                    open_frags.into_iter().chain(ui.ctx().pop_open_fragments())
+                {
+                    if new_tab {
+                        self.open_file_at_fragment(id, fragment, true);
+                    } else {
+                        self.navigate_to_fragment(id, fragment);
+                    }
+                }
+                for (from_id, dest, is_wikilink, new_tab) in ui.ctx().pop_create_from_links() {
+                    self.create_from_broken_link(from_id, dest, is_wikilink, new_tab);
                 }
             });
         });

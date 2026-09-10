@@ -20,6 +20,8 @@ use super::TabBridge;
 use super::auth::{self, TokenSet};
 use super::tools;
 
+use crate::doc_index::DocIndex;
+use crate::file_cache::FileCache;
 use crate::workspace::WsPersistentStore;
 
 pub enum CallCmd {
@@ -61,6 +63,9 @@ pub struct CallSpawn {
     pub input: String,
     pub output: String,
     pub tabs: std::sync::Arc<std::sync::Mutex<TabBridge>>,
+    pub files: std::sync::Arc<std::sync::RwLock<FileCache>>,
+    pub doc_index: DocIndex,
+    pub tasks: crate::task_manager::TaskManager,
 }
 
 /// Returns the command sender. Events arrive on `ev_tx`.
@@ -147,6 +152,9 @@ async fn run(
         chat_id: opts.chat_id,
         cfg: opts.cfg,
         tabs: opts.tabs,
+        files: opts.files,
+        doc_index: opts.doc_index,
+        tasks: opts.tasks,
         voice: opts.voice,
         user_id: None,
         asr_draft: String::new(),
@@ -283,6 +291,9 @@ struct Call {
     chat_id: Uuid,
     cfg: WsPersistentStore,
     tabs: std::sync::Arc<std::sync::Mutex<TabBridge>>,
+    files: std::sync::Arc<std::sync::RwLock<FileCache>>,
+    doc_index: DocIndex,
+    tasks: crate::task_manager::TaskManager,
     voice: String,
     user_id: Option<Uuid>,
     asr_draft: String,
@@ -1042,6 +1053,9 @@ impl Call {
         let name_run = name.clone();
         let args_run = args.clone();
         let tabs = self.tabs.clone();
+        let files = std::sync::Arc::clone(&self.files);
+        let doc_index = self.doc_index.clone();
+        let tasks = self.tasks.clone();
         let cfg = self.cfg.clone();
         let tx = self.tool_tx.clone();
         let ctx = self.ctx.clone();
@@ -1058,8 +1072,11 @@ impl Call {
                     Err(e) => Err(e),
                 }
             } else {
-                super::dispatch_client_tool(&core, chat_id, &name_run, &args_run, &tabs, &cfg, true)
-                    .map(|o| o.text)
+                super::dispatch_client_tool(
+                    &core, chat_id, &name_run, &args_run, &tabs, &cfg, true, &files, &doc_index,
+                    &tasks,
+                )
+                .map(|o| o.text)
             };
             let _ = tx.send(ToolDone { item, call_id, name: name_run, result });
             ctx.request_repaint();

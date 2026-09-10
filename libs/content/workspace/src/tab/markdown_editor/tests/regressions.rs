@@ -54,6 +54,7 @@ fn inline_image_advance_matches_rendered_width() {
             link_resolver: Box::new(()),
             embeds: embed,
             files,
+            doc_index: crate::doc_index::DocIndex::empty(),
         },
         super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
     );
@@ -1223,6 +1224,7 @@ fn image_load_layout_consistent() {
             link_resolver: Box::new(()),
             embeds: embed,
             files,
+            doc_index: crate::doc_index::DocIndex::empty(),
         },
         super::super::MdConfig { readonly: false, ext: "md".to_string(), tablet_or_desktop: true },
     );
@@ -2205,6 +2207,7 @@ fn phone_toolbar_never_pushed_off_screen() {
             link_resolver: Box::new(super::harness::TestLinks),
             embeds: Box::new(embeds.clone()),
             files,
+            doc_index: crate::doc_index::DocIndex::empty(),
         },
         super::super::MdConfig { readonly: false, ext: "md".into(), tablet_or_desktop: false },
     );
@@ -2430,4 +2433,34 @@ fn phone_toolbar_never_pushed_off_screen() {
             }
         }
     }
+}
+
+// ── heading fragments ──
+
+#[test]
+fn open_navigate_fragment_selects_heading() {
+    let mut ws = TestEditor::new("# Intro\n\nhello\n\n# Link Fragments\n\nbody\n");
+    ws.editor.open_navigate_fragment("link-fragments");
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    let selected = &ws.editor.edit.renderer.buffer[sel];
+    assert!(
+        selected.contains("Link Fragments"),
+        "slug should select the heading, got {selected:?}"
+    );
+
+    ws.editor.open_navigate_fragment("Intro");
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    let selected = &ws.editor.edit.renderer.buffer[sel];
+    assert!(selected.contains("Intro"), "heading text should match, got {selected:?}");
+}
+
+#[test]
+fn open_navigate_fragment_unique_slug() {
+    let mut ws = TestEditor::new("# Foo\n\n# Foo\n");
+    ws.editor.open_navigate_fragment("foo-1");
+    let sel = ws.editor.edit.renderer.buffer.current.selection;
+    // second heading starts after the first "Foo\n\n"
+    assert!(sel.0.0 > 0, "foo-1 should be the second heading, sel={sel:?}");
+    let selected = &ws.editor.edit.renderer.buffer[sel];
+    assert!(selected.contains("Foo"));
 }

@@ -266,6 +266,7 @@ fn build_editor(core: Lb, md: &str, ext: &str, embeds: Box<dyn EmbedResolver>) -
             link_resolver: Box::new(TestLinks),
             embeds,
             files,
+            doc_index: crate::doc_index::DocIndex::empty(),
         },
         MdConfig { readonly: false, ext: ext.to_string(), tablet_or_desktop: true },
     )

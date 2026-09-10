@@ -919,7 +919,10 @@ fn paint_user_bubble(chat: &mut Chat, ui: &mut Ui, id: Uuid, text: &str) {
         vec2(ui.available_width(), size.y),
         Layout::right_to_left(Align::TOP),
         |ui| {
-            let (rect, _) = ui.allocate_exact_size(size, Sense::hover());
+            // Sense::nothing: a hover/click plate would sit under the markdown
+            // but still steal hits in glyph gaps, so wiki/md links in the
+            // bubble wouldn't open.
+            let (rect, _) = ui.allocate_exact_size(size, Sense::empty());
             paint_plate(ui, rect, Radius::Control.corner(), t.neutral_bg_secondary(), t.neutral());
             paint_inset_spacers(ui, rect, Space::Sm);
             let origin = rect.min + vec2(pad, pad);

@@ -6,6 +6,7 @@ use lb_rs::{
     model::core_config::{ClientType, Config},
 };
 use workspace_rs::{
+    doc_index::DocIndex,
     resolvers::image_embed::ImageEmbedResolver,
     tab::{
         markdown_editor::{Editor, HttpClient, MdConfig, MdResources},
@@ -110,6 +111,7 @@ impl eframe::App for LbWebApp {
                             core: self.core.clone(),
                             persistence: self.cfg.clone(),
                             files,
+                            doc_index: DocIndex::empty(),
                             link_resolver: Box::new(()),
                             embeds: Box::new(ImageEmbedResolver::new(images, file_id)),
                         },

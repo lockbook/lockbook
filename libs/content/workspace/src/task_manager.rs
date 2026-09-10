@@ -11,6 +11,7 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use lb_rs::{Uuid, spawn};
 use tracing::{Level, error, instrument, span, trace, warn};
 
+use crate::tab::markdown_editor::fragment::Outgoing;
 use crate::tab::{SessionId, TabSaveContent};
 use crate::widgets::tab_cache::TabCache;
 
@@ -19,10 +20,12 @@ pub struct Tasks {
     // queued tasks launch when ready with no follow-up required
     queued_loads: Vec<QueuedLoad>,
     queued_saves: Vec<QueuedSave>,
+    queued_rewrites: Vec<QueuedRewrite>,
 
     // launched tasks tracked here until complete
     pub in_progress_loads: Vec<InProgressLoad>,
     pub in_progress_saves: Vec<InProgressSave>,
+    in_progress_rewrites: Vec<InProgressRewrite>,
 
     // completions stashed here then returned in the response on the next frame
     completed_loads: Vec<CompletedLoad>,
@@ -58,8 +61,16 @@ impl Tasks {
             .any(|in_progress_save| in_progress_save.request.id == id)
     }
 
+    fn rewrite_in_progress(&self, id: Uuid) -> bool {
+        self.in_progress_rewrites.iter().any(|q| q.request.id == id)
+    }
+
     fn load_or_save_in_progress(&self, id: Uuid) -> bool {
         self.load_in_progress(id) || self.save_in_progress(id)
+    }
+
+    fn io_in_progress(&self, id: Uuid) -> bool {
+        self.load_or_save_in_progress(id) || self.rewrite_in_progress(id)
     }
 }
 
@@ -93,6 +104,13 @@ pub struct LoadRequest {
 pub struct SaveRequest {
     pub id: Uuid,
     pub origin: SessionId,
+}
+
+/// Dest rewrite for one referring note. No tab — reads disk, `safe_write`.
+#[derive(Clone, Debug)]
+pub struct RewriteRequest {
+    pub id: Uuid,
+    pub reps: Vec<(Outgoing, String)>,
 }
 
 // Timing
@@ -151,6 +169,12 @@ struct QueuedSave {
     timing: QueuedTiming,
 }
 
+#[derive(Clone)]
+struct QueuedRewrite {
+    request: RewriteRequest,
+    timing: QueuedTiming,
+}
+
 pub struct InProgressLoad {
     pub request: LoadRequest,
 
@@ -171,6 +195,17 @@ pub struct InProgressSave {
 
 impl InProgressSave {
     fn new(queued: QueuedSave) -> Self {
+        Self { request: queued.request, timing: InProgressTiming::new(queued.timing) }
+    }
+}
+
+struct InProgressRewrite {
+    request: RewriteRequest,
+    timing: InProgressTiming,
+}
+
+impl InProgressRewrite {
+    fn new(queued: QueuedRewrite) -> Self {
         Self { request: queued.request, timing: InProgressTiming::new(queued.timing) }
     }
 }
@@ -216,7 +251,10 @@ impl TaskManager {
     /// to wait for save flushes before closing the window.
     pub fn saves_idle(&self) -> bool {
         let tasks = self.tasks.lock().unwrap();
-        tasks.queued_saves.is_empty() && tasks.in_progress_saves.is_empty()
+        tasks.queued_saves.is_empty()
+            && tasks.in_progress_saves.is_empty()
+            && tasks.queued_rewrites.is_empty()
+            && tasks.in_progress_rewrites.is_empty()
     }
 
     pub fn queue_save(&mut self, request: SaveRequest) {
@@ -226,6 +264,35 @@ impl TaskManager {
             .unwrap()
             .queued_saves
             .push(QueuedSave { request, timing: QueuedTiming::new() });
+    }
+
+    /// Queue a dest rewrite. Same-id jobs still queued are merged so two
+    /// rename/moves don't drop the first dest map.
+    pub fn queue_rewrite(&self, request: RewriteRequest) {
+        trace!("queued rewrite of file {}", request.id);
+        let mut tasks = self.tasks.lock().unwrap();
+        if let Some(existing) = tasks
+            .queued_rewrites
+            .iter_mut()
+            .find(|q| q.request.id == request.id)
+        {
+            for (o, new) in request.reps {
+                if let Some((_, slot)) = existing
+                    .request
+                    .reps
+                    .iter_mut()
+                    .find(|(old, _)| old.dest == o.dest && old.kind == o.kind)
+                {
+                    *slot = new;
+                } else {
+                    existing.request.reps.push((o, new));
+                }
+            }
+            return;
+        }
+        tasks
+            .queued_rewrites
+            .push(QueuedRewrite { request, timing: QueuedTiming::new() });
     }
 
     pub fn load_queued(&self, id: Uuid) -> bool {
@@ -293,7 +360,7 @@ impl TaskManager {
         let mut ids_to_load = Vec::new();
         for queued_load in &tasks.queued_loads {
             let id = queued_load.request.id;
-            if tasks.load_or_save_in_progress(id) {
+            if tasks.io_in_progress(id) {
                 continue;
             }
             ids_to_load.push(id);
@@ -302,7 +369,7 @@ impl TaskManager {
         let mut ids_to_save = Vec::new();
         for queued_save in &tasks.queued_saves {
             let id = queued_save.request.id;
-            if tasks.load_or_save_in_progress(id) {
+            if tasks.io_in_progress(id) {
                 continue;
             }
             if tasks
@@ -339,7 +406,37 @@ impl TaskManager {
             }
         }
 
-        let any_to_launch = !loads_to_launch.is_empty() || !saves_to_launch.is_empty();
+        // Saves before rewrites: persist live edits, then dest-rewrite CAS.
+        let mut ids_to_rewrite = Vec::new();
+        for queued in &tasks.queued_rewrites {
+            let id = queued.request.id;
+            if tasks.io_in_progress(id) {
+                continue;
+            }
+            if tasks.save_queued(id) || tasks.load_queued(id) {
+                continue;
+            }
+            if tasks
+                .completed_saves
+                .iter()
+                .any(|completed_save| completed_save.request.id == id)
+            {
+                continue;
+            }
+            ids_to_rewrite.push(id);
+        }
+        let mut rewrites_to_launch = HashMap::new();
+        for rewrite in mem::take(&mut tasks.queued_rewrites) {
+            if ids_to_rewrite.contains(&rewrite.request.id) {
+                rewrites_to_launch.insert(rewrite.request.id, rewrite);
+            } else {
+                tasks.queued_rewrites.push(rewrite);
+            }
+        }
+
+        let any_to_launch = !loads_to_launch.is_empty()
+            || !saves_to_launch.is_empty()
+            || !rewrites_to_launch.is_empty();
 
         // Launch the things
         for queued_load in loads_to_launch.into_values() {
@@ -406,6 +503,24 @@ impl TaskManager {
 
             let self_clone = self.clone();
             spawn!(self_clone.background_save(request, old_hmac, seq, content));
+        }
+
+        for queued_rewrite in rewrites_to_launch.into_values() {
+            let span =
+                span!(Level::TRACE, "rewrite_launch", id = queued_rewrite.request.id.to_string());
+            let _enter = span.enter();
+            let request = queued_rewrite.request.clone();
+            let in_progress = InProgressRewrite::new(queued_rewrite);
+            let queue_time = in_progress
+                .timing
+                .started_at
+                .duration_since(in_progress.timing.queued_at);
+            if queue_time > Duration::from_secs(1) {
+                warn!("rewrite spent {queue_time:?} in the task queue");
+            }
+            tasks.in_progress_rewrites.push(in_progress);
+            let self_clone = self.clone();
+            spawn!(self_clone.background_rewrite(request));
         }
 
         if any_to_launch {
@@ -507,6 +622,36 @@ impl TaskManager {
             tasks.completed_saves.push(completed_save);
         }
 
+        self.ctx.request_repaint();
+    }
+
+    #[instrument(level = "trace", skip(self, request), fields(id = %request.id))]
+    fn background_rewrite(&self, request: RewriteRequest) {
+        let id = request.id;
+        let wrote = crate::doc_index::rewrite_one(&self.core, request.id, &request.reps);
+        {
+            let mut tasks = self.tasks.lock().unwrap();
+            let mut in_progress = None;
+            for job in mem::take(&mut tasks.in_progress_rewrites) {
+                if job.request.id == id {
+                    in_progress = Some(job);
+                } else {
+                    tasks.in_progress_rewrites.push(job);
+                }
+            }
+            let Some(in_progress) = in_progress else {
+                error!("failed to find in-progress entry for rewrite that just completed");
+                return;
+            };
+            let timing = CompletedTiming::new(in_progress.timing);
+            if !wrote {
+                warn!(
+                    "rewrite skipped or failed ({:?}): {}",
+                    timing.completed_at.duration_since(timing.started_at),
+                    id
+                );
+            }
+        }
         self.ctx.request_repaint();
     }
 

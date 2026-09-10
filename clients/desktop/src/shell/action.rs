@@ -365,9 +365,13 @@ pub enum Action {
     ConfirmCreate,
     OpenMove(Vec<Uuid>),
     MoveSelect(Uuid),
-    ConfirmMove,
+    ConfirmMove {
+        update_refs: bool,
+    },
     OpenRename(Uuid),
-    ConfirmRename,
+    ConfirmRename {
+        update_refs: bool,
+    },
     OpenAcceptShare {
         id: Uuid,
         name: String,
@@ -507,9 +511,9 @@ impl Action {
             Self::ConfirmCreate => "ConfirmCreate",
             Self::OpenMove(_) => "OpenMove",
             Self::MoveSelect(_) => "MoveSelect",
-            Self::ConfirmMove => "ConfirmMove",
+            Self::ConfirmMove { .. } => "ConfirmMove",
             Self::OpenRename(_) => "OpenRename",
-            Self::ConfirmRename => "ConfirmRename",
+            Self::ConfirmRename { .. } => "ConfirmRename",
             Self::OpenAcceptShare { .. } => "OpenAcceptShare",
             Self::AcceptShareDest(_) => "AcceptShareDest",
             Self::ConfirmAcceptShare => "ConfirmAcceptShare",

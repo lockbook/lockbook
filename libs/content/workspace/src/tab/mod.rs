@@ -742,6 +742,12 @@ pub trait ExtendedOutput {
     /// to type over).
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
     fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)>;
+    /// Open a file and scroll to the heading matching `fragment`.
+    fn open_file_at_fragment(&self, id: Uuid, fragment: String, new_tab: bool);
+    fn pop_open_fragments(&self) -> Vec<(Uuid, String, bool)>;
+    /// Create the missing dest of a broken wiki/markdown link, then open it.
+    fn create_from_link(&self, from_id: Uuid, dest: String, is_wikilink: bool, new_tab: bool);
+    fn pop_create_from_links(&self) -> Vec<(Uuid, String, bool, bool)>;
 }
 
 impl ExtendedOutput for egui::Context {
@@ -796,6 +802,44 @@ impl ExtendedOutput for egui::Context {
         self.memory_mut(|m| {
             m.data
                 .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_ranges"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn open_file_at_fragment(&self, id: Uuid, fragment: String, new_tab: bool) {
+        self.memory_mut(|m| {
+            let mut frags: Vec<(Uuid, String, bool)> = m
+                .data
+                .get_temp(Id::new("open_fragments"))
+                .unwrap_or_default();
+            frags.push((id, fragment, new_tab));
+            m.data.insert_temp(Id::new("open_fragments"), frags);
+        })
+    }
+
+    fn pop_open_fragments(&self) -> Vec<(Uuid, String, bool)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, String, bool)>>(Id::new("open_fragments"))
+                .unwrap_or_default()
+        })
+    }
+
+    fn create_from_link(&self, from_id: Uuid, dest: String, is_wikilink: bool, new_tab: bool) {
+        self.memory_mut(|m| {
+            let mut reqs: Vec<(Uuid, String, bool, bool)> = m
+                .data
+                .get_temp(Id::new("create_from_links"))
+                .unwrap_or_default();
+            reqs.push((from_id, dest, is_wikilink, new_tab));
+            m.data.insert_temp(Id::new("create_from_links"), reqs);
+        })
+    }
+
+    fn pop_create_from_links(&self) -> Vec<(Uuid, String, bool, bool)> {
+        self.memory_mut(|m| {
+            m.data
+                .remove_temp::<Vec<(Uuid, String, bool, bool)>>(Id::new("create_from_links"))
                 .unwrap_or_default()
         })
     }

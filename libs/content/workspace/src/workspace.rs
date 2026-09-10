@@ -2,6 +2,7 @@ use chrono::Local;
 use egui::Context;
 
 use lb_rs::blocking::Lb;
+use lb_rs::model::ValidationFailure;
 use lb_rs::model::access_info::UserAccessMode;
 use lb_rs::model::account::Account;
 use lb_rs::model::errors::{LbErr, LbErrKind, Unexpected};
@@ -22,11 +23,13 @@ use std::sync::{Arc, Mutex, RwLock, mpsc};
 use tracing::{debug, error, info, instrument, trace_span, warn};
 use web_time::{Duration, Instant};
 
+use crate::doc_index::{DocIndex, Reloc};
 use crate::file_cache::{FileCache, FilesExt};
 use crate::landing::LandingPage;
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
+use crate::resolvers::link::create_spec_for_dest;
 use crate::search::{Search, SearchType};
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
@@ -45,7 +48,8 @@ use crate::tab::{
 };
 use crate::task_manager;
 use crate::task_manager::{
-    CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, SaveRequest, TaskManager,
+    CompletedLoad, CompletedSave, CompletedTiming, LoadRequest, RewriteRequest, SaveRequest,
+    TaskManager,
 };
 use crate::widgets::image_cache::ImageCache;
 use crate::widgets::tab_cache::TabCache;
@@ -88,10 +92,14 @@ pub struct Workspace {
     pub preview_pending: Option<Tab>,
 
     pending_open_range: Option<(Uuid, std::ops::Range<usize>)>,
+    pending_open_fragment: Option<(Uuid, String)>,
 
     // Files and task status
     pub tasks: TaskManager,
     pub files: Arc<RwLock<FileCache>>,
+    /// Background markdown index (headings now; backlinks next). Same events
+    /// as FileCache: metadata rebuild reconciles, writes reindex that file.
+    pub doc_index: DocIndex,
     pub images: ImageCache,
     pub last_save_all: Option<Instant>,
     pub last_sync_completed: Option<Instant>,
@@ -165,6 +173,7 @@ impl Workspace {
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,
+            doc_index: DocIndex::empty(),
             images,
             last_sync_completed: Default::default(),
             last_save_all: Default::default(),
@@ -191,6 +200,7 @@ impl Workspace {
             preview: None,
             preview_pending: None,
             pending_open_range: None,
+            pending_open_fragment: None,
             ws_rx,
         };
 
@@ -198,6 +208,7 @@ impl Workspace {
             let files = ws.files.read().unwrap();
             ws.landing_page.update_recent_files(&files);
         }
+        ws.doc_index.sync(&ws.files, &ws.core, &ws.ctx);
 
         let (open_sessions, current_tab_index) = ws.cfg.get_sessions();
         let current_session_id = current_tab_index
@@ -760,6 +771,36 @@ impl Workspace {
         }
     }
 
+    pub fn open_file_at_fragment(&mut self, id: Uuid, fragment: String, in_new_tab: bool) {
+        self.open_file(id, true, in_new_tab);
+        self.pending_open_fragment = Some((id, fragment));
+    }
+
+    pub fn navigate_to_fragment(&mut self, id: Uuid, fragment: String) {
+        self.navigate_to(Destination::File(id));
+        self.pending_open_fragment = Some((id, fragment));
+    }
+
+    pub(crate) fn apply_pending_open_fragment(&mut self) {
+        let Some((id, fragment)) = self.pending_open_fragment.clone() else { return };
+        let Some(tab) = self.get_mut_tab_by_id(id) else {
+            if self.tab_strip.iter().all(|s| s.dest.id() != id) {
+                self.pending_open_fragment = None;
+            }
+            return;
+        };
+        match &mut tab.content {
+            ContentState::Open(TabContent::Markdown(md)) if md.initialized => {
+                md.open_navigate_fragment(&fragment);
+                self.pending_open_fragment = None;
+            }
+            ContentState::Open(_) | ContentState::Failed(_) => {
+                self.pending_open_fragment = None;
+            }
+            ContentState::Loading(_) => {}
+        }
+    }
+
     pub fn back(&mut self) {
         let Some(slot_idx) = self.current_slot_index() else { return };
         if !self.tab_strip[slot_idx].go_back() {
@@ -1008,6 +1049,8 @@ impl Workspace {
                             self.close_tab(idx);
                         }
                     }
+
+                    self.doc_index.sync(&self.files, &self.core, &self.ctx);
                 }
                 Err(mpsc::TryRecvError::Empty) => break,
                 Err(mpsc::TryRecvError::Disconnected) => {
@@ -1168,6 +1211,26 @@ impl Workspace {
                 Ok(evt) => {
                     match evt {
                         Event::DocumentWritten(id, actor) => {
+                            if let Ok(file) = self.core.get_file_by_id(id) {
+                                let mtime = file.last_modified;
+                                let name = file.name.clone();
+                                {
+                                    let mut files = self.files.write().unwrap();
+                                    files.refresh_file(file);
+                                }
+                                self.out.file_cache_updated = true;
+                                let files = self.files.read().unwrap();
+                                self.landing_page.update_recent_files(&files);
+                                drop(files);
+                                self.doc_index.reindex(
+                                    id,
+                                    mtime,
+                                    &name,
+                                    &self.files,
+                                    &self.core,
+                                    &self.ctx,
+                                );
+                            }
                             let event_origin = match actor {
                                 Actor::Sync => {
                                     self.core.app_foregrounded();
@@ -1414,6 +1477,8 @@ impl Workspace {
                                     self.account.clone(),
                                     self.ctx.clone(),
                                     Arc::clone(&self.files),
+                                    self.doc_index.clone(),
+                                    self.tasks.clone(),
                                     &self.core,
                                     self.cfg.clone(),
                                     Arc::clone(&self.tab_bridge),
@@ -1447,6 +1512,7 @@ impl Workspace {
                                                 id,
                                             )),
                                             files: Arc::clone(&self.files),
+                                            doc_index: self.doc_index.clone(),
                                             embeds: Box::new(ImageEmbedResolver::new(
                                                 self.images.clone(),
                                                 id,
@@ -1599,6 +1665,80 @@ impl Workspace {
         let start = Instant::now();
         self.tasks.check_launch(&mut self.tabs);
         start.warn_after("processing task launch", Duration::from_millis(100));
+    }
+
+    /// Create the missing dest of a broken wiki/markdown link and open it.
+    /// Intermediate folders are created; a PathConflict opens the existing file.
+    pub fn create_from_broken_link(
+        &mut self, from_id: Uuid, dest: String, is_wikilink: bool, new_tab: bool,
+    ) {
+        let spec = {
+            let files = self.files.read().unwrap();
+            create_spec_for_dest(&*files, from_id, &dest, is_wikilink)
+        };
+        let Some(spec) = spec else { return };
+
+        let mut current = spec.parent;
+        let last = spec.components.len().saturating_sub(1);
+        for (i, name) in spec.components.iter().enumerate() {
+            let is_file = i == last;
+            let file_type = if is_file { FileType::Document } else { FileType::Folder };
+            match self.core.create_file(name, &current, file_type) {
+                Ok(file) => {
+                    self.files
+                        .write()
+                        .unwrap()
+                        .insert_created_file(file.clone());
+                    self.out.file_cache_updated = true;
+                    if is_file {
+                        self.out.file_created = Some(Ok(file.clone()));
+                        self.open_created_link(file.id, spec.fragment.clone(), new_tab);
+                    } else {
+                        current = file.id;
+                    }
+                }
+                Err(err)
+                    if matches!(
+                        err.kind,
+                        LbErrKind::Validation(ValidationFailure::PathConflict(_))
+                    ) =>
+                {
+                    let existing = self.core.get_children(&current).ok().and_then(|kids| {
+                        kids.into_iter()
+                            .find(|f| f.name == *name)
+                            .map(|f| (f.id, f.is_folder()))
+                    });
+                    match existing {
+                        Some((id, true)) if !is_file => current = id,
+                        Some((id, false)) if is_file => {
+                            self.open_created_link(id, spec.fragment.clone(), new_tab);
+                        }
+                        _ => {
+                            self.out
+                                .failure_messages
+                                .push(format!("Couldn't create {name}: {err}"));
+                            return;
+                        }
+                    }
+                }
+                Err(err) => {
+                    self.out
+                        .failure_messages
+                        .push(format!("Couldn't create {name}: {err}"));
+                    return;
+                }
+            }
+        }
+        self.ctx.request_repaint();
+    }
+
+    fn open_created_link(&mut self, id: Uuid, fragment: Option<String>, new_tab: bool) {
+        match fragment.filter(|s| !s.is_empty()) {
+            Some(frag) if new_tab => self.open_file_at_fragment(id, frag, true),
+            Some(frag) => self.navigate_to_fragment(id, frag),
+            None if new_tab => self.open_file(id, true, true),
+            None => self.navigate_to(Destination::File(id)),
+        }
     }
 
     pub fn create_doc_at(&mut self, is_drawing: bool, parent: Uuid) {
@@ -1774,11 +1914,24 @@ impl Workspace {
         self.open_dest_as_session(dest, true, false);
     }
 
-    pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool) {
+    pub fn rename_file(&mut self, req: (Uuid, String), by_user: bool, update_refs: bool) {
         let (id, new_name) = req;
+        let reloc = {
+            let files = self.files.read().unwrap();
+            files.get_by_id(id).map(|f| Reloc {
+                id,
+                new_name: new_name.clone(),
+                new_parent: f.parent,
+            })
+        };
         match self.core.rename_file(&id, &new_name) {
             Ok(()) => {
                 self.file_renamed(id, new_name);
+                if update_refs {
+                    if let Some(reloc) = reloc {
+                        self.queue_dest_rewrites(&[reloc]);
+                    }
+                }
             }
             Err(LbErr { kind, .. }) => {
                 if by_user {
@@ -1816,18 +1969,50 @@ impl Workspace {
         self.ctx.request_repaint();
     }
 
-    pub fn move_file(&mut self, req: (Uuid, Uuid)) {
-        let (id, new_parent) = req;
-        match self.core.move_file(&id, &new_parent) {
-            Ok(()) => {
-                self.ctx.request_repaint();
+    pub fn move_file(&mut self, req: (Uuid, Uuid), update_refs: bool) {
+        self.move_files(&[req.0], req.1, update_refs);
+    }
+
+    pub fn move_files(&mut self, ids: &[Uuid], new_parent: Uuid, update_refs: bool) {
+        let relocs: Vec<Reloc> = {
+            let files = self.files.read().unwrap();
+            ids.iter()
+                .filter_map(|&id| {
+                    files
+                        .get_by_id(id)
+                        .map(|f| Reloc { id, new_name: f.name.clone(), new_parent })
+                })
+                .collect()
+        };
+        let mut ok = Vec::new();
+        for id in ids {
+            match self.core.move_file(id, &new_parent) {
+                Ok(()) => ok.push(*id),
+                Err(LbErr { kind, .. }) => {
+                    self.out
+                        .failure_messages
+                        .push(format!("Move failed: {kind}"));
+                    warn!(?id, "failed to move file: {:?}", kind);
+                }
             }
-            Err(LbErr { kind, .. }) => {
-                self.out
-                    .failure_messages
-                    .push(format!("Move failed: {kind}"));
-                warn!(?id, "failed to move file: {:?}", kind);
+        }
+        if update_refs {
+            let done: Vec<Reloc> = relocs.into_iter().filter(|r| ok.contains(&r.id)).collect();
+            if !done.is_empty() {
+                self.queue_dest_rewrites(&done);
             }
+        }
+        if !ok.is_empty() {
+            self.ctx.request_repaint();
+        }
+    }
+
+    fn queue_dest_rewrites(&mut self, relocs: &[Reloc]) {
+        let files = self.files.read().unwrap();
+        let changes = self.doc_index.dest_changes(&files, relocs);
+        drop(files);
+        for (id, reps) in changes {
+            self.tasks.queue_rewrite(RewriteRequest { id, reps });
         }
     }
 

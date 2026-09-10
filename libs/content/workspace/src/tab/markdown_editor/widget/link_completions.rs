@@ -8,11 +8,13 @@ use unicode_segmentation::UnicodeSegmentation as _;
 use std::sync::{Arc, RwLock};
 
 use crate::TextBufferArea;
-use crate::file_cache::{FileCache, FilesExt as _, relative_path, strip_ext};
+use crate::doc_index::DocIndex;
+use crate::file_cache::{FileCache, FilesExt as _, ResolvedLink, relative_path, strip_ext};
 use crate::style::{Space, ThemeExt as _, TypeRole, ellipsize_path, parent_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
+use crate::tab::markdown_editor::fragment::document_headings;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::{
     completion_chrome_w, completion_font, completion_line_h, completion_path_font,
@@ -64,7 +66,7 @@ pub struct LinkCompletions {
 impl LinkCompletions {
     pub fn update_active_state(
         &mut self, buffer: &Buffer, inline_paragraphs: &Paragraphs, files: &Arc<RwLock<FileCache>>,
-        file_id: Uuid,
+        file_id: Uuid, doc_index: &DocIndex,
     ) {
         self.active = false;
         self.search_term_range = None;
@@ -99,13 +101,12 @@ impl LinkCompletions {
         {
             return;
         }
-        // External and already-resolved destinations aren't file paths;
-        // anchors aren't completed (yet).
+        // External destinations aren't file paths. `#heading` is completed
+        // from the current document's headings.
         if dest
             && (query.starts_with("http://")
                 || query.starts_with("https://")
-                || query.starts_with("lb://")
-                || query.starts_with('#'))
+                || query.starts_with("lb://"))
         {
             return;
         }
@@ -126,7 +127,7 @@ impl LinkCompletions {
         // the destination already is one of them (cursor parked on a valid
         // link rather than mid-edit).
         let cache = files.read().unwrap();
-        let results = self.search(&cache, file_id, query, mode);
+        let results = self.search(&cache, file_id, query, mode, &buffer.current.text, doc_index);
         if results.is_empty() || (dest && results.iter().any(|r| r.insert == query)) {
             return;
         }
@@ -145,7 +146,7 @@ impl LinkCompletions {
     /// rationale.
     pub fn handle_input(
         &mut self, ctx: &Context, buffer: &Buffer, files: &Arc<RwLock<FileCache>>, file_id: Uuid,
-        editor_focused: bool, events: &mut Vec<Event>,
+        doc_index: &DocIndex, editor_focused: bool, events: &mut Vec<Event>,
     ) {
         if !self.active {
             return;
@@ -158,7 +159,7 @@ impl LinkCompletions {
         }
 
         let cache = files.read().unwrap();
-        let results = self.search(&cache, file_id, &query, mode);
+        let results = self.search(&cache, file_id, &query, mode, &buffer.current.text, doc_index);
         drop(cache);
         if results.is_empty() {
             return;
@@ -598,11 +599,26 @@ impl LinkCompletions {
 
     /// Same nucleo path search as ⌘O. Empty query → recents (mtime), except
     /// image links which recents among image files only.
+    ///
+    /// A `#` in the query switches to heading completions: live buffer for
+    /// this file, [`DocIndex`] for others.
     fn search(
-        &mut self, cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode,
+        &mut self, cache: &FileCache, file_id: Uuid, query: &str, mode: CompletionMode, md: &str,
+        doc_index: &DocIndex,
     ) -> Vec<FileResult> {
         let image = matches!(mode, CompletionMode::ImageLink | CompletionMode::ImageLinkDest);
         let wiki = mode == CompletionMode::WikiLink;
+
+        if !image {
+            if let Some((file_part, heading_q)) = query.split_once('#') {
+                if matches!(mode, CompletionMode::WikiLink | CompletionMode::LinkDest) {
+                    return heading_results(
+                        cache, file_id, file_part, heading_q, mode, md, doc_index,
+                    );
+                }
+                return Vec::new();
+            }
+        }
 
         let hits: Vec<Uuid> = if query.is_empty() && image {
             let mut images: Vec<&File> = cache
@@ -684,6 +700,76 @@ impl LinkCompletions {
         populate_insert(cache, &mut results, mode);
         results
     }
+}
+
+/// Headings whose text or slug subsequence-matches `heading_q`.
+/// Current file uses the live buffer; any other resolved file uses the index.
+fn heading_results(
+    cache: &FileCache, file_id: Uuid, file_part: &str, heading_q: &str, mode: CompletionMode,
+    md: &str, doc_index: &DocIndex,
+) -> Vec<FileResult> {
+    let parent = cache
+        .get_by_id(file_id)
+        .map(|f| f.parent)
+        .unwrap_or(file_id);
+    let target = if file_part.is_empty() {
+        file_id
+    } else if mode == CompletionMode::WikiLink {
+        match cache.resolve_wikilink(file_part, parent) {
+            Some(id) => id,
+            None => return Vec::new(),
+        }
+    } else {
+        match cache.resolve_link(file_part, parent) {
+            Some(ResolvedLink::File(id)) => id,
+            _ => return Vec::new(),
+        }
+    };
+
+    let headings = if target == file_id {
+        document_headings(md)
+    } else {
+        doc_index.headings(target).unwrap_or_default()
+    };
+
+    let q = heading_q.to_lowercase();
+    headings
+        .into_iter()
+        .filter(|(text, slug)| q.is_empty() || subseq(&q, &text.to_lowercase()) || subseq(&q, slug))
+        .take(MAX_RESULTS)
+        .map(|(text, slug)| {
+            let insert = if mode == CompletionMode::WikiLink {
+                if file_part.is_empty() {
+                    format!("#{text}")
+                } else {
+                    format!("{file_part}#{text}")
+                }
+            } else if file_part.is_empty() {
+                format!("#{slug}")
+            } else {
+                format!("{file_part}#{slug}")
+            };
+            FileResult {
+                id: target,
+                name: text,
+                rel_path: String::new(),
+                insert,
+                cross_tree: false,
+                parent_path: String::new(),
+            }
+        })
+        .collect()
+}
+
+/// True if every char of `query` appears in order in `name`.
+fn subseq(query: &str, name: &str) -> bool {
+    let mut qi = query.chars().peekable();
+    for nc in name.chars() {
+        if qi.peek() == Some(&nc) {
+            qi.next();
+        }
+    }
+    qi.peek().is_none()
 }
 
 /// Fills `result.insert` for each entry.
@@ -801,9 +887,14 @@ impl MdEdit {
         }
 
         let cache = self.renderer.files.read().unwrap();
-        let results = self
-            .link_completions
-            .search(&cache, self.file_id, &query, mode);
+        let results = self.link_completions.search(
+            &cache,
+            self.file_id,
+            &query,
+            mode,
+            &self.renderer.buffer.current.text,
+            &self.renderer.doc_index,
+        );
         drop(cache);
         if results.is_empty() {
             return;
@@ -1012,6 +1103,7 @@ mod tests {
     use lb_rs::model::file_metadata::FileType;
 
     use super::{CompletionMode, LinkCompletions};
+    use crate::doc_index::DocIndex;
     use crate::file_cache::{FileCache, FilesExt as _};
 
     fn file(id: Uuid, parent: Uuid, name: &str, file_type: FileType) -> File {
@@ -1149,7 +1241,8 @@ mod tests {
 
         let mut lc = LinkCompletions::default();
         for query in ["pan", "todo", "spec"] {
-            let results = lc.search(&cache, editing, query, CompletionMode::WikiLink);
+            let results =
+                lc.search(&cache, editing, query, CompletionMode::WikiLink, "", &DocIndex::empty());
             assert!(!results.is_empty(), "query {query:?} produced no completions");
             for r in results {
                 assert_eq!(
@@ -1180,11 +1273,81 @@ mod tests {
         );
         let mut lc = LinkCompletions::default();
         // Lowercase: nucleo Smart case is case-insensitive (same as ⌘O).
-        let results = lc.search(&cache, editing, "buildinga", CompletionMode::WikiLink);
+        let results = lc.search(
+            &cache,
+            editing,
+            "buildinga",
+            CompletionMode::WikiLink,
+            "",
+            &DocIndex::empty(),
+        );
         assert!(
             results.iter().any(|r| r.id == android),
             "buildinga should suggest building/Android, got {:?}",
             results.iter().map(|r| &r.name).collect::<Vec<_>>(),
         );
+    }
+
+    #[test]
+    fn heading_completions_current_file() {
+        let root_id = Uuid::new_v4();
+        let root = file(root_id, root_id, "root", FileType::Folder);
+        let editing = Uuid::new_v4();
+        let cache = build(root, vec![file(editing, root_id, "editing.md", FileType::Document)]);
+        let md = "# Intro\n\n# Link Fragments\n\n# Other\n";
+        let mut lc = LinkCompletions::default();
+        let index = DocIndex::empty();
+
+        let results = lc.search(&cache, editing, "#lin", CompletionMode::WikiLink, md, &index);
+        assert_eq!(
+            results.len(),
+            1,
+            "got {:?}",
+            results.iter().map(|r| &r.name).collect::<Vec<_>>()
+        );
+        assert_eq!(results[0].name, "Link Fragments");
+        assert_eq!(results[0].insert, "#Link Fragments");
+
+        let results = lc.search(&cache, editing, "#", CompletionMode::WikiLink, md, &index);
+        assert_eq!(results.len(), 3);
+
+        let results =
+            lc.search(&cache, editing, "editing#frag", CompletionMode::WikiLink, md, &index);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].insert, "editing#Link Fragments");
+
+        let results =
+            lc.search(&cache, editing, "#link-frag", CompletionMode::LinkDest, md, &index);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].insert, "#link-fragments");
+    }
+
+    #[test]
+    fn heading_completions_other_file_from_index() {
+        let root_id = Uuid::new_v4();
+        let root = file(root_id, root_id, "root", FileType::Folder);
+        let editing = Uuid::new_v4();
+        let other = Uuid::new_v4();
+        let cache = build(
+            root,
+            vec![
+                file(editing, root_id, "editing.md", FileType::Document),
+                file(other, root_id, "other.md", FileType::Document),
+            ],
+        );
+        let index = DocIndex::empty();
+        index.insert(other, 1, "# Alpha\n\n# Beta\n");
+        let mut lc = LinkCompletions::default();
+
+        let results = lc.search(&cache, editing, "other#be", CompletionMode::WikiLink, "", &index);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "Beta");
+        assert_eq!(results[0].insert, "other#Beta");
+        assert_eq!(results[0].id, other);
+
+        let results =
+            lc.search(&cache, editing, "other.md#al", CompletionMode::LinkDest, "", &index);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].insert, "other.md#alpha");
     }
 }

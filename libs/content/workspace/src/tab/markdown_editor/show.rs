@@ -84,6 +84,7 @@ impl MdEdit {
             &self.renderer.bounds.inline_paragraphs,
             &files,
             file_id,
+            &self.renderer.doc_index,
         );
         if !self.renderer.readonly && !self.renderer.plaintext {
             self.emoji_completions.handle_input(
@@ -97,6 +98,7 @@ impl MdEdit {
                 &self.renderer.buffer,
                 &files,
                 file_id,
+                &self.renderer.doc_index,
                 focused,
                 &mut self.event.internal_events,
             );
@@ -660,13 +662,15 @@ impl MdEdit {
                     if let Some(link) = &link_target {
                         match action {
                             LinkMenuAction::Open => {
-                                if link.is_wikilink {
-                                    if let Some(file_id) = self.renderer.resolve_wikilink(&link.url)
-                                    {
-                                        ui.ctx().open_file(file_id, false);
-                                    }
-                                } else {
+                                if link.is_image {
                                     self.renderer.open_resolved_link(&link.url, ui.ctx(), false);
+                                } else {
+                                    self.renderer.follow_or_create_link(
+                                        &link.url,
+                                        link.is_wikilink,
+                                        ui.ctx(),
+                                        false,
+                                    );
                                 }
                             }
                             LinkMenuAction::Copy => ui.ctx().copy_text(link.url.clone()),

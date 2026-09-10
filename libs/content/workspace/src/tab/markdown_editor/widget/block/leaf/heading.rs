@@ -5,10 +5,12 @@ use lb_rs::model::text::offset_types::{
 };
 
 use crate::style::chrome::HOVER_ANIM_SECS;
+use crate::style::context_menu;
 use crate::style::{
     FG_HOVER, FG_PRESS, Radius, ThemeExt as _, phosphor, phosphor_font_id, sense_click, tip_text,
 };
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::fragment::{HeadingLinkKind, slug_for_heading_node};
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
 
@@ -205,17 +207,110 @@ impl<'ast> MdRender {
                 || fold_button_space.contains(pointer)
                 || self.fold(node).is_some()
                 || self.selected_block(node));
-        if !show_fold_button {
+        if show_fold_button {
+            self.show_fold_button(
+                ui,
+                node,
+                (fold_button_size, fold_button_icon_size, fold_button_space),
+                self.heading_contents(node),
+                self.heading_fold_reveal(node),
+            );
+        }
+
+        if !self.plaintext && !self.painting_drag_float {
+            self.show_heading_permalink(ui, node, top_left, row_height, hovered);
+        }
+    }
+
+    /// GitHub-style permalink at the right of the heading row. Click copies
+    /// a wiki dest; right-click offers markdown / share.
+    fn show_heading_permalink(
+        &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, top_left: Pos2, row_height: f32,
+        hovered: bool,
+    ) {
+        let size = self.layout.indent * 0.8;
+        let icon_size = size * 0.6;
+        let space = Rect::from_min_size(
+            top_left + Vec2::new(self.width(node) - size, (row_height - size) / 2.),
+            Vec2::splat(size),
+        );
+        let range = self.node_range(node);
+        let id = ui
+            .id()
+            .with(("md_heading_link", range.start().0, range.end().0));
+        let copied_id = id.with("copied_until");
+        let now = ui.input(|i| i.time);
+        let until = ui
+            .ctx()
+            .data(|d| d.get_temp::<f64>(copied_id))
+            .unwrap_or(0.0);
+        let showing_check = now < until;
+        if showing_check {
+            ui.ctx().request_repaint();
+        }
+
+        let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
+        let menu_open = context_menu::is_open_id(ui.ctx(), id);
+        let show =
+            hovered || space.contains(pointer) || menu_open || showing_check || self.touch_mode;
+        if !show {
             return;
         }
 
-        self.show_fold_button(
-            ui,
-            node,
-            (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.heading_contents(node),
-            self.heading_fold_reveal(node),
+        self.touch_consuming_rects.push(space);
+        let resp = ui.interact(space, id, sense_click());
+        if resp.hovered() {
+            ui.output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
+        }
+
+        let t = self.ctx.get_lb_theme();
+        let over = resp.hovered() || ui.ctx().rect_contains_pointer(ui.layer_id(), space);
+        let hover = if over || menu_open || showing_check {
+            ui.ctx()
+                .animate_bool_with_time(resp.id.with("icon_hov"), true, HOVER_ANIM_SECS)
+        } else {
+            let _ = ui
+                .ctx()
+                .animate_bool_with_time(resp.id.with("icon_hov"), false, 0.0);
+            0.0
+        };
+        if hover > 0.0 {
+            ui.painter().rect_filled(
+                space,
+                Radius::Sm.corner(),
+                t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER * hover),
+            );
+        }
+
+        let glyph = if showing_check { phosphor::CHECK } else { phosphor::LINK };
+        let color = if showing_check {
+            t.neutral_fg()
+        } else {
+            t.neutral_fg_secondary()
+                .lerp_to_gamma(t.neutral_fg(), hover)
+        };
+        let g = ui.painter().layout_no_wrap(
+            glyph.into(),
+            phosphor_font_id(icon_size),
+            Color32::PLACEHOLDER,
         );
+        ui.painter()
+            .galley(space.center() - g.size() / 2.0, g, color);
+        tip_text(ui.ctx(), &resp, "Copy link");
+
+        let Some((text, slug)) = slug_for_heading_node(node) else { return };
+
+        if resp.clicked() {
+            self.pending_heading_copy = Some((slug.clone(), text.clone(), HeadingLinkKind::Wiki));
+            ui.ctx().data_mut(|d| d.insert_temp(copied_id, now + 1.2));
+        }
+        if let Some(kind) = context_menu::show(&resp, &t, |e| {
+            e.item(phosphor::MARKDOWN_LOGO, "Markdown", HeadingLinkKind::Markdown);
+            e.item(phosphor::LINK, "Share", HeadingLinkKind::Share);
+        }) {
+            self.pending_heading_copy = Some((slug, text, kind));
+            ui.ctx().data_mut(|d| d.insert_temp(copied_id, now + 1.2));
+        }
     }
 
     // https://github.github.com/gfm/#setext-headings
