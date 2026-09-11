@@ -226,8 +226,9 @@ pub struct MdEdit {
     /// when `None`.
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
 
-    /// Endpoint the last Select / handle-drag moved. `scroll_to_cursor`
-    /// follows this when set, then it is cleared.
+    /// Offset of the selection handle being dragged (Android), so auto-scroll
+    /// follows the moving handle rather than always the selection end. `None`
+    /// outside a handle drag — scroll then falls back to the selection end.
     pub in_progress_handle: Option<Grapheme>,
 
     /// Active list-item drag-to-reorder — `Some` from grab until release.
@@ -997,15 +998,13 @@ impl Editor {
         let all_selected = self.edit.renderer.buffer.current.selection
             == (0.into(), self.edit.renderer.last_cursor_position());
         // iOS handle drags emit Select continuously. UIKit's range-adjustment
-        // gesture owns edge auto-scroll (`scrollTo`); a competing
-        // scroll-to-cursor is the "small scroll then canceled" QA failure.
-        // Keyboard-show still queues Cursor below. Android handle drag sets
-        // `pending_scroll` from `interact_handle`.
+        // gesture owns edge auto-scroll (`scrollTo`); rust scroll-to-cursor
+        // fighting that was the "small scroll then canceled" QA failure.
+        // Keyboard-show still queues Cursor below.
         if self.initialized
             && buf_resp.selection_user_moved
             && !all_selected
             && self.edit.in_progress_block_drag.is_none()
-            && self.edit.in_progress_handle.is_some()
             && !cfg!(target_os = "ios")
         {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);

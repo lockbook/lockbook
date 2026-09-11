@@ -17,18 +17,6 @@ use lb_rs::model::text::operation_types::{Operation, Replace};
 
 use super::{Advance, Bound, Location, Region};
 
-/// The endpoint that moved. `None` when the new range still uses both
-/// old endpoints (no unique moving end — e.g. handle touch-down).
-fn moving_selection_end(old: (Grapheme, Grapheme), new: (Grapheme, Grapheme)) -> Option<Grapheme> {
-    let old_has = |g| g == old.0 || g == old.1;
-    match (old_has(new.0), old_has(new.1)) {
-        (true, false) => Some(new.1),
-        (false, true) => Some(new.0),
-        (false, false) => Some(new.1),
-        (true, true) => None,
-    }
-}
-
 /// tracks editor state necessary to support translating input events to buffer operations
 #[derive(Default)]
 pub struct EventState {
@@ -79,9 +67,6 @@ impl<'ast> MdEdit {
             Event::Select { region } => {
                 let range = self.region_to_range(region);
                 let range = self.renderer.snap_selection_out_of_fold_tags(range);
-                if let Some(moving) = moving_selection_end(current_selection, range) {
-                    self.in_progress_handle = Some(moving);
-                }
                 operations.push(Operation::Select(range));
             }
             Event::Replace { region, text, advance_cursor } => {
@@ -1544,35 +1529,5 @@ impl HeadTail for NodeValue {
             NodeValue::Superscript => "^",
             _ => unimplemented!(), // many such cases!
         }
-    }
-}
-
-#[cfg(test)]
-mod moving_selection_end_tests {
-    use super::moving_selection_end;
-    use lb_rs::model::text::offset_types::Grapheme;
-
-    fn g(n: usize) -> Grapheme {
-        n.into()
-    }
-
-    #[test]
-    fn dragging_start_is_the_moving_end() {
-        assert_eq!(moving_selection_end((g(10), g(100)), (g(11), g(100))), Some(g(11)));
-    }
-
-    #[test]
-    fn dragging_end_is_the_moving_end() {
-        assert_eq!(moving_selection_end((g(10), g(100)), (g(10), g(99))), Some(g(99)));
-    }
-
-    #[test]
-    fn unchanged_range_has_no_moving_end() {
-        assert_eq!(moving_selection_end((g(10), g(100)), (g(10), g(100))), None);
-    }
-
-    #[test]
-    fn new_caret_follows_the_caret() {
-        assert_eq!(moving_selection_end((g(10), g(100)), (g(50), g(50))), Some(g(50)));
     }
 }
