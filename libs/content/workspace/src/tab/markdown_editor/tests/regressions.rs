@@ -2429,3 +2429,28 @@ fn phone_toolbar_never_pushed_off_screen() {
         }
     }
 }
+
+/// Scrollbar grab must consume taps (`will_consume_touch`) without failing
+/// iOS range-adjustment (`touches_interactive_element`).
+#[test]
+fn scrollbar_does_not_veto_handle_adjustment() {
+    let doc = (0..80)
+        .map(|i| format!("paragraph {i}\n\n"))
+        .collect::<String>();
+    let mut ws = TestEditor::new(&doc);
+    ws.enter_frame();
+    let grab = ws
+        .editor
+        .edit
+        .scrollbar_grab
+        .expect("long doc should show a scrollbar");
+    let p = grab.center();
+    assert!(
+        !ws.editor.touches_interactive_element(p),
+        "scrollbar must not veto iOS handle adjustment: {p:?} {grab:?}"
+    );
+    assert!(
+        ws.editor.will_consume_touch(p),
+        "scrollbar taps must still not place a cursor: {p:?} {grab:?}"
+    );
+}
