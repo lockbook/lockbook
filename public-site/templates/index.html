@@ -39,32 +39,33 @@
 
     <div class="fmt-body">
       <div class="fmt-col">
-        <div class="seg seg-lg" id="fmt-rail" role="tablist" aria-label="Open formats">
+        <div class="seg seg-lg seg-4" id="fmt-rail" role="tablist" aria-label="Open formats">
           <span class="seg-thumb" id="fmt-thumb" aria-hidden="true"></span>
           <button role="tab" id="tab-md" aria-controls="text-md visual-md" aria-selected="true" data-panel="md">Markdown</button>
           <button role="tab" id="tab-svg" aria-controls="text-svg visual-svg" aria-selected="false" data-panel="svg" tabindex="-1">SVG</button>
           <button role="tab" id="tab-tree" aria-controls="text-tree visual-tree" aria-selected="false" data-panel="tree" tabindex="-1">Files</button>
+          <button role="tab" id="tab-other" aria-controls="text-other visual-other" aria-selected="false" data-panel="other" tabindex="-1">Other</button>
         </div>
 
         <div class="fmt-texts">
           <div class="fmt-text is-on" id="text-md" role="tabpanel" aria-labelledby="tab-md">
             <h3>Notes are Markdown.</h3>
             <p>
-              CommonMark with tables, task lists, footnotes and Obsidian-style
-              <code>[[wikilinks]]</code>. The file you write here is the file on
-              disk &mdash; it renders on GitHub, converts with <code>pandoc</code>,
-              and opens in every editor you already have.
+              Plain text with formatting: headings, lists, checkboxes,
+              tables, links. A note you write here is a file any text editor can
+              open, and every Markdown app can too, so nothing about it depends
+              on Lockbook.
             </p>
-            <p class="fmt-opens">Also opens in GitHub, Obsidian, VS Code, pandoc.</p>
+            <p class="fmt-opens">Also works in Slack, Discord, Reddit, GitHub, ChatGPT, Google Docs, Notion, Obsidian.</p>
           </div>
           <div class="fmt-text" id="text-svg" role="tabpanel" aria-labelledby="tab-svg">
             <h3>Drawings are SVG.</h3>
             <p>
-              Every stroke is a path in an open vector format. It is not a picture
-              of a drawing, it is the drawing &mdash; drop the file into Inkscape,
-              Illustrator, Figma or a browser and it opens.
+              Your sketches are saved as SVG, the standard vector format the web
+              uses for graphics. Every stroke stays editable, nothing turns blurry
+              when you zoom, and the file opens in design apps and browsers alike.
             </p>
-            <p class="fmt-opens">Also opens in Inkscape, Illustrator, Figma, any browser.</p>
+            <p class="fmt-opens">Also opens in Figma, Illustrator, Canva, PowerPoint, Keynote, Inkscape, Preview, any browser.</p>
           </div>
           <div class="fmt-text" id="text-tree" role="tabpanel" aria-labelledby="tab-tree">
             <h3>Folders are folders.</h3>
@@ -73,7 +74,18 @@
               you named, Markdown and SVG inside. No manifest, no database, nothing
               to reconstruct.
             </p>
-            <p class="fmt-opens">Back it up with anything: rsync, git, a USB stick.</p>
+            <p class="fmt-opens">Back it up with anything: Time Machine, a USB stick, Dropbox, git.</p>
+          </div>
+          <div class="fmt-text" id="text-other" role="tabpanel" aria-labelledby="tab-other">
+            <h3>Your home for everything.</h3>
+            <p>
+              Photos, scans, PDFs, spreadsheets, code: keep them beside the notes
+              they belong with. Lockbook encrypts them like everything else and
+              opens images, PDFs and code right in the app, with more formats on
+              the way. They stay ordinary files, so they come back out exactly as
+              they went in.
+            </p>
+            <p class="fmt-opens">Opens in the app today: PNG, JPEG, PDF, code. More coming soon.</p>
           </div>
         </div>
       </div>
@@ -143,24 +155,62 @@
               <div class="window-body fmt-demo">
                 <div class="fs">
               <div class="fs-bar">
-                <span class="fs-cmd">$ lockbook export / ~/documents</span>
+                <span class="fs-cmd" data-cmd="$ lockbook export / ~/documents">$ lockbook export / ~/documents</span>
                 <span class="fs-count">12 items</span>
               </div>
               <div class="fs-grid">
-              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg><span>journal</span></div>
-              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg><span>kitchen</span></div>
-              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg><span>recipes</span></div>
-              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><path d="M1.1 2.3c0-.66.54-1.2 1.2-1.2h2.55l1.35 1.45h5.5c.66 0 1.2.54 1.2 1.2v5.55c0 .66-.54 1.2-1.2 1.2H2.3c-.66 0-1.2-.54-1.2-1.2V2.3Z" stroke="currentColor" stroke-width="1.1"/></svg><span>travel</span></div>
-              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>notes.md</span></div>
-              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><rect x=".65" y=".65" width="12.7" height="10.7" rx="1.6" stroke="currentColor" stroke-width="1.1"/><circle cx="4.35" cy="4.1" r="1.15" stroke="currentColor" stroke-width="1.1"/><path d="M2.2 9.3l2.9-2.9 2.1 2.1 2-2 2.6 2.8" stroke="currentColor" stroke-width="1.1"/></svg><span>sketch.svg</span></div>
-              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>bread.md</span></div>
-              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>quotes.md</span></div>
-              <div class="fs-item"><svg width="42" height="36" viewBox="0 0 14 12" fill="none" aria-hidden="true"><rect x=".65" y=".65" width="12.7" height="10.7" rx="1.6" stroke="currentColor" stroke-width="1.1"/><circle cx="4.35" cy="4.1" r="1.15" stroke="currentColor" stroke-width="1.1"/><path d="M2.2 9.3l2.9-2.9 2.1 2.1 2-2 2.6 2.8" stroke="currentColor" stroke-width="1.1"/></svg><span>lamination.svg</span></div>
-              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>2026-08-26.md</span></div>
-              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>budget.md</span></div>
-              <div class="fs-item"><svg width="34" height="37" viewBox="0 0 12 13" fill="none" aria-hidden="true"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span>packing.md</span></div>
+              <div class="fs-item" style="--i:0"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>journal</span></div>
+              <div class="fs-item" style="--i:1"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>kitchen</span></div>
+              <div class="fs-item" style="--i:2"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>recipes</span></div>
+              <div class="fs-item" style="--i:3"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>travel</span></div>
+              <div class="fs-item" style="--i:4"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>notes.md</span></div>
+              <div class="fs-item" style="--i:5"><i class="nf svg" aria-hidden="true">&#xf1a0d;</i><span>sketch.svg</span></div>
+              <div class="fs-item" style="--i:6"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>bread.md</span></div>
+              <div class="fs-item" style="--i:7"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>quotes.md</span></div>
+              <div class="fs-item" style="--i:8"><i class="nf svg" aria-hidden="true">&#xf1a0d;</i><span>lamination.svg</span></div>
+              <div class="fs-item" style="--i:9"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>2026-08-26.md</span></div>
+              <div class="fs-item" style="--i:10"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>budget.md</span></div>
+              <div class="fs-item" style="--i:11"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>packing.md</span></div>
               </div>
             </div>
+              </div>
+            </figure>
+          </div>
+          <div class="fmt-visual" id="visual-other">
+            <figure class="window">
+              <div class="window-bar">
+                <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+                  <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+                  <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="window-label">documents/finances</span>
+                <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+                  <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                </svg>
+              </div>
+              <div class="window-body fmt-demo">
+                <div class="fs">
+              <div class="fs-bar">
+                <span class="fs-cmd">documents/finances</span>
+                <span class="fs-count">12 items</span>
+              </div>
+              <div class="fs-grid">
+              <div class="fs-item" style="--i:0"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>taxes-2025</span></div>
+              <div class="fs-item" style="--i:1"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>receipts</span></div>
+              <div class="fs-item" style="--i:2"><i class="nf pdf" aria-hidden="true">&#xe67d;</i><span>w2-2025.pdf</span></div>
+              <div class="fs-item" style="--i:3"><i class="nf pdf" aria-hidden="true">&#xe67d;</i><span>lease.pdf</span></div>
+              <div class="fs-item" style="--i:4"><i class="nf img" aria-hidden="true">&#xf02e9;</i><span>passport-scan.png</span></div>
+              <div class="fs-item" style="--i:5"><i class="nf img" aria-hidden="true">&#xf02e9;</i><span>receipt-0412.jpg</span></div>
+              <div class="fs-item" style="--i:6"><i class="nf text" aria-hidden="true">&#xf15c;</i><span>budget.csv</span></div>
+              <div class="fs-item" style="--i:7"><i class="nf pdf" aria-hidden="true">&#xe67d;</i><span>insurance.pdf</span></div>
+              <div class="fs-item" style="--i:8"><i class="nf img" aria-hidden="true">&#xf02e9;</i><span>car-title.png</span></div>
+              <div class="fs-item" style="--i:9"><i class="nf pdf" aria-hidden="true">&#xe67d;</i><span>isp-invoice-jun.pdf</span></div>
+              <div class="fs-item" style="--i:10"><i class="nf code" aria-hidden="true">&#xf0174;</i><span>compose.yml</span></div>
+              <div class="fs-item" style="--i:11"><i class="nf img" aria-hidden="true">&#xf02e9;</i><span>kyoto-subway.png</span></div>
+              </div>
+                </div>
               </div>
             </figure>
           </div>
@@ -296,36 +346,6 @@ e6Ms2Hf9Ub7Nw0Lq+Yi</pre>
   </div>
 </section>
 
-<section class="section" id="pricing">
-  <div class="wrap">
-    <div class="measure" style="margin-bottom:var(--s-xl)">
-      <p class="eyebrow">Pricing</p>
-      <h2>Be the customer, not the product.</h2>
-      <p class="lede">
-        We sell storage, not data. There is no ad model and no analytics
-        business &mdash; and nothing to mine even if we wanted one.
-      </p>
-    </div>
-
-    <div class="cards two">
-      <div class="card plan">
-        <p class="plan-name">Free</p>
-        <p class="plan-price">$0</p>
-        <p class="plan-cap">25&nbsp;MB of encrypted storage</p>
-        <p class="plan-note">Thousands of notes &mdash; it is text, and text is small. Every feature included, sharing included.</p>
-        <a class="btn btn-quiet" href="/download">Download</a>
-      </div>
-      <div class="card plan featured">
-        <p class="plan-name">Premium</p>
-        <p class="plan-price">$2.99<span>/month</span></p>
-        <p class="plan-cap">30&nbsp;GB of encrypted storage</p>
-        <p class="plan-note">Room for images, scans and PDFs. Funds the work.</p>
-        <a class="btn btn-primary" href="/download">Subscribe in the app</a>
-      </div>
-    </div>
-  </div>
-</section>
-
 <section class="section" id="developers">
   <div class="wrap">
     <div class="split">
@@ -336,7 +356,8 @@ e6Ms2Hf9Ub7Nw0Lq+Yi</pre>
           Find notes with <code>fzf</code>, schedule backups with <code>cron</code>,
           pipe a note into anything &mdash; or run <code>lockbook fs</code> and mount the
           whole notebook as a drive. When the shell is not enough, link the same
-          Rust library the apps are built on.
+          Rust library the apps are built on, or use one of the SDKs available
+          for many other languages.
         </p>
         <div class="link-list">
           <a href="https://github.com/lockbook/lockbook/tree/master/clients/cli">CLI reference &rarr;</a>
@@ -388,6 +409,36 @@ COMMANDS
   </div>
 </section>
 
+<section class="section" id="pricing">
+  <div class="wrap">
+    <div class="measure" style="margin-bottom:var(--s-xl)">
+      <p class="eyebrow">Pricing</p>
+      <h2>Be the customer, not the product.</h2>
+      <p class="lede">
+        We sell storage, not data. There is no ad model and no analytics
+        business &mdash; and nothing to mine even if we wanted one.
+      </p>
+    </div>
+
+    <div class="cards two">
+      <div class="card plan">
+        <p class="plan-name">Free</p>
+        <p class="plan-price">$0</p>
+        <p class="plan-cap">25&nbsp;MB of encrypted storage</p>
+        <p class="plan-note">Thousands of notes &mdash; it is text, and text is small. Every feature included, sharing included.</p>
+        <a class="btn btn-quiet" href="/download">Download</a>
+      </div>
+      <div class="card plan featured">
+        <p class="plan-name">Premium</p>
+        <p class="plan-price">$2.99<span>/month</span></p>
+        <p class="plan-cap">30&nbsp;GB of encrypted storage</p>
+        <p class="plan-note">Room for images, scans and PDFs. Funds the work.</p>
+        <a class="btn btn-primary" href="/download">Subscribe in the app</a>
+      </div>
+    </div>
+  </div>
+</section>
+
 <style>{% raw %}
   .hero{padding:var(--s-3xl) 0 var(--s-2xl);border-top:0}
   .hero-grid{display:grid;gap:var(--s-xl);align-items:center}
@@ -407,7 +458,7 @@ COMMANDS
   .hero-sub{margin-top:var(--s-md);color:var(--fg-2);font-size:19px;max-width:30em;text-wrap:pretty}
   .hero-cta{display:flex;flex-wrap:wrap;gap:var(--s-sm);margin-top:var(--s-lg)}
   .hero-proof{margin-top:var(--s-md);color:var(--fg-3);font-family:var(--mono);font-size:12px}
-  .hero-shot{display:none}
+  .hero-shot{display:block}
   @media (min-width:900px){
     .hero{overflow-x:clip}
     .hero-grid{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--s-xl)}
@@ -463,7 +514,7 @@ COMMANDS
   .rack-bar i{width:6px;height:6px;border-radius:50%;background:var(--bg-control)}
   .rack-bar i.on{background:var(--accent)}
   .arch-store{
-    flex:1;margin:0;padding:var(--s-md);min-height:120px;
+    flex:1;margin:0;padding:var(--s-md);min-height:calc(20em + 2 * var(--s-md));
     font-family:var(--mono);font-size:13px;line-height:2;color:var(--fg-3);white-space:pre;overflow:hidden;
     transition:opacity .25s ease;
   }
@@ -517,7 +568,9 @@ COMMANDS
 
   .fmt-body{display:grid;gap:var(--s-xl);margin-top:var(--s-lg)}
   @media (min-width:900px){
-    .fmt-body{grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:var(--s-2xl);align-items:start}
+    .fmt-body{grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:var(--s-2xl);align-items:start}
+    #fmt-rail{display:grid;width:100%}
+    #fmt-rail button{min-width:0;padding:0 var(--s-xs);font-size:14px}
   }
   .fmt-texts,.fmt-visuals{position:relative}
   .fmt-texts{margin-top:var(--s-lg)}
@@ -549,7 +602,15 @@ COMMANDS
     gap:var(--s-sm) var(--s-xs);padding:var(--s-sm) var(--s-lg);align-content:space-evenly;
   }
   .fs-item{display:flex;flex-direction:column;align-items:center;gap:var(--s-xs);min-width:0}
-  .fs-item svg{color:var(--fg-3)}
+  @font-face{font-family:"NF Symbols";src:url(/fonts/nf-symbols.woff) format("woff");font-display:swap}
+  .fs-item .nf{
+    display:block;width:42px;text-align:center;
+    font-family:"NF Symbols";font-style:normal;font-size:36px;line-height:1;color:var(--fg-3);
+  }
+  .fs-item .nf.folder{color:var(--accent)}
+  .fs.typing .fs-item{opacity:0}
+  .fs.play .fs-item{animation:fsin .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i) * 50ms)}
+  @keyframes fsin{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
   .fs-item span{
     max-width:100%;font-family:var(--mono);font-size:11.5px;color:var(--fg-2);
     white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
@@ -850,7 +911,8 @@ COMMANDS
         });
       });
       if (thumb) thumb.style.transform = 'translateX(' + (tabs.indexOf(tab) * 100) + '%)';
-      if (tab.dataset.panel !== 'tree' && window.lbLoadDemos) window.lbLoadDemos();
+      if (tab.dataset.panel === 'md' || tab.dataset.panel === 'svg') { if (window.lbLoadDemos) window.lbLoadDemos(); }
+      else if (window.lbPlayGrid) window.lbPlayGrid('visual-' + tab.dataset.panel);
     }
 
     tabs.forEach(function (t, i) {
@@ -864,6 +926,45 @@ COMMANDS
         show(next);
       });
     });
+  })();
+
+  (function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    function play(fs) {
+      if (!fs) return;
+      var cmd = fs.querySelector('.fs-cmd[data-cmd]');
+      clearInterval(fs._typer);
+      fs.classList.remove('play');
+      if (!cmd) { void fs.offsetWidth; fs.classList.add('play'); return; }
+      var full = cmd.getAttribute('data-cmd'), n = 0;
+      fs.classList.add('typing');
+      cmd.textContent = '';
+      fs._typer = setInterval(function () {
+        n++;
+        cmd.textContent = full.slice(0, n);
+        if (n < full.length) return;
+        clearInterval(fs._typer);
+        fs.classList.remove('typing');
+        void fs.offsetWidth;
+        fs.classList.add('play');
+      }, 28);
+    }
+
+    window.lbPlayGrid = function (id) {
+      var panel = document.getElementById(id);
+      play(panel && panel.querySelector('.fs'));
+    };
+
+    var section = document.getElementById('formats');
+    if (section && 'IntersectionObserver' in window) {
+      var seen = new IntersectionObserver(function (entries) {
+        if (!entries[0].isIntersecting) return;
+        seen.disconnect();
+        play(document.querySelector('.fmt-visual.is-on .fs'));
+      }, { threshold: 0.35 });
+      seen.observe(section);
+    }
   })();
 
   (function () {

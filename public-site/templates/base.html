@@ -115,6 +115,7 @@ code,kbd,samp{font-family:var(--mono);font-size:.85em}
   --n:3;position:relative;display:inline-grid;grid-auto-flow:column;grid-auto-columns:1fr;
   padding:3px;border-radius:999px;background:var(--wash-2);
 }
+.seg-4{--n:4}
 .seg-5{--n:5}
 .seg-thumb{
   position:absolute;top:3px;bottom:3px;left:3px;width:calc((100% - 6px) / var(--n));
@@ -132,12 +133,13 @@ code,kbd,samp{font-family:var(--mono);font-size:.85em}
   transition:color var(--anim) ease;
 }
 .seg-lg button{min-width:150px;height:34px;padding:0 var(--s-lg);font-size:15px}
+.seg-4.seg-lg button{min-width:110px}
 .seg-5.seg-lg button{min-width:120px}
 .seg button:hover,.seg button[aria-selected="true"]{color:var(--fg)}
 .seg button:focus-visible{outline-offset:-2px}
 @media (max-width:759px){
   .seg{display:grid;width:100%}
-  .seg button,.seg-lg button,.seg-5.seg-lg button{min-width:0;padding:0 var(--s-xs)}
+  .seg button,.seg-lg button,.seg-4.seg-lg button,.seg-5.seg-lg button{min-width:0;padding:0 var(--s-xs)}
   .seg-5 button{font-size:14px}
 }
 
