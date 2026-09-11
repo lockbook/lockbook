@@ -702,6 +702,11 @@ impl Chat {
                     }
                     call::CallEv::Err(e) => {
                         error!(error = %e, "chat call error");
+                        if auth::is_auth_failure(&e) {
+                            auth::clear_prefs(&self.cfg);
+                            self.tokens = None;
+                            self.auth_ui = AuthUi::Error(auth::sign_in_again(&e));
+                        }
                         self.push_error(self.account.username.clone(), e);
                         keep = false;
                         self.end_call();
@@ -792,10 +797,10 @@ impl Chat {
                             continue;
                         }
                         error!(error = %e, "chat turn failed");
-                        if e.contains("401") || e.contains("403") || e.contains("entitled") {
+                        if auth::is_auth_failure(&e) {
                             auth::clear_prefs(&self.cfg);
                             self.tokens = None;
-                            self.auth_ui = AuthUi::Error(e.clone());
+                            self.auth_ui = AuthUi::Error(auth::sign_in_again(&e));
                         }
                         if let Some(id) = self.assistant_id.take() {
                             let from = self.account.username.clone();

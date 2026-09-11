@@ -34,7 +34,7 @@ pub fn canonical_model(id: &str) -> String {
     if MODELS.iter().any(|(_, m)| *m == id) { id.to_string() } else { MODEL.to_string() }
 }
 /// Agentic web/X search can sit quiet between events for a while.
-const STREAM_IDLE: std::time::Duration = std::time::Duration::from_secs(180);
+const STREAM_IDLE: std::time::Duration = std::time::Duration::from_secs(300);
 
 #[derive(Debug, Clone, PartialEq)]
 pub struct ToolCall {

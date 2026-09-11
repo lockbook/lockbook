@@ -82,6 +82,23 @@ pub fn save_prefs(cfg: &WsPersistentStore, tokens: &TokenSet) {
     cfg.set_grok(prefs);
 }
 
+pub fn is_auth_failure(e: &str) -> bool {
+    let e = e.to_ascii_lowercase();
+    e.contains("401")
+        || e.contains("403")
+        || e.contains("entitled")
+        || e.contains("invalid_grant")
+        || e.contains("sign in again")
+}
+
+pub fn sign_in_again(e: &str) -> String {
+    if e.to_ascii_lowercase().contains("entitled") {
+        e.to_string()
+    } else {
+        "Sign in again — the saved Grok login expired.".into()
+    }
+}
+
 pub fn clear_prefs(cfg: &WsPersistentStore) {
     let mut prefs = cfg.grok();
     prefs.access_token.clear();
@@ -176,6 +193,9 @@ fn refresh_tokens(tokens: &TokenSet) -> Result<TokenSet, String> {
             return Err("this SuperGrok account is not entitled for API access. \
                  Check your plan at https://x.ai/grok."
                 .into());
+        }
+        if body.contains("invalid_grant") || body.contains("refresh token") {
+            return Err("Sign in again — the saved Grok login expired.".into());
         }
         return Err(format!(
             "token refresh HTTP {status}: {}",
