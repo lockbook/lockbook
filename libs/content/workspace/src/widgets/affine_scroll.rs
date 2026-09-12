@@ -1152,15 +1152,16 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
         let bar_geom = self.state.scrollbar(rows, bar_track);
         let scrollable = bar_geom.scrollable_approx > 0.0;
 
-        // On touch, widen the track's hit area — the bar is far narrower than
-        // a fingertip, and an interaction that misses it becomes a body drag
-        // (which scrolls the opposite direction). When the document fits the
-        // viewport the bar is absent entirely — no hit area, no paint — and
-        // pointer input falls through to the content beneath.
+        // Hit-test only while the overlay is shown (or the thumb is held).
+        // A hidden bar with a live, widened track steals body drags and —
+        // on iOS — vetoes selection-handle range adjustment via
+        // `touch_consuming_rects`.
+        let overlay_id = self.id_salt.with("overlay_scroll");
         let bar_interact_rect =
             if self.touch_scroll { bar_track.expand2(Vec2::new(15.0, 0.0)) } else { bar_track };
+        let bar_live = scrollable && overlay_scroll::is_shown(ui, overlay_id);
         let bar_response =
-            scrollable.then(|| ui.interact(bar_interact_rect, bar_id, Sense::click_and_drag()));
+            bar_live.then(|| ui.interact(bar_interact_rect, bar_id, Sense::click_and_drag()));
 
         // Wheel: precise pixels. egui convention: positive y = scroll up
         // (content moves down). We want offset to grow when user scrolls
@@ -1272,13 +1273,12 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             let bar_held = bar_response
                 .as_ref()
                 .is_some_and(|r| r.hovered() || r.dragged() || r.is_pointer_button_down_on());
-            let overlay_id = self.id_salt.with("overlay_scroll");
             if overlay_scroll::tick(ui, overlay_id, bar.thumb_approx, bar_held) {
                 overlay_scroll::paint(ui, bar.track, bar.thumb, bar_held);
             }
         }
 
-        ShowResponse { response, visible, scrollbar_grab: scrollable.then_some(bar_interact_rect) }
+        ShowResponse { response, visible, scrollbar_grab: bar_live.then_some(bar_interact_rect) }
     }
 }
 

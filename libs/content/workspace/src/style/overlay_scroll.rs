@@ -13,7 +13,10 @@ use egui::{Context, Id, Rect, Ui};
 
 use super::color::ThemeExt;
 
-const FADE_SECS: f64 = super::chrome::ANIM_MAX_SECS as f64;
+/// How long the bar stays grabable after scroll/leave. Independent of
+/// chrome slide (`ANIM_MAX_SECS`) — yoking them made the thumb vanish
+/// before a pointer could reach it.
+const FADE_SECS: f64 = 0.85;
 
 /// Host sets this while a sidebar splitter is mid-drag.
 pub const SIDEBAR_RESIZING_LATCH: &str = "lb_sidebar_resizing";
@@ -54,7 +57,10 @@ pub fn bar_held(ctx: &Context, scroll_area_id: Id) -> bool {
     })
 }
 
-fn is_shown(ui: &Ui, id: Id) -> bool {
+/// Whether the overlay would paint this frame (recent scroll, or thumb held).
+/// Custom bars use this to skip hit-testing a hidden thumb so it cannot
+/// steal body/handle drags.
+pub fn is_shown(ui: &Ui, id: Id) -> bool {
     if separator_dragging(ui) {
         return false;
     }

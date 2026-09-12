@@ -2464,3 +2464,67 @@ fn open_navigate_fragment_unique_slug() {
     let selected = &ws.editor.edit.renderer.buffer[sel];
     assert!(selected.contains("Foo"));
 }
+
+/// Touch permalinks must not sit on every heading — they occupy the last
+/// glyphs of line 1 and, on iOS, fail selection-handle range adjustment.
+#[test]
+fn touch_permalink_only_when_heading_selected() {
+    let mut ws = TestEditor::new("# Heading title\n\nbody paragraph\n");
+    ws.editor.edit.renderer.touch_mode = true;
+    ws.enter_frame();
+
+    let body = ws
+        .editor
+        .edit
+        .renderer
+        .buffer
+        .current
+        .text
+        .find("body")
+        .unwrap();
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(body)),
+            end: Location::Grapheme(Grapheme(body)),
+        },
+    });
+    ws.enter_frame();
+
+    let heading = ws
+        .editor
+        .edit
+        .renderer
+        .fragments
+        .iter()
+        .find(|f| ws.editor.edit.renderer.buffer[f.source_range].contains("Heading"))
+        .expect("heading fragment")
+        .rect;
+    let permalink_on_right = |ws: &TestEditor| {
+        ws.editor
+            .edit
+            .renderer
+            .touch_consuming_rects
+            .iter()
+            .any(|r| {
+                r.min.x > heading.center().x && (r.min.y - heading.min.y).abs() < heading.height()
+            })
+    };
+    assert!(
+        !permalink_on_right(&ws),
+        "unselected heading must not register a right-edge permalink: {:?}",
+        ws.editor.edit.renderer.touch_consuming_rects
+    );
+
+    ws.push(Event::Select {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(Grapheme(2)),
+            end: Location::Grapheme(Grapheme(2)),
+        },
+    });
+    ws.enter_frame();
+    assert!(
+        permalink_on_right(&ws),
+        "selected heading should register a permalink hit on the right: {:?}",
+        ws.editor.edit.renderer.touch_consuming_rects
+    );
+}

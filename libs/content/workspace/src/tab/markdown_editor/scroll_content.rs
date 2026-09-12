@@ -22,7 +22,7 @@ use egui::{Pos2, Ui};
 use lb_rs::model::text::offset_types::Grapheme;
 
 use crate::tab::markdown_editor::MdRender;
-use crate::widgets::affine_scroll::Rows;
+use crate::widgets::affine_scroll::{Rows, VisibleRow};
 
 /// Stable identity of a row in the document. `Leading` and `Trailing`
 /// are the always-present virtual padding rows; `Block(i)` is a top-
@@ -261,6 +261,57 @@ impl<'a, 'ast> Rows for DocScrollContent<'a, 'ast> {
     }
 }
 
+/// Viewport-local row for `target`, positioned from a visible row by
+/// walking `precise()` heights. Does not paint the rows in between.
+pub fn row_from_visible(
+    content: &DocScrollContent, visible: &[VisibleRow<DocRowId>], target: DocRowId,
+) -> Option<VisibleRow<DocRowId>> {
+    let first = visible.first()?;
+    let last = visible.last()?;
+    match row_cmp(target, first.id) {
+        Some(std::cmp::Ordering::Less) => {
+            let mut id = first.id;
+            let mut top = first.top;
+            while let Some(prev_id) = content.prev(&id) {
+                let height = content.precise(&prev_id);
+                top -= height;
+                if prev_id == target {
+                    return Some(VisibleRow { id: prev_id, top, height });
+                }
+                id = prev_id;
+            }
+            None
+        }
+        _ => match row_cmp(target, last.id) {
+            Some(std::cmp::Ordering::Greater) => {
+                let mut id = last.id;
+                let mut top = last.top + last.height;
+                while let Some(next_id) = content.next(&id) {
+                    let height = content.precise(&next_id);
+                    if next_id == target {
+                        return Some(VisibleRow { id: next_id, top, height });
+                    }
+                    top += height;
+                    id = next_id;
+                }
+                None
+            }
+            _ => None,
+        },
+    }
+}
+
+fn row_cmp(a: DocRowId, b: DocRowId) -> Option<std::cmp::Ordering> {
+    use DocRowId::*;
+    match (a, b) {
+        (x, y) if x == y => Some(std::cmp::Ordering::Equal),
+        (Leading, _) | (_, Trailing) => Some(std::cmp::Ordering::Less),
+        (Trailing, _) | (_, Leading) => Some(std::cmp::Ordering::Greater),
+        (Block(i), Block(j)) | (Line(i), Line(j)) => Some(i.cmp(&j)),
+        _ => None,
+    }
+}
+
 /// Paint a single row at `top_left` (screen coords). Companion to the
 /// pull-style [`crate::widgets::affine_scroll::AffineScrollArea::show`]
 /// loop: the caller iterates `visible` and invokes this per row.
@@ -299,5 +350,33 @@ pub fn paint_row<'ast>(
             let width = renderer.width(root);
             renderer.show_source_line(ui, tl, *line_idx, width);
         }
+    }
+}
+
+#[cfg(test)]
+mod row_from_visible_tests {
+    use super::{DocRowId, row_cmp};
+
+    fn g(n: usize) -> DocRowId {
+        DocRowId::Block(n)
+    }
+
+    #[test]
+    fn block_order() {
+        assert_eq!(row_cmp(g(0), g(1)), Some(std::cmp::Ordering::Less));
+        assert_eq!(row_cmp(g(3), g(3)), Some(std::cmp::Ordering::Equal));
+        assert_eq!(row_cmp(g(5), g(2)), Some(std::cmp::Ordering::Greater));
+    }
+
+    #[test]
+    fn leading_is_before_everything() {
+        assert_eq!(row_cmp(DocRowId::Leading, g(0)), Some(std::cmp::Ordering::Less));
+        assert_eq!(row_cmp(g(0), DocRowId::Leading), Some(std::cmp::Ordering::Greater));
+    }
+
+    #[test]
+    fn trailing_is_after_everything() {
+        assert_eq!(row_cmp(DocRowId::Trailing, g(9)), Some(std::cmp::Ordering::Greater));
+        assert_eq!(row_cmp(g(9), DocRowId::Trailing), Some(std::cmp::Ordering::Less));
     }
 }

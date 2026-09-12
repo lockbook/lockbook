@@ -340,26 +340,32 @@ impl MdEdit {
             )
         };
 
-        // Registered after the field's own interact so the bar wins the strip.
-        let resp = ui.interact(track, id.with("overflow_scrollbar"), Sense::click_and_drag());
-        if movable > 0.0 {
-            if let Some(pos) = resp.interact_pointer_pos() {
-                let on_thumb = thumb_at(self.overflow_scroll).contains(pos);
-                if (resp.drag_started() || resp.clicked()) && !on_thumb {
-                    let target = (pos.y - track.min.y - thumb_h / 2.0).clamp(0.0, movable);
-                    self.overflow_scroll = target / movable * overflow;
-                } else if resp.dragged() && !resp.drag_started() {
-                    self.overflow_scroll = (self.overflow_scroll
-                        + resp.drag_delta().y / movable * overflow)
-                        .clamp(0.0, overflow);
+        // Same as the document bar: no hit while hidden, so a faded thumb
+        // cannot jump-scroll or steal composer drags.
+        let overlay_id = id.with("overflow_overlay");
+        let bar_live = overlay_scroll::is_shown(ui, overlay_id);
+        if bar_live {
+            let resp = ui.interact(track, id.with("overflow_scrollbar"), Sense::click_and_drag());
+            if movable > 0.0 {
+                if let Some(pos) = resp.interact_pointer_pos() {
+                    let on_thumb = thumb_at(self.overflow_scroll).contains(pos);
+                    if (resp.drag_started() || resp.clicked()) && !on_thumb {
+                        let target = (pos.y - track.min.y - thumb_h / 2.0).clamp(0.0, movable);
+                        self.overflow_scroll = target / movable * overflow;
+                    } else if resp.dragged() && !resp.drag_started() {
+                        self.overflow_scroll = (self.overflow_scroll
+                            + resp.drag_delta().y / movable * overflow)
+                            .clamp(0.0, overflow);
+                    }
+                    ui.ctx().request_repaint();
                 }
-                ui.ctx().request_repaint();
             }
-        }
-
-        let bar_held = resp.hovered() || resp.dragged() || resp.is_pointer_button_down_on();
-        if overlay_scroll::tick(ui, id.with("overflow_overlay"), self.overflow_scroll, bar_held) {
-            overlay_scroll::paint(ui, track, thumb_at(self.overflow_scroll), bar_held);
+            let bar_held = resp.hovered() || resp.dragged() || resp.is_pointer_button_down_on();
+            if overlay_scroll::tick(ui, overlay_id, self.overflow_scroll, bar_held) {
+                overlay_scroll::paint(ui, track, thumb_at(self.overflow_scroll), bar_held);
+            }
+        } else if overlay_scroll::tick(ui, overlay_id, self.overflow_scroll, false) {
+            overlay_scroll::paint(ui, track, thumb_at(self.overflow_scroll), false);
         }
     }
 

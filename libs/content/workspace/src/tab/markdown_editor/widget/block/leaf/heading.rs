@@ -251,8 +251,18 @@ impl<'ast> MdRender {
 
         let pointer = ui.input(|i| i.pointer.latest_pos().unwrap_or_default());
         let menu_open = context_menu::is_open_id(ui.ctx(), id);
-        let show =
-            hovered || space.contains(pointer) || menu_open || showing_check || self.touch_mode;
+        // Touch: only while the caret/selection is in this heading. Always-on
+        // permalinks sit on the last glyphs of line 1 and, on iOS, land in
+        // `touch_consuming_rects` which fails selection-handle adjustment.
+        let sel = self
+            .in_progress_selection
+            .unwrap_or(self.buffer.current.selection);
+        let heading_sel = range.contains_inclusive(sel.0) || range.contains_inclusive(sel.1);
+        let show = hovered
+            || space.contains(pointer)
+            || menu_open
+            || showing_check
+            || (self.touch_mode && heading_sel);
         if !show {
             return;
         }

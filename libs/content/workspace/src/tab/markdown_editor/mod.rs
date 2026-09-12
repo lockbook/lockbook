@@ -273,6 +273,11 @@ pub struct MdEdit {
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
 
+    /// Overlay scrollbar hit, only while the bar is shown. Taps here must
+    /// not place a cursor (`will_consume_touch`); they must not fail iOS
+    /// range-adjustment (`touches_interactive_element`).
+    pub scrollbar_grab: Option<Rect>,
+
     /// Document identity — link completions resolve relative paths against
     /// the current file's parent.
     pub file_id: Uuid,
@@ -318,6 +323,7 @@ impl MdEdit {
             overflow_scroll: 0.0,
             overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
+            scrollbar_grab: None,
             file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
@@ -793,6 +799,7 @@ impl Editor {
                 overflow_scroll: 0.0,
                 overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
+                scrollbar_grab: None,
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: Default::default(),
@@ -1009,10 +1016,16 @@ impl Editor {
 
         let all_selected = self.edit.renderer.buffer.current.selection
             == (0.into(), self.edit.renderer.last_cursor_position());
+        // iOS handle drags emit Select continuously. UIKit's range-adjustment
+        // gesture owns edge auto-scroll (`scrollTo`); a competing
+        // scroll-to-cursor is the "small scroll then canceled" QA failure.
+        // Keyboard-show still queues Cursor below. Android handle drag sets
+        // `pending_scroll` from `interact_handle`.
         if self.initialized
             && buf_resp.selection_user_moved
             && !all_selected
             && self.edit.in_progress_block_drag.is_none()
+            && !cfg!(target_os = "ios")
         {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
         }
@@ -1366,6 +1379,7 @@ impl Editor {
 
     pub fn will_consume_touch(&self, pos: Pos2) -> bool {
         self.touches_interactive_element(pos)
+            || self.edit.scrollbar_grab.is_some_and(|r| r.contains(pos))
             || self.edit.scroll_area_velocity.abs().max_elem() > 0. // velocity zeroed at touch down
             || self.edit.scroll_area.momentum_cancel_press() // platform can check at touch up
             || self.reorder_armed() // a committed reorder isn't a tap
@@ -1549,15 +1563,39 @@ impl Editor {
                                     id = next_id;
                                 }
                             }
+                            // Selection endpoints beyond the neighbor window
+                            // still need fragments so iOS can resolve handle
+                            // geometry. Does not scroll — UIKit owns that.
+                            let sel = self.edit.renderer.buffer.current.selection;
+                            for offset in [sel.0, sel.1] {
+                                let Some(target) = content.find_text_row(offset) else {
+                                    continue;
+                                };
+                                if resp
+                                    .visible
+                                    .iter()
+                                    .chain(neighbors.iter())
+                                    .any(|r| r.id == target)
+                                {
+                                    continue;
+                                }
+                                if let Some(row) = scroll_content::row_from_visible(
+                                    &content,
+                                    &resp.visible,
+                                    target,
+                                ) {
+                                    neighbors.push(row);
+                                }
+                            }
                             (resp.visible, neighbors, resp.scrollbar_grab)
                         };
-                        // Register the scrollbar's grab area so iOS taps on it
-                        // don't fall through to cursor-placement / keyboard-
-                        // summon handlers.
-                        self.edit
-                            .renderer
-                            .touch_consuming_rects
-                            .extend(scrollbar_grab);
+                        // Taps on a *shown* overlay bar must not place a
+                        // cursor (`will_consume_touch`). Do not put the rect
+                        // in `touch_consuming_rects`: iOS range-adjustment
+                        // fails that check, so a handle on the right edge
+                        // would feel stuck and the touch would become a
+                        // body-scroll that `cancelActiveTouches` then kills.
+                        self.edit.scrollbar_grab = scrollbar_grab;
 
                         // Phase 2: paint each visible row with a mutable
                         // renderer borrow. Block list re-collected
