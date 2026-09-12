@@ -52,7 +52,12 @@
         var floatingCursorNewEndX = 0.0
         var floatingCursorNewStartY = 0.0
         var floatingCursorNewEndY = 0.0
-        var autoScroll: Timer?
+        /// Edge auto-scroll while a handle/loupe is held. Must run in common
+        /// run-loop modes — `Timer.scheduledTimer` sits on `.default` and
+        /// does not fire during UI tracking.
+        var autoScroll: CADisplayLink?
+        var autoScrollFromBottom = false
+        var autoScrollTicks = 0
 
         /// range adjustment (selection handles)
         var rangeAdjustmentInProgress = false
@@ -218,6 +223,7 @@
                 scrollTo(location.y)
             case .ended, .cancelled, .failed:
                 interactiveRefinementInProgress = false
+                stopAutoScroll("refinement ended")
 
                 inputDelegate?.selectionWillChange(self)
                 mtkView.drawImmediately()
@@ -259,10 +265,11 @@
                 scrollTo(location.y)
             case .ended, .cancelled, .failed:
                 print(
-                    "[sel-handle] rangeAdj \(String(describing: recognizer.state)) nChanged=\(selHandleChangedN) \(selHandleProbe(recognizer.location(in: mtkView)))"
+                    "[sel-handle] rangeAdj \(String(describing: recognizer.state)) nChanged=\(selHandleChangedN) ticks=\(autoScrollTicks) \(selHandleProbe(recognizer.location(in: mtkView)))"
                 )
                 selHandleChangedN = 0
                 rangeAdjustmentInProgress = false
+                stopAutoScroll("rangeAdj ended")
             default:
                 break
             }
@@ -505,33 +512,45 @@
         }
 
         func scrollTo(_ y: CGFloat) {
-            let scrollUp = y >= bounds.height - 20
-            let scrollDown = y <= 20
+            let atBottom = y >= bounds.height - 20
+            let atTop = y <= 20
 
-            if scrollUp || scrollDown, autoScroll == nil {
-                print(
-                    "[sel-handle] scrollTo START y=\(String(format: "%.1f", y)) boundsH=\(String(format: "%.1f", bounds.height)) up=\(scrollUp) down=\(scrollDown)"
-                )
-                autoScroll = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) {
-                    [self] timer in
-                    if floatingCursor.isHidden, !rangeAdjustmentInProgress,
-                       !interactiveRefinementInProgress {
-                        timer.invalidate()
-                    }
-
-                    mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
-                    scroll_wheel(wsHandle, 0, scrollUp ? -20 : 20, false, false, false, false)
-                    mouse_gone(wsHandle)
-
-                    mtkView.drawImmediately()
+            if atBottom || atTop {
+                autoScrollFromBottom = atBottom
+                if autoScroll == nil {
+                    print(
+                        "[sel-handle] scrollTo START y=\(String(format: "%.1f", y)) boundsH=\(String(format: "%.1f", bounds.height)) bottom=\(atBottom) top=\(atTop)"
+                    )
+                    autoScrollTicks = 0
+                    let link = CADisplayLink(target: self, selector: #selector(autoScrollTick))
+                    link.add(to: .main, forMode: .common)
+                    autoScroll = link
                 }
-            } else if let autoScroll,
-                      !scrollUp, !scrollDown
-            {
-                print("[sel-handle] scrollTo STOP y=\(String(format: "%.1f", y))")
-                autoScroll.invalidate()
-                self.autoScroll = nil
+            } else {
+                stopAutoScroll("left edge y=\(String(format: "%.1f", y))")
             }
+        }
+
+        @objc private func autoScrollTick() {
+            guard rangeAdjustmentInProgress || interactiveRefinementInProgress else {
+                stopAutoScroll("gesture gone")
+                return
+            }
+            autoScrollTicks += 1
+            if autoScrollTicks <= 3 || autoScrollTicks % 15 == 0 {
+                print("[sel-handle] scrollTo TICK #\(autoScrollTicks) fromBottom=\(autoScrollFromBottom)")
+            }
+            mouse_moved(wsHandle, Float(bounds.width / 2), Float(bounds.height / 2))
+            scroll_wheel(wsHandle, 0, autoScrollFromBottom ? -20 : 20, false, false, false, false)
+            mouse_gone(wsHandle)
+            mtkView.drawImmediately()
+        }
+
+        private func stopAutoScroll(_ why: String) {
+            guard autoScroll != nil else { return }
+            print("[sel-handle] scrollTo STOP (\(why)) ticks=\(autoScrollTicks)")
+            autoScroll?.invalidate()
+            autoScroll = nil
         }
 
         override public func canPerformAction(_ action: Selector, withSender sender: Any?) -> Bool {
