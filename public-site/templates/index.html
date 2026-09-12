@@ -1,297 +1,1122 @@
 {% extends "base.html" %}
+
 {% block content %}
 
-  <div class="relative mt-14 lg:mt-40">
-      <h1 class="max-w-4xl px-3 mx-auto text-3xl/relaxed [word-spacing:-6px] font-bold lg:text-center lg:text-4xl/snug  text-egshell">
-          The secure place for
-          <p class="relative inline-block">
-            <!-- <span class="absolute left-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-4 -translate-y-1 lg:-translate-y-2 text-abyss-900 -z-10 -rotate-6 text-abyss rounded-2xl bg-sundown">markdown</span>  -->
-            writing</p>
-          notes
-          <p class="relative inline-block">sketching 
-          <!-- <span class="absolute right-0 px-2 py-1 text-xs font-medium tracking-normal uppercase -translate-x-1 -translate-y-1 text-abyss-900 -z-10 rotate-6 text-abyss rounded-2xl bg-dusk">svg</span> -->
-        </p>
-          ideas and storing files
+<section class="section hero">
+  <div class="wrap hero-grid">
+    <div class="hero-copy">
+      <h1>
+        <span class="hero-lead">The best place for your</span>
+        <span class="sr-only">notes</span>
+        <span class="rot-line" aria-hidden="true"><b class="rot" id="rot-word"><span class="rot-text" id="rot-text">notes</span></b><b class="rot rot-measure" id="rot-measure"></b></span>
       </h1>
-      <span class="pointer-events-none  w-[100rem] lg:w-[100rem] n h-screen absolute left-0 top-0 lg:inset-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-[radial-gradient(at_center,_theme('colors.egshell')_-200%,_transparent_30%)]"></span>
+      <p class="hero-sub">
+        Lockbook is an <a href="https://github.com/lockbook/lockbook">open-source</a> notebook
+        for <a href="#formats">markdown</a> notes &amp; <a href="#formats">SVG</a> drawings &mdash;
+        <a href="#encryption">encrypted</a> on your device and shared only by invitation.
+      </p>
+      <div class="hero-cta">
+        <a class="btn btn-primary btn-lg" id="hero-download" href="/download">Download</a>
+        <a class="btn btn-quiet btn-lg" href="/download">Other platforms</a>
+      </div>
+      <p class="hero-proof">
+        Open source since 2020 &nbsp;·&nbsp; 25&nbsp;MB free &nbsp;·&nbsp; No email required
+      </p>
+    </div>
+    <a class="hero-shot" href="#screenshots" aria-label="See Lockbook on every platform">
+      <img class="shot" id="hero-img" src="/shots/mac-editor.png" width="1600" height="1107"
+           alt="Lockbook on macOS: a Markdown note open beside the file tree" />
+    </a>
   </div>
+</section>
 
-
-    <div class="grid grid-cols-1 gap-5 sm:grid-cols-3 px-7  text-egshell max-w-[58rem] m-auto mt-20">
-        <div class="p-4 text-lbneutral-100 bg-abyss-400">
-            <h4 class="mb-4 text-sm text-surfline">⚷ Private</h4>
-            <p class="text-xs">We use cryptography to keep your data secret<span class="opacity-50">, </span>even from us<span class="opacity-50">.</span></p>
-        </div>
-
-        <div class="p-4 text-lbneutral-100 bg-abyss-400">
-            <h4 class="mb-4 text-sm text-lbyellow-700">𖨆𖨆 Collaborative</h4>
-            <p class="text-xs">Share with friends<span class="opacity-50">, </span>teams<span class="opacity-50">, </span>and everyone else you trust<span class="opacity-50">.</span></p>
-        </div>
-
-        <div class="p-4 text-lbneutral-100 bg-abyss-400">
-            <h4 class="mb-4 text-sm text-lbblue-700">⊹ Extensible</h4>
-            <p class="text-xs">Open formats work nicely with your favorite apps and tools<span class="opacity-50">.</span></p>
-        </div>
+<section class="section" id="formats">
+  <div class="wrap">
+    <div class="measure">
+      <p class="eyebrow">Open formats</p>
+      <h2>Files you could still read if we disappeared.</h2>
     </div>
 
-   <div class="max-w-[58rem] m-auto mt-8  px-7 h-[40rem] mb-10 relative">
-      <canvas id="editor-demo" class="w-full h-full"></canvas>
-      <div class="absolute top-0 left-0 w-full h-full py-12 text-center bg-abyss-400 text-egshell" id="editor-loading"> 
-        <div class="flex items-center justify-center">
-            <p>Editor Demo</p>
-            <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
+    <div class="fmt-body">
+      <div class="fmt-col">
+        <div class="seg seg-lg seg-4" id="fmt-rail" role="tablist" aria-label="Open formats">
+          <span class="seg-thumb" id="fmt-thumb" aria-hidden="true"></span>
+          <button role="tab" id="tab-md" aria-controls="text-md visual-md" aria-selected="true" data-panel="md">Markdown</button>
+          <button role="tab" id="tab-svg" aria-controls="text-svg visual-svg" aria-selected="false" data-panel="svg" tabindex="-1">SVG</button>
+          <button role="tab" id="tab-tree" aria-controls="text-tree visual-tree" aria-selected="false" data-panel="tree" tabindex="-1">Files</button>
+          <button role="tab" id="tab-other" aria-controls="text-other visual-other" aria-selected="false" data-panel="other" tabindex="-1">Other</button>
         </div>
-      </div>
-  </div>
 
-
-
-
-  <div class="bg-abyss-900 text-egshell">
-    <div class="px-3 text-center max-sm:text-left">
-        <h2 class="text-2xl font-bold pt-28">Protect your data across your favorite devices<span class="opacity-50">.</span></h2>
-        <h3 class="mt-2 mb-20">handcrafted clients for each platform<span class="opacity-50">.</span> no electron bs</h3>
-    </div>
-
-      <div class="mx-auto w-1/2 h-[34rem] max-sm:h-72 relative max-sm:w-full max-sm:mt-36 ">
-        <div id="screenshots" class="flex h-full">
-            <img src="ios-screenshot.png" alt="screenshot of the ui on an iOS device" class="absolute hidden object-contain object-top w-full h-full" data-platform="ios" > 
-            <img src="macos-screenshot.png" alt="screenshot of the ui on an macos device" class="absolute hidden object-contain object-top w-full h-full" data-platform="macos" > 
-            <img src="linux-screenshot1.png" alt="screenshot of the ui on an linux device" class="absolute visible object-contain object-top w-full h-full" data-platform="linux" > 
-            <img src="android-screenshot.png" alt="screenshot of the ui on an android device" class="absolute hidden object-contain object-top w-full h-full" data-platform="android" > 
-            <img src="windows-screenshot.png" alt="screenshot of the ui on an windows device" class="absolute hidden object-contain object-top w-full h-full" data-platform="windows" > 
-        </div>
-        
-        <div class="absolute top-0 left-0 px-3 -translate-x-full translate-y-full max-sm:-translate-y-[110%]  max-sm:translate-x-0 ">
-            <p class="mb-2 uppercase opacity-30">screenshots</p>
-            <div class="flex flex-col flex-wrap items-start justify-center max-sm:flex-row max-sm:justify-around " id="toggle-screenshots">
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30" data-platform="ios">iOS</button>
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30" data-platform="macos">macOS</button>
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30" data-platform="windows">windows</button>
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 border-lbblue-700" data-platform="linux">linux</button>
-                <button class="px-4 pt-1 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30 "data-platform="android">android</button>
-            </div>
-        </div>
-      </div>
-  </div>
-  
-  <div class="max-w-[58rem] m-auto mt-40  px-7 h-[40rem]  relative">
-
-    <canvas id="canvas-demo" class="w-full h-full"></canvas>
-      
-      <div class="absolute top-0 left-0 w-full h-full py-12 text-center bg-abyss-400 text-egshell" id="canvas-loading"> 
-        <div class="flex items-center justify-center">
-            <p>Canvas Demo</p>
-            <div class="lds-ring"><div></div><div></div><div></div><div></div></div>
-        </div>
-      </div>
-  </div>
-
-  
-
-  <div class="pb-32 max-sm:pb-0 bg-abyss-900 text-egshell" id="pricing">
-    <div class="px-3 text-center max-sm:text-left">
-        <h2 class="pt-32 text-2xl font-bold ">Pricing</h2>
-        <h3 class="mt-2 mb-20">Be the customer<span class="opacity-50">,</span> not the product<span class="opacity-50">.</span> We sell a note-taking app<span class="opacity-50">,</span> not your data. </h3>
-    </div>
-      
-      <div class="flex justify-center max-sm:flex-col max-sm:mx-7">
-          <div class=" p-11">
-              <h4 class="mb-12 text-xl font-bold " >Free</h4>
-              <ul class="mb-20 text-xs list-disc list-inside ">
-                  <li class="mb-4">25MB storage capacity </li>
-                  <li class="mb-4">sharing and collaboration</li>
-                  <li class="mb-4">markdown support</li>
-                  <li class="mb-4">drawing support</li>
-                  <li class="mb-4">offline mode</li>
-              </ul>
-              <a href="#" class="text-sm underline text-surfline font-xs" id="free-download" >Download for free</a>
+        <div class="fmt-texts">
+          <div class="fmt-text is-on" id="text-md" role="tabpanel" aria-labelledby="tab-md">
+            <h3>Notes are Markdown.</h3>
+            <p>
+              Plain text with formatting: headings, lists, checkboxes,
+              tables, links. A note you write here is a file any text editor can
+              open, and every Markdown app can too, so nothing about it depends
+              on Lockbook.
+            </p>
+            <p class="fmt-opens">Also works in Slack, Discord, Reddit, GitHub, ChatGPT, Google Docs, Notion, Obsidian.</p>
           </div>
-  
-          <div class="w-full max-w-xl ml-8 max-sm:ml-0 bg-abyss-400 p-11 max-sm:py-20">
-              <div class="flex flex-row justify-between mb-8" >
-                  <h4  class="text-xl font-bold" >Premium</h4>
-                  <div>
-                      <h4 class="text-xl font-bold" >$2.99</h4>
-                      <p class="text-xs text-right">monthly</p>
-                  </div>
+          <div class="fmt-text" id="text-svg" role="tabpanel" aria-labelledby="tab-svg">
+            <h3>Drawings are SVG.</h3>
+            <p>
+              Your sketches are saved as SVG, the standard vector format the web
+              uses for graphics. Every stroke stays editable, nothing turns blurry
+              when you zoom, and the file opens in design apps and browsers alike.
+            </p>
+            <p class="fmt-opens">Also opens in Figma, Illustrator, Canva, PowerPoint, Keynote, Inkscape, Preview, any browser.</p>
+          </div>
+          <div class="fmt-text" id="text-tree" role="tabpanel" aria-labelledby="tab-tree">
+            <h3>Folders are folders.</h3>
+            <p>
+              Export writes your notebook to disk exactly like this &mdash; folders
+              you named, Markdown and SVG inside. No manifest, no database, nothing
+              to reconstruct.
+            </p>
+            <p class="fmt-opens">Back it up with anything: Time Machine, a USB stick, Dropbox, git.</p>
+          </div>
+          <div class="fmt-text" id="text-other" role="tabpanel" aria-labelledby="tab-other">
+            <h3>Your home for everything.</h3>
+            <p>
+              Photos, scans, PDFs, spreadsheets, code: keep them beside the notes
+              they belong with. Lockbook encrypts them like everything else and
+              opens images, PDFs and code right in the app, with more formats on
+              the way. They stay ordinary files, so they come back out exactly as
+              they went in.
+            </p>
+            <p class="fmt-opens">Opens in the app today: PNG, JPEG, PDF, code. More coming soon.</p>
+          </div>
+        </div>
+      </div>
+
+      <div class="fmt-col">
+        <div class="fmt-visuals" id="fmt-visuals">
+          <div class="fmt-visual is-on" id="visual-md">
+            <figure class="window">
+              <div class="window-bar">
+                <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+                  <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+                  <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="window-label">documents/notes.md</span>
+                <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+                  <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                </svg>
               </div>
-              <ul class="mb-20 text-xs list-disc list-inside ">
-                  <li class="mb-4 ">30GB storage capacity </li>
-                  <li class="mb-4 opacity-60">sharing and collaboration</li>
-                  <li class="mb-4 opacity-60">markdown support</li>
-                  <li class="mb-4 opacity-60">drawing support</li>
-                  <li class="mb-4 opacity-60">offline mode</li>
-              </ul>
-              <a href="#" class="px-6 py-2 text-sm text-abyss-900 bg-surfline" id="paid-download" >Purchase in app</a>
+              <div class="window-body fmt-demo">
+                <canvas id="editor-demo" tabindex="0"></canvas>
+                <div class="demo-overlay" id="editor-loading">
+                  <div class="spinner"></div>
+                  <span>Loading the live editor&hellip;</span>
+                </div>
+              </div>
+            </figure>
           </div>
+          <div class="fmt-visual" id="visual-svg">
+            <figure class="window">
+              <div class="window-bar">
+                <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+                  <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+                  <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="window-label">documents/sketch.svg</span>
+                <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+                  <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                </svg>
+              </div>
+              <div class="window-body fmt-demo">
+                <canvas id="canvas-demo" tabindex="0"></canvas>
+                <div class="demo-overlay" id="canvas-loading">
+                  <div class="spinner"></div>
+                  <span>Loading the live canvas&hellip;</span>
+                </div>
+              </div>
+            </figure>
+          </div>
+          <div class="fmt-visual" id="visual-tree">
+            <figure class="window">
+              <div class="window-bar">
+                <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+                  <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+                  <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="window-label">documents/</span>
+                <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+                  <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                </svg>
+              </div>
+              <div class="window-body fmt-demo">
+                <div class="fs">
+              <div class="fs-bar">
+                <span class="fs-cmd" data-cmd="$ lockbook export / ~/documents">$ lockbook export / ~/documents</span>
+                <span class="fs-count">12 items</span>
+              </div>
+              <div class="fs-grid">
+              <div class="fs-item" style="--i:0"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>journal</span></div>
+              <div class="fs-item" style="--i:1"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>kitchen</span></div>
+              <div class="fs-item" style="--i:2"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>recipes</span></div>
+              <div class="fs-item" style="--i:3"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>travel</span></div>
+              <div class="fs-item" style="--i:4"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>notes.md</span></div>
+              <div class="fs-item" style="--i:5"><i class="nf svg" aria-hidden="true">&#xf1a0d;</i><span>sketch.svg</span></div>
+              <div class="fs-item" style="--i:6"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>bread.md</span></div>
+              <div class="fs-item" style="--i:7"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>quotes.md</span></div>
+              <div class="fs-item" style="--i:8"><i class="nf svg" aria-hidden="true">&#xf1a0d;</i><span>lamination.svg</span></div>
+              <div class="fs-item" style="--i:9"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>2026-08-26.md</span></div>
+              <div class="fs-item" style="--i:10"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>budget.md</span></div>
+              <div class="fs-item" style="--i:11"><i class="nf md" aria-hidden="true">&#xf48a;</i><span>packing.md</span></div>
+              </div>
+            </div>
+              </div>
+            </figure>
+          </div>
+          <div class="fmt-visual" id="visual-other">
+            <figure class="window">
+              <div class="window-bar">
+                <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+                  <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+                  <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+                </svg>
+                <span class="window-label">documents/finances</span>
+                <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+                  <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                  <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+                </svg>
+              </div>
+              <div class="window-body fmt-demo">
+                <div class="fs">
+              <div class="fs-bar">
+                <span class="fs-cmd">documents/finances</span>
+                <span class="fs-count">12 items</span>
+              </div>
+              <div class="fs-grid">
+              <div class="fs-item" style="--i:0"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>taxes-2025</span></div>
+              <div class="fs-item" style="--i:1"><i class="nf folder" aria-hidden="true">&#xf024b;</i><span>receipts</span></div>
+              <div class="fs-item" style="--i:2"><i class="nf pdf" aria-hidden="true">&#xe67d;</i><span>w2-2025.pdf</span></div>
+              <div class="fs-item" style="--i:3"><i class="nf pdf" aria-hidden="true">&#xe67d;</i><span>lease.pdf</span></div>
+              <div class="fs-item" style="--i:4"><i class="nf img" aria-hidden="true">&#xf02e9;</i><span>passport-scan.png</span></div>
+              <div class="fs-item" style="--i:5"><i class="nf img" aria-hidden="true">&#xf02e9;</i><span>receipt-0412.jpg</span></div>
+              <div class="fs-item" style="--i:6"><i class="nf text" aria-hidden="true">&#xf15c;</i><span>budget.csv</span></div>
+              <div class="fs-item" style="--i:7"><i class="nf pdf" aria-hidden="true">&#xe67d;</i><span>insurance.pdf</span></div>
+              <div class="fs-item" style="--i:8"><i class="nf img" aria-hidden="true">&#xf02e9;</i><span>car-title.png</span></div>
+              <div class="fs-item" style="--i:9"><i class="nf pdf" aria-hidden="true">&#xe67d;</i><span>isp-invoice-jun.pdf</span></div>
+              <div class="fs-item" style="--i:10"><i class="nf code" aria-hidden="true">&#xf0174;</i><span>compose.yml</span></div>
+              <div class="fs-item" style="--i:11"><i class="nf img" aria-hidden="true">&#xf02e9;</i><span>kyoto-subway.png</span></div>
+              </div>
+                </div>
+              </div>
+            </figure>
+          </div>
+        </div>
       </div>
+    </div>
   </div>
-  
+</section>
 
-  <div class="pb-56 bg-abyss-900 text-egshell max-sm:pb-32">
-    <div class="px-3 text-center max-sm:text-left">
-        <h2 class="pt-24 text-2xl font-bold ">Project roadmap</h2>
-        <h3 class="mt-2 mb-20">Lockbook is in its infancy. Here's what we accomplished and what we'll deliver</h3>
+<section class="section" id="encryption">
+  <div class="wrap">
+    <div class="measure">
+      <p class="eyebrow">Encryption</p>
+      <h2>We built a notebook we can&rsquo;t read.</h2>
+      <p class="lede">
+        Your keys are generated on your device and never leave it. Everything is
+        encrypted before it syncs, so what reaches our servers is noise. Your
+        notes live on your device first, so offline isn&rsquo;t a mode — it&rsquo;s the
+        default. Sharing hands a key to a person you name — never to us.
+      </p>
     </div>
 
-    <div class="flex justify-between max-w-6xl px-3 mx-auto max-sm:flex-col">
-        <div>
-            <div class="relative">
-                <h4 class="text-lg font-bold ">Features</h4>
-                <span class="pointer-events-none  w-96 h-96  left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[50%] bg-[radial-gradient(at_center,green_-80%,_transparent_30%)]"></span>
+    <div class="arch" role="img" aria-label="Diagram: a note is encrypted on your phone before it leaves, and the server only ever stores ciphertext">
+      <figure class="arch-node phone" id="arch-device">
+        <figcaption>your phone <span class="arch-tag">plaintext</span></figcaption>
+        <div class="phone-shell">
+          <div class="phone-screen" id="phone-screen">
+            <span class="phone-island"></span>
+            <div class="phone-app"><span class="phone-back">&lsaquo;</span>1984.md</div>
+            <div class="arch-note">
+              <p><b>Finished 1984 on the train.</b></p>
+              <p>The telescreen never had to watch everyone. It only had to make everyone feel watched.</p>
+              <p>I write differently when I feel watched. So this lives here now.</p>
             </div>
-            <ul class="text-sm list-inside font-extralight">
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600 ">End to End encryption</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">Collaboration</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">Offline Support</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">Markdown and SVG editing support</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">PDF and Image Preview</li>
-                <li class="mt-4 before:content-['✓'] before:pr-4 before:text-green-600">CLI support</li>
-            </ul>  
-        </div> 
+            <span class="phone-home"></span>
+          </div>
+        </div>
+      </figure>
 
-        <div class="mt-28 max-sm:mt-20">
-            <div class="relative">
-                <h4 class="text-lg font-bold ">In development</h4>
-                <span class="pointer-events-none  w-96 h-96  left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[50%] bg-[radial-gradient(at_center,orange_-160%,_transparent_30%)]"></span>
-            </div>
-            <ul class="text-sm list-inside font-extralight">
-                <li class="mt-4 before:content-['◍'] before:pr-4 before:text-yellow-700 ">Stability and Scaling improvements</li>
-                <li class="mt-4 before:content-['◍'] before:pr-4 before:text-yellow-700">Large File Support</li>
-                <li class="mt-4 before:content-['◍'] before:pr-4 before:text-yellow-700">PDF editing</li>
-                <li class="mt-4 before:content-['◍'] before:pr-4 before:text-yellow-700">File System Integration</li>
-            </ul>  
-        </div> 
+      <div class="arch-wire" id="arch-wire">
+        <span class="lock-badge" aria-hidden="true">
+          <svg width="14" height="14" viewBox="0 0 14 14" fill="none">
+            <rect x="2.2" y="6.4" width="9.6" height="5.9" rx="1.6" stroke="currentColor" stroke-width="1.1"/>
+            <path d="M4.5 6.2V4.4a2.5 2.5 0 0 1 5 0v1.8" stroke="currentColor" stroke-width="1.1"/>
+          </svg>
+        </span>
+        <span class="lock-note">encrypted before it leaves</span>
+        <span class="arch-packet" id="arch-packet" aria-hidden="true"><svg width="12" height="13" viewBox="0 0 12 13" fill="none"><path d="M2.1.65h4.2l4.05 4.05v6.55a1.1 1.1 0 0 1-1.1 1.1H2.1A1.1 1.1 0 0 1 1 11.25V1.75A1.1 1.1 0 0 1 2.1.65Z" stroke="currentColor" stroke-width="1.1"/><path d="M6.3.65v4.05h4.05" stroke="currentColor" stroke-width="1.1"/></svg><span id="packet-label">1984.md</span></span>
+      </div>
 
-        <div class="max-sm:mt-20">
-            <div class="relative">
-                <h4 class="text-lg font-bold ">Coming soon</h4>
-                <span class="pointer-events-none  w-96 h-96  left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[50%] bg-[radial-gradient(at_center,_theme('colors.lbblue.500')_-160%,_transparent_30%)]"></span>
-            </div>
-            <ul class="text-sm list-inside font-extralight">
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">Document History</li>
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">Transcription / Audio support</li>
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">Mentions, Comments and Notifications</li>
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">Browser Extension for "Clippings"</li>
-                <li class="mt-4 before:content-['➤'] before:pr-4 before:text-lbblue-500">LLM Integration</li>
-            </ul>  
-        </div> 
+      <figure class="arch-node rack" id="arch-server">
+        <figcaption>our server <span class="arch-tag">ciphertext</span></figcaption>
+        <div class="rack-shell" id="rack">
+          <div class="rack-bar"><i></i><i></i><i class="on"></i></div>
+          <pre class="arch-store" id="arch-store">mK2x+9QfLw3eYaZv0dR
+u8PJq4Tn6RcXbGdV1e+
+Hs5AyEw7Zk+jMoN2iQd
+p7Rc/Xw2mBhT4nEuJ8f
+d3FrUvLB9tXq/W6pCsA
+Qn9tYe2L+cVw4xKzM0b
+aZ7fHs1Dm8Rj/Ep3TvW
+kW4uNc6Bx9Ly+Gq2Pf0
+tJ1oRd5Va3Zm/Ck8Xy+
+e6Ms2Hf9Ub7Nw0Lq+Yi</pre>
+        </div>
+      </figure>
     </div>
 
-</div>
-
-  <div class="relative py-20 pl-24 max-sm:px-3 text-egshell bg-gradient-to-b from-abyss-900 to-abyss-400" id="download">
-      <h1 class="text-4xl font-bold mb-28 max-sm:text-3xl">Join the community</h1>
-      <div class="flex items-center max-sm:items-start max-sm:flex-col " id="download-center">
-          <a href="" class="px-6 py-2 text-sm font-bold text-abyss-900 bg-surfline ">Download for macOS</a>
-          <p class="ml-8 text-xs font-extralight max-sm:mx-0 max-sm:mt-4">also available for 
-              <a href="#" class="underline text-lbblue-700 ">iOS</a>,
-              <a href="#" class="underline text-lbblue-700 ">android</a>
-              <a href="#" class="underline text-lbblue-700 ">linux</a>, and
-              <a href="#" class="underline text-lbblue-700 ">windows</a></p>
-      </div>
-      <div class="absolute top-0 right-0 w-1/4 h-full overflow-hidden pointer-events-none min-w-80 max-sm:h-full max-sm:w-full max-sm:-z-10 max-sm:opacity-5">
-          <img src="./banner-bg.svg" alt="pattern of lockbook's logo" class="">
-      </div>
+    <p class="after-note">
+      <a href="/security">How the cryptography works &rarr;</a>
+    </p>
   </div>
+</section>
 
-  
-  <!--Register Service Worker. this will cache the wasm / js scripts for offline use (for PWA functionality). -->
-  <!-- Force refresh (Ctrl + F5) to load the latest files instead of cached files  -->
-  <script>
-      // We disable caching during development so that we always view the latest version.
-      if ('serviceWorker' in navigator && window.location.hash !== "#dev") {
-          window.addEventListener('load', function() {
-              navigator.serviceWorker.register('sw.js');
-          });
-      }
+<section class="section" id="platforms">
+  <div class="wrap">
+    <div class="measure">
+      <p class="eyebrow">Platforms</p>
+      <h2>Six clients, one Rust core.</h2>
+      <p class="lede">
+        Each interface is written for its own platform, so every app launches
+        instantly and behaves the way that platform should — no Electron, no
+        web view. The apps share one editor engine; everything, CLI included,
+        stands on one Rust core. Pick a client:
+      </p>
+    </div>
 
-      let unselectedStyles = "pt-1 px-4 border-l-8 max-sm:border-l-4 font-extralight border-abyss-400 border-opacity-30";
-      let selectedStyles = "pt-1 px-4 border-l-8 max-sm:border-l-4 border-lbblue-700";
+    <div class="platform-duo">
+    <div class="stack">
+      <div class="stack-row" id="platform-switch" role="tablist" aria-label="Clients">
+        <button class="stack-cell" role="tab" aria-selected="true"  data-platform="macos"><b>macOS</b><span>SwiftUI</span></button>
+        <button class="stack-cell" role="tab" aria-selected="false" data-platform="ios"     tabindex="-1"><b>iOS</b><span>SwiftUI</span></button>
+        <button class="stack-cell" role="tab" aria-selected="false" data-platform="android" tabindex="-1"><b>Android</b><span>Kotlin</span></button>
+        <button class="stack-cell" role="tab" aria-selected="false" data-platform="linux"   tabindex="-1"><b>Linux</b><span>Rust · egui</span></button>
+        <button class="stack-cell" role="tab" aria-selected="false" data-platform="windows" tabindex="-1"><b>Windows</b><span>Rust · egui</span></button>
+        <button class="stack-cell" role="tab" aria-selected="false" data-platform="cli"     tabindex="-1"><b>CLI</b><span>Rust</span></button>
+      </div>
 
-      let screenshotToggleBtns = [...document.querySelector("#toggle-screenshots").children].filter(el => el.nodeName === "BUTTON");
+      <div class="stack-links" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i></div>
 
-      let screenshotImgs = [...document.querySelector("#screenshots").children]
+      <div class="stack-mid">
+        <div class="stack-bar">
+          <code>workspace</code>
+          <span>the editor &amp; canvas every app embeds</span>
+          <a href="https://github.com/lockbook/lockbook/tree/master/libs/content/workspace">Learn more &rarr;</a>
+        </div>
+        <span class="stack-pass" aria-hidden="true"><i></i></span>
+      </div>
 
-      screenshotToggleBtns.forEach(clickedBtn => clickedBtn.addEventListener('click', e => {
-          screenshotToggleBtns.forEach(nonClickedBtn => nonClickedBtn.className = unselectedStyles)
-          clickedBtn.className = selectedStyles;
-          let clickedPlatform = clickedBtn.dataset.platform
+      <div class="stack-under" aria-hidden="true"><i class="u-ws"></i><i class="u-cli"></i></div>
 
-          screenshotImgs.forEach(img => {
-            img.classList.remove("visible")
-            img.classList.add("hidden")
-        })
-          selectedImg = screenshotImgs.find(img => img.dataset.platform === clickedPlatform)
-          selectedImg.classList.remove("hidden")
-          selectedImg.classList.add("visible")
+      <div class="stack-bar">
+        <code>lb-rs</code>
+        <span>encryption, sync, storage</span>
+        <a href="https://docs.rs/lb-rs">Learn more &rarr;</a>
+      </div>
+    </div>
 
-      }))
-      let editorCanvas = document.querySelector("#editor-demo")
+      <div class="shots" id="screenshots">
+      <div class="shot-stage" id="platform-shot">
+        <img class="shot is-on" data-platform="macos" src="/shots/mac-editor.png" width="1600" height="1107" loading="lazy"
+             alt="Lockbook on macOS: a Markdown note open beside the file tree" />
+        <img class="shot shot-phone" data-platform="ios" src="/shots/iphone-editor.png" width="552" height="1200" loading="lazy"
+             alt="Lockbook on iPhone: editing a Markdown note" />
+        <img class="shot shot-phone" data-platform="android" src="/shots/android-editor.png" width="806" height="1458" loading="lazy"
+             alt="Lockbook on Android: a travel plan with a checklist and a table" />
+        <div class="ph" data-ratio="16/10" data-platform="linux"><span><b>Linux client</b>screenshot coming soon</span></div>
+        <div class="ph" data-ratio="16/10" data-platform="windows"><span><b>Windows client</b>screenshot coming soon</span></div>
+        <div class="ph" data-ratio="16/10" data-platform="cli"><span><b>CLI</b>screenshot coming soon</span></div>
+      </div>
+    </div>
+    </div>
+  </div>
+</section>
 
-      // Make canvas focusable
-      editorCanvas.setAttribute("tabindex", "0");
+<section class="section" id="developers">
+  <div class="wrap">
+    <div class="split">
+      <div class="split-text">
+        <p class="eyebrow">Developers</p>
+        <h2>Scriptable all the way down.</h2>
+        <p class="lede">
+          Find notes with <code>fzf</code>, schedule backups with <code>cron</code>,
+          pipe a note into anything &mdash; or run <code>lockbook fs</code> and mount the
+          whole notebook as a drive. When the shell is not enough, link the same
+          Rust library the apps are built on, or use one of the SDKs available
+          for many other languages.
+        </p>
+        <div class="link-list">
+          <a href="https://github.com/lockbook/lockbook/tree/master/clients/cli">CLI reference &rarr;</a>
+          <a href="https://crates.io/crates/lb-rs">lb-rs on crates.io &rarr;</a>
+          <a href="https://docs.rs/lb-rs">Library documentation &rarr;</a>
+        </div>
+      </div>
 
-      // List of events to prevent propagation and default behavior
-      const eventsToBlock = [
-          "keydown", "keyup", "keypress",
-          "wheel", "mousedown", "mouseup",
-          "click", "dblclick", "touchstart",
-          "touchmove", "touchend", "contextmenu"
-      ];
+      <div class="split-visual">
+        <figure class="window">
+          <div class="window-bar">
+            <svg class="window-marks" width="16" height="13" viewBox="0 0 16 13" fill="none" aria-hidden="true">
+              <rect x=".65" y=".65" width="14.7" height="11.7" rx="2.2" stroke="currentColor" stroke-width="1.1"/>
+              <path d="M.65 4.2h14.7M5.6 4.2v8.15" stroke="currentColor" stroke-width="1.1"/>
+            </svg>
+            <span class="window-label">zsh &mdash; lockbook</span>
+            <svg class="window-dots" width="34" height="8" viewBox="0 0 34 8" fill="none" aria-hidden="true">
+              <circle cx="4" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+              <circle cx="17" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+              <circle cx="30" cy="4" r="3.2" stroke="currentColor" stroke-width="1"/>
+            </svg>
+          </div>
+          <div class="window-body term-body">
+            <div class="term-out" id="term-out"><pre>lockbook &mdash; the private, polished note-taking platform
 
-      eventsToBlock.forEach(eventType => {
-          editorCanvas.addEventListener(eventType, function(event) {
-              event.preventDefault();
-          }, {
-              passive: false
-          }); // passive: false ensures preventDefault works on wheel/touch events
-      });
+USAGE
+    <b>lockbook</b> &lt;command&gt; [args...]
 
-      // Focus canvas when clicked so it can receive key events
-      editorCanvas.addEventListener("click", () => {
-          editorCanvas.focus();
-      });
+COMMANDS
+    <b>account</b>   account management commands
+    <b>copy</b>      import files from your file system
+    <b>edit</b>      edit a document
+    <b>export</b>    export a lockbook file to your file system
+    <b>fs</b>        mount your files as an NFS drive
+    <b>list</b>      list files and file information
+    <b>search</b>    search file paths and document contents
+    <b>share</b>     sharing related commands
+    <b>sync</b>      sync your local changes back to lockbook servers</pre></div>
+            <form class="term-line" id="term-form" autocomplete="off">
+              <span class="term-sigil">$</span>
+              <span class="term-cmd">lockbook</span>
+              <input id="term-input" type="text" aria-label="Try a lockbook command"
+                     autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+            </form>
+          </div>
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
 
+<section class="section" id="pricing">
+  <div class="wrap">
+    <div class="measure" style="margin-bottom:var(--s-xl)">
+      <p class="eyebrow">Pricing</p>
+      <h2>Be the customer, not the product.</h2>
+      <p class="lede">
+        We sell storage, not data. There is no ad model and no analytics
+        business &mdash; and nothing to mine even if we wanted one.
+      </p>
+    </div>
 
-      function getUserPlatform() {
-        if (window.navigator.userAgent.includes("Windows"))
-            return "windows"
-        if (window.navigator.userAgent.includes("iPhone"))
-            return "ios"
-        if (window.navigator.userAgent.includes("Mac"))
-            return "macos"
-        if (window.navigator.userAgent.includes("Android"))
-            return "android"
-        if (window.navigator.userAgent.includes("Linux"))
-            return "linux"
+    <div class="cards two">
+      <div class="card plan">
+        <p class="plan-name">Free</p>
+        <p class="plan-price">$0</p>
+        <p class="plan-cap">25&nbsp;MB of encrypted storage</p>
+        <p class="plan-note">Thousands of notes &mdash; it is text, and text is small. Every feature included, sharing included.</p>
+        <a class="btn btn-quiet" href="/download">Download</a>
+      </div>
+      <div class="card plan featured">
+        <p class="plan-name">Premium</p>
+        <p class="plan-price">$2.99<span>/month</span></p>
+        <p class="plan-cap">30&nbsp;GB of encrypted storage</p>
+        <p class="plan-note">Room for images, scans and PDFs. Funds the work.</p>
+        <a class="btn btn-primary" href="/download">Subscribe in the app</a>
+      </div>
+    </div>
+  </div>
+</section>
+
+<style>{% raw %}
+  .hero{padding:var(--s-3xl) 0 var(--s-2xl);border-top:0}
+  .hero-grid{display:grid;gap:var(--s-xl);align-items:center}
+  .hero h1{font-size:clamp(28px,3.4vw,36px);line-height:1.25}
+  .hero-lead{display:block}
+  .rot-line{position:relative;display:block;margin-top:var(--s-xs);white-space:nowrap}
+  .rot{
+    display:inline-block;vertical-align:top;overflow:hidden;text-align:center;
+    font-weight:inherit;color:var(--accent);
+    background:color-mix(in srgb,var(--accent) 12%,transparent);
+    border-radius:var(--r-sm);padding:0 .12em;margin-left:-.12em;
+    transition:width .38s ease;
+  }
+  .rot-text{display:inline-block;will-change:filter}
+  .rot-measure{position:absolute;left:0;top:0;visibility:hidden;pointer-events:none;width:auto !important;transition:none}
+  .sr-only{position:absolute;width:1px;height:1px;margin:-1px;padding:0;overflow:hidden;clip:rect(0 0 0 0);white-space:nowrap;border:0}
+  .hero-sub{margin-top:var(--s-md);color:var(--fg-2);font-size:19px;max-width:30em;text-wrap:pretty}
+  .hero-cta{display:flex;flex-wrap:wrap;gap:var(--s-sm);margin-top:var(--s-lg)}
+  .hero-proof{margin-top:var(--s-md);color:var(--fg-3);font-family:var(--mono);font-size:12px}
+  .hero-shot{display:block}
+  @media (min-width:900px){
+    .hero{overflow-x:clip}
+    .hero-grid{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--s-xl)}
+    .hero-shot{display:block;margin-right:calc(-1 * max(0px, (100vw - var(--page)) / 2))}
+  }
+  .shot{display:block;width:100%;height:auto;border-radius:9px;
+    box-shadow:0 0 0 1px var(--divider),0 30px 60px -30px rgba(0,0,0,.6)}
+  .hero-shot:hover{text-decoration:none}
+  .hero-shot .shot{transition:transform var(--anim) ease}
+  .hero-shot:hover .shot{transform:translateY(-2px)}
+  .shot-stage{display:flex;align-items:center;justify-content:center;aspect-ratio:1/1}
+  .shot-stage > *{display:none}
+  .shot-stage > .is-on{display:block}
+  .shot-stage .shot-phone{width:auto;height:100%;border-radius:18px}
+
+  .shots{scroll-margin-top:calc(60px + var(--s-md))}
+  #platform-shot{margin-top:var(--s-md)}
+
+  .after-note{margin-top:var(--s-lg)}
+
+  .arch{margin-top:var(--s-xl);display:flex;flex-direction:column;gap:var(--s-lg)}
+  .arch-node{margin:0;display:flex;flex-direction:column}
+  .arch-node figcaption{
+    display:flex;align-items:center;gap:var(--s-xs);margin-bottom:var(--s-sm);
+    font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3);
+  }
+  .arch-tag{margin-left:auto}
+
+  .phone{align-self:center;width:190px}
+  .phone-shell{height:380px;padding:8px;border:1px solid var(--stroke);border-radius:30px;background:var(--bg-panel)}
+  .phone-screen{
+    --base:var(--bg);position:relative;height:100%;overflow:hidden;
+    border:1px solid var(--divider);border-radius:22px;background:var(--base);
+    padding:32px 14px 20px;
+  }
+  .phone-island{position:absolute;top:9px;left:50%;width:42px;height:11px;transform:translateX(-50%);border-radius:6px;background:var(--fg);opacity:.85}
+  .phone-home{position:absolute;bottom:7px;left:50%;width:54px;height:3px;transform:translateX(-50%);border-radius:2px;background:var(--fg);opacity:.35}
+  .phone-app{
+    display:flex;align-items:center;gap:var(--s-xs);margin-bottom:var(--s-sm);
+    font-family:var(--mono);font-size:10.5px;letter-spacing:.06em;color:var(--fg-3);
+  }
+  .phone-back{font-family:var(--sans);font-size:17px;line-height:1;color:var(--accent)}
+  .arch-note{font-size:12.5px;line-height:1.5;color:var(--fg);text-wrap:pretty}
+  .arch-note p{margin:0 0 .6em}
+  .arch-note b{font-weight:600}
+
+  .rack{align-self:center;width:100%;max-width:360px}
+  .rack-shell{
+    --base:var(--bg-panel);flex:1;display:flex;flex-direction:column;
+    border:1px solid var(--stroke);border-radius:var(--r-surface);background:var(--base);
+  }
+  .rack-bar{display:flex;gap:5px;padding:11px 14px;border-bottom:1px solid var(--divider)}
+  .rack-bar i{width:6px;height:6px;border-radius:50%;background:var(--bg-control)}
+  .rack-bar i.on{background:var(--accent)}
+  .arch-store{
+    flex:1;margin:0;padding:var(--s-md);min-height:calc(20em + 2 * var(--s-md));
+    font-family:var(--mono);font-size:13px;line-height:2;color:var(--fg-3);white-space:pre;overflow:hidden;
+    transition:opacity .25s ease;
+  }
+  .arch-flash{animation:archflash .55s ease}
+  @keyframes archflash{0%{background:color-mix(in srgb,var(--accent) 10%,var(--base))}100%{background:var(--base)}}
+
+  .arch-wire{position:relative;min-height:120px}
+  .arch-wire::before{
+    content:"";position:absolute;left:50%;top:0;bottom:0;width:1px;
+    background:repeating-linear-gradient(180deg,var(--stroke) 0 5px,transparent 5px 11px);
+  }
+  .arch-wire::after{
+    content:"";position:absolute;left:50%;bottom:-1px;transform:translateX(-50%);
+    border:5px solid transparent;border-top-color:var(--stroke);border-bottom:0;
+  }
+  .lock-badge{
+    position:absolute;z-index:2;left:50%;top:0;transform:translate(-50%,-50%);
+    display:inline-flex;padding:5px;background:var(--bg);
+    border:1px solid var(--stroke);border-radius:50%;color:var(--accent);
+  }
+  .lock-note{
+    position:absolute;z-index:2;left:calc(50% + 18px);right:0;top:0;transform:translateY(-50%);
+    font-family:var(--mono);font-size:11px;line-height:1.4;color:var(--fg-3);
+  }
+  .arch-packet{
+    position:absolute;z-index:1;left:0;top:0;opacity:0;will-change:transform;
+    display:inline-flex;align-items:center;gap:var(--s-xs);
+    font-family:var(--mono);font-size:11.5px;padding:var(--s-xxs) var(--s-xs);
+    border:1px solid var(--stroke);border-radius:var(--r-sm);
+    background:var(--bg);color:var(--fg);white-space:nowrap;
+  }
+  .arch-packet svg{flex:none}
+  .arch-packet.is-cipher{color:var(--fg-3)}
+
+  @media (min-width:860px){
+    .arch{flex-direction:row;align-items:stretch;gap:0}
+    .phone{align-self:auto;flex:none}
+    .rack{align-self:auto;width:260px;max-width:none;flex:none}
+    .arch-wire{flex:1;min-height:0}
+    .arch-wire::before{
+      left:0;right:0;top:50%;bottom:auto;width:auto;height:1px;
+      background:repeating-linear-gradient(90deg,var(--stroke) 0 5px,transparent 5px 11px);
     }
+    .arch-wire::after{
+      left:auto;right:-1px;bottom:auto;top:50%;transform:translateY(-50%);
+      border:5px solid transparent;border-left-color:var(--stroke);border-right:0;
+    }
+    .lock-badge{left:0;top:50%}
+    .lock-note{left:var(--s-sm);right:auto;top:calc(50% + 16px);transform:none;white-space:nowrap}
+  }
 
-    let downloadHrefMap = {
-        windows: {prettyName: "Windows", others: ["ios", "macos", "android", "linux"], href: "https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-setup-x86_64.exe"},
-        macos: {prettyName: "macOS", others: ["ios", "linux", "android", "windows"], href: "https://apps.apple.com/us/app/lockbook/id1526775001"},
-        ios: {prettyName: "iPhone", others: ["macos", "linux", "android", "windows"],  href: "https://apps.apple.com/us/app/lockbook/id1526775001"},
-        linux: {prettyName: "Linux",others: ["android", "macos", "ios", "windows"], href: "https://github.com/lockbook/lockbook/releases/latest/download/lockbook-linux"},
-        android: {prettyName: "Android", others: ["linux", "windows", "ios", "macos"], href: "https://play.google.com/store/apps/details?id=app.lockbook"}
-    };
+  .fmt-body{display:grid;gap:var(--s-xl);margin-top:var(--s-lg)}
+  @media (min-width:900px){
+    .fmt-body{grid-template-columns:minmax(0,2fr) minmax(0,3fr);gap:var(--s-2xl);align-items:start}
+    #fmt-rail{display:grid;width:100%}
+    #fmt-rail button{min-width:0;padding:0 var(--s-xs);font-size:14px}
+  }
+  .fmt-texts,.fmt-visuals{position:relative}
+  .fmt-texts{margin-top:var(--s-lg)}
+  .fmt-text,.fmt-visual{
+    position:absolute;left:0;right:0;top:0;
+    opacity:0;visibility:hidden;pointer-events:none;
+    transition:opacity var(--anim) ease;
+  }
+  .fmt-text.is-on,.fmt-visual.is-on{position:relative;opacity:1;visibility:visible;pointer-events:auto}
+  .fmt-text h3{font-size:var(--t-heading);margin-bottom:var(--s-sm)}
+  .fmt-text p{color:var(--fg-2)}
+  .fmt-text .fmt-opens{margin-top:var(--s-md);font-family:var(--mono);font-size:12px;color:var(--fg-3)}
+  .fmt-demo{position:relative}
+  @media (min-width:760px){.fmt-demo{height:400px}}
+  @media (max-width:759px){.fmt-demo{aspect-ratio:4/3}}
+  .fmt-demo canvas{display:block;width:100%;height:100%}
 
-    let userPlatform = getUserPlatform();
-    
-    [...document.querySelectorAll("#download-center a")].forEach((link,i) => {
-            let platform =  i === 0 ? userPlatform : downloadHrefMap[userPlatform].others[i-1]
-            let platformObj = downloadHrefMap[platform]
-            link.textContent = link.textContent.replace(/\S+$/, platformObj.prettyName)
-            link.href = platformObj.href
-    });
+  .fs{position:absolute;inset:0;display:flex;flex-direction:column}
+  .fs-bar{
+    display:flex;align-items:center;justify-content:space-between;gap:var(--s-sm);
+    padding:var(--s-sm) var(--s-md);border-bottom:1px solid var(--divider);
+    font-family:var(--mono);font-size:12px;color:var(--fg-3);
+  }
+  .fs-cmd{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .fs-count{flex:none}
+  .fs-grid{
+    flex:1;min-height:0;overflow:auto;
+    display:grid;grid-template-columns:repeat(auto-fill,minmax(88px,1fr));
+    gap:var(--s-sm) var(--s-xs);padding:var(--s-sm) var(--s-lg);align-content:space-evenly;
+  }
+  .fs-item{display:flex;flex-direction:column;align-items:center;gap:var(--s-xs);min-width:0}
+  @font-face{font-family:"NF Symbols";src:url(/fonts/nf-symbols.woff) format("woff");font-display:swap}
+  .fs-item .nf{
+    display:block;width:42px;text-align:center;
+    font-family:"NF Symbols";font-style:normal;font-size:36px;line-height:1;color:var(--fg-3);
+  }
+  .fs-item .nf.folder{color:var(--accent)}
+  .fs.typing .fs-item{opacity:0}
+  .fs.play .fs-item{animation:fsin .45s cubic-bezier(.2,.7,.2,1) both;animation-delay:calc(var(--i) * 50ms)}
+  @keyframes fsin{from{opacity:0;transform:translateY(8px) scale(.96)}to{opacity:1;transform:none}}
+  .fs-item span{
+    max-width:100%;font-family:var(--mono);font-size:11.5px;color:var(--fg-2);
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
 
-    [...document.querySelectorAll("#paid-download, #free-download")]
-        .forEach(link => link.href = downloadHrefMap[userPlatform].href )
- 
-    screenshotToggleBtns.find(btn => btn.dataset.platform === userPlatform).click()
 
-    document.querySelector("#nav-download").href = downloadHrefMap[userPlatform].href;
+  .platform-duo{margin-top:var(--s-xl);display:grid;gap:var(--s-xl)}
+  @media (min-width:860px){
+    .platform-duo{grid-template-columns:minmax(0,7fr) minmax(0,5fr);gap:var(--s-2xl);align-items:center}
+  }
+  .stack{margin-top:0}
+  .stack-row{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:var(--s-sm)}
+  .stack-cell{
+    appearance:none;font:inherit;cursor:pointer;
+    border:1px solid var(--divider);border-radius:var(--r-control);
+    background:var(--bg);color:var(--fg);padding:var(--s-sm) var(--s-xxs);text-align:center;
+    transition:background-color var(--anim) ease,border-color var(--anim) ease;
+  }
+  .stack-cell:hover{background:var(--wash-1)}
+  .stack-cell[aria-selected="true"]{border-color:var(--accent)}
+  .stack-cell b{display:block;font-weight:500;font-size:16px;letter-spacing:-.01em}
+  .stack-cell span{display:block;margin-top:var(--s-xxs);font-family:var(--mono);font-size:11px;color:var(--fg-3)}
+  .stack-links,.stack-under,.stack-pass{display:none}
+  .stack-bar{
+    border:1px solid var(--stroke);border-radius:var(--r-control);background:var(--bg-panel);
+    padding:var(--s-sm) var(--s-md);
+    display:flex;flex-wrap:wrap;align-items:baseline;gap:var(--s-xs) var(--s-sm);
+  }
+  .stack-bar code{font-family:var(--mono);font-size:15px;color:var(--fg)}
+  .stack-bar span{color:var(--fg-2);font-size:15px}
+  .stack-bar a{margin-left:auto;font-family:var(--mono);font-size:12px;white-space:nowrap}
+  .stack-mid{margin-top:var(--s-sm)}
+  .stack-mid + .stack-under + .stack-bar{margin-top:var(--s-sm)}
+  @media (min-width:760px){
+    .stack-row{grid-template-columns:repeat(6,minmax(0,1fr))}
+    .stack-links{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0 var(--s-sm);height:var(--s-lg)}
+    .stack-links i{display:block;width:1px;height:100%;margin:0 auto;background:var(--divider)}
+    .stack-mid{margin-top:0;display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:var(--s-sm)}
+    .stack-mid .stack-bar{grid-column:1/6}
+    .stack-pass{display:block;grid-column:6}
+    .stack-pass i{display:block;width:1px;height:100%;margin:0 auto;background:var(--divider)}
+    .stack-under{display:grid;grid-template-columns:repeat(6,minmax(0,1fr));gap:0 var(--s-sm);height:var(--s-lg)}
+    .stack-under .u-ws{grid-column:1/6;width:1px;height:100%;margin:0 auto;background:var(--divider)}
+    .stack-under .u-cli{grid-column:6;width:1px;height:100%;margin:0 auto;background:var(--divider)}
+    .stack-mid + .stack-under + .stack-bar{margin-top:0}
+  }
 
-  </script>
+  .link-list{display:flex;flex-direction:column;gap:var(--s-xs);margin-top:var(--s-lg);font-size:16px}
+
+  .term-body{height:400px;display:flex;flex-direction:column}
+  .term-out{flex:1;min-height:0;overflow-y:auto;padding:var(--s-md)}
+  .term-out pre{
+    margin:0;font-family:var(--mono);font-size:12.5px;line-height:1.7;
+    color:var(--fg-2);white-space:pre-wrap;
+  }
+  .term-out pre b{color:var(--accent);font-weight:400}
+  .term-out .err{color:var(--danger)}
+  .term-line{
+    display:flex;align-items:center;gap:var(--s-xs);
+    padding:var(--s-sm) var(--s-md);border-top:1px solid var(--divider);
+    font-family:var(--mono);font-size:12.5px;
+  }
+  .term-sigil{color:var(--fg-3);user-select:none}
+  .term-cmd{color:var(--accent);user-select:none}
+  .term-line input{
+    flex:1;min-width:0;appearance:none;border:0;background:transparent;outline:none;
+    font:inherit;color:var(--fg);
+  }
+
+  .plan{display:flex;flex-direction:column;align-items:flex-start}
+  .plan.featured{border-color:var(--accent)}
+  .plan-name{font-family:var(--mono);font-size:11px;letter-spacing:.1em;text-transform:uppercase;color:var(--accent)}
+  .plan-price{font-size:38px;font-weight:600;letter-spacing:-.03em;line-height:1.1;margin:var(--s-sm) 0 var(--s-xs)}
+  .plan-price span{font-size:15px;font-weight:400;color:var(--fg-3);letter-spacing:0}
+  .plan-cap{font-size:18px;font-weight:500;margin-bottom:var(--s-sm)}
+  .plan-note{color:var(--fg-2);font-size:16px;margin-bottom:var(--s-lg);flex:1}
+
+{% endraw %}</style>
 
 {% endblock content %}
+
+{% block scripts %}
+<script>{% raw %}
+  (function () {
+    var box = document.getElementById('rot-word');
+    var text = document.getElementById('rot-text');
+    var measure = document.getElementById('rot-measure');
+    if (!box || !text || !measure) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    var WORDS = ['notes', 'sketches', 'todos', 'diagrams', 'journal',
+                 'meeting notes', 'recipes', 'research', 'drafts', 'field notes',
+                 'poems', 'diary', 'thesis', 'novel', 'wiki', 'ideas'];
+    var GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var HOLD = 1300, FIRST_HOLD = 1000, OUT = 300, IN = 700, LOCK = 0.7, CHURN = 55;
+
+    var i = 0, word = WORDS[0], cur = [], lockAt = [];
+    var phase = 'hold', first = true, t0 = null, churnedAt = 0, raf = null, running = false;
+    var peak = maxBlur();
+
+    function maxBlur() { return parseFloat(getComputedStyle(text).fontSize) * 0.22; }
+    function glyph() { return GLYPHS[(Math.random() * GLYPHS.length) | 0]; }
+    function fit(w) {
+      measure.textContent = w;
+      box.style.width = Math.ceil(measure.getBoundingClientRect().width) + 'px';
+    }
+    function blur(px) { text.style.filter = px > 0.05 ? 'blur(' + px.toFixed(2) + 'px)' : ''; }
+    function tint(p) {
+      text.style.color = p >= 1 ? '' :
+        'color-mix(in srgb, var(--accent) ' + Math.round(p * 100) + '%, var(--fg-3))';
+    }
+    function easeIn(p) { return p * p; }
+    function easeOut(p) { return 1 - (1 - p) * (1 - p); }
+
+    function scramble(p, now) {
+      var churn = now - churnedAt > CHURN;
+      if (churn) churnedAt = now;
+      for (var k = 0; k < word.length; k++) {
+        if (word[k] === ' ' || p >= lockAt[k]) cur[k] = word[k];
+        else if (churn || cur[k] === undefined) cur[k] = glyph();
+      }
+      text.textContent = cur.join('');
+    }
+
+    function next() {
+      i = (i + 1) % WORDS.length;
+      word = WORDS[i];
+      cur = []; lockAt = [];
+      for (var k = 0; k < word.length; k++) {
+        lockAt.push(LOCK * (k + 0.4 + Math.random() * 0.6) / word.length);
+      }
+      fit(word);
+    }
+
+    function settle() { text.textContent = word; blur(0); tint(1); phase = 'hold'; }
+
+    function frame(now) {
+      if (t0 === null) t0 = now;
+      var t = now - t0;
+      if (phase === 'hold') {
+        if (t >= (first ? FIRST_HOLD : HOLD)) { first = false; phase = 'out'; t0 = now; }
+      } else if (phase === 'out') {
+        var p = Math.min(1, t / OUT);
+        blur(easeIn(p) * peak); tint(1 - p);
+        if (p >= 1) { next(); churnedAt = 0; phase = 'in'; t0 = now; }
+      } else {
+        var q = Math.min(1, t / IN);
+        scramble(q, now);
+        blur((1 - easeOut(q)) * peak); tint(q);
+        if (q >= 1) { settle(); t0 = now; }
+      }
+      raf = requestAnimationFrame(frame);
+    }
+
+    function start() { if (running) return; running = true; t0 = null; raf = requestAnimationFrame(frame); }
+    function stop() { if (!running) return; running = false; cancelAnimationFrame(raf); settle(); }
+
+    fit(word);
+    new ResizeObserver(function () { peak = maxBlur(); fit(word); }).observe(box.parentNode);
+    new IntersectionObserver(function (entries) {
+      entries[0].isIntersecting ? start() : stop();
+    }, { threshold: 0.2 }).observe(box);
+  })();
+
+  (function () {
+    var wire = document.getElementById('arch-wire');
+    var packet = document.getElementById('arch-packet');
+    var label = document.getElementById('packet-label');
+    var store = document.getElementById('arch-store');
+    var screen = document.getElementById('phone-screen');
+    var rack = document.getElementById('rack');
+    if (!wire || !packet || !label || !store || !screen || !rack) return;
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    var GLYPHS = 'ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/';
+    var NAME = '1984.md';
+    var READ = 600, SEAL = 500, SEND = 1500, LAND = 400, REST = 1400;
+    var TOTAL = READ + SEAL + SEND + LAND + REST;
+    var wide = window.matchMedia('(min-width: 860px)');
+
+    var shape = store.textContent.split('\n').map(function (l) { return l.length; });
+    var blob = [], revealed = 0, cleared = false;
+    var start = null, sealed = false, landed = false, churnedAt = 0, raf = null, running = false;
+
+    function noise(n) {
+      var out = '';
+      for (var i = 0; i < n; i++) out += GLYPHS[(Math.random() * GLYPHS.length) | 0];
+      return out;
+    }
+
+    function ease(p) { return p * p * (3 - 2 * p); }
+
+    function place(p, alpha) {
+      var w = wire.clientWidth, h = wire.clientHeight;
+      var pw = packet.offsetWidth, ph = packet.offsetHeight;
+      var x, y;
+      if (wide.matches) { x = p * (w - pw); y = (h - ph) / 2; }
+      else { x = (w - pw) / 2; y = p * (h - ph); }
+      packet.style.transform = 'translate(' + x + 'px,' + y + 'px)';
+      packet.style.opacity = alpha;
+    }
+
+    function flash(node) {
+      node.classList.remove('arch-flash');
+      void node.offsetWidth;
+      node.classList.add('arch-flash');
+    }
+
+    function beginCycle() {
+      sealed = false; landed = false; cleared = false;
+      packet.classList.remove('is-cipher');
+      label.textContent = NAME;
+      store.style.opacity = 0;
+      flash(screen);
+    }
+
+    function seal() {
+      sealed = true;
+      packet.classList.add('is-cipher');
+      label.textContent = noise(NAME.length);
+    }
+
+    function land() {
+      landed = true;
+      blob = shape.map(function (n) { return noise(n); });
+      revealed = 0;
+      store.style.opacity = 1;
+      flash(rack);
+    }
+
+    function reveal(q) {
+      var n = Math.max(1, Math.ceil(Math.min(1, q) * blob.length));
+      if (n === revealed) return;
+      revealed = n;
+      store.textContent = blob.slice(0, n).join('\n');
+    }
+
+    function frame(now) {
+      if (start === null) { start = now; beginCycle(); }
+      var t = now - start;
+      if (t >= TOTAL) {
+        start = now; t = 0;
+        beginCycle();
+      }
+      if (!cleared && t >= 250) {
+        store.textContent = '';
+        revealed = 0; cleared = true;
+      }
+      if (t >= READ + SEAL + SEND && !landed) {
+        if (!sealed) seal();
+        land();
+      }
+      if (t < READ) {
+        place(0, Math.min(1, t / 200));
+      } else if (t < READ + SEAL) {
+        if (now - churnedAt > 55) { churnedAt = now; seal(); }
+        place(0, 1);
+      } else if (t < READ + SEAL + SEND) {
+        place(ease((t - READ - SEAL) / SEND), 1);
+      } else if (t < READ + SEAL + SEND + LAND) {
+        var q = (t - READ - SEAL - SEND) / LAND;
+        reveal(q);
+        place(1, 1 - q);
+      } else {
+        reveal(1);
+        place(1, 0);
+      }
+      raf = requestAnimationFrame(frame);
+    }
+
+    var io = new IntersectionObserver(function (entries) {
+      var vis = entries[0].isIntersecting;
+      if (vis && !running) {
+        running = true; start = null; blob = []; revealed = 0;
+        store.textContent = '';
+        raf = requestAnimationFrame(frame);
+      } else if (!vis && running) {
+        running = false; cancelAnimationFrame(raf); packet.style.opacity = 0;
+      }
+    }, { threshold: 0.2 });
+    io.observe(wire);
+  })();
+
+  (function () {
+    var rail = document.getElementById('fmt-rail');
+    if (!rail) return;
+    var tabs = [].slice.call(rail.querySelectorAll('button'));
+    var thumb = document.getElementById('fmt-thumb');
+
+    function show(tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+        (t.getAttribute('aria-controls') || '').split(/\s+/).forEach(function (id) {
+          var el = document.getElementById(id);
+          if (el) el.classList.toggle('is-on', on);
+        });
+      });
+      if (thumb) thumb.style.transform = 'translateX(' + (tabs.indexOf(tab) * 100) + '%)';
+      if (tab.dataset.panel === 'md' || tab.dataset.panel === 'svg') { if (window.lbLoadDemos) window.lbLoadDemos(); }
+      else if (window.lbPlayGrid) window.lbPlayGrid('visual-' + tab.dataset.panel);
+    }
+
+    tabs.forEach(function (t, i) {
+      t.addEventListener('click', function () { show(t); });
+      t.addEventListener('keydown', function (e) {
+        var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        var next = tabs[(i + d + tabs.length) % tabs.length];
+        next.focus();
+        show(next);
+      });
+    });
+  })();
+
+  (function () {
+    if (window.matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+
+    function play(fs) {
+      if (!fs) return;
+      var cmd = fs.querySelector('.fs-cmd[data-cmd]');
+      clearInterval(fs._typer);
+      fs.classList.remove('play');
+      if (!cmd) { void fs.offsetWidth; fs.classList.add('play'); return; }
+      var full = cmd.getAttribute('data-cmd'), n = 0;
+      fs.classList.add('typing');
+      cmd.textContent = '';
+      fs._typer = setInterval(function () {
+        n++;
+        cmd.textContent = full.slice(0, n);
+        if (n < full.length) return;
+        clearInterval(fs._typer);
+        fs.classList.remove('typing');
+        void fs.offsetWidth;
+        fs.classList.add('play');
+      }, 28);
+    }
+
+    window.lbPlayGrid = function (id) {
+      var panel = document.getElementById(id);
+      play(panel && panel.querySelector('.fs'));
+    };
+
+    var section = document.getElementById('formats');
+    if (section && 'IntersectionObserver' in window) {
+      var seen = new IntersectionObserver(function (entries) {
+        if (!entries[0].isIntersecting) return;
+        seen.disconnect();
+        play(document.querySelector('.fmt-visual.is-on .fs'));
+      }, { threshold: 0.35 });
+      seen.observe(section);
+    }
+  })();
+
+  (function () {
+    var form  = document.getElementById('term-form');
+    var input = document.getElementById('term-input');
+    var out   = document.getElementById('term-out');
+    if (!form || !input || !out) return;
+
+    function esc(s) {
+      return s.replace(/[&<>]/g, function (c) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;' }[c];
+      });
+    }
+
+    form.addEventListener('submit', function (e) {
+      e.preventDefault();
+      var cmd = input.value.trim();
+      if (!cmd) return;
+      input.value = '';
+      var line = document.createElement('pre');
+      line.innerHTML =
+        '\n<span class="term-sigil">$</span> <b>lockbook</b> ' + esc(cmd) +
+        '\n<span class="err">error</span>: the developers were too lazy to build a working shell here.' +
+        '\n       The real one ships with every desktop build — <a href="/download">grab it</a>.';
+      out.appendChild(line);
+      out.scrollTop = out.scrollHeight;
+    });
+  })();
+
+  (function () {
+    var strip = document.getElementById('platform-switch');
+    var shot  = document.getElementById('platform-shot');
+    if (!strip || !shot) return;
+    var tabs = [].slice.call(strip.querySelectorAll('button'));
+    function show(tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+      });
+      [].forEach.call(shot.children, function (c) {
+        c.classList.toggle('is-on', c.getAttribute('data-platform') === tab.dataset.platform);
+      });
+    }
+    tabs.forEach(function (t, i) {
+      t.addEventListener('click', function () { show(t); });
+      t.addEventListener('keydown', function (e) {
+        var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        var next = tabs[(i + d + tabs.length) % tabs.length];
+        next.focus();
+        show(next);
+      });
+    });
+  })();
+
+  (function () {
+    var ua = navigator.userAgent || '';
+    var plat = navigator.platform || '';
+    var touch = navigator.maxTouchPoints || 0;
+    var os = null;
+    if (/iPhone|iPod/.test(ua)) os = 'ios';
+    else if (/iPad/.test(ua) || (/Mac/.test(plat) && touch > 1)) os = 'ios';
+    else if (/Mac/.test(plat) || /Mac/.test(ua)) os = 'macos';
+    else if (/Android/.test(ua)) os = 'android';
+    else if (/Win/.test(plat) || /Windows/.test(ua)) os = 'windows';
+    else if (/Linux|X11/.test(plat)) os = 'linux';
+    if (!os) return;
+
+    var NAMES = { macos:'macOS', ios:'iOS', android:'Android', linux:'Linux', windows:'Windows' };
+    var STORE = {
+      macos: 'https://apps.apple.com/us/app/lockbook/id1526775001',
+      ios: 'https://apps.apple.com/us/app/lockbook/id1526775001',
+      android: 'https://play.google.com/store/apps/details?id=app.lockbook'
+    };
+    var hero = document.getElementById('hero-download');
+    if (hero) {
+      hero.textContent = 'Download for ' + NAMES[os];
+      hero.href = STORE[os] || ('/download#' + os);
+    }
+
+    var heroImg = document.getElementById('hero-img');
+    if (heroImg && os === 'ios') {
+      heroImg.src = '/shots/ipad-editor.png';
+      heroImg.width = 1600; heroImg.height = 1103;
+      heroImg.alt = 'Lockbook on iPad: a Markdown note open beside the file tree';
+    }
+    var strip = document.getElementById('platform-switch');
+    var btn = strip && strip.querySelector('button[data-platform="' + os + '"]');
+    if (btn) btn.click();
+  })();
+
+  (function () {
+    var FRAMES = [
+      { panel: 'visual-md',  overlay: 'editor-loading' },
+      { panel: 'visual-svg', overlay: 'canvas-loading' }
+    ];
+
+    if (!window.matchMedia('(hover: hover) and (pointer: fine)').matches) {
+      FRAMES.forEach(function (f) {
+        var o = document.getElementById(f.overlay);
+        if (o) o.innerHTML = '<span>Live demo — open on a desktop to try it</span>';
+      });
+      return;
+    }
+
+    var stage = document.getElementById('fmt-visuals');
+    if (stage) {
+      stage.addEventListener('wheel', function (e) { e.stopPropagation(); },
+                             { capture: true, passive: true });
+    }
+
+    var origFocus = HTMLElement.prototype.focus;
+    HTMLElement.prototype.focus = function (opts) {
+      var o = { preventScroll: true };
+      if (opts) { for (var k in opts) { o[k] = opts[k]; } }
+      return origFocus.call(this, o);
+    };
+
+    var started = false;
+    function start() {
+      if (started) return;
+      started = true;
+      import('/wasm/public-site.js')
+        .then(function (m) { return m.default('/wasm/public-site_bg.wasm'); })
+        .catch(function (err) {
+          console.error('Lockbook WASM init failed:', err);
+          FRAMES.forEach(function (f) {
+            var o = document.getElementById(f.overlay);
+            if (o) o.innerHTML =
+              '<span>The live demo didn’t load. <a href="/download">Download the app</a> instead.</span>';
+          });
+        });
+    }
+    window.lbLoadDemos = start;
+
+    var section = document.getElementById('formats');
+    if (section && 'IntersectionObserver' in window) {
+      var near = new IntersectionObserver(function (entries) {
+        if (entries[0].isIntersecting) { near.disconnect(); start(); }
+      }, { rootMargin: '300px 0px' });
+      near.observe(section);
+    }
+
+    var rail = document.getElementById('fmt-rail');
+    if (rail) {
+      [].forEach.call(
+        rail.querySelectorAll('button[data-panel="md"], button[data-panel="svg"]'),
+        function (b) { b.addEventListener('pointerenter', start, { once: true }); }
+      );
+    }
+  })();
+{% endraw %}</script>
+{% endblock scripts %}

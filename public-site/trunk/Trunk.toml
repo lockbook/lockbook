@@ -1,6 +1,11 @@
 [build]
 target = "base.html"
 html_output = "base.html"
-dist = "../trunk-build"
+# Emit straight into the Zola static tree so the loader is a plain
+# /wasm/public-site.js import from index.html — which keeps the bundle off
+# every other page on the site.
+dist = "../static/wasm"
 minify = "on_release"
-release=true
+release = true
+# Stable filenames; cache-busting comes from the deploy's cache headers.
+filehash = false

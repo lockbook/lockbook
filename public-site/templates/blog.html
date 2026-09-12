@@ -1,18 +1,22 @@
 {% extends "base.html" %}
-
+{% block title %}Blog — Lockbook{% endblock %}
+{% block description %}How Lockbook is built: encryption, Rust, editors, and the decisions behind them.{% endblock %}
 {% block content %}
-<div class="mt-24 ml-48 text-egshell max-sm:ml-0 max-sm:px-7">
-  <div class="relative">
-    <h1 class="mb-2 text-4xl font-bold text-egshell ">{{ section.title }}</h1>
-    <h2 class="mb-16 text-sm">Technical details about how we build lockbook - a look between the pages</h2>  
-    <span class=" -z-10 pointer-events-none  w-[44rem]  h-[44rem] left-0 top-0 absolute transform  -translate-x-[45%] -translate-y-[48%] bg-[radial-gradient(at_center,_theme('colors.surfline')_-130%,_transparent_30%)]"></span>
+<div class="wrap">
+  <div class="prose">
+    <h1>{{ section.title }}</h1>
+    <p style="color:var(--fg-2);margin-bottom:var(--s-xl)">Technical details about how we build Lockbook — a look between the pages.</p>
+    <ul style="list-style:none;padding:0;margin:0">
+      {% for page in section.pages %}
+      <li style="padding:var(--s-md) 0;border-top:1px solid var(--divider)">
+        <a href="{{ page.permalink | safe }}" style="font-size:19px;font-weight:600;color:var(--fg)">{{ page.title }}</a>
+        <p style="font-family:var(--mono);font-size:12px;color:var(--fg-3);margin-top:var(--s-xs)">
+          {% if page.date %}{{ page.date | date(format="%e %B %Y") }}{% endif %}
+          {% if page.extra.author %} · {{ page.extra.author }}{% endif %}
+        </p>
+      </li>
+      {% endfor %}
+    </ul>
   </div>
-  
-  <ul class="list-disc list-inside">
-    {% for page in section.pages %}
-    <li class="mt-2"><a class="text-xs underline text-egshell" href="{{ page.permalink | safe }}">{{ page.title }}</a></li>
-    {% endfor %}
-  </ul>
 </div>
-
 {% endblock content %}
