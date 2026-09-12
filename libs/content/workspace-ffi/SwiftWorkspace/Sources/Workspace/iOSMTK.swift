@@ -56,6 +56,8 @@
 
         /// range adjustment (selection handles)
         var rangeAdjustmentInProgress = false
+        /// Throttle `[sel-handle] rangeAdj changed` prints.
+        var selHandleChangedN = 0
 
         /// edit menu (copy/paste); presented from Rust via `output.has_context_menu`.
         var menuInteraction: UIEditMenuInteraction?
@@ -231,23 +233,52 @@
                 return
             case .began:
                 let location = recognizer.location(in: mtkView)
-                if touches_interactive_element(wsHandle, Float(location.x), Float(location.y))
-                    || is_reordering(wsHandle)
-                {
+                let interactive = touches_interactive_element(
+                    wsHandle, Float(location.x), Float(location.y))
+                let reorder = is_reordering(wsHandle)
+                print(
+                    "[sel-handle] rangeAdj began loc=\(fmtPt(location)) interactive=\(interactive) reorder=\(reorder) \(selHandleProbe(location))"
+                )
+                if interactive || reorder {
+                    print("[sel-handle] rangeAdj FAIL (no cancelActiveTouches)")
                     recognizer.state = .failed
                     return
                 }
                 rangeAdjustmentInProgress = true
                 // drop the editor touch so it can't start a competing scroll
+                print("[sel-handle] rangeAdj TAKE -> cancelActiveTouches")
                 mtkView.cancelActiveTouches()
             case .changed:
                 let location = recognizer.location(in: recognizer.view)
+                selHandleChangedN += 1
+                if selHandleChangedN <= 3 || selHandleChangedN % 8 == 0 {
+                    print(
+                        "[sel-handle] rangeAdj changed #\(selHandleChangedN) loc=\(fmtPt(location)) \(selHandleProbe(location))"
+                    )
+                }
                 scrollTo(location.y)
             case .ended, .cancelled, .failed:
+                print(
+                    "[sel-handle] rangeAdj \(String(describing: recognizer.state)) nChanged=\(selHandleChangedN) \(selHandleProbe(recognizer.location(in: mtkView)))"
+                )
+                selHandleChangedN = 0
                 rangeAdjustmentInProgress = false
             default:
                 break
             }
+        }
+
+        private func fmtPt(_ p: CGPoint) -> String {
+            String(format: "(%.1f,%.1f)", p.x, p.y)
+        }
+
+        private func selHandleProbe(_ location: CGPoint) -> String {
+            guard let p = sel_handle_probe(wsHandle, Float(location.x), Float(location.y)) else {
+                return "probe=nil"
+            }
+            let s = String(cString: p)
+            free_text(UnsafeMutablePointer(mutating: p))
+            return s
         }
 
         @available(*, unavailable)
@@ -478,6 +509,9 @@
             let scrollDown = y <= 20
 
             if scrollUp || scrollDown, autoScroll == nil {
+                print(
+                    "[sel-handle] scrollTo START y=\(String(format: "%.1f", y)) boundsH=\(String(format: "%.1f", bounds.height)) up=\(scrollUp) down=\(scrollDown)"
+                )
                 autoScroll = Timer.scheduledTimer(withTimeInterval: 0.016, repeats: true) {
                     [self] timer in
                     if floatingCursor.isHidden, !rangeAdjustmentInProgress,
@@ -494,6 +528,7 @@
             } else if let autoScroll,
                       !scrollUp, !scrollDown
             {
+                print("[sel-handle] scrollTo STOP y=\(String(format: "%.1f", y))")
                 autoScroll.invalidate()
                 self.autoScroll = nil
             }
@@ -2158,6 +2193,7 @@
         /// taking over a gesture mid-drag doesn't leave a pressed pointer
         /// behind to start a touch-scroll.
         func cancelActiveTouches() {
+            print("[sel-handle] cancelActiveTouches n=\(touchMap.count)")
             for value in touchMap.values {
                 touches_cancelled(wsHandle, value, 0, 0, 0)
             }

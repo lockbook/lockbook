@@ -881,7 +881,13 @@ impl MdEdit {
         // FindMatch is consumed by the caller (it owns find state).
         if matches!(self.pending_scroll, Some(ScrollTarget::Cursor)) {
             self.pending_scroll = None;
+            let before = self.scroll_area.stored_offset().map(|o| o.intra_precise);
             self.scroll_to_cursor(rect);
+            let after = self.scroll_area.stored_offset().map(|o| o.intra_precise);
+            self.debug_note = format!(
+                "ran scroll_to_cursor handle={:?} intra {before:?}->{after:?}",
+                self.in_progress_handle
+            );
         }
         self.in_progress_handle = None;
 

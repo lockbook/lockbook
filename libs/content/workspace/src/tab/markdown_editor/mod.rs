@@ -267,6 +267,12 @@ pub struct MdEdit {
     /// to block touch cursor placement during momentum scroll.
     pub scroll_area_velocity: Vec2,
 
+    /// Last scrollbar grab rect (diag). Same value that is also copied into
+    /// `touch_consuming_rects` on master.
+    pub debug_bar_grab: Option<Rect>,
+    /// Last rust scroll-to-cursor decision this tab observed (diag).
+    pub debug_note: String,
+
     /// Document identity — link completions resolve relative paths against
     /// the current file's parent.
     pub file_id: Uuid,
@@ -312,6 +318,8 @@ impl MdEdit {
             overflow_scroll: 0.0,
             overflow_follow: (0, Default::default(), Rect::ZERO),
             scroll_area_velocity: Default::default(),
+            debug_bar_grab: None,
+            debug_note: String::new(),
             file_id,
             emoji_completions: Default::default(),
             link_completions: Default::default(),
@@ -775,6 +783,8 @@ impl Editor {
                 overflow_scroll: 0.0,
                 overflow_follow: (0, Default::default(), Rect::ZERO),
                 scroll_area_velocity: Default::default(),
+                debug_bar_grab: None,
+                debug_note: String::new(),
                 file_id,
                 emoji_completions: Default::default(),
                 link_completions: Default::default(),
@@ -999,6 +1009,11 @@ impl Editor {
             && self.edit.in_progress_handle.is_some()
         {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+            let sel = self.edit.renderer.buffer.current.selection;
+            self.edit.debug_note = format!(
+                "queued Cursor sel=({},{}) handle={:?}",
+                sel.0.0, sel.1.0, self.edit.in_progress_handle
+            );
         }
 
         let ast_elapsed = start.elapsed();
@@ -1385,6 +1400,40 @@ impl Editor {
             .any(|rect| rect.contains(pos))
     }
 
+    /// One-line probe for iOS handle-drag QA. Filter Xcode for `[sel-handle]`.
+    pub fn sel_handle_probe(&self, pos: Pos2) -> String {
+        let hits: Vec<String> = self
+            .edit
+            .renderer
+            .touch_consuming_rects
+            .iter()
+            .enumerate()
+            .filter(|(_, r)| r.contains(pos))
+            .map(|(i, r)| {
+                format!("#{i}({:.0},{:.0}-{:.0},{:.0})", r.min.x, r.min.y, r.max.x, r.max.y)
+            })
+            .collect();
+        let bar = self.edit.debug_bar_grab;
+        let bar_hit = bar.is_some_and(|r| r.contains(pos));
+        let sel = self.edit.renderer.buffer.current.selection;
+        format!(
+            "egui=({:.1},{:.1}) interactive={} consume={} hits=[{}] bar_hit={} bar={} sel=({},{}) handle={:?} pending={:?} note={}",
+            pos.x,
+            pos.y,
+            self.touches_interactive_element(pos),
+            self.will_consume_touch(pos),
+            hits.join(" "),
+            bar_hit,
+            bar.map(|r| format!("{:.0},{:.0}-{:.0},{:.0}", r.min.x, r.min.y, r.max.x, r.max.y))
+                .unwrap_or_else(|| "none".into()),
+            sel.0.0,
+            sel.1.0,
+            self.edit.in_progress_handle,
+            self.edit.pending_scroll,
+            self.edit.debug_note,
+        )
+    }
+
     #[tracing::instrument(name = "MarkdownEditor::input", level = "trace", skip_all)]
     fn handle_input(&mut self, ui: &Ui) -> lb_rs::model::text::buffer::Response {
         self.edit.handle_input(ui.ctx(), self.id())
@@ -1546,6 +1595,7 @@ impl Editor {
                         // Register the scrollbar's grab area so iOS taps on it
                         // don't fall through to cursor-placement / keyboard-
                         // summon handlers.
+                        self.edit.debug_bar_grab = scrollbar_grab;
                         self.edit
                             .renderer
                             .touch_consuming_rects

@@ -515,6 +515,28 @@ pub unsafe extern "C" fn touches_interactive_element(obj: *mut c_void, x: f32, y
     }
 }
 
+/// One-line iOS selection-handle probe. Caller must `free_text`.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn sel_handle_probe(obj: *mut c_void, x: f32, y: f32) -> *const c_char {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let pos = obj.renderer.pos_from_points(x, y);
+    let text = if let Some(tab) = obj.workspace.current_tab() {
+        if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
+            md.sel_handle_probe(pos)
+        } else {
+            "not-markdown".into()
+        }
+    } else {
+        "no-tab".into()
+    };
+    CString::new(text)
+        .map(|s| s.into_raw() as *const c_char)
+        .unwrap_or(null())
+}
+
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
