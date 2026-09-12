@@ -63,6 +63,10 @@
         var rangeAdjustmentInProgress = false
         /// Throttle `[sel-handle] rangeAdj changed` prints.
         var selHandleChangedN = 0
+        /// Last handle-drag location in MdView coords (may be outside bounds).
+        var lastRangeAdjLoc: CGPoint?
+        /// True when the drag is moving `selectedTextRange.end`.
+        var rangeAdjMovingEnd = true
 
         /// edit menu (copy/paste); presented from Rust via `output.has_context_menu`.
         var menuInteraction: UIEditMenuInteraction?
@@ -254,8 +258,12 @@
                 // drop the editor touch so it can't start a competing scroll
                 print("[sel-handle] rangeAdj TAKE -> cancelActiveTouches")
                 mtkView.cancelActiveTouches()
+                let loc = recognizer.location(in: self)
+                lastRangeAdjLoc = loc
+                rememberRangeAdjMovingEnd(at: loc)
             case .changed:
-                let location = recognizer.location(in: recognizer.view)
+                let location = recognizer.location(in: self)
+                lastRangeAdjLoc = location
                 selHandleChangedN += 1
                 if selHandleChangedN <= 3 || selHandleChangedN % 8 == 0 {
                     print(
@@ -263,12 +271,14 @@
                     )
                 }
                 scrollTo(location.y)
+                applyClampedRangeAdj()
             case .ended, .cancelled, .failed:
                 print(
                     "[sel-handle] rangeAdj \(String(describing: recognizer.state)) nChanged=\(selHandleChangedN) ticks=\(autoScrollTicks) \(selHandleProbe(recognizer.location(in: mtkView)))"
                 )
                 selHandleChangedN = 0
                 rangeAdjustmentInProgress = false
+                lastRangeAdjLoc = nil
                 stopAutoScroll("rangeAdj ended")
             default:
                 break
@@ -544,6 +554,52 @@
             scroll_wheel(wsHandle, 0, autoScrollFromBottom ? -20 : 20, false, false, false, false)
             mouse_gone(wsHandle)
             mtkView.drawImmediately()
+            applyClampedRangeAdj()
+        }
+
+        /// When the handle is outside MdView (keyboard, title bar), UIKit
+        /// does not update `selectedTextRange`. Hit-test the nearest point
+        /// still in the view so selection walks as auto-scroll reveals text.
+        private func applyClampedRangeAdj() {
+            guard rangeAdjustmentInProgress, let loc = lastRangeAdjLoc else { return }
+            guard !bounds.contains(loc) else { return }
+            var p = loc
+            p.x = min(max(p.x, 0), max(bounds.width - 1, 0))
+            p.y = min(max(p.y, 1), max(bounds.height - 1, 1))
+            guard let pos = closestPosition(to: p) as? LBTextPos, !pos.c.none else { return }
+            guard let cur = selectedTextRange as? LBTextRange, !cur.c.none else { return }
+            var start = cur.c.start.pos
+            var end = cur.c.end.pos
+            if rangeAdjMovingEnd {
+                end = pos.c.pos
+            } else {
+                start = pos.c.pos
+            }
+            if start > end {
+                swap(&start, &end)
+            }
+            if start == end {
+                return
+            }
+            print(
+                "[sel-handle] clampApply loc=\(fmtPt(loc)) -> \(fmtPt(p)) movingEnd=\(rangeAdjMovingEnd) \(start)-\(end)"
+            )
+            selectedTextRange = LBTextRange(
+                c: CTextRange(
+                    none: false,
+                    start: CTextPosition(none: false, pos: start),
+                    end: CTextPosition(none: false, pos: end)
+                )
+            )
+        }
+
+        private func rememberRangeAdjMovingEnd(at loc: CGPoint) {
+            guard let pos = closestPosition(to: loc) as? LBTextPos, !pos.c.none,
+                  let cur = selectedTextRange as? LBTextRange, !cur.c.none
+            else { return }
+            let p = Int(pos.c.pos)
+            rangeAdjMovingEnd =
+                abs(p - Int(cur.c.end.pos)) <= abs(p - Int(cur.c.start.pos))
         }
 
         private func stopAutoScroll(_ why: String) {
