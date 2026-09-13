@@ -53,6 +53,9 @@ impl Chat {
             return Some(Onboard::NeedKey { name: p.name.clone(), label: p.label() });
         }
         if err.is_some() {
+            if p.kind == "apple" {
+                return Some(Onboard::NativeUnavailable(err.unwrap().clone()));
+            }
             let local = p.base_url.contains("localhost") || p.base_url.contains("127.0.0.1");
             return Some(Onboard::Unreachable { label: p.label(), local });
         }
@@ -207,6 +210,7 @@ impl Chat {
         let provider = provider.clone();
         std::thread::spawn(move || {
             let result = match provider.kind.as_str() {
+                "apple" => apple::list_models(),
                 "anthropic" => anthropic::list_models_blocking(&provider),
                 _ => openai::list_models_blocking(&provider),
             };
@@ -284,7 +288,7 @@ impl Chat {
     pub(super) fn begin_add_provider(&mut self, name: &'static str) {
         let Some(file_id) = self.ensure_provider_file(name) else { return };
         match name {
-            "ollama" => {}
+            "ollama" | "apple" => {}
             "custom" => {
                 // Hand-editing is the flow for a blank custom file; the
                 // "add key" button still reaches the masked field otherwise.

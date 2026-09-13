@@ -303,11 +303,16 @@ async fn run(
         // thing to reason about. Grants made this turn extend the list.
         let TurnAccess { mut scope, chat_folder } = turn_access;
         // Built once per turn, not per completion — see `access_intro` for why.
-        let mut system_full = system.clone().unwrap_or_else(preamble);
+        let mut system_full = if provider.kind == "apple" {
+            super::apple::instructions(system.as_deref())
+        } else {
+            system.clone().unwrap_or_else(preamble)
+        };
         system_full.push_str(&access_intro(&chat_folder));
         // The turn's backend, from the provider resolved at send time; reused
         // across the turn's completions.
         let backend = match provider.kind.as_str() {
+            "apple" => Backend::Apple(Default::default()),
             "openai" => Backend::OpenAi(openai::openai_compat(&provider)),
             "anthropic" => Backend::Anthropic(anthropic::anthropic(&provider)),
             other => {
@@ -887,5 +892,48 @@ mod tests {
             .expect("a denied tool row");
         assert_eq!(tool.result, tools::DENIED_RESULT);
         assert!(!harness.busy);
+    }
+    #[test]
+    #[ignore = "requires Apple Intelligence; offline core and synthetic access request"]
+    fn native_tool_access_denial_uses_existing_harness() {
+        let mut harness =
+            Harness::new(egui::Context::default(), offline_core(), Vec::new(), Buffers::default());
+        let mut native = provider(String::new());
+        native.kind = "apple".into();
+        native.model = "on-device".into();
+        harness.say("Call request_access for /juniper.md so you can read it. If I deny access, stop and acknowledge the denial; do not ask again.".into(), native, None, TurnAccess::default());
+        let deadline = Instant::now() + Duration::from_secs(60);
+        let mut updates = Vec::new();
+        while Instant::now() < deadline && harness.pending_tool.is_none() {
+            updates.extend(harness.pump());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        let pending = harness
+            .pending_tool
+            .as_ref()
+            .expect("native request should show the existing access card");
+        assert_eq!(pending.name, "request_access");
+        assert_eq!(pending.args["path"], "/juniper.md");
+        harness.deny();
+        while Instant::now() < deadline && harness.busy {
+            updates.extend(harness.pump());
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        assert!(!harness.busy, "native session did not finish after denial");
+        assert!(
+            !updates
+                .iter()
+                .any(|u| matches!(u, HarnessUpdate::Granted(_)))
+        );
+        assert!(
+            updates
+                .iter()
+                .any(|u| matches!(u, HarnessUpdate::Tool(t) if t.result == tools::DENIED_RESULT))
+        );
+        for update in updates {
+            if let HarnessUpdate::Error(e) = update {
+                panic!("{e}");
+            }
+        }
     }
 }

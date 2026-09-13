@@ -35,11 +35,13 @@ use crate::theme::icons::Icon;
 use crate::theme::palette_v2::{Palette, ThemeExt, username_color};
 
 mod anthropic;
+mod apple;
 mod backend;
 mod config;
 mod diff;
 mod glyphs;
 mod harness;
+mod notes;
 mod openai;
 mod settings;
 mod tools;
@@ -180,6 +182,16 @@ const TEMPLATES: &[&[(&str, &str)]] = &[
         ),
     ],
     &[
+        (
+            "apple",
+            r#"{
+  "display_name": "Apple Intelligence",
+  "kind": "apple",
+  "base_url": "",
+  "model": "on-device"
+}
+"#,
+        ),
         (
             "ollama",
             r#"{
@@ -444,6 +456,10 @@ pub struct Chat {
     /// Keyed like the cache so provider A's failure never displays under
     /// provider B's picker.
     models_err: Option<(ModelsKey, String)>,
+    note_picker_open: bool,
+    note_filter: String,
+    note_rx: Option<std::sync::mpsc::Receiver<Result<String, String>>>,
+    note_error: Option<String>,
     /// Brand glyph textures for the picker, rasterized on first use.
     glyphs: glyphs::Glyphs,
     /// Completed tool rows the user has expanded (by message id), to reveal
@@ -509,19 +525,26 @@ const MODELS_RETRY: std::time::Duration = std::time::Duration::from_secs(15);
 /// advances on its own as the config validates in the background — no
 /// confirmation step: pick a provider, paste a key, and the chat notices.
 enum Onboard {
+    NativeUnavailable(String),
     /// No provider configured — offer the roster to pick from.
     Choose,
     /// The resolved provider has no working key: an unconfigured placeholder,
     /// or a real key the server rejected. The composer slot becomes an "add
     /// key" button (never a secret input); the dedicated masked field the
     /// button opens is the only place a key is typed.
-    NeedKey { name: String, label: String },
+    NeedKey {
+        name: String,
+        label: String,
+    },
     /// A provider is set with a key; its `/models` listing hasn't landed yet.
     Connecting(String),
     /// The listing failed for a non-auth reason — `local` whether the endpoint
     /// is this machine ("is the server running?") or remote ("check your
     /// connection"). Auth failures are [`Onboard::NeedKey`] instead.
-    Unreachable { label: String, local: bool },
+    Unreachable {
+        label: String,
+        local: bool,
+    },
     /// Reachable, but no model chosen (a local server we can't guess for).
     PickModel(String),
 }
@@ -715,6 +738,10 @@ impl Chat {
             models_rx: None,
             models_attempt: None,
             models_err: None,
+            note_picker_open: false,
+            note_filter: String::new(),
+            note_rx: None,
+            note_error: None,
             expanded_tools: std::collections::HashSet::new(),
             tool_viz: HashMap::new(),
             folded: tools::Buffers::default(),

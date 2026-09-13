@@ -4128,6 +4128,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "lb-apple-ai"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "lb-c"
 version = "26.9.11"
 dependencies = [
@@ -4137,7 +4146,7 @@ dependencies = [
 [[package]]
 name = "lb-fonts"
 version = "0.2.0"
-source = "git+https://github.com/lockbook/lb-fonts#da966ea9de83f36903f812b3cd5a1c07051c294c"
+source = "git+https://github.com/lockbook/lb-fonts#5f27cc81283b46b77283054cb5cf51b324fd5de5"
 
 [[package]]
 name = "lb-fs"
@@ -9830,6 +9839,7 @@ dependencies = [
  "indexmap 2.14.0",
  "jni 0.21.1",
  "lazy_static",
+ "lb-apple-ai",
  "lb-fonts",
  "lb-rs",
  "linkify",

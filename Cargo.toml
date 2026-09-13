@@ -3,6 +3,7 @@
 resolver = "2"
 
 members = [
+    "libs/apple-ai",
     "libs/lb/lb-rs",
     "libs/lb/test_utils",
     "libs/content/workspace",

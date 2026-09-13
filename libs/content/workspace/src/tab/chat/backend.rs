@@ -100,6 +100,7 @@ impl ModelInfo {
 /// concrete enum rather than `Box<dyn>` so `complete` is a native `async fn`;
 /// the provider set is closed and chosen by `provider.kind` at the call site.
 pub enum Backend {
+    Apple(super::apple::AppleBackend),
     Anthropic(AnthropicBackend),
     OpenAi(OpenAiBackend),
 }
@@ -113,6 +114,7 @@ impl Backend {
         &self, req: CompletionReq, deltas: UnboundedSender<String>,
     ) -> Result<Completion, String> {
         match self {
+            Backend::Apple(b) => b.complete(req, deltas).await,
             Backend::Anthropic(b) => b.complete(req, deltas).await,
             Backend::OpenAi(b) => b.complete(req, deltas).await,
         }

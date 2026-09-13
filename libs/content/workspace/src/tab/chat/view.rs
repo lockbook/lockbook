@@ -180,6 +180,7 @@ impl Chat {
         self.pump_models();
         self.pump_config();
         self.poll_key_connection();
+        self.show_note_picker(ui);
         let agent_changed = self.pump_agent();
         // Tool-row metrics/bodies derive from a fold of the visible records;
         // rebuilt only when the timeline fingerprint misses.
@@ -1688,6 +1689,9 @@ impl Chat {
                                 if !mobile {
                                     right.push(by_name("ollama"));
                                 }
+                                if cfg!(target_os = "macos") {
+                                    left.push(by_name("apple"));
+                                }
                                 let columns = [left, right];
 
                                 // Size cells to their widest label so the grid
@@ -1832,6 +1836,11 @@ impl Chat {
                                     }
                                 }
                             }
+                            Onboard::NativeUnavailable(reason) => {
+                                let mut col = CenteredColumn::default();
+                                col.galley(0.0, para(ui, reason.clone(), secondary_color), true);
+                                col.show(ui, transcript_rect, center_x);
+                            }
                             Onboard::Connecting(l)
                             | Onboard::Unreachable { label: l, .. }
                             | Onboard::PickModel(l) => {
@@ -1886,7 +1895,9 @@ impl Chat {
                         let head = ui.fonts(|f| {
                             f.layout_no_wrap(model, egui::FontId::proportional(16.0), text_color)
                         });
-                        let sub_text = if local {
+                        let sub_text = if p.kind == "apple" {
+                            "Runs on this Mac. Can list, read, and edit notes using this chat’s access permissions.".to_string()
+                        } else if local {
                             "Messages stay on this device.".to_string()
                         } else {
                             format!("Messages you send go to {label}.")
@@ -2179,16 +2190,17 @@ impl Chat {
         // reason doubles as the composer hint. Transient states (listing
         // loading, server unreachable) don't block — those sends fail loudly
         // as error rows with a retry.
-        let send_block: Option<String> =
-            if self.unshared && self.harness.is_some() && self.config_loaded {
-                match &self.provider {
-                    None => Some("pick an AI provider to start".into()),
-                    Some(p) if p.model.trim().is_empty() => Some("pick a model to start".into()),
-                    _ => None,
-                }
-            } else {
-                None
-            };
+        let send_block: Option<String> = if self.note_rx.is_some() {
+            Some("loading note into draft…".into())
+        } else if self.unshared && self.harness.is_some() && self.config_loaded {
+            match &self.provider {
+                None => Some("pick an AI provider to start".into()),
+                Some(p) if p.model.trim().is_empty() => Some("pick a model to start".into()),
+                _ => None,
+            }
+        } else {
+            None
+        };
 
         // Send/stop at the text area's trailing edge, bottom-aligned so it
         // tracks the newest line as the composer grows (centered while a
@@ -2704,6 +2716,21 @@ impl Chat {
                             });
                         }
                         if effort_folded || access_folded {
+                            ui.separator();
+                        }
+                        if current.is_some_and(|p| p.kind == "apple") {
+                            ui.weak("On this Mac · note tools");
+                            if ui
+                                .add_enabled(
+                                    !agent_busy && self.note_rx.is_none(),
+                                    egui::Button::new(row_text("Add note…", false)),
+                                )
+                                .clicked()
+                            {
+                                self.note_picker_open = true;
+                                self.note_error = None;
+                                ui.close();
+                            }
                             ui.separator();
                         }
                         // The system prompt, as an editable file. "system
