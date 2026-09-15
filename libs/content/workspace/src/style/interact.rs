@@ -163,6 +163,17 @@ pub fn quiet_canvas_fills(t: &Theme) -> ControlFills {
     }
 }
 
+/// Quiet control on **secondary** ground — rest is the off-canvas plate
+/// (`neutral_bg_secondary`), same as chips / unfocused fields.
+pub fn quiet_secondary_fills(t: &Theme) -> ControlFills {
+    let rest = t.neutral_bg_secondary();
+    ControlFills {
+        rest,
+        hover: t.wash_toward_neutral_fg(rest, FG_HOVER),
+        press: t.wash_toward_neutral_fg(rest, FG_PRESS),
+    }
+}
+
 /// Settled selection wash on canvas (file row / menu selected item).
 pub fn canvas_selected_fills(t: &Theme) -> ControlFills {
     let sel = t.wash_toward_neutral_fg(t.neutral_bg(), FG_PRESS);

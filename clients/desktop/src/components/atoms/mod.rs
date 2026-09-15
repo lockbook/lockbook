@@ -1,11 +1,11 @@
 //! Low-level controls: button, chip, field, rows, type.
 
-pub mod button;
+pub use workspace_rs::style::button;
+pub use workspace_rs::style::field;
+pub use workspace_rs::style::file_name;
+pub use workspace_rs::style::file_row;
 pub mod chip;
 pub mod chip_layout;
-pub mod field;
-pub mod file_name;
-pub mod file_row;
 pub mod nav_item;
 pub mod person_row;
 pub mod picker;

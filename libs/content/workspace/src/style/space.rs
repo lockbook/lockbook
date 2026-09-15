@@ -1,7 +1,7 @@
 //! Closed space ramp. Talk in token names (`md` → `lg`); pts are the implementation.
 
+use crate::theme::palette_v2::Palette;
 use egui::Color32;
-use workspace_rs::theme::palette_v2::Palette;
 
 use super::color::Theme;
 

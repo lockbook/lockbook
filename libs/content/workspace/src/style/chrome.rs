@@ -4,6 +4,7 @@
 //! | Name | ~pts | Role |
 //! |------|------|------|
 //! | [`control_height`] | ~28 | buttons, field, picker, menu rows |
+//! | [`CHROME_BAND_H`] | 40 | desktop titleband, markdown toolbar |
 //! | segmented | ≈ control | exclusive strip (see `segmented`) |
 //! | form row | control | labeled settings rows (group pad is Spacers) |
 //! | toggle | ~22 | switch thumb track (intentionally smaller) |
@@ -22,6 +23,9 @@ use super::typography::TypeRole;
 
 /// Control transition duration (also `Style::animation_time`).
 pub const HOVER_ANIM_SECS: f32 = 0.20;
+/// Hard cap for chrome motion (sidebar, surface reveal, overlay fades).
+/// Hover/toggle may be shorter; nothing should run longer.
+pub const ANIM_MAX_SECS: f32 = 0.22;
 /// Toggle thumb travel — snappier than general hover.
 pub const TOGGLE_ANIM_SECS: f32 = 0.14;
 /// After leaving a tip host, stay “hot” this long so the next host can chain
@@ -102,6 +106,20 @@ pub fn control_height() -> f32 {
     control_space::PAD_Y.pts() * 2.0 + control_line_height()
 }
 
+/// Desktop titleband and markdown toolbar — same strip.
+pub const CHROME_BAND_H: f32 = 40.0;
+/// Phosphor on [`CHROME_BAND_H`] (titleband pane/nav, markdown toolbar).
+pub const CHROME_BAND_GLYPH: f32 = 18.0;
+
+/// Square hit for a Phosphor mark inside a control (field clear, chip dismiss).
+///
+/// Glyph is body-size Phosphor ([`phosphor_ui_font_id`] via
+/// [`super::button::icon_button_hit`]); this is only the hover/click square —
+/// the inner band after vertical pads, same height as a field’s leading icon slot.
+pub fn control_icon_hit() -> f32 {
+    control_line_height()
+}
+
 /// Uniform inset for row hover/select washes (all four sides).
 ///
 /// File rows, menu rows, nav: **1 px** air so adjacent washes read as separate
@@ -112,9 +130,19 @@ pub fn row_wash_inset() -> f32 {
     1.0
 }
 
-/// Soft float under menus, pickers, floating plates.
+/// Ink for surface shadows: black at alpha 36/255 (~14%).
+/// Same mix for overlay and pin so they scale as one family.
+const SHADOW_INK: Color32 = Color32::from_black_alpha(36);
+
+/// Soft float under menus, pickers, floating plates (islands).
 pub fn overlay_shadow() -> Shadow {
-    Shadow { offset: [0, 4], blur: 12, spread: 0, color: Color32::from_black_alpha(36) }
+    Shadow { offset: [0, 4], blur: 12, spread: 0, color: SHADOW_INK }
+}
+
+/// Contact shadow for held-in-place chrome (sticky pins).
+/// Half of [`overlay_shadow`]: offset 2, blur 6, same ink.
+pub fn pin_shadow() -> Shadow {
+    Shadow { offset: [0, 2], blur: 6, spread: 0, color: SHADOW_INK }
 }
 
 /// Canvas plate frame for floating menus / pickers (fill + hairline + shadow).
@@ -218,7 +246,29 @@ pub mod phosphor {
 
     pub const MARKDOWN_LOGO: &str = "\u{e508}";
     pub const CHAT: &str = "\u{e15c}";
+    /// `ph-phone` (IcoMoon 2.1). Not U+E3D4.
+    pub const PHONE: &str = "\u{e3b8}";
+    /// `ph-phone-disconnect`.
+    pub const PHONE_DISCONNECT: &str = "\u{e3bc}";
+    /// `ph-phone-slash`.
+    pub const PHONE_SLASH: &str = "\u{e3c2}";
+    /// `ph-microphone`. U+E328 is `microphone-slash`.
+    pub const MICROPHONE: &str = "\u{e326}";
+    /// `ph-microphone-slash`.
+    pub const MICROPHONE_SLASH: &str = "\u{e328}";
+    /// `ph-paper-plane-tilt` (regular). Not U+E38A (`number-square-zero`).
+    pub const PAPER_PLANE_TILT: &str = "\u{e398}";
     pub const SEARCH: &str = "\u{e30c}";
+    /// Web search tool row (`ph-globe`).
+    pub const GLOBE: &str = "\u{e288}";
+    /// X search tool row (`ph-x-logo`).
+    pub const X_LOGO: &str = "\u{e4bc}";
+    /// Zoom out (`ph-magnifying-glass-minus`).
+    pub const MAGNIFYING_GLASS_MINUS: &str = "\u{e30e}";
+    /// Zoom in (`ph-magnifying-glass-plus`).
+    pub const MAGNIFYING_GLASS_PLUS: &str = "\u{e310}";
+    /// Filter / funnel.
+    pub const FUNNEL: &str = "\u{e268}";
     pub const GEAR: &str = "\u{e270}";
     pub const TRASH: &str = "\u{e4a6}";
     /// Phosphor pencil (drawing docs).
@@ -238,6 +288,17 @@ pub mod phosphor {
     pub const CLOUD_ARROW_UP: &str = "\u{e1ae}";
     pub const WARNING_CIRCLE: &str = "\u{e4e2}";
     pub const CHECK_CIRCLE: &str = "\u{e184}";
+    /// Horizontal ellipsis (`ph-dots-three`).
+    pub const DOTS_THREE: &str = "\u{e1fe}";
+    /// GFM alert / status.
+    pub const INFO: &str = "\u{e2ce}";
+    pub const LIGHTBULB: &str = "\u{e2dc}";
+    pub const MEGAPHONE: &str = "\u{e324}";
+    pub const WARNING: &str = "\u{e4e0}";
+    pub const WARNING_OCTAGON: &str = "\u{e4e4}";
+    pub const IMAGE: &str = "\u{e2ca}";
+    pub const IMAGE_BROKEN: &str = "\u{e7a8}";
+    pub const FLOPPY_DISK: &str = "\u{e248}";
     /// Bare check (confirm checkbox fill).
     pub const CHECK: &str = "\u{e182}";
     /// Not-found / clear fail (share field) — improvise; phosphor has no `user-x`.
@@ -262,6 +323,39 @@ pub mod phosphor {
     pub const CARET_DOWN: &str = "\u{e136}";
     pub const CARET_LEFT: &str = "\u{e138}";
     pub const CARET_RIGHT: &str = "\u{e13a}";
+    pub const CARET_UP: &str = "\u{e13c}";
+    /// Undo (`ph-arrow-counter-clockwise`).
+    pub const ARROW_COUNTER_CLOCKWISE: &str = "\u{e038}";
+    /// Redo (`ph-arrow-clockwise`).
+    pub const ARROW_CLOCKWISE: &str = "\u{e036}";
+    /// Markdown toolbar.
+    pub const TEXT_B: &str = "\u{e5be}";
+    pub const TEXT_ITALIC: &str = "\u{e5c0}";
+    pub const TEXT_H_ONE: &str = "\u{e6bc}";
+    pub const TEXT_STRIKETHROUGH: &str = "\u{e5c2}";
+    pub const TEXT_UNDERLINE: &str = "\u{e5c4}";
+    pub const TEXT_SUBSCRIPT: &str = "\u{ec98}";
+    pub const TEXT_SUPERSCRIPT: &str = "\u{ec9a}";
+    pub const TEXT_INDENT: &str = "\u{ea1e}";
+    pub const TEXT_OUTDENT: &str = "\u{ea1c}";
+    /// Nested lines — document outline (`ph-list`).
+    pub const LIST: &str = "\u{e2f0}";
+    pub const LIST_BULLETS: &str = "\u{e2f2}";
+    pub const LIST_NUMBERS: &str = "\u{e2f6}";
+    pub const CHECK_SQUARE: &str = "\u{e186}";
+    pub const HIGHLIGHTER: &str = "\u{ec76}";
+    pub const EYE_SLASH: &str = "\u{e224}";
+    pub const CAMERA: &str = "\u{e10e}";
+    /// Find bar: match case / whole word / regex / replace.
+    pub const TEXT_AA: &str = "\u{e6ee}";
+    pub const TEXT_T: &str = "\u{e48a}";
+    pub const FUNCTION: &str = "\u{ebe4}";
+    pub const SWAP: &str = "\u{e83c}";
+    pub const REPEAT: &str = "\u{e3f6}";
+    /// Content-search “Show N matches” (`ph-arrows-vertical`).
+    pub const ARROWS_VERTICAL: &str = "\u{eb04}";
+    /// Fit width (`ph-arrows-horizontal`).
+    pub const ARROWS_HORIZONTAL: &str = "\u{eb06}";
     /// Titleband back / forward.
     pub const ARROW_LEFT: &str = "\u{e058}";
     pub const ARROW_RIGHT: &str = "\u{e06c}";
@@ -275,8 +369,8 @@ pub mod phosphor {
     pub const SELECTION_ALL: &str = "\u{e746}";
     /// Sync / refresh (sidebar footer).
     pub const ARROWS_CLOCKWISE: &str = "\u{e094}";
-    /// Zen / hide sidebar.
-    pub const SIDEBAR_SIMPLE: &str = "\u{e9d0}";
+    /// Panel with a leading strip (`ph-sidebar-simple`).
+    pub const SIDEBAR_SIMPLE: &str = "\u{ec24}";
     /// Dismiss / close sheet.
     pub const X: &str = "\u{e4f6}";
     /// Help / shortcuts.
@@ -289,6 +383,21 @@ pub mod phosphor {
     /// Linux maximize / restore (two diagonal arrows).
     pub const ARROWS_OUT_SIMPLE: &str = "\u{e0a6}";
     pub const ARROWS_IN_SIMPLE: &str = "\u{e09e}";
+    /// Canvas tools.
+    pub const HAND: &str = "\u{e298}";
+    /// Select tool (`ph-cursor`).
+    pub const CURSOR: &str = "\u{e1dc}";
+    pub const ERASER: &str = "\u{e21e}";
+    pub const POLYGON: &str = "\u{e6d0}";
+    pub const LOCK_SIMPLE: &str = "\u{e308}";
+    pub const LOCK_SIMPLE_OPEN: &str = "\u{e30a}";
+    /// Shape tools (`ph-rectangle` / `ph-circle` / `ph-line-segment`).
+    pub const RECTANGLE: &str = "\u{e3f0}";
+    pub const CIRCLE: &str = "\u{e18a}";
+    pub const LINE_SEGMENT: &str = "\u{e6d2}";
+    /// Layer order (`ph-arrow-line-up` / `ph-arrow-line-down`).
+    pub const ARROW_LINE_UP: &str = "\u{e066}";
+    pub const ARROW_LINE_DOWN: &str = "\u{e05c}";
     /// Mind map tab (connected nodes).
     pub const GRAPH: &str = "\u{eb58}";
     /// Space inspector tab (share of disk).
@@ -296,8 +405,8 @@ pub mod phosphor {
 }
 
 /// Phosphor glyph for a workspace [`DocType`].
-pub fn phosphor_for_doc_type(dt: workspace_rs::show::DocType) -> &'static str {
-    use workspace_rs::show::DocType;
+pub fn phosphor_for_doc_type(dt: crate::show::DocType) -> &'static str {
+    use crate::show::DocType;
     match dt {
         DocType::Markdown => phosphor::MARKDOWN_LOGO,
         DocType::PlainText => phosphor::FILE_TEXT,
@@ -315,22 +424,22 @@ pub fn file_row_icon(name: &str, is_folder: bool) -> &'static str {
     if is_folder {
         phosphor::FOLDER
     } else {
-        phosphor_for_doc_type(workspace_rs::show::DocType::from_name(name))
+        phosphor_for_doc_type(crate::show::DocType::from_name(name))
     }
 }
 
 /// Visible file name in chrome: strip the extension when the doc type hides it
 /// (Markdown, drawing, PDF, chat). Do not pass paths.
 pub fn display_file_name(name: &str) -> &str {
-    workspace_rs::show::DocType::from_name(name).display_name(name)
+    crate::show::DocType::from_name(name).display_name(name)
 }
 
 /// Tab-strip glyph for a workspace [`Destination`].
 ///
 /// Search / mind map / space inspector are not files — do not go through
 /// [`file_row_icon`]. Files still use the name’s [`DocType`].
-pub fn tab_icon(dest: &workspace_rs::tab::Destination, name: &str) -> &'static str {
-    use workspace_rs::tab::Destination;
+pub fn tab_icon(dest: &crate::tab::Destination, name: &str) -> &'static str {
+    use crate::tab::Destination;
     match dest {
         Destination::Search => phosphor::SEARCH,
         Destination::MindMap(_) => phosphor::GRAPH,
@@ -377,6 +486,15 @@ pub fn shortcut_cmd_n() -> Shortcut {
         Shortcut { parts: &[KbdPart::Icon(phosphor::COMMAND), KbdPart::Mono("N")] }
     } else {
         Shortcut { parts: &[KbdPart::Mono("Ctrl+"), KbdPart::Mono("N")] }
+    }
+}
+
+/// ⌘O / Ctrl+O — search / open quickly.
+pub fn shortcut_cmd_o() -> Shortcut {
+    if cfg!(target_os = "macos") {
+        Shortcut { parts: &[KbdPart::Icon(phosphor::COMMAND), KbdPart::Mono("O")] }
+    } else {
+        Shortcut { parts: &[KbdPart::Mono("Ctrl+"), KbdPart::Mono("O")] }
     }
 }
 
