@@ -230,6 +230,14 @@ pub struct MdEdit {
     /// follows this when set, then it is cleared.
     pub in_progress_handle: Option<Grapheme>,
 
+    /// Finger → caret offset captured on handle grab and held constant for
+    /// the drag. Recomputing it from the current line each frame oscillates
+    /// the mapped caret when adjacent lines differ in height.
+    pub handle_drag_touch_offset: Option<Vec2>,
+
+    /// Android insertion teardrop. Set on tap-to-place; cleared on text change.
+    pub insertion_handle_visible: bool,
+
     /// Active list-item drag-to-reorder — `Some` from grab until release.
     /// Mirrored onto the renderer each frame for the dim/indicator paint.
     pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
@@ -306,6 +314,8 @@ impl MdEdit {
             phone_mode: false,
             in_progress_selection: None,
             in_progress_handle: None,
+            handle_drag_touch_offset: None,
+            insertion_handle_visible: false,
             in_progress_block_drag: None,
             touch_reorder: Default::default(),
             pending_block_move: None,
@@ -770,6 +780,8 @@ impl Editor {
                 event: Default::default(),
                 in_progress_selection: None,
                 in_progress_handle: None,
+                handle_drag_touch_offset: None,
+                insertion_handle_visible: false,
                 in_progress_block_drag: None,
                 touch_reorder: Default::default(),
                 pending_block_move: None,

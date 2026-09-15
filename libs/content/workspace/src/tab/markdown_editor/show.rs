@@ -137,6 +137,7 @@ impl MdEdit {
         if buf_resp.text_updated {
             self.renderer.bump_text_seq();
             self.renderer.reparse(&arena);
+            self.insertion_handle_visible = false;
         }
 
         // selections are automatically snapped out of fold sections but
@@ -737,18 +738,54 @@ impl MdEdit {
         let ctx = ui.ctx().clone();
         let have_galleys = !self.renderer.fragments.is_empty();
         if have_galleys {
-            if let Some(pos) = response.interact_pointer_pos() {
-                let location = Location::Pos(pos);
+            // Insertion handle is allocated later (on top), so a second tap on
+            // it never reaches this widget. Use the pointer's double-click.
+            let handle_double_tap = cfg!(target_os = "android")
+                && self.insertion_handle_visible
+                && ui.input(|i| {
+                    i.pointer
+                        .button_double_clicked(egui::PointerButton::Primary)
+                });
+            let pos = response.interact_pointer_pos().or_else(|| {
+                if handle_double_tap {
+                    ui.input(|i| i.pointer.interact_pos().or(i.pointer.latest_pos()))
+                } else {
+                    None
+                }
+            });
+            if let Some(pos) = pos {
+                let on_chrome = self
+                    .renderer
+                    .touch_consuming_rects
+                    .iter()
+                    .any(|r| r.contains(pos));
+                let on_insertion_handle = self
+                    .cursor_line(self.renderer.buffer.current.selection.1)
+                    .is_some_and(|line| self.insertion_handle_hit_rect(line).contains(pos));
+                let is_double = response.double_clicked()
+                    || response.triple_clicked()
+                    || (handle_double_tap
+                        && !on_chrome
+                        && (rect.contains(pos) || on_insertion_handle));
+                // Handle hangs below the caret — select the caret's word, not
+                // the line the teardrop overlaps.
+                let location = if handle_double_tap && !response.double_clicked() {
+                    Location::Grapheme(self.renderer.buffer.current.selection.1)
+                } else {
+                    Location::Pos(pos)
+                };
 
                 // deliberate order; double click is also click
-                let region_opt: Option<Region> = if response.double_clicked()
-                    || response.triple_clicked()
-                {
+                let region_opt: Option<Region> = if is_double {
                     // egui triple click detection is flaky; treat non-empty
                     // selection double-click as triple-click (paragraph).
                     if cfg!(target_os = "android") {
                         // android native context menu: set position from the
                         // word that will be selected
+                        self.insertion_handle_visible = false;
+                        self.in_progress_selection = None;
+                        self.in_progress_handle = None;
+                        self.handle_drag_touch_offset = None;
                         let offset = self.location_to_char_offset(location);
                         let range = offset
                             .range_bound(Bound::Word, true, true, &self.renderer.bounds)
@@ -775,6 +812,7 @@ impl MdEdit {
                     None
                 } else if response.clicked() {
                     if cfg!(target_os = "android") && self.selection_tap(pos) {
+                        self.insertion_handle_visible = true;
                         let selection = self.renderer.buffer.current.selection;
                         ctx.set_context_menu(
                             self.context_menu_pos(selection, rect.intersect(ui.clip_rect()))
@@ -783,6 +821,9 @@ impl MdEdit {
                         );
                         None
                     } else {
+                        if cfg!(target_os = "android") {
+                            self.insertion_handle_visible = true;
+                        }
                         Some(Region::Location(location))
                     }
                 } else if response.secondary_clicked() {
@@ -942,10 +983,14 @@ impl MdEdit {
 
         // A reorder selects the dragged section; its handles would clutter
         // the floating card, so suppress them while a drag is in flight.
-        let has_selection_handles = (!self.renderer.buffer.current.selection.is_empty()
-            || self.in_progress_selection.is_some())
-            && self.in_progress_block_drag.is_none();
-        if ui.ctx().os() == OperatingSystem::Android && has_selection_handles {
+        let dragging_handle = self.in_progress_selection.is_some();
+        let has_selection_handles = !self.renderer.buffer.current.selection.is_empty()
+            || dragging_handle
+            || self.insertion_handle_visible;
+        if ui.ctx().os() == OperatingSystem::Android
+            && has_selection_handles
+            && self.in_progress_block_drag.is_none()
+        {
             // Handles hang past the editor `rect`; draw under the entry clip so
             // a tight surface (the chat composer) doesn't clip them off.
             ui.set_clip_rect(entry_clip);
@@ -1005,6 +1050,8 @@ impl MdEdit {
         self.renderer.bump_text_seq();
         self.in_progress_selection = None;
         self.in_progress_handle = None;
+        self.handle_drag_touch_offset = None;
+        self.insertion_handle_visible = false;
         self.event.internal_events.clear();
     }
 
