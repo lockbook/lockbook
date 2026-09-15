@@ -268,11 +268,15 @@ impl<'a> GlyphonTextEdit<'a> {
         let cursor = state.cursor.min(text.len());
         let anchor = state.anchor.min(text.len());
         let (new_text, new_cursor, new_anchor) = rewrite(text.as_str(), cursor, anchor);
+        let len = new_text.len();
+        let new_cursor = new_cursor.min(len);
+        let new_anchor = new_anchor.min(len);
+        if new_text != *text || new_cursor != state.cursor || new_anchor != state.anchor {
+            state.last_interaction_time = Some(ui.ctx().input(|i| i.time));
+        }
         *text = new_text;
-        let len = text.len();
-        state.cursor = new_cursor.min(len);
-        state.anchor = new_anchor.min(len);
-        state.last_interaction_time = Some(ui.ctx().input(|i| i.time));
+        state.cursor = new_cursor;
+        state.anchor = new_anchor;
         ui.data_mut(|d| d.insert_temp(id, state));
     }
 
@@ -323,7 +327,8 @@ impl<'a> GlyphonTextEdit<'a> {
         });
 
         let mut submitted = false;
-        let had_events = !events.is_empty();
+        let prev_cursor = (state.cursor, state.anchor);
+        let mut text_changed = false;
         for event in events {
             if matches!(event, Event::Key { key: Key::Tab, pressed: true, .. }) {
                 // Only reached when claim_tab (non-empty).
@@ -332,18 +337,20 @@ impl<'a> GlyphonTextEdit<'a> {
                         *text = full.to_owned();
                         state.cursor = text.len();
                         state.anchor = text.len();
+                        text_changed = true;
                     }
                 }
                 continue;
             }
-            let (_, sub) = apply_event(event, &mut state, text, ui.ctx());
+            let (changed, sub) = apply_event(event, &mut state, text, ui.ctx());
+            text_changed |= changed;
             if sub {
                 ui.memory_mut(|m| m.surrender_focus(id));
                 submitted = true;
             }
         }
 
-        if had_events {
+        if text_changed || state.cursor != prev_cursor.0 || state.anchor != prev_cursor.1 {
             state.last_interaction_time = Some(ui.ctx().input(|i| i.time));
         }
         ui.data_mut(|d| d.insert_temp(id, state));
