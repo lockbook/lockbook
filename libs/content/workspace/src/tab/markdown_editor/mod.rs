@@ -812,12 +812,12 @@ impl Editor {
 
             // this is used to toggle the mobile toolbar
             mobile_toolbar_rect: None,
-            virtual_keyboard_shown: cfg!(target_os = "android"),
+            virtual_keyboard_shown: false,
             keyboard_visible: false,
             unprocessed_scroll: Default::default(),
 
             prev_dimensions: None,
-            prev_virtual_keyboard_shown: cfg!(target_os = "android"),
+            prev_virtual_keyboard_shown: false,
 
             next_resp: Default::default(),
         }

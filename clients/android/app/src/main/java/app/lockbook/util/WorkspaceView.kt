@@ -491,6 +491,7 @@ class WorkspaceView(
         }
 
         Workspace.setKeyboardShown(wgpuObj, shown)
+        invalidate()
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {

@@ -272,14 +272,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_refreshSelectionPre
 }
 
 /// Push real IME visibility (from the Android inset listener) into the
-/// editor so touch long-press can pick drag-reorder vs text selection.
+/// editor so the phone toolbar can hide with the keyboard (iOS parity) and
+/// touch long-press can pick drag-reorder vs text selection.
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
     _env: JNIEnv, _: JClass, obj: jlong, shown: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     if let Some(md) = obj.workspace.current_tab_markdown_mut() {
-        md.keyboard_visible = shown == 1;
+        let shown = shown == 1;
+        md.keyboard_visible = shown;
+        md.virtual_keyboard_shown = shown;
     }
 }
 
