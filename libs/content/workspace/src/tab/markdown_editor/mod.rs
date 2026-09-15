@@ -89,9 +89,9 @@ pub struct Response {
     pub scroll_updated: bool,
     pub open_camera: bool,
 
-    /// Screen rect (egui points) where native iOS text interaction should
-    /// live — the editor viewport minus the find widget and toolbar. The
-    /// single source of truth for positioning the `MdView` iOS overlay.
+    /// Screen rect (egui points) where the native text-input overlay should
+    /// live — the editor viewport minus the find widget and toolbar. Positions
+    /// the iOS `MdView` and the Android `WorkspaceTextInputWrapper`.
     pub text_interaction_rect: Option<egui::Rect>,
 
     pub mobile_toolbar_shown: bool,

@@ -28,7 +28,16 @@ data class AndroidResponse(
     val editMenuY: Float,
     val editMenuForAtom: Boolean,
     val selectionUpdated: Boolean,
-    val textUpdated: Boolean
+    val textUpdated: Boolean,
+    val scrollUpdated: Boolean,
+    val hasTextInteractionRect: Boolean,
+    val textInteractionMinX: Float,
+    val textInteractionMinY: Float,
+    val textInteractionMaxX: Float,
+    val textInteractionMaxY: Float,
+    val hasMagnifier: Boolean,
+    val magnifierX: Float,
+    val magnifierY: Float,
 )
 
 object Workspace {
@@ -91,6 +100,11 @@ object Workspace {
     external fun append(rustObj: Long, text: String)
     external fun getTextInRange(rustObj: Long, start: Int, end: Int): String
 
+    external fun cursorRectAt(rustObj: Long, pos: Int): JRect
+    external fun selectionRects(rustObj: Long, start: Int, end: Int): Array<JRect>
+    external fun characterRects(rustObj: Long, start: Int, end: Int): Array<JRect>
+    external fun positionAtPoint(rustObj: Long, x: Float, y: Float): Int
+
 
     external fun getAllText(rustObj: Long): String
 
@@ -120,6 +134,17 @@ data class NativeWorkspaceTab(
 @Serializable
 data class JTextRange(val none: Boolean, val start: Int, val end: Int) {
     fun isEmpty(): Boolean = none || end - start == 0
+}
+
+data class JRect(
+    val none: Boolean,
+    val minX: Float,
+    val minY: Float,
+    val maxX: Float,
+    val maxY: Float,
+) {
+    val width: Float get() = maxX - minX
+    val height: Float get() = maxY - minY
 }
 
 
