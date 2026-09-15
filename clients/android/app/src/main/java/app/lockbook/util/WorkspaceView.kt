@@ -377,6 +377,15 @@ class WorkspaceView(
             model.currentTab.value?.type == WorkspaceTabType.Chat
         ) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                val density = context.resources.displayMetrics.scaledDensity
+                textInputWrapper.applyTextInteractionRect(
+                    response.hasTextInteractionRect,
+                    response.textInteractionMinX,
+                    response.textInteractionMinY,
+                    response.textInteractionMaxX,
+                    response.textInteractionMaxY,
+                    density,
+                )
 
                 if (response.textUpdated && contextMenu != null) {
                     contextMenu?.finish()

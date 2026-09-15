@@ -710,21 +710,18 @@ class WorkspaceWrapperView(
             ViewGroup.LayoutParams.MATCH_PARENT,
         )
 
-    private fun topInsetPxForTextWrapper(): Int {
-        val scaledDensity = context.resources.displayMetrics.scaledDensity
-        val topInsetDp = TEXT_TOOL_BAR_HEIGHT
-        return (topInsetDp * scaledDensity).toInt()
-    }
-
-    private fun textWrapperLayoutParams(topInsetPx: Int): MarginLayoutParams {
-        val scaledDensity = context.resources.displayMetrics.scaledDensity
-        return MarginLayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            ViewGroup.LayoutParams.MATCH_PARENT,
-        ).apply {
-            topMargin = topInsetPx
-            bottomMargin = (TEXT_TOOL_BAR_HEIGHT * scaledDensity).toInt()
-        }
+    private fun textWrapperLayoutParams(): FrameLayout.LayoutParams {
+        val density = context.resources.displayMetrics.scaledDensity
+        val toolbarPx = (TEXT_TOOL_BAR_HEIGHT * density).roundToInt()
+        return FrameLayout
+            .LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                ViewGroup.LayoutParams.MATCH_PARENT,
+            ).apply {
+                // Fallback until the first frame reports `text_interaction_rect`.
+                topMargin = toolbarPx
+                bottomMargin = toolbarPx
+            }
     }
 
     init {
@@ -771,11 +768,13 @@ class WorkspaceWrapperView(
             return
         }
 
-        val topInsetPx = topInsetPxForTextWrapper()
-        val wrapper = WorkspaceTextInputWrapper(context, workspaceView, topInsetPx.toFloat())
+        val wrapper = WorkspaceTextInputWrapper(context, workspaceView)
+        val params = textWrapperLayoutParams()
+        wrapper.touchOffsetX = params.leftMargin.toFloat()
+        wrapper.touchOffsetY = params.topMargin.toFloat()
         currentWrapper = wrapper
         workspaceView.wrapperView = wrapper
-        addView(wrapper, textWrapperLayoutParams(topInsetPx))
+        addView(wrapper, params)
     }
 
     @SuppressLint("ClickableViewAccessibility")
@@ -791,9 +790,52 @@ class WorkspaceWrapperView(
 class WorkspaceTextInputWrapper(
     context: Context,
     val workspaceView: WorkspaceView,
-    val touchYOffset: Float,
 ) : View(context) {
     val wsInputConnection = WorkspaceTextInputConnection(workspaceView, this)
+
+    var touchOffsetX = 0f
+    var touchOffsetY = 0f
+
+    fun applyTextInteractionRect(
+        hasRect: Boolean,
+        minX: Float,
+        minY: Float,
+        maxX: Float,
+        maxY: Float,
+        density: Float,
+    ) {
+        if (!hasRect) {
+            return
+        }
+
+        val left = (minX * density).roundToInt()
+        val top = (minY * density).roundToInt()
+        val width = ((maxX - minX) * density).roundToInt().coerceAtLeast(1)
+        val height = ((maxY - minY) * density).roundToInt().coerceAtLeast(1)
+
+        val lp =
+            (layoutParams as? FrameLayout.LayoutParams) ?: FrameLayout.LayoutParams(width, height)
+        if (lp.leftMargin == left &&
+            lp.topMargin == top &&
+            lp.width == width &&
+            lp.height == height
+        ) {
+            touchOffsetX = left.toFloat()
+            touchOffsetY = top.toFloat()
+            return
+        }
+
+        lp.leftMargin = left
+        lp.topMargin = top
+        lp.rightMargin = 0
+        lp.bottomMargin = 0
+        lp.width = width
+        lp.height = height
+        layoutParams = lp
+
+        touchOffsetX = left.toFloat()
+        touchOffsetY = top.toFloat()
+    }
 
     private var touchStartX = 0f
     private var touchStartY = 0f
@@ -842,7 +884,7 @@ class WorkspaceTextInputWrapper(
                     abs(event.x - touchStartX).toInt() < slopTouchThreshold &&
                         abs(event.y - touchStartY).toInt() < slopTouchThreshold
                 if (!bottomSheetExpanded && !keyboardShown && duration < 300 && nonSloppyTouch &&
-                    !workspaceView.willConsumeTouches(event.x, event.y + touchYOffset)
+                    !workspaceView.willConsumeTouches(event.x + touchOffsetX, event.y + touchOffsetY)
                 ) {
                     (context.getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                         .showSoftInput(this, InputMethodManager.SHOW_IMPLICIT)
@@ -851,7 +893,7 @@ class WorkspaceTextInputWrapper(
         }
 
         if (event != null) {
-            workspaceView.touchForwarder.forward(event, touchYOffset)
+            workspaceView.touchForwarder.forward(event, touchOffsetX, touchOffsetY)
             tabSheetScrollDetector.onTouchEvent(event)
         }
 
