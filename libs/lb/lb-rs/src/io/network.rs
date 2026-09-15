@@ -19,6 +19,12 @@ const STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 
 const STREAM_BODY_THRESHOLD: usize = 1024 * 1024 * 1024;
 
+/// Floor for every API call (metadata, tiny docs, get-file-ids).
+const MINIMUM_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// Extra time for large payloads: 100µs/byte ≈ 10 KB/s. Per-request; consider parallelism.
+const MINIMUM_BITRATE: Duration = Duration::from_micros(100);
+
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
         match err {
@@ -69,9 +75,27 @@ impl Default for Network {
 }
 
 impl Network {
-    #[instrument(level = "debug", skip(self, account, request), fields(route=T::ROUTE), err(Debug))]
+    /// API call with the 15s floor. Use [`Self::request_with_size`] when the
+    /// body (up or down) can be large.
     pub async fn request<T: Request>(
         &self, account: &Account, request: T,
+    ) -> Result<T::Response, ApiError<T::Error>> {
+        self.request_with_timeout(account, request, Duration::ZERO)
+            .await
+    }
+
+    /// Timeout is `max(15s, 100µs * size)`. Safe to pass 0.
+    pub async fn request_with_size<T: Request>(
+        &self, account: &Account, request: T, size: usize,
+    ) -> Result<T::Response, ApiError<T::Error>> {
+        let extra = MINIMUM_BITRATE * size.min(u32::MAX as usize) as u32;
+        self.request_with_timeout(account, request, extra).await
+    }
+
+    /// Timeout is `max(15s, timeout)`. Safe to pass zero.
+    #[instrument(level = "debug", skip(self, account, request), fields(route=T::ROUTE), err(Debug))]
+    pub async fn request_with_timeout<T: Request>(
+        &self, account: &Account, request: T, timeout: Duration,
     ) -> Result<T::Response, ApiError<T::Error>> {
         let signed_request =
             pubkey::sign(&account.private_key, &account.public_key(), request, self.get_time)
@@ -95,20 +119,26 @@ impl Network {
         let url = &account.api_url;
         let start = Instant::now();
         let body = body_for(serialized_request);
-        let sent = self
+        let timeout = timeout.max(MINIMUM_TIMEOUT);
+        #[cfg(target_family = "wasm")]
+        let _ = timeout;
+        let mut req = self
             .client
             .request(T::METHOD, format!("{}{}", url, T::ROUTE).as_str())
             .body(body)
             .header("Accept-Version", client_version)
             .header(WIRE_FORMAT_HEADER, wire_format.as_str())
             .header(OS_HEADER, client_os())
-            .header(CLIENT_HEADER, self.client_type.as_str())
-            .send()
-            .await
-            .map_err(|e| {
-                warn!("send failed: {e:?}");
-                ApiError::SendFailed(e.to_string())
-            })?;
+            .header(CLIENT_HEADER, self.client_type.as_str());
+        // reqwest 0.11 wasm has no request timeout; native defaults to none.
+        #[cfg(not(target_family = "wasm"))]
+        {
+            req = req.timeout(timeout);
+        }
+        let sent = req.send().await.map_err(|e| {
+            warn!("send failed: {e:?}");
+            ApiError::SendFailed(e.to_string())
+        })?;
         if start.elapsed() > Duration::from_millis(1000) {
             warn!("network request took {:?}", start.elapsed());
         }

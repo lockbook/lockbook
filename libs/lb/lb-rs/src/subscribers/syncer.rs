@@ -326,9 +326,19 @@ impl LocalLb {
 
         self.events
             .sync_update(SyncIncrement::PullingDocument(id, true));
+        let size = {
+            let tx = self.ro_tx().await;
+            let db = tx.db();
+            db.local_metadata
+                .get()
+                .get(&id)
+                .or_else(|| db.base_metadata.get().get(&id))
+                .and_then(|f| f.doc_size())
+                .unwrap_or(0)
+        };
         let remote_document = self
             .client
-            .request(self.get_account()?, GetDocRequest { id, hmac })
+            .request_with_size(self.get_account()?, GetDocRequest { id, hmac }, size)
             .await?;
         self.docs
             .insert(id, Some(hmac), &remote_document.content)
@@ -1127,8 +1137,9 @@ impl LocalLb {
             }
 
             let local_change = local_change.sign(&self.keychain)?;
+            let size = local.find(&id)?.doc_size().unwrap_or(0);
 
-            updates.push(FileDiff { old: Some(base_file), new: local_change.clone() });
+            updates.push((FileDiff { old: Some(base_file), new: local_change.clone() }, size));
             local_changes_digests_only.push(local_change);
             self.events
                 .sync_update(SyncIncrement::PushingDocument(id, true));
@@ -1139,7 +1150,10 @@ impl LocalLb {
             warn!("sync push_docs held lock for {:?}", start.elapsed());
         }
 
-        let futures = updates.clone().into_iter().map(|diff| self.push_doc(diff));
+        let futures = updates
+            .clone()
+            .into_iter()
+            .map(|(diff, size)| self.push_doc(diff, size));
 
         let mut stream = stream::iter(futures).buffer_unordered(
             thread::available_parallelism()
@@ -1180,14 +1194,15 @@ impl LocalLb {
         if let Some(err) = last_error { Err(err) } else { Ok(()) }
     }
 
-    async fn push_doc(&self, diff: FileDiff<SignedMeta>) -> LbResult<Uuid> {
+    async fn push_doc(&self, diff: FileDiff<SignedMeta>, size: usize) -> LbResult<Uuid> {
         let id = *diff.new.id();
         let hmac = diff.new.document_hmac();
         let local_document_change = self.docs.get(id, hmac.copied()).await?;
         self.client
-            .request(
+            .request_with_size(
                 self.get_account()?,
                 ChangeDocRequestV2 { diff, new_content: local_document_change },
+                size,
             )
             .await?;
 
