@@ -10,6 +10,7 @@ import android.graphics.Canvas
 import android.graphics.PixelFormat
 import android.graphics.PointF
 import android.graphics.Rect
+import android.os.Build
 import android.view.ActionMode
 import android.view.Choreographer
 import android.view.GestureDetector
@@ -21,6 +22,7 @@ import android.view.Surface
 import android.view.SurfaceHolder
 import android.view.SurfaceView
 import android.view.View
+import android.widget.Magnifier
 import android.widget.OverScroller
 import android.widget.Toast
 import androidx.core.content.ContextCompat.startActivity
@@ -52,6 +54,7 @@ class WorkspaceView(
     private var surface: Surface? = null
     var wrapperView: View? = null
     var contextMenu: ActionMode? = null
+    private var magnifier: Magnifier? = null
 
     private var redrawTask: Runnable =
         Runnable {
@@ -276,6 +279,7 @@ class WorkspaceView(
             (newConfig.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
         val workspaceTheme = WorkspaceThemeHelper.materialTheme(context, darkMode)
         Workspace.setTheme(wgpuObj, workspaceTheme)
+        dismissMagnifier()
         invalidate()
     }
 
@@ -298,6 +302,7 @@ class WorkspaceView(
 
     override fun surfaceDestroyed(holder: SurfaceHolder) {
         handler?.removeCallbacks(redrawTask)
+        dismissMagnifier()
         surface = null
     }
 
@@ -377,6 +382,15 @@ class WorkspaceView(
             model.currentTab.value?.type == WorkspaceTabType.Chat
         ) {
             (wrapperView as? WorkspaceTextInputWrapper)?.let { textInputWrapper ->
+                val density = context.resources.displayMetrics.scaledDensity
+                textInputWrapper.applyTextInteractionRect(
+                    response.hasTextInteractionRect,
+                    response.textInteractionMinX,
+                    response.textInteractionMinY,
+                    response.textInteractionMaxX,
+                    response.textInteractionMaxY,
+                    density,
+                )
 
                 if (response.textUpdated && contextMenu != null) {
                     contextMenu?.finish()
@@ -384,7 +398,11 @@ class WorkspaceView(
 
                 if (response.selectionUpdated) {
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                } else if (response.textUpdated || response.scrollUpdated) {
+                    textInputWrapper.wsInputConnection.onEditorGeometryChanged()
                 }
+
+                updateMagnifier(response, density)
 
                 response.virtualKeyboardShown?.let { model._showKeyboard.value = it }
 
@@ -403,6 +421,8 @@ class WorkspaceView(
                         )
                 }
             }
+        } else {
+            dismissMagnifier()
         }
 
         if (response.redrawIn < 100) {
@@ -414,6 +434,32 @@ class WorkspaceView(
 
     fun drawImmediately() {
         drawWorkspace()
+    }
+
+    @Suppress("DEPRECATION")
+    private fun updateMagnifier(
+        response: AndroidResponse,
+        density: Float,
+    ) {
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.P) {
+            return
+        }
+        if (!response.hasMagnifier) {
+            magnifier?.dismiss()
+            return
+        }
+        // Deprecated ctor applies system text-magnifier defaults (5% white
+        // overlay). `Magnifier.Builder()` leaves overlay null.
+        val mag = magnifier ?: Magnifier(this).also { magnifier = it }
+        mag.show(response.magnifierX * density, response.magnifierY * density)
+        mag.update()
+    }
+
+    private fun dismissMagnifier() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+            magnifier?.dismiss()
+        }
+        magnifier = null
     }
 
     override fun draw(canvas: Canvas) {
@@ -445,6 +491,7 @@ class WorkspaceView(
         }
 
         Workspace.setKeyboardShown(wgpuObj, shown)
+        invalidate()
     }
 
     override fun surfaceRedrawNeeded(holder: SurfaceHolder) {

@@ -49,6 +49,14 @@ class WorkspaceTouchForwarder(
         event: MotionEvent,
         touchOffsetY: Float,
     ) {
+        forward(event, 0f, touchOffsetY)
+    }
+
+    fun forward(
+        event: MotionEvent,
+        touchOffsetX: Float,
+        touchOffsetY: Float,
+    ) {
         if (!workspaceView.canForwardTouches()) {
             return
         }
@@ -68,14 +76,14 @@ class WorkspaceTouchForwarder(
                 MotionEvent.ACTION_MOVE -> {
                     pendingEvents.add(MotionEvent.obtain(event))
                     if (!isStillBackGestureCandidate(event)) {
-                        flushPendingBackGestureEvents(touchOffsetY)
+                        flushPendingBackGestureEvents(touchOffsetX, touchOffsetY)
                     }
                     return
                 }
 
                 MotionEvent.ACTION_UP -> {
                     pendingEvents.add(MotionEvent.obtain(event))
-                    flushPendingBackGestureEvents(touchOffsetY)
+                    flushPendingBackGestureEvents(touchOffsetX, touchOffsetY)
                     return
                 }
 
@@ -88,25 +96,27 @@ class WorkspaceTouchForwarder(
                 MotionEvent.ACTION_POINTER_DOWN,
                 MotionEvent.ACTION_POINTER_UP,
                 -> {
-                    flushPendingBackGestureEvents(touchOffsetY)
+                    flushPendingBackGestureEvents(touchOffsetX, touchOffsetY)
                 }
             }
         }
 
-        if (action == MotionEvent.ACTION_DOWN && isBackGestureCandidate(event)) {
+        if (action == MotionEvent.ACTION_DOWN && isBackGestureCandidate(event, touchOffsetX)) {
             pendingBackGestureEvents = mutableListOf(MotionEvent.obtain(event))
             backGestureCandidatePointerId = event.getPointerId(event.actionIndex)
             backGestureStartX = event.x
             backGestureStartY = event.y
-            backGestureStartedOnLeftEdge = event.x <= getBackGestureInsets().first
+            backGestureStartedOnLeftEdge =
+                event.x + touchOffsetX <= getBackGestureInsets().first
             return
         }
 
-        forwardImmediately(event, touchOffsetY)
+        forwardImmediately(event, touchOffsetX, touchOffsetY)
     }
 
     private fun forwardImmediately(
         event: MotionEvent,
+        touchOffsetX: Float,
         touchOffsetY: Float,
     ) {
         val action = event.actionMasked
@@ -119,7 +129,7 @@ class WorkspaceTouchForwarder(
                 Workspace.touchesBegin(
                     wgpuObj,
                     event.getPointerId(actionIndex),
-                    event.getX(actionIndex),
+                    event.getX(actionIndex) + touchOffsetX,
                     event.getY(actionIndex) + touchOffsetY,
                     pressure,
                 )
@@ -130,7 +140,7 @@ class WorkspaceTouchForwarder(
                     Workspace.touchesMoved(
                         wgpuObj,
                         event.getPointerId(i),
-                        event.getX(i),
+                        event.getX(i) + touchOffsetX,
                         event.getY(i) + touchOffsetY,
                         getEventPressure(event, i),
                     )
@@ -141,7 +151,7 @@ class WorkspaceTouchForwarder(
                         Workspace.touchesPredicted(
                             wgpuObj,
                             predicted.getPointerId(i),
-                            predicted.getX(i),
+                            predicted.getX(i) + touchOffsetX,
                             predicted.getY(i) + touchOffsetY,
                             getEventPressure(predicted, i),
                         )
@@ -154,7 +164,7 @@ class WorkspaceTouchForwarder(
                 Workspace.touchesEnded(
                     wgpuObj,
                     event.getPointerId(actionIndex),
-                    event.getX(actionIndex),
+                    event.getX(actionIndex) + touchOffsetX,
                     event.getY(actionIndex) + touchOffsetY,
                     pressure,
                 )
@@ -164,7 +174,7 @@ class WorkspaceTouchForwarder(
                 Workspace.touchesCancelled(
                     wgpuObj,
                     event.getPointerId(actionIndex),
-                    event.getX(actionIndex),
+                    event.getX(actionIndex) + touchOffsetX,
                     event.getY(actionIndex) + touchOffsetY,
                     pressure,
                 )
@@ -174,13 +184,16 @@ class WorkspaceTouchForwarder(
         workspaceView.invalidate()
     }
 
-    private fun flushPendingBackGestureEvents(touchOffsetY: Float) {
+    private fun flushPendingBackGestureEvents(
+        touchOffsetX: Float,
+        touchOffsetY: Float,
+    ) {
         val pendingEvents = pendingBackGestureEvents ?: return
         pendingBackGestureEvents = null
         backGestureCandidatePointerId = MotionEvent.INVALID_POINTER_ID
 
         pendingEvents.forEach { pendingEvent ->
-            forwardImmediately(pendingEvent, touchOffsetY)
+            forwardImmediately(pendingEvent, touchOffsetX, touchOffsetY)
             pendingEvent.recycle()
         }
     }
@@ -191,7 +204,10 @@ class WorkspaceTouchForwarder(
         backGestureCandidatePointerId = MotionEvent.INVALID_POINTER_ID
     }
 
-    private fun isBackGestureCandidate(event: MotionEvent): Boolean {
+    private fun isBackGestureCandidate(
+        event: MotionEvent,
+        touchOffsetX: Float,
+    ): Boolean {
         if (event.getToolType(event.actionIndex) == MotionEvent.TOOL_TYPE_STYLUS) {
             return false
         }
@@ -200,7 +216,8 @@ class WorkspaceTouchForwarder(
         }
 
         val (leftInset, rightInset) = getBackGestureInsets()
-        return event.x <= leftInset || event.x >= workspaceView.width - rightInset
+        val x = event.x + touchOffsetX
+        return x <= leftInset || x >= workspaceView.width - rightInset
     }
 
     private fun isStillBackGestureCandidate(event: MotionEvent): Boolean {

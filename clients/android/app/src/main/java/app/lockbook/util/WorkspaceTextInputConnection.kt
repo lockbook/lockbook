@@ -3,6 +3,8 @@ package app.lockbook.util
 import android.annotation.SuppressLint
 import android.content.ClipboardManager
 import android.content.Context
+import android.graphics.Matrix
+import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
@@ -10,6 +12,8 @@ import android.text.Editable
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
 import android.view.inputmethod.BaseInputConnection
+import android.view.inputmethod.CursorAnchorInfo
+import android.view.inputmethod.EditorBoundsInfo
 import android.view.inputmethod.ExtractedText
 import android.view.inputmethod.ExtractedTextRequest
 import android.view.inputmethod.InputConnection
@@ -27,6 +31,7 @@ data class CursorMonitorStatus(
     var editorBounds: Boolean = false,
     var characterBounds: Boolean = false,
     var insertionMarker: Boolean = false,
+    var lineBounds: Boolean = false,
 )
 
 const val MAX_CONTENT_SIZE = 25 * 1024 * 1024
@@ -89,6 +94,15 @@ class WorkspaceTextInputConnection(
             wsEditable.composingStart,
             wsEditable.composingEnd,
         )
+        if (cursorMonitorStatus.monitor) {
+            updateCursorAnchorInfo()
+        }
+    }
+
+    fun onEditorGeometryChanged() {
+        if (cursorMonitorStatus.monitor) {
+            updateCursorAnchorInfo()
+        }
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
@@ -273,33 +287,51 @@ class WorkspaceTextInputConnection(
         val isImmediate = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_IMMEDIATE) != 0
         val isMonitor = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_MONITOR) != 0
 
-        if (isImmediate) {
-            notifySelectionUpdated()
+        if (!isImmediate && !isMonitor) {
+            cursorMonitorStatus = CursorMonitorStatus()
+            return true
+        }
+
+        var editorBounds = false
+        var characterBounds = false
+        var insertionMarker = false
+        var lineBounds = false
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            editorBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_EDITOR_BOUNDS) != 0
+            characterBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_CHARACTER_BOUNDS) != 0
+            insertionMarker = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_INSERTION_MARKER) != 0
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+                lineBounds =
+                    (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_VISIBLE_LINE_BOUNDS) != 0
+            }
+        }
+        val anyFilter = editorBounds || characterBounds || insertionMarker || lineBounds
+        // No filter bits: send everything we can (legacy IMEs).
+        if (!anyFilter) {
+            editorBounds = true
+            characterBounds = true
+            insertionMarker = true
+            lineBounds = true
         }
 
         if (isMonitor) {
-            val newMonitorStatus = CursorMonitorStatus(true)
+            cursorMonitorStatus =
+                CursorMonitorStatus(
+                    monitor = true,
+                    editorBounds = editorBounds,
+                    characterBounds = characterBounds,
+                    insertionMarker = insertionMarker,
+                    lineBounds = lineBounds,
+                )
+        }
 
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                val editorBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_EDITOR_BOUNDS) != 0
-                val characterBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_CHARACTER_BOUNDS) != 0
-                val insertionMarker = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_INSERTION_MARKER) != 0
-
-                if (editorBounds || characterBounds || insertionMarker) {
-                    return false
-                }
-
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
-                    val lineBounds = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_VISIBLE_LINE_BOUNDS) != 0
-                    val textAppearance = (cursorUpdateMode and InputConnection.CURSOR_UPDATE_FILTER_TEXT_APPEARANCE) != 0
-
-                    if (lineBounds || textAppearance) {
-                        return false
-                    }
-                }
-            }
-
-            cursorMonitorStatus = newMonitorStatus
+        if (isImmediate || isMonitor) {
+            updateCursorAnchorInfo(
+                editorBounds = editorBounds,
+                characterBounds = characterBounds,
+                insertionMarker = insertionMarker,
+                lineBounds = lineBounds,
+            )
         }
 
         return true
@@ -339,4 +371,143 @@ class WorkspaceTextInputConnection(
     }
 
     override fun getEditable(): Editable = wsEditable
+
+    private fun updateCursorAnchorInfo() {
+        updateCursorAnchorInfo(
+            editorBounds = cursorMonitorStatus.editorBounds,
+            characterBounds = cursorMonitorStatus.characterBounds,
+            insertionMarker = cursorMonitorStatus.insertionMarker,
+            lineBounds = cursorMonitorStatus.lineBounds,
+        )
+    }
+
+    @SuppressLint("NewApi")
+    private fun updateCursorAnchorInfo(
+        editorBounds: Boolean,
+        characterBounds: Boolean,
+        insertionMarker: Boolean,
+        lineBounds: Boolean,
+    ) {
+        if (WorkspaceView.wgpuObj == Long.MAX_VALUE) {
+            return
+        }
+
+        val selection = wsEditable.getSelection()
+        val builder = CursorAnchorInfo.Builder()
+        builder.setSelectionRange(selection.start, selection.end)
+
+        val matrix = Matrix()
+        val loc = IntArray(2)
+        textInputWrapper.getLocationOnScreen(loc)
+        matrix.postTranslate(loc[0].toFloat(), loc[1].toFloat())
+        builder.setMatrix(matrix)
+
+        if (insertionMarker) {
+            val caret = Workspace.cursorRectAt(WorkspaceView.wgpuObj, selection.end)
+            if (!caret.none) {
+                val (left, top) = eguiToWrapperLocal(caret.minX, caret.minY)
+                val bottom = eguiToWrapperLocal(caret.maxX, caret.maxY).second
+                builder.setInsertionMarkerLocation(
+                    left,
+                    top,
+                    bottom,
+                    bottom,
+                    cursorAnchorFlags(left, top, left, bottom),
+                )
+            }
+        }
+
+        if (characterBounds) {
+            val composingStart = wsEditable.composingStart
+            val composingEnd = wsEditable.composingEnd
+            val rangeStart: Int
+            val rangeEnd: Int
+            if (composingStart >= 0 && composingEnd > composingStart) {
+                rangeStart = composingStart
+                rangeEnd = composingEnd
+            } else if (selection.isEmpty()) {
+                rangeStart = (selection.end - 1).coerceAtLeast(0)
+                rangeEnd = selection.end.coerceAtLeast(rangeStart)
+            } else {
+                rangeStart = selection.start
+                rangeEnd = selection.end
+            }
+            val cappedEnd = rangeEnd.coerceAtMost(rangeStart + 64)
+            if (cappedEnd > rangeStart) {
+                val rects = Workspace.characterRects(WorkspaceView.wgpuObj, rangeStart, cappedEnd)
+                for (i in rects.indices) {
+                    val rect = rects[i]
+                    if (rect.none) {
+                        continue
+                    }
+                    val (left, top) = eguiToWrapperLocal(rect.minX, rect.minY)
+                    val (right, bottom) = eguiToWrapperLocal(rect.maxX, rect.maxY)
+                    builder.addCharacterBounds(
+                        rangeStart + i,
+                        left,
+                        top,
+                        right,
+                        bottom,
+                        cursorAnchorFlags(left, top, right, bottom),
+                    )
+                }
+            }
+        }
+
+        if (lineBounds && Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+            val caret = Workspace.cursorRectAt(WorkspaceView.wgpuObj, selection.end)
+            if (!caret.none) {
+                val (left, top) = eguiToWrapperLocal(caret.minX, caret.minY)
+                val bottom = eguiToWrapperLocal(caret.maxX, caret.maxY).second
+                builder.addVisibleLineBounds(0f, top, textInputWrapper.width.toFloat(), bottom)
+            }
+        }
+
+        if (editorBounds && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            val bounds =
+                RectF(
+                    0f,
+                    0f,
+                    textInputWrapper.width.toFloat(),
+                    textInputWrapper.height.toFloat(),
+                )
+            builder.setEditorBoundsInfo(
+                EditorBoundsInfo
+                    .Builder()
+                    .setEditorBounds(bounds)
+                    .setHandwritingBounds(bounds)
+                    .build(),
+            )
+        }
+
+        getInputMethodManager().updateCursorAnchorInfo(textInputWrapper, builder.build())
+    }
+
+    private fun eguiToWrapperLocal(
+        x: Float,
+        y: Float,
+    ): Pair<Float, Float> {
+        val density = textInputWrapper.resources.displayMetrics.scaledDensity
+        return x * density - textInputWrapper.left to y * density - textInputWrapper.top
+    }
+
+    private fun cursorAnchorFlags(
+        left: Float,
+        top: Float,
+        right: Float,
+        bottom: Float,
+    ): Int {
+        val w = textInputWrapper.width.toFloat()
+        val h = textInputWrapper.height.toFloat()
+        val visible = right > 0f && left < w && bottom > 0f && top < h
+        val invisible = left < 0f || right > w || top < 0f || bottom > h
+        var flags = 0
+        if (visible) {
+            flags = flags or CursorAnchorInfo.FLAG_HAS_VISIBLE_REGION
+        }
+        if (invisible) {
+            flags = flags or CursorAnchorInfo.FLAG_HAS_INVISIBLE_REGION
+        }
+        return flags
+    }
 }
