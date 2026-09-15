@@ -1350,7 +1350,7 @@ impl LocalLb {
         #[cfg(not(target_family = "wasm"))]
         tokio::spawn(async move {
             loop {
-                if self.user_active() {
+                if self.user_active().await {
                     tokio::time::sleep(Duration::from_secs(3)).await;
                 } else {
                     tokio::select! {
@@ -1361,6 +1361,11 @@ impl LocalLb {
                 self.sync().await.map_unexpected().log_and_ignore();
             }
         });
+    }
+
+    pub(crate) async fn user_active(&self) -> bool {
+        let last_seen = self.user_last_seen.read().await;
+        last_seen.elapsed() < Duration::from_secs(15)
     }
 
     fn post_sync_worker(self) {

@@ -23,7 +23,7 @@ impl LocalLb {
             schema_name: Default::default(),
         })
         .map_err(|err| LbErrKind::Unexpected(format!("db rs creation failed: {:#?}", err)))?;
-        let user_last_seen = Arc::new(std::sync::RwLock::new(Instant::now()));
+        let user_last_seen = Arc::new(RwLock::new(Instant::now()));
 
         Ok(Self {
             user_last_seen,

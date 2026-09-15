@@ -40,7 +40,7 @@ pub struct Lb {
 #[derive(Clone)]
 pub struct LocalLb {
     pub config: Config,
-    pub user_last_seen: Arc<std::sync::RwLock<Instant>>,
+    pub user_last_seen: Arc<RwLock<Instant>>,
     pub user_wake: Arc<Notify>,
     pub keychain: Keychain,
     pub db: LbDb,
@@ -67,7 +67,7 @@ impl LocalLb {
         let status = StatusUpdater::default();
         let syncer = Default::default();
         let events = EventSubs::default();
-        let user_last_seen = Arc::new(std::sync::RwLock::new(Instant::now()));
+        let user_last_seen = Arc::new(RwLock::new(Instant::now()));
         let user_wake = Arc::new(Notify::new());
 
         let result = Self {
@@ -223,16 +223,10 @@ impl Lb {
         }
         if let Some(remote) = &self.remote {
             let r = Arc::clone(remote);
-            if let Ok(handle) = tokio::runtime::Handle::try_current() {
-                handle.spawn(async move {
-                    let _ = r.try_call::<()>(Request::AppForegrounded).await;
-                });
-            }
+            tokio::spawn(async move {
+                let _ = r.try_call::<()>(Request::AppForegrounded).await;
+            });
         }
-    }
-
-    pub fn user_active(&self) -> bool {
-        self.local.get().is_none_or(|local| local.user_active())
     }
 
     pub async fn disappear_account(&self, username: &str) -> LbResult<()> {

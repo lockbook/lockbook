@@ -123,12 +123,11 @@ impl LocalLb {
 
     /// hint to background processing pipelines whether or not a user is around
     pub fn app_foregrounded(&self) {
-        *self.user_last_seen.write().unwrap() = web_time::Instant::now();
-        self.user_wake.notify_one();
-    }
-
-    pub fn user_active(&self) -> bool {
-        self.user_last_seen.read().unwrap().elapsed() < web_time::Duration::from_secs(15)
+        let bg_lb = self.clone();
+        tokio::spawn(async move {
+            *bg_lb.user_last_seen.write().await = web_time::Instant::now();
+            bg_lb.user_wake.notify_one();
+        });
     }
 }
 
