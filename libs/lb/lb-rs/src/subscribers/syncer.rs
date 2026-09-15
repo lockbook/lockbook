@@ -1363,7 +1363,7 @@ impl LocalLb {
         });
     }
 
-    async fn user_active(&self) -> bool {
+    pub(crate) async fn user_active(&self) -> bool {
         let last_seen = self.user_last_seen.read().await;
         last_seen.elapsed() < Duration::from_secs(15)
     }

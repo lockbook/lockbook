@@ -126,6 +126,25 @@ pub enum WsUpdates {
     FileCacheComputed(LbResult<FileCache>),
 }
 
+#[derive(Clone, Copy)]
+struct UserPresent(bool);
+
+impl Workspace {
+    pub fn set_user_present(&self) {
+        self.ctx.data_mut(|d| {
+            d.insert_temp(egui::Id::new("user_present"), UserPresent(self.core.user_active()))
+        });
+    }
+
+    pub fn user_present(ctx: &Context) -> bool {
+        ctx.data(|d| {
+            d.get_temp::<UserPresent>(egui::Id::new("user_present"))
+                .map(|p| p.0)
+        })
+        .unwrap_or(true)
+    }
+}
+
 impl Workspace {
     #[instrument(name = "Workspace::new", level = "trace", skip_all)]
     pub fn new(

@@ -285,6 +285,8 @@ pub struct MdEdit {
     /// Owns the per-row scroll state (offset, momentum) and renders
     /// the scrollbar. `id_salt` derived from `file_id` at construction.
     pub scroll_area: AffineScrollArea<DocRowId>,
+
+    cursor_last_interact: Option<f64>,
 }
 
 impl MdEdit {
@@ -317,6 +319,7 @@ impl MdEdit {
             link_completions: Default::default(),
             context_menu_link: None,
             scroll_area: AffineScrollArea::new(file_id),
+            cursor_last_interact: None,
         }
     }
 }
@@ -780,6 +783,7 @@ impl Editor {
                 link_completions: Default::default(),
                 context_menu_link: None,
                 scroll_area: AffineScrollArea::new(file_id),
+                cursor_last_interact: None,
             },
 
             core,

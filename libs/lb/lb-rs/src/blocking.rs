@@ -379,6 +379,15 @@ impl Lb {
         }
     }
 
+    pub fn user_active(&self) -> bool {
+        self.block_on(async {
+            match self.lb.local.get() {
+                Some(local) => local.user_active().await,
+                None => true,
+            }
+        })
+    }
+
     #[cfg(not(target_family = "wasm"))]
     pub fn debug_info(&self, os_info: String) -> LbResult<DebugInfo> {
         self.rt.block_on(self.lb.debug_info(os_info, true))

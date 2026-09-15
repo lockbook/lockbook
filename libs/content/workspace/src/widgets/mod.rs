@@ -1,6 +1,7 @@
 pub mod affine_scroll;
 pub mod button;
 pub mod button_group;
+pub mod caret;
 pub mod glyphon_cache;
 pub mod glyphon_label;
 pub mod glyphon_render;
@@ -15,6 +16,7 @@ pub mod tab_cache;
 
 pub use button::Button;
 pub use button_group::ButtonGroup;
+pub use caret::{paint_caret, with_blinking_caret};
 pub use glyphon_label::{GlyphonLabel, ShapedLabel, TextOverflow};
 pub use glyphon_text_edit::GlyphonTextEdit;
 pub use icon_button::IconButton;

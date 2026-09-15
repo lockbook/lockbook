@@ -133,6 +133,7 @@ struct State {
     singleline_offset: f32,
     /// Whether the widget was focused last frame, used to detect focus-gained.
     was_focused: bool,
+    last_interaction_time: Option<f64>,
 }
 
 impl State {
@@ -252,6 +253,7 @@ impl<'a> GlyphonTextEdit<'a> {
         let mut state: State = ui.data(|d| d.get_temp(id)).unwrap_or_default();
         state.cursor = cursor;
         state.anchor = anchor;
+        state.last_interaction_time = Some(ui.ctx().input(|i| i.time));
         ui.data_mut(|d| d.insert_temp(id, state));
     }
 
@@ -266,10 +268,15 @@ impl<'a> GlyphonTextEdit<'a> {
         let cursor = state.cursor.min(text.len());
         let anchor = state.anchor.min(text.len());
         let (new_text, new_cursor, new_anchor) = rewrite(text.as_str(), cursor, anchor);
+        let len = new_text.len();
+        let new_cursor = new_cursor.min(len);
+        let new_anchor = new_anchor.min(len);
+        if new_text != *text || new_cursor != state.cursor || new_anchor != state.anchor {
+            state.last_interaction_time = Some(ui.ctx().input(|i| i.time));
+        }
         *text = new_text;
-        let len = text.len();
-        state.cursor = new_cursor.min(len);
-        state.anchor = new_anchor.min(len);
+        state.cursor = new_cursor;
+        state.anchor = new_anchor;
         ui.data_mut(|d| d.insert_temp(id, state));
     }
 
@@ -320,6 +327,8 @@ impl<'a> GlyphonTextEdit<'a> {
         });
 
         let mut submitted = false;
+        let prev_cursor = (state.cursor, state.anchor);
+        let mut text_changed = false;
         for event in events {
             if matches!(event, Event::Key { key: Key::Tab, pressed: true, .. }) {
                 // Only reached when claim_tab (non-empty).
@@ -328,17 +337,22 @@ impl<'a> GlyphonTextEdit<'a> {
                         *text = full.to_owned();
                         state.cursor = text.len();
                         state.anchor = text.len();
+                        text_changed = true;
                     }
                 }
                 continue;
             }
-            let (_, sub) = apply_event(event, &mut state, text, ui.ctx());
+            let (changed, sub) = apply_event(event, &mut state, text, ui.ctx());
+            text_changed |= changed;
             if sub {
                 ui.memory_mut(|m| m.surrender_focus(id));
                 submitted = true;
             }
         }
 
+        if text_changed || state.cursor != prev_cursor.0 || state.anchor != prev_cursor.1 {
+            state.last_interaction_time = Some(ui.ctx().input(|i| i.time));
+        }
         ui.data_mut(|d| d.insert_temp(id, state));
         submitted
     }
@@ -371,6 +385,7 @@ impl<'a> GlyphonTextEdit<'a> {
         state.anchor = state.anchor.min(self.text.len());
 
         // Re-apply the focus selection whenever focus is newly acquired
+        let now = ui.ctx().input(|i| i.time);
         if focused && !state.was_focused {
             if let Some((anchor, cursor)) = self.focus_selection {
                 state.anchor = anchor.min(self.text.len());
@@ -380,12 +395,14 @@ impl<'a> GlyphonTextEdit<'a> {
                 state.cursor = len;
                 state.anchor = len;
             }
+            state.last_interaction_time = Some(now);
         }
         state.was_focused = focused;
 
         // Keyboard / text input. Completion Tab is applied in
         // `process_events_*` before show; filter re-asserted here.
         let mut text_changed = false;
+        let prev_cursor = (state.cursor, state.anchor);
         if focused {
             let claim_tab = self.claim_tab_when_nonempty && !self.text.trim().is_empty();
             let filter = event_filter(claim_tab);
@@ -511,6 +528,14 @@ impl<'a> GlyphonTextEdit<'a> {
 
         if text_changed {
             response.mark_changed();
+        }
+        if text_changed
+            || state.cursor != prev_cursor.0
+            || state.anchor != prev_cursor.1
+            || response.clicked()
+            || response.dragged()
+        {
+            state.last_interaction_time = Some(ui.ctx().input(|i| i.time));
         }
 
         if focused {
@@ -679,18 +704,23 @@ impl<'a> GlyphonTextEdit<'a> {
                 ));
 
             if focused {
-                // Solid cursor — blinking would require a 300ms repaint
-                // forever, eating battery on idle.
-                const CURSOR_W: f32 = 1.5;
-                let cx = (rect.min.x + cursor_x - state.singleline_offset)
-                    .clamp(rect.min.x, (rect.max.x - CURSOR_W).max(rect.min.x));
-                ui.painter().rect_filled(
-                    Rect::from_min_max(
-                        egui::pos2(cx, rect.min.y + 2.0),
-                        egui::pos2(cx + CURSOR_W, rect.max.y - 2.0),
-                    ),
-                    0.0,
-                    visuals.text_color(),
+                const CURSOR_W: f32 = 2.0;
+                let cx = (rect.min.x + cursor_x - state.singleline_offset).clamp(
+                    rect.min.x + CURSOR_W * 0.5,
+                    (rect.max.x - CURSOR_W * 0.5).max(rect.min.x + CURSOR_W * 0.5),
+                );
+                let now = ui.ctx().input(|i| i.time);
+                crate::widgets::with_blinking_caret(
+                    ui,
+                    now - state.last_interaction_time.unwrap_or(now),
+                    |alpha| {
+                        crate::widgets::paint_caret(
+                            ui,
+                            cx,
+                            egui::Rangef::new(rect.min.y + 2.0, rect.max.y - 2.0),
+                            visuals.text_color().gamma_multiply(alpha),
+                        );
+                    },
                 );
             }
         }
