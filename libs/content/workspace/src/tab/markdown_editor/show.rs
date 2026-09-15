@@ -173,6 +173,10 @@ impl MdEdit {
             .search_term_range
             .or(self.link_completions.search_term_range);
 
+        if buf_resp.text_updated || buf_resp.selection_user_moved {
+            self.cursor_last_interact = Some(ctx.input(|i| i.time));
+        }
+
         buf_resp
     }
 
@@ -608,6 +612,9 @@ impl MdEdit {
             ui.memory_mut(|m| m.request_focus(id));
         }
         let focused = ui.memory(|m| m.has_focus(id));
+        if focused && !prev_focused {
+            self.cursor_last_interact = Some(ui.ctx().input(|i| i.time));
+        }
 
         let response_properly_clicked = response.clicked_by(egui::PointerButton::Primary);
         if response.hovered() || response_properly_clicked {
@@ -818,7 +825,10 @@ impl MdEdit {
         }
 
         self.renderer.buffer.queue(ops);
-        self.renderer.buffer.update();
+        let pointer_resp = self.renderer.buffer.update();
+        if pointer_resp.text_updated || pointer_resp.selection_user_moved {
+            self.cursor_last_interact = Some(ui.ctx().input(|i| i.time));
+        }
         // Pointer only emits Select ops (no text change), so no re-parse
         // needed — but reveal must reflect the applied ops (and any
         // `entered_atom` a menu "Edit" set) in this frame's paint: iOS
@@ -866,8 +876,15 @@ impl MdEdit {
                 .collect();
             ui.painter()
                 .set(pre.selection_shape, egui::Shape::Vec(shapes));
-            self.show_offset(ui, selection.1, color);
 
+            let now = ui.ctx().input(|i| i.time);
+            if self.in_progress_selection.is_some()
+                || (focused && self.cursor_last_interact.is_none())
+            {
+                self.cursor_last_interact = Some(now);
+            }
+            let blink = focused.then(|| now - self.cursor_last_interact.unwrap_or(now));
+            self.show_offset(ui, selection.1, theme.bright.get_color(theme.prefs().primary), blink);
             if focused {
                 if let Some([top, bot]) = self.cursor_line(selection.1) {
                     let cursor_rect = Rect::from_min_max(top, bot);

@@ -371,12 +371,14 @@ impl Lb {
     }
 
     pub fn app_foregrounded(&self) {
+        // Guest path `tokio::spawn`s the IPC poke; needs this thread in the runtime.
         #[cfg(not(target_family = "wasm"))]
-        {
-            let rt = self.rt.enter();
-            self.lb.app_foregrounded();
-            drop(rt);
-        }
+        let _rt = self.rt.enter();
+        self.lb.app_foregrounded();
+    }
+
+    pub fn user_active(&self) -> bool {
+        self.lb.user_active()
     }
 
     #[cfg(not(target_family = "wasm"))]
