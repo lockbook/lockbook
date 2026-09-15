@@ -24,14 +24,22 @@
 //!   layout cache when it changes — mirroring how the cursor selection is
 //!   handled.
 
-use egui::{EventFilter, Frame, Id, Key, Label, Margin, Ui, Widget as _};
+use egui::{
+    Align, Align2, Color32, EventFilter, FontFamily, FontId, Frame, Id, Key, Layout, Margin,
+    Modifiers, Sense, Stroke, StrokeKind, Ui, pos2, vec2,
+};
 use lb_rs::model::text::buffer::Buffer;
 use lb_rs::model::text::offset_types::{Byte, Grapheme, RangeExt as _};
 
+use crate::style::chrome::control_line_height;
+use crate::style::layout::{inset, paint_control_pads};
+use crate::style::space::control as control_space;
+use crate::style::{
+    CHROME_BAND_GLYPH, Radius, STROKE_HAIRLINE, Space, ThemeExt, TypeRole, claim, control_height,
+    origin, phosphor, place_at, sense_click, tip_text,
+};
 use crate::tab::ExtendedOutput as _;
-use crate::theme::icons::Icon;
-use crate::theme::palette_v2::ThemeExt as _;
-use crate::widgets::{GlyphonTextEdit, IconButton};
+use crate::widgets::GlyphonTextEdit;
 
 use super::super::input::{Event, Region};
 
@@ -156,8 +164,11 @@ impl Find {
         }
 
         if self.term.is_some() {
-            Frame::NONE
-                .inner_margin(Margin::symmetric(10, 10))
+            let t = ui.ctx().get_lb_theme();
+            Frame::new()
+                .fill(t.neutral_bg())
+                .stroke(Stroke::NONE)
+                .inner_margin(Margin::symmetric(Space::Sm.pts() as i8, Space::Xs.pts() as i8))
                 .show(ui, |ui| self.show_inner(buffer, text_seq, ui, &mut output));
         }
 
@@ -174,13 +185,13 @@ impl Find {
         self.was_focused = focused && virtual_keyboard_shown;
         if find_focused {
             ui.memory_mut(|m| m.set_focus_lock_filter(self.id, focus_filter));
-            if ui.input(|i| i.key_pressed(Key::Tab) && !i.modifiers.shift) {
+            if ui.input_mut(|i| i.consume_key(Modifiers::NONE, Key::Tab)) {
                 ui.memory_mut(|m| m.request_focus(self.replace_id));
             }
         }
         if replace_focused {
             ui.memory_mut(|m| m.set_focus_lock_filter(self.replace_id, focus_filter));
-            if ui.input(|i| i.key_pressed(Key::Tab) && i.modifiers.shift) {
+            if ui.input_mut(|i| i.consume_key(Modifiers::SHIFT, Key::Tab)) {
                 ui.memory_mut(|m| m.request_focus(self.id));
             }
         }
@@ -190,6 +201,7 @@ impl Find {
 
     fn show_inner(&mut self, buffer: &Buffer, text_seq: u64, ui: &mut Ui, output: &mut FindOutput) {
         ui.vertical(|ui| {
+            ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             let Some(term) = &mut self.term else {
                 return;
             };
@@ -199,25 +211,23 @@ impl Find {
                 return;
             }
 
-            let input_bg = ui.ctx().get_lb_theme().neutral_bg_secondary();
-            let input_padding = Margin::symmetric(6, 4);
-            let btn_height = 14.0_f32 * 1.4 + input_padding.sum().y;
-            let toggle = |i: Icon| IconButton::new(i.size(14.)).subdued(true).size(btn_height);
-            let action = |i: Icon| IconButton::new(i.size(14.)).size(btn_height);
-            let input_frame = || {
-                Frame::NONE
-                    .fill(input_bg)
-                    .corner_radius(4.)
-                    .inner_margin(input_padding)
-            };
-            let rtl = egui::Layout::right_to_left(egui::Align::Center);
+            let t = ui.ctx().get_lb_theme();
+            let gap = Space::Xs.pts();
+            let rtl = Layout::right_to_left(Align::Center);
+            let icon_spacing = egui::vec2(gap, 0.0);
 
             // process keyboard events before layout so Enter is captured
             let before_term = term.clone();
-            let find_submitted = GlyphonTextEdit::process_events(ui, self.id, term);
+            // Tab moves find ↔ replace; don't let a non-empty field claim it.
+            let find_submitted = GlyphonTextEdit::process_events_ex(ui, self.id, term, None, false);
             let find_shift = ui.input(|i| i.modifiers.shift);
-            let replace_submitted =
-                GlyphonTextEdit::process_events(ui, self.replace_id, &mut self.replace_term);
+            let replace_submitted = GlyphonTextEdit::process_events_ex(
+                ui,
+                self.replace_id,
+                &mut self.replace_term,
+                None,
+                false,
+            );
 
             let mut term_changed = *term != before_term;
             let mut navigate: Option<bool> = None;
@@ -234,40 +244,55 @@ impl Find {
                 ui.memory_mut(|m| m.request_focus(self.replace_id));
             }
 
+            // Measured rows the same height as the field so icons share its
+            // vertical center (don't let leftover editor height steal Align::Center).
+            let row_w = ui.available_width();
+            let row_h = control_height();
+
             // search row: RTL — draw buttons first, input fills remainder
             let mut input_width = 0f32;
-            ui.with_layout(rtl, |ui| {
-                ui.spacing_mut().item_spacing.x = 4.;
+            let search_row = egui::Rect::from_min_size(origin(ui), vec2(row_w, row_h));
+            place_at(ui, search_row, rtl, |ui| {
+                ui.spacing_mut().item_spacing = icon_spacing;
 
-                if action(Icon::CLOSE).tooltip("Close").show(ui).clicked() {
+                if find_icon(ui, &t, phosphor::X, true, "Close") {
                     closed = true;
                 }
+                if find_regex_icon(ui, &t, self.regex) {
+                    self.regex = !self.regex;
+                    term_changed = true;
+                }
                 for (ic, tip, flag) in [
-                    (Icon::REGEX, "Regex", &mut self.regex),
-                    (Icon::WHOLE_WORD, "Whole Word", &mut self.whole_word),
-                    (Icon::CASE_SENSITIVE, "Match Case", &mut self.case_sensitive),
+                    (phosphor::TEXT_T, "Whole Word", &mut self.whole_word),
+                    (phosphor::TEXT_AA, "Match Case", &mut self.case_sensitive),
                 ] {
-                    if toggle(ic).tooltip(tip).colored(*flag).show(ui).clicked() {
+                    if find_icon(ui, &t, ic, *flag, tip) {
                         *flag = !*flag;
                         term_changed = true;
                     }
                 }
 
                 input_width = ui.available_width();
-                let input_resp = input_frame().show(ui, |ui| {
+                let find_focus = ui.memory(|m| m.has_focus(self.id));
+                let input_resp = find_field(ui, &t, input_width, find_focus, |ui| {
                     ui.with_layout(rtl, |ui| {
+                        ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
                         let label = match self.current_match {
                             Some(idx) => format!("{} / {}", idx + 1, self.matches.len()),
                             None if !term.is_empty() => "No results".into(),
                             _ => String::new(),
                         };
                         if !label.is_empty() {
-                            Label::new(egui::RichText::new(label).small())
-                                .selectable(false)
-                                .ui(ui);
+                            find_count(ui, &t, &label);
+                            ui.add_space(gap);
                         }
 
-                        let mut edit = GlyphonTextEdit::new(term).id(self.id).hint_text("Search");
+                        let mut edit = GlyphonTextEdit::new(term)
+                            .id(self.id)
+                            .font_size(TypeRole::Body.size())
+                            .line_height(control_line_height())
+                            .hint_text("Search")
+                            .claim_tab_when_nonempty(false);
                         if self.select_all_on_focus {
                             edit = edit.select_all();
                             self.select_all_on_focus = false;
@@ -275,50 +300,43 @@ impl Find {
                         edit.show(ui);
                     });
                 });
-                if input_resp.response.clicked() {
+                if input_resp.clicked() {
                     ui.memory_mut(|m| m.request_focus(self.id));
                 }
             });
+            claim(ui, search_row);
 
-            ui.add_space(4.);
+            ui.add_space(gap);
 
             // replace row: LTR — input at same width as search, then buttons
-            ui.horizontal(|ui| {
-                ui.spacing_mut().item_spacing.x = 4.;
+            let replace_row = egui::Rect::from_min_size(origin(ui), vec2(row_w, row_h));
+            place_at(ui, replace_row, Layout::left_to_right(Align::Center), |ui| {
+                ui.spacing_mut().item_spacing = icon_spacing;
 
-                input_frame().show(ui, |ui| {
-                    ui.set_width(input_width - input_padding.sum().x);
+                let replace_focus = ui.memory(|m| m.has_focus(self.replace_id));
+                find_field(ui, &t, input_width, replace_focus, |ui| {
                     GlyphonTextEdit::new(&mut self.replace_term)
                         .id(self.replace_id)
+                        .font_size(TypeRole::Body.size())
+                        .line_height(control_line_height())
                         .hint_text("Replace")
+                        .claim_tab_when_nonempty(false)
                         .show(ui);
                 });
-
-                if toggle(Icon::REPLACE).tooltip("Replace").show(ui).clicked() {
+                if find_icon(ui, &t, phosphor::REPEAT, true, "Replace") {
                     replace_one = true;
                 }
-                if toggle(Icon::REPLACE_ALL)
-                    .tooltip("Replace All")
-                    .show(ui)
-                    .clicked()
-                {
+                if find_icon(ui, &t, phosphor::SWAP, true, "Replace All") {
                     replace_all = true;
                 }
-                if action(Icon::CHEVRON_UP)
-                    .tooltip("Previous")
-                    .show(ui)
-                    .clicked()
-                {
+                if find_icon(ui, &t, phosphor::CARET_UP, true, "Previous") {
                     navigate = Some(false);
                 }
-                if action(Icon::CHEVRON_DOWN)
-                    .tooltip("Next")
-                    .show(ui)
-                    .clicked()
-                {
+                if find_icon(ui, &t, phosphor::CARET_DOWN, true, "Next") {
                     navigate = Some(true);
                 }
             });
+            claim(ui, replace_row);
 
             // apply state transitions
             if term_changed {
@@ -496,6 +514,120 @@ impl Find {
         self.current_match = Some(new_idx);
         true
     }
+}
+
+fn find_icon(
+    ui: &mut Ui, t: &crate::style::Theme, icon: &'static str, on: bool, tip: &str,
+) -> bool {
+    use crate::style::FG_HOVER;
+    use crate::style::chrome::{HOVER_ANIM_SECS, Radius, phosphor_font_id};
+
+    let hit = control_height();
+    let (rect, resp) = ui.allocate_exact_size(vec2(hit, hit), sense_click());
+    let over = ui.ctx().rect_contains_pointer(ui.layer_id(), rect) || resp.hovered();
+    let hover = ui
+        .ctx()
+        .animate_bool_with_time(resp.id.with("icon_hov"), over, HOVER_ANIM_SECS);
+    if hover > 0.0 {
+        ui.painter().rect_filled(
+            rect,
+            Radius::Sm.corner(),
+            t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER * hover),
+        );
+    }
+    let color = if on {
+        t.neutral_fg()
+    } else {
+        t.neutral_fg_secondary()
+            .lerp_to_gamma(t.neutral_fg(), hover)
+    };
+    let g = ui.painter().layout_no_wrap(
+        icon.into(),
+        phosphor_font_id(CHROME_BAND_GLYPH),
+        Color32::PLACEHOLDER,
+    );
+    ui.painter()
+        .galley(rect.center() - g.size() / 2.0, g, color);
+    tip_text(ui.ctx(), &resp, tip);
+    resp.clicked()
+}
+
+/// `.*` — the usual regex mark. Phosphor’s function glyph reads as a script f.
+/// Proportional asterisk sits high (like a regex operator); mono centers it
+/// in the em so a galley-centered `.*` reads low in the hit.
+fn find_regex_icon(ui: &mut Ui, t: &crate::style::Theme, on: bool) -> bool {
+    use crate::style::FG_HOVER;
+    use crate::style::chrome::{HOVER_ANIM_SECS, Radius};
+
+    let hit = control_height();
+    let font = FontId::new(CHROME_BAND_GLYPH, FontFamily::Proportional);
+    let g = ui
+        .painter()
+        .layout_no_wrap(".*".into(), font.clone(), Color32::PLACEHOLDER);
+    let w = hit.max(g.size().x + Space::Xs.pts());
+    let (rect, resp) = ui.allocate_exact_size(vec2(w, hit), sense_click());
+    let over = ui.ctx().rect_contains_pointer(ui.layer_id(), rect) || resp.hovered();
+    let hover = ui
+        .ctx()
+        .animate_bool_with_time(resp.id.with("icon_hov"), over, HOVER_ANIM_SECS);
+    if hover > 0.0 {
+        ui.painter().rect_filled(
+            rect,
+            Radius::Sm.corner(),
+            t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER * hover),
+        );
+    }
+    let color = if on {
+        t.neutral_fg()
+    } else {
+        t.neutral_fg_secondary()
+            .lerp_to_gamma(t.neutral_fg(), hover)
+    };
+    ui.painter()
+        .text(rect.center(), Align2::CENTER_CENTER, ".*", font, color);
+    tip_text(ui.ctx(), &resp, "Regex");
+    resp.clicked()
+}
+
+/// Match count in the search field: same line box as the glyphon edit so it
+/// shares the field's vertical center (stock `ui.label` does not).
+fn find_count(ui: &mut Ui, t: &crate::style::Theme, label: &str) {
+    let g = ui.painter().layout_no_wrap(
+        label.to_owned(),
+        TypeRole::Mono.font_id(),
+        Color32::PLACEHOLDER,
+    );
+    let (rect, _) = ui.allocate_exact_size(vec2(g.size().x, control_line_height()), Sense::hover());
+    ui.painter().galley(
+        pos2(rect.left(), rect.center().y - g.size().y / 2.0),
+        g,
+        t.neutral_fg_secondary(),
+    );
+}
+
+fn find_field(
+    ui: &mut Ui, t: &crate::style::Theme, width: f32, focused: bool, add: impl FnOnce(&mut Ui),
+) -> egui::Response {
+    let h = control_height();
+    let (rect, resp) = ui.allocate_exact_size(egui::vec2(width.max(1.0), h), sense_click());
+    // One step off the find bar (extreme/`neutral_bg`) so the field reads as a
+    // plate. Focus is the stroke, not a second fill.
+    let fill = t.neutral_bg_secondary();
+    let stroke_c = if focused { t.neutral_fg() } else { t.neutral() };
+    ui.painter()
+        .rect_filled(rect, Radius::Control.corner(), fill);
+    ui.painter().rect_stroke(
+        rect,
+        Radius::Control.corner(),
+        Stroke::new(STROKE_HAIRLINE, stroke_c),
+        StrokeKind::Inside,
+    );
+    let pad_x = control_space::PAD_X;
+    let pad_y = control_space::PAD_Y;
+    paint_control_pads(ui, rect, pad_x, pad_y);
+    let inner = inset(rect, pad_x.pts(), pad_y.pts());
+    place_at(ui, inner, Layout::left_to_right(Align::Center), add);
+    resp
 }
 
 fn is_whole_word(text: &str, byte_start: usize, byte_end: usize) -> bool {

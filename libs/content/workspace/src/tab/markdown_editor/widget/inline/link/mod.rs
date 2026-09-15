@@ -14,6 +14,7 @@ use lb_rs::model::text::operation_types::Operation;
 use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
+use crate::style::{phosphor, phosphor_font_id};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
@@ -22,7 +23,6 @@ use crate::tab::markdown_editor::widget::utils::NodeValueExt as _;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout, StyleInfo};
 use crate::tab::markdown_editor::{MdEdit, MdRender};
 use crate::tab::{ContextMenuTarget, ExtendedOutput as _};
-use crate::theme::icons::Icon;
 use crate::theme::palette_v2::ThemeExt as _;
 
 enum DestinationTitle {
@@ -282,8 +282,8 @@ impl<'ast> MdRender {
                     ui.painter().text(
                         icon_rect.center(),
                         egui::Align2::CENTER_CENTER,
-                        Icon::LINK.icon,
-                        egui::FontId::monospace(size),
+                        phosphor::LINK,
+                        phosphor_font_id(size),
                         self.ctx.get_lb_theme().neutral_fg_secondary(),
                     );
                 }
@@ -730,7 +730,7 @@ fn alone_on_line<'a>(
     true
 }
 
-/// A choice from the desktop link context menu ([`link_menu_buttons`]).
+/// A choice from the desktop link context menu ([`fill_link_menu`]).
 #[derive(Clone, Copy)]
 pub enum LinkMenuAction {
     Open,
@@ -753,32 +753,30 @@ pub struct LinkMenuTarget {
 
 /// The link section of a desktop context menu; `editable` gates "Edit",
 /// `refreshable` gates "Refresh Preview" (rendered previews only).
-pub fn link_menu_buttons(
-    ui: &mut egui::Ui, is_image: bool, editable: bool, refreshable: bool,
-) -> Option<LinkMenuAction> {
-    let mut action = None;
+///
+/// `map` wraps each [`LinkMenuAction`] so a host menu can mix link items with
+/// Cut / Copy / Paste without a second entry list.
+pub fn fill_link_menu<T>(
+    e: &mut crate::style::context_menu::Entries<T>, is_image: bool, editable: bool,
+    refreshable: bool, map: impl Fn(LinkMenuAction) -> T,
+) {
     let (open, copy, edit) = if is_image {
         ("Open Image", "Copy URL", "Edit Image")
     } else {
         ("Open Link", "Copy Link", "Edit Link")
     };
-    if ui.button(open).clicked() {
-        action = Some(LinkMenuAction::Open);
-        ui.close();
+    e.item(crate::style::phosphor::ARROW_SQUARE_OUT, open, map(LinkMenuAction::Open));
+    e.item(crate::style::phosphor::COPY, copy, map(LinkMenuAction::Copy));
+    if editable {
+        e.item(crate::style::phosphor::PENCIL, edit, map(LinkMenuAction::Edit));
     }
-    if ui.button(copy).clicked() {
-        action = Some(LinkMenuAction::Copy);
-        ui.close();
+    if refreshable {
+        e.item(
+            crate::style::phosphor::ARROWS_CLOCKWISE,
+            "Refresh Preview",
+            map(LinkMenuAction::Refresh),
+        );
     }
-    if editable && ui.button(edit).clicked() {
-        action = Some(LinkMenuAction::Edit);
-        ui.close();
-    }
-    if refreshable && ui.button("Refresh Preview").clicked() {
-        action = Some(LinkMenuAction::Refresh);
-        ui.close();
-    }
-    action
 }
 
 impl<'ast> MdEdit {
