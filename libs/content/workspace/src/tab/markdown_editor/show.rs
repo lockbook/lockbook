@@ -925,7 +925,14 @@ impl MdEdit {
                 self.cursor_last_interact = Some(now);
             }
             let blink = focused.then(|| now - self.cursor_last_interact.unwrap_or(now));
-            self.show_offset(ui, selection.1, theme.bright.get_color(theme.prefs().primary), blink);
+            // Android Material You: `fg()` is colorPrimary in both modes.
+            // `bright` is the washed primaryContainer in light.
+            let caret = if ui.ctx().os() == OperatingSystem::Android {
+                theme.fg().get_color(theme.prefs().primary)
+            } else {
+                theme.bright.get_color(theme.prefs().primary)
+            };
+            self.show_offset(ui, selection.1, caret, blink);
             if focused {
                 if let Some([top, bot]) = self.cursor_line(selection.1) {
                     let cursor_rect = Rect::from_min_max(top, bot);
