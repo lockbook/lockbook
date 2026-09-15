@@ -19,8 +19,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
 ) -> jobject {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-        let response: AndroidResponse = obj.frame().into();
-        response
+        frame_android_response(obj)
     });
 
     match maybe_err {
@@ -45,8 +44,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrameOffloaded
 ) -> jobject {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-        let response: AndroidResponse = obj.frame_offloaded().into();
-        response
+        frame_offloaded_android_response(obj)
     });
 
     match maybe_err {
@@ -126,6 +124,27 @@ fn android_response_to_java<'local>(
         ],
     )
     .expect("create AndroidResponse")
+}
+
+fn fill_magnifier(obj: &mut WgpuWorkspace, response: &mut AndroidResponse) {
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return };
+    let Some(offset) = md.in_progress_handle else { return };
+    let Some(line) = md.cursor_line(offset) else { return };
+    response.has_magnifier = true;
+    response.magnifier_x = line[0].x;
+    response.magnifier_y = (line[0].y + line[1].y) * 0.5;
+}
+
+fn frame_android_response(obj: &mut WgpuWorkspace) -> AndroidResponse {
+    let mut response: AndroidResponse = obj.frame().into();
+    fill_magnifier(obj, &mut response);
+    response
+}
+
+fn frame_offloaded_android_response(obj: &mut WgpuWorkspace) -> AndroidResponse {
+    let mut response: AndroidResponse = obj.frame_offloaded().into();
+    fill_magnifier(obj, &mut response);
+    response
 }
 
 fn jrect_obj<'local>(env: &mut JNIEnv<'local>, rect: JRect) -> JObject<'local> {
