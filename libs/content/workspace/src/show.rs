@@ -57,7 +57,7 @@ impl Workspace {
         self.process_clip_events();
         self.apply_pending_open_range();
 
-        crate::widgets::caret::set_user_present(&self.ctx, self.core.user_active());
+        self.set_user_present();
 
         if self.is_empty() {
             self.show_landing_page(ui);
