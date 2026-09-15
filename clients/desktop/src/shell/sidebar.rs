@@ -1,4 +1,4 @@
-//! Sidebar: canvas head + canvas body + surface foot.
+//! Sidebar: secondary chrome column (titleband, tree, footer).
 //!
 //! Layout is **top → bottom · middle**. Resize vs overlay scroll policy lives in
 //! [`crate::components::domain::sidebar_resize`].
@@ -7,8 +7,8 @@ use egui::{Align, Frame, Id, Layout, Rect, Sense, Ui, UiBuilder, pos2, vec2};
 
 use crate::components::domain::chips;
 use crate::components::{
-    FixedPadContent, STROKE_HAIRLINE, Space, Spacer, Theme, control_height, show_recents,
-    show_shared, show_sync_footer, show_tree, ui_width, with_h_pad_in,
+    FixedPadContent, Space, Spacer, Theme, control_height, show_recents, show_shared,
+    show_sync_footer, show_tree, ui_width, with_h_pad_in,
 };
 
 use super::ShellApp;
@@ -88,19 +88,21 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     egui::TopBottomPanel::top("shell_sidebar_head")
         .resizable(false)
         .show_separator_line(false)
-        .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
+        .frame(
+            Frame::new()
+                .fill(t.neutral_bg_secondary())
+                .inner_margin(0.0),
+        )
         .show_inside(ui, |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
             let mut head = SidebarHeadReadout::default();
             let (clear_rect, _) =
                 ui.allocate_exact_size(vec2(ui_width(ui), HEADER_H), Sense::hover());
             head.header_clearance = clear_rect;
-            // Same y as the tab-strip hairline — one titleband edge across the window.
-            ui.painter().hline(
-                clear_rect.x_range(),
-                clear_rect.bottom() - STROKE_HAIRLINE * 0.5,
-                egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
-            );
+            // Same secondary chrome as the tab strip, so the pane cluster
+            // (Files / Recents / Shared, back / forward) sits on one band.
+            ui.painter()
+                .rect_filled(clear_rect, 0.0, t.neutral_bg_secondary());
             if show_chips {
                 ui.add(Spacer::new(Space::Sm));
                 let row_h = control_height();
@@ -141,17 +143,15 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
         )
         .show_inside(ui, |ui| {
             ui.set_min_width(ui_width(ui));
-            let (r, _) = ui.allocate_exact_size(vec2(ui_width(ui), 1.0), Sense::hover());
-            ui.painter().hline(
-                r.x_range(),
-                r.center().y,
-                egui::Stroke::new(STROKE_HAIRLINE, t.neutral()),
-            );
             show_sync_footer(app, ui, t, queue);
         });
 
     egui::CentralPanel::default()
-        .frame(Frame::new().fill(t.neutral_bg()).inner_margin(0.0))
+        .frame(
+            Frame::new()
+                .fill(t.neutral_bg_secondary())
+                .inner_margin(0.0),
+        )
         .show_inside(ui, |ui| {
             let body = ui.max_rect();
             ui.set_clip_rect(body.intersect(ui.clip_rect()));

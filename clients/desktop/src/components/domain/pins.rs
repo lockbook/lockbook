@@ -1,6 +1,6 @@
-//! Pinned section: caption + two-column chip grid on canvas.
+//! Pinned section: caption + two-column chip grid on sidebar chrome.
 //!
-//! Chips are secondary plates; hover is ground-relative ink wash (no outline).
+//! Chips are paper plates; hover is ground-relative ink wash (no outline).
 //! Layout air uses [`Spacer`] so F2 space overlay paints token bands.
 //! Right-click: file menu (same intents as tree/recents; always **Unpin**).
 
@@ -76,103 +76,98 @@ pub fn show(
 
     ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
 
-    // Canvas band: pad via Spacers (F2), not Frame margin.
-    egui::Frame::new()
-        .fill(t.neutral_bg())
-        .inner_margin(0.0)
-        .show(ui, |ui| {
+    // No band fill — pins sit on sidebar chrome. Pad via Spacers, not Frame margin.
+    egui::Frame::new().inner_margin(0.0).show(ui, |ui| {
+        ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
+        // Equal L/R LIST_PAD Spacers (same helper as Files tree / action chips).
+        let row_count = rows.len().div_ceil(COLS);
+        let ch = chip_h();
+        let max_h =
+            MAX_ROWS as f32 * ch + (MAX_ROWS.saturating_sub(1) as f32) * EqualCells::gap_pts();
+        let use_scroll = row_count > MAX_ROWS;
+        let grid_h = if use_scroll {
+            max_h
+        } else {
+            let n = row_count.max(1) as f32;
+            n * ch + (row_count.saturating_sub(1) as f32) * EqualCells::gap_pts()
+        };
+        let head_h = TypeRole::Body.line_height();
+        let pins_h = head_h + Space::Sm.pts() + grid_h;
+        let mut pins_body = FixedPadContent::new(pins_h, |ui| {
             ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-            // Equal L/R LIST_PAD Spacers (same helper as Files tree / action chips).
-            let row_count = rows.len().div_ceil(COLS);
-            let ch = chip_h();
-            let max_h =
-                MAX_ROWS as f32 * ch + (MAX_ROWS.saturating_sub(1) as f32) * EqualCells::gap_pts();
-            let use_scroll = row_count > MAX_ROWS;
-            let grid_h = if use_scroll {
-                max_h
-            } else {
-                let n = row_count.max(1) as f32;
-                n * ch + (row_count.saturating_sub(1) as f32) * EqualCells::gap_pts()
-            };
-            let head_h = TypeRole::Body.line_height();
-            let pins_h = head_h + Space::Sm.pts() + grid_h;
-            let mut pins_body = FixedPadContent::new(pins_h, |ui| {
+
+            // Same type as Recents “Today” / Shared sharer section labels.
+            ui.label(
+                TypeRole::Body
+                    .rich("Pinned")
+                    .font(FontId::new(
+                        TypeRole::Body.size(),
+                        FontFamily::Name(std::sync::Arc::from("Bold")),
+                    ))
+                    .color(t.neutral_fg_secondary()),
+            );
+            ui.add(Spacer::new(Space::Sm));
+
+            let mut draw = |ui: &mut Ui| {
                 ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-
-                // Same type as Recents “Today” / Shared sharer section labels.
-                ui.label(
-                    TypeRole::Body
-                        .rich("Pinned")
-                        .font(FontId::new(
-                            TypeRole::Body.size(),
-                            FontFamily::Name(std::sync::Arc::from("Bold")),
-                        ))
-                        .color(t.neutral_fg_secondary()),
-                );
-                ui.add(Spacer::new(Space::Sm));
-
-                let mut draw = |ui: &mut Ui| {
-                    ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
-                    // Measure once per row; place cells at absolute x (no horizontal placer).
-                    let row_w = crate::components::ui_width(ui);
-                    let cells = EqualCells::measure(row_w, COLS);
-                    let gap = EqualCells::gap_pts();
-                    let chunks: Vec<_> = rows.chunks(COLS).collect();
-                    let ch = chip_h();
-                    for (i, chunk) in chunks.iter().enumerate() {
-                        if i > 0 {
-                            ui.add(EqualCells::gap_spacer());
-                        }
-                        let top_left = crate::components::origin(ui);
-                        let mut x = top_left.x;
-                        for (j, row) in chunk.iter().enumerate() {
-                            if j > 0 {
-                                Spacer::paint_at(
-                                    ui,
-                                    EqualCells::gap_token(),
-                                    egui::Rect::from_min_size(pos2(x, top_left.y), vec2(gap, ch)),
-                                );
-                                x += gap;
-                            }
-                            let cell = egui::Rect::from_min_size(
-                                pos2(x, top_left.y),
-                                vec2(cells.cell_w, ch),
-                            );
-                            let _ = crate::components::place_at(
-                                ui,
-                                cell,
-                                egui::Layout::top_down(egui::Align::Min),
-                                |ui| {
-                                    ui.set_width(cells.cell_w);
-                                    pin_chip(ui, t, row, queue);
-                                },
-                            );
-                            x += cells.cell_w;
-                        }
-                        crate::components::claim(
-                            ui,
-                            egui::Rect::from_min_size(top_left, vec2(row_w, ch)),
-                        );
+                // Measure once per row; place cells at absolute x (no horizontal placer).
+                let row_w = crate::components::ui_width(ui);
+                let cells = EqualCells::measure(row_w, COLS);
+                let gap = EqualCells::gap_pts();
+                let chunks: Vec<_> = rows.chunks(COLS).collect();
+                let ch = chip_h();
+                for (i, chunk) in chunks.iter().enumerate() {
+                    if i > 0 {
+                        ui.add(EqualCells::gap_spacer());
                     }
-                };
-
-                if use_scroll {
-                    let scroll_id = Id::new("pinned_scroll");
-                    with_overlay_scroll(ui, scroll_id, |ui| {
-                        let out = egui::ScrollArea::vertical()
-                            .id_salt("pinned_scroll")
-                            .max_height(max_h)
-                            .auto_shrink([false, true])
-                            .show(ui, draw);
-                        ((), out.state.offset.y, out.id)
-                    });
-                } else {
-                    draw(ui);
+                    let top_left = crate::components::origin(ui);
+                    let mut x = top_left.x;
+                    for (j, row) in chunk.iter().enumerate() {
+                        if j > 0 {
+                            Spacer::paint_at(
+                                ui,
+                                EqualCells::gap_token(),
+                                egui::Rect::from_min_size(pos2(x, top_left.y), vec2(gap, ch)),
+                            );
+                            x += gap;
+                        }
+                        let cell =
+                            egui::Rect::from_min_size(pos2(x, top_left.y), vec2(cells.cell_w, ch));
+                        let _ = crate::components::place_at(
+                            ui,
+                            cell,
+                            egui::Layout::top_down(egui::Align::Min),
+                            |ui| {
+                                ui.set_width(cells.cell_w);
+                                pin_chip(ui, t, row, queue);
+                            },
+                        );
+                        x += cells.cell_w;
+                    }
+                    crate::components::claim(
+                        ui,
+                        egui::Rect::from_min_size(top_left, vec2(row_w, ch)),
+                    );
                 }
-            });
-            with_h_pad(ui, LIST_PAD, &mut pins_body);
-            ui.add(Spacer::new(Space::Sm)); // bottom of band
+            };
+
+            if use_scroll {
+                let scroll_id = Id::new("pinned_scroll");
+                with_overlay_scroll(ui, scroll_id, |ui| {
+                    let out = egui::ScrollArea::vertical()
+                        .id_salt("pinned_scroll")
+                        .max_height(max_h)
+                        .auto_shrink([false, true])
+                        .show(ui, draw);
+                    ((), out.state.offset.y, out.id)
+                });
+            } else {
+                draw(ui);
+            }
         });
+        with_h_pad(ui, LIST_PAD, &mut pins_body);
+        ui.add(Spacer::new(Space::Sm)); // bottom of band
+    });
 }
 
 fn pin_chip(ui: &mut Ui, t: &Theme, row: &PinRow, queue: &mut Vec<Action>) {
