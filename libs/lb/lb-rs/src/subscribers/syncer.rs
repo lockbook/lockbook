@@ -1314,33 +1314,38 @@ impl LocalLb {
                 time::sleep(Duration::from_millis(500)).await;
                 let mut should_sync = false;
 
-                // drain the current channel, so we don't sync for each keystroke if they pile up
+                // Drain the channel so we don't sync for each keystroke if they pile up.
+                // `Lagged` is normal during create/import/sync bursts — never panic on it
+                // (that aborted the shell on every sign-in).
                 loop {
-                    let event = events.try_recv();
-                    match event {
+                    match events.try_recv() {
                         Ok(event) => {
                             if sync_criteria(event) {
                                 should_sync = true;
                             }
                         }
                         Err(TryRecvError::Empty) => break,
-                        _ => {
-                            panic!(
-                                "unexpected broadcast receive error, returning local_change_worker"
-                            );
+                        Err(TryRecvError::Lagged(_)) => {
+                            // Missed events — treat as "something changed".
+                            should_sync = true;
                         }
+                        Err(TryRecvError::Closed) => return,
                     }
                 }
 
                 // empty channel + nothing interesting has happened, sit and wait for something
                 // interesting
                 if !should_sync {
-                    let event = events.recv().await.unwrap();
-                    if sync_criteria(event) {
-                        self.sync().await.map_unexpected().log_and_ignore();
-                    } else {
-                        continue;
+                    match events.recv().await {
+                        Ok(event) => {
+                            if sync_criteria(event) {
+                                self.sync().await.map_unexpected().log_and_ignore();
+                            }
+                        }
+                        Err(_) => return,
                     }
+                } else {
+                    self.sync().await.map_unexpected().log_and_ignore();
                 }
             }
         });
@@ -1374,14 +1379,17 @@ impl LocalLb {
             let mut events = self.subscribe();
 
             loop {
-                let event = events.recv().await.unwrap();
-                if let Event::Sync(SyncIncrement::SyncFinished(_)) = event {
-                    self.fetcher().await.map_unexpected().log_and_ignore();
-                    self.populate_pk_cache()
-                        .await
-                        .map_unexpected()
-                        .log_and_ignore();
-                };
+                match events.recv().await {
+                    Ok(Event::Sync(SyncIncrement::SyncFinished(_))) => {
+                        self.fetcher().await.map_unexpected().log_and_ignore();
+                        self.populate_pk_cache()
+                            .await
+                            .map_unexpected()
+                            .log_and_ignore();
+                    }
+                    Ok(_) => {}
+                    Err(_) => return,
+                }
             }
         });
     }
