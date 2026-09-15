@@ -398,6 +398,8 @@ class WorkspaceView(
 
                 if (response.selectionUpdated) {
                     textInputWrapper.wsInputConnection.notifySelectionUpdated()
+                } else if (response.textUpdated || response.scrollUpdated) {
+                    textInputWrapper.wsInputConnection.onEditorGeometryChanged()
                 }
 
                 updateMagnifier(response, density)
