@@ -22,5 +22,3 @@ pub const INDENT_STEP: f32 = Space::Md.pts();
 
 /// Type icon column: body glyph + icon gap ([`Space::Xs`], control energy).
 pub const ICON_SLOT: f32 = TypeRole::Body.size() + Space::Xs.pts();
-
-// Chip-row gap + measure live in [`super::chip_layout`] (measure/draw one plan).

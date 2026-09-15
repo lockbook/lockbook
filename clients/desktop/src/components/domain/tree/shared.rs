@@ -159,7 +159,7 @@ fn paint_shared_row(
         // button (mixed grounds / double wash was the animation color bug).
         let mut row_hit = rect;
         row_hit.max.x = row_hit.max.x.min(rect.right() - trail).max(row_hit.min.x);
-        let ground = t.neutral_bg();
+        let ground = t.neutral_bg_secondary();
         let id = ui.id().with("shared_root").with(row.id);
         let subtitle = row.subtitle.clone().unwrap_or_default();
         let resp =

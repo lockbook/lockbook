@@ -23,7 +23,7 @@ pub fn window_controls(ctx: &egui::Context, t: &Theme) {
         .anchor(Align2::RIGHT_TOP, vec2(0.0, 0.0))
         .show(ctx, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-            let ground = t.neutral_bg();
+            let ground = t.neutral_bg_secondary();
             place_caption_row(ui, |ui, i, slot| {
                 let _ = place_at(ui, slot, Layout::top_down(Align::Min), |ui| match i {
                     0 => {

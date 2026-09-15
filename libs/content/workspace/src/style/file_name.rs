@@ -4,12 +4,12 @@
 //! fonts — Twemoji is intentionally not an egui proportional fallback (it fights
 //! phosphor PUA and color-font handling). Use:
 //! - display: [`paint`] / [`measure`] ([`GlyphonLabel`])
-//! - edit: [`workspace_rs::widgets::GlyphonTextEdit`] (see [`super::field::Field`])
+//! - edit: [`crate::widgets::GlyphonTextEdit`] (see [`super::field::Field`])
 
+use crate::widgets::{GlyphonLabel, TextOverflow};
 use egui::{Color32, Rect, Ui, pos2, vec2};
-use workspace_rs::widgets::{GlyphonLabel, TextOverflow};
 
-use crate::components::foundation::typography::TypeRole;
+use crate::style::typography::TypeRole;
 
 /// Body-size metrics matching [`TypeRole::Body`] / control line box.
 pub fn body_font_size() -> f32 {
@@ -65,7 +65,7 @@ pub fn paint(
         ui.painter()
             .add(egui_wgpu_renderer::egui_wgpu::Callback::new_paint_callback(
                 clip,
-                workspace_rs::GlyphonRendererCallback::new(vec![area]),
+                crate::GlyphonRendererCallback::new(vec![area]),
             ));
     }
     drawn_w

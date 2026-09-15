@@ -25,7 +25,7 @@ pub fn window_controls(ctx: &egui::Context, t: &Theme) {
         .anchor(Align2::RIGHT_TOP, vec2(0.0, 0.0))
         .show(ctx, |ui| {
             ui.spacing_mut().item_spacing = vec2(0.0, 0.0);
-            let ground = t.neutral_bg();
+            let ground = t.neutral_bg_secondary();
             let origin = ui.cursor().min;
             let mut x = origin.x;
             let maximized = ui.input(|i| i.viewport().maximized.unwrap_or(false));

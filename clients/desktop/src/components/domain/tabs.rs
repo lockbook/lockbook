@@ -1,14 +1,14 @@
 //! Tab strip driven by `Workspace::tab_strip`.
 //!
-//! Canvas bar flush to the panel top; always [`HEADER_H`], even with no tabs,
-//! so traffic lights and the pane cluster sit on chrome, not the editor.
-//! Tabs measured then placed on x. Active tab = canvas plate open into the
-//! workspace (same fill, no bottom edge). Drag reorder; middle-click close;
-//! active title → rename sheet; context menu.
+//! Secondary chrome bar flush to the panel top; always [`HEADER_H`], even with
+//! no tabs, so traffic lights and the pane cluster sit on chrome, not the editor.
+//! Tabs measured then placed on x. Active tab = extreme/canvas plate open into
+//! the workspace (same fill as the editor, no bottom edge). Drag reorder;
+//! middle-click close; active title → rename sheet; context menu.
 
 use egui::{
-    Align, CornerRadius, CursorIcon, DragAndDrop, Id, Layout, Sense, Stroke, StrokeKind, Ui,
-    UiBuilder, pos2, scroll_area::ScrollBarVisibility, vec2,
+    Align, CornerRadius, CursorIcon, DragAndDrop, Id, Layout, Sense, Stroke, Ui, UiBuilder, pos2,
+    scroll_area::ScrollBarVisibility, vec2,
 };
 use lb::Uuid;
 use workspace_rs::file_cache::FilesExt;
@@ -16,7 +16,7 @@ use workspace_rs::tab::Destination;
 
 use crate::components::{
     FG_HOVER, FG_PRESS, Radius, STROKE_HAIRLINE, Space, Theme, TypeRole, claim, context_menu,
-    display_file_name, fit_outside_stroke_fill, phosphor, place_at, tab_icon, ui_width,
+    display_file_name, phosphor, place_at, tab_icon, ui_width,
 };
 
 use crate::shell::ShellApp;
@@ -33,9 +33,6 @@ const CLOSE_SLOT: f32 = 18.0;
 /// Window-top: 1 hairline for Outside stroke + 1 for macOS top-pixel fade so
 /// the active tab top edge reads solid (not half-clipped / washed).
 const TAB_TOP_AIR: f32 = STROKE_HAIRLINE * 2.0;
-/// Inside each hit cell (tabs stay flush — no inter-tab gap). Reserves room for
-/// Outside stroke so a neighbor hover wash cannot cover the shared edge.
-const TAB_SIDE_AIR: f32 = STROKE_HAIRLINE;
 /// Edge band + max speed for horizontal auto-scroll while reordering tabs.
 const TAB_EDGE_BAND: f32 = 28.0;
 const TAB_EDGE_SPEED: f32 = 900.0;
@@ -88,16 +85,10 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, t: &Theme, queue: &mut Vec<Action>)
     let top_left = pos2(ui.max_rect().left(), ui.max_rect().top());
     let outer = egui::Rect::from_min_size(top_left, vec2(bar_w, HEADER_H));
 
-    // Bar fill (canvas) under tabs — and under traffic lights / pane cluster
-    // when the strip is empty. Same ground as the sidebar titleband.
-    ui.painter().rect_filled(outer, 0.0, t.neutral_bg());
-
-    // Full bar→workspace hairline **under** the tabs. The active tab's canvas
-    // plate paints on top of this and covers the segment under the tab so the
-    // plate bleeds into the workspace (same fill — no dividing edge).
-    let edge = Stroke::new(STROKE_HAIRLINE, t.neutral());
-    let y = outer.bottom() - STROKE_HAIRLINE * 0.5;
-    ui.painter().hline(outer.x_range(), y, edge);
+    // Bar fill (secondary chrome) under inactive tabs — and under traffic
+    // lights / pane cluster when the strip is empty.
+    ui.painter()
+        .rect_filled(outer, 0.0, t.neutral_bg_secondary());
 
     if tab_count == 0 {
         // Empty chrome is a drag region (toolbar / window controls register
@@ -318,35 +309,12 @@ fn apply_tab_out(queue: &mut Vec<Action>, tab: &TabInfo, out: TabOut) {
     }
 }
 
-/// Visual plate inside the hit cell, fitted so Outside stroke stays visible.
-///
-/// - Top: [`TAB_TOP_AIR`] (stroke + OS top-row fade)
-/// - Sides: [`TAB_SIDE_AIR`] so flush neighbors share an edge without hover
-///   covering the active tab’s Outside stroke (no inter-tab *layout* gap)
-/// - Clip: [`fit_outside_stroke_fill`] for panel / window edges
-/// - Bottom: inactive leaves bar hairline; active fill covers it (stroke is
-///   clipped open — see [`tab_button`])
-fn tab_chrome_rect(ui: &Ui, body: egui::Rect, active: bool) -> egui::Rect {
+/// Visual plate inside the hit cell. Flush to the hit sides so the first tab
+/// meets the workspace edge; top air only for the OS top-pixel fade.
+fn tab_chrome_rect(body: egui::Rect, active: bool) -> egui::Rect {
     let top = body.top() + TAB_TOP_AIR;
-    let bottom = if active {
-        // Cover bar hairline and open into workspace canvas.
-        body.bottom() + STROKE_HAIRLINE
-    } else {
-        // Leave the strip→workspace hairline intact under the wash.
-        body.bottom() - STROKE_HAIRLINE
-    };
-    let desired = egui::Rect::from_min_max(
-        pos2(body.left() + TAB_SIDE_AIR, top),
-        pos2(body.right() - TAB_SIDE_AIR, bottom.max(top + 1.0)),
-    );
-    // Clip for Outside budget: panel/scroll clip. Expand bottom when active so
-    // open-into-workspace bleed is not pulled back in.
-    let mut clip = ui.clip_rect();
-    if active {
-        clip.max.y = clip.max.y.max(desired.bottom() + STROKE_HAIRLINE);
-    }
-    // Side air already applied; still clamp to panel/window edges if tighter.
-    fit_outside_stroke_fill(desired, clip)
+    let bottom = if active { body.bottom() + STROKE_HAIRLINE } else { body.bottom() };
+    egui::Rect::from_min_max(pos2(body.left(), top), pos2(body.right(), bottom.max(top + 1.0)))
 }
 
 fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reopen: bool) -> TabOut {
@@ -372,36 +340,19 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
     let radius =
         CornerRadius { nw: Radius::Control.pts(), ne: Radius::Control.pts(), sw: 0, se: 0 };
     let body = rect;
-    let chrome = tab_chrome_rect(ui, body, active);
+    let chrome = tab_chrome_rect(body, active);
     let canvas = t.neutral_bg();
-    let edge = Stroke::new(STROKE_HAIRLINE, t.neutral());
+    let chrome_bg = t.neutral_bg_secondary();
 
     if active {
-        // Plate covers the strip hairline under this tab. Outside stroke so
-        // label/close cannot cover rounded corners.
         ui.painter().rect_filled(chrome, radius, canvas);
-        // Clip at the strip hairline (not chrome.bottom()) so L/R strokes meet
-        // the bar instead of running past it. A closed-rect punch left L-hooks.
-        let mut stroke_clip = ui.clip_rect();
-        let hairline_y = body.bottom() - STROKE_HAIRLINE * 0.5;
-        stroke_clip.max.y = stroke_clip.max.y.min(hairline_y);
-        ui.painter().with_clip_rect(stroke_clip).rect_stroke(
-            chrome,
-            radius,
-            edge,
-            StrokeKind::Outside,
-        );
     } else if hover_t > 0.0 {
-        let wash = t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER * hover_t);
+        let wash = t.wash_toward_neutral_fg(chrome_bg, FG_HOVER * hover_t);
         ui.painter().rect_filled(chrome, radius, wash);
     }
 
-    let ink = if active {
-        t.neutral_fg()
-    } else {
-        t.neutral_fg_secondary()
-            .lerp_to_gamma(t.neutral_fg(), hover_t)
-    };
+    // Inactive tabs are still readable — state is plate/hover, not ghost ink.
+    let ink = t.neutral_fg();
 
     let icon = tab_icon(&tab.dest, name);
     let icon_g =
@@ -439,12 +390,9 @@ fn tab_button(ui: &mut Ui, t: &Theme, tab: &TabInfo, tab_count: usize, can_reope
             .on_hover_cursor(CursorIcon::PointingHand);
         let close_over = ui.ctx().rect_contains_pointer(ui.layer_id(), close_rect);
         let close_h = ui.ctx().animate_bool(close_resp.id, close_over);
-        // Ground = plate under the X (canvas when active; hover wash when inactive).
-        let tab_ground = if active {
-            t.neutral_bg()
-        } else {
-            t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER * hover_t)
-        };
+        // Ground = plate under the X (canvas when active; bar/hover when inactive).
+        let tab_ground =
+            if active { canvas } else { t.wash_toward_neutral_fg(chrome_bg, FG_HOVER * hover_t) };
         if close_h > 0.0 || close_over {
             let amount =
                 if close_resp.is_pointer_button_down_on() { FG_PRESS } else { FG_HOVER * close_h };

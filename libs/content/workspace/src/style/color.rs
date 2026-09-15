@@ -1,9 +1,9 @@
-//! Desktop wash amounts and chromatic plates on top of workspace [`Theme`].
+//! Wash amounts and chromatic plates on top of workspace [`Theme`].
 
+use crate::theme::palette_v2::{Mode, Palette};
 use egui::Color32;
-use workspace_rs::theme::palette_v2::{Mode, Palette};
 
-pub use workspace_rs::theme::palette_v2::{Theme, ThemeExt};
+pub use crate::theme::palette_v2::{Theme, ThemeExt};
 
 /// Toward `neutral_fg` on hover (rows / quiet on primary bg).
 pub const FG_HOVER: f32 = Theme::HOVER_WASH;
@@ -119,7 +119,7 @@ fn oklch_to_srgb(l: f32, c: f32, h_deg: f32) -> Color32 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use workspace_rs::theme::palette_v2::Mode;
+    use crate::theme::palette_v2::Mode;
 
     #[test]
     fn hue_wash_differs_from_poles() {

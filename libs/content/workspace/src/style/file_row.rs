@@ -10,20 +10,20 @@
 //! middle-ellipsis when they don't fit (`a / … / leaf`).
 //!
 //! ## Looks
-//! Canvas (or elevated sticky) ground; idle transparent; hover/selection ink
-//! wash. Label always body `fg`. Folder icons accent. Optional sync + pin.
+//! Sidebar/chrome ground; idle transparent; hover/selection ink wash. Label
+//! always body `fg`. Folder icons accent. Optional sync + pin.
 
 use egui::{Color32, Id, Rect, Response, Sense, Ui, pos2, vec2};
 
 use super::file_name;
-use crate::components::foundation::chrome::{
+use crate::style::chrome::{
     HOVER_ANIM_SECS, Radius, display_file_name, phosphor, phosphor_ui_font_id, row_wash_inset,
 };
-use crate::components::foundation::color::{FG_HOVER, FG_PRESS, Theme};
-use crate::components::foundation::interact::sense_click;
-use crate::components::foundation::space::Space;
-use crate::components::foundation::tree_metrics::{ICON_SLOT, INDENT_BASE, INDENT_STEP, ROW_H};
-use crate::components::foundation::typography::TypeRole;
+use crate::style::color::{FG_HOVER, FG_PRESS, Theme};
+use crate::style::interact::sense_click;
+use crate::style::space::Space;
+use crate::style::tree_metrics::{ICON_SLOT, INDENT_BASE, INDENT_STEP, ROW_H};
+use crate::style::typography::TypeRole;
 
 /// Secondary path line under the name (Recents crumbs).
 const SUB_SIZE: f32 = 12.0;
@@ -123,7 +123,7 @@ impl<'a> FileRow<'a> {
         self
     }
 
-    /// Sticky elevated plate (surface ground under the wash).
+    /// Sticky pin: square wash (or top-radius via [`Self::elevated_top_radius`]).
     pub fn elevated(mut self, on: bool) -> Self {
         self.elevated = on;
         self
@@ -188,7 +188,7 @@ impl<'a> FileRow<'a> {
             .ctx()
             .animate_bool_with_time(resp.id.with("hov"), over, HOVER_ANIM_SECS);
 
-        let ground = if self.elevated { t.neutral_bg_secondary() } else { t.neutral_bg() };
+        let ground = t.neutral_bg_secondary();
         let (h_amt, p_amt) = (FG_HOVER, FG_PRESS);
 
         let fill = if self.selected {
@@ -363,4 +363,32 @@ fn middle_ellipsize_path_glyphon(
 
     let fallback = format!("{ellipsis} / {last}");
     if measure(&fallback) <= max_w { fallback } else { last.to_owned() }
+}
+
+fn path_parts(path: &str) -> Vec<&str> {
+    if path.contains(" / ") {
+        path.split(" / ").filter(|p| !p.is_empty()).collect()
+    } else {
+        path.split('/').filter(|p| !p.is_empty()).collect()
+    }
+}
+
+/// Display crumbs for a stored path (`/a/b/c` or `a / b / c`) → `a / b / c`.
+pub fn path_crumbs(path: &str) -> String {
+    let parts = path_parts(path);
+    if parts.is_empty() { "Home".into() } else { parts.join(" / ") }
+}
+
+/// Parent crumbs of a stored path (`/a/b/c` → `a / b`). Root → `Home`.
+pub fn parent_crumbs(path: &str) -> String {
+    let parts = path_parts(path);
+    match parts.split_last() {
+        Some((_, parent)) if !parent.is_empty() => parent.join(" / "),
+        _ => "Home".into(),
+    }
+}
+
+/// Middle-ellipsis for ` / `-joined path segments: `a / b / c / d` → `a / … / d`.
+pub fn ellipsize_path(ui: &Ui, path: &str, max_w: f32) -> String {
+    middle_ellipsize_path_glyphon(ui, path, max_w, SUB_SIZE, SUB_LINE_H)
 }

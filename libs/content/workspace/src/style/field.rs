@@ -3,19 +3,19 @@
 //! Optional leading icon, clear button, and static trailing text (e.g. `.md`).
 //! Needs `register_font_system` and `register_render_callback_resources`.
 
+use crate::widgets::GlyphonTextEdit;
 use egui::{Align, Color32, Id, Layout, Response, Stroke, StrokeKind, Ui, pos2, vec2};
-use workspace_rs::widgets::GlyphonTextEdit;
 
-use crate::components::foundation::chrome::{
-    Radius, STROKE_HAIRLINE, control_height, control_line_height, phosphor, phosphor_ui_font_id,
+use crate::style::button::icon_button_hit;
+use crate::style::chrome::{
+    Radius, STROKE_HAIRLINE, control_height, control_icon_hit, control_line_height, phosphor,
+    phosphor_ui_font_id,
 };
-use crate::components::foundation::color::{
-    FG_HOVER, FG_PRESS, QUIET_PLATE_HOVER, QUIET_PLATE_PRESS, Theme,
-};
-use crate::components::foundation::interact::{ControlFills, interact_fill, sense_click};
-use crate::components::foundation::layout::{inset, paint_control_pads, place_at};
-use crate::components::foundation::space::control as control_space;
-use crate::components::foundation::typography::TypeRole;
+use crate::style::color::Theme;
+use crate::style::interact::sense_click;
+use crate::style::layout::{inset, paint_control_pads, place_at};
+use crate::style::space::control as control_space;
+use crate::style::typography::TypeRole;
 
 /// Single-line field with border region chrome and glyphon text.
 pub struct Field<'a> {
@@ -98,7 +98,10 @@ impl<'a> Field<'a> {
         self
     }
 
-    /// Show a clear control when the buffer is non-empty.
+    /// Show a Phosphor X when the buffer is non-empty.
+    ///
+    /// Same mark and size as a leading field icon ([`phosphor_ui_font_id`]) and
+    /// chip dismiss ([`control_icon_hit`]).
     pub fn clearable(mut self, on: bool) -> Self {
         self.clearable = on;
         self
@@ -193,7 +196,7 @@ impl<'a> Field<'a> {
         let height = control_height();
         let width = self
             .width
-            .unwrap_or_else(|| crate::components::ui_width(ui).max(1.0));
+            .unwrap_or_else(|| crate::style::ui_width(ui).max(1.0));
         // Host chrome is click-only (no FOCUSABLE) — focus lives on `edit_id`.
         let (rect, mut response) = ui.allocate_exact_size(vec2(width, height), sense_click());
 
@@ -238,14 +241,11 @@ impl<'a> Field<'a> {
             x += ir.width() + icon_gap.pts();
         }
 
-        // Layout: [edit] [.ext] [× clear] — extension stays on the name,
+        // Layout: [edit] [.ext] [X clear] — extension stays on the name,
         // clear is outermost (not between stem and suffix).
         let show_clear = self.clearable && !self.text.is_empty();
-        let clear_w = if show_clear {
-            mid_h.min(control_height() - pad_y.pts()) + icon_gap.pts()
-        } else {
-            0.0
-        };
+        let clear_sz = control_icon_hit();
+        let clear_w = if show_clear { clear_sz + icon_gap.pts() } else { 0.0 };
         let trail_g = self.trailing_static.as_ref().map(|s| {
             ui.painter()
                 .layout_no_wrap(s.clone(), TypeRole::Body.font_id(), Color32::PLACEHOLDER)
@@ -295,35 +295,14 @@ impl<'a> Field<'a> {
 
         if show_clear {
             x += icon_gap.pts();
-            let clear_sz = mid_h.min(control_height() - pad_y.pts());
-            let cr = egui::Rect::from_min_size(pos2(x, mid.top()), vec2(clear_sz, mid_h));
-            let cresp = ui.interact(cr, host.with("clear_hit"), sense_click());
-            let over = ui.ctx().rect_contains_pointer(ui.layer_id(), cr);
-            let ground = if focused { t.neutral_bg() } else { t.neutral_bg_secondary() };
-            let (h_amt, p_amt) =
-                if focused { (FG_HOVER, FG_PRESS) } else { (QUIET_PLATE_HOVER, QUIET_PLATE_PRESS) };
-            let fills = ControlFills {
-                rest: ground,
-                hover: t.wash_toward_neutral_fg(ground, h_amt),
-                press: t.wash_toward_neutral_fg(ground, p_amt),
-            };
-            let fill = interact_fill(
-                ui.ctx(),
-                host.with("clear"),
-                over,
-                cresp.is_pointer_button_down_on(),
-                cresp.clicked(),
-                fills,
+            let cr = egui::Rect::from_center_size(
+                pos2(x + clear_sz / 2.0, mid.center().y),
+                vec2(clear_sz, clear_sz),
             );
-            ui.painter().rect_filled(cr, Radius::Sm.corner(), fill);
-            let hover_t = ui.ctx().animate_bool(host.with("clear_ink"), over);
-            let ink = t
-                .neutral_fg_secondary()
-                .lerp_to_gamma(t.neutral_fg(), hover_t);
-            let xg = ui
-                .painter()
-                .layout_no_wrap("×".into(), TypeRole::Body.font_id(), ink);
-            ui.painter().galley(cr.center() - xg.size() / 2.0, xg, ink);
+            let ground = if focused { t.neutral_bg() } else { t.neutral_bg_secondary() };
+            let (cresp, _) = place_at(ui, cr, Layout::left_to_right(Align::Center), |ui| {
+                icon_button_hit(ui, t, phosphor::X, false, ground, clear_sz)
+            });
             if cresp.clicked() {
                 self.text.clear();
                 if self.sticky {
@@ -339,7 +318,7 @@ impl<'a> Field<'a> {
         if response.secondary_clicked() {
             ui.memory_mut(|m| m.request_focus(edit_id));
         }
-        if let Some(cmd) = crate::components::context_menu::show(&response, t, |e| {
+        if let Some(cmd) = crate::style::context_menu::show(&response, t, |e| {
             e.item(phosphor::SCISSORS, "Cut", FieldEditCmd::Cut);
             e.item(phosphor::COPY, "Copy", FieldEditCmd::Copy);
             e.item(phosphor::CLIPBOARD_TEXT, "Paste", FieldEditCmd::Paste);

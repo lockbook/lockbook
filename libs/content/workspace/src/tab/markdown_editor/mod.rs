@@ -546,7 +546,7 @@ impl MdRender {
 
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
-        let ctx = Context::default();
+        let ctx = test_egui_ctx();
         let ws_seq = crate::seq::ws_seq(&ctx);
         Self {
             ctx,
@@ -814,7 +814,7 @@ impl Editor {
     #[cfg(test)]
     pub(crate) fn test(md: &str) -> Self {
         let files = Arc::new(RwLock::new(FileCache::empty()));
-        let ctx = Context::default();
+        let ctx = test_egui_ctx();
         let core = Lb::init(lb_rs::model::core_config::Config {
             writeable_path: format!("/tmp/{}", Uuid::new_v4()),
             logs: false,
@@ -1446,8 +1446,11 @@ impl Editor {
                         // Editor background, bounded to the viewport (see the
                         // `fill(TRANSPARENT)` note on the Frame). First shape in
                         // the scope, so it sits behind all content.
-                        ui.painter()
-                            .rect_filled(canvas_rect, 0.0, ui.visuals().extreme_bg_color);
+                        ui.painter().rect_filled(
+                            canvas_rect,
+                            0.0,
+                            self.edit.renderer.ctx.get_lb_theme().neutral_bg(),
+                        );
                         self.edit.scroll_area.touch_scroll = touch_scroll;
                         // An armed touch reorder owns the gesture — don't
                         // scroll the body under the dragged item.
@@ -2115,6 +2118,18 @@ pub fn register_fonts(fonts: &mut FontDefinitions) {
             .unwrap()
             .push("phosphor".to_owned());
     }
+}
+
+/// Headless `Context` with the same fonts as production, including Phosphor.
+/// `Context::default()` never binds `FontFamily::Name("phosphor")`, so any
+/// test that shapes a toolbar/icon galley panics in epaint.
+#[cfg(test)]
+pub(crate) fn test_egui_ctx() -> Context {
+    let ctx = Context::default();
+    let mut fonts = FontDefinitions::default();
+    register_fonts(&mut fonts);
+    ctx.set_fonts(fonts);
+    ctx
 }
 
 /// Headless editor harness matching the Android FFI surface so tests read

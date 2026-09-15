@@ -42,7 +42,7 @@ impl MdLabel {
     /// `width`. Advances `ui`'s cursor past the rendered block. Returns the
     /// shaped text areas for the caller to submit via `GlyphonRendererCallback`.
     pub fn show(&mut self, ui: &mut Ui, md: &str, width: f32) -> Vec<TextBufferArea> {
-        let top_left = ui.min_rect().min;
+        let top_left = ui.next_widget_position();
         let (text_areas, rect) = self.paint_at(ui, md, top_left, width);
         ui.advance_cursor_after_rect(rect);
         text_areas

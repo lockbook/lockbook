@@ -36,7 +36,7 @@ use workspace_rs::file_cache::{FileCache, FilesExt};
 use crate::components::domain::pins;
 use crate::components::{
     FileRow, LIST_PAD, ROW_H, Radius, STROKE_HAIRLINE, Space, Spacer, Theme, TypeRole,
-    context_menu, file_row_icon, phosphor, with_overlay_scroll,
+    context_menu, file_row_icon, phosphor, pin_shadow, with_overlay_scroll,
 };
 use crate::shell::ShellApp;
 use crate::shell::action::Action;
@@ -916,7 +916,6 @@ pub(crate) fn paint_sticky_viewport(
         paint(ui, t, flat[i], paint_rect, hit_rect, false, None);
     }
 
-    let hairline_id = sticky.iter().rev().find(|s| s.elevated()).map(|s| s.row.id);
     for s in &sticky {
         let top = view_screen.top() + s.vy;
         // Full-bleed sticky plate (no side gutters).
@@ -930,19 +929,23 @@ pub(crate) fn paint_sticky_viewport(
             continue;
         }
         let elevated = s.elevated();
-        // Only elevated pins need a plate fill (secondary). Boundary-pushed
-        // stickies used to paint square `neutral_bg` full-bleed — same color as
-        // the sheet/tree canvas, but sharp corners over a rounded Outside plate
-        // border (delete / folder pick). Skip that paint entirely.
+        // Workspace paper + pin_shadow. Opaque fill so inflow rows can't
+        // show through; same `neutral_bg` as the editor canvas.
         if elevated {
-            // Top of the sticky stack flush with the plate top → match plate NW/NE.
-            // (Not `vy <= 0.5` alone: mid-stack pins have clip_top > 0.)
+            let shadow = pin_shadow();
+            let extra = shadow.offset[1] as f32 + shadow.blur as f32;
+            let shadow_clip = Rect::from_min_max(
+                clip.min,
+                pos2(clip.max.x, (clip.max.y + extra).min(view_clip.max.y)),
+            );
             let at_plate_top = pin_top_radius > 0 && s.clip_top <= 0.5;
             let corners = if at_plate_top {
                 egui::CornerRadius { nw: pin_top_radius, ne: pin_top_radius, sw: 0, se: 0 }
             } else {
                 egui::CornerRadius::ZERO
             };
+            let painter = ui.painter().with_clip_rect(shadow_clip);
+            painter.add(shadow.as_shape(full, corners));
             ui.painter()
                 .with_clip_rect(clip)
                 .rect_filled(full, corners, t.neutral_bg_secondary());
@@ -953,15 +956,6 @@ pub(crate) fn paint_sticky_viewport(
         ui.set_clip_rect(clip.intersect(prev_clip));
         paint(ui, t, s.row, full, hit, elevated, Some(s.vy));
         ui.set_clip_rect(prev_clip);
-        // Hairline after row paint so elevated hover wash (full plate height)
-        // cannot cover the pin / in-flow divider.
-        if elevated && hairline_id == Some(s.row.id) {
-            ui.painter().with_clip_rect(clip).hline(
-                full.x_range(),
-                full.bottom() - 0.5,
-                egui::Stroke::new(crate::components::STROKE_HAIRLINE, t.neutral()),
-            );
-        }
     }
 
     bg_resp

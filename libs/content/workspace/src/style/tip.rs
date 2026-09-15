@@ -15,10 +15,10 @@ use egui::{
     Align2, Area, Context, Frame, Id, Margin, Order, Pos2, Response, Sense, Ui, Vec2, vec2,
 };
 
-use crate::components::foundation::chrome::{Radius, STROKE_HAIRLINE, TIP_CHAIN_GRACE_SECS};
-use crate::components::foundation::color::ThemeExt;
-use crate::components::foundation::space::Space;
-use crate::components::foundation::typography::TypeRole;
+use super::chrome::{Radius, STROKE_HAIRLINE, TIP_CHAIN_GRACE_SECS};
+use super::color::ThemeExt;
+use super::space::Space;
+use super::typography::TypeRole;
 
 /// Compact one-line tips (toolbar / footer).
 const MAX_W: f32 = 280.0;
@@ -62,7 +62,6 @@ pub fn tip_card_placed(
 fn note_tip_shown(ctx: &Context, host: Id) {
     let now = ctx.input(|i| i.time);
     ctx.data_mut(|d| {
-        // Mut access keeps temps alive across frames (gaps between hosts).
         d.insert_temp(Id::new(LAST_TIP_TIME), now);
         d.insert_temp(Id::new(OPEN_TIP_HOST), host);
     });
@@ -78,11 +77,11 @@ fn chill_tip_session(ctx: &Context) {
 
 /// egui / workspace-aligned delay + chaining + click-dismiss.
 fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
-    // Prefer layer hit over raw `hovered()` near interact_radius edges.
-    let pointer_over = ctx.rect_contains_pointer(resp.layer_id, resp.interact_rect);
+    // Widget hit, not `layer_id_at` — canvas islands live on a custom overlay
+    // layer that is not an Area, so `rect_contains_pointer(layer, …)` is always
+    // false there even when the control is hovered.
+    let pointer_over = resp.contains_pointer();
     if !pointer_over || ctx.dragged_id().is_some() {
-        // Left this host: drop “stay open” so re-entry waits a full dwell again.
-        // Keep LAST_TIP_TIME so a short hop to a neighbor can still chain.
         end_open_if_host(ctx, resp.id);
         return false;
     }
@@ -115,15 +114,11 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
         )
     });
 
-    // Click on this host (or any click while over it): dismiss and chill chain.
-    // Workspace: click-then-rest must not open; we also clear last-shown so a
-    // post-click wiggle cannot chain-reopen.
     if any_click || resp.clicked() || resp.secondary_clicked() || resp.middle_clicked() {
         chill_tip_session(ctx);
         return false;
     }
 
-    // Click more recent than move → stay dismissed until a later still dwell.
     let clicked_more_recently_than_moved =
         time_since_last_click < time_since_last_pointer_movement + 0.1;
     if clicked_more_recently_than_moved {
@@ -131,7 +126,6 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
         return false;
     }
 
-    // Don’t flash tips while scrolling.
     if time_since_last_scroll < tooltip_delay {
         ctx.request_repaint_after_secs(tooltip_delay - time_since_last_scroll);
         return false;
@@ -145,22 +139,17 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
 
     let is_our_tip_open = open_host == Some(resp.id);
     let seconds_since_last_tip = now - last_shown;
-    // Chain only for a short hop between hosts — never `tooltip_delay` (that
-    // made “leave for seconds and re-enter” feel like chain forever).
     let chain_window = f64::from(tooltip_grace_time).max(f64::from(TIP_CHAIN_GRACE_SECS));
     let in_tip_chain = seconds_since_last_tip < chain_window;
 
     if is_our_tip_open {
-        // Same host still hovered — stay open without re-waiting.
         return true;
     }
 
     if in_tip_chain {
-        // Neighbor host while chain is still warm — open without full dwell.
         return true;
     }
 
-    // First tip (or chain expired): require still pointer + delay, like egui.
     if style.interaction.show_tooltips_only_when_still
         && !(pointer_still && smooth_scroll == Vec2::ZERO)
     {
@@ -180,7 +169,6 @@ fn should_show_tip(ctx: &Context, resp: &Response) -> bool {
     true
 }
 
-/// Clear “this host’s tip is open” when the pointer leaves (keep last-shown time).
 fn end_open_if_host(ctx: &Context, host: Id) {
     ctx.data_mut(|d| {
         if d.get_temp::<Id>(Id::new(OPEN_TIP_HOST)) == Some(host) {

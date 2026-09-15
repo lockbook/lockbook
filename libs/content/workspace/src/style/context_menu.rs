@@ -12,12 +12,12 @@ use egui::{
 };
 use std::sync::Arc;
 
-use crate::components::foundation::chrome::{Radius, STROKE_HAIRLINE, control_height};
-use crate::components::foundation::color::{FG_HOVER, Theme};
-use crate::components::foundation::space::Space;
-use crate::components::foundation::space::control as control_space;
-use crate::components::foundation::spacer::Spacer;
-use crate::components::foundation::typography::TypeRole;
+use crate::style::chrome::{Radius, STROKE_HAIRLINE, control_height};
+use crate::style::color::{FG_HOVER, Theme};
+use crate::style::space::Space;
+use crate::style::space::control as control_space;
+use crate::style::spacer::Spacer;
+use crate::style::typography::TypeRole;
 
 // Placement bounds (not spacing language).
 const MIN_W: f32 = 112.0;
@@ -142,6 +142,33 @@ impl<T> Default for Entries<T> {
 pub fn show<T: Clone>(
     resp: &Response, t: &Theme, build: impl FnOnce(&mut Entries<T>),
 ) -> Option<T> {
+    show_open(resp, t, resp.secondary_clicked(), build)
+}
+
+/// Like [`show`], but a primary click opens the menu (picker / “copy as…”).
+pub fn show_click<T: Clone>(
+    resp: &Response, t: &Theme, build: impl FnOnce(&mut Entries<T>),
+) -> Option<T> {
+    show_open(resp, t, resp.clicked(), build)
+}
+
+/// True when this response is the host of the open menu.
+pub fn is_open(resp: &Response) -> bool {
+    is_open_id(&resp.ctx, resp.id)
+}
+
+/// True when `id` is the host of the open menu.
+pub fn is_open_id(ctx: &egui::Context, id: Id) -> bool {
+    ctx.memory(|m| {
+        m.data
+            .get_temp::<OpenState>(open_id())
+            .is_some_and(|s| s.host == id)
+    })
+}
+
+fn show_open<T: Clone>(
+    resp: &Response, t: &Theme, open: bool, build: impl FnOnce(&mut Entries<T>),
+) -> Option<T> {
     let ctx = &resp.ctx;
 
     let mut menu = Entries::new();
@@ -151,7 +178,7 @@ pub fn show<T: Clone>(
         return None;
     }
 
-    if resp.secondary_clicked() {
+    if open {
         let press = ctx
             .pointer_interact_pos()
             .or_else(|| ctx.input(|i| i.pointer.hover_pos()))
@@ -169,7 +196,7 @@ pub fn show<T: Clone>(
         return None;
     }
 
-    let just_opened = resp.secondary_clicked();
+    let just_opened = open;
     let mut chosen: Option<T> = None;
     let with_icons = menu.any_icon();
     let pointer = ctx
@@ -296,6 +323,7 @@ fn paint_rows<T>(
     out
 }
 
+#[allow(clippy::too_many_arguments)]
 fn paint_one_row(
     ui: &mut Ui, t: &Theme, row_id: Id, content_w: f32, with_icons: bool,
     icon: Option<&'static str>, label: &str, danger: bool,
@@ -316,7 +344,7 @@ fn paint_one_row(
             t.wash_toward_neutral_fg(t.neutral_bg(), FG_HOVER)
         };
         let fill = t.neutral_bg().lerp_to_gamma(target, hover_t);
-        let wash = rect.shrink(crate::components::foundation::chrome::row_wash_inset());
+        let wash = rect.shrink(crate::style::chrome::row_wash_inset());
         ui.painter().rect_filled(wash, Radius::Sm.corner(), fill);
     }
 
@@ -354,6 +382,6 @@ fn paint_one_row(
 
 fn menu_frame(t: &Theme) -> Frame {
     let pad = menu_pad();
-    crate::components::foundation::chrome::canvas_overlay_frame(t, Space::Xxs)
+    crate::style::chrome::canvas_overlay_frame(t, Space::Xxs)
         .inner_margin(Margin::symmetric(pad, pad))
 }

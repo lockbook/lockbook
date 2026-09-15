@@ -1,6 +1,6 @@
-//! Buttons: primary (ink fill) or quiet (canvas rest). Danger / accent are tones
-//! on the solid primary plate (same hover/press wash toward `neutral_bg`; label
-//! and kbd use `neutral_bg` ink).
+//! Buttons: primary (ink fill), secondary (off-canvas plate), or quiet (canvas
+//! rest). Danger / accent are tones on the solid primary plate (same hover/press
+//! wash toward `neutral_bg`; label and kbd use `neutral_bg` ink).
 //! Padding uses [`Spacer`]s (`control` space tokens) so F2 paints pad bands.
 
 use egui::{
@@ -8,19 +8,22 @@ use egui::{
 };
 use std::sync::Arc;
 
-use crate::components::foundation::chrome::{
+use crate::style::chrome::{
     HOVER_ANIM_SECS, KbdPart, Radius, STROKE_HAIRLINE, Shortcut, control_height, phosphor,
     phosphor_font_id, phosphor_ui_font_id,
 };
-use crate::components::foundation::color::{BG_HOVER, BG_PRESS, FG_HOVER, FG_PRESS, Theme};
-use crate::components::foundation::interact::{ControlFills, sense_click};
-use crate::components::foundation::layout::{inset, paint_control_pads};
-use crate::components::foundation::space::control as control_space;
-use crate::components::foundation::typography::TypeRole;
+use crate::style::color::{BG_HOVER, BG_PRESS, FG_HOVER, Theme};
+use crate::style::interact::{ControlFills, sense_click};
+use crate::style::layout::{inset, paint_control_pads};
+use crate::style::space::control as control_space;
+use crate::style::typography::TypeRole;
 
 #[derive(Clone, Copy)]
 enum Treatment {
     Primary,
+    /// Off-canvas plate (`neutral_bg_secondary`) — quieter than primary, visible
+    /// on canvas (unlike quiet, whose rest matches the surface).
+    Secondary,
     Quiet,
 }
 
@@ -57,6 +60,12 @@ impl<'a> Button<'a> {
     /// Solid commit — one per decision region.
     pub fn primary(t: &'a Theme, label: impl Into<String>) -> Self {
         Self::new(t, label, Treatment::Primary)
+    }
+
+    /// Secondary plate on canvas — `neutral_bg_secondary` rest, same ground as
+    /// chips / unfocused fields. Visible without the ink fill of [`Self::primary`].
+    pub fn secondary(t: &'a Theme, label: impl Into<String>) -> Self {
+        Self::new(t, label, Treatment::Secondary)
     }
 
     /// Quiet action — canvas rest.
@@ -103,6 +112,18 @@ impl<'a> Button<'a> {
 
     pub fn max_width(mut self, w: f32) -> Self {
         self.max_width = Some(w);
+        self
+    }
+
+    pub fn min_width(mut self, w: f32) -> Self {
+        self.min_width = Some(w);
+        self
+    }
+
+    /// Leading Phosphor glyph. Combine with a label so the mark is not the
+    /// only way to read the control.
+    pub fn icon(mut self, icon: &'static str) -> Self {
+        self.icon = Some(icon);
         self
     }
 
@@ -214,18 +235,14 @@ impl<'a> Button<'a> {
 
         let (fills, text) = self.fills_and_text();
         let fill = if self.enabled {
-            crate::components::foundation::interact::interact_fill_response(
-                ui.ctx(),
-                &response,
-                fills,
-            )
+            crate::style::interact::interact_fill_response(ui.ctx(), &response, fills)
         } else {
             fills.rest
         };
         let kbd = match self.treatment {
             // Same ink as the label on the solid plate (brand or danger).
             Treatment::Primary => text,
-            Treatment::Quiet => {
+            Treatment::Secondary | Treatment::Quiet => {
                 if self.enabled {
                     t.neutral_fg_secondary()
                 } else {
@@ -288,7 +305,7 @@ impl<'a> Button<'a> {
         if self.enabled && response.has_focus() {
             let focus_c = match self.treatment {
                 Treatment::Primary => t.neutral(),
-                Treatment::Quiet => t.neutral_fg(),
+                Treatment::Secondary | Treatment::Quiet => t.neutral_fg(),
             };
             ui.painter().rect_stroke(
                 rect,
@@ -326,6 +343,14 @@ impl<'a> Button<'a> {
                     },
                     t.neutral_fg_secondary(),
                 ),
+                Treatment::Secondary => (
+                    ControlFills {
+                        rest: t.neutral_bg_secondary(),
+                        hover: t.neutral_bg_secondary(),
+                        press: t.neutral_bg_secondary(),
+                    },
+                    t.neutral_fg_secondary(),
+                ),
                 Treatment::Quiet => (
                     ControlFills {
                         rest: t.neutral_bg(),
@@ -353,6 +378,14 @@ impl<'a> Button<'a> {
                     t.neutral_bg(),
                 )
             }
+            Treatment::Secondary => {
+                let ink = match self.tone {
+                    Tone::Brand => t.neutral_fg(),
+                    Tone::Danger => t.danger(),
+                    Tone::Accent => t.accent(),
+                };
+                (crate::style::interact::quiet_secondary_fills(t), ink)
+            }
             Treatment::Quiet => {
                 let ink = match self.tone {
                     Tone::Brand => t.neutral_fg(),
@@ -360,7 +393,7 @@ impl<'a> Button<'a> {
                     // Quiet+accent is rare; ink-only emphasis if someone chains it.
                     Tone::Accent => t.accent(),
                 };
-                let fills = crate::components::foundation::interact::quiet_canvas_fills(t);
+                let fills = crate::style::interact::quiet_canvas_fills(t);
                 (fills, ink)
             }
         }
@@ -419,7 +452,7 @@ fn paint_galley_layout_mid(
 /// Hit/hover wash is [`control_height`] square. Glyph size is fixed (phosphor UI
 /// font) — for a tighter hit with the same mark, use [`icon_button_hit`].
 ///
-/// One [`animate_bool_with_time`] clock drives wash + muted→fg ink together.
+/// One [`animate_bool_with_time`] clock drives the hover wash.
 pub fn icon_button(
     ui: &mut Ui, t: &Theme, icon: &'static str, active: bool, ground: Color32,
 ) -> Response {
@@ -444,25 +477,15 @@ pub fn icon_button_glyph(
     let (rect, resp) = ui.allocate_exact_size(vec2(hit, hit), sense_click());
     let hover = icon_hover_t(ui, &resp, rect);
     // Ghost wash on hover only — darkens `ground`, never replaces it with canvas.
+    // Same amount whether or not the mark is active (active is ink, not plate).
     if hover > 0.0 {
-        let amt = if active {
-            // Slightly stronger so active still reads pressable.
-            FG_PRESS * hover
-        } else {
-            FG_HOVER * hover
-        };
-        let wash = t.wash_toward_neutral_fg(ground, amt);
-        // Sm matches compact icon hits (tab close X); Control reads as a pill
-        // on titleband-sized (~22pt) washes.
+        let wash = t.wash_toward_neutral_fg(ground, FG_HOVER * hover);
+        // Sm matches compact icon hits (tab close X); Control reads as a
+        // pill on titleband-sized (~22pt) washes.
         ui.painter().rect_filled(rect, Radius::Sm.corner(), wash);
     }
-    // Idle muted → primary on hover; active stays primary.
-    let color = if active {
-        t.neutral_fg()
-    } else {
-        t.neutral_fg_secondary()
-            .lerp_to_gamma(t.neutral_fg(), hover)
-    };
+    // Idle: foreground. Applied / selected: accent.
+    let color = if active { t.accent() } else { t.neutral_fg() };
     let g = ui
         .painter()
         .layout_no_wrap(icon.into(), phosphor_font_id(glyph), Color32::PLACEHOLDER);
