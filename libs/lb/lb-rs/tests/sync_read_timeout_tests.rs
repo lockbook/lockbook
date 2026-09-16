@@ -28,6 +28,7 @@ enum Mode {
 struct Proxy {
     url: String,
     mode: Arc<Mutex<Mode>>,
+    conns: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>>,
 }
 
 impl Proxy {
@@ -35,13 +36,15 @@ impl Proxy {
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let addr = listener.local_addr().unwrap();
         let mode = Arc::new(Mutex::new(Mode::Forward));
+        let conns: Arc<Mutex<Vec<tokio::task::JoinHandle<()>>>> = Arc::new(Mutex::new(Vec::new()));
         let mode_clone = mode.clone();
+        let conns_clone = conns.clone();
         tokio::spawn(async move {
             loop {
                 let Ok((inbound, _)) = listener.accept().await else { break };
                 let backend = backend.clone();
                 let mode = *mode_clone.lock().unwrap();
-                tokio::spawn(async move {
+                let handle = tokio::spawn(async move {
                     match mode {
                         Mode::Blackhole => {
                             tokio::time::sleep(Duration::from_secs(120)).await;
@@ -66,13 +69,18 @@ impl Proxy {
                         }
                     }
                 });
+                conns_clone.lock().unwrap().push(handle);
             }
         });
-        Self { url: format!("http://{addr}"), mode }
+        Self { url: format!("http://{addr}"), mode, conns }
     }
 
+    /// Drop pooled TCP connections so the next request observes the new mode.
     fn set(&self, mode: Mode) {
         *self.mode.lock().unwrap() = mode;
+        for handle in self.conns.lock().unwrap().drain(..) {
+            handle.abort();
+        }
     }
 }
 
