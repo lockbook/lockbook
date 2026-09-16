@@ -199,14 +199,9 @@ fn detect_query(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
         let g = grapheme_at(buffer, i);
 
         if g == ":" {
-            // Don't trigger when ':' immediately follows a word character, so
-            // tokens like "http://", "e.g.:", or "v1.0:" are ignored.
-            if i > 0
-                && grapheme_at(buffer, i - 1)
-                    .chars()
-                    .next()
-                    .is_some_and(|c| c.is_alphanumeric())
-            {
+            // Don't trigger when ':' is phrase punctuation after a word, including
+            // a word wrapped in markdown: `**word**:`, `*word*:`, `` `code`: ``.
+            if colon_follows_word(buffer, i) {
                 return None;
             }
             colon_idx = i;
@@ -244,6 +239,27 @@ fn detect_query(buffer: &Buffer) -> Option<(Grapheme, Grapheme)> {
     }
 
     Some((Grapheme(colon_idx), Grapheme(j)))
+}
+
+/// Closers that wrap a word immediately before a colon (`**word**:`, `[label]:`).
+fn is_markup_closer(c: char) -> bool {
+    matches!(c, '*' | '_' | '~' | '`' | ')' | ']' | '"' | '\'')
+}
+
+/// True when `:` follows a word (possibly wrapped in emphasis/code/link markup).
+fn colon_follows_word(buffer: &Buffer, colon_idx: usize) -> bool {
+    let mut k = colon_idx;
+    while k > 0 {
+        let Some(c) = grapheme_at(buffer, k - 1).chars().next() else {
+            break;
+        };
+        if is_markup_closer(c) {
+            k -= 1;
+            continue;
+        }
+        return c.is_alphanumeric();
+    }
+    false
 }
 
 fn query_from_range(buffer: &Buffer, range: (Grapheme, Grapheme)) -> Option<String> {
@@ -550,8 +566,35 @@ impl MdEdit {
 
 #[cfg(test)]
 mod tests {
-    use super::{parse_ascii_shortcode, used_in_document};
+    use super::{detect_query, parse_ascii_shortcode, used_in_document};
     use lb_rs::model::text::buffer::Buffer;
+
+    fn cursor_at_end(s: &str) -> Buffer {
+        let mut buffer = Buffer::from(s);
+        let end = buffer.current.segs.last_cursor_position();
+        buffer.current.selection = (end, end);
+        buffer
+    }
+
+    #[test]
+    fn colon_after_word_does_not_trigger() {
+        assert!(detect_query(&cursor_at_end("word:")).is_none());
+        assert!(detect_query(&cursor_at_end("**word**:")).is_none());
+        assert!(detect_query(&cursor_at_end("*word*:")).is_none());
+        assert!(detect_query(&cursor_at_end("_word_:")).is_none());
+        assert!(detect_query(&cursor_at_end("`code`:")).is_none());
+        assert!(detect_query(&cursor_at_end("~~strike~~:")).is_none());
+        assert!(detect_query(&cursor_at_end("[label]:")).is_none());
+        assert!(detect_query(&cursor_at_end("http://")).is_none());
+    }
+
+    #[test]
+    fn colon_after_space_or_start_does_trigger() {
+        assert!(detect_query(&cursor_at_end(":")).is_some());
+        assert!(detect_query(&cursor_at_end("word :")).is_some());
+        assert!(detect_query(&cursor_at_end("**word** :")).is_some());
+        assert!(detect_query(&cursor_at_end("word :smi")).is_some());
+    }
 
     #[test]
     fn empty_note_has_no_in_doc_recents() {
