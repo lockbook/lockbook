@@ -113,10 +113,11 @@ clients/apple/lockbook.xcworkspace/xcshareddata/swiftpm/Package.resolved
 
 # website
 public-site/public
-public-site/templates/base.html 
 public-site/trunk-build
 book/
 
 .vscode
 perf-investigation/
 perf-investigation/
+
+public-site/static/wasm/
