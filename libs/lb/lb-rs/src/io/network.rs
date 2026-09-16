@@ -25,7 +25,7 @@ const STREAM_BODY_THRESHOLD: usize = 1024 * 1024 * 1024;
 /// instead of holding the sync mutex. They do not run while bytes are moving
 /// and cannot detect a live TCP peer that never sends HTTP.
 #[cfg(not(target_family = "wasm"))]
-const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
+const TCP_KEEPALIVE: Duration = Duration::from_secs(15);
 
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
