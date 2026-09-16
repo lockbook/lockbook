@@ -157,14 +157,23 @@ async fn sync_read_timeout_via_proxy() {
     proxy.set(Mode::Forward);
     core.sync().await.unwrap();
 
-    // Trickle the *download*: a second client pulls the 2 MiB doc with
-    // response bytes dripping for >30s. A total `timeout()` would kill
-    // it; `read_timeout` must not.
+    // A second client that already has v1 locally will pull v2 during
+    // sync (fetch_required_docs only downloads when a prior hmac exists).
+    // Trickle the response so that GetDoc lasts >30s under the sync mutex.
     let core2 = test_core().await;
     core2
         .import_account(&core.export_account_private_key().unwrap(), Some(&proxy.url))
         .await
         .unwrap();
+    core2.sync().await.unwrap();
+    let remote_doc = core2.get_by_path("/big.bin").await.unwrap();
+    core2.read_document(remote_doc.id, false).await.unwrap();
+
+    core.write_document(doc.id, &vec![1u8; LARGE_DOC_BYTES])
+        .await
+        .unwrap();
+    core.sync().await.unwrap();
+
     proxy.set(Mode::Trickle);
     let start = Instant::now();
     core2.sync().await.unwrap();
