@@ -226,8 +226,9 @@ pub struct MdEdit {
     /// when `None`.
     pub in_progress_selection: Option<(Grapheme, Grapheme)>,
 
-    /// Endpoint the last Select / handle-drag moved. `scroll_to_cursor`
-    /// follows this when set, then it is cleared.
+    /// Offset of the selection handle being dragged (Android), so auto-scroll
+    /// follows the moving handle rather than always the selection end. `None`
+    /// outside a handle drag — scroll then falls back to the selection end.
     pub in_progress_handle: Option<Grapheme>,
 
     /// Active list-item drag-to-reorder — `Some` from grab until release.
@@ -993,14 +994,10 @@ impl Editor {
 
         let all_selected = self.edit.renderer.buffer.current.selection
             == (0.into(), self.edit.renderer.last_cursor_position());
-        // iOS handle touch-down re-sets the same range (no unique moving
-        // end). Don't scroll-to-cursor — that would follow `.1` and jump
-        // to the far end of a long selection.
         if self.initialized
             && buf_resp.selection_user_moved
             && !all_selected
             && self.edit.in_progress_block_drag.is_none()
-            && self.edit.in_progress_handle.is_some()
         {
             self.edit.pending_scroll = Some(ScrollTarget::Cursor);
         }
@@ -1522,30 +1519,6 @@ impl Editor {
                                     top += height;
                                     walked += height;
                                     id = next_id;
-                                }
-                            }
-                            // Also paint the two selection-endpoint rows so
-                            // off-screen iOS caret/selection geometry still
-                            // resolves.
-                            let sel = self.edit.renderer.buffer.current.selection;
-                            for offset in [sel.0, sel.1] {
-                                let Some(target) = content.find_text_row(offset) else {
-                                    continue;
-                                };
-                                if resp
-                                    .visible
-                                    .iter()
-                                    .chain(neighbors.iter())
-                                    .any(|r| r.id == target)
-                                {
-                                    continue;
-                                }
-                                if let Some(row) = scroll_content::row_from_visible(
-                                    &content,
-                                    &resp.visible,
-                                    target,
-                                ) {
-                                    neighbors.push(row);
                                 }
                             }
                             (resp.visible, neighbors, resp.scrollbar_grab)
