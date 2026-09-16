@@ -19,6 +19,13 @@ const STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 
 const STREAM_BODY_THRESHOLD: usize = 1024 * 1024 * 1024;
 
+/// Per-read stall timeout for API calls. Resets after each successful read, so
+/// large document transfers still complete; a hung socket cannot hold the
+/// sync mutex indefinitely. Not available on wasm (browser fetch has no
+/// equivalent ClientBuilder API).
+#[cfg(not(target_family = "wasm"))]
+const READ_TIMEOUT: Duration = Duration::from_secs(30);
+
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
         match err {
@@ -59,12 +66,21 @@ pub struct Network {
 
 impl Default for Network {
     fn default() -> Self {
-        Self {
-            client: Default::default(),
-            get_code_version,
-            get_time,
-            client_type: ClientType::Unknown,
-        }
+        Self { client: http_client(), get_code_version, get_time, client_type: ClientType::Unknown }
+    }
+}
+
+fn http_client() -> Client {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Client::builder()
+            .read_timeout(READ_TIMEOUT)
+            .build()
+            .expect("reqwest client")
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Client::new()
     }
 }
 
@@ -95,9 +111,11 @@ impl Network {
         let url = &account.api_url;
         let start = Instant::now();
         let body = body_for(serialized_request);
+        let method =
+            reqwest::Method::from_bytes(T::METHOD.as_str().as_bytes()).expect("valid HTTP method");
         let sent = self
             .client
-            .request(T::METHOD, format!("{}{}", url, T::ROUTE).as_str())
+            .request(method, format!("{}{}", url, T::ROUTE).as_str())
             .body(body)
             .header("Accept-Version", client_version)
             .header(WIRE_FORMAT_HEADER, wire_format.as_str())

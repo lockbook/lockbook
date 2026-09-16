@@ -39,9 +39,9 @@ indexmap = { version = "2.5.0", features = ["rayon"] }
 libsecp256k1 = "0.7.1"
 qrcode-generator = "4.1.6"
 rand = "0.8.4"
-reqwest = { version = "0.11.1", default-features = false, features = [
+reqwest = { version = "0.13", default-features = false, features = [
     "json",
-    "rustls-tls",
+    "rustls",
     "stream",
 ] }
 serde = { version = "1.0", features = ["derive"] }
