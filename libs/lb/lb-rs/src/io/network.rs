@@ -19,6 +19,14 @@ const STREAM_CHUNK_BYTES: usize = 4 * 1024 * 1024;
 
 const STREAM_BODY_THRESHOLD: usize = 1024 * 1024 * 1024;
 
+/// Idle time before TCP keepalive probes. After suspend, a dropped HTTP
+/// response leaves a half-open socket: the request was ACKed, we are blocked
+/// on read, and nothing will be retransmitted. Probes then fail the read
+/// instead of holding the sync mutex. They do not run while bytes are moving
+/// and cannot detect a live TCP peer that never sends HTTP.
+#[cfg(not(target_family = "wasm"))]
+const TCP_KEEPALIVE: Duration = Duration::from_secs(30);
+
 impl<E> From<ErrorWrapper<E>> for ApiError<E> {
     fn from(err: ErrorWrapper<E>) -> Self {
         match err {
@@ -59,12 +67,21 @@ pub struct Network {
 
 impl Default for Network {
     fn default() -> Self {
-        Self {
-            client: Default::default(),
-            get_code_version,
-            get_time,
-            client_type: ClientType::Unknown,
-        }
+        Self { client: http_client(), get_code_version, get_time, client_type: ClientType::Unknown }
+    }
+}
+
+fn http_client() -> Client {
+    #[cfg(not(target_family = "wasm"))]
+    {
+        Client::builder()
+            .tcp_keepalive(TCP_KEEPALIVE)
+            .build()
+            .expect("reqwest client")
+    }
+    #[cfg(target_family = "wasm")]
+    {
+        Client::new()
     }
 }
 
