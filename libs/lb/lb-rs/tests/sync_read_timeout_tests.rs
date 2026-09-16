@@ -11,11 +11,9 @@ use tokio::io::{AsyncRead, AsyncReadExt, AsyncWrite, AsyncWriteExt};
 use tokio::net::{TcpListener, TcpStream};
 
 const LARGE_DOC_BYTES: usize = 2 * 1024 * 1024;
-const TRICKLE_DOC_BYTES: usize = 512 * 1024;
-/// ~43s to push 512 KiB — longer than `READ_TIMEOUT` (30s) if the timer
-/// were a total deadline, short enough that a stall-resetting timeout
-/// still succeeds.
-const TRICKLE_BYTES_PER_SEC: usize = 12 * 1024;
+/// ~41s to pull 2 MiB. Slow enough that a total 30s deadline would kill
+/// the download; `read_timeout` resets on each chunk so it must succeed.
+const TRICKLE_BYTES_PER_SEC: usize = 50 * 1024;
 const READ_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[derive(Clone, Copy)]
@@ -58,11 +56,16 @@ impl Proxy {
                             }
                         }
                         Mode::Trickle => {
+                            // Full-speed client→server so the request finishes
+                            // and the server starts responding. Rate-limit only
+                            // the response — that's the read `read_timeout`
+                            // watches. A slow *upload* with no response bytes
+                            // yet looks identical to a stall.
                             if let Ok(outbound) = TcpStream::connect(&backend).await {
                                 let (mut ri, mut wi) = inbound.into_split();
                                 let (mut ro, mut wo) = outbound.into_split();
                                 let _ = tokio::try_join!(
-                                    copy_rate_limited(&mut ri, &mut wo, TRICKLE_BYTES_PER_SEC),
+                                    tokio::io::copy(&mut ri, &mut wo),
                                     copy_rate_limited(&mut ro, &mut wi, TRICKLE_BYTES_PER_SEC),
                                 );
                             }
@@ -154,18 +157,20 @@ async fn sync_read_timeout_via_proxy() {
     proxy.set(Mode::Forward);
     core.sync().await.unwrap();
 
-    // Trickle: data keeps moving, but the transfer lasts longer than
-    // 30s. A total `timeout()` would kill it; `read_timeout` must not.
-    proxy.set(Mode::Trickle);
-    let trickle = core.create_at_path("/trickle.bin").await.unwrap();
-    core.write_document(trickle.id, &vec![0u8; TRICKLE_DOC_BYTES])
+    // Trickle the *download*: a second client pulls the 2 MiB doc with
+    // response bytes dripping for >30s. A total `timeout()` would kill
+    // it; `read_timeout` must not.
+    let core2 = test_core().await;
+    core2
+        .import_account(&core.export_account_private_key().unwrap(), Some(&proxy.url))
         .await
         .unwrap();
+    proxy.set(Mode::Trickle);
     let start = Instant::now();
-    core.sync().await.unwrap();
+    core2.sync().await.unwrap();
     let elapsed = start.elapsed();
     assert!(
         elapsed > READ_TIMEOUT,
-        "trickle sync finished in {elapsed:?}, need >30s to prove this is not a total timeout"
+        "trickle download finished in {elapsed:?}, need >30s to prove this is not a total timeout"
     );
 }
