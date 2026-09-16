@@ -369,7 +369,14 @@ impl<'ast> Editor {
                             if any_media {
                                 ui.add_space(5.);
                             }
-                            if toolbar_icon(ui, &t, phosphor::CAMERA, true, menu_open, "Camera") {
+                            // Accent only when the cursor is inside an image, matching link.
+                            let applied = self.edit.inline_styled(
+                                root,
+                                self.edit.renderer.buffer.current.selection,
+                                &NodeValue::Image(Default::default()),
+                            );
+                            if toolbar_icon(ui, &t, phosphor::CAMERA, applied, menu_open, "Camera")
+                            {
                                 events.push(Event::Camera);
                             }
                             any_media = true;
