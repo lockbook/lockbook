@@ -24,7 +24,8 @@ pub struct Response {
     pub markdown_editor_text_updated: bool,
     pub markdown_editor_selection_updated: bool,
     pub markdown_editor_scroll_updated: bool,
-    /// Screen rect (egui points) for the native iOS text-interaction overlay.
+    /// Screen rect (egui points) for the native text-input overlay (iOS
+    /// `MdView`, Android IME wrapper).
     pub text_interaction_rect: Option<egui::Rect>,
     pub mobile_toolbar_shown: bool,
 

@@ -19,8 +19,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
 ) -> jobject {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-        let response: AndroidResponse = obj.frame().into();
-        response
+        frame_android_response(obj)
     });
 
     match maybe_err {
@@ -45,8 +44,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrameOffloaded
 ) -> jobject {
     let maybe_err = catch_unwind(|| {
         let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-        let response: AndroidResponse = obj.frame_offloaded().into();
-        response
+        frame_offloaded_android_response(obj)
     });
 
     match maybe_err {
@@ -98,7 +96,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZ)V",
+        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZZFFFFZFF)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -114,9 +112,57 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.edit_menu_for_atom { 1 } else { 0 }),
             JValue::Bool(if response.selection_updated { 1 } else { 0 }),
             JValue::Bool(if response.text_updated { 1 } else { 0 }),
+            JValue::Bool(if response.scroll_updated { 1 } else { 0 }),
+            JValue::Bool(if response.has_text_interaction_rect { 1 } else { 0 }),
+            JValue::Float(response.text_interaction_min_x),
+            JValue::Float(response.text_interaction_min_y),
+            JValue::Float(response.text_interaction_max_x),
+            JValue::Float(response.text_interaction_max_y),
+            JValue::Bool(if response.has_magnifier { 1 } else { 0 }),
+            JValue::Float(response.magnifier_x),
+            JValue::Float(response.magnifier_y),
         ],
     )
     .expect("create AndroidResponse")
+}
+
+fn fill_magnifier(obj: &mut WgpuWorkspace, response: &mut AndroidResponse) {
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return };
+    let Some(offset) = md.in_progress_handle else { return };
+    let Some(line) = md.cursor_line(offset) else { return };
+    response.has_magnifier = true;
+    response.magnifier_x = line[0].x;
+    response.magnifier_y = (line[0].y + line[1].y) * 0.5;
+}
+
+fn frame_android_response(obj: &mut WgpuWorkspace) -> AndroidResponse {
+    let mut response: AndroidResponse = obj.frame().into();
+    fill_magnifier(obj, &mut response);
+    response
+}
+
+fn frame_offloaded_android_response(obj: &mut WgpuWorkspace) -> AndroidResponse {
+    let mut response: AndroidResponse = obj.frame_offloaded().into();
+    fill_magnifier(obj, &mut response);
+    response
+}
+
+fn jrect_obj<'local>(env: &mut JNIEnv<'local>, rect: JRect) -> JObject<'local> {
+    let cls = env
+        .find_class("app/lockbook/workspace/JRect")
+        .expect("find JRect class");
+    env.new_object(
+        cls,
+        "(ZFFFF)V",
+        &[
+            JValue::Bool(rect.none as u8),
+            JValue::Float(rect.min_x),
+            JValue::Float(rect.min_y),
+            JValue::Float(rect.max_x),
+            JValue::Float(rect.max_y),
+        ],
+    )
+    .expect("create JRect")
 }
 
 #[no_mangle]
@@ -226,14 +272,17 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_refreshSelectionPre
 }
 
 /// Push real IME visibility (from the Android inset listener) into the
-/// editor so touch long-press can pick drag-reorder vs text selection.
+/// editor so the phone toolbar can hide with the keyboard (iOS parity) and
+/// touch long-press can pick drag-reorder vs text selection.
 #[no_mangle]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_setKeyboardShown(
     _env: JNIEnv, _: JClass, obj: jlong, shown: jboolean,
 ) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     if let Some(md) = obj.workspace.current_tab_markdown_mut() {
-        md.keyboard_visible = shown == 1;
+        let shown = shown == 1;
+        md.keyboard_visible = shown;
+        md.virtual_keyboard_shown = shown;
     }
 }
 
@@ -928,4 +977,94 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_isPenOnlyDraw(
         false
     }
     .into()
+}
+
+fn jrect_array<'local>(env: &mut JNIEnv<'local>, rects: &[JRect]) -> jobjectArray {
+    let cls = env
+        .find_class("app/lockbook/workspace/JRect")
+        .expect("find JRect class");
+    let arr = env
+        .new_object_array(rects.len() as i32, &cls, JObject::null())
+        .expect("create JRect array");
+    for (i, rect) in rects.iter().enumerate() {
+        let obj = jrect_obj(env, *rect);
+        env.set_object_array_element(&arr, i as i32, obj)
+            .expect("set JRect array element");
+    }
+    arr.into_raw()
+}
+
+/// Caret line at a grapheme offset, in egui points (workspace space).
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_cursorRectAt(
+    mut env: JNIEnv, _: JClass, obj: jlong, pos: jint,
+) -> jobject {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let rect = match obj.workspace.focused_mdedit_mut() {
+        Some(md) => md
+            .cursor_line(Grapheme(pos.max(0) as usize))
+            .map(JRect::from_line)
+            .unwrap_or(JRect { none: true, ..Default::default() }),
+        None => JRect { none: true, ..Default::default() },
+    };
+    jrect_obj(&mut env, rect).into_raw()
+}
+
+/// Highlight rects covering `[start, end)`, in egui points (workspace space).
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_selectionRects(
+    mut env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint,
+) -> jobjectArray {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let rects: Vec<JRect> = match obj.workspace.focused_mdedit_mut() {
+        Some(md) => md
+            .range_rects((Grapheme(start.max(0) as usize), Grapheme(end.max(0) as usize)))
+            .into_iter()
+            .map(JRect::from_egui)
+            .collect(),
+        None => Vec::new(),
+    };
+    jrect_array(&mut env, &rects)
+}
+
+/// Per-grapheme rects for `[start, end)`, aligned with the range. Used for
+/// `CursorAnchorInfo` character bounds.
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_characterRects(
+    mut env: JNIEnv, _: JClass, obj: jlong, start: jint, end: jint,
+) -> jobjectArray {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let rects: Vec<JRect> = match obj.workspace.focused_mdedit_mut() {
+        Some(md) => {
+            let last = md.renderer.buffer.current.segs.last_cursor_position().0;
+            let start = (start.max(0) as usize).min(last);
+            let end = (end.max(0) as usize).min(last).max(start);
+            (start..end)
+                .map(|i| {
+                    let range = (Grapheme(i), Grapheme(i + 1));
+                    md.range_rects(range)
+                        .into_iter()
+                        .next()
+                        .map(JRect::from_egui)
+                        .or_else(|| md.cursor_line(Grapheme(i)).map(JRect::from_line))
+                        .unwrap_or(JRect { none: true, ..Default::default() })
+                })
+                .collect()
+        }
+        None => Vec::new(),
+    };
+    jrect_array(&mut env, &rects)
+}
+
+/// Grapheme index nearest to a point in **pixels** (same space as touches).
+#[no_mangle]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_positionAtPoint(
+    _env: JNIEnv, _: JClass, obj: jlong, x: jfloat, y: jfloat,
+) -> jint {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let Some(md) = obj.workspace.focused_mdedit_mut() else {
+        return 0;
+    };
+    let pos = obj.renderer.pos_from_pixels(x, y);
+    md.pos_to_char_offset(pos).0 as jint
 }
