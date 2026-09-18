@@ -17,6 +17,7 @@ class WorkspaceAttachmentQueueTest {
         model.enqueueAttachment(second)
 
         assertEquals(first, model.nextAttachment())
+        assertFalse(model.markAttachmentInFlight(second.id))
         assertTrue(model.markAttachmentInFlight(first.id))
         assertNull(model.nextAttachment())
         assertNull(model.completeAttachment(second.id))
@@ -35,9 +36,9 @@ class WorkspaceAttachmentQueueTest {
         model.enqueueAttachment(first)
         model.enqueueAttachment(second)
 
-        assertNull(model.abandonInFlightAttachment())
+        assertNull(model.abandonInFlightHeadAttachment())
         assertTrue(model.markAttachmentInFlight(first.id))
-        assertEquals(first, model.abandonInFlightAttachment())
+        assertEquals(first, model.abandonInFlightHeadAttachment())
         assertEquals(second, model.nextAttachment())
         assertNull(model.completeAttachment(first.id))
     }

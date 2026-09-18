@@ -93,22 +93,24 @@ class WorkspaceViewModel : ViewModel() {
 
     fun nextAttachment(): WorkspaceAttachment? = attachmentJobs.firstOrNull()?.takeIf { it.state == ImportState.Ready }?.attachment
 
+    /** Returns true only when [id] identifies the ready head, which is the only job we may submit. */
     fun markAttachmentInFlight(id: String): Boolean {
-        val next = attachmentJobs.firstOrNull() ?: return false
-        if (next.state != ImportState.Ready || next.attachment.id != id) return false
-        next.state = ImportState.AwaitingAck
+        val job = attachmentJobs.firstOrNull { it.attachment.id == id } ?: return false
+        if (job !== attachmentJobs.firstOrNull() || job.state != ImportState.Ready) return false
+        job.state = ImportState.AwaitingAck
         return true
     }
 
+    /** Returns the removed attachment only when [id] acknowledges the submitted head; otherwise null. */
     fun completeAttachment(id: String): WorkspaceAttachment? {
-        val current = attachmentJobs.firstOrNull() ?: return null
-        if (current.state != ImportState.AwaitingAck || current.attachment.id != id) return null
+        val current = attachmentJobs.firstOrNull { it.attachment.id == id } ?: return null
+        if (current !== attachmentJobs.firstOrNull() || current.state != ImportState.AwaitingAck) return null
         attachmentJobs.removeFirst()
         return current.attachment
     }
 
-    /** A new native workspace cannot deliver the old one's acknowledgment. */
-    fun abandonInFlightAttachment(): WorkspaceAttachment? {
+    /** Drops the submitted head after workspace replacement; returns it for temp-file cleanup, or null if none. */
+    fun abandonInFlightHeadAttachment(): WorkspaceAttachment? {
         val current = attachmentJobs.firstOrNull() ?: return null
         if (current.state != ImportState.AwaitingAck) return null
         attachmentJobs.removeFirst()

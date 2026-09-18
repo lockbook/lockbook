@@ -248,7 +248,7 @@ class WorkspaceView(
 
     override fun surfaceCreated(holder: SurfaceHolder) {
         if (wgpuObj != Long.MAX_VALUE) {
-            model.abandonInFlightAttachment()?.let { interrupted ->
+            model.abandonInFlightHeadAttachment()?.let { interrupted ->
                 File(interrupted.tempPath).delete()
                 Toast.makeText(context, R.string.workspace_photo_import_interrupted, Toast.LENGTH_LONG).show()
             }
