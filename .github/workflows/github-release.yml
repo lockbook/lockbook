@@ -18,7 +18,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
           cargo run -p lbdev -- releaser github-release
-  
+
   call_publish:
     needs: release
     uses: ./.github/workflows/publish-crate.yml
@@ -30,12 +30,13 @@ jobs:
     uses: ./.github/workflows/flatpak.yml
     secrets: inherit
 
-  deploy_android:
-    needs: release
-    uses: ./.github/workflows/android.yml
-    with:
-      environment: prod-play-store
-    secrets: inherit
+
+  # deploy_android:
+  #   needs: release
+  #   uses: ./.github/workflows/android.yml
+  #   with:
+  #     environment: prod-play-store
+  #   secrets: inherit
 
   deploy_windows:
     needs: release
