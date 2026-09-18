@@ -14,6 +14,64 @@ use super::response::*;
 use crate::WgpuWorkspace;
 
 #[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarLegacyIds(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    env.new_string(obj.workspace.android_legacy_toolbar_ids())
+        .expect("toolbar ids")
+        .into_raw()
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarState(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jlong {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .current_tab_markdown_mut()
+        .map(|editor| editor.android_toolbar_state() as jlong)
+        .unwrap_or(0)
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_canEditMarkdown(
+    _env: JNIEnv, _: JClass, obj: jlong,
+) -> jboolean {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .current_tab_markdown()
+        .is_some_and(|editor| !editor.edit.renderer.readonly && !editor.edit.renderer.plaintext)
+        as jboolean
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarAction(
+    _env: JNIEnv, _: JClass, obj: jlong, id: jint,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(editor) = obj.workspace.current_tab_markdown_mut() {
+        if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
+            return;
+        }
+        if let Some(event) = editor.android_toolbar_action(id) {
+            obj.renderer.context.push_markdown_event(event);
+        }
+    }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_setNativeMarkdownToolbarHeight(
+    _env: JNIEnv, _: JClass, obj: jlong, height: jfloat,
+) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer.context.memory_mut(|m| {
+        m.data
+            .insert_temp(egui::Id::new("android_native_markdown_toolbar_height"), height.max(0.0))
+    });
+}
+
+#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_enterFrame(
     mut env: JNIEnv, _: JClass, obj: jlong,
 ) -> jobject {

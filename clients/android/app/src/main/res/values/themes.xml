@@ -43,6 +43,10 @@
         <item name="android:windowTranslucentNavigation">false</item>
     </style>
 
+    <style name="AppTheme.AlertDialog.FilledDone" parent="AppTheme.AlertDialog">
+        <item name="buttonBarPositiveButtonStyle">@style/Widget.Material3.Button</item>
+    </style>
+
 
     <style name="ButtonGroupStartShape">
         <item name="cornerFamilyTopLeft">rounded</item>

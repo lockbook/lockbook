@@ -90,7 +90,7 @@ class WorkspaceViewModel : ViewModel() {
         _openFile.postValue(request)
     }
 }
-
+    
 data class OpenFileRequest(
     val id: String,
     val newFile: Boolean,

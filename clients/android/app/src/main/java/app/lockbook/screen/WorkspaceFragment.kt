@@ -47,6 +47,7 @@ import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.util.HorizontalTabItemHolder
 import app.lockbook.util.MAX_CONTENT_SIZE
+import app.lockbook.util.MarkdownToolbarView
 import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
@@ -137,6 +138,7 @@ class WorkspaceFragment : Fragment() {
         // can pick drag-reorder (keyboard down) vs text selection (up).
         model.keyboardVisible.observe(viewLifecycleOwner) { visible ->
             workspaceWrapper.workspaceView.setKeyboardShown(visible)
+            workspaceWrapper.setKeyboardVisible(visible)
         }
 
         model.closeFile.observe(viewLifecycleOwner) { id ->
@@ -146,10 +148,12 @@ class WorkspaceFragment : Fragment() {
         model.currentTab.observe(viewLifecycleOwner) { tab ->
             updateCurrentTab(workspaceWrapper, tab)
             updateForwardButtonState(workspaceWrapper)
+            workspaceWrapper.updateNativeToolbar()
         }
 
         model.bottomInset.observe(viewLifecycleOwner) {
             workspaceWrapper.workspaceView.setBottomInset(it)
+            workspaceWrapper.setBottomInset(it)
         }
 
         model.keyboardVisible.observe(viewLifecycleOwner) { keyboardVisible ->
@@ -242,6 +246,7 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.hideToolbar.observe(viewLifecycleOwner) { distanceY ->
+            workspaceWrapper.setScrollDirection(distanceY)
             val isKeyboardVisible = model.keyboardVisible.value ?: false
 
             if (distanceY > 0) {
@@ -695,7 +700,10 @@ class WorkspaceWrapperView(
     val model: WorkspaceViewModel,
 ) : FrameLayout(context) {
     val workspaceView: WorkspaceView
+    private val markdownToolbar: MarkdownToolbarView
     var currentTab = WorkspaceTabType.Welcome
+    private var keyboardVisible = false
+    private var scrollingUp = false
 
     var currentWrapper: View? = null
 
@@ -730,6 +738,50 @@ class WorkspaceWrapperView(
     init {
         workspaceView = WorkspaceView(context, model)
         addView(workspaceView, regLayoutParams)
+        markdownToolbar = MarkdownToolbarView(context, workspaceView)
+        addView(markdownToolbar, FrameLayout.LayoutParams(
+            ViewGroup.LayoutParams.MATCH_PARENT,
+            (48 * context.resources.displayMetrics.density).roundToInt(),
+            android.view.Gravity.BOTTOM,
+        ))
+        workspaceView.onWorkspaceFrame = {
+            markdownToolbar.refreshFromWorkspace()
+            updateNativeToolbar()
+        }
+    }
+
+    fun setKeyboardVisible(visible: Boolean) {
+        keyboardVisible = visible
+        if (visible) scrollingUp = false
+        updateNativeToolbar()
+    }
+
+    fun setScrollDirection(distanceY: Float) {
+        if (distanceY != 0f) scrollingUp = distanceY > 0f
+        updateNativeToolbar()
+    }
+
+    fun setBottomInset(inset: Int) {
+        val params = markdownToolbar.layoutParams as FrameLayout.LayoutParams
+        if (params.bottomMargin != inset) {
+            params.bottomMargin = inset
+            markdownToolbar.layoutParams = params
+        }
+    }
+
+    fun updateNativeToolbar() {
+        val ready = workspaceView.canForwardTouches()
+        val visible = ready && model.currentTab.value?.type == WorkspaceTabType.Markdown &&
+            Workspace.canEditMarkdown(WorkspaceView.wgpuObj) && (keyboardVisible || !scrollingUp)
+        if (markdownToolbar.isVisible != visible) {
+            markdownToolbar.isVisible = visible
+            if (ready) {
+                val height = if (visible) markdownToolbar.layoutParams.height /
+                    context.resources.displayMetrics.scaledDensity else 0f
+                Workspace.setNativeMarkdownToolbarHeight(WorkspaceView.wgpuObj, height)
+                workspaceView.invalidate()
+            }
+        }
     }
 
     fun updateWrapperBasedOnTab(newTab: WorkspaceTabType) {
@@ -776,6 +828,7 @@ class WorkspaceWrapperView(
         currentWrapper = wrapper
         workspaceView.wrapperView = wrapper
         addView(wrapper, textWrapperLayoutParams(topInsetPx))
+        markdownToolbar.bringToFront()
     }
 
     @SuppressLint("ClickableViewAccessibility")

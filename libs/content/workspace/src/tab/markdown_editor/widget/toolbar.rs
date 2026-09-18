@@ -81,7 +81,154 @@ pub struct ToolbarPersistence {
     search: bool,
 }
 
+impl markdown_editor::MdPersistence {
+    pub fn legacy_toolbar_ids(&self) -> String {
+        let p = &self.toolbar;
+        let flags = [
+            p.undo,
+            p.redo,
+            p.heading,
+            p.bold,
+            p.emph,
+            p.code,
+            p.strikethrough,
+            p.highlight,
+            p.underline,
+            p.spoiler,
+            p.subscript,
+            p.superscript,
+            p.ordered_list,
+            p.unordered_list,
+            p.task_list,
+            p.link,
+            p.indent,
+            p.deindent,
+        ];
+        if *p == ToolbarPersistence::default() {
+            return (0..flags.len())
+                .map(|i| i.to_string())
+                .collect::<Vec<_>>()
+                .join(",");
+        }
+        flags
+            .iter()
+            .enumerate()
+            .filter_map(|(i, enabled)| enabled.then_some(i.to_string()))
+            .collect::<Vec<_>>()
+            .join(",")
+    }
+}
+
 impl<'ast> Editor {
+    pub fn android_toolbar_state(&mut self) -> u64 {
+        let arena = Arena::new();
+        let root = self.edit.renderer.reparse(&arena);
+        let selection = self.edit.renderer.buffer.current.selection;
+        let mut state = 0u64;
+        let styles = [
+            (3, NodeValue::Strong),
+            (4, NodeValue::Emph),
+            (5, NodeValue::Code(Default::default())),
+            (6, NodeValue::Strikethrough),
+            (7, NodeValue::Highlight),
+            (8, NodeValue::Underline),
+            (9, NodeValue::SpoileredText),
+            (10, NodeValue::Subscript),
+            (11, NodeValue::Superscript),
+            (15, NodeValue::Link(Default::default())),
+        ];
+        for (id, style) in styles {
+            if self.edit.inline_styled(root, selection, &style) {
+                state |= 1 << id;
+            }
+        }
+        for (id, style) in [
+            (12, NodeValue::List(NodeList { list_type: ListType::Ordered, ..Default::default() })),
+            (13, NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() })),
+            (
+                14,
+                NodeValue::List(NodeList {
+                    list_type: ListType::Bullet,
+                    is_task_list: true,
+                    ..Default::default()
+                }),
+            ),
+        ] {
+            if self.edit.unapply_block(root, &style) {
+                state |= 1 << id;
+            }
+        }
+        for node in root.descendants() {
+            if let NodeValue::Heading(heading) = &node.data.borrow().value {
+                if self
+                    .edit
+                    .renderer
+                    .node_range(node)
+                    .contains_range(&selection, true, true)
+                {
+                    state |= 1 << 2;
+                    state |= (heading.level as u64) << 32;
+                    break;
+                }
+            }
+        }
+        state
+    }
+
+    pub fn android_toolbar_action(&mut self, id: i32) -> Option<Event> {
+        let style = match id {
+            0 => return Some(Event::Undo),
+            1 => return Some(Event::Redo),
+            2 => {
+                let level = if self.toolbar.heading_last_click_at.elapsed() > Duration::from_secs(1)
+                {
+                    1
+                } else {
+                    let arena = Arena::new();
+                    let root = self.edit.renderer.reparse(&arena);
+                    let selection = self.edit.renderer.buffer.current.selection;
+                    let current = root
+                        .descendants()
+                        .find_map(|node| {
+                            if let NodeValue::Heading(heading) = &node.data.borrow().value {
+                                self.edit
+                                    .renderer
+                                    .node_range(node)
+                                    .contains_range(&selection, true, true)
+                                    .then_some(heading.level)
+                            } else {
+                                None
+                            }
+                        })
+                        .unwrap_or(0);
+                    current.min(5) + 1
+                };
+                self.toolbar.heading_last_click_at = Instant::now();
+                NodeValue::Heading(NodeHeading { level, ..Default::default() })
+            }
+            3 => NodeValue::Strong,
+            4 => NodeValue::Emph,
+            5 => NodeValue::Code(Default::default()),
+            6 => NodeValue::Strikethrough,
+            7 => NodeValue::Highlight,
+            8 => NodeValue::Underline,
+            9 => NodeValue::SpoileredText,
+            10 => NodeValue::Subscript,
+            11 => NodeValue::Superscript,
+            12 => NodeValue::List(NodeList { list_type: ListType::Ordered, ..Default::default() }),
+            13 => NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() }),
+            14 => NodeValue::List(NodeList {
+                list_type: ListType::Bullet,
+                is_task_list: true,
+                ..Default::default()
+            }),
+            15 => NodeValue::Link(Default::default()),
+            16 => return Some(Event::Indent { deindent: false }),
+            17 => return Some(Event::Indent { deindent: true }),
+            _ => return None,
+        };
+        Some(Event::ToggleStyle { region: Region::Selection, style })
+    }
     pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);
         let w = ui.available_width();

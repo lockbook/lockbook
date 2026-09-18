@@ -1043,7 +1043,15 @@ impl Editor {
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
-                    let toolbar_height = if !self.edit.renderer.readonly
+                    let toolbar_height = if cfg!(target_os = "android") {
+                        ui.ctx()
+                            .memory(|m| {
+                                m.data.get_temp::<f32>(Id::new(
+                                    "android_native_markdown_toolbar_height",
+                                ))
+                            })
+                            .unwrap_or(0.)
+                    } else if !self.edit.renderer.readonly
                         && !self.edit.renderer.plaintext
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
@@ -1084,7 +1092,8 @@ impl Editor {
                         .inner;
 
                     // ...then show toolbar at the bottom
-                    if !self.edit.renderer.readonly
+                    if !cfg!(target_os = "android")
+                        && !self.edit.renderer.readonly
                         && !self.edit.renderer.plaintext
                         && (self.virtual_keyboard_shown || self.toolbar.menu_open)
                     {
@@ -1102,7 +1111,10 @@ impl Editor {
                     // open when an iPad left split view (it disables the buttons)
                     self.toolbar.menu_open = false;
 
-                    if !self.edit.renderer.readonly && !self.edit.renderer.plaintext {
+                    if !cfg!(target_os = "android")
+                        && !self.edit.renderer.readonly
+                        && !self.edit.renderer.plaintext
+                    {
                         self.show_toolbar(root, ui);
                     }
                     self.show_find_centered(ui);
