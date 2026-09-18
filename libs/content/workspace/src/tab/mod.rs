@@ -580,14 +580,6 @@ impl TabFailure {
 #[derive(Debug, Clone)]
 pub enum Event {
     Markdown(markdown_editor::Event),
-    ImportFile {
-        request_id: String,
-        session: SessionId,
-        target: Uuid,
-        path: PathBuf,
-        name: String,
-        is_image: bool,
-    },
     Drop {
         content: Vec<ClipContent>,
         position: egui::Pos2,

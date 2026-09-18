@@ -247,6 +247,12 @@ class WorkspaceView(
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
+        if (wgpuObj != Long.MAX_VALUE) {
+            model.abandonInFlightAttachment()?.let { interrupted ->
+                File(interrupted.tempPath).delete()
+                Toast.makeText(context, R.string.workspace_photo_import_interrupted, Toast.LENGTH_LONG).show()
+            }
+        }
         surface = holder.surface
         val darkMode =
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
@@ -409,7 +415,7 @@ class WorkspaceView(
         if (response.openCamera) {
             val tab = currentTab ?: model.currentTab.value
             if (tab?.type == WorkspaceTabType.Markdown) {
-                model.requestAttachment(WorkspaceAttachmentRequest(tab.sessionId, tab.id))
+                model.requestPhotoSource(WorkspaceAttachmentRequest(tab.sessionId, tab.id))
             }
         }
 

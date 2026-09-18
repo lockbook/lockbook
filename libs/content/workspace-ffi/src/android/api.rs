@@ -145,17 +145,14 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendFile(
         return 0;
     }
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.renderer
-        .context
-        .push_event(workspace_rs::tab::Event::ImportFile {
-            request_id: parsed[0].clone(),
-            session: workspace_rs::tab::SessionId::from_uuid(session),
-            target,
-            path: parsed[3].clone().into(),
-            name: parsed[4].clone(),
-            is_image: is_image != 0,
-        });
-    1
+    obj.workspace.accept_attachment(
+        parsed[0].clone(),
+        workspace_rs::tab::SessionId::from_uuid(session),
+        target,
+        parsed[3].clone().into(),
+        parsed[4].clone(),
+        is_image != 0,
+    ) as jboolean
 }
 
 #[no_mangle]

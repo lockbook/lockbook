@@ -58,12 +58,20 @@ class WorkspaceViewModel : ViewModel() {
     val bottomInset: LiveData<Int>
         get() = _bottomInset
 
-    private val _attachmentRequested = SingleMutableLiveData<WorkspaceAttachmentRequest>()
-    val attachmentRequested: LiveData<WorkspaceAttachmentRequest>
-        get() = _attachmentRequested
+    /** A UI request to choose a photo source, separate from queued imports. */
+    private val _photoSourceRequested = SingleMutableLiveData<WorkspaceAttachmentRequest>()
+    val photoSourceRequested: LiveData<WorkspaceAttachmentRequest>
+        get() = _photoSourceRequested
 
-    private val pendingAttachments = ArrayDeque<WorkspaceAttachment>()
-    private var inFlightAttachment: WorkspaceAttachment? = null
+    private enum class ImportState { Ready, AwaitingAck }
+
+    private data class ImportJob(
+        val attachment: WorkspaceAttachment,
+        var state: ImportState = ImportState.Ready,
+    )
+
+    /** Android owns FIFO scheduling; Rust accepts only the head job. */
+    private val attachmentJobs = ArrayDeque<ImportJob>()
 
     /** request workspace view to navigate within tab history **/
     private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
@@ -92,33 +100,41 @@ class WorkspaceViewModel : ViewModel() {
     }
 
     @MainThread
-    fun requestAttachment(request: WorkspaceAttachmentRequest) {
-        _attachmentRequested.value = request
+    fun requestPhotoSource(request: WorkspaceAttachmentRequest) {
+        _photoSourceRequested.value = request
     }
 
     @MainThread
     fun enqueueAttachment(attachment: WorkspaceAttachment) {
-        pendingAttachments.addLast(attachment)
+        attachmentJobs.addLast(ImportJob(attachment))
     }
 
     @MainThread
-    fun nextAttachment(): WorkspaceAttachment? = if (inFlightAttachment == null) pendingAttachments.firstOrNull() else null
+    fun nextAttachment(): WorkspaceAttachment? = attachmentJobs.firstOrNull()?.takeIf { it.state == ImportState.Ready }?.attachment
 
     @MainThread
     fun markAttachmentInFlight(id: String): Boolean {
-        val next = pendingAttachments.firstOrNull() ?: return false
-        if (inFlightAttachment != null || next.id != id) return false
-        inFlightAttachment = next
+        val next = attachmentJobs.firstOrNull() ?: return false
+        if (next.state != ImportState.Ready || next.attachment.id != id) return false
+        next.state = ImportState.AwaitingAck
         return true
     }
 
     @MainThread
     fun completeAttachment(id: String): WorkspaceAttachment? {
-        val current = inFlightAttachment ?: return null
-        if (current.id != id || pendingAttachments.firstOrNull()?.id != id) return null
-        pendingAttachments.removeFirst()
-        inFlightAttachment = null
-        return current
+        val current = attachmentJobs.firstOrNull() ?: return null
+        if (current.state != ImportState.AwaitingAck || current.attachment.id != id) return null
+        attachmentJobs.removeFirst()
+        return current.attachment
+    }
+
+    /** A new native workspace cannot deliver the old one's acknowledgment. */
+    @MainThread
+    fun abandonInFlightAttachment(): WorkspaceAttachment? {
+        val current = attachmentJobs.firstOrNull() ?: return null
+        if (current.state != ImportState.AwaitingAck) return null
+        attachmentJobs.removeFirst()
+        return current.attachment
     }
 
     fun openFile(request: OpenFileRequest) {

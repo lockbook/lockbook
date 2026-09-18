@@ -27,4 +27,18 @@ class WorkspaceAttachmentQueueTest {
         assertEquals(second, model.completeAttachment(second.id))
         assertNull(model.nextAttachment())
     }
+
+    @Test fun workspaceReplacementAbandonsOnlyTheSubmittedHead() {
+        val model = WorkspaceViewModel()
+        val first = attachment("first")
+        val second = attachment("second")
+        model.enqueueAttachment(first)
+        model.enqueueAttachment(second)
+
+        assertNull(model.abandonInFlightAttachment())
+        assertTrue(model.markAttachmentInFlight(first.id))
+        assertEquals(first, model.abandonInFlightAttachment())
+        assertEquals(second, model.nextAttachment())
+        assertNull(model.completeAttachment(first.id))
+    }
 }

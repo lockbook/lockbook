@@ -208,7 +208,7 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-        model.attachmentRequested.observe(viewLifecycleOwner) { showPhotoSourceSheet(it) }
+        model.photoSourceRequested.observe(viewLifecycleOwner) { showPhotoSourceSheet(it) }
 
         // Forward real IME visibility into the editor so touch long-press
         // can pick drag-reorder (keyboard down) vs text selection (up).

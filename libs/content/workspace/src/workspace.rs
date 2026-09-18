@@ -13,7 +13,7 @@ use lb_rs::model::svg::buffer::Buffer;
 use lb_rs::service::events::{self, Actor, Event};
 use lb_rs::{LbResult, Uuid, spawn};
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::Ordering;
@@ -73,6 +73,11 @@ struct AttachmentRequest {
     is_image: bool,
 }
 
+enum AttachmentState {
+    WaitingForEditor(AttachmentRequest),
+    Importing,
+}
+
 pub struct Workspace {
     // User activity
     pub tabs: TabCache,
@@ -130,8 +135,7 @@ pub struct Workspace {
 
     pub ws_rx: Receiver<WsUpdates>,
     ws_tx: Sender<WsUpdates>,
-    pending_attachment_requests: VecDeque<AttachmentRequest>,
-    attachment_import_in_flight: bool,
+    attachment: Option<AttachmentState>,
 }
 
 pub enum WsUpdates {
@@ -316,8 +320,7 @@ impl Workspace {
             pending_open_range: None,
             ws_rx,
             ws_tx: ws_tx.clone(),
-            pending_attachment_requests: VecDeque::new(),
-            attachment_import_in_flight: false,
+            attachment: None,
         };
 
         {
@@ -1075,7 +1078,7 @@ impl Workspace {
         loop {
             match self.ws_rx.try_recv() {
                 Ok(WsUpdates::AttachmentImported { request_id, session, target, result }) => {
-                    self.attachment_import_in_flight = false;
+                    self.attachment = None;
                     let outcome = result.and_then(|imported| {
                         let valid_session = self.tab_strip.iter().any(|slot| {
                             slot.id == session && slot.dest == Destination::File(target)
@@ -1220,88 +1223,95 @@ impl Workspace {
         }
     }
 
-    /// Start imports in FIFO order on a worker. Prefer the original session;
-    /// after a surface recreation, resolve the restored session by document ID.
-    pub fn process_attachment_requests(&mut self) {
-        let requests = self
-            .ctx
-            .pop_events_where(&mut |event| matches!(event, crate::tab::Event::ImportFile { .. }));
-        for request in requests {
-            let crate::tab::Event::ImportFile { request_id, session, target, path, name, is_image } =
-                request
-            else {
-                continue;
-            };
-            self.pending_attachment_requests
-                .push_back(AttachmentRequest { request_id, session, target, path, name, is_image });
+    /// Accept one import from the platform. FIFO scheduling belongs to the caller.
+    pub fn accept_attachment(
+        &mut self, request_id: String, session: SessionId, target: Uuid, path: PathBuf,
+        name: String, is_image: bool,
+    ) -> bool {
+        if self.attachment.is_some() {
+            return false;
         }
+        self.attachment = Some(AttachmentState::WaitingForEditor(AttachmentRequest {
+            request_id,
+            session,
+            target,
+            path,
+            name,
+            is_image,
+        }));
+        self.ctx.request_repaint();
+        true
+    }
 
-        if self.attachment_import_in_flight {
+    /// Wait for the target editor to load, then run the accepted import off-thread.
+    pub fn process_attachment_request(&mut self) {
+        let Some(state) = self.attachment.take() else {
             return;
-        }
-
-        while let Some(request) = self.pending_attachment_requests.pop_front() {
-            let AttachmentRequest { request_id, session, target, path, name, is_image } = request;
-            let resolved_session =
-                match attachment_session(&self.tab_strip, self.current_tab, session, target) {
-                    Ok(session) => session,
-                    Err(error) => {
-                        self.out.attachment_import_result = Some((request_id, Err(error)));
-                        break;
-                    }
-                };
-            let Some(tab) = self.tabs.get_any(&resolved_session) else {
-                self.pending_attachment_requests
-                    .push_front(AttachmentRequest {
-                        request_id,
-                        session,
-                        target,
-                        path,
-                        name,
-                        is_image,
-                    });
-                break;
-            };
-            match &tab.content {
-                ContentState::Loading(_) => {
-                    self.pending_attachment_requests
-                        .push_front(AttachmentRequest {
-                            request_id,
-                            session,
-                            target,
-                            path,
-                            name,
-                            is_image,
-                        });
-                    break;
-                }
-                ContentState::Open(TabContent::Markdown(md))
-                    if md.edit.file_id == target
-                        && !tab.read_only
-                        && !md.edit.renderer.readonly
-                        && !md.edit.renderer.plaintext => {}
-                _ => {
-                    self.out.attachment_import_result =
-                        Some((request_id, Err("The destination is no longer editable".to_owned())));
-                    break;
-                }
+        };
+        let request = match state {
+            AttachmentState::WaitingForEditor(request) => request,
+            AttachmentState::Importing => {
+                self.attachment = Some(AttachmentState::Importing);
+                return;
             }
-            let core = self.core.clone();
-            let tx = self.ws_tx.clone();
-            let ctx = self.ctx.clone();
-            self.attachment_import_in_flight = true;
-            spawn!({
-                let result = import_attachment(&core, target, &path, &name, is_image);
-                let _ = tx.send(WsUpdates::AttachmentImported {
+        };
+        let AttachmentRequest { request_id, session, target, path, name, is_image } = request;
+        let resolved_session =
+            match attachment_session(&self.tab_strip, self.current_tab, session, target) {
+                Ok(session) => session,
+                Err(error) => {
+                    self.out.attachment_import_result = Some((request_id, Err(error)));
+                    return;
+                }
+            };
+        let Some(tab) = self.tabs.get_any(&resolved_session) else {
+            self.attachment = Some(AttachmentState::WaitingForEditor(AttachmentRequest {
+                request_id,
+                session,
+                target,
+                path,
+                name,
+                is_image,
+            }));
+            return;
+        };
+        match &tab.content {
+            ContentState::Loading(_) => {
+                self.attachment = Some(AttachmentState::WaitingForEditor(AttachmentRequest {
                     request_id,
-                    session: resolved_session,
+                    session,
                     target,
-                    result,
-                });
-                ctx.request_repaint();
-            });
-            break;
+                    path,
+                    name,
+                    is_image,
+                }));
+                return;
+            }
+            ContentState::Open(TabContent::Markdown(md))
+                if md.edit.file_id == target
+                    && !tab.read_only
+                    && !md.edit.renderer.readonly
+                    && !md.edit.renderer.plaintext => {}
+            _ => {
+                self.out.attachment_import_result =
+                    Some((request_id, Err("The destination is no longer editable".to_owned())));
+                return;
+            }
         }
+        let core = self.core.clone();
+        let tx = self.ws_tx.clone();
+        let ctx = self.ctx.clone();
+        self.attachment = Some(AttachmentState::Importing);
+        spawn!({
+            let result = import_attachment(&core, target, &path, &name, is_image);
+            let _ = tx.send(WsUpdates::AttachmentImported {
+                request_id,
+                session: resolved_session,
+                target,
+                result,
+            });
+            ctx.request_repaint();
+        });
     }
 
     /// Handle clipboard-like events (`Drop`/`Paste`). For image clips the
