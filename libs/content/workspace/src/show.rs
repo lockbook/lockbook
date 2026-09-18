@@ -54,6 +54,7 @@ impl Workspace {
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
+        self.process_attachment_requests();
         self.process_clip_events();
         self.apply_pending_open_range();
 

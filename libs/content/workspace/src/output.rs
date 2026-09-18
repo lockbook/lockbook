@@ -33,6 +33,8 @@ pub struct Response {
     pub failure_messages: Vec<String>, // shown as toasts in egui client
 
     pub open_camera: bool,
+    /// Acknowledges the Android attachment queue only after import and editor insertion.
+    pub attachment_import_result: Option<(String, Result<(), String>)>,
 
     pub file_cache_updated: bool,
 }

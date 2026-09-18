@@ -5,6 +5,7 @@
 
 package app.lockbook.model
 
+import androidx.annotation.MainThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -12,6 +13,7 @@ import app.lockbook.util.SingleMutableLiveData
 import app.lockbook.workspace.NULL_UUID
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import net.lockbook.File
+import java.util.ArrayDeque
 
 class WorkspaceViewModel : ViewModel() {
     /** request workspace to  open a file **/
@@ -56,6 +58,13 @@ class WorkspaceViewModel : ViewModel() {
     val bottomInset: LiveData<Int>
         get() = _bottomInset
 
+    private val _attachmentRequested = SingleMutableLiveData<WorkspaceAttachmentRequest>()
+    val attachmentRequested: LiveData<WorkspaceAttachmentRequest>
+        get() = _attachmentRequested
+
+    private val pendingAttachments = ArrayDeque<WorkspaceAttachment>()
+    private var inFlightAttachment: WorkspaceAttachment? = null
+
     /** request workspace view to navigate within tab history **/
     private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
     val workspaceBackRequested: LiveData<Unit>
@@ -82,6 +91,36 @@ class WorkspaceViewModel : ViewModel() {
         _backGestureStarted.postValue(Unit)
     }
 
+    @MainThread
+    fun requestAttachment(request: WorkspaceAttachmentRequest) {
+        _attachmentRequested.value = request
+    }
+
+    @MainThread
+    fun enqueueAttachment(attachment: WorkspaceAttachment) {
+        pendingAttachments.addLast(attachment)
+    }
+
+    @MainThread
+    fun nextAttachment(): WorkspaceAttachment? = if (inFlightAttachment == null) pendingAttachments.firstOrNull() else null
+
+    @MainThread
+    fun markAttachmentInFlight(id: String): Boolean {
+        val next = pendingAttachments.firstOrNull() ?: return false
+        if (inFlightAttachment != null || next.id != id) return false
+        inFlightAttachment = next
+        return true
+    }
+
+    @MainThread
+    fun completeAttachment(id: String): WorkspaceAttachment? {
+        val current = inFlightAttachment ?: return null
+        if (current.id != id || pendingAttachments.firstOrNull()?.id != id) return null
+        pendingAttachments.removeFirst()
+        inFlightAttachment = null
+        return current
+    }
+
     fun openFile(request: OpenFileRequest) {
         _openFile.value = request
     }
@@ -90,6 +129,20 @@ class WorkspaceViewModel : ViewModel() {
         _openFile.postValue(request)
     }
 }
+
+data class WorkspaceAttachment(
+    val id: String,
+    val targetSessionId: String,
+    val targetDocumentId: String,
+    val tempPath: String,
+    val name: String,
+    val isImage: Boolean,
+)
+
+data class WorkspaceAttachmentRequest(
+    val targetSessionId: String,
+    val targetDocumentId: String,
+)
 
 data class OpenFileRequest(
     val id: String,

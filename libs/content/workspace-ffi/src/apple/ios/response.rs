@@ -69,6 +69,7 @@ impl From<crate::Response> for IOSResponse {
                     failure_messages: _,
                     selected_folder_changed,
                     open_camera,
+                    attachment_import_result: _,
                     file_cache_updated: _,
                 },
             redraw_in,

@@ -104,6 +104,7 @@ impl<'ast> Editor {
         let persistence = self.persistence.get_markdown().toolbar;
         let is_default = persistence == Default::default();
         let is_ios = cfg!(target_os = "ios");
+        let supports_attachments = cfg!(any(target_os = "ios", target_os = "android"));
 
         // width of a group of n buttons with intra-group spacing + trailing separator
         let group = |n: usize| -> f32 {
@@ -138,7 +139,7 @@ impl<'ast> Editor {
         ]));
 
         let mut media = count(&[persistence.link]);
-        if (persistence.image || is_default) && is_ios {
+        if (persistence.image || is_default) && supports_attachments {
             media += 1;
         }
         w += group(media);
@@ -167,6 +168,7 @@ impl<'ast> Editor {
                     let t = ui.ctx().get_lb_theme();
                     let menu_open = self.toolbar.menu_open;
                     let is_ios = cfg!(target_os = "ios");
+                    let supports_attachments = cfg!(any(target_os = "ios", target_os = "android"));
 
                     let toolbar_margin = 10.;
                     // offset centers the full toolbar_w (including margins);
@@ -364,8 +366,7 @@ impl<'ast> Editor {
                         any_media = true;
                     }
                     if persistence.image || toolbar_is_default {
-                        // only supported on iOS (for now)
-                        if is_ios {
+                        if supports_attachments {
                             if any_media {
                                 ui.add_space(5.);
                             }
@@ -375,8 +376,9 @@ impl<'ast> Editor {
                                 self.edit.renderer.buffer.current.selection,
                                 &NodeValue::Image(Default::default()),
                             );
-                            if toolbar_icon(ui, &t, phosphor::CAMERA, applied, menu_open, "Camera")
-                            {
+                            let tooltip =
+                                if cfg!(target_os = "android") { "Insert photo" } else { "Camera" };
+                            if toolbar_icon(ui, &t, phosphor::CAMERA, applied, menu_open, tooltip) {
                                 events.push(Event::Camera);
                             }
                             any_media = true;
@@ -531,6 +533,7 @@ impl<'ast> Editor {
 
                             let is_android = cfg!(target_os = "android");
                             let is_ios = cfg!(target_os = "ios");
+                            let supports_attachments = is_ios || is_android;
 
                             let persistence = self.persistence.get_markdown().toolbar;
 
@@ -907,7 +910,7 @@ impl<'ast> Editor {
                             }
                             top_left.y += self.menu_toggle_height("[Link](url)");
 
-                            if is_ios {
+                            if supports_attachments {
                                 if self
                                     .menu_toggle(
                                         ui,

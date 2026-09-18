@@ -56,6 +56,13 @@
     <string name="menu_list_files_share">Share</string>
     <string name="menu_list_files_open_in_new_tab">New tab</string>
     <string name="workspace_share_externally">Share externally</string>
+    <string name="workspace_insert_photo">Insert photo</string>
+    <string name="workspace_take_photo">Take photo</string>
+    <string name="workspace_choose_photo">Choose from photos</string>
+    <string name="workspace_camera_permission_required">Camera permission is required to take a photo.</string>
+    <string name="workspace_camera_unavailable">The camera could not be opened.</string>
+    <string name="workspace_attachment_unreadable">The selected photo is too large or could not be read.</string>
+    <string name="workspace_attachment_import_failed">The photo could not be imported.</string>
     <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>

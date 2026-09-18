@@ -1,8 +1,11 @@
 package app.lockbook.screen
 
+import android.Manifest
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -20,7 +23,11 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.inputmethod.EditorInfoCompat
@@ -31,6 +38,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutLinearInInterpolator
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
@@ -42,9 +50,13 @@ import app.lockbook.model.OpenFilePresentation
 import app.lockbook.model.OpenTab
 import app.lockbook.model.SearchPresentation
 import app.lockbook.model.TransientScreen
+import app.lockbook.model.WorkspaceAttachment
+import app.lockbook.model.WorkspaceAttachmentRequest
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
+import app.lockbook.ui.PhotoSourceBottomSheetFragment
+import app.lockbook.util.AttachmentStager
 import app.lockbook.util.HorizontalTabItemHolder
 import app.lockbook.util.MAX_CONTENT_SIZE
 import app.lockbook.util.VerticalTabItemHolder
@@ -55,11 +67,14 @@ import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
+import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.io.File as JavaFile
 
 private const val EXPANDED_BOTTOM_SHEET_HEIGHT_DP = 300
 
@@ -76,6 +91,65 @@ class WorkspaceFragment : Fragment() {
 
     private var bottomSheetContractedHeight = 0
     private var pendingTabSwitchUiState: PendingTabSwitchUiState? = null
+    private var workspaceView: WorkspaceView? = null
+    private var attachmentTarget: WorkspaceAttachmentRequest? = null
+    private var cameraFile: JavaFile? = null
+
+    private val cameraPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) launchCamera() else toast(R.string.workspace_camera_permission_required)
+        }
+    private val takePicture =
+        registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            val file = cameraFile
+            cameraFile = null
+            if (success && file != null) {
+                importAttachment(Uri.fromFile(file), file.name)
+            } else {
+                file?.delete()
+            }
+        }
+    private val pickPhoto =
+        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
+            uri?.let { importAttachment(it) }
+        }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        childFragmentManager.setFragmentResultListener(PhotoSourceBottomSheetFragment.REQUEST_KEY, this) { _, result ->
+            when (result.getString(PhotoSourceBottomSheetFragment.SOURCE_KEY)) {
+                PhotoSourceBottomSheetFragment.SOURCE_CAMERA -> {
+                    if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) ==
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        launchCamera()
+                    } else {
+                        cameraPermission.launch(Manifest.permission.CAMERA)
+                    }
+                }
+
+                PhotoSourceBottomSheetFragment.SOURCE_LIBRARY -> {
+                    pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }
+            }
+        }
+        attachmentTarget =
+            savedInstanceState?.let {
+                val session = it.getString("attachmentSession")
+                val document = it.getString("attachmentDocument")
+                if (session != null && document != null) WorkspaceAttachmentRequest(session, document) else null
+            }
+        cameraFile = savedInstanceState?.getString("cameraPath")?.let(::JavaFile)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        attachmentTarget?.let {
+            outState.putString("attachmentSession", it.targetSessionId)
+            outState.putString("attachmentDocument", it.targetDocumentId)
+        }
+        cameraFile?.let { outState.putString("cameraPath", it.absolutePath) }
+    }
 
     companion object {
         val TAG = "WorkspaceFragment"
@@ -92,6 +166,7 @@ class WorkspaceFragment : Fragment() {
         _binding = FragmentWorkspaceBinding.inflate(inflater, container, false)
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
+        workspaceView = workspaceWrapper.workspaceView
         val layoutParams =
             ConstraintLayout
                 .LayoutParams(
@@ -132,6 +207,8 @@ class WorkspaceFragment : Fragment() {
                 }
             }
         }
+
+        model.attachmentRequested.observe(viewLifecycleOwner) { showPhotoSourceSheet(it) }
 
         // Forward real IME visibility into the editor so touch long-press
         // can pick drag-reorder (keyboard down) vs text selection (up).
@@ -200,6 +277,65 @@ class WorkspaceFragment : Fragment() {
         }
 
         return binding.root
+    }
+
+    private fun showPhotoSourceSheet(request: WorkspaceAttachmentRequest) {
+        attachmentTarget = request
+        workspaceView?.let { editor ->
+            (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .hideSoftInputFromWindow(editor.windowToken, 0)
+        }
+        if (childFragmentManager.findFragmentByTag(PhotoSourceBottomSheetFragment.TAG) == null) {
+            PhotoSourceBottomSheetFragment().show(childFragmentManager, PhotoSourceBottomSheetFragment.TAG)
+        }
+    }
+
+    private fun launchCamera() {
+        try {
+            val dir = JavaFile(requireContext().cacheDir, "camera").apply { mkdirs() }
+            val file = JavaFile.createTempFile("photo_", ".jpg", dir)
+            cameraFile = file
+            val uri = FileProvider.getUriForFile(requireContext(), "${requireContext().packageName}.fileprovider", file)
+            takePicture.launch(uri)
+        } catch (_: Exception) {
+            cameraFile?.delete()
+            cameraFile = null
+            toast(R.string.workspace_camera_unavailable)
+        }
+    }
+
+    private fun importAttachment(
+        uri: Uri,
+        nameHint: String? = null,
+    ) {
+        val target = attachmentTarget ?: return
+        val appContext = requireContext().applicationContext
+        lifecycleScope.launch {
+            val staged =
+                withContext(Dispatchers.IO) {
+                    runCatching { AttachmentStager.stage(appContext, uri, nameHint) }.getOrNull()
+                }
+            if (uri.scheme == "file") JavaFile(uri.path.orEmpty()).delete()
+            if (staged == null) {
+                toast(R.string.workspace_attachment_unreadable)
+            } else {
+                model.enqueueAttachment(
+                    WorkspaceAttachment(
+                        UUID.randomUUID().toString(),
+                        target.targetSessionId,
+                        target.targetDocumentId,
+                        staged.path,
+                        staged.name,
+                        staged.isImage,
+                    ),
+                )
+                workspaceView?.invalidate()
+            }
+        }
+    }
+
+    private fun toast(id: Int) {
+        context?.let { Toast.makeText(it, id, Toast.LENGTH_SHORT).show() }
     }
 
     private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
@@ -280,6 +416,7 @@ class WorkspaceFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        workspaceView = null
         _binding = null
         super.onDestroyView()
     }

@@ -84,6 +84,12 @@ fn android_response_to_java<'local>(
     let doc_created = env
         .new_string(response.doc_created.to_string())
         .expect("create doc_created string");
+    let attachment_import_id = env
+        .new_string(response.attachment_import_id)
+        .expect("create attachment id");
+    let attachment_import_error = env
+        .new_string(response.attachment_import_error)
+        .expect("create attachment error");
 
     let virtual_keyboard_shown: JObject = match response.virtual_keyboard_shown {
         Some(value) => {
@@ -98,7 +104,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZ)V",
+        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;Ljava/lang/String;)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -114,9 +120,42 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.edit_menu_for_atom { 1 } else { 0 }),
             JValue::Bool(if response.selection_updated { 1 } else { 0 }),
             JValue::Bool(if response.text_updated { 1 } else { 0 }),
+            JValue::Bool(if response.open_camera { 1 } else { 0 }),
+            JValue::Object(&JObject::from(attachment_import_id)),
+            JValue::Object(&JObject::from(attachment_import_error)),
         ],
     )
     .expect("create AndroidResponse")
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendFile(
+    mut env: JNIEnv, _: JClass, obj: jlong, request_id: JString, session_id: JString,
+    target_id: JString, path: JString, name: JString, is_image: jboolean,
+) -> jboolean {
+    let strings = [request_id, session_id, target_id, path, name];
+    let parsed: Result<Vec<String>, _> = strings
+        .iter()
+        .map(|s| env.get_string(s).map(Into::into))
+        .collect();
+    let Ok(parsed) = parsed else { return 0 };
+    let Ok(session) = parsed[1].parse::<Uuid>() else { return 0 };
+    let Ok(target) = parsed[2].parse::<Uuid>() else { return 0 };
+    if obj == 0 {
+        return 0;
+    }
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.renderer
+        .context
+        .push_event(workspace_rs::tab::Event::ImportFile {
+            request_id: parsed[0].clone(),
+            session: workspace_rs::tab::SessionId::from_uuid(session),
+            target,
+            path: parsed[3].clone().into(),
+            name: parsed[4].clone(),
+            is_image: is_image != 0,
+        });
+    1
 }
 
 #[no_mangle]
