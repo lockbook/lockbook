@@ -234,7 +234,7 @@
     <string name="monthly_plan">Premium</string>
     <string name="back">Back</string>
     <string name="premium_space">Encrypted storage</string>
-    <string name="storage_comparison">1,200× the storage included with Free (25 MB)</string>
+    <string name="storage_comparison">1,200× the storage included with free tier (25 MB)</string>
     <string name="subscribe">Upgrade to Premium</string>
     <string name="per_month_price">%1$s / month</string>
     <string name="billing_reassurance">Auto-renews monthly · Cancel anytime</string>

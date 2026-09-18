@@ -47,7 +47,9 @@ class StoreBillingManager(
         get() = _premiumPrice
 
     override fun onCreate(owner: LifecycleOwner) {
-        if (!billingClient.isReady) {
+        if (billingClient.isReady) {
+            queryBillingState()
+        } else {
             billingClient.startConnection(this)
         }
     }
@@ -77,28 +79,32 @@ class StoreBillingManager(
         Timber.i(billingResult.debugMessage)
 
         if (billingResult.responseCode == BillingResponseCode.OK) {
-            val queryProductParams =
-                QueryProductDetailsParams
-                    .newBuilder()
-                    .setProductList(
-                        listOfProducts.map { productId ->
-                            QueryProductDetailsParams.Product
-                                .newBuilder()
-                                .setProductId(productId)
-                                .setProductType(BillingClient.ProductType.SUBS)
-                                .build()
-                        },
-                    ).build()
-
-            val queryPurchasesParams =
-                QueryPurchasesParams
-                    .newBuilder()
-                    .setProductType(BillingClient.ProductType.SUBS)
-                    .build()
-
-            billingClient.queryProductDetailsAsync(queryProductParams, this)
-            billingClient.queryPurchasesAsync(queryPurchasesParams, this)
+            queryBillingState()
         }
+    }
+
+    private fun queryBillingState() {
+        val queryProductParams =
+            QueryProductDetailsParams
+                .newBuilder()
+                .setProductList(
+                    listOfProducts.map { productId ->
+                        QueryProductDetailsParams.Product
+                            .newBuilder()
+                            .setProductId(productId)
+                            .setProductType(BillingClient.ProductType.SUBS)
+                            .build()
+                    },
+                ).build()
+
+        val queryPurchasesParams =
+            QueryPurchasesParams
+                .newBuilder()
+                .setProductType(BillingClient.ProductType.SUBS)
+                .build()
+
+        billingClient.queryProductDetailsAsync(queryProductParams, this)
+        billingClient.queryPurchasesAsync(queryPurchasesParams, this)
     }
 
     override fun onProductDetailsResponse(
