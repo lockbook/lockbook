@@ -30,8 +30,7 @@ data class AndroidResponse(
     val selectionUpdated: Boolean,
     val textUpdated: Boolean,
     val openCamera: Boolean,
-    val attachmentImportId: String,
-    val attachmentImportError: String,
+    val failureMessage: String,
 )
 
 object Workspace {
@@ -49,7 +48,7 @@ object Workspace {
     external fun defaultTheme(isDark: Boolean): Any
 
     external fun enterFrameOffloaded(rustObj: Long): AndroidResponse
-    external fun sendFile(rustObj: Long, requestId: String, sessionId: String, targetId: String, path: String, name: String, isImage: Boolean): Boolean
+    external fun sendFile(rustObj: Long, path: String, name: String, isImage: Boolean): Boolean
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)
 

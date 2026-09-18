@@ -64,20 +64,6 @@ struct ClosedTab {
     index: usize,
 }
 
-struct AttachmentRequest {
-    request_id: String,
-    session: SessionId,
-    target: Uuid,
-    path: PathBuf,
-    name: String,
-    is_image: bool,
-}
-
-enum AttachmentState {
-    WaitingForEditor(AttachmentRequest),
-    Importing,
-}
-
 pub struct Workspace {
     // User activity
     pub tabs: TabCache,
@@ -134,111 +120,10 @@ pub struct Workspace {
     pub landing_rename_buffer: String,
 
     pub ws_rx: Receiver<WsUpdates>,
-    ws_tx: Sender<WsUpdates>,
-    attachment: Option<AttachmentState>,
 }
 
 pub enum WsUpdates {
     FileCacheComputed(LbResult<FileCache>),
-    AttachmentImported {
-        request_id: String,
-        session: SessionId,
-        target: Uuid,
-        result: Result<ImportedAttachment, String>,
-    },
-}
-
-pub struct ImportedAttachment {
-    file_id: Uuid,
-    file_cache: FileCache,
-    link: String,
-}
-
-/// A camera Activity may destroy the Android surface, rebuilding the workspace
-/// with new session IDs. Prefer the original tab, but recover the same document
-/// in the restored workspace without ever redirecting to a different file.
-fn attachment_session(
-    tabs: &[Session], current: Option<SessionId>, original: SessionId, target: Uuid,
-) -> Result<SessionId, String> {
-    if let Some(slot) = tabs.iter().find(|slot| slot.id == original) {
-        return (slot.dest == Destination::File(target))
-            .then_some(original)
-            .ok_or_else(|| "The destination tab changed while importing".to_owned());
-    }
-
-    let candidates: Vec<_> = tabs
-        .iter()
-        .filter(|slot| slot.dest == Destination::File(target))
-        .map(|slot| slot.id)
-        .collect();
-    if let Some(current) = current.filter(|id| candidates.contains(id)) {
-        return Ok(current);
-    }
-    match candidates.as_slice() {
-        [only] => Ok(*only),
-        [] => Err("The destination document is no longer open".to_owned()),
-        _ => Err("The destination tab is ambiguous".to_owned()),
-    }
-}
-
-#[cfg(test)]
-mod attachment_session_tests {
-    use super::*;
-
-    #[test]
-    fn keeps_original_session_when_it_is_still_open() {
-        let target = Uuid::new_v4();
-        let original = Session::new(Destination::File(target));
-        let duplicate = Session::new(Destination::File(target));
-        assert_eq!(
-            attachment_session(
-                &[original.clone(), duplicate.clone()],
-                Some(duplicate.id),
-                original.id,
-                target
-            ),
-            Ok(original.id),
-        );
-    }
-
-    #[test]
-    fn recovers_recreated_session_only_for_the_same_document() {
-        let target = Uuid::new_v4();
-        let other = Uuid::new_v4();
-        let old_id = SessionId::new();
-        let restored = Session::new(Destination::File(target));
-        let unrelated = Session::new(Destination::File(other));
-        assert_eq!(
-            attachment_session(
-                &[restored.clone(), unrelated.clone()],
-                Some(restored.id),
-                old_id,
-                target
-            ),
-            Ok(restored.id),
-        );
-        assert!(attachment_session(&[unrelated], None, old_id, target).is_err());
-    }
-
-    #[test]
-    fn rejects_a_navigated_original_and_ambiguous_fallback() {
-        let target = Uuid::new_v4();
-        let changed = Session::new(Destination::File(Uuid::new_v4()));
-        assert!(attachment_session(&[changed.clone()], None, changed.id, target).is_err());
-
-        let first = Session::new(Destination::File(target));
-        let second = Session::new(Destination::File(target));
-        assert_eq!(
-            attachment_session(
-                &[first.clone(), second.clone()],
-                Some(second.id),
-                SessionId::new(),
-                target
-            ),
-            Ok(second.id),
-        );
-        assert!(attachment_session(&[first, second], None, SessionId::new(), target).is_err());
-    }
 }
 
 #[derive(Clone, Copy)]
@@ -319,8 +204,6 @@ impl Workspace {
             preview: None,
             pending_open_range: None,
             ws_rx,
-            ws_tx: ws_tx.clone(),
-            attachment: None,
         };
 
         {
@@ -1077,52 +960,6 @@ impl Workspace {
     pub fn process_bg_tasks(&mut self) {
         loop {
             match self.ws_rx.try_recv() {
-                Ok(WsUpdates::AttachmentImported { request_id, session, target, result }) => {
-                    self.attachment = None;
-                    let outcome = result.and_then(|imported| {
-                        let valid_session = self.tab_strip.iter().any(|slot| {
-                            slot.id == session && slot.dest == Destination::File(target)
-                        });
-                        if valid_session {
-                            if let Some(tab) = self.tabs.get_any_mut(&session) {
-                                let read_only = tab.read_only;
-                                if let Some(md) = tab.markdown_mut() {
-                                    if !read_only
-                                        && !md.edit.renderer.readonly
-                                        && !md.edit.renderer.plaintext
-                                        && md.edit.file_id == target
-                                    {
-                                        *self.files.write().unwrap() = imported.file_cache;
-                                        md.edit
-                                        .event
-                                        .internal_events
-                                        .push(crate::tab::markdown_editor::Event::Replace {
-                                        region:
-                                            crate::tab::markdown_editor::input::Region::Selection,
-                                        text: imported.link,
-                                        advance_cursor: true,
-                                    });
-                                        self.ctx.request_repaint();
-                                        Ok(())
-                                    } else {
-                                        Err("The destination is no longer editable".to_owned())
-                                    }
-                                } else {
-                                    Err("The destination editor is no longer open".to_owned())
-                                }
-                            } else {
-                                Err("The destination editor is no longer open".to_owned())
-                            }
-                        } else {
-                            Err("The destination tab changed while importing".to_owned())
-                        }
-                        .map_err(|error| {
-                            let _ = self.core.delete_file(&imported.file_id);
-                            error
-                        })
-                    });
-                    self.out.attachment_import_result = Some((request_id, outcome));
-                }
                 Ok(WsUpdates::FileCacheComputed(file_cache)) => {
                     let file_cache = file_cache.unwrap();
                     self.landing_page.update_recent_files(&file_cache);
@@ -1223,102 +1060,9 @@ impl Workspace {
         }
     }
 
-    /// Accept one import from the platform. FIFO scheduling belongs to the caller.
-    pub fn accept_attachment(
-        &mut self, request_id: String, session: SessionId, target: Uuid, path: PathBuf,
-        name: String, is_image: bool,
-    ) -> bool {
-        if self.attachment.is_some() {
-            return false;
-        }
-        self.attachment = Some(AttachmentState::WaitingForEditor(AttachmentRequest {
-            request_id,
-            session,
-            target,
-            path,
-            name,
-            is_image,
-        }));
-        self.ctx.request_repaint();
-        true
-    }
-
-    /// Wait for the target editor to load, then run the accepted import off-thread.
-    pub fn process_attachment_request(&mut self) {
-        let Some(state) = self.attachment.take() else {
-            return;
-        };
-        let request = match state {
-            AttachmentState::WaitingForEditor(request) => request,
-            AttachmentState::Importing => {
-                self.attachment = Some(AttachmentState::Importing);
-                return;
-            }
-        };
-        let AttachmentRequest { request_id, session, target, path, name, is_image } = request;
-        let resolved_session =
-            match attachment_session(&self.tab_strip, self.current_tab, session, target) {
-                Ok(session) => session,
-                Err(error) => {
-                    self.out.attachment_import_result = Some((request_id, Err(error)));
-                    return;
-                }
-            };
-        let Some(tab) = self.tabs.get_any(&resolved_session) else {
-            self.attachment = Some(AttachmentState::WaitingForEditor(AttachmentRequest {
-                request_id,
-                session,
-                target,
-                path,
-                name,
-                is_image,
-            }));
-            return;
-        };
-        match &tab.content {
-            ContentState::Loading(_) => {
-                self.attachment = Some(AttachmentState::WaitingForEditor(AttachmentRequest {
-                    request_id,
-                    session,
-                    target,
-                    path,
-                    name,
-                    is_image,
-                }));
-                return;
-            }
-            ContentState::Open(TabContent::Markdown(md))
-                if md.edit.file_id == target
-                    && !tab.read_only
-                    && !md.edit.renderer.readonly
-                    && !md.edit.renderer.plaintext => {}
-            _ => {
-                self.out.attachment_import_result =
-                    Some((request_id, Err("The destination is no longer editable".to_owned())));
-                return;
-            }
-        }
-        let core = self.core.clone();
-        let tx = self.ws_tx.clone();
-        let ctx = self.ctx.clone();
-        self.attachment = Some(AttachmentState::Importing);
-        spawn!({
-            let result = import_attachment(&core, target, &path, &name, is_image);
-            let _ = tx.send(WsUpdates::AttachmentImported {
-                request_id,
-                session: resolved_session,
-                target,
-                result,
-            });
-            ctx.request_repaint();
-        });
-    }
-
-    /// Handle clipboard-like events (`Drop`/`Paste`). For image clips the
-    /// workspace imports the image as a lockbook file and pushes a
-    /// `Markdown::Replace` event with a relative-path `![…](…)` markdown
-    /// link; the editor then processes it in its own `process_events` later
-    /// this frame.
+    /// Handle clipboard-like events (`Drop`/`Paste`). Import image or file
+    /// bytes into Lockbook, then push a Markdown link for the editor to apply
+    /// later this frame.
     ///
     /// Only runs when the current tab is a non-readonly markdown editor —
     /// other tab types (SVG, image viewer, PDF) handle clipboard events
@@ -1351,27 +1095,37 @@ impl Workspace {
                 _ => continue,
             };
             for clip in content {
-                match clip {
+                let (file, is_image) = match clip {
                     crate::tab::ClipContent::Image(data) => {
-                        let file = crate::tab::import_image(&self.core, file_id, &data);
+                        (crate::tab::import_image(&self.core, file_id, &data), true)
+                    }
+                    crate::tab::ClipContent::FileData { name, data, is_image } => {
+                        match crate::tab::import_file(&self.core, file_id, &name, &data, is_image) {
+                            Ok(file) => (file, is_image),
+                            Err(error) => {
+                                self.out.failure_messages.push(error);
+                                continue;
+                            }
+                        }
+                    }
+                    crate::tab::ClipContent::Files(..) => {
+                        // todo: support file drop & paste
+                        continue;
+                    }
+                };
 
-                        // Refresh before the markdown event lands: the image
-                        // cache's URL→id lookup reads `self.files` on first
-                        // load and caches a sticky "image not found" failure
-                        // if the file isn't there yet.
-                        *self.files.write().unwrap() =
-                            FileCache::new(&self.core).expect("failed to refresh file cache");
-
-                        let rel_path = {
-                            let guard = self.files.read().unwrap();
-                            let parent = guard.get_by_id(file_id).unwrap().parent;
-                            crate::file_cache::relative_path(
-                                &guard.path(parent),
-                                &guard.path(file.id),
-                            )
-                        };
-                        let link = format!("![{}]({})", file.name, rel_path);
-
+                // Refresh before the markdown event lands: the image cache's
+                // URL→id lookup caches a sticky failure if the file is absent.
+                let Ok(cache) = FileCache::new(&self.core) else {
+                    self.out
+                        .failure_messages
+                        .push("Could not refresh imported files".to_owned());
+                    continue;
+                };
+                let link = crate::tab::imported_file_link(&cache, file_id, &file, is_image);
+                *self.files.write().unwrap() = cache;
+                match link {
+                    Ok(link) => {
                         self.ctx
                             .push_markdown_event(crate::tab::markdown_editor::Event::Replace {
                                 region: crate::tab::markdown_editor::input::Region::Selection,
@@ -1379,9 +1133,7 @@ impl Workspace {
                                 advance_cursor: true,
                             });
                     }
-                    crate::tab::ClipContent::Files(..) => {
-                        // todo: support file drop & paste
-                    }
+                    Err(error) => self.out.failure_messages.push(error),
                 }
             }
         }
@@ -2173,97 +1925,6 @@ fn persist_ws_file(data: &Arc<RwLock<WsPresistentData>>, path: &Path) {
     if let Err(err) = fs::write(path, content) {
         error!(?path, "ws persistence write failed: {err:?}");
     }
-}
-
-fn import_attachment(
-    core: &Lb, target: Uuid, path: &Path, name: &str, is_image: bool,
-) -> Result<ImportedAttachment, String> {
-    const MAX_ATTACHMENT_BYTES: u64 = 25 * 1024 * 1024;
-    let size = fs::metadata(path).map_err(|e| e.to_string())?.len();
-    if size == 0 || size > MAX_ATTACHMENT_BYTES {
-        return Err("Attachment is empty or too large".to_owned());
-    }
-    let data = fs::read(path).map_err(|e| e.to_string())?;
-    if data.len() as u64 > MAX_ATTACHMENT_BYTES {
-        return Err("Attachment is too large".to_owned());
-    }
-    let target_file = core.get_file_by_id(target).map_err(|e| e.to_string())?;
-    let parent = target_file.parent;
-    let siblings = core.get_children(&parent).map_err(|e| e.to_string())?;
-    let imports = if let Some(folder) = siblings
-        .iter()
-        .find(|f| f.name == "imports" && f.is_folder())
-    {
-        folder.clone()
-    } else {
-        core.create_file("imports", &parent, FileType::Folder)
-            .map_err(|e| e.to_string())?
-    };
-    let clean_name = name
-        .chars()
-        .map(|c| if c == '/' || c == '\\' || c.is_control() { '_' } else { c })
-        .collect::<String>();
-    let clean_name = clean_name.trim().trim_start_matches('.');
-    let clean_name = if clean_name.is_empty() { "attachment" } else { clean_name };
-    let clean_name = if is_image && !clean_name.contains('.') {
-        let extension = image::guess_format(&data)
-            .ok()
-            .and_then(|fmt| fmt.extensions_str().first().copied())
-            .unwrap_or("png");
-        format!("{clean_name}.{extension}")
-    } else {
-        clean_name.to_owned()
-    };
-    let children = core.get_children(&imports.id).map_err(|e| e.to_string())?;
-    let existing: std::collections::HashSet<_> = children.iter().map(|f| f.name.as_str()).collect();
-    let stem = Path::new(&clean_name)
-        .file_stem()
-        .and_then(|s| s.to_str())
-        .unwrap_or("attachment");
-    let ext = Path::new(&clean_name).extension().and_then(|s| s.to_str());
-    let chosen = (0..10000)
-        .map(|i| {
-            if i == 0 {
-                clean_name.clone()
-            } else if let Some(ext) = ext {
-                format!("{stem} ({i}).{ext}")
-            } else {
-                format!("{stem} ({i})")
-            }
-        })
-        .find(|candidate| !existing.contains(candidate.as_str()))
-        .ok_or("Too many files with the same name")?;
-    let file = core
-        .create_file(&chosen, &imports.id, FileType::Document)
-        .map_err(|e| e.to_string())?;
-    if let Err(err) = core.write_document(file.id, &data) {
-        let _ = core.delete_file(&file.id);
-        return Err(err.to_string());
-    }
-    let file_cache = match FileCache::new(core) {
-        Ok(cache) => cache,
-        Err(err) => {
-            let _ = core.delete_file(&file.id);
-            return Err(err.to_string());
-        }
-    };
-    let rel_path =
-        crate::file_cache::relative_path(&file_cache.path(parent), &file_cache.path(file.id));
-    let encoded_path = rel_path
-        .split('/')
-        .map(|part| urlencoding::encode(part).into_owned())
-        .collect::<Vec<_>>()
-        .join("/");
-    let label = chosen
-        .replace('\\', "\\\\")
-        .replace('[', "\\[")
-        .replace(']', "\\]");
-    let link = if is_image {
-        format!("![{label}]({encoded_path})")
-    } else {
-        format!("[{label}]({encoded_path})")
-    };
-    Ok(ImportedAttachment { file_id: file.id, file_cache, link })
 }
 
 pub fn lb_bg_worker(ctx: Context, lb: Lb, ws_tx: Sender<WsUpdates>) {

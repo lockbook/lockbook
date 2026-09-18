@@ -29,7 +29,6 @@ import androidx.input.motionprediction.MotionEventPredictor
 import androidx.preference.PreferenceManager
 import app.lockbook.App
 import app.lockbook.R
-import app.lockbook.model.WorkspaceAttachmentRequest
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.screen.WorkspaceTextInputWrapper
@@ -247,12 +246,6 @@ class WorkspaceView(
     }
 
     override fun surfaceCreated(holder: SurfaceHolder) {
-        if (wgpuObj != Long.MAX_VALUE) {
-            model.abandonInFlightHeadAttachment()?.let { interrupted ->
-                File(interrupted.tempPath).delete()
-                Toast.makeText(context, R.string.workspace_photo_import_interrupted, Toast.LENGTH_LONG).show()
-            }
-        }
         surface = holder.surface
         val darkMode =
             (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) == Configuration.UI_MODE_NIGHT_YES
@@ -352,19 +345,23 @@ class WorkspaceView(
         Workspace.setContactLinkedSites(wgpuObj, prefs.getBoolean(contactLinkedSitesKey, false))
 
         model.nextAttachment()?.let { attachment ->
-            if (model.markAttachmentInFlight(attachment.id)) {
-                val accepted =
-                    Workspace.sendFile(
-                        wgpuObj,
-                        attachment.id,
-                        attachment.targetSessionId,
-                        attachment.targetDocumentId,
-                        attachment.tempPath,
-                        attachment.name,
-                        attachment.isImage,
-                    )
-                if (!accepted) {
-                    model.completeAttachment(attachment.id)
+            when (Workspace.currentTab(wgpuObj).toModelTab().type) {
+                WorkspaceTabType.Loading -> {
+                    // Keep the staged file until the editor is ready.
+                }
+
+                WorkspaceTabType.Markdown -> {
+                    val accepted = Workspace.sendFile(wgpuObj, attachment.tempPath, attachment.name, attachment.isImage)
+                    model.removeNextAttachment()
+                    File(attachment.tempPath).delete()
+                    if (!accepted) {
+                        Toast.makeText(context, R.string.workspace_attachment_import_failed, Toast.LENGTH_SHORT).show()
+                    }
+                    invalidate()
+                }
+
+                else -> {
+                    model.removeNextAttachment()
                     File(attachment.tempPath).delete()
                     Toast.makeText(context, R.string.workspace_attachment_import_failed, Toast.LENGTH_SHORT).show()
                     invalidate()
@@ -373,15 +370,8 @@ class WorkspaceView(
         }
 
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
-
-        if (response.attachmentImportId.isNotEmpty()) {
-            model.completeAttachment(response.attachmentImportId)?.let { attachment ->
-                File(attachment.tempPath).delete()
-                if (response.attachmentImportError.isNotEmpty()) {
-                    Toast.makeText(context, response.attachmentImportError, Toast.LENGTH_LONG).show()
-                }
-                invalidate()
-            }
+        if (response.failureMessage.isNotEmpty()) {
+            Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
         }
 
         if (response.urlOpened.isNotEmpty()) {
@@ -415,7 +405,7 @@ class WorkspaceView(
         if (response.openCamera) {
             val tab = currentTab ?: model.currentTab.value
             if (tab?.type == WorkspaceTabType.Markdown) {
-                model._photoSourceRequested.value = WorkspaceAttachmentRequest(tab.sessionId, tab.id)
+                model._photoSourceRequested.value = Unit
             }
         }
 

@@ -90,6 +90,7 @@ impl SVGEditor {
                                 //     vec![SelectedElement { id, transform: Transform::identity() }];
                             }
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
+                            ClipContent::FileData { .. } => {}
                         }
                     }
                 }

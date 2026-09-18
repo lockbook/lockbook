@@ -51,7 +51,6 @@ import app.lockbook.model.OpenTab
 import app.lockbook.model.SearchPresentation
 import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceAttachment
-import app.lockbook.model.WorkspaceAttachmentRequest
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
@@ -71,12 +70,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
-import java.util.UUID
 import kotlin.math.abs
 import kotlin.math.roundToInt
 import java.io.File as JavaFile
 
 private const val EXPANDED_BOTTOM_SHEET_HEIGHT_DP = 300
+private const val MAX_PICKED_PHOTOS = 10
 
 private data class PendingTabSwitchUiState(
     val isTabListExpanded: Boolean,
@@ -92,7 +91,6 @@ class WorkspaceFragment : Fragment() {
     private var bottomSheetContractedHeight = 0
     private var pendingTabSwitchUiState: PendingTabSwitchUiState? = null
     private var workspaceView: WorkspaceView? = null
-    private var attachmentTarget: WorkspaceAttachmentRequest? = null
     private var cameraFile: JavaFile? = null
 
     private val cameraPermission =
@@ -104,14 +102,15 @@ class WorkspaceFragment : Fragment() {
             val file = cameraFile
             cameraFile = null
             if (success && file != null) {
-                importAttachment(Uri.fromFile(file), file.name)
+                importAttachments(listOf(Uri.fromFile(file)), file.name)
             } else {
                 file?.delete()
             }
         }
-    private val pickPhoto =
-        registerForActivityResult(ActivityResultContracts.PickVisualMedia()) { uri ->
-            uri?.let { importAttachment(it) }
+    private val pickPhotos =
+        registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED_PHOTOS)) { uris ->
+            if (uris.size > MAX_PICKED_PHOTOS) toast(R.string.workspace_photo_selection_limit)
+            importAttachments(uris.take(MAX_PICKED_PHOTOS))
         }
 
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -129,25 +128,15 @@ class WorkspaceFragment : Fragment() {
                 }
 
                 PhotoSourceBottomSheetFragment.SOURCE_LIBRARY -> {
-                    pickPhoto.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                    pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
                 }
             }
         }
-        attachmentTarget =
-            savedInstanceState?.let {
-                val session = it.getString("attachmentSession")
-                val document = it.getString("attachmentDocument")
-                if (session != null && document != null) WorkspaceAttachmentRequest(session, document) else null
-            }
         cameraFile = savedInstanceState?.getString("cameraPath")?.let(::JavaFile)
     }
 
     override fun onSaveInstanceState(outState: Bundle) {
         super.onSaveInstanceState(outState)
-        attachmentTarget?.let {
-            outState.putString("attachmentSession", it.targetSessionId)
-            outState.putString("attachmentDocument", it.targetDocumentId)
-        }
         cameraFile?.let { outState.putString("cameraPath", it.absolutePath) }
     }
 
@@ -208,7 +197,7 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-        model.photoSourceRequested.observe(viewLifecycleOwner) { showPhotoSourceSheet(it) }
+        model.photoSourceRequested.observe(viewLifecycleOwner) { showPhotoSourceSheet() }
 
         // Forward real IME visibility into the editor so touch long-press
         // can pick drag-reorder (keyboard down) vs text selection (up).
@@ -279,8 +268,7 @@ class WorkspaceFragment : Fragment() {
         return binding.root
     }
 
-    private fun showPhotoSourceSheet(request: WorkspaceAttachmentRequest) {
-        attachmentTarget = request
+    private fun showPhotoSourceSheet() {
         workspaceView?.let { editor ->
             (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                 .hideSoftInputFromWindow(editor.windowToken, 0)
@@ -304,32 +292,25 @@ class WorkspaceFragment : Fragment() {
         }
     }
 
-    private fun importAttachment(
-        uri: Uri,
+    private fun importAttachments(
+        uris: List<Uri>,
         nameHint: String? = null,
     ) {
-        val target = attachmentTarget ?: return
+        if (uris.isEmpty()) return
         val appContext = requireContext().applicationContext
         lifecycleScope.launch {
-            val staged =
-                withContext(Dispatchers.IO) {
-                    runCatching { AttachmentStager.stage(appContext, uri, nameHint) }.getOrNull()
+            for (uri in uris) {
+                val staged =
+                    withContext(Dispatchers.IO) {
+                        runCatching { AttachmentStager.stage(appContext, uri, nameHint) }.getOrNull()
+                    }
+                if (uri.scheme == "file") JavaFile(uri.path.orEmpty()).delete()
+                if (staged == null) {
+                    toast(R.string.workspace_attachment_unreadable)
+                } else {
+                    model.enqueueAttachment(WorkspaceAttachment(staged.path, staged.name, staged.isImage))
+                    workspaceView?.invalidate()
                 }
-            if (uri.scheme == "file") JavaFile(uri.path.orEmpty()).delete()
-            if (staged == null) {
-                toast(R.string.workspace_attachment_unreadable)
-            } else {
-                model.enqueueAttachment(
-                    WorkspaceAttachment(
-                        UUID.randomUUID().toString(),
-                        target.targetSessionId,
-                        target.targetDocumentId,
-                        staged.path,
-                        staged.name,
-                        staged.isImage,
-                    ),
-                )
-                workspaceView?.invalidate()
             }
         }
     }

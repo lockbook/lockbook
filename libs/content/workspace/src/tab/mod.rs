@@ -1,4 +1,4 @@
-use crate::file_cache::FilesExt;
+use crate::file_cache::{FileCache, FilesExt};
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
 use crate::search::Search;
@@ -608,6 +608,7 @@ pub enum Event {
 pub enum ClipContent {
     Files(Vec<PathBuf>),
     Image(Vec<u8>), // image format guessed by egui
+    FileData { name: String, data: Vec<u8>, is_image: bool },
 }
 
 #[derive(PartialEq)]
@@ -851,27 +852,6 @@ impl ExtendedInput for egui::Context {
 // todo: use background thread
 // todo: refresh file tree view
 pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
-    let file = core
-        .get_file_by_id(file_id)
-        .expect("get lockbook file for image");
-    let siblings = core
-        .get_children(&file.parent)
-        .expect("get lockbook siblings for image");
-
-    let imports_folder = {
-        let mut imports_folder = None;
-        for sibling in siblings {
-            if sibling.name == "imports" {
-                imports_folder = Some(sibling);
-                break;
-            }
-        }
-        imports_folder.unwrap_or_else(|| {
-            core.create_file("imports", &file.parent, FileType::Folder)
-                .expect("create lockbook folder for image")
-        })
-    };
-
     // get local time in a human readable datetime format
     let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
     let human_readable_time = DateTime::from_timestamp(time.as_secs() as _, 0)
@@ -884,17 +864,103 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
         .first()
         .unwrap_or(&"png");
 
-    let file = core
-        .create_file(
-            &format!("pasted_image_{human_readable_time}.{file_extension}"),
-            &imports_folder.id,
-            FileType::Document,
-        )
-        .expect("create lockbook file for image");
-    core.write_document(file.id, data)
-        .expect("write lockbook file for image");
+    import_file(
+        core,
+        file_id,
+        &format!("pasted_image_{human_readable_time}.{file_extension}"),
+        data,
+        true,
+    )
+    .expect("import pasted image")
+}
 
-    file
+/// Import bytes next to a document, using a unique name in its `imports` folder.
+pub fn import_file(
+    core: &Lb, target: Uuid, name: &str, data: &[u8], is_image: bool,
+) -> Result<File, String> {
+    let target_file = core.get_file_by_id(target).map_err(|e| e.to_string())?;
+    let siblings = core
+        .get_children(&target_file.parent)
+        .map_err(|e| e.to_string())?;
+    let imports = if let Some(folder) = siblings
+        .iter()
+        .find(|f| f.name == "imports" && f.is_folder())
+    {
+        folder.clone()
+    } else {
+        core.create_file("imports", &target_file.parent, FileType::Folder)
+            .map_err(|e| e.to_string())?
+    };
+    let clean_name = name
+        .chars()
+        .map(|c| if c == '/' || c == '\\' || c.is_control() { '_' } else { c })
+        .collect::<String>();
+    let clean_name = clean_name.trim().trim_start_matches('.');
+    let clean_name = if clean_name.is_empty() { "attachment" } else { clean_name };
+    let clean_name = if is_image && !clean_name.contains('.') {
+        let extension = image::guess_format(data)
+            .ok()
+            .and_then(|fmt| fmt.extensions_str().first().copied())
+            .unwrap_or("png");
+        format!("{clean_name}.{extension}")
+    } else {
+        clean_name.to_owned()
+    };
+    let children = core.get_children(&imports.id).map_err(|e| e.to_string())?;
+    let existing: std::collections::HashSet<_> = children.iter().map(|f| f.name.as_str()).collect();
+    let stem = std::path::Path::new(&clean_name)
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("attachment");
+    let ext = std::path::Path::new(&clean_name)
+        .extension()
+        .and_then(|s| s.to_str());
+    let chosen = (0..10000)
+        .map(|i| {
+            if i == 0 {
+                clean_name.clone()
+            } else if let Some(ext) = ext {
+                format!("{stem} ({i}).{ext}")
+            } else {
+                format!("{stem} ({i})")
+            }
+        })
+        .find(|candidate| !existing.contains(candidate.as_str()))
+        .ok_or("Too many files with the same name")?;
+    let file = core
+        .create_file(&chosen, &imports.id, FileType::Document)
+        .map_err(|e| e.to_string())?;
+    if let Err(err) = core.write_document(file.id, data) {
+        let _ = core.delete_file(&file.id);
+        return Err(err.to_string());
+    }
+    Ok(file)
+}
+
+/// Build a Markdown link from the importing document to the new file.
+pub fn imported_file_link(
+    cache: &FileCache, target: Uuid, file: &File, is_image: bool,
+) -> Result<String, String> {
+    let parent = cache
+        .get_by_id(target)
+        .ok_or("Import target is no longer available")?
+        .parent;
+    let relative = crate::file_cache::relative_path(&cache.path(parent), &cache.path(file.id));
+    let encoded_path = relative
+        .split('/')
+        .map(|part| urlencoding::encode(part).into_owned())
+        .collect::<Vec<_>>()
+        .join("/");
+    let label = file
+        .name
+        .replace('\\', "\\\\")
+        .replace('[', "\\[")
+        .replace(']', "\\]");
+    if is_image {
+        Ok(format!("![{label}]({encoded_path})"))
+    } else {
+        Ok(format!("[{label}]({encoded_path})"))
+    }
 }
 
 #[cfg(test)]

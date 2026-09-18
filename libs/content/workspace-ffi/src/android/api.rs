@@ -84,12 +84,9 @@ fn android_response_to_java<'local>(
     let doc_created = env
         .new_string(response.doc_created.to_string())
         .expect("create doc_created string");
-    let attachment_import_id = env
-        .new_string(response.attachment_import_id)
-        .expect("create attachment id");
-    let attachment_import_error = env
-        .new_string(response.attachment_import_error)
-        .expect("create attachment error");
+    let failure_message = env
+        .new_string(response.failure_message)
+        .expect("create failure message");
 
     let virtual_keyboard_shown: JObject = match response.virtual_keyboard_shown {
         Some(value) => {
@@ -104,7 +101,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;Ljava/lang/String;)V",
+        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -121,8 +118,7 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.selection_updated { 1 } else { 0 }),
             JValue::Bool(if response.text_updated { 1 } else { 0 }),
             JValue::Bool(if response.open_camera { 1 } else { 0 }),
-            JValue::Object(&JObject::from(attachment_import_id)),
-            JValue::Object(&JObject::from(attachment_import_error)),
+            JValue::Object(&JObject::from(failure_message)),
         ],
     )
     .expect("create AndroidResponse")
@@ -130,29 +126,38 @@ fn android_response_to_java<'local>(
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendFile(
-    mut env: JNIEnv, _: JClass, obj: jlong, request_id: JString, session_id: JString,
-    target_id: JString, path: JString, name: JString, is_image: jboolean,
+    mut env: JNIEnv, _: JClass, obj: jlong, path: JString, name: JString, is_image: jboolean,
 ) -> jboolean {
-    let strings = [request_id, session_id, target_id, path, name];
-    let parsed: Result<Vec<String>, _> = strings
+    let parsed: Result<Vec<String>, _> = [path, name]
         .iter()
         .map(|s| env.get_string(s).map(Into::into))
         .collect();
     let Ok(parsed) = parsed else { return 0 };
-    let Ok(session) = parsed[1].parse::<Uuid>() else { return 0 };
-    let Ok(target) = parsed[2].parse::<Uuid>() else { return 0 };
     if obj == 0 {
         return 0;
     }
+    let Ok(metadata) = std::fs::metadata(&parsed[0]) else { return 0 };
+    if metadata.len() == 0 || metadata.len() > 25 * 1024 * 1024 {
+        return 0;
+    }
+    let Ok(data) = std::fs::read(&parsed[0]) else { return 0 };
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace.accept_attachment(
-        parsed[0].clone(),
-        workspace_rs::tab::SessionId::from_uuid(session),
-        target,
-        parsed[3].clone().into(),
-        parsed[4].clone(),
-        is_image != 0,
-    ) as jboolean
+    let Some(tab) = obj.workspace.current_tab() else { return 0 };
+    let Some(md) = tab.markdown() else { return 0 };
+    if tab.read_only || md.edit.renderer.readonly || md.edit.renderer.plaintext {
+        return 0;
+    }
+    obj.renderer
+        .context
+        .push_event(workspace_rs::tab::Event::Paste {
+            content: vec![ClipContent::FileData {
+                name: parsed[1].clone(),
+                data,
+                is_image: is_image != 0,
+            }],
+            position: egui::Pos2::ZERO,
+        });
+    1
 }
 
 #[no_mangle]

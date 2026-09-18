@@ -28,8 +28,7 @@ pub struct AndroidResponse {
     pub selection_updated: bool,
     pub text_updated: bool,
     pub open_camera: bool,
-    pub attachment_import_id: String,
-    pub attachment_import_error: String,
+    pub failure_message: String,
 }
 
 impl From<crate::Response> for AndroidResponse {
@@ -51,10 +50,9 @@ impl From<crate::Response> for AndroidResponse {
                     text_interaction_rect: _,
                     mobile_toolbar_shown: _,
                     tabs_changed,
-                    failure_messages: _,
+                    failure_messages,
                     selected_folder_changed: _,
                     open_camera,
-                    attachment_import_result,
                     file_cache_updated: _,
                 },
             redraw_in,
@@ -74,13 +72,7 @@ impl From<crate::Response> for AndroidResponse {
         };
         Self {
             open_camera,
-            attachment_import_id: attachment_import_result
-                .as_ref()
-                .map(|(id, _)| id.clone())
-                .unwrap_or_default(),
-            attachment_import_error: attachment_import_result
-                .and_then(|(_, result)| result.err())
-                .unwrap_or_default(),
+            failure_message: failure_messages.join("\n"),
             selected_file: selected_file.unwrap_or_default(),
             doc_created,
             tabs_changed,

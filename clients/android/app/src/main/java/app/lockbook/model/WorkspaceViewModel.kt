@@ -58,12 +58,12 @@ class WorkspaceViewModel : ViewModel() {
         get() = _bottomInset
 
     /** pull up the photo source sheet so the user can import a pic or take one */
-    val _photoSourceRequested = SingleMutableLiveData<WorkspaceAttachmentRequest>()
-    val photoSourceRequested: LiveData<WorkspaceAttachmentRequest>
+    val _photoSourceRequested = SingleMutableLiveData<Unit>()
+    val photoSourceRequested: LiveData<Unit>
         get() = _photoSourceRequested
 
-    /** Android owns FIFO scheduling; Rust accepts only the head job. */
-    private val attachmentJobs = ArrayDeque<ImportJob>()
+    /** Holds staged files until the workspace copies their bytes into a paste event. */
+    private val pendingAttachments = ArrayDeque<WorkspaceAttachment>()
 
     /** request workspace view to navigate within tab history **/
     private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
@@ -88,34 +88,13 @@ class WorkspaceViewModel : ViewModel() {
     }
 
     fun enqueueAttachment(attachment: WorkspaceAttachment) {
-        attachmentJobs.addLast(ImportJob(attachment))
+        pendingAttachments.addLast(attachment)
     }
 
-    fun nextAttachment(): WorkspaceAttachment? = attachmentJobs.firstOrNull()?.takeIf { it.state == ImportState.Ready }?.attachment
+    fun nextAttachment(): WorkspaceAttachment? = pendingAttachments.firstOrNull()
 
-    /** Returns true only when [id] identifies the ready head, which is the only job we may submit. */
-    fun markAttachmentInFlight(id: String): Boolean {
-        val job = attachmentJobs.firstOrNull { it.attachment.id == id } ?: return false
-        if (job !== attachmentJobs.firstOrNull() || job.state != ImportState.Ready) return false
-        job.state = ImportState.AwaitingAck
-        return true
-    }
-
-    /** Returns the removed attachment only when [id] acknowledges the submitted head; otherwise null. */
-    fun completeAttachment(id: String): WorkspaceAttachment? {
-        val current = attachmentJobs.firstOrNull { it.attachment.id == id } ?: return null
-        if (current !== attachmentJobs.firstOrNull() || current.state != ImportState.AwaitingAck) return null
-        attachmentJobs.removeFirst()
-        return current.attachment
-    }
-
-    /** Drops the submitted head after workspace replacement; returns it for temp-file cleanup, or null if none. */
-    fun abandonInFlightHeadAttachment(): WorkspaceAttachment? {
-        val current = attachmentJobs.firstOrNull() ?: return null
-        if (current.state != ImportState.AwaitingAck) return null
-        attachmentJobs.removeFirst()
-        return current.attachment
-    }
+    /** Removes the file after native code has copied it (or rejected it). */
+    fun removeNextAttachment(): WorkspaceAttachment? = pendingAttachments.pollFirst()
 
     fun openFile(request: OpenFileRequest) {
         _openFile.value = request
@@ -127,30 +106,15 @@ class WorkspaceViewModel : ViewModel() {
 }
 
 data class WorkspaceAttachment(
-    val id: String,
-    val targetSessionId: String,
-    val targetDocumentId: String,
     val tempPath: String,
     val name: String,
     val isImage: Boolean,
-)
-
-data class WorkspaceAttachmentRequest(
-    val targetSessionId: String,
-    val targetDocumentId: String,
 )
 
 data class OpenFileRequest(
     val id: String,
     val newFile: Boolean,
     val presentation: OpenFilePresentation,
-)
-
-private enum class ImportState { Ready, AwaitingAck }
-
-private data class ImportJob(
-    val attachment: WorkspaceAttachment,
-    var state: ImportState = ImportState.Ready,
 )
 
 enum class OpenFilePresentation {
