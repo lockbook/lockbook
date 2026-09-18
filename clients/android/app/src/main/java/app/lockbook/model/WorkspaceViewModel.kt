@@ -5,7 +5,6 @@
 
 package app.lockbook.model
 
-import androidx.annotation.MainThread
 import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
@@ -58,17 +57,10 @@ class WorkspaceViewModel : ViewModel() {
     val bottomInset: LiveData<Int>
         get() = _bottomInset
 
-    /** A UI request to choose a photo source, separate from queued imports. */
-    private val _photoSourceRequested = SingleMutableLiveData<WorkspaceAttachmentRequest>()
+    /** pull up the photo source sheet so the user can import a pic or take one */
+    val _photoSourceRequested = SingleMutableLiveData<WorkspaceAttachmentRequest>()
     val photoSourceRequested: LiveData<WorkspaceAttachmentRequest>
         get() = _photoSourceRequested
-
-    private enum class ImportState { Ready, AwaitingAck }
-
-    private data class ImportJob(
-        val attachment: WorkspaceAttachment,
-        var state: ImportState = ImportState.Ready,
-    )
 
     /** Android owns FIFO scheduling; Rust accepts only the head job. */
     private val attachmentJobs = ArrayDeque<ImportJob>()
@@ -91,28 +83,16 @@ class WorkspaceViewModel : ViewModel() {
         _workspaceBackRequested.postValue(Unit)
     }
 
-    fun requestWorkspaceForward() {
-        _workspaceForwardRequested.postValue(Unit)
-    }
-
     fun notifyBackGestureStarted() {
         _backGestureStarted.postValue(Unit)
     }
 
-    @MainThread
-    fun requestPhotoSource(request: WorkspaceAttachmentRequest) {
-        _photoSourceRequested.value = request
-    }
-
-    @MainThread
     fun enqueueAttachment(attachment: WorkspaceAttachment) {
         attachmentJobs.addLast(ImportJob(attachment))
     }
 
-    @MainThread
     fun nextAttachment(): WorkspaceAttachment? = attachmentJobs.firstOrNull()?.takeIf { it.state == ImportState.Ready }?.attachment
 
-    @MainThread
     fun markAttachmentInFlight(id: String): Boolean {
         val next = attachmentJobs.firstOrNull() ?: return false
         if (next.state != ImportState.Ready || next.attachment.id != id) return false
@@ -120,7 +100,6 @@ class WorkspaceViewModel : ViewModel() {
         return true
     }
 
-    @MainThread
     fun completeAttachment(id: String): WorkspaceAttachment? {
         val current = attachmentJobs.firstOrNull() ?: return null
         if (current.state != ImportState.AwaitingAck || current.attachment.id != id) return null
@@ -129,7 +108,6 @@ class WorkspaceViewModel : ViewModel() {
     }
 
     /** A new native workspace cannot deliver the old one's acknowledgment. */
-    @MainThread
     fun abandonInFlightAttachment(): WorkspaceAttachment? {
         val current = attachmentJobs.firstOrNull() ?: return null
         if (current.state != ImportState.AwaitingAck) return null
@@ -164,6 +142,13 @@ data class OpenFileRequest(
     val id: String,
     val newFile: Boolean,
     val presentation: OpenFilePresentation,
+)
+
+private enum class ImportState { Ready, AwaitingAck }
+
+private data class ImportJob(
+    val attachment: WorkspaceAttachment,
+    var state: ImportState = ImportState.Ready,
 )
 
 enum class OpenFilePresentation {

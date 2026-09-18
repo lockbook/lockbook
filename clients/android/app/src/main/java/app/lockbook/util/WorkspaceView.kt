@@ -415,7 +415,7 @@ class WorkspaceView(
         if (response.openCamera) {
             val tab = currentTab ?: model.currentTab.value
             if (tab?.type == WorkspaceTabType.Markdown) {
-                model.requestPhotoSource(WorkspaceAttachmentRequest(tab.sessionId, tab.id))
+                model._photoSourceRequested.value = WorkspaceAttachmentRequest(tab.sessionId, tab.id)
             }
         }
 
