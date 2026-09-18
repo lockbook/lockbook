@@ -31,12 +31,12 @@ jobs:
     secrets: inherit
 
 
-  # deploy_android:
-  #   needs: release
-  #   uses: ./.github/workflows/android.yml
-  #   with:
-  #     environment: prod-play-store
-  #   secrets: inherit
+  deploy_android:
+    needs: release
+    uses: ./.github/workflows/android.yml
+    with:
+      environment: prod-play-store
+    secrets: inherit
 
   deploy_windows:
     needs: release
