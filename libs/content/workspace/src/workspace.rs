@@ -1095,26 +1095,22 @@ impl Workspace {
                 _ => continue,
             };
             for clip in content {
-                let file = match clip {
-                    crate::tab::ClipContent::Image { name, data } => {
-                        let result = if let Some(name) = name {
-                            crate::tab::import_image_with_name(&self.core, file_id, &name, &data)
-                        } else {
-                            crate::tab::import_image(&self.core, file_id, &data)
-                        };
-                        match result {
-                            Ok(file) => file,
-                            Err(error) => {
-                                self.out.failure_messages.push(error);
-                                continue;
-                            }
-                        }
-                    }
+                let (name, data) = match clip {
+                    crate::tab::ClipContent::Image(data) => (None, data),
+                    crate::tab::ClipContent::NamedImage { name, data } => (Some(name), data),
                     crate::tab::ClipContent::Files(..) => {
                         // todo: support file drop & paste
                         continue;
                     }
                 };
+                let file =
+                    match crate::tab::import_image(&self.core, file_id, name.as_deref(), &data) {
+                        Ok(file) => file,
+                        Err(error) => {
+                            self.out.failure_messages.push(error);
+                            continue;
+                        }
+                    };
 
                 // Refresh before the markdown event lands: the image cache's
                 // URL→id lookup caches a sticky failure if the file is absent.

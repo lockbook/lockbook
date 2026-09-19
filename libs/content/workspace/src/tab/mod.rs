@@ -607,7 +607,8 @@ pub enum Event {
 #[derive(Debug, Clone)]
 pub enum ClipContent {
     Files(Vec<PathBuf>),
-    Image { name: Option<String>, data: Vec<u8> }, // format guessed from bytes
+    Image(Vec<u8>), // format and timestamped name guessed by the workspace
+    NamedImage { name: String, data: Vec<u8> },
 }
 
 #[derive(PartialEq)]
@@ -852,29 +853,35 @@ pub const MAX_ATTACHMENT_SIZE_BYTES: usize = 25 * 1024 * 1024;
 
 // todo: use background thread
 // todo: refresh file tree view
-pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> Result<File, String> {
-    // get local time in a human readable datetime format
-    let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
-    let human_readable_time = DateTime::from_timestamp(time.as_secs() as _, 0)
-        .expect("invalid system time")
-        .format("%Y-%m-%d_%H-%M-%S")
-        .to_string();
-    let file_extension = image::guess_format(data)
-        .unwrap_or(image::ImageFormat::Png /* shrug */)
-        .extensions_str()
-        .first()
-        .unwrap_or(&"png");
+pub fn import_image(
+    core: &Lb, file_id: Uuid, name: Option<&str>, data: &[u8],
+) -> Result<File, String> {
+    let name = image_import_name(name, data);
+    import_image_with_name(core, file_id, &name, data)
+}
 
-    import_image_with_name(
-        core,
-        file_id,
-        &format!("pasted_image_{human_readable_time}.{file_extension}"),
-        data,
-    )
+fn image_import_name(name: Option<&str>, data: &[u8]) -> String {
+    let name = name
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .map(str::to_owned)
+        .unwrap_or_else(|| {
+            let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
+            let human_readable_time = DateTime::from_timestamp(time.as_secs() as _, 0)
+                .expect("invalid system time")
+                .format("%Y-%m-%d_%H-%M-%S");
+            let file_extension = image::guess_format(data)
+                .unwrap_or(image::ImageFormat::Png /* shrug */)
+                .extensions_str()
+                .first()
+                .unwrap_or(&"png");
+            format!("pasted_image_{human_readable_time}.{file_extension}")
+        });
+    name
 }
 
 /// Import image bytes next to a document, using a unique name in its `imports` folder.
-pub fn import_image_with_name(
+fn import_image_with_name(
     core: &Lb, target: Uuid, name: &str, data: &[u8],
 ) -> Result<File, String> {
     #[cfg(target_os = "android")]
@@ -938,6 +945,25 @@ pub fn import_image_with_name(
         return Err(err.to_string());
     }
     Ok(file)
+}
+
+#[cfg(test)]
+mod image_import_tests {
+    use super::image_import_name;
+
+    #[test]
+    fn preserves_a_provided_image_name() {
+        assert_eq!(image_import_name(Some(" photo.jpg "), &[]), "photo.jpg");
+    }
+
+    #[test]
+    fn generates_a_timestamp_name_when_none_or_blank() {
+        for name in [None, Some("   ")] {
+            let generated = image_import_name(name, &[]);
+            assert!(generated.starts_with("pasted_image_"));
+            assert!(generated.ends_with(".png"));
+        }
+    }
 }
 
 /// Build a Markdown image link from the importing document to the new file.
