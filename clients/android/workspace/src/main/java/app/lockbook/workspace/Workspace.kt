@@ -28,7 +28,9 @@ data class AndroidResponse(
     val editMenuY: Float,
     val editMenuForAtom: Boolean,
     val selectionUpdated: Boolean,
-    val textUpdated: Boolean
+    val textUpdated: Boolean,
+    val openCamera: Boolean,
+    val failureMessage: String,
 )
 
 object Workspace {
@@ -46,6 +48,7 @@ object Workspace {
     external fun defaultTheme(isDark: Boolean): Any
 
     external fun enterFrameOffloaded(rustObj: Long): AndroidResponse
+    external fun queueFileForEditorImport(rustObj: Long, path: String, name: String): Boolean
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)
 

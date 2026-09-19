@@ -21,8 +21,10 @@ import app.lockbook.databinding.ActivityShareReceiverBinding
 import app.lockbook.model.AlertModel
 import app.lockbook.model.MoveFileViewModel
 import app.lockbook.ui.CreateFileDialogFragment
+import app.lockbook.util.AttachmentTooLargeException
 import app.lockbook.util.FileMetadataRowInfo
 import app.lockbook.util.FileMetadataViewHolder
+import app.lockbook.util.readAttachmentBytes
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import com.google.android.material.listitem.ListItemLayout
@@ -186,11 +188,13 @@ class ShareReceiverActivity : AppCompatActivity() {
 
         for (uri in uris) {
             try {
-                val data =
-                    contentResolver.openInputStream(uri)?.use { stream -> stream.readBytes() }
+                val data = readAttachmentBytes(this, uri)
+                    ?: throw IllegalArgumentException(getString(R.string.attachment_import_unreadable))
                 val lbFile = Lb.createFile(getUriFileName(uri), model.currentParent.id, true)
                 newFileId = lbFile.id
                 Lb.writeDocumentBytes(lbFile.id, data)
+            } catch (_: AttachmentTooLargeException) {
+                alertModel.notify(getString(R.string.attachment_import_too_large))
             } catch (err: LbError) {
                 alertModel.notifyError(err)
             } catch (err: Exception) {

@@ -1060,11 +1060,9 @@ impl Workspace {
         }
     }
 
-    /// Handle clipboard-like events (`Drop`/`Paste`). For image clips the
-    /// workspace imports the image as a lockbook file and pushes a
-    /// `Markdown::Replace` event with a relative-path `![…](…)` markdown
-    /// link; the editor then processes it in its own `process_events` later
-    /// this frame.
+    /// Handle clipboard-like events (`Drop`/`Paste`). Import image or file
+    /// bytes into Lockbook, then push a Markdown link for the editor to apply
+    /// later this frame.
     ///
     /// Only runs when the current tab is a non-readonly markdown editor —
     /// other tab types (SVG, image viewer, PDF) handle clipboard events
@@ -1097,27 +1095,35 @@ impl Workspace {
                 _ => continue,
             };
             for clip in content {
-                match clip {
-                    crate::tab::ClipContent::Image(data) => {
-                        let file = crate::tab::import_image(&self.core, file_id, &data);
+                let (name, data) = match clip {
+                    crate::tab::ClipContent::Image(data) => (None, data),
+                    crate::tab::ClipContent::NamedImage { name, data } => (Some(name), data),
+                    crate::tab::ClipContent::Files(..) => {
+                        // todo: support file drop & paste
+                        continue;
+                    }
+                };
+                let file =
+                    match crate::tab::import_image(&self.core, file_id, name.as_deref(), &data) {
+                        Ok(file) => file,
+                        Err(error) => {
+                            self.out.failure_messages.push(error);
+                            continue;
+                        }
+                    };
 
-                        // Refresh before the markdown event lands: the image
-                        // cache's URL→id lookup reads `self.files` on first
-                        // load and caches a sticky "image not found" failure
-                        // if the file isn't there yet.
-                        *self.files.write().unwrap() =
-                            FileCache::new(&self.core).expect("failed to refresh file cache");
-
-                        let rel_path = {
-                            let guard = self.files.read().unwrap();
-                            let parent = guard.get_by_id(file_id).unwrap().parent;
-                            crate::file_cache::relative_path(
-                                &guard.path(parent),
-                                &guard.path(file.id),
-                            )
-                        };
-                        let link = format!("![{}]({})", file.name, rel_path);
-
+                // Refresh before the markdown event lands: the image cache's
+                // URL→id lookup caches a sticky failure if the file is absent.
+                let Ok(cache) = FileCache::new(&self.core) else {
+                    self.out
+                        .failure_messages
+                        .push("Could not refresh imported files".to_owned());
+                    continue;
+                };
+                let link = crate::tab::imported_image_link(&cache, file_id, &file);
+                *self.files.write().unwrap() = cache;
+                match link {
+                    Ok(link) => {
                         self.ctx
                             .push_markdown_event(crate::tab::markdown_editor::Event::Replace {
                                 region: crate::tab::markdown_editor::input::Region::Selection,
@@ -1125,9 +1131,7 @@ impl Workspace {
                                 advance_cursor: true,
                             });
                     }
-                    crate::tab::ClipContent::Files(..) => {
-                        // todo: support file drop & paste
-                    }
+                    Err(error) => self.out.failure_messages.push(error),
                 }
             }
         }

@@ -94,6 +94,7 @@ dependencies {
     implementation "com.google.android.material:material:$material_ui_version"
     implementation "androidx.preference:preference-ktx:$preference_version"
     implementation "androidx.fragment:fragment-ktx:$fragment_version"
+    implementation "androidx.activity:activity-ktx:1.8.0"
     implementation "androidx.slidingpanelayout:slidingpanelayout:$sliding_pane_layout_version"
     implementation "com.afollestad:recyclical:$recyclical_version"
     implementation "androidx.constraintlayout:constraintlayout:$constraint_layout_version"
