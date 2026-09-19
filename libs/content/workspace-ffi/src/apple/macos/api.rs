@@ -100,3 +100,34 @@ pub unsafe extern "C" fn set_tab_strip_height(obj: *mut c_void, height: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.workspace.tab_strip_min_height = height;
 }
+
+/// Configure the process-wide experimental MCP listener. The returned error
+/// string must be released with free_text; null means success.
+/// # Safety
+/// Call on the main thread. token must point to a valid NUL-terminated UTF-8 string.
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub unsafe extern "C" fn configure_mcp(
+    enabled: bool, port: u16, token: *const c_char,
+) -> *const c_char {
+    let token = if token.is_null() { "" } else { CStr::from_ptr(token).to_str().unwrap_or("") };
+    match workspace_rs::mcp::configure(enabled, port, token) {
+        Ok(()) => std::ptr::null(),
+        Err(error) => std::ffi::CString::new(error).unwrap().into_raw(),
+    }
+}
+
+/// Drain MCP commands on the selected window's workspace, including while it
+/// is not drawing. No workspace pointers are shared with the network thread.
+/// # Safety
+/// obj must be a live WgpuWorkspace owned by the calling main thread.
+#[cfg(target_os = "macos")]
+#[no_mangle]
+pub unsafe extern "C" fn process_mcp(obj: *mut c_void) {
+    if let Some(obj) = (obj as *mut WgpuWorkspace).as_mut() {
+        obj.workspace.process_bg_tasks();
+        obj.workspace.process_lb_updates();
+        obj.workspace.process_task_updates();
+        workspace_rs::mcp::process(&mut obj.workspace);
+    }
+}

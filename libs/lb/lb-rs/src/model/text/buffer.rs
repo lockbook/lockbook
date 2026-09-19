@@ -227,6 +227,9 @@ impl Ops {
 
         // current-frame analysis
         let (curr_start, curr_end) = self.frame_at(idx);
+        if self.meta[curr_start].isolated {
+            return true;
+        }
         if !self.frame_has_replace(curr_start, curr_end) {
             // select-only frame absorbs into the prev unit
             return false;
@@ -251,6 +254,9 @@ impl Ops {
         // typing-grouping: rapid single-keystroke edits stay in one
         // unit so a burst of typing undoes together
         if let Some((prev_start, prev_end)) = prev_real {
+            if self.meta[prev_start].isolated {
+                return true;
+            }
             let curr_typing = self.frame_is_typing(curr_start, curr_end);
             let prev_typing = self.frame_is_typing(prev_start, prev_end);
             if curr_typing && prev_typing {
@@ -313,6 +319,9 @@ struct OpMeta {
     /// At what time was this operation applied? Affects undo units.
     pub timestamp: Instant,
 
+    /// Programmatic edits must not coalesce with adjacent typing.
+    pub isolated: bool,
+
     /// What version of the buffer was the modifier looking at when they made this operation? Used for operational
     /// transformation, both when applying multiple operations in one frame and when merging out-of-editor changes.
     /// The magic happens here.
@@ -320,8 +329,17 @@ struct OpMeta {
 }
 
 impl Buffer {
-    /// Push a series of operations onto the buffer's input queue; operations will be undone/redone atomically. Useful
-    /// for batches of internal operations produced from a single input event e.g. multi-line list identation.
+    /// Queue a programmatic edit as an undo group that cannot coalesce with adjacent typing.
+    /// Apply pending input with update() first if it must form a separate group.
+    pub fn queue_isolated(&mut self, ops: Vec<Operation>) {
+        let start = self.ops.meta.len();
+        self.queue(ops);
+        for meta in &mut self.ops.meta[start..] {
+            meta.isolated = true;
+        }
+    }
+
+    /// Queue operations from one input event as an atomic group. Adjacent typing may coalesce.
     pub fn queue(&mut self, mut ops: Vec<Operation>) {
         let timestamp = Instant::now();
         let base = self.current.seq;
@@ -353,9 +371,11 @@ impl Buffer {
             }
         }
 
-        self.ops
-            .meta
-            .extend(combined_ops.iter().map(|_| OpMeta { timestamp, base }));
+        self.ops.meta.extend(combined_ops.iter().map(|_| OpMeta {
+            timestamp,
+            base,
+            isolated: false,
+        }));
         self.ops.all.extend(combined_ops);
     }
 
@@ -369,9 +389,10 @@ impl Buffer {
         let base = self.external.seq;
         let ops = diff(&self.external.text, &text);
 
-        self.ops
-            .meta
-            .extend(ops.iter().map(|_| OpMeta { timestamp, base }));
+        self.ops.meta.extend(
+            ops.iter()
+                .map(|_| OpMeta { timestamp, base, isolated: false }),
+        );
         self.ops.all.extend(ops.into_iter().map(Operation::Replace));
 
         self.external.text = text;
@@ -392,12 +413,16 @@ impl Buffer {
 
         let timestamp = Instant::now();
         let base = self.external.seq;
-        self.ops
-            .meta
-            .extend(ops_a.iter().map(|_| OpMeta { timestamp, base }));
-        self.ops
-            .meta
-            .extend(ops_b.iter().map(|_| OpMeta { timestamp, base }));
+        self.ops.meta.extend(
+            ops_a
+                .iter()
+                .map(|_| OpMeta { timestamp, base, isolated: false }),
+        );
+        self.ops.meta.extend(
+            ops_b
+                .iter()
+                .map(|_| OpMeta { timestamp, base, isolated: false }),
+        );
 
         self.ops
             .all
@@ -1120,6 +1145,25 @@ mod undo_unit_tests {
                 Operation::Select(cursor.into_range()),
             ],
         );
+    }
+
+    #[test]
+    fn isolated_edits_do_not_merge_with_typing() {
+        let mut buf = Buffer::default();
+        type_str(&mut buf, "a");
+        buf.queue_isolated(vec![Operation::Replace(Replace {
+            range: (Grapheme(1), Grapheme(1)),
+            text: "b".into(),
+        })]);
+        buf.update();
+        type_str(&mut buf, "c");
+        assert_eq!(buf.current.text, "acb"); // The agent preserves the human caret.
+        buf.undo();
+        assert_eq!(buf.current.text, "ab");
+        buf.undo();
+        assert_eq!(buf.current.text, "a");
+        buf.redo();
+        assert_eq!(buf.current.text, "ab");
     }
 
     /// Plain Enter at cursor — single `\n` Replace, like the editor

@@ -113,6 +113,8 @@
                 }
             }
 
+            ExperimentalMcp.shared.register(self)
+
             modifierEventHandle = NSEvent.addLocalMonitorForEvents(matching: .flagsChanged) { [weak self] event in
                 self?.modifiersChanged(event: event) ?? event
             }
@@ -556,6 +558,7 @@
         }
 
         deinit {
+            ExperimentalMcp.shared.unregister(self)
             if let wsHandle {
                 RepaintRelay.unregister(wsHandle)
                 deinit_editor(wsHandle)

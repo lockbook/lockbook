@@ -79,3 +79,9 @@ ndk-sys = "0.4"
 raw-window-handle = "0.6"
 jni = "0.21.0"
 pollster = "0.2"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+axum = "0.8"
+sha2 = "0.10"
+rmcp = { version = "3.3", default-features = false, features = ["server", "transport-streamable-http-server"] }
+tokio-util = "0.7"

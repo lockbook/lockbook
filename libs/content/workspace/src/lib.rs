@@ -2,6 +2,8 @@ pub(crate) mod egress;
 pub mod file_cache;
 pub mod font;
 pub mod landing;
+#[cfg(target_os = "macos")]
+pub mod mcp;
 #[cfg(not(target_family = "wasm"))]
 pub mod mind_map;
 pub mod output;

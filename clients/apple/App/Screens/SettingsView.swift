@@ -211,6 +211,9 @@ import SwiftWorkspace
     }
 
     struct SettingsEditorView: View {
+        @AppStorage("experimentalMcpEnabled") private var experimentalMcpEnabled = false
+        @AppStorage("experimentalMcpPort") private var experimentalMcpPort = 19687
+        @State private var mcp = ExperimentalMcp.shared
         @AppStorage("contactLinkedSites") private var contactLinkedSites: Bool = false
 
         var body: some View {
@@ -223,8 +226,34 @@ import SwiftWorkspace
                     .font(.caption)
                     .foregroundColor(.secondary)
                 }
+                Section("Experimental MCP Server") {
+                    Toggle("Enable experimental MCP server", isOn: $experimentalMcpEnabled)
+                    Text("Allow connected AI tools to read and edit your Lockbook files and control the workspace. Content returned to an AI tool may be sent to its provider. Off by default; connections stay on this Mac.")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    if experimentalMcpEnabled {
+                        TextField("Port", value: $experimentalMcpPort, format: .number.grouping(.never))
+                        Text(mcp.status).font(.caption).textSelection(.enabled)
+                        if let error = mcp.error {
+                            Text(error).font(.caption).foregroundColor(.red)
+                        }
+                        HStack {
+                            Button("Copy Codex configuration") { mcp.copyConfiguration() }
+                                .disabled(!mcp.running)
+                            Button("Reset access token") { mcp.resetAccessToken() }
+                            if !mcp.running {
+                                Button("Retry") { mcp.refresh() }
+                            }
+                        }
+                        Text("The copied configuration includes an access token. Keep it private. Lockbook must remain open.")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                    }
+                }
             }
             .formStyle(.grouped)
+            .onChange(of: experimentalMcpEnabled) { _, _ in mcp.refresh() }
+            .onChange(of: experimentalMcpPort) { _, _ in mcp.refresh() }
         }
     }
 
