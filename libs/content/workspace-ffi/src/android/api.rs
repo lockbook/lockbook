@@ -150,7 +150,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_queueFileForEditorI
     obj.renderer
         .context
         .push_event(workspace_rs::tab::Event::Paste {
-            content: vec![ClipContent::Image { name: Some(parsed[1].clone()), data }],
+            content: vec![ClipContent::NamedImage { name: parsed[1].clone(), data }],
             position: egui::Pos2::ZERO,
         });
     1
@@ -939,7 +939,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardSendImage(
         Err(_) => return,
     };
 
-    let content = vec![ClipContent::Image { name: None, data: img }];
+    let content = vec![ClipContent::Image(img)];
     let position = egui::Pos2::ZERO; // todo: cursor position
 
     if is_paste == 1 {
