@@ -1095,19 +1095,15 @@ impl Workspace {
                 _ => continue,
             };
             for clip in content {
-                let (file, is_image) = match clip {
-                    crate::tab::ClipContent::Image(data) => {
-                        match crate::tab::import_image(&self.core, file_id, &data) {
-                            Ok(file) => (file, true),
-                            Err(error) => {
-                                self.out.failure_messages.push(error);
-                                continue;
-                            }
-                        }
-                    }
-                    crate::tab::ClipContent::FileData { name, data, is_image } => {
-                        match crate::tab::import_file(&self.core, file_id, &name, &data, is_image) {
-                            Ok(file) => (file, is_image),
+                let file = match clip {
+                    crate::tab::ClipContent::Image { name, data } => {
+                        let result = if let Some(name) = name {
+                            crate::tab::import_image_with_name(&self.core, file_id, &name, &data)
+                        } else {
+                            crate::tab::import_image(&self.core, file_id, &data)
+                        };
+                        match result {
+                            Ok(file) => file,
                             Err(error) => {
                                 self.out.failure_messages.push(error);
                                 continue;
@@ -1128,7 +1124,7 @@ impl Workspace {
                         .push("Could not refresh imported files".to_owned());
                     continue;
                 };
-                let link = crate::tab::imported_file_link(&cache, file_id, &file, is_image);
+                let link = crate::tab::imported_image_link(&cache, file_id, &file);
                 *self.files.write().unwrap() = cache;
                 match link {
                     Ok(link) => {

@@ -351,7 +351,7 @@ class WorkspaceView(
                 }
 
                 WorkspaceTabType.Markdown -> {
-                    val accepted = Workspace.queueFileForEditorImport(wgpuObj, attachment.tempPath, attachment.name, attachment.isImage)
+                    val accepted = Workspace.queueFileForEditorImport(wgpuObj, attachment.tempPath, attachment.name)
                     model.removeNextAttachment()
                     File(attachment.tempPath).delete()
                     if (!accepted) {

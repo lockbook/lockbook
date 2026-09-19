@@ -23,10 +23,18 @@ impl SVGEditor {
                 crate::Event::Drop { content, .. } | crate::Event::Paste { content, .. } => {
                     for clip in content {
                         match clip {
-                            ClipContent::Image(data) => {
-                                let Ok(file) =
+                            ClipContent::Image { name, data } => {
+                                let result = if let Some(name) = name {
+                                    crate::tab::import_image_with_name(
+                                        &self.lb,
+                                        self.open_file,
+                                        &name,
+                                        &data,
+                                    )
+                                } else {
                                     crate::tab::import_image(&self.lb, self.open_file, &data)
-                                else {
+                                };
+                                let Ok(file) = result else {
                                     continue;
                                 };
 
@@ -93,7 +101,6 @@ impl SVGEditor {
                                 //     vec![SelectedElement { id, transform: Transform::identity() }];
                             }
                             ClipContent::Files(..) => unimplemented!(), // todo: support file drop & paste
-                            ClipContent::FileData { .. } => {}
                         }
                     }
                 }

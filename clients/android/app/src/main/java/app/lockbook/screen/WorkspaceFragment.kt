@@ -50,7 +50,6 @@ import app.lockbook.model.OpenFilePresentation
 import app.lockbook.model.OpenTab
 import app.lockbook.model.SearchPresentation
 import app.lockbook.model.TransientScreen
-import app.lockbook.model.WorkspaceAttachment
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
@@ -308,7 +307,7 @@ class WorkspaceFragment : Fragment() {
                 if (staged == null) {
                     toast(R.string.workspace_attachment_unreadable)
                 } else {
-                    model.enqueueAttachment(WorkspaceAttachment(staged.path, staged.name, staged.isImage))
+                    model.enqueueAttachment(staged)
                     workspaceView?.invalidate()
                 }
             }

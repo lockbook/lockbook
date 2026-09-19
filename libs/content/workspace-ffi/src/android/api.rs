@@ -126,7 +126,7 @@ fn android_response_to_java<'local>(
 
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_queueFileForEditorImport(
-    mut env: JNIEnv, _: JClass, obj: jlong, path: JString, name: JString, is_image: jboolean,
+    mut env: JNIEnv, _: JClass, obj: jlong, path: JString, name: JString,
 ) -> jboolean {
     let parsed: Result<Vec<String>, _> = [path, name]
         .iter()
@@ -150,11 +150,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_queueFileForEditorI
     obj.renderer
         .context
         .push_event(workspace_rs::tab::Event::Paste {
-            content: vec![ClipContent::FileData {
-                name: parsed[1].clone(),
-                data,
-                is_image: is_image != 0,
-            }],
+            content: vec![ClipContent::Image { name: Some(parsed[1].clone()), data }],
             position: egui::Pos2::ZERO,
         });
     1
@@ -943,7 +939,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_clipboardSendImage(
         Err(_) => return,
     };
 
-    let content = vec![ClipContent::Image(img)];
+    let content = vec![ClipContent::Image { name: None, data: img }];
     let position = egui::Pos2::ZERO; // todo: cursor position
 
     if is_paste == 1 {

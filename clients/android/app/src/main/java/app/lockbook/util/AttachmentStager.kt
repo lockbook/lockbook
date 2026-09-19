@@ -6,9 +6,8 @@ import android.provider.OpenableColumns
 import java.io.File
 
 internal data class StagedAttachment(
-    val path: String,
+    val tempPath: String,
     val name: String,
-    val isImage: Boolean,
 )
 
 internal object AttachmentStager {
@@ -31,11 +30,6 @@ internal object AttachmentStager {
                 .replace('\u0000', '_')
                 .take(230)
                 .ifBlank { "attachment" }
-        val mime = runCatching { resolver.getType(uri) }.getOrNull()
-        val isImage =
-            mime?.startsWith("image/") == true ||
-                name.substringAfterLast('.', "").lowercase() in
-                setOf("avif", "bmp", "gif", "heic", "heif", "jpeg", "jpg", "png", "tif", "tiff", "webp")
         val dir = File(context.cacheDir, "attachments").apply { mkdirs() }
         val file = File.createTempFile("attachment_", ".tmp", dir)
         var complete = false
@@ -56,7 +50,7 @@ internal object AttachmentStager {
             }
             if (file.length() == 0L) return null
             complete = true
-            return StagedAttachment(file.absolutePath, name, isImage)
+            return StagedAttachment(file.absolutePath, name)
         } finally {
             if (!complete || file.length() == 0L || file.length() > MAX_ATTACHMENT_SIZE_BYTES) file.delete()
         }

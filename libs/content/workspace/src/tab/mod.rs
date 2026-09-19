@@ -607,8 +607,7 @@ pub enum Event {
 #[derive(Debug, Clone)]
 pub enum ClipContent {
     Files(Vec<PathBuf>),
-    Image(Vec<u8>), // image format guessed by egui
-    FileData { name: String, data: Vec<u8>, is_image: bool },
+    Image { name: Option<String>, data: Vec<u8> }, // format guessed from bytes
 }
 
 #[derive(PartialEq)]
@@ -866,18 +865,17 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> Result<File, Strin
         .first()
         .unwrap_or(&"png");
 
-    import_file(
+    import_image_with_name(
         core,
         file_id,
         &format!("pasted_image_{human_readable_time}.{file_extension}"),
         data,
-        true,
     )
 }
 
-/// Import bytes next to a document, using a unique name in its `imports` folder.
-pub fn import_file(
-    core: &Lb, target: Uuid, name: &str, data: &[u8], is_image: bool,
+/// Import image bytes next to a document, using a unique name in its `imports` folder.
+pub fn import_image_with_name(
+    core: &Lb, target: Uuid, name: &str, data: &[u8],
 ) -> Result<File, String> {
     if data.len() > MAX_ATTACHMENT_SIZE_BYTES {
         return Err("Files larger than 25 MiB cannot be imported".to_owned());
@@ -901,7 +899,7 @@ pub fn import_file(
         .collect::<String>();
     let clean_name = clean_name.trim().trim_start_matches('.');
     let clean_name = if clean_name.is_empty() { "attachment" } else { clean_name };
-    let clean_name = if is_image && !clean_name.contains('.') {
+    let clean_name = if !clean_name.contains('.') {
         let extension = image::guess_format(data)
             .ok()
             .and_then(|fmt| fmt.extensions_str().first().copied())
@@ -941,10 +939,8 @@ pub fn import_file(
     Ok(file)
 }
 
-/// Build a Markdown link from the importing document to the new file.
-pub fn imported_file_link(
-    cache: &FileCache, target: Uuid, file: &File, is_image: bool,
-) -> Result<String, String> {
+/// Build a Markdown image link from the importing document to the new file.
+pub fn imported_image_link(cache: &FileCache, target: Uuid, file: &File) -> Result<String, String> {
     let parent = cache
         .get_by_id(target)
         .ok_or("Import target is no longer available")?
@@ -960,11 +956,7 @@ pub fn imported_file_link(
         .replace('\\', "\\\\")
         .replace('[', "\\[")
         .replace(']', "\\]");
-    if is_image {
-        Ok(format!("![{label}]({encoded_path})"))
-    } else {
-        Ok(format!("[{label}]({encoded_path})"))
-    }
+    Ok(format!("![{label}]({encoded_path})"))
 }
 
 #[cfg(test)]
