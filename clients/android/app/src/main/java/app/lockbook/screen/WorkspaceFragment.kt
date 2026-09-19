@@ -57,7 +57,7 @@ import app.lockbook.model.WorkspaceViewModel
 import app.lockbook.ui.PhotoSourceBottomSheetFragment
 import app.lockbook.util.AttachmentStager
 import app.lockbook.util.HorizontalTabItemHolder
-import app.lockbook.util.MAX_CONTENT_SIZE
+import app.lockbook.util.MAX_ATTACHMENT_SIZE_BYTES
 import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
@@ -1102,7 +1102,7 @@ class WorkspaceTextInputWrapper(
         workspaceView.launchIo {
             val bytes =
                 try {
-                    wsInputConnection.readAllBytesCapped(uri, MAX_CONTENT_SIZE)
+                    wsInputConnection.readAllBytesCapped(uri, MAX_ATTACHMENT_SIZE_BYTES)
                 } catch (_: Exception) {
                     null
                 } finally {

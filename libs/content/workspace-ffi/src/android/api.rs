@@ -125,7 +125,7 @@ fn android_response_to_java<'local>(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendFile(
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_queueFileForEditorImport(
     mut env: JNIEnv, _: JClass, obj: jlong, path: JString, name: JString, is_image: jboolean,
 ) -> jboolean {
     let parsed: Result<Vec<String>, _> = [path, name]
@@ -137,7 +137,7 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_sendFile(
         return 0;
     }
     let Ok(metadata) = std::fs::metadata(&parsed[0]) else { return 0 };
-    if metadata.len() == 0 || metadata.len() > 25 * 1024 * 1024 {
+    if metadata.len() == 0 || metadata.len() > workspace_rs::tab::MAX_ATTACHMENT_SIZE_BYTES as u64 {
         return 0;
     }
     let Ok(data) = std::fs::read(&parsed[0]) else { return 0 };

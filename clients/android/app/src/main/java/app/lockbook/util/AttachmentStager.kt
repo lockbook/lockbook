@@ -49,7 +49,7 @@ internal object AttachmentStager {
                         val count = source.read(buffer)
                         if (count < 0) break
                         total += count
-                        if (total > MAX_CONTENT_SIZE) return null
+                        if (total > MAX_ATTACHMENT_SIZE_BYTES) return null
                         destination.write(buffer, 0, count)
                     }
                 }
@@ -58,7 +58,7 @@ internal object AttachmentStager {
             complete = true
             return StagedAttachment(file.absolutePath, name, isImage)
         } finally {
-            if (!complete || file.length() == 0L || file.length() > MAX_CONTENT_SIZE) file.delete()
+            if (!complete || file.length() == 0L || file.length() > MAX_ATTACHMENT_SIZE_BYTES) file.delete()
         }
     }
 }

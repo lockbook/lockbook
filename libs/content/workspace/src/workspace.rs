@@ -1097,7 +1097,13 @@ impl Workspace {
             for clip in content {
                 let (file, is_image) = match clip {
                     crate::tab::ClipContent::Image(data) => {
-                        (crate::tab::import_image(&self.core, file_id, &data), true)
+                        match crate::tab::import_image(&self.core, file_id, &data) {
+                            Ok(file) => (file, true),
+                            Err(error) => {
+                                self.out.failure_messages.push(error);
+                                continue;
+                            }
+                        }
                     }
                     crate::tab::ClipContent::FileData { name, data, is_image } => {
                         match crate::tab::import_file(&self.core, file_id, &name, &data, is_image) {

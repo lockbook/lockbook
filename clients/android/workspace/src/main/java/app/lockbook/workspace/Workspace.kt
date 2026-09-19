@@ -48,7 +48,7 @@ object Workspace {
     external fun defaultTheme(isDark: Boolean): Any
 
     external fun enterFrameOffloaded(rustObj: Long): AndroidResponse
-    external fun sendFile(rustObj: Long, path: String, name: String, isImage: Boolean): Boolean
+    external fun queueFileForEditorImport(rustObj: Long, path: String, name: String, isImage: Boolean): Boolean
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
     external fun setBottomInset(rustObj: Long, inset: Int)
 

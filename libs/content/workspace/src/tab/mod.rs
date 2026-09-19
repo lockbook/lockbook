@@ -849,9 +849,11 @@ impl ExtendedInput for egui::Context {
     }
 }
 
+pub const MAX_ATTACHMENT_SIZE_BYTES: usize = 25 * 1024 * 1024;
+
 // todo: use background thread
 // todo: refresh file tree view
-pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
+pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> Result<File, String> {
     // get local time in a human readable datetime format
     let time = SystemTime::now().duration_since(UNIX_EPOCH).unwrap();
     let human_readable_time = DateTime::from_timestamp(time.as_secs() as _, 0)
@@ -871,13 +873,15 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> File {
         data,
         true,
     )
-    .expect("import pasted image")
 }
 
 /// Import bytes next to a document, using a unique name in its `imports` folder.
 pub fn import_file(
     core: &Lb, target: Uuid, name: &str, data: &[u8], is_image: bool,
 ) -> Result<File, String> {
+    if data.len() > MAX_ATTACHMENT_SIZE_BYTES {
+        return Err("Files larger than 25 MiB cannot be imported".to_owned());
+    }
     let target_file = core.get_file_by_id(target).map_err(|e| e.to_string())?;
     let siblings = core
         .get_children(&target_file.parent)
