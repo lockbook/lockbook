@@ -365,24 +365,22 @@ impl<'ast> Editor {
                             .map(|e| events.push(e));
                         any_media = true;
                     }
-                    if persistence.image || toolbar_is_default {
-                        if supports_attachments {
-                            if any_media {
-                                ui.add_space(5.);
-                            }
-                            // Accent only when the cursor is inside an image, matching link.
-                            let applied = self.edit.inline_styled(
-                                root,
-                                self.edit.renderer.buffer.current.selection,
-                                &NodeValue::Image(Default::default()),
-                            );
-                            let tooltip =
-                                if cfg!(target_os = "android") { "Insert photo" } else { "Camera" };
-                            if toolbar_icon(ui, &t, phosphor::CAMERA, applied, menu_open, tooltip) {
-                                events.push(Event::Camera);
-                            }
-                            any_media = true;
+                    if (persistence.image || toolbar_is_default) && supports_attachments {
+                        if any_media {
+                            ui.add_space(5.);
                         }
+                        // Accent only when the cursor is inside an image, matching link.
+                        let applied = self.edit.inline_styled(
+                            root,
+                            self.edit.renderer.buffer.current.selection,
+                            &NodeValue::Image(Default::default()),
+                        );
+                        let tooltip =
+                            if cfg!(target_os = "android") { "Insert photo" } else { "Camera" };
+                        if toolbar_icon(ui, &t, phosphor::CAMERA, applied, menu_open, tooltip) {
+                            events.push(Event::Camera);
+                        }
+                        any_media = true;
                     }
                     if any_media {
                         add_seperator(ui);
