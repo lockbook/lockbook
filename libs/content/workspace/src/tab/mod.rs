@@ -877,6 +877,7 @@ pub fn import_image(core: &Lb, file_id: Uuid, data: &[u8]) -> Result<File, Strin
 pub fn import_image_with_name(
     core: &Lb, target: Uuid, name: &str, data: &[u8],
 ) -> Result<File, String> {
+    #[cfg(target_os = "android")]
     if data.len() > MAX_ATTACHMENT_SIZE_BYTES {
         return Err("Files larger than 25 MiB cannot be imported".to_owned());
     }
