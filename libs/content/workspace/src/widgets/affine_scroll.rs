@@ -355,15 +355,11 @@ mod affine {
             if dist > bound {
                 return None;
             }
-            match rows.next(&id) {
-                Some(next_id) => {
-                    if next_id == to.anchor {
-                        return Some(dist + to.intra_precise);
-                    }
-                    id = next_id;
-                }
-                None => return None,
+            let next_id = rows.next(&id)?;
+            if next_id == to.anchor {
+                return Some(dist + to.intra_precise);
             }
+            id = next_id;
         }
     }
 
@@ -824,10 +820,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
             if row_top > self.viewport_height {
                 return None;
             }
-            match rows.next(&id) {
-                Some(n) => id = n,
-                None => return None,
-            }
+            id = rows.next(&id)?;
         }
     }
 

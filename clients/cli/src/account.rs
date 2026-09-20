@@ -169,11 +169,9 @@ pub async fn status() -> Result<(), CliError> {
     }
 
     let cap = lb.get_usage().await?;
-    let pct = if cap.data_cap.exact == 0 {
-        0
-    } else {
-        (cap.server_usage.exact * 100) / cap.data_cap.exact
-    };
+    let pct = (cap.server_usage.exact * 100)
+        .checked_div(cap.data_cap.exact)
+        .unwrap_or(0);
 
     if let Some(info) = lb.get_subscription_info().await? {
         match info.payment_platform {

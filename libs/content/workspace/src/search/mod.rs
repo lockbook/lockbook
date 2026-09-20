@@ -273,7 +273,7 @@ impl Search {
             ui.painter().rect_stroke(
                 out.response.rect,
                 CornerRadius::same(12),
-                egui::Stroke::new(2.0, accent),
+                egui::Stroke::new(2.0_f32, accent),
                 egui::epaint::StrokeKind::Inside,
             );
         }

@@ -310,6 +310,6 @@ impl<'a> Button<'a> {
             })
             .collect();
         ui.painter()
-            .add(egui::Shape::line(points, egui::Stroke::new(3.0, color)));
+            .add(egui::Shape::line(points, egui::Stroke::new(3.0_f32, color)));
     }
 }

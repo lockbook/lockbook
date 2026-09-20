@@ -679,7 +679,7 @@ impl Theme {
                 let paper = self.neutral_bg();
                 style::Selection {
                     bg_fill: paper.lerp_to_gamma(accent, 0.18),
-                    stroke: Stroke::new(1.0, paper.lerp_to_gamma(accent, 0.45)),
+                    stroke: Stroke::new(1.0_f32, paper.lerp_to_gamma(accent, 0.45)),
                 }
             },
             hyperlink_color: self.fg().get_color(self.prefs().secondary),

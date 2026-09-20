@@ -121,7 +121,7 @@ pub unsafe extern "C" fn free_bytes(bytes: CBytes) {
     if bytes.bytes.is_null() {
         return;
     }
-    drop(Box::from_raw(std::slice::from_raw_parts_mut(bytes.bytes, bytes.size as usize)));
+    drop(Box::from_raw(std::ptr::slice_from_raw_parts_mut(bytes.bytes, bytes.size as usize)));
 }
 
 /// # Safety

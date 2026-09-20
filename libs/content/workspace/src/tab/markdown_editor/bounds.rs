@@ -709,11 +709,10 @@ impl<'r, const N: usize> Iterator for RangeJoinIter<'r, N> {
             }
 
             // if there's no next end of a range, we're beyond the last range in all sets of ranges, so we're done
-            let next_end = if let Some(next_end) = next_end {
+            let next_end = {
+                let next_end = next_end?;
                 self.current_end = Some(next_end);
                 next_end
-            } else {
-                return None;
             };
 
             Some((idx_result, (current_end, next_end)))

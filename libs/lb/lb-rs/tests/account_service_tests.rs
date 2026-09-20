@@ -73,7 +73,7 @@ async fn create_account_username_taken() {
     assert!(
         matches!(err.kind, LbErrKind::UsernameTaken),
         "Username \"{}\" should have caused a UsernameTaken error but instead was {:?}",
-        &name,
+        name,
         err
     )
 }

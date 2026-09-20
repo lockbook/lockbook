@@ -148,7 +148,7 @@ impl LocalLb {
         let mut prunable_ids = base_ids;
         prunable_ids.retain(|id| !server_ids.contains(id));
         for id in prunable_ids.clone() {
-            prunable_ids.extend(local.descendants(&id)?.into_iter());
+            prunable_ids.extend(local.descendants(&id)?);
         }
         for id in &prunable_ids {
             if let Some(base_file) = local.tree.base.maybe_find(id) {

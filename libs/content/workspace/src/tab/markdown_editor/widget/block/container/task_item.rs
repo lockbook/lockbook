@@ -91,7 +91,7 @@ impl<'ast> MdRender {
                     .bg()
                     .get_color(theme.prefs().primary)
                     .gamma_multiply(0.1),
-                Stroke::new(0.5, theme.fg().get_color(theme.prefs().primary)),
+                Stroke::new(0.5_f32, theme.fg().get_color(theme.prefs().primary)),
                 StrokeKind::Inside,
             );
 
@@ -114,7 +114,7 @@ impl<'ast> MdRender {
                     egui::pos2(check_space.right(), check_space.top()),
                 ],
                 Stroke::new(
-                    2.,
+                    2_f32,
                     theme
                         .fg()
                         .get_color(crate::theme::palette_v2::Palette::White)

@@ -165,7 +165,7 @@ where
 
                 if self.name_using_links(&child, keychain)? == path_components[index] {
                     if index == path_components.len() - 1 {
-                        return Err(LbErrKind::Validation(ValidationFailure::PathConflict(
+                        Err(LbErrKind::Validation(ValidationFailure::PathConflict(
                             HashSet::from([child]),
                         )))?;
                     }

@@ -126,7 +126,7 @@ fn build_info_address(port: &str) -> String {
 
 pub fn assert_no_udeps() -> CliResult<()> {
     Command::new("cargo")
-        .args(["+nightly-2026-04-27", "udeps"])
+        .args(["+nightly-2026-09-19", "udeps"])
         .current_dir(root())
         .assert_success()
 }
