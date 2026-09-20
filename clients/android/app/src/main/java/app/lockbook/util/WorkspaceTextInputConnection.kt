@@ -5,7 +5,6 @@ import android.content.ClipboardManager
 import android.content.Context
 import android.net.Uri
 import android.os.Build
-import android.provider.OpenableColumns
 import android.text.Editable
 import android.view.KeyCharacterMap
 import android.view.KeyEvent
@@ -20,7 +19,6 @@ import app.lockbook.screen.WorkspaceTextInputWrapper
 import app.lockbook.workspace.Workspace
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
-import java.io.ByteArrayOutputStream
 
 data class CursorMonitorStatus(
     var monitor: Boolean = false,
@@ -28,8 +26,6 @@ data class CursorMonitorStatus(
     var characterBounds: Boolean = false,
     var insertionMarker: Boolean = false,
 )
-
-const val MAX_CONTENT_SIZE = 25 * 1024 * 1024
 
 private fun KeyEvent.isWorkspaceNavigationKey(): Boolean =
     when (keyCode) {
@@ -201,72 +197,12 @@ class WorkspaceTextInputConnection(
 
     fun readAllBytesCapped(
         uri: Uri,
-        maxBytes: Int = MAX_CONTENT_SIZE,
-    ): ByteArray? {
-        val resolver = App.applicationContext().contentResolver
-
-        // Best-effort size detection: if we know the size, we can allocate once and avoid
-        // `ByteArrayOutputStream.toByteArray()`'s extra copy.
-        val expectedSize =
-            run {
-                val fdSize =
-                    try {
-                        resolver.openAssetFileDescriptor(uri, "r")?.use { afd ->
-                            val len = afd.length
-                            if (len >= 0) len.toInt() else null
-                        }
-                    } catch (_: Exception) {
-                        null
-                    }
-
-                fdSize ?: try {
-                    resolver.query(uri, arrayOf(OpenableColumns.SIZE), null, null, null)?.use { cursor ->
-                        val idx = cursor.getColumnIndex(OpenableColumns.SIZE)
-                        if (idx != -1 && cursor.moveToFirst()) {
-                            val size = cursor.getLong(idx)
-                            if (size in 0..Int.MAX_VALUE.toLong()) size.toInt() else null
-                        } else {
-                            null
-                        }
-                    }
-                } catch (_: Exception) {
-                    null
-                }
-            }
-
-        if (expectedSize != null && expectedSize > maxBytes) throw Exception("Copied image too large")
-
-        resolver.openInputStream(uri)?.use { input ->
-            if (expectedSize != null && expectedSize != 0) {
-                val bytes = ByteArray(expectedSize)
-                var offset = 0
-                while (offset < expectedSize) {
-                    val read = input.read(bytes, offset, expectedSize - offset)
-                    if (read <= 0) break
-                    offset += read
-                }
-                return if (offset == expectedSize) bytes else bytes.copyOf(offset)
-            }
-
-            val out = ByteArrayOutputStream(1024 * 1024)
-            val buffer = ByteArray(1024 * 1024)
-            var total = 0
-            while (true) {
-                val read = input.read(buffer)
-                if (read <= 0) break
-                total += read
-                if (total > maxBytes) return null
-                out.write(buffer, 0, read)
-            }
-            return out.toByteArray()
-        }
-
-        return null
-    }
+        maxBytes: Int = MAX_ATTACHMENT_SIZE_BYTES,
+    ): ByteArray? = readAttachmentBytes(App.applicationContext(), uri, maxBytes)
 
     private fun readAllBytesCapped(uri: Uri?): ByteArray? {
         if (uri == null) return null
-        return readAllBytesCapped(uri, MAX_CONTENT_SIZE)
+        return readAllBytesCapped(uri, MAX_ATTACHMENT_SIZE_BYTES)
     }
 
     override fun requestCursorUpdates(cursorUpdateMode: Int): Boolean {
