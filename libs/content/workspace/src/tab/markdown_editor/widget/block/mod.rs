@@ -475,14 +475,13 @@ impl<'ast> MdRender {
         // headings
         if let NodeValue::Heading(heading) = node.data.borrow().value {
             // must have something to fold
-            if let Some(next_sibling) = node.next_sibling() {
+            {
+                let next_sibling = node.next_sibling()?;
                 if let NodeValue::Heading(next_heading) = next_sibling.data.borrow().value {
                     if next_heading.level <= heading.level {
                         return None;
                     }
                 }
-            } else {
-                return None;
             }
 
             return Some(node);

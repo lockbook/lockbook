@@ -888,7 +888,7 @@ pub unsafe extern "C" fn selection_rects(
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn free_selection_rects(rects: UITextSelectionRects) {
-    let _ = Box::from_raw(std::slice::from_raw_parts_mut(
+    let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
         rects.rects as *mut CRect,
         rects.size as usize,
     ));
@@ -917,7 +917,7 @@ pub unsafe extern "C" fn get_tabs(obj: *mut c_void) -> CTabs {
 /// # Safety
 #[no_mangle]
 pub unsafe extern "C" fn free_tabs(tabs: CTabs) {
-    let _ = Box::from_raw(std::slice::from_raw_parts_mut(
+    let _ = Box::from_raw(std::ptr::slice_from_raw_parts_mut(
         tabs.tabs as *mut CTabInfo,
         tabs.size as usize,
     ));

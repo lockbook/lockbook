@@ -448,12 +448,12 @@ fn set_style(ui: &mut egui::Ui) {
 
     if ui.visuals().dark_mode {
         ui.visuals_mut().window_stroke =
-            egui::Stroke::new(0.5, egui::Color32::from_rgb(56, 56, 56));
+            egui::Stroke::new(0.5_f32, egui::Color32::from_rgb(56, 56, 56));
         ui.visuals_mut().window_fill = egui::Color32::from_rgb(30, 30, 30);
         ui.visuals_mut().window_shadow = egui::Shadow::NONE;
     } else {
         ui.visuals_mut().window_stroke =
-            egui::Stroke::new(0.5, egui::Color32::from_rgb(235, 235, 235));
+            egui::Stroke::new(0.5_f32, egui::Color32::from_rgb(235, 235, 235));
         ui.visuals_mut().window_shadow = egui::Shadow {
             offset: [1, 8],
             blur: 20,

@@ -66,7 +66,7 @@ impl<'ast> MdRender {
             ui.painter().vline(
                 annotation_space.center().x,
                 annotation_space.y_range(),
-                Stroke::new(3., self.text_format(node).color),
+                Stroke::new(3_f32, self.text_format(node).color),
             );
         }
 

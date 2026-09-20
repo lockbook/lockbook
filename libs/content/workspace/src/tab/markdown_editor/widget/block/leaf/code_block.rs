@@ -151,7 +151,7 @@ impl<'ast> MdRender {
         ui.painter().rect_stroke(
             rect,
             2.,
-            Stroke::new(1., theme.neutral_bg_tertiary()),
+            Stroke::new(1_f32, theme.neutral_bg_tertiary()),
             egui::epaint::StrokeKind::Inside,
         );
 
@@ -290,7 +290,7 @@ impl<'ast> MdRender {
         ui.painter().rect_stroke(
             rect,
             2.,
-            Stroke::new(1., theme.neutral_bg_tertiary()),
+            Stroke::new(1_f32, theme.neutral_bg_tertiary()),
             egui::epaint::StrokeKind::Inside,
         );
 

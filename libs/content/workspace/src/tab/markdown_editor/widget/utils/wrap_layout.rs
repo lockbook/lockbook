@@ -1830,7 +1830,7 @@ impl MdRender {
                         ui.painter().rect_stroke(
                             bg_rect,
                             rounding,
-                            Stroke::new(1.0, border),
+                            Stroke::new(1.0_f32, border),
                             egui::StrokeKind::Inside,
                         );
                     }

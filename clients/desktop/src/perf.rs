@@ -30,8 +30,8 @@ fn register_term_exit() {
     }
     // SAFETY: replaces default terminate with exit+flush for this process.
     unsafe {
-        libc::signal(libc::SIGTERM, on_term as libc::sighandler_t);
-        libc::signal(libc::SIGINT, on_term as libc::sighandler_t);
+        libc::signal(libc::SIGTERM, on_term as *const () as libc::sighandler_t);
+        libc::signal(libc::SIGINT, on_term as *const () as libc::sighandler_t);
     }
 }
 
