@@ -140,7 +140,7 @@ impl Account {
         let gen_checksum_last_4 = &gen_checksum[..4];
 
         if gen_checksum_last_4 != checksum_last_4_bits {
-            return Err(LbErrKind::KeyPhraseInvalid)?;
+            Err(LbErrKind::KeyPhraseInvalid)?;
         }
 
         Ok(SecretKey::parse_slice(&key).map_err(|e| {

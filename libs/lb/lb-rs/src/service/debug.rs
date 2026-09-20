@@ -102,7 +102,7 @@ impl LocalLb {
             let content = if populate_content { entry.content().await? } else { String::new() };
             panics.push(PanicInfo { time: entry.time, file_path: entry.file_path, content });
         }
-        panics.sort_by(|a, b| b.time.cmp(&a.time));
+        panics.sort_by_key(|panic| std::cmp::Reverse(panic.time));
 
         Ok(panics)
     }
