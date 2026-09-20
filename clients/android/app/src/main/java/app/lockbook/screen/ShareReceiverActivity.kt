@@ -188,8 +188,9 @@ class ShareReceiverActivity : AppCompatActivity() {
 
         for (uri in uris) {
             try {
-                val data = readAttachmentBytes(this, uri)
-                    ?: throw IllegalArgumentException(getString(R.string.attachment_import_unreadable))
+                val data =
+                    readAttachmentBytes(this, uri)
+                        ?: throw IllegalArgumentException(getString(R.string.attachment_import_unreadable))
                 val lbFile = Lb.createFile(getUriFileName(uri), model.currentParent.id, true)
                 newFileId = lbFile.id
                 Lb.writeDocumentBytes(lbFile.id, data)
