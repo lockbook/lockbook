@@ -56,6 +56,16 @@
     <string name="menu_list_files_share">Share</string>
     <string name="menu_list_files_open_in_new_tab">New tab</string>
     <string name="workspace_share_externally">Share externally</string>
+    <string name="workspace_insert_photo">Insert photo</string>
+    <string name="workspace_take_photo">Take photo</string>
+    <string name="workspace_choose_photo">Choose from photos</string>
+    <string name="workspace_photo_selection_limit">You can choose up to 10 photos at a time.</string>
+    <string name="workspace_camera_permission_required">Camera permission is required to take a photo.</string>
+    <string name="workspace_camera_unavailable">The camera could not be opened.</string>
+    <string name="workspace_attachment_unreadable">The selected photo is too large or could not be read.</string>
+    <string name="workspace_attachment_import_failed">The photo could not be imported.</string>
+    <string name="attachment_import_too_large">Files larger than 25 MiB cannot be imported.</string>
+    <string name="attachment_import_unreadable">The selected file could not be read.</string>
     <string name="default_value">Loading…</string>
     <string name="dialog_rename_file_title">Rename File</string>
     <string name="popup_info_title">File Info</string>
@@ -234,7 +244,7 @@
     <string name="monthly_plan">Premium</string>
     <string name="back">Back</string>
     <string name="premium_space">Encrypted storage</string>
-    <string name="storage_comparison">1,200× the storage included with Free (25 MB)</string>
+    <string name="storage_comparison">1,200× the storage included with free tier (25 MB)</string>
     <string name="subscribe">Upgrade to Premium</string>
     <string name="per_month_price">%1$s / month</string>
     <string name="billing_reassurance">Auto-renews monthly · Cancel anytime</string>

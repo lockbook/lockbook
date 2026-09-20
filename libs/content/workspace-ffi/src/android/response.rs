@@ -27,6 +27,8 @@ pub struct AndroidResponse {
 
     pub selection_updated: bool,
     pub text_updated: bool,
+    pub open_camera: bool,
+    pub failure_message: String,
 }
 
 impl From<crate::Response> for AndroidResponse {
@@ -48,9 +50,9 @@ impl From<crate::Response> for AndroidResponse {
                     text_interaction_rect: _,
                     mobile_toolbar_shown: _,
                     tabs_changed,
-                    failure_messages: _,
+                    failure_messages,
                     selected_folder_changed: _,
-                    open_camera: _,
+                    open_camera,
                     file_cache_updated: _,
                 },
             redraw_in,
@@ -69,6 +71,8 @@ impl From<crate::Response> for AndroidResponse {
             _ => Uuid::nil(),
         };
         Self {
+            open_camera,
+            failure_message: failure_messages.join("\n"),
             selected_file: selected_file.unwrap_or_default(),
             doc_created,
             tabs_changed,

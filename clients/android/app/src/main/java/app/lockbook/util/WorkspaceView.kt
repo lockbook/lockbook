@@ -42,6 +42,7 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.launch
 import net.lockbook.Lb
+import java.io.File
 
 @SuppressLint("ViewConstructor", "SoonBlockedPrivateApi")
 class WorkspaceView(
@@ -344,7 +345,35 @@ class WorkspaceView(
 
         Workspace.setContactLinkedSites(wgpuObj, prefs.getBoolean(contactLinkedSitesKey, false))
 
+        model.nextAttachment()?.let { attachment ->
+            when (Workspace.currentTab(wgpuObj).toModelTab().type) {
+                WorkspaceTabType.Loading -> {
+                    // Keep the staged file until the editor is ready.
+                }
+
+                WorkspaceTabType.Markdown -> {
+                    val accepted = Workspace.queueFileForEditorImport(wgpuObj, attachment.tempPath, attachment.name)
+                    model.removeNextAttachment()
+                    File(attachment.tempPath).delete()
+                    if (!accepted) {
+                        Toast.makeText(context, R.string.workspace_attachment_import_failed, Toast.LENGTH_SHORT).show()
+                    }
+                    invalidate()
+                }
+
+                else -> {
+                    model.removeNextAttachment()
+                    File(attachment.tempPath).delete()
+                    Toast.makeText(context, R.string.workspace_attachment_import_failed, Toast.LENGTH_SHORT).show()
+                    invalidate()
+                }
+            }
+        }
+
         val response: AndroidResponse = Workspace.enterFrameOffloaded(wgpuObj)
+        if (response.failureMessage.isNotEmpty()) {
+            Toast.makeText(context, response.failureMessage, Toast.LENGTH_LONG).show()
+        }
 
         if (response.urlOpened.isNotEmpty()) {
             try {
@@ -372,6 +401,13 @@ class WorkspaceView(
 
         if (currentTab != null) {
             model._currentTab.value = currentTab
+        }
+
+        if (response.openCamera) {
+            val tab = currentTab ?: model.currentTab.value
+            if (tab?.type == WorkspaceTabType.Markdown) {
+                model._photoSourceRequested.value = Unit
+            }
         }
 
         if (model.currentTab.value?.type == WorkspaceTabType.Markdown ||

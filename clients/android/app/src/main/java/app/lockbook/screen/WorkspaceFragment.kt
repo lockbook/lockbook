@@ -1,8 +1,11 @@
 package app.lockbook.screen
 
+import android.Manifest
 import android.animation.ValueAnimator
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -20,7 +23,11 @@ import android.view.inputmethod.InputConnection
 import android.view.inputmethod.InputMethodManager
 import android.widget.FrameLayout
 import android.widget.Toast
+import androidx.activity.result.PickVisualMediaRequest
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.constraintlayout.widget.ConstraintLayout
+import androidx.core.content.ContextCompat
+import androidx.core.content.FileProvider
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.inputmethod.EditorInfoCompat
@@ -31,6 +38,7 @@ import androidx.fragment.app.Fragment
 import androidx.fragment.app.activityViewModels
 import androidx.interpolator.view.animation.FastOutLinearInInterpolator
 import androidx.interpolator.view.animation.LinearOutSlowInInterpolator
+import androidx.lifecycle.lifecycleScope
 import androidx.recyclerview.widget.LinearLayoutManager
 import app.lockbook.R
 import app.lockbook.databinding.FragmentWorkspaceBinding
@@ -45,9 +53,11 @@ import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
+import app.lockbook.ui.PhotoSourceBottomSheetFragment
+import app.lockbook.util.AttachmentStager
 import app.lockbook.util.HorizontalTabItemHolder
-import app.lockbook.util.MAX_CONTENT_SIZE
 import app.lockbook.util.MarkdownToolbarView
+import app.lockbook.util.MAX_ATTACHMENT_SIZE_BYTES
 import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
@@ -56,13 +66,16 @@ import app.lockbook.workspace.Workspace
 import com.afollestad.recyclical.setup
 import com.afollestad.recyclical.withItem
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import net.lockbook.File
 import net.lockbook.File.FileType
 import kotlin.math.abs
 import kotlin.math.roundToInt
+import java.io.File as JavaFile
 
 private const val EXPANDED_BOTTOM_SHEET_HEIGHT_DP = 300
+private const val MAX_PICKED_PHOTOS = 10
 
 private data class PendingTabSwitchUiState(
     val isTabListExpanded: Boolean,
@@ -77,6 +90,55 @@ class WorkspaceFragment : Fragment() {
 
     private var bottomSheetContractedHeight = 0
     private var pendingTabSwitchUiState: PendingTabSwitchUiState? = null
+    private var workspaceView: WorkspaceView? = null
+    private var cameraFile: JavaFile? = null
+
+    private val cameraPermission =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            if (granted) launchCamera() else toast(R.string.workspace_camera_permission_required)
+        }
+    private val takePicture =
+        registerForActivityResult(ActivityResultContracts.TakePicture()) { success ->
+            val file = cameraFile
+            cameraFile = null
+            if (success && file != null) {
+                importAttachments(listOf(Uri.fromFile(file)), file.name)
+            } else {
+                file?.delete()
+            }
+        }
+    private val pickPhotos =
+        registerForActivityResult(ActivityResultContracts.PickMultipleVisualMedia(MAX_PICKED_PHOTOS)) { uris ->
+            if (uris.size > MAX_PICKED_PHOTOS) toast(R.string.workspace_photo_selection_limit)
+            importAttachments(uris.take(MAX_PICKED_PHOTOS))
+        }
+
+    override fun onCreate(savedInstanceState: Bundle?) {
+        super.onCreate(savedInstanceState)
+        childFragmentManager.setFragmentResultListener(PhotoSourceBottomSheetFragment.REQUEST_KEY, this) { _, result ->
+            when (result.getString(PhotoSourceBottomSheetFragment.SOURCE_KEY)) {
+                PhotoSourceBottomSheetFragment.SOURCE_CAMERA -> {
+                    if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) ==
+                        PackageManager.PERMISSION_GRANTED
+                    ) {
+                        launchCamera()
+                    } else {
+                        cameraPermission.launch(Manifest.permission.CAMERA)
+                    }
+                }
+
+                PhotoSourceBottomSheetFragment.SOURCE_LIBRARY -> {
+                    pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+                }
+            }
+        }
+        cameraFile = savedInstanceState?.getString("cameraPath")?.let(::JavaFile)
+    }
+
+    override fun onSaveInstanceState(outState: Bundle) {
+        super.onSaveInstanceState(outState)
+        cameraFile?.let { outState.putString("cameraPath", it.absolutePath) }
+    }
 
     companion object {
         val TAG = "WorkspaceFragment"
@@ -93,6 +155,7 @@ class WorkspaceFragment : Fragment() {
         _binding = FragmentWorkspaceBinding.inflate(inflater, container, false)
 
         val workspaceWrapper = WorkspaceWrapperView(requireContext(), model)
+        workspaceView = workspaceWrapper.workspaceView
         val layoutParams =
             ConstraintLayout
                 .LayoutParams(
@@ -133,6 +196,8 @@ class WorkspaceFragment : Fragment() {
                 }
             }
         }
+
+        model.photoSourceRequested.observe(viewLifecycleOwner) { showPhotoSourceSheet() }
 
         // Forward real IME visibility into the editor so touch long-press
         // can pick drag-reorder (keyboard down) vs text selection (up).
@@ -204,6 +269,57 @@ class WorkspaceFragment : Fragment() {
         }
 
         return binding.root
+    }
+
+    private fun showPhotoSourceSheet() {
+        workspaceView?.let { editor ->
+            (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
+                .hideSoftInputFromWindow(editor.windowToken, 0)
+        }
+        if (childFragmentManager.findFragmentByTag(PhotoSourceBottomSheetFragment.TAG) == null) {
+            PhotoSourceBottomSheetFragment().show(childFragmentManager, PhotoSourceBottomSheetFragment.TAG)
+        }
+    }
+
+    private fun launchCamera() {
+        try {
+            val dir = JavaFile(requireContext().cacheDir, "camera").apply { mkdirs() }
+            val file = JavaFile.createTempFile("photo_", ".jpg", dir)
+            cameraFile = file
+            val uri = FileProvider.getUriForFile(requireContext(), "${requireContext().packageName}.fileprovider", file)
+            takePicture.launch(uri)
+        } catch (_: Exception) {
+            cameraFile?.delete()
+            cameraFile = null
+            toast(R.string.workspace_camera_unavailable)
+        }
+    }
+
+    private fun importAttachments(
+        uris: List<Uri>,
+        nameHint: String? = null,
+    ) {
+        if (uris.isEmpty()) return
+        val appContext = requireContext().applicationContext
+        lifecycleScope.launch {
+            for (uri in uris) {
+                val staged =
+                    withContext(Dispatchers.IO) {
+                        runCatching { AttachmentStager.stage(appContext, uri, nameHint) }.getOrNull()
+                    }
+                if (uri.scheme == "file") JavaFile(uri.path.orEmpty()).delete()
+                if (staged == null) {
+                    toast(R.string.workspace_attachment_unreadable)
+                } else {
+                    model.enqueueAttachment(staged)
+                    workspaceView?.invalidate()
+                }
+            }
+        }
+    }
+
+    private fun toast(id: Int) {
+        context?.let { Toast.makeText(it, id, Toast.LENGTH_SHORT).show() }
     }
 
     private fun onCreateToolbar(workspaceWrapper: WorkspaceWrapperView) {
@@ -285,6 +401,7 @@ class WorkspaceFragment : Fragment() {
     }
 
     override fun onDestroyView() {
+        workspaceView = null
         _binding = null
         super.onDestroyView()
     }
@@ -703,7 +820,8 @@ class WorkspaceWrapperView(
     private val markdownToolbar: MarkdownToolbarView
     var currentTab = WorkspaceTabType.Welcome
     private var keyboardVisible = false
-    private var scrollingUp = false
+    private var bottomTabSheetVisible = true
+    private var toolbarTargetVisible = false
 
     var currentWrapper: View? = null
 
@@ -752,12 +870,14 @@ class WorkspaceWrapperView(
 
     fun setKeyboardVisible(visible: Boolean) {
         keyboardVisible = visible
-        if (visible) scrollingUp = false
+        bottomTabSheetVisible = !visible
         updateNativeToolbar()
     }
 
     fun setScrollDirection(distanceY: Float) {
-        if (distanceY != 0f) scrollingUp = distanceY > 0f
+        if (!keyboardVisible && distanceY != 0f) {
+            bottomTabSheetVisible = distanceY < 0f
+        }
         updateNativeToolbar()
     }
 
@@ -772,16 +892,45 @@ class WorkspaceWrapperView(
     fun updateNativeToolbar() {
         val ready = workspaceView.canForwardTouches()
         val visible = ready && model.currentTab.value?.type == WorkspaceTabType.Markdown &&
-            Workspace.canEditMarkdown(WorkspaceView.wgpuObj) && (keyboardVisible || !scrollingUp)
-        if (markdownToolbar.isVisible != visible) {
-            markdownToolbar.isVisible = visible
-            if (ready) {
-                val height = if (visible) markdownToolbar.layoutParams.height /
-                    context.resources.displayMetrics.scaledDensity else 0f
-                Workspace.setNativeMarkdownToolbarHeight(WorkspaceView.wgpuObj, height)
-                workspaceView.invalidate()
-            }
+            Workspace.canEditMarkdown(WorkspaceView.wgpuObj) &&
+            (keyboardVisible || !bottomTabSheetVisible)
+        if (toolbarTargetVisible == visible) return
+        toolbarTargetVisible = visible
+        markdownToolbar.animate().cancel()
+
+        if (visible) {
+            setEditorToolbarHeight(markdownToolbar.layoutParams.height)
+            markdownToolbar.isVisible = true
+            markdownToolbar.translationY = markdownToolbar.layoutParams.height.toFloat()
+            markdownToolbar
+                .animate()
+                .translationY(0f)
+                .setDuration(250)
+                .setInterpolator(LinearOutSlowInInterpolator())
+                .start()
+        } else {
+            markdownToolbar
+                .animate()
+                .translationY(markdownToolbar.layoutParams.height.toFloat())
+                .setDuration(200)
+                .setInterpolator(FastOutLinearInInterpolator())
+                .withEndAction {
+                    if (!toolbarTargetVisible) {
+                        markdownToolbar.isVisible = false
+                        markdownToolbar.translationY = 0f
+                        setEditorToolbarHeight(0)
+                    }
+                }.start()
         }
+    }
+
+    private fun setEditorToolbarHeight(heightPx: Int) {
+        if (!workspaceView.canForwardTouches()) return
+        Workspace.setNativeMarkdownToolbarHeight(
+            WorkspaceView.wgpuObj,
+            heightPx / context.resources.displayMetrics.scaledDensity,
+        )
+        workspaceView.invalidate()
     }
 
     fun updateWrapperBasedOnTab(newTab: WorkspaceTabType) {
@@ -1037,7 +1186,7 @@ class WorkspaceTextInputWrapper(
         workspaceView.launchIo {
             val bytes =
                 try {
-                    wsInputConnection.readAllBytesCapped(uri, MAX_CONTENT_SIZE)
+                    wsInputConnection.readAllBytesCapped(uri, MAX_ATTACHMENT_SIZE_BYTES)
                 } catch (_: Exception) {
                     null
                 } finally {

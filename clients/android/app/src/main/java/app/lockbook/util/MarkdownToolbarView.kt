@@ -45,19 +45,21 @@ class MarkdownToolbarView(
         Action(10, "Subscript", R.drawable.ic_md_subscript_24), Action(11, "Superscript", R.drawable.ic_md_superscript_24),
         Action(12, "Numbered list", R.drawable.ic_md_format_list_numbered_24), Action(13, "Bulleted list", R.drawable.ic_md_format_list_bulleted_24),
         Action(14, "Task list", R.drawable.ic_md_checklist_24), Action(15, "Link", R.drawable.ic_md_link_24),
+        Action(18, "Insert photo", R.drawable.ic_outline_camera_24),
         Action(16, "Indent", R.drawable.ic_md_format_indent_increase_24), Action(17, "Outdent", R.drawable.ic_md_format_indent_decrease_24),
     )
     private fun category(id: Int) = when (id) {
         in 0..1 -> "History"
         in 2..11 -> "Text style"
         in 12..14 -> "Lists"
-        15 -> "Links"
+        15, 18 -> "Attachments"
         else -> "Indentation"
     }
-    private val categories = listOf("History", "Text style", "Lists", "Links", "Indentation")
+    private val categories = listOf("History", "Text style", "Lists", "Attachments", "Indentation")
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
     private val preferenceKey = "native_markdown_toolbar_actions_v1"
     private val orderKey = "native_markdown_toolbar_order_v1"
+    private val schemaVersionKey = "native_markdown_toolbar_schema_version"
     private val row = LinearLayout(context).apply {
         orientation = LinearLayout.HORIZONTAL
         gravity = Gravity.CENTER_VERTICAL
@@ -100,12 +102,13 @@ class MarkdownToolbarView(
         if (orderedIds == null) {
             val saved = prefs.getString(preferenceKey, null)
             val initial = saved ?: Workspace.markdownToolbarLegacyIds(ptr)
-            val selected = initial.split(',').mapNotNull { it.toIntOrNull() }.filter { id -> actions.any { it.id == id } }.distinct()
+            val selected = initial.split(',').mapNotNull { it.toIntOrNull() }.filter { id -> actions.any { it.id == id } }.distinct().toMutableList()
+            if (saved != null && prefs.getInt(schemaVersionKey, 1) < 2) selected.add(18)
             val savedOrder = prefs.getString(orderKey, null)?.split(',')?.mapNotNull { it.toIntOrNull() }.orEmpty()
             val allIds = (savedOrder + actions.map { it.id }).distinct().filter { id -> actions.any { it.id == id } }
             orderedIds = categories.flatMap { group -> allIds.filter { category(it) == group } }.toMutableList()
             enabledIds = selected.toMutableSet()
-            if (saved == null) save()
+            save()
             rebuild()
         }
         val state = Workspace.markdownToolbarState(ptr)
@@ -136,6 +139,7 @@ class MarkdownToolbarView(
         prefs.edit {
             putString(preferenceKey, orderedIds.orEmpty().filter { enabledIds?.contains(it) == true }.joinToString(","))
             putString(orderKey, orderedIds.orEmpty().joinToString(","))
+            putInt(schemaVersionKey, 2)
         }
     }
 

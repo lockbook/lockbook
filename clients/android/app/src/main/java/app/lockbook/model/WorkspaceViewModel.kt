@@ -9,9 +9,11 @@ import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 import androidx.lifecycle.ViewModel
 import app.lockbook.util.SingleMutableLiveData
+import app.lockbook.util.StagedAttachment
 import app.lockbook.workspace.NULL_UUID
 import com.afollestad.recyclical.datasource.emptyDataSourceTyped
 import net.lockbook.File
+import java.util.ArrayDeque
 
 class WorkspaceViewModel : ViewModel() {
     /** request workspace to  open a file **/
@@ -56,6 +58,14 @@ class WorkspaceViewModel : ViewModel() {
     val bottomInset: LiveData<Int>
         get() = _bottomInset
 
+    /** pull up the photo source sheet so the user can import a pic or take one */
+    val _photoSourceRequested = SingleMutableLiveData<Unit>()
+    val photoSourceRequested: LiveData<Unit>
+        get() = _photoSourceRequested
+
+    /** Holds staged files until the workspace copies their bytes into a paste event. */
+    private val pendingAttachments = ArrayDeque<StagedAttachment>()
+
     /** request workspace view to navigate within tab history **/
     private val _workspaceBackRequested = SingleMutableLiveData<Unit>()
     val workspaceBackRequested: LiveData<Unit>
@@ -74,13 +84,18 @@ class WorkspaceViewModel : ViewModel() {
         _workspaceBackRequested.postValue(Unit)
     }
 
-    fun requestWorkspaceForward() {
-        _workspaceForwardRequested.postValue(Unit)
-    }
-
     fun notifyBackGestureStarted() {
         _backGestureStarted.postValue(Unit)
     }
+
+    internal fun enqueueAttachment(attachment: StagedAttachment) {
+        pendingAttachments.addLast(attachment)
+    }
+
+    internal fun nextAttachment(): StagedAttachment? = pendingAttachments.firstOrNull()
+
+    /** Removes the file after native code has copied it (or rejected it). */
+    internal fun removeNextAttachment(): StagedAttachment? = pendingAttachments.pollFirst()
 
     fun openFile(request: OpenFileRequest) {
         _openFile.value = request

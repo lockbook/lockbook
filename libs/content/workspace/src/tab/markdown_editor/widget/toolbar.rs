@@ -85,35 +85,36 @@ impl markdown_editor::MdPersistence {
     pub fn legacy_toolbar_ids(&self) -> String {
         let p = &self.toolbar;
         let flags = [
-            p.undo,
-            p.redo,
-            p.heading,
-            p.bold,
-            p.emph,
-            p.code,
-            p.strikethrough,
-            p.highlight,
-            p.underline,
-            p.spoiler,
-            p.subscript,
-            p.superscript,
-            p.ordered_list,
-            p.unordered_list,
-            p.task_list,
-            p.link,
-            p.indent,
-            p.deindent,
+            (0, p.undo),
+            (1, p.redo),
+            (2, p.heading),
+            (3, p.bold),
+            (4, p.emph),
+            (5, p.code),
+            (6, p.strikethrough),
+            (7, p.highlight),
+            (8, p.underline),
+            (9, p.spoiler),
+            (10, p.subscript),
+            (11, p.superscript),
+            (12, p.ordered_list),
+            (13, p.unordered_list),
+            (14, p.task_list),
+            (15, p.link),
+            (18, p.image),
+            (16, p.indent),
+            (17, p.deindent),
         ];
         if *p == ToolbarPersistence::default() {
-            return (0..flags.len())
-                .map(|i| i.to_string())
+            return flags
+                .iter()
+                .map(|(id, _)| id.to_string())
                 .collect::<Vec<_>>()
                 .join(",");
         }
         flags
             .iter()
-            .enumerate()
-            .filter_map(|(i, enabled)| enabled.then_some(i.to_string()))
+            .filter_map(|(id, enabled)| enabled.then_some(id.to_string()))
             .collect::<Vec<_>>()
             .join(",")
     }
@@ -225,6 +226,7 @@ impl<'ast> Editor {
             15 => NodeValue::Link(Default::default()),
             16 => return Some(Event::Indent { deindent: false }),
             17 => return Some(Event::Indent { deindent: true }),
+            18 => return Some(Event::Camera),
             _ => return None,
         };
         Some(Event::ToggleStyle { region: Region::Selection, style })
@@ -251,6 +253,7 @@ impl<'ast> Editor {
         let persistence = self.persistence.get_markdown().toolbar;
         let is_default = persistence == Default::default();
         let is_ios = cfg!(target_os = "ios");
+        let supports_attachments = cfg!(any(target_os = "ios", target_os = "android"));
 
         // width of a group of n buttons with intra-group spacing + trailing separator
         let group = |n: usize| -> f32 {
@@ -285,7 +288,7 @@ impl<'ast> Editor {
         ]));
 
         let mut media = count(&[persistence.link]);
-        if (persistence.image || is_default) && is_ios {
+        if (persistence.image || is_default) && supports_attachments {
             media += 1;
         }
         w += group(media);
@@ -314,6 +317,7 @@ impl<'ast> Editor {
                     let t = ui.ctx().get_lb_theme();
                     let menu_open = self.toolbar.menu_open;
                     let is_ios = cfg!(target_os = "ios");
+                    let supports_attachments = cfg!(any(target_os = "ios", target_os = "android"));
 
                     let toolbar_margin = 10.;
                     // offset centers the full toolbar_w (including margins);
@@ -510,24 +514,22 @@ impl<'ast> Editor {
                             .map(|e| events.push(e));
                         any_media = true;
                     }
-                    if persistence.image || toolbar_is_default {
-                        // only supported on iOS (for now)
-                        if is_ios {
-                            if any_media {
-                                ui.add_space(5.);
-                            }
-                            // Accent only when the cursor is inside an image, matching link.
-                            let applied = self.edit.inline_styled(
-                                root,
-                                self.edit.renderer.buffer.current.selection,
-                                &NodeValue::Image(Default::default()),
-                            );
-                            if toolbar_icon(ui, &t, phosphor::CAMERA, applied, menu_open, "Camera")
-                            {
-                                events.push(Event::Camera);
-                            }
-                            any_media = true;
+                    if (persistence.image || toolbar_is_default) && supports_attachments {
+                        if any_media {
+                            ui.add_space(5.);
                         }
+                        // Accent only when the cursor is inside an image, matching link.
+                        let applied = self.edit.inline_styled(
+                            root,
+                            self.edit.renderer.buffer.current.selection,
+                            &NodeValue::Image(Default::default()),
+                        );
+                        let tooltip =
+                            if cfg!(target_os = "android") { "Insert photo" } else { "Camera" };
+                        if toolbar_icon(ui, &t, phosphor::CAMERA, applied, menu_open, tooltip) {
+                            events.push(Event::Camera);
+                        }
+                        any_media = true;
                     }
                     if any_media {
                         add_seperator(ui);
@@ -678,6 +680,7 @@ impl<'ast> Editor {
 
                             let is_android = cfg!(target_os = "android");
                             let is_ios = cfg!(target_os = "ios");
+                            let supports_attachments = is_ios || is_android;
 
                             let persistence = self.persistence.get_markdown().toolbar;
 
@@ -1054,7 +1057,7 @@ impl<'ast> Editor {
                             }
                             top_left.y += self.menu_toggle_height("[Link](url)");
 
-                            if is_ios {
+                            if supports_attachments {
                                 if self
                                     .menu_toggle(
                                         ui,
