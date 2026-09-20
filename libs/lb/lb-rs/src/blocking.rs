@@ -93,12 +93,12 @@ impl Lb {
         self.lb.export_account_qr()
     }
 
-    pub fn get_account(&self) -> LbResult<Account> {
+    pub fn get_account(&self) -> LbResult<&Account> {
         self.lb.get_account()
     }
 
     pub fn get_config(&self) -> Config {
-        self.lb.config().clone()
+        self.lb.config.clone()
     }
 
     pub fn create_file(&self, name: &str, parent: &Uuid, file_type: FileType) -> LbResult<File> {
@@ -360,9 +360,6 @@ impl Lb {
     }
 
     pub fn subscribe(&self) -> Receiver<Event> {
-        // required for the tokio::spawn that this guy does
-        #[cfg(not(target_family = "wasm"))]
-        let _rt = self.rt.enter();
         self.lb.subscribe()
     }
 
@@ -373,19 +370,13 @@ impl Lb {
     pub fn app_foregrounded(&self) {
         #[cfg(not(target_family = "wasm"))]
         {
-            let rt = self.rt.enter();
+            let _rt = self.rt.enter();
             self.lb.app_foregrounded();
-            drop(rt);
         }
     }
 
     pub fn user_active(&self) -> bool {
-        self.block_on(async {
-            match self.lb.local.get() {
-                Some(local) => local.user_active().await,
-                None => true,
-            }
-        })
+        self.block_on(self.lb.user_active())
     }
 
     #[cfg(not(target_family = "wasm"))]

@@ -15,7 +15,7 @@ bench = false
 
 [features]
 default = []
-no-network = ["db-rs/clone"]
+no-network = []
 
 [dependencies]
 aes-gcm = "0.10.3"
@@ -28,7 +28,8 @@ bytes = "1"
 chrono = "0.4"
 crossbeam = "0.8.1"
 db-rs-derive = "0.3.7"
-db-rs = "0.3.7"
+db-rs = { git = "https://github.com/lockbook/db-rs", rev = "fdab4da1b467ca1cc6b0be98e422c0d58e64f3be" }
+db-rs-old = { package = "db-rs", version = "=0.3.7" }
 flate2 = "1.0"
 futures = "0.3.30"
 getrandom = { version = "0.2", features = ["js"] }

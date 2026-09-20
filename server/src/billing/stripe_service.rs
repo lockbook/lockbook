@@ -1,5 +1,6 @@
 use crate::billing::billing_model::StripeUserInfo;
 use crate::document_service::DocumentService;
+use crate::guard::ServerTx;
 use crate::{ClientError, ServerError, ServerState, StripeWebhookError};
 use google_androidpublisher3::hyper::body::Bytes;
 use google_androidpublisher3::hyper::header::HeaderValue;
@@ -73,11 +74,10 @@ where
 
                         info!(?owner, ?customer_id, "Created customer_id");
 
-                        self.index_db
-                            .lock()
-                            .await
-                            .stripe_ids
-                            .insert(customer_id, Owner(*public_key))?;
+                        let mut db = self.index_db.lock().await;
+                        let mut tx = ServerTx::begin(&mut db)?;
+                        tx.stripe_ids.insert(customer_id, Owner(*public_key))?;
+                        tx.end()?;
 
                         (customer_resp.id, customer_name)
                     }
@@ -168,8 +168,8 @@ where
             .index_db
             .lock()
             .await
+            .schema
             .stripe_ids
-            .get()
             .get(&customer_id)
             .copied()
             .ok_or_else(|| {
