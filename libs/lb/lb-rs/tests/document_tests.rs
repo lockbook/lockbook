@@ -136,7 +136,7 @@ async fn insert_get_all() {
         (id_4, document_4),
         (id_5, document_5),
     ];
-    expectation.sort_by(|(a, _), (b, _)| a.cmp(b));
+    expectation.sort_by_key(|(a, _)| *a);
     let expectation = expectation
         .into_iter()
         .map(|(_, d)| d)
