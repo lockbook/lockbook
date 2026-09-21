@@ -47,7 +47,7 @@ class MarkdownToolbarView(
         val label: String,
         val icon: Int,
         val category: ToolbarCategory,
-        val checkable: Boolean = false,
+        val checkable: Boolean = true,
     ) {
         val preferenceKey: String
             get() = command?.name ?: "InsertPhoto"
@@ -60,25 +60,25 @@ class MarkdownToolbarView(
 
     private val categories = ToolbarCategory.values().toList()
     private val actions = listOf(
-        ToolbarAction(MarkdownToolbarAction.Undo, "Undo", R.drawable.ic_md_undo_24, ToolbarCategory.History),
-        ToolbarAction(MarkdownToolbarAction.Redo, "Redo", R.drawable.ic_md_redo_24, ToolbarCategory.History),
-        ToolbarAction(MarkdownToolbarAction.Heading, "Heading", R.drawable.ic_md_title_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.Bold, "Bold", R.drawable.ic_md_format_bold_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.Italic, "Italic", R.drawable.ic_md_format_italic_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.Code, "Code", R.drawable.ic_md_code_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.Strikethrough, "Strikethrough", R.drawable.ic_md_format_strikethrough_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.Highlight, "Highlight", R.drawable.ic_md_highlight_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.Underline, "Underline", R.drawable.ic_md_format_underlined_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.Spoiler, "Spoiler", R.drawable.ic_md_visibility_off_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.Subscript, "Subscript", R.drawable.ic_md_subscript_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.Superscript, "Superscript", R.drawable.ic_md_superscript_24, ToolbarCategory.TextStyle, true),
-        ToolbarAction(MarkdownToolbarAction.NumberedList, "Numbered list", R.drawable.ic_md_format_list_numbered_24, ToolbarCategory.Lists, true),
-        ToolbarAction(MarkdownToolbarAction.BulletedList, "Bulleted list", R.drawable.ic_md_format_list_bulleted_24, ToolbarCategory.Lists, true),
-        ToolbarAction(MarkdownToolbarAction.TaskList, "Task list", R.drawable.ic_md_checklist_24, ToolbarCategory.Lists, true),
-        ToolbarAction(MarkdownToolbarAction.Link, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments, true),
-        ToolbarAction(null, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments),
-        ToolbarAction(MarkdownToolbarAction.Indent, "Indent", R.drawable.ic_md_format_indent_increase_24, ToolbarCategory.Indentation),
-        ToolbarAction(MarkdownToolbarAction.Outdent, "Outdent", R.drawable.ic_md_format_indent_decrease_24, ToolbarCategory.Indentation),
+        ToolbarAction(MarkdownToolbarAction.Undo, "Undo", R.drawable.ic_md_undo_24, ToolbarCategory.History, false),
+        ToolbarAction(MarkdownToolbarAction.Redo, "Redo", R.drawable.ic_md_redo_24, ToolbarCategory.History, false),
+        ToolbarAction(MarkdownToolbarAction.Heading, "Heading", R.drawable.ic_md_title_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.Bold, "Bold", R.drawable.ic_md_format_bold_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.Italic, "Italic", R.drawable.ic_md_format_italic_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.Code, "Code", R.drawable.ic_md_code_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.Strikethrough, "Strikethrough", R.drawable.ic_md_format_strikethrough_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.Highlight, "Highlight", R.drawable.ic_md_highlight_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.Underline, "Underline", R.drawable.ic_md_format_underlined_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.Spoiler, "Spoiler", R.drawable.ic_md_visibility_off_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.Subscript, "Subscript", R.drawable.ic_md_subscript_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.Superscript, "Superscript", R.drawable.ic_md_superscript_24, ToolbarCategory.TextStyle),
+        ToolbarAction(MarkdownToolbarAction.NumberedList, "Numbered list", R.drawable.ic_md_format_list_numbered_24, ToolbarCategory.Lists),
+        ToolbarAction(MarkdownToolbarAction.BulletedList, "Bulleted list", R.drawable.ic_md_format_list_bulleted_24, ToolbarCategory.Lists),
+        ToolbarAction(MarkdownToolbarAction.TaskList, "Task list", R.drawable.ic_md_checklist_24, ToolbarCategory.Lists),
+        ToolbarAction(MarkdownToolbarAction.Link, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments),
+        ToolbarAction(null, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments, false),
+        ToolbarAction(MarkdownToolbarAction.Indent, "Indent", R.drawable.ic_md_format_indent_increase_24, ToolbarCategory.Indentation, false),
+        ToolbarAction(MarkdownToolbarAction.Outdent, "Outdent", R.drawable.ic_md_format_indent_decrease_24, ToolbarCategory.Indentation, false),
     )
     private val actionsByKey = actions.associateBy(ToolbarAction::preferenceKey)
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
