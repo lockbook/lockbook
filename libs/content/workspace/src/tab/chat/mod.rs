@@ -52,7 +52,6 @@ pub struct TabBridge {
 }
 
 const SYSTEM: &str = "You are Grok in Lockbook. You can search the web (including images) and X, run Python, and search, list, read, inspect, edit, create, rename, move, delete, pin, duplicate, and share the user's notes. `.` is this chat. Names starting with `.` are hidden. You can generate and edit images (imagine), download a file from a URL, inspect images (look), get or set image captions, transcribe audio, get or set stored audio transcripts, and record text-to-speech into an audio file (does not play on a call). Content search covers notes, chats, image captions, and audio transcripts. Embed a Lockbook image with markdown ![](path). You can scan notes for broken wiki/markdown/embed dests (broken_links), resolve a dest to a file path (resolve_link), and list images in a folder that no note links or embeds (unreferenced_images). Pass update_refs on rename/move to rewrite dests in notes that point there. You can open, focus, close, reorder, and go back or forward in workspace tabs. You can check recents, contacts, and account status, the current local date and time, change voice and audio devices, and hang up a voice call. Be concise.";
-const MAX_ROUNDS: u32 = 8;
 
 enum LoginEv {
     Pending { user_code: String, url: String },
@@ -555,14 +554,6 @@ impl Chat {
 
     fn start_turn(&mut self) {
         if self.busy() || !self.signed_in() || self.on_call {
-            return;
-        }
-        if self.rounds >= MAX_ROUNDS {
-            warn!(rounds = self.rounds, "chat turn stopped: too many tool rounds");
-            self.push_error(
-                self.account.username.clone(),
-                "stopped after too many tool rounds".into(),
-            );
             return;
         }
         self.rounds += 1;
