@@ -444,10 +444,6 @@ impl Workspace {
         self.current_tab()?.markdown()
     }
 
-    pub fn android_legacy_toolbar_ids(&self) -> String {
-        self.cfg.get_markdown().legacy_toolbar_ids()
-    }
-
     pub fn current_tab_markdown_mut(&mut self) -> Option<&mut Markdown> {
         self.current_tab_mut()?.markdown_mut()
     }

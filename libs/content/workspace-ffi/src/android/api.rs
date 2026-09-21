@@ -14,16 +14,6 @@ use super::response::*;
 use crate::WgpuWorkspace;
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarLegacyIds(
-    env: JNIEnv, _: JClass, obj: jlong,
-) -> jstring {
-    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    env.new_string(obj.workspace.android_legacy_toolbar_ids())
-        .expect("toolbar ids")
-        .into_raw()
-}
-
-#[unsafe(no_mangle)]
 pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarState(
     _env: JNIEnv, _: JClass, obj: jlong,
 ) -> jlong {

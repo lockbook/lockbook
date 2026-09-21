@@ -868,9 +868,8 @@ class WorkspaceWrapperView(
             (48 * context.resources.displayMetrics.density).roundToInt(),
             android.view.Gravity.BOTTOM,
         ))
-        workspaceView.onWorkspaceFrame = {
-            markdownToolbar.refreshFromWorkspace()
-            updateNativeToolbar()
+        workspaceView.onMarkdownToolbarStateChanged = {
+            markdownToolbar.refreshEditorState()
         }
     }
 

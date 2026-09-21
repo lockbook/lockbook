@@ -81,45 +81,6 @@ pub struct ToolbarPersistence {
     search: bool,
 }
 
-impl markdown_editor::MdPersistence {
-    pub fn legacy_toolbar_ids(&self) -> String {
-        let p = &self.toolbar;
-        let flags = [
-            (0, p.undo),
-            (1, p.redo),
-            (2, p.heading),
-            (3, p.bold),
-            (4, p.emph),
-            (5, p.code),
-            (6, p.strikethrough),
-            (7, p.highlight),
-            (8, p.underline),
-            (9, p.spoiler),
-            (10, p.subscript),
-            (11, p.superscript),
-            (12, p.ordered_list),
-            (13, p.unordered_list),
-            (14, p.task_list),
-            (15, p.link),
-            (18, p.image),
-            (16, p.indent),
-            (17, p.deindent),
-        ];
-        if *p == ToolbarPersistence::default() {
-            return flags
-                .iter()
-                .map(|(id, _)| id.to_string())
-                .collect::<Vec<_>>()
-                .join(",");
-        }
-        flags
-            .iter()
-            .filter_map(|(id, enabled)| enabled.then_some(id.to_string()))
-            .collect::<Vec<_>>()
-            .join(",")
-    }
-}
-
 impl<'ast> Editor {
     pub fn android_toolbar_state(&mut self) -> u64 {
         let arena = Arena::new();

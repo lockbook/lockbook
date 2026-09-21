@@ -48,7 +48,6 @@ object Workspace {
     external fun defaultTheme(isDark: Boolean): Any
 
     external fun enterFrameOffloaded(rustObj: Long): AndroidResponse
-    external fun markdownToolbarLegacyIds(rustObj: Long): String
     external fun markdownToolbarState(rustObj: Long): Long
     external fun canEditMarkdown(rustObj: Long): Boolean
     external fun markdownToolbarAction(rustObj: Long, id: Int)

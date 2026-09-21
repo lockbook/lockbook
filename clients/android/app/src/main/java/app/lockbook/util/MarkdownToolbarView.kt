@@ -28,147 +28,173 @@ import com.google.android.material.button.MaterialButtonGroup
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
-/** Android's native control surface for the Rust markdown editor. IDs match toolbar.rs. */
+/** Android's native control surface for the Rust markdown editor. Command IDs match toolbar.rs. */
 class MarkdownToolbarView(
     context: Context,
     private val editor: WorkspaceView,
 ) : FrameLayout(context) {
-    private data class Action(val id: Int, val label: String, val icon: Int)
-    private data class SettingsRow(val category: String, val actionId: Int? = null)
-
-    private val actions = listOf(
-        Action(0, "Undo", R.drawable.ic_md_undo_24), Action(1, "Redo", R.drawable.ic_md_redo_24),
-        Action(2, "Heading", R.drawable.ic_md_title_24), Action(3, "Bold", R.drawable.ic_md_format_bold_24),
-        Action(4, "Italic", R.drawable.ic_md_format_italic_24), Action(5, "Code", R.drawable.ic_md_code_24),
-        Action(6, "Strikethrough", R.drawable.ic_md_format_strikethrough_24), Action(7, "Highlight", R.drawable.ic_md_highlight_24),
-        Action(8, "Underline", R.drawable.ic_md_format_underlined_24), Action(9, "Spoiler", R.drawable.ic_md_visibility_off_24),
-        Action(10, "Subscript", R.drawable.ic_md_subscript_24), Action(11, "Superscript", R.drawable.ic_md_superscript_24),
-        Action(12, "Numbered list", R.drawable.ic_md_format_list_numbered_24), Action(13, "Bulleted list", R.drawable.ic_md_format_list_bulleted_24),
-        Action(14, "Task list", R.drawable.ic_md_checklist_24), Action(15, "Link", R.drawable.ic_md_link_24),
-        Action(18, "Insert photo", R.drawable.ic_outline_camera_24),
-        Action(16, "Indent", R.drawable.ic_md_format_indent_increase_24), Action(17, "Outdent", R.drawable.ic_md_format_indent_decrease_24),
-    )
-    private fun category(id: Int) = when (id) {
-        in 0..1 -> "History"
-        in 2..11 -> "Text style"
-        in 12..14 -> "Lists"
-        15, 18 -> "Attachments"
-        else -> "Indentation"
+    private enum class ToolbarCategory(val label: String) {
+        History("History"),
+        TextStyle("Text style"),
+        Lists("Lists"),
+        Attachments("Attachments"),
+        Indentation("Indentation"),
     }
-    private val categories = listOf("History", "Text style", "Lists", "Attachments", "Indentation")
+
+    private enum class ToolbarAction(
+        val commandId: Int,
+        val label: String,
+        val icon: Int,
+        val category: ToolbarCategory,
+        val checkable: Boolean = false,
+    ) {
+        Undo(0, "Undo", R.drawable.ic_md_undo_24, ToolbarCategory.History),
+        Redo(1, "Redo", R.drawable.ic_md_redo_24, ToolbarCategory.History),
+        Heading(2, "Heading", R.drawable.ic_md_title_24, ToolbarCategory.TextStyle, true),
+        Bold(3, "Bold", R.drawable.ic_md_format_bold_24, ToolbarCategory.TextStyle, true),
+        Italic(4, "Italic", R.drawable.ic_md_format_italic_24, ToolbarCategory.TextStyle, true),
+        Code(5, "Code", R.drawable.ic_md_code_24, ToolbarCategory.TextStyle, true),
+        Strikethrough(6, "Strikethrough", R.drawable.ic_md_format_strikethrough_24, ToolbarCategory.TextStyle, true),
+        Highlight(7, "Highlight", R.drawable.ic_md_highlight_24, ToolbarCategory.TextStyle, true),
+        Underline(8, "Underline", R.drawable.ic_md_format_underlined_24, ToolbarCategory.TextStyle, true),
+        Spoiler(9, "Spoiler", R.drawable.ic_md_visibility_off_24, ToolbarCategory.TextStyle, true),
+        Subscript(10, "Subscript", R.drawable.ic_md_subscript_24, ToolbarCategory.TextStyle, true),
+        Superscript(11, "Superscript", R.drawable.ic_md_superscript_24, ToolbarCategory.TextStyle, true),
+        NumberedList(12, "Numbered list", R.drawable.ic_md_format_list_numbered_24, ToolbarCategory.Lists, true),
+        BulletedList(13, "Bulleted list", R.drawable.ic_md_format_list_bulleted_24, ToolbarCategory.Lists, true),
+        TaskList(14, "Task list", R.drawable.ic_md_checklist_24, ToolbarCategory.Lists, true),
+        Link(15, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments, true),
+        InsertPhoto(18, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments),
+        Indent(16, "Indent", R.drawable.ic_md_format_indent_increase_24, ToolbarCategory.Indentation),
+        Outdent(17, "Outdent", R.drawable.ic_md_format_indent_decrease_24, ToolbarCategory.Indentation),
+    }
+
+    private data class SettingsRow(
+        val category: ToolbarCategory,
+        val action: ToolbarAction? = null,
+    )
+
+    private val categories = ToolbarCategory.values().toList()
+    private val actions = ToolbarAction.values().toList()
+    private val actionsById = actions.associateBy(ToolbarAction::commandId)
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
     private val preferenceKey = "native_markdown_toolbar_actions_v1"
     private val orderKey = "native_markdown_toolbar_order_v1"
     private val schemaVersionKey = "native_markdown_toolbar_schema_version"
     private val inflater = LayoutInflater.from(context)
     private val binding = ViewMarkdownToolbarBinding.inflate(inflater, this, true)
-    private val buttons = mutableMapOf<Int, MaterialButton>()
-    private var orderedIds: MutableList<Int>? = null
-    private var enabledIds: MutableSet<Int>? = null
-    private var lastState = Long.MIN_VALUE
+    private val buttons = mutableMapOf<ToolbarAction, MaterialButton>()
+    private var orderedActions = mutableListOf<ToolbarAction>()
+    private var enabledActions = mutableSetOf<ToolbarAction>()
+
+    init {
+        isVisible = false
+        binding.settingsButton.setOnClickListener { showSettings() }
+        loadPreferences()
+        rebuild()
+    }
+
+    private fun loadPreferences() {
+        val savedSelection = prefs.getString(preferenceKey, null)
+        enabledActions = if (savedSelection == null) {
+            actions.toMutableSet()
+        } else {
+            decodeActions(savedSelection).toMutableSet()
+        }
+        if (savedSelection != null && prefs.getInt(schemaVersionKey, 1) < 2) {
+            enabledActions.add(ToolbarAction.InsertPhoto)
+        }
+
+        val savedOrder = prefs.getString(orderKey, null)?.let(::decodeActions).orEmpty()
+        val completeOrder = (savedOrder + actions).distinct()
+        orderedActions = categories
+            .flatMap { category -> completeOrder.filter { it.category == category } }
+            .toMutableList()
+        save()
+    }
+
+    private fun decodeActions(value: String): List<ToolbarAction> = value
+        .split(',')
+        .mapNotNull { it.toIntOrNull()?.let(actionsById::get) }
+        .distinct()
+
+    private fun save() {
+        prefs.edit {
+            putString(preferenceKey, orderedActions.filter(enabledActions::contains).joinToString(",") { it.commandId.toString() })
+            putString(orderKey, orderedActions.joinToString(",") { it.commandId.toString() })
+            putInt(schemaVersionKey, 2)
+        }
+    }
+
+    fun refreshEditorState() {
+        val ptr = WorkspaceView.wgpuObj
+        if (ptr == Long.MAX_VALUE || !editor.canForwardTouches()) return
+        val state = Workspace.markdownToolbarState(ptr)
+        for ((action, control) in buttons) {
+            val active = state and (1L shl action.commandId) != 0L
+            control.isChecked = active
+            val color = if (active) {
+                MaterialColors.getColor(control, com.google.android.material.R.attr.colorPrimaryContainer, 0)
+            } else {
+                MaterialColors.getColor(control, com.google.android.material.R.attr.colorSurfaceContainerHigh, 0)
+            }
+            control.backgroundTintList = ColorStateList.valueOf(color)
+            control.iconTint = ColorStateList.valueOf(
+                if (active) MaterialColors.getColor(control, com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
+                else MaterialColors.getColor(control, com.google.android.material.R.attr.colorOnSurface, 0),
+            )
+            if (action == ToolbarAction.Heading) {
+                val level = (state ushr 32).toInt()
+                control.contentDescription = if (level in 1..6) "Heading level $level" else action.label
+            }
+        }
+    }
 
     private fun connectedGroup() = MarkdownToolbarButtonGroupBinding
         .inflate(inflater, binding.actionGroups, false)
         .root
 
-    init {
-        isVisible = false
-        binding.settingsButton.setOnClickListener { showSettings() }
-    }
-
-    fun refreshFromWorkspace() {
-        val ptr = WorkspaceView.wgpuObj
-        if (ptr == Long.MAX_VALUE || !editor.canForwardTouches()) return
-        if (orderedIds == null) {
-            val saved = prefs.getString(preferenceKey, null)
-            val initial = saved ?: Workspace.markdownToolbarLegacyIds(ptr)
-            val selected = initial.split(',').mapNotNull { it.toIntOrNull() }.filter { id -> actions.any { it.id == id } }.distinct().toMutableList()
-            if (saved != null && prefs.getInt(schemaVersionKey, 1) < 2) selected.add(18)
-            val savedOrder = prefs.getString(orderKey, null)?.split(',')?.mapNotNull { it.toIntOrNull() }.orEmpty()
-            val allIds = (savedOrder + actions.map { it.id }).distinct().filter { id -> actions.any { it.id == id } }
-            orderedIds = categories.flatMap { group -> allIds.filter { category(it) == group } }.toMutableList()
-            enabledIds = selected.toMutableSet()
-            save()
-            rebuild()
-        }
-        val state = Workspace.markdownToolbarState(ptr)
-        if (state != lastState) {
-            lastState = state
-            for ((id, control) in buttons) {
-                val active = state and (1L shl id) != 0L
-                control.isChecked = active
-                val color = if (active) {
-                    MaterialColors.getColor(control, com.google.android.material.R.attr.colorPrimaryContainer, 0)
-                } else {
-                    MaterialColors.getColor(control, com.google.android.material.R.attr.colorSurfaceContainerHigh, 0)
-                }
-                control.backgroundTintList = ColorStateList.valueOf(color)
-                control.iconTint = ColorStateList.valueOf(
-                    if (active) MaterialColors.getColor(control, com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
-                    else MaterialColors.getColor(control, com.google.android.material.R.attr.colorOnSurface, 0),
-                )
-                if (id == 2) {
-                    val level = (state ushr 32).toInt()
-                    control.contentDescription = if (level in 1..6) "Heading level $level" else "Heading"
-                }
-            }
-        }
-    }
-
-    private fun save() {
-        prefs.edit {
-            putString(preferenceKey, orderedIds.orEmpty().filter { enabledIds?.contains(it) == true }.joinToString(","))
-            putString(orderKey, orderedIds.orEmpty().joinToString(","))
-            putInt(schemaVersionKey, 2)
-        }
-    }
-
     private fun iconButton(
         parent: MaterialButtonGroup,
-        label: String,
-        iconRes: Int,
-        action: () -> Unit,
+        action: ToolbarAction,
     ) = MarkdownToolbarIconButtonBinding.inflate(inflater, parent, false).root.apply {
-        contentDescription = label
-        setIconResource(iconRes)
-        setOnClickListener { action() }
+        contentDescription = action.label
+        setIconResource(action.icon)
+        isCheckable = action.checkable
+        setOnClickListener {
+            val ptr = WorkspaceView.wgpuObj
+            if (editor.canForwardTouches()) {
+                Workspace.markdownToolbarAction(ptr, action.commandId)
+                editor.invalidate()
+                editor.wrapperView?.requestFocus()
+            }
+        }
     }
 
     private fun rebuild() {
         binding.actionGroups.removeAllViews()
         buttons.clear()
-        for (groupName in categories) {
-            val ids = orderedIds.orEmpty().filter { enabledIds?.contains(it) == true && category(it) == groupName }
-            if (ids.isEmpty()) continue
+        for (category in categories) {
+            val visibleActions = orderedActions.filter { it in enabledActions && it.category == category }
+            if (visibleActions.isEmpty()) continue
             val group = connectedGroup()
-            for (id in ids) {
-                val item = actions.first { it.id == id }
-                val control = iconButton(group, item.label, item.icon) {
-                    val ptr = WorkspaceView.wgpuObj
-                    if (editor.canForwardTouches()) {
-                        Workspace.markdownToolbarAction(ptr, id)
-                        editor.invalidate()
-                        editor.wrapperView?.requestFocus()
-                    }
-                }
-                control.isCheckable = id in 2..15
-                buttons[id] = control
+            for (action in visibleActions) {
+                val control = iconButton(group, action)
+                buttons[action] = control
                 group.addView(control)
             }
             binding.actionGroups.addView(group)
         }
-        lastState = Long.MIN_VALUE
+        refreshEditorState()
     }
 
     private fun showSettings() {
         val rows = mutableListOf<SettingsRow>()
         fun populateRows() {
             rows.clear()
-            for (group in categories) {
-                rows.add(SettingsRow(group))
-                orderedIds.orEmpty().filter { category(it) == group }.forEach {
-                    rows.add(SettingsRow(group, it))
-                }
+            for (category in categories) {
+                rows.add(SettingsRow(category))
+                orderedActions.filter { it.category == category }.forEach { rows.add(SettingsRow(category, it)) }
             }
         }
         populateRows()
@@ -188,42 +214,41 @@ class MarkdownToolbarView(
 
         val adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             override fun getItemCount() = rows.size
-            override fun getItemViewType(position: Int) = if (rows[position].actionId == null) 0 else 1
+            override fun getItemViewType(position: Int) = if (rows[position].action == null) 0 else 1
 
-            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-                return if (viewType == 0) {
+            override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder =
+                if (viewType == 0) {
                     CategoryViewHolder(ItemMarkdownToolbarCategoryBinding.inflate(inflater, parent, false))
                 } else {
                     ActionViewHolder(ItemMarkdownToolbarActionBinding.inflate(inflater, parent, false))
                 }
-            }
 
             @SuppressLint("ClickableViewAccessibility")
             override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
                 val row = rows[position]
-                val id = row.actionId
-                if (id == null) {
+                val action = row.action
+                if (action == null) {
                     val rowBinding = (holder as CategoryViewHolder).binding
                     rowBinding.categoryDivider.isVisible = position != 0
-                    rowBinding.categoryLabel.text = row.category
+                    rowBinding.categoryLabel.text = row.category.label
                     return
                 }
-                val item = actions.first { it.id == id }
+
                 val rowBinding = (holder as ActionViewHolder).binding
                 val check = rowBinding.actionCheckbox
                 val handle = rowBinding.dragHandle
                 check.setOnCheckedChangeListener(null)
-                check.text = item.label
-                val icon = AppCompatResources.getDrawable(context, item.icon)?.mutate()
+                check.text = action.label
+                val icon = AppCompatResources.getDrawable(context, action.icon)?.mutate()
                 icon?.setTint(MaterialColors.getColor(check, com.google.android.material.R.attr.colorOnSurface, 0))
                 check.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null)
-                check.isChecked = enabledIds?.contains(id) == true
+                check.isChecked = action in enabledActions
                 check.setOnCheckedChangeListener { _, checked ->
-                    if (checked) enabledIds?.add(id) else enabledIds?.remove(id)
+                    if (checked) enabledActions.add(action) else enabledActions.remove(action)
                     save()
                     rebuild()
                 }
-                handle.contentDescription = "Drag ${item.label} to reorder"
+                handle.contentDescription = "Drag ${action.label} to reorder"
                 handle.setOnTouchListener { _, event ->
                     if (event.actionMasked == MotionEvent.ACTION_DOWN) touchHelper.startDrag(holder)
                     false
@@ -238,7 +263,7 @@ class MarkdownToolbarView(
 
             override fun getMovementFlags(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int {
                 val position = viewHolder.bindingAdapterPosition
-                if (position == RecyclerView.NO_POSITION || rows[position].actionId == null) return 0
+                if (position == RecyclerView.NO_POSITION || rows[position].action == null) return 0
                 return makeMovementFlags(ItemTouchHelper.UP or ItemTouchHelper.DOWN, 0)
             }
 
@@ -251,12 +276,14 @@ class MarkdownToolbarView(
                 val to = target.bindingAdapterPosition
                 if (from == RecyclerView.NO_POSITION || to == RecyclerView.NO_POSITION) return false
                 val moving = rows[from]
-                if (moving.actionId == null || rows[to].actionId == null || moving.category != rows[to].category) return false
-                val ids = orderedIds ?: return false
-                val fromIndex = ids.indexOf(moving.actionId)
-                val toIndex = ids.indexOf(rows[to].actionId)
+                val destination = rows[to]
+                val movingAction = moving.action ?: return false
+                val destinationAction = destination.action ?: return false
+                if (moving.category != destination.category) return false
+                val fromIndex = orderedActions.indexOf(movingAction)
+                val toIndex = orderedActions.indexOf(destinationAction)
                 if (fromIndex < 0 || toIndex < 0) return false
-                ids.add(toIndex, ids.removeAt(fromIndex))
+                orderedActions.add(toIndex, orderedActions.removeAt(fromIndex))
                 rows.add(to, rows.removeAt(from))
                 adapter.notifyItemMoved(from, to)
                 return true
@@ -279,8 +306,8 @@ class MarkdownToolbarView(
             .create()
         dialog.show()
         dialog.getButton(DialogInterface.BUTTON_NEUTRAL).setOnClickListener {
-            orderedIds = actions.map { it.id }.toMutableList()
-            enabledIds = orderedIds!!.toMutableSet()
+            orderedActions = actions.toMutableList()
+            enabledActions = actions.toMutableSet()
             save()
             rebuild()
             populateRows()

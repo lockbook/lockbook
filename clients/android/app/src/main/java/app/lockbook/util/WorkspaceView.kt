@@ -52,7 +52,7 @@ class WorkspaceView(
     SurfaceHolder.Callback2 {
     private var surface: Surface? = null
     var wrapperView: View? = null
-    var onWorkspaceFrame: (() -> Unit)? = null
+    var onMarkdownToolbarStateChanged: (() -> Unit)? = null
     var contextMenu: ActionMode? = null
 
     private var redrawTask: Runnable =
@@ -442,7 +442,9 @@ class WorkspaceView(
             }
         }
 
-        onWorkspaceFrame?.invoke()
+        if (response.selectionUpdated || response.textUpdated || currentTab != null) {
+            onMarkdownToolbarStateChanged?.invoke()
+        }
 
         if (response.redrawIn < 100) {
             invalidate()
