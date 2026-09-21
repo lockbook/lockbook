@@ -34,7 +34,7 @@
             style="@style/Widget.Material3.Button.IconButton.Filled.Tonal"
             android:layout_width="40dp"
             android:layout_height="40dp"
-            android:contentDescription="Customize toolbar"
+            android:contentDescription="@string/markdown_toolbar_customize"
             android:gravity="center"
             android:insetLeft="0dp"
             android:insetTop="0dp"

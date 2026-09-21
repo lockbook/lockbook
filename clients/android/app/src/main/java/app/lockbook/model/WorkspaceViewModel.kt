@@ -62,10 +62,13 @@ class WorkspaceViewModel : ViewModel() {
     val bottomInset: LiveData<Int>
         get() = _bottomInset
 
-    /** pull up the photo source sheet so the user can import a pic or take one */
-    val _photoSourceRequested = SingleMutableLiveData<Unit>()
-    val photoSourceRequested: LiveData<Unit>
-        get() = _photoSourceRequested
+    val _takePhotoRequested = SingleMutableLiveData<Unit>()
+    val takePhotoRequested: LiveData<Unit>
+        get() = _takePhotoRequested
+
+    val _choosePhotosRequested = SingleMutableLiveData<Unit>()
+    val choosePhotosRequested: LiveData<Unit>
+        get() = _choosePhotosRequested
 
     /** Holds staged files until the workspace copies their bytes into a paste event. */
     private val pendingAttachments = ArrayDeque<StagedAttachment>()
@@ -109,7 +112,7 @@ class WorkspaceViewModel : ViewModel() {
         _openFile.postValue(request)
     }
 }
-    
+
 data class OpenFileRequest(
     val id: String,
     val newFile: Boolean,

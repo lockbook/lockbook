@@ -53,11 +53,10 @@ import app.lockbook.model.TransientScreen
 import app.lockbook.model.WorkspaceTab
 import app.lockbook.model.WorkspaceTabType
 import app.lockbook.model.WorkspaceViewModel
-import app.lockbook.ui.PhotoSourceBottomSheetFragment
 import app.lockbook.util.AttachmentStager
 import app.lockbook.util.HorizontalTabItemHolder
-import app.lockbook.util.MarkdownToolbarView
 import app.lockbook.util.MAX_ATTACHMENT_SIZE_BYTES
+import app.lockbook.util.MarkdownToolbarView
 import app.lockbook.util.VerticalTabItemHolder
 import app.lockbook.util.WorkspaceTextInputConnection
 import app.lockbook.util.WorkspaceView
@@ -115,23 +114,6 @@ class WorkspaceFragment : Fragment() {
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        childFragmentManager.setFragmentResultListener(PhotoSourceBottomSheetFragment.REQUEST_KEY, this) { _, result ->
-            when (result.getString(PhotoSourceBottomSheetFragment.SOURCE_KEY)) {
-                PhotoSourceBottomSheetFragment.SOURCE_CAMERA -> {
-                    if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) ==
-                        PackageManager.PERMISSION_GRANTED
-                    ) {
-                        launchCamera()
-                    } else {
-                        cameraPermission.launch(Manifest.permission.CAMERA)
-                    }
-                }
-
-                PhotoSourceBottomSheetFragment.SOURCE_LIBRARY -> {
-                    pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
-                }
-            }
-        }
         cameraFile = savedInstanceState?.getString("cameraPath")?.let(::JavaFile)
     }
 
@@ -197,7 +179,21 @@ class WorkspaceFragment : Fragment() {
             }
         }
 
-        model.photoSourceRequested.observe(viewLifecycleOwner) { showPhotoSourceSheet() }
+        model.takePhotoRequested.observe(viewLifecycleOwner) {
+            hideEditorKeyboard()
+            if (ContextCompat.checkSelfPermission(requireContext(), Manifest.permission.CAMERA) ==
+                PackageManager.PERMISSION_GRANTED
+            ) {
+                launchCamera()
+            } else {
+                cameraPermission.launch(Manifest.permission.CAMERA)
+            }
+        }
+
+        model.choosePhotosRequested.observe(viewLifecycleOwner) {
+            hideEditorKeyboard()
+            pickPhotos.launch(PickVisualMediaRequest(ActivityResultContracts.PickVisualMedia.ImageOnly))
+        }
 
         // Forward real IME visibility into the editor so touch long-press
         // can pick drag-reorder (keyboard down) vs text selection (up).
@@ -275,13 +271,10 @@ class WorkspaceFragment : Fragment() {
         return binding.root
     }
 
-    private fun showPhotoSourceSheet() {
+    private fun hideEditorKeyboard() {
         workspaceView?.let { editor ->
             (requireContext().getSystemService(Context.INPUT_METHOD_SERVICE) as InputMethodManager)
                 .hideSoftInputFromWindow(editor.windowToken, 0)
-        }
-        if (childFragmentManager.findFragmentByTag(PhotoSourceBottomSheetFragment.TAG) == null) {
-            PhotoSourceBottomSheetFragment().show(childFragmentManager, PhotoSourceBottomSheetFragment.TAG)
         }
     }
 
@@ -827,7 +820,6 @@ class WorkspaceWrapperView(
     val workspaceView: WorkspaceView
     private val markdownToolbar: MarkdownToolbarView
     var currentTab = WorkspaceTabType.Welcome
-    private var toolbarTargetVisible = false
 
     var currentWrapper: View? = null
 
@@ -863,11 +855,16 @@ class WorkspaceWrapperView(
         workspaceView = WorkspaceView(context, model)
         addView(workspaceView, regLayoutParams)
         markdownToolbar = MarkdownToolbarView(context, workspaceView)
-        addView(markdownToolbar, FrameLayout.LayoutParams(
-            ViewGroup.LayoutParams.MATCH_PARENT,
-            (48 * context.resources.displayMetrics.density).roundToInt(),
-            android.view.Gravity.BOTTOM,
-        ))
+        // This dimension is the native toolbar's height and is also reported to Rust for editor padding.
+        val markdownToolbarHeight = resources.getDimensionPixelSize(R.dimen.markdown_toolbar_height)
+        addView(
+            markdownToolbar,
+            FrameLayout.LayoutParams(
+                ViewGroup.LayoutParams.MATCH_PARENT,
+                markdownToolbarHeight,
+                android.view.Gravity.BOTTOM,
+            ),
+        )
         workspaceView.onMarkdownToolbarStateChanged = {
             markdownToolbar.refreshEditorState()
         }
@@ -882,12 +879,9 @@ class WorkspaceWrapperView(
     }
 
     fun updateNativeToolbar() {
-        val ready = workspaceView.canForwardTouches()
-        val visible = model.nativeMarkdownToolbarVisible.value == true && ready &&
-            model.currentTab.value?.type == WorkspaceTabType.Markdown &&
-            Workspace.canEditMarkdown(WorkspaceView.wgpuObj)
-        if (toolbarTargetVisible == visible) return
-        toolbarTargetVisible = visible
+        val visible = shouldShowNativeToolbar()
+        if (visible && markdownToolbar.isVisible && markdownToolbar.translationY == 0f) return
+        if (!visible && !markdownToolbar.isVisible) return
         markdownToolbar.animate().cancel()
 
         if (visible) {
@@ -907,7 +901,7 @@ class WorkspaceWrapperView(
                 .setDuration(200)
                 .setInterpolator(FastOutLinearInInterpolator())
                 .withEndAction {
-                    if (!toolbarTargetVisible) {
+                    if (!shouldShowNativeToolbar()) {
                         markdownToolbar.isVisible = false
                         markdownToolbar.translationY = 0f
                         setEditorToolbarHeight(0)
@@ -915,6 +909,12 @@ class WorkspaceWrapperView(
                 }.start()
         }
     }
+
+    private fun shouldShowNativeToolbar(): Boolean =
+        model.nativeMarkdownToolbarVisible.value == true &&
+            workspaceView.canForwardTouches() &&
+            model.currentTab.value?.type == WorkspaceTabType.Markdown &&
+            Workspace.canEditMarkdown(WorkspaceView.wgpuObj)
 
     private fun setEditorToolbarHeight(heightPx: Int) {
         if (!workspaceView.canForwardTouches()) return
