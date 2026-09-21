@@ -4,15 +4,10 @@ import android.annotation.SuppressLint
 import android.content.Context
 import android.content.DialogInterface
 import android.content.res.ColorStateList
-import android.view.Gravity
 import android.view.LayoutInflater
 import android.view.MotionEvent
-import android.view.View
 import android.view.ViewGroup
 import android.widget.FrameLayout
-import android.widget.HorizontalScrollView
-import android.widget.LinearLayout
-import android.widget.TextView
 import androidx.appcompat.content.res.AppCompatResources
 import androidx.core.content.edit
 import androidx.core.view.isVisible
@@ -21,10 +16,15 @@ import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 import app.lockbook.R
+import app.lockbook.databinding.DialogMarkdownToolbarCustomizationBinding
+import app.lockbook.databinding.ItemMarkdownToolbarActionBinding
+import app.lockbook.databinding.ItemMarkdownToolbarCategoryBinding
+import app.lockbook.databinding.MarkdownToolbarButtonGroupBinding
+import app.lockbook.databinding.MarkdownToolbarIconButtonBinding
+import app.lockbook.databinding.ViewMarkdownToolbarBinding
 import app.lockbook.workspace.Workspace
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonGroup
-import com.google.android.material.checkbox.MaterialCheckBox
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
@@ -60,40 +60,20 @@ class MarkdownToolbarView(
     private val preferenceKey = "native_markdown_toolbar_actions_v1"
     private val orderKey = "native_markdown_toolbar_order_v1"
     private val schemaVersionKey = "native_markdown_toolbar_schema_version"
-    private val row = LinearLayout(context).apply {
-        orientation = LinearLayout.HORIZONTAL
-        gravity = Gravity.CENTER_VERTICAL
-    }
+    private val inflater = LayoutInflater.from(context)
+    private val binding = ViewMarkdownToolbarBinding.inflate(inflater, this, true)
     private val buttons = mutableMapOf<Int, MaterialButton>()
     private var orderedIds: MutableList<Int>? = null
     private var enabledIds: MutableSet<Int>? = null
     private var lastState = Long.MIN_VALUE
 
-    private val dp get() = resources.displayMetrics.density
-    private fun pixels(value: Int) = (value * dp).toInt()
-    private fun connectedGroup() = LayoutInflater.from(context)
-        .inflate(R.layout.markdown_toolbar_button_group, row, false) as MaterialButtonGroup
+    private fun connectedGroup() = MarkdownToolbarButtonGroupBinding
+        .inflate(inflater, binding.actionGroups, false)
+        .root
 
     init {
-        val surface = MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurfaceContainerLowest, 0)
-        setBackgroundColor(surface)
-        elevation = pixels(4).toFloat()
         isVisible = false
-
-        val scroll = HorizontalScrollView(context).apply {
-            isHorizontalScrollBarEnabled = false
-            addView(row, ViewGroup.LayoutParams(ViewGroup.LayoutParams.WRAP_CONTENT, ViewGroup.LayoutParams.MATCH_PARENT))
-        }
-        addView(scroll, LayoutParams(LayoutParams.MATCH_PARENT, LayoutParams.MATCH_PARENT).apply { marginEnd = pixels(48) })
-        val settingsGroup = connectedGroup().apply {
-            addView(
-                iconButton("Customize toolbar", R.drawable.ic_baseline_more_vert_24) { showSettings() },
-                MaterialButtonGroup.LayoutParams(pixels(40), pixels(40)),
-            )
-        }
-        addView(settingsGroup, LayoutParams(pixels(40), pixels(40), Gravity.END or Gravity.CENTER_VERTICAL).apply {
-            marginEnd = pixels(4)
-        })
+        binding.settingsButton.setOnClickListener { showSettings() }
     }
 
     fun refreshFromWorkspace() {
@@ -143,35 +123,19 @@ class MarkdownToolbarView(
         }
     }
 
-    private fun button(label: String, action: () -> Unit) = MaterialButton(context).apply {
+    private fun iconButton(
+        parent: MaterialButtonGroup,
+        label: String,
+        iconRes: Int,
+        action: () -> Unit,
+    ) = MarkdownToolbarIconButtonBinding.inflate(inflater, parent, false).root.apply {
         contentDescription = label
-        minWidth = pixels(40)
-        minimumWidth = pixels(40)
-        minimumHeight = pixels(40)
-        insetLeft = 0
-        insetRight = 0
-        insetTop = 0
-        insetBottom = 0
-        val container = MaterialColors.getColor(this, com.google.android.material.R.attr.colorSurfaceContainerHigh, 0)
-        backgroundTintList = ColorStateList.valueOf(container)
+        setIconResource(iconRes)
         setOnClickListener { action() }
     }
 
-    private fun iconButton(label: String, iconRes: Int, action: () -> Unit) = button(label, action).apply {
-        text = ""
-        setIconResource(iconRes)
-        iconSize = pixels(20)
-        iconPadding = 0
-        iconGravity = MaterialButton.ICON_GRAVITY_TEXT_START
-        gravity = Gravity.CENTER
-        setPadding(0, 0, 0, 0)
-        iconTint = ColorStateList.valueOf(
-            MaterialColors.getColor(this, com.google.android.material.R.attr.colorOnSurface, 0),
-        )
-    }
-
     private fun rebuild() {
-        row.removeAllViews()
+        binding.actionGroups.removeAllViews()
         buttons.clear()
         for (groupName in categories) {
             val ids = orderedIds.orEmpty().filter { enabledIds?.contains(it) == true && category(it) == groupName }
@@ -179,7 +143,7 @@ class MarkdownToolbarView(
             val group = connectedGroup()
             for (id in ids) {
                 val item = actions.first { it.id == id }
-                val control = iconButton(item.label, item.icon) {
+                val control = iconButton(group, item.label, item.icon) {
                     val ptr = WorkspaceView.wgpuObj
                     if (editor.canForwardTouches()) {
                         Workspace.markdownToolbarAction(ptr, id)
@@ -189,14 +153,9 @@ class MarkdownToolbarView(
                 }
                 control.isCheckable = id in 2..15
                 buttons[id] = control
-                group.addView(control, MaterialButtonGroup.LayoutParams(pixels(40), pixels(40)))
+                group.addView(control)
             }
-            row.addView(group, LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, pixels(40),
-            ).apply {
-                marginStart = pixels(6)
-                marginEnd = pixels(6)
-            })
+            binding.actionGroups.addView(group)
         }
         lastState = Long.MIN_VALUE
     }
@@ -214,54 +173,29 @@ class MarkdownToolbarView(
         }
         populateRows()
 
-        val list = RecyclerView(context).apply {
-            layoutManager = LinearLayoutManager(context)
-            setPadding(pixels(16), 0, pixels(16), 0)
-            clipToPadding = false
-            layoutParams = ViewGroup.LayoutParams(
-                ViewGroup.LayoutParams.MATCH_PARENT,
-                (resources.displayMetrics.heightPixels * 0.6f).toInt(),
-            )
-        }
+        val dialogBinding = DialogMarkdownToolbarCustomizationBinding.inflate(inflater)
+        val list = dialogBinding.actionList
+        list.layoutManager = LinearLayoutManager(context)
         lateinit var touchHelper: ItemTouchHelper
+
+        class CategoryViewHolder(
+            val binding: ItemMarkdownToolbarCategoryBinding,
+        ) : RecyclerView.ViewHolder(binding.root)
+
+        class ActionViewHolder(
+            val binding: ItemMarkdownToolbarActionBinding,
+        ) : RecyclerView.ViewHolder(binding.root)
+
         val adapter = object : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
             override fun getItemCount() = rows.size
             override fun getItemViewType(position: Int) = if (rows[position].actionId == null) 0 else 1
 
             override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder {
-                val view = if (viewType == 0) {
-                    LinearLayout(context).apply {
-                        orientation = LinearLayout.VERTICAL
-                        layoutParams = RecyclerView.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            ViewGroup.LayoutParams.WRAP_CONTENT,
-                        )
-                        addView(View(context).apply {
-                            setBackgroundColor(MaterialColors.getColor(
-                                this, com.google.android.material.R.attr.colorOutlineVariant, 0,
-                            ))
-                        }, LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, pixels(1)))
-                        addView(TextView(context).apply {
-                            textSize = 14f
-                            setTextColor(MaterialColors.getColor(
-                                this, androidx.appcompat.R.attr.colorPrimary, 0,
-                            ))
-                            setPadding(pixels(8), pixels(12), 0, pixels(4))
-                        })
-                    }
+                return if (viewType == 0) {
+                    CategoryViewHolder(ItemMarkdownToolbarCategoryBinding.inflate(inflater, parent, false))
                 } else {
-                    LinearLayout(context).apply {
-                        gravity = Gravity.CENTER_VERTICAL
-                        layoutParams = RecyclerView.LayoutParams(
-                            ViewGroup.LayoutParams.MATCH_PARENT,
-                            pixels(48),
-                        )
-                        addView(MaterialCheckBox(context), LinearLayout.LayoutParams(0, pixels(48), 1f))
-                        addView(iconButton("Drag to reorder", R.drawable.ic_md_drag_indicator_24) {},
-                            LinearLayout.LayoutParams(pixels(48), pixels(48)))
-                    }
+                    ActionViewHolder(ItemMarkdownToolbarActionBinding.inflate(inflater, parent, false))
                 }
-                return object : RecyclerView.ViewHolder(view) {}
             }
 
             @SuppressLint("ClickableViewAccessibility")
@@ -269,21 +203,20 @@ class MarkdownToolbarView(
                 val row = rows[position]
                 val id = row.actionId
                 if (id == null) {
-                    val header = holder.itemView as LinearLayout
-                    header.getChildAt(0).visibility = if (position == 0) View.GONE else View.VISIBLE
-                    (header.getChildAt(1) as TextView).text = row.category
+                    val rowBinding = (holder as CategoryViewHolder).binding
+                    rowBinding.categoryDivider.isVisible = position != 0
+                    rowBinding.categoryLabel.text = row.category
                     return
                 }
                 val item = actions.first { it.id == id }
-                val line = holder.itemView as LinearLayout
-                val check = line.getChildAt(0) as MaterialCheckBox
-                val handle = line.getChildAt(1) as MaterialButton
+                val rowBinding = (holder as ActionViewHolder).binding
+                val check = rowBinding.actionCheckbox
+                val handle = rowBinding.dragHandle
                 check.setOnCheckedChangeListener(null)
                 check.text = item.label
                 val icon = AppCompatResources.getDrawable(context, item.icon)?.mutate()
                 icon?.setTint(MaterialColors.getColor(check, com.google.android.material.R.attr.colorOnSurface, 0))
                 check.setCompoundDrawablesRelativeWithIntrinsicBounds(icon, null, null, null)
-                check.compoundDrawablePadding = pixels(8)
                 check.isChecked = enabledIds?.contains(id) == true
                 check.setOnCheckedChangeListener { _, checked ->
                     if (checked) enabledIds?.add(id) else enabledIds?.remove(id)
@@ -340,7 +273,7 @@ class MarkdownToolbarView(
         touchHelper.attachToRecyclerView(list)
         val dialog = MaterialAlertDialogBuilder(context, R.style.AppTheme_AlertDialog_FilledDone)
             .setTitle("Customize toolbar")
-            .setView(list)
+            .setView(dialogBinding.root)
             .setNeutralButton("Restore defaults", null)
             .setPositiveButton("Done", null)
             .create()

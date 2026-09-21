@@ -203,7 +203,11 @@ class WorkspaceFragment : Fragment() {
         // can pick drag-reorder (keyboard down) vs text selection (up).
         model.keyboardVisible.observe(viewLifecycleOwner) { visible ->
             workspaceWrapper.workspaceView.setKeyboardShown(visible)
-            workspaceWrapper.setKeyboardVisible(visible)
+            model._nativeMarkdownToolbarVisible.value = visible
+        }
+
+        model.nativeMarkdownToolbarVisible.observe(viewLifecycleOwner) {
+            workspaceWrapper.updateNativeToolbar()
         }
 
         model.closeFile.observe(viewLifecycleOwner) { id ->
@@ -362,8 +366,12 @@ class WorkspaceFragment : Fragment() {
         }
 
         model.hideToolbar.observe(viewLifecycleOwner) { distanceY ->
-            workspaceWrapper.setScrollDirection(distanceY)
             val isKeyboardVisible = model.keyboardVisible.value ?: false
+            when {
+                isKeyboardVisible -> model._nativeMarkdownToolbarVisible.value = true
+                distanceY > 0 -> model._nativeMarkdownToolbarVisible.value = true
+                distanceY < 0 -> model._nativeMarkdownToolbarVisible.value = false
+            }
 
             if (distanceY > 0) {
                 hideBottomSheet()
@@ -819,8 +827,6 @@ class WorkspaceWrapperView(
     val workspaceView: WorkspaceView
     private val markdownToolbar: MarkdownToolbarView
     var currentTab = WorkspaceTabType.Welcome
-    private var keyboardVisible = false
-    private var bottomTabSheetVisible = true
     private var toolbarTargetVisible = false
 
     var currentWrapper: View? = null
@@ -868,19 +874,6 @@ class WorkspaceWrapperView(
         }
     }
 
-    fun setKeyboardVisible(visible: Boolean) {
-        keyboardVisible = visible
-        bottomTabSheetVisible = !visible
-        updateNativeToolbar()
-    }
-
-    fun setScrollDirection(distanceY: Float) {
-        if (!keyboardVisible && distanceY != 0f) {
-            bottomTabSheetVisible = distanceY < 0f
-        }
-        updateNativeToolbar()
-    }
-
     fun setBottomInset(inset: Int) {
         val params = markdownToolbar.layoutParams as FrameLayout.LayoutParams
         if (params.bottomMargin != inset) {
@@ -891,9 +884,9 @@ class WorkspaceWrapperView(
 
     fun updateNativeToolbar() {
         val ready = workspaceView.canForwardTouches()
-        val visible = ready && model.currentTab.value?.type == WorkspaceTabType.Markdown &&
-            Workspace.canEditMarkdown(WorkspaceView.wgpuObj) &&
-            (keyboardVisible || !bottomTabSheetVisible)
+        val visible = model.nativeMarkdownToolbarVisible.value == true && ready &&
+            model.currentTab.value?.type == WorkspaceTabType.Markdown &&
+            Workspace.canEditMarkdown(WorkspaceView.wgpuObj)
         if (toolbarTargetVisible == visible) return
         toolbarTargetVisible = visible
         markdownToolbar.animate().cancel()

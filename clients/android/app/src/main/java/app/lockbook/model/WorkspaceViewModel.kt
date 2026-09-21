@@ -46,6 +46,10 @@ class WorkspaceViewModel : ViewModel() {
     val keyboardVisible: LiveData<Boolean>
         get() = _keyboardVisible
 
+    val _nativeMarkdownToolbarVisible = MutableLiveData(false)
+    val nativeMarkdownToolbarVisible: LiveData<Boolean>
+        get() = _nativeMarkdownToolbarVisible
+
     val _showKeyboard = MutableLiveData<Boolean>()
     val showKeyboard: LiveData<Boolean>
         get() = _showKeyboard
