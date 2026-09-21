@@ -31,6 +31,7 @@ import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
 /** Android's native control surface for the Rust markdown editor. */
+@SuppressLint("ViewConstructor")
 class MarkdownToolbarView(
     context: Context,
     private val editor: WorkspaceView,
@@ -327,7 +328,8 @@ class MarkdownToolbarView(
                         save()
                         rebuild()
                     }
-                    handle.contentDescription = "Drag ${action.label} to reorder"
+                    handle.contentDescription =
+                        context.getString(R.string.markdown_toolbar_drag_action_to_reorder, action.label)
                     handle.setOnTouchListener { _, event ->
                         if (event.actionMasked == MotionEvent.ACTION_DOWN) touchHelper.startDrag(holder)
                         false
@@ -400,7 +402,7 @@ class MarkdownToolbarView(
             save()
             rebuild()
             populateRows()
-            adapter.notifyDataSetChanged()
+            adapter.notifyItemRangeChanged(0, rows.size)
         }
         dialogBinding.doneButton.setOnClickListener { dialog.dismiss() }
         dialog.show()

@@ -18,7 +18,7 @@
         style="@style/Widget.Material3.Button.IconButton"
         android:layout_width="48dp"
         android:layout_height="48dp"
-        android:contentDescription="Drag to reorder"
+        android:contentDescription="@string/markdown_toolbar_drag_to_reorder"
         android:gravity="center"
         android:padding="0dp"
         app:icon="@drawable/ic_md_drag_indicator_24"

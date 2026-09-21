@@ -71,6 +71,8 @@
     <string name="done">Done</string>
     <string name="markdown_toolbar_customize">Customize toolbar</string>
     <string name="markdown_toolbar_restore_defaults">Restore defaults</string>
+    <string name="markdown_toolbar_drag_to_reorder">Drag to reorder</string>
+    <string name="markdown_toolbar_drag_action_to_reorder">Drag %1$s to reorder</string>
     <string name="move_file_title">Move File</string>
 
     <string name="cancel">Cancel</string>
