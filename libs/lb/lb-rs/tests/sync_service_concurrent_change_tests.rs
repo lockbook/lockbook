@@ -655,6 +655,69 @@ async fn different_content_edit_not_mergable() {
     .await;
 }
 
+/// A second conflicting edit of the same non-mergeable document produces a duplicate whose
+/// preferred name (`document-1.jsonl`) is already taken by the first duplicate. The resulting
+/// path conflict restarts merge construction, which generates a fresh key for the duplicate,
+/// but the document is encrypted with the key cached in the keychain during the first attempt.
+/// Only the client that created the duplicate can read it (from its in-memory key cache);
+/// every other client fails with `Crypto(Decryption(..))`.
+#[tokio::test]
+async fn different_content_edit_not_mergable_twice() {
+    let c1 = test_core_with_account().await;
+    c1.create_at_path("/document.jsonl").await.unwrap();
+    write_path(&c1, "/document.jsonl", b"base\n").await.unwrap();
+    c1.sync().await.unwrap();
+
+    let c2 = another_client(&c1).await;
+    c2.sync().await.unwrap();
+
+    // first conflict: creates /document-1.jsonl
+    write_path(&c1, "/document.jsonl", b"c1 edit 1\n")
+        .await
+        .unwrap();
+    write_path(&c2, "/document.jsonl", b"c2 edit 1\n")
+        .await
+        .unwrap();
+    sync_and_assert(&c1, &c2).await;
+    assert::all_paths(&c1, &["/", "/document.jsonl", "/document-1.jsonl"]).await;
+    assert::all_document_contents(
+        &c1,
+        &[("/document.jsonl", b"c1 edit 1\n"), ("/document-1.jsonl", b"c2 edit 1\n")],
+    )
+    .await;
+
+    // second conflict on the same document: duplicate must be named /document-2.jsonl
+    write_path(&c1, "/document.jsonl", b"c1 edit 2\n")
+        .await
+        .unwrap();
+    write_path(&c2, "/document.jsonl", b"c2 edit 2\n")
+        .await
+        .unwrap();
+    sync_and_assert(&c1, &c2).await;
+    assert::all_paths(&c1, &["/", "/document.jsonl", "/document-1.jsonl", "/document-2.jsonl"])
+        .await;
+
+    // c1 did not create the duplicate, so it must decrypt it using the key in the metadata
+    let expected: &[(&str, &[u8])] = &[
+        ("/document.jsonl", b"c1 edit 2\n"),
+        ("/document-1.jsonl", b"c2 edit 1\n"),
+        ("/document-2.jsonl", b"c2 edit 2\n"),
+    ];
+    for (path, contents) in expected {
+        let id = c1.get_by_path(path).await.unwrap().id;
+        let actual = c1
+            .read_document(id, false)
+            .await
+            .unwrap_or_else(|err| panic!("c1 failed to read {path}: {:?}", err.kind));
+        assert_eq!(&actual, contents, "unexpected contents for {path}");
+    }
+    assert::all_document_contents(&c1, expected).await;
+
+    // a freshly synced device must be able to read everything too
+    let c3 = test_core_from(&c1).await;
+    assert::all_document_contents(&c3, expected).await;
+}
+
 #[tokio::test]
 async fn different_content_edit_mergable() {
     let c1 = test_core_with_account().await;
