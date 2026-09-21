@@ -73,6 +73,7 @@ mod tests;
 
 pub use input::Event;
 pub use md_label::MdLabel;
+pub use widget::toolbar::MarkdownToolbarAction;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::scroll_content::DocRowId;

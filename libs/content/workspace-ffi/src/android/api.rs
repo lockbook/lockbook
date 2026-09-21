@@ -12,16 +12,21 @@ use workspace_rs::tab::{ClipContent, ContentState, ExtendedInput, TabContent};
 use super::keyboard::AndroidKeys;
 use super::response::*;
 use crate::WgpuWorkspace;
+use workspace_rs::tab::markdown_editor::MarkdownToolbarAction;
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarState(
-    _env: JNIEnv, _: JClass, obj: jlong,
-) -> jlong {
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarStateNative(
+    env: JNIEnv, _: JClass, obj: jlong,
+) -> jstring {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.workspace
+    let state = obj
+        .workspace
         .current_tab_markdown_mut()
-        .map(|editor| editor.android_toolbar_state() as jlong)
-        .unwrap_or(0)
+        .map(|editor| editor.android_toolbar_state())
+        .unwrap_or_default();
+    env.new_string(serde_json::to_string(&state).expect("serialize toolbar state"))
+        .expect("create toolbar state")
+        .into_raw()
 }
 
 #[unsafe(no_mangle)]
@@ -36,17 +41,19 @@ pub extern "system" fn Java_app_lockbook_workspace_Workspace_canEditMarkdown(
 }
 
 #[unsafe(no_mangle)]
-pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarAction(
-    _env: JNIEnv, _: JClass, obj: jlong, id: jint,
+pub extern "system" fn Java_app_lockbook_workspace_Workspace_markdownToolbarActionNative(
+    mut env: JNIEnv, _: JClass, obj: jlong, action: JString,
 ) {
+    let Ok(action) = env.get_string(&action) else { return };
+    let action: String = action.into();
+    let Ok(action) = serde_json::from_str::<MarkdownToolbarAction>(&action) else { return };
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     if let Some(editor) = obj.workspace.current_tab_markdown_mut() {
         if editor.edit.renderer.readonly || editor.edit.renderer.plaintext {
             return;
         }
-        if let Some(event) = editor.android_toolbar_action(id) {
-            obj.renderer.context.push_markdown_event(event);
-        }
+        let event = editor.android_toolbar_action(action);
+        obj.renderer.context.push_markdown_event(event);
     }
 }
 
@@ -149,7 +156,7 @@ fn android_response_to_java<'local>(
 
     env.new_object(
         cls,
-        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZZLjava/lang/String;)V",
+        "(JLjava/lang/String;ZLjava/lang/String;Ljava/lang/Boolean;Ljava/lang/String;Ljava/lang/String;ZZFFZZZLjava/lang/String;)V",
         &[
             JValue::Long(redraw_in),
             JValue::Object(&JObject::from(copied_text)),
@@ -165,7 +172,6 @@ fn android_response_to_java<'local>(
             JValue::Bool(if response.edit_menu_for_atom { 1 } else { 0 }),
             JValue::Bool(if response.selection_updated { 1 } else { 0 }),
             JValue::Bool(if response.text_updated { 1 } else { 0 }),
-            JValue::Bool(if response.open_camera { 1 } else { 0 }),
             JValue::Object(&JObject::from(failure_message)),
         ],
     )

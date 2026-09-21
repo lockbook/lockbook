@@ -29,6 +29,35 @@ pub const MOBILE_TOOL_BAR_SIZE: f32 = CHROME_BAND_H;
 pub const MENU_SPACE: f32 = 20.; // space used for separators between menu sections
 pub const MENU_MARGIN: f32 = 20.; // space on left and right side
 
+#[derive(Clone, Copy, Debug, Deserialize, Serialize)]
+pub enum MarkdownToolbarAction {
+    Undo,
+    Redo,
+    Heading,
+    Bold,
+    Italic,
+    Code,
+    Strikethrough,
+    Highlight,
+    Underline,
+    Spoiler,
+    Subscript,
+    Superscript,
+    NumberedList,
+    BulletedList,
+    TaskList,
+    Link,
+    Indent,
+    Outdent,
+}
+
+#[derive(Default, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct MarkdownToolbarState {
+    pub active: Vec<MarkdownToolbarAction>,
+    pub heading_level: Option<u8>,
+}
+
 fn toolbar_icon(
     ui: &mut Ui, t: &crate::style::Theme, icon: &'static str, applied: bool, menu_open: bool,
     tip: &str,
@@ -82,33 +111,39 @@ pub struct ToolbarPersistence {
 }
 
 impl<'ast> Editor {
-    pub fn android_toolbar_state(&mut self) -> u64 {
+    pub fn android_toolbar_state(&mut self) -> MarkdownToolbarState {
         let arena = Arena::new();
         let root = self.edit.renderer.reparse(&arena);
         let selection = self.edit.renderer.buffer.current.selection;
-        let mut state = 0u64;
+        let mut state = MarkdownToolbarState::default();
         let styles = [
-            (3, NodeValue::Strong),
-            (4, NodeValue::Emph),
-            (5, NodeValue::Code(Default::default())),
-            (6, NodeValue::Strikethrough),
-            (7, NodeValue::Highlight),
-            (8, NodeValue::Underline),
-            (9, NodeValue::SpoileredText),
-            (10, NodeValue::Subscript),
-            (11, NodeValue::Superscript),
-            (15, NodeValue::Link(Default::default())),
+            (MarkdownToolbarAction::Bold, NodeValue::Strong),
+            (MarkdownToolbarAction::Italic, NodeValue::Emph),
+            (MarkdownToolbarAction::Code, NodeValue::Code(Default::default())),
+            (MarkdownToolbarAction::Strikethrough, NodeValue::Strikethrough),
+            (MarkdownToolbarAction::Highlight, NodeValue::Highlight),
+            (MarkdownToolbarAction::Underline, NodeValue::Underline),
+            (MarkdownToolbarAction::Spoiler, NodeValue::SpoileredText),
+            (MarkdownToolbarAction::Subscript, NodeValue::Subscript),
+            (MarkdownToolbarAction::Superscript, NodeValue::Superscript),
+            (MarkdownToolbarAction::Link, NodeValue::Link(Default::default())),
         ];
-        for (id, style) in styles {
+        for (action, style) in styles {
             if self.edit.inline_styled(root, selection, &style) {
-                state |= 1 << id;
+                state.active.push(action);
             }
         }
-        for (id, style) in [
-            (12, NodeValue::List(NodeList { list_type: ListType::Ordered, ..Default::default() })),
-            (13, NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() })),
+        for (action, style) in [
             (
-                14,
+                MarkdownToolbarAction::NumberedList,
+                NodeValue::List(NodeList { list_type: ListType::Ordered, ..Default::default() }),
+            ),
+            (
+                MarkdownToolbarAction::BulletedList,
+                NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() }),
+            ),
+            (
+                MarkdownToolbarAction::TaskList,
                 NodeValue::List(NodeList {
                     list_type: ListType::Bullet,
                     is_task_list: true,
@@ -117,7 +152,7 @@ impl<'ast> Editor {
             ),
         ] {
             if self.edit.unapply_block(root, &style) {
-                state |= 1 << id;
+                state.active.push(action);
             }
         }
         for node in root.descendants() {
@@ -128,8 +163,8 @@ impl<'ast> Editor {
                     .node_range(node)
                     .contains_range(&selection, true, true)
                 {
-                    state |= 1 << 2;
-                    state |= (heading.level as u64) << 32;
+                    state.active.push(MarkdownToolbarAction::Heading);
+                    state.heading_level = Some(heading.level);
                     break;
                 }
             }
@@ -137,11 +172,11 @@ impl<'ast> Editor {
         state
     }
 
-    pub fn android_toolbar_action(&mut self, id: i32) -> Option<Event> {
-        let style = match id {
-            0 => return Some(Event::Undo),
-            1 => return Some(Event::Redo),
-            2 => {
+    pub fn android_toolbar_action(&mut self, action: MarkdownToolbarAction) -> Event {
+        let style = match action {
+            MarkdownToolbarAction::Undo => return Event::Undo,
+            MarkdownToolbarAction::Redo => return Event::Redo,
+            MarkdownToolbarAction::Heading => {
                 let level = if self.toolbar.heading_last_click_at.elapsed() > Duration::from_secs(1)
                 {
                     1
@@ -168,29 +203,31 @@ impl<'ast> Editor {
                 self.toolbar.heading_last_click_at = Instant::now();
                 NodeValue::Heading(NodeHeading { level, ..Default::default() })
             }
-            3 => NodeValue::Strong,
-            4 => NodeValue::Emph,
-            5 => NodeValue::Code(Default::default()),
-            6 => NodeValue::Strikethrough,
-            7 => NodeValue::Highlight,
-            8 => NodeValue::Underline,
-            9 => NodeValue::SpoileredText,
-            10 => NodeValue::Subscript,
-            11 => NodeValue::Superscript,
-            12 => NodeValue::List(NodeList { list_type: ListType::Ordered, ..Default::default() }),
-            13 => NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() }),
-            14 => NodeValue::List(NodeList {
+            MarkdownToolbarAction::Bold => NodeValue::Strong,
+            MarkdownToolbarAction::Italic => NodeValue::Emph,
+            MarkdownToolbarAction::Code => NodeValue::Code(Default::default()),
+            MarkdownToolbarAction::Strikethrough => NodeValue::Strikethrough,
+            MarkdownToolbarAction::Highlight => NodeValue::Highlight,
+            MarkdownToolbarAction::Underline => NodeValue::Underline,
+            MarkdownToolbarAction::Spoiler => NodeValue::SpoileredText,
+            MarkdownToolbarAction::Subscript => NodeValue::Subscript,
+            MarkdownToolbarAction::Superscript => NodeValue::Superscript,
+            MarkdownToolbarAction::NumberedList => {
+                NodeValue::List(NodeList { list_type: ListType::Ordered, ..Default::default() })
+            }
+            MarkdownToolbarAction::BulletedList => {
+                NodeValue::List(NodeList { list_type: ListType::Bullet, ..Default::default() })
+            }
+            MarkdownToolbarAction::TaskList => NodeValue::List(NodeList {
                 list_type: ListType::Bullet,
                 is_task_list: true,
                 ..Default::default()
             }),
-            15 => NodeValue::Link(Default::default()),
-            16 => return Some(Event::Indent { deindent: false }),
-            17 => return Some(Event::Indent { deindent: true }),
-            18 => return Some(Event::Camera),
-            _ => return None,
+            MarkdownToolbarAction::Link => NodeValue::Link(Default::default()),
+            MarkdownToolbarAction::Indent => return Event::Indent { deindent: false },
+            MarkdownToolbarAction::Outdent => return Event::Indent { deindent: true },
         };
-        Some(Event::ToggleStyle { region: Region::Selection, style })
+        Event::ToggleStyle { region: Region::Selection, style }
     }
     pub fn show_toolbar(&mut self, root: &'ast AstNode<'ast>, ui: &mut Ui) {
         ui.spacing_mut().item_spacing = egui::vec2(0.0, 0.0);

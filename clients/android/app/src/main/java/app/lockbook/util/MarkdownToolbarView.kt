@@ -22,13 +22,14 @@ import app.lockbook.databinding.ItemMarkdownToolbarCategoryBinding
 import app.lockbook.databinding.MarkdownToolbarButtonGroupBinding
 import app.lockbook.databinding.MarkdownToolbarIconButtonBinding
 import app.lockbook.databinding.ViewMarkdownToolbarBinding
+import app.lockbook.workspace.MarkdownToolbarAction
 import app.lockbook.workspace.Workspace
 import com.google.android.material.button.MaterialButton
 import com.google.android.material.button.MaterialButtonGroup
 import com.google.android.material.color.MaterialColors
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 
-/** Android's native control surface for the Rust markdown editor. Command IDs match toolbar.rs. */
+/** Android's native control surface for the Rust markdown editor. */
 class MarkdownToolbarView(
     context: Context,
     private val editor: WorkspaceView,
@@ -41,32 +42,15 @@ class MarkdownToolbarView(
         Indentation("Indentation"),
     }
 
-    private enum class ToolbarAction(
-        val commandId: Int,
+    private data class ToolbarAction(
+        val command: MarkdownToolbarAction?,
         val label: String,
         val icon: Int,
         val category: ToolbarCategory,
         val checkable: Boolean = false,
     ) {
-        Undo(0, "Undo", R.drawable.ic_md_undo_24, ToolbarCategory.History),
-        Redo(1, "Redo", R.drawable.ic_md_redo_24, ToolbarCategory.History),
-        Heading(2, "Heading", R.drawable.ic_md_title_24, ToolbarCategory.TextStyle, true),
-        Bold(3, "Bold", R.drawable.ic_md_format_bold_24, ToolbarCategory.TextStyle, true),
-        Italic(4, "Italic", R.drawable.ic_md_format_italic_24, ToolbarCategory.TextStyle, true),
-        Code(5, "Code", R.drawable.ic_md_code_24, ToolbarCategory.TextStyle, true),
-        Strikethrough(6, "Strikethrough", R.drawable.ic_md_format_strikethrough_24, ToolbarCategory.TextStyle, true),
-        Highlight(7, "Highlight", R.drawable.ic_md_highlight_24, ToolbarCategory.TextStyle, true),
-        Underline(8, "Underline", R.drawable.ic_md_format_underlined_24, ToolbarCategory.TextStyle, true),
-        Spoiler(9, "Spoiler", R.drawable.ic_md_visibility_off_24, ToolbarCategory.TextStyle, true),
-        Subscript(10, "Subscript", R.drawable.ic_md_subscript_24, ToolbarCategory.TextStyle, true),
-        Superscript(11, "Superscript", R.drawable.ic_md_superscript_24, ToolbarCategory.TextStyle, true),
-        NumberedList(12, "Numbered list", R.drawable.ic_md_format_list_numbered_24, ToolbarCategory.Lists, true),
-        BulletedList(13, "Bulleted list", R.drawable.ic_md_format_list_bulleted_24, ToolbarCategory.Lists, true),
-        TaskList(14, "Task list", R.drawable.ic_md_checklist_24, ToolbarCategory.Lists, true),
-        Link(15, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments, true),
-        InsertPhoto(18, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments),
-        Indent(16, "Indent", R.drawable.ic_md_format_indent_increase_24, ToolbarCategory.Indentation),
-        Outdent(17, "Outdent", R.drawable.ic_md_format_indent_decrease_24, ToolbarCategory.Indentation),
+        val preferenceKey: String
+            get() = command?.name ?: "InsertPhoto"
     }
 
     private data class SettingsRow(
@@ -75,12 +59,31 @@ class MarkdownToolbarView(
     )
 
     private val categories = ToolbarCategory.values().toList()
-    private val actions = ToolbarAction.values().toList()
-    private val actionsById = actions.associateBy(ToolbarAction::commandId)
+    private val actions = listOf(
+        ToolbarAction(MarkdownToolbarAction.Undo, "Undo", R.drawable.ic_md_undo_24, ToolbarCategory.History),
+        ToolbarAction(MarkdownToolbarAction.Redo, "Redo", R.drawable.ic_md_redo_24, ToolbarCategory.History),
+        ToolbarAction(MarkdownToolbarAction.Heading, "Heading", R.drawable.ic_md_title_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.Bold, "Bold", R.drawable.ic_md_format_bold_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.Italic, "Italic", R.drawable.ic_md_format_italic_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.Code, "Code", R.drawable.ic_md_code_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.Strikethrough, "Strikethrough", R.drawable.ic_md_format_strikethrough_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.Highlight, "Highlight", R.drawable.ic_md_highlight_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.Underline, "Underline", R.drawable.ic_md_format_underlined_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.Spoiler, "Spoiler", R.drawable.ic_md_visibility_off_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.Subscript, "Subscript", R.drawable.ic_md_subscript_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.Superscript, "Superscript", R.drawable.ic_md_superscript_24, ToolbarCategory.TextStyle, true),
+        ToolbarAction(MarkdownToolbarAction.NumberedList, "Numbered list", R.drawable.ic_md_format_list_numbered_24, ToolbarCategory.Lists, true),
+        ToolbarAction(MarkdownToolbarAction.BulletedList, "Bulleted list", R.drawable.ic_md_format_list_bulleted_24, ToolbarCategory.Lists, true),
+        ToolbarAction(MarkdownToolbarAction.TaskList, "Task list", R.drawable.ic_md_checklist_24, ToolbarCategory.Lists, true),
+        ToolbarAction(MarkdownToolbarAction.Link, "Link", R.drawable.ic_md_link_24, ToolbarCategory.Attachments, true),
+        ToolbarAction(null, "Insert photo", R.drawable.ic_outline_camera_24, ToolbarCategory.Attachments),
+        ToolbarAction(MarkdownToolbarAction.Indent, "Indent", R.drawable.ic_md_format_indent_increase_24, ToolbarCategory.Indentation),
+        ToolbarAction(MarkdownToolbarAction.Outdent, "Outdent", R.drawable.ic_md_format_indent_decrease_24, ToolbarCategory.Indentation),
+    )
+    private val actionsByKey = actions.associateBy(ToolbarAction::preferenceKey)
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-    private val preferenceKey = "native_markdown_toolbar_actions_v1"
-    private val orderKey = "native_markdown_toolbar_order_v1"
-    private val schemaVersionKey = "native_markdown_toolbar_schema_version"
+    private val preferenceKey = "native_markdown_toolbar_actions_v2"
+    private val orderKey = "native_markdown_toolbar_order_v2"
     private val inflater = LayoutInflater.from(context)
     private val binding = ViewMarkdownToolbarBinding.inflate(inflater, this, true)
     private val buttons = mutableMapOf<ToolbarAction, MaterialButton>()
@@ -101,10 +104,6 @@ class MarkdownToolbarView(
         } else {
             decodeActions(savedSelection).toMutableSet()
         }
-        if (savedSelection != null && prefs.getInt(schemaVersionKey, 1) < 2) {
-            enabledActions.add(ToolbarAction.InsertPhoto)
-        }
-
         val savedOrder = prefs.getString(orderKey, null)?.let(::decodeActions).orEmpty()
         val completeOrder = (savedOrder + actions).distinct()
         orderedActions = categories
@@ -115,14 +114,13 @@ class MarkdownToolbarView(
 
     private fun decodeActions(value: String): List<ToolbarAction> = value
         .split(',')
-        .mapNotNull { it.toIntOrNull()?.let(actionsById::get) }
+        .mapNotNull(actionsByKey::get)
         .distinct()
 
     private fun save() {
         prefs.edit {
-            putString(preferenceKey, orderedActions.filter(enabledActions::contains).joinToString(",") { it.commandId.toString() })
-            putString(orderKey, orderedActions.joinToString(",") { it.commandId.toString() })
-            putInt(schemaVersionKey, 2)
+            putString(preferenceKey, orderedActions.filter(enabledActions::contains).joinToString(",", transform = ToolbarAction::preferenceKey))
+            putString(orderKey, orderedActions.joinToString(",", transform = ToolbarAction::preferenceKey))
         }
     }
 
@@ -131,7 +129,7 @@ class MarkdownToolbarView(
         if (ptr == Long.MAX_VALUE || !editor.canForwardTouches()) return
         val state = Workspace.markdownToolbarState(ptr)
         for ((action, control) in buttons) {
-            val active = state and (1L shl action.commandId) != 0L
+            val active = action.command in state.active
             control.isChecked = active
             val color = if (active) {
                 MaterialColors.getColor(control, com.google.android.material.R.attr.colorPrimaryContainer, 0)
@@ -143,9 +141,8 @@ class MarkdownToolbarView(
                 if (active) MaterialColors.getColor(control, com.google.android.material.R.attr.colorOnPrimaryContainer, 0)
                 else MaterialColors.getColor(control, com.google.android.material.R.attr.colorOnSurface, 0),
             )
-            if (action == ToolbarAction.Heading) {
-                val level = (state ushr 32).toInt()
-                control.contentDescription = if (level in 1..6) "Heading level $level" else action.label
+            if (action.command == MarkdownToolbarAction.Heading) {
+                control.contentDescription = state.headingLevel?.let { "Heading level $it" } ?: action.label
             }
         }
     }
@@ -162,9 +159,13 @@ class MarkdownToolbarView(
         setIconResource(action.icon)
         isCheckable = action.checkable
         setOnClickListener {
+            if (action.command == null) {
+                editor.model._photoSourceRequested.value = Unit
+                return@setOnClickListener
+            }
             val ptr = WorkspaceView.wgpuObj
             if (editor.canForwardTouches()) {
-                Workspace.markdownToolbarAction(ptr, action.commandId)
+                Workspace.markdownToolbarAction(ptr, action.command)
                 editor.invalidate()
                 editor.wrapperView?.requestFocus()
             }

@@ -403,13 +403,6 @@ class WorkspaceView(
             model._currentTab.value = currentTab
         }
 
-        if (response.openCamera) {
-            val tab = currentTab ?: model.currentTab.value
-            if (tab?.type == WorkspaceTabType.Markdown) {
-                model._photoSourceRequested.value = Unit
-            }
-        }
-
         if (model.currentTab.value?.type == WorkspaceTabType.Markdown ||
             model.currentTab.value?.type == WorkspaceTabType.Chat
         ) {
@@ -442,7 +435,7 @@ class WorkspaceView(
             }
         }
 
-        if (response.selectionUpdated || response.textUpdated || currentTab != null) {
+        if (response.selectionUpdated || response.textUpdated) {
             onMarkdownToolbarStateChanged?.invoke()
         }
 

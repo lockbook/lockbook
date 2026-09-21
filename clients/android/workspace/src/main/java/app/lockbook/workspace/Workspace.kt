@@ -4,11 +4,14 @@ import android.view.Surface
 import kotlinx.serialization.KSerializer
 import kotlinx.serialization.SerialName
 import kotlinx.serialization.Serializable
+import kotlinx.serialization.decodeFromString
 import kotlinx.serialization.descriptors.PrimitiveKind
 import kotlinx.serialization.descriptors.PrimitiveSerialDescriptor
 import kotlinx.serialization.descriptors.SerialDescriptor
+import kotlinx.serialization.encodeToString
 import kotlinx.serialization.encoding.Decoder
 import kotlinx.serialization.encoding.Encoder
+import kotlinx.serialization.json.Json
 import kotlinx.serialization.json.JsonDecoder
 import kotlinx.serialization.json.jsonPrimitive
 import java.math.BigInteger
@@ -29,8 +32,35 @@ data class AndroidResponse(
     val editMenuForAtom: Boolean,
     val selectionUpdated: Boolean,
     val textUpdated: Boolean,
-    val openCamera: Boolean,
     val failureMessage: String,
+)
+
+@Serializable
+enum class MarkdownToolbarAction {
+    Undo,
+    Redo,
+    Heading,
+    Bold,
+    Italic,
+    Code,
+    Strikethrough,
+    Highlight,
+    Underline,
+    Spoiler,
+    Subscript,
+    Superscript,
+    NumberedList,
+    BulletedList,
+    TaskList,
+    Link,
+    Indent,
+    Outdent,
+}
+
+@Serializable
+data class MarkdownToolbarState(
+    val active: Set<MarkdownToolbarAction>,
+    val headingLevel: Int? = null,
 )
 
 object Workspace {
@@ -48,9 +78,15 @@ object Workspace {
     external fun defaultTheme(isDark: Boolean): Any
 
     external fun enterFrameOffloaded(rustObj: Long): AndroidResponse
-    external fun markdownToolbarState(rustObj: Long): Long
+    private external fun markdownToolbarStateNative(rustObj: Long): String
+    fun markdownToolbarState(rustObj: Long): MarkdownToolbarState =
+        Json.decodeFromString(markdownToolbarStateNative(rustObj))
+
     external fun canEditMarkdown(rustObj: Long): Boolean
-    external fun markdownToolbarAction(rustObj: Long, id: Int)
+    private external fun markdownToolbarActionNative(rustObj: Long, action: String)
+    fun markdownToolbarAction(rustObj: Long, action: MarkdownToolbarAction) {
+        markdownToolbarActionNative(rustObj, Json.encodeToString(action))
+    }
     external fun setNativeMarkdownToolbarHeight(rustObj: Long, height: Float)
     external fun queueFileForEditorImport(rustObj: Long, path: String, name: String): Boolean
     external fun resizeWS(rustObj: Long, surface: Surface, scaleFactor: Float)
