@@ -111,9 +111,19 @@ class MarkdownToolbarView(
                 false,
             ),
         )
+    private val defaultActions =
+        actions.filter { action ->
+            action.category != ToolbarCategory.TextStyle ||
+                action.command in
+                setOf(
+                    MarkdownToolbarAction.Heading,
+                    MarkdownToolbarAction.Bold,
+                    MarkdownToolbarAction.Italic,
+                )
+        }
     private val actionsByKey = actions.associateBy(ToolbarAction::preferenceKey)
     private val prefs = PreferenceManager.getDefaultSharedPreferences(context)
-    private val preferenceKey = "native_markdown_toolbar_actions_v2"
+    private val preferenceKey = "native_markdown_toolbar_actions_v3"
     private val orderKey = "native_markdown_toolbar_order_v2"
     private val inflater = LayoutInflater.from(context)
     private val binding = ViewMarkdownToolbarBinding.inflate(inflater, this, true)
@@ -132,7 +142,7 @@ class MarkdownToolbarView(
         val savedSelection = prefs.getString(preferenceKey, null)
         enabledActions =
             if (savedSelection == null) {
-                actions.toMutableSet()
+                defaultActions.toMutableSet()
             } else {
                 decodeActions(savedSelection).toMutableSet()
             }
@@ -386,7 +396,7 @@ class MarkdownToolbarView(
                 .create()
         dialogBinding.restoreDefaultsButton.setOnClickListener {
             orderedActions = actions.toMutableList()
-            enabledActions = actions.toMutableSet()
+            enabledActions = defaultActions.toMutableSet()
             save()
             rebuild()
             populateRows()
