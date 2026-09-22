@@ -37,12 +37,24 @@ class WorkspaceTextEditable(
 
     fun getSelection(): JTextRange = getSelection(wgpuObj)
 
-    override fun get(index: Int): Char = getTextInRange(wgpuObj, index, index)[0]
+    private fun safeTextInRange(
+        start: Int,
+        end: Int,
+    ): String {
+        val textLength = length.coerceAtLeast(0)
+        val safeStart = start.coerceIn(0, textLength)
+        val safeEnd = end.coerceIn(safeStart, textLength)
+
+        if (safeStart == safeEnd) return ""
+        return getTextInRange(wgpuObj, safeStart, safeEnd)
+    }
+
+    override fun get(index: Int): Char = safeTextInRange(index, index + 1).firstOrNull() ?: '\u0000'
 
     override fun subSequence(
         startIndex: Int,
         endIndex: Int,
-    ): CharSequence = getTextInRange(wgpuObj, startIndex, endIndex)
+    ): CharSequence = safeTextInRange(startIndex, endIndex)
 
     override fun getChars(
         start: Int,
@@ -51,7 +63,7 @@ class WorkspaceTextEditable(
         destoff: Int,
     ) {
         dest?.let { realDest ->
-            val text = getTextInRange(wgpuObj, start, end)
+            val text = safeTextInRange(start, end)
 
             var index = destoff
 
@@ -73,30 +85,29 @@ class WorkspaceTextEditable(
         type: Class<T>?,
     ): Array<T> {
         val spans: MutableList<Any> = mutableListOf()
-        val spanRange = start..end
+        val selection = getSelection()
+        val matchesType: (Any) -> Boolean = { span -> type == null || type.isAssignableFrom(span.javaClass) }
 
-        if (type != null) {
-            val instanceComposingTag = composingTag
+        val instanceComposingTag = composingTag
 
-            if (instanceComposingTag != null && type.isAssignableFrom(instanceComposingTag.javaClass) &&
-                (spanRange.contains(composingStart) || spanRange.contains(composingEnd))
-            ) {
-                spans.add(instanceComposingTag)
-            }
+        if (instanceComposingTag != null && matchesType(instanceComposingTag) &&
+            composingStart <= end && composingEnd >= start
+        ) {
+            spans.add(instanceComposingTag)
+        }
 
-            if (type.isAssignableFrom(Selection.SELECTION_START.javaClass) && spanRange.contains(getSelection().start)) {
-                spans.add(Selection.SELECTION_START)
-            }
+        if (matchesType(Selection.SELECTION_START) && selection.start in start..end) {
+            spans.add(Selection.SELECTION_START)
+        }
 
-            if (type.isAssignableFrom(Selection.SELECTION_END.javaClass) && spanRange.contains(getSelection().end)) {
-                spans.add(Selection.SELECTION_END)
-            }
+        if (matchesType(Selection.SELECTION_END) && selection.end in start..end) {
+            spans.add(Selection.SELECTION_END)
         }
 
         @Suppress("UNCHECKED_CAST")
         val returnSpans =
             java.lang.reflect.Array
-                .newInstance(type, spans.size) as Array<T>
+                .newInstance(type ?: Any::class.java, spans.size) as Array<T>
 
         for (i in spans.indices) {
             returnSpans[i] = spans[i] as T
@@ -161,7 +172,28 @@ class WorkspaceTextEditable(
         start: Int,
         limit: Int,
         type: Class<*>?,
-    ): Int = -1
+    ): Int {
+        // Spanned requires this to return limit when there is no later boundary. Returning -1
+        // can make clients that repeatedly walk span transitions move backwards forever.
+        var next = limit
+
+        fun consider(
+            span: Any?,
+            spanStart: Int,
+            spanEnd: Int,
+        ) {
+            if (span == null || (type != null && !type.isAssignableFrom(span.javaClass))) return
+            if (spanStart > start && spanStart < next) next = spanStart
+            if (spanEnd > start && spanEnd < next) next = spanEnd
+        }
+
+        val selection = getSelection()
+        consider(Selection.SELECTION_START, selection.start, selection.start)
+        consider(Selection.SELECTION_END, selection.end, selection.end)
+        consider(composingTag, composingStart, composingEnd)
+
+        return next
+    }
 
     override fun setSpan(
         what: Any?,
@@ -193,6 +225,8 @@ class WorkspaceTextEditable(
         if (what == composingTag || ((what ?: Unit)::class.simpleName ?: "").lowercase().contains("composing")) {
             composingStart = -1
             composingEnd = -1
+            composingFlag = 0
+            composingTag = null
 
             wsInputConnection.notifySelectionUpdated()
         }
