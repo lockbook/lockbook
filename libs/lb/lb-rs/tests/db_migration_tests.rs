@@ -1,14 +1,14 @@
 use db_rs::View;
 use db_rs_old::{Config as OldConfig, Db};
 use lb_rs::Lb;
-use lb_rs::io::{self, CoreV5, legacy::CoreV4, migration};
+use lb_rs::io::{self, legacy::CoreV4};
 use lb_rs::model::account::Account;
 use lb_rs::model::file_like::FileLike;
 use lb_rs::model::file_metadata::Owner;
 use lb_rs::model::meta::Meta;
 use lb_rs::service::activity::DocEvent;
 use lb_rs::service::lb_id::LbID;
-use std::fs::{self, OpenOptions};
+use std::fs;
 
 #[test]
 fn copies_every_core_table_and_reopens_without_reimporting() {
@@ -43,9 +43,9 @@ fn copies_every_core_table_and_reopens_without_reimporting() {
         old.last_extracted_panic.insert(99).unwrap();
         tx.drop_safely().unwrap();
     }
-    let original = fs::read(path.join("CoreV4.db")).unwrap();
     {
         let mut new = io::init_with_migration(path).unwrap();
+        assert!(!path.join("CoreV4.db").exists());
         assert_eq!(new.schema.account.as_ref(), Some(&account));
         assert_eq!(new.schema.last_synced.as_ref(), Some(&42));
         assert_eq!(new.schema.root.as_ref(), Some(&root));
@@ -71,39 +71,67 @@ fn copies_every_core_table_and_reopens_without_reimporting() {
     let reopened = io::init_with_migration(path).unwrap();
     assert_eq!(reopened.schema.last_synced.as_ref(), Some(&43));
     assert!(reopened.schema.pinned_files.is_empty());
-    assert_eq!(fs::read(path.join("CoreV4.db")).unwrap(), original);
 }
 
 #[test]
-fn failed_copy_is_not_published_and_can_be_retried() {
+fn migrates_when_new_database_has_no_account() {
     let directory = tempfile::tempdir().unwrap();
     let path = directory.path();
-    let failed = migration::init_with_migration(path, "CoreV5", |schema: &mut CoreV5| {
-        schema.last_synced.replace(1)?;
-        Err("interrupted copy".into())
-    });
-    assert!(failed.is_err());
-    assert!(!path.join("CoreV5").exists());
-    let reopened = io::init_with_migration(path).unwrap();
-    assert!(reopened.schema.last_synced.is_none());
-}
-
-#[test]
-fn refuses_an_incomplete_old_log() {
-    let directory = tempfile::tempdir().unwrap();
-    let path = directory.path();
+    let empty = io::init_with_migration(path).unwrap();
+    assert!(empty.schema.account.is_none());
+    drop(empty);
+    let account = Account::new("migration".into(), "http://localhost".into());
     {
         let mut old = CoreV4::init(OldConfig::in_folder(path)).unwrap();
-        old.last_synced.insert(1).unwrap();
+        old.account.insert(account.clone()).unwrap();
     }
-    let file = OpenOptions::new()
-        .write(true)
-        .open(path.join("CoreV4.db"))
-        .unwrap();
-    file.set_len(file.metadata().unwrap().len() - 1).unwrap();
-    drop(file);
-    assert!(io::init_with_migration(path).is_err());
-    assert!(!path.join("CoreV5").exists());
+
+    let db = io::init_with_migration(path).unwrap();
+    assert_eq!(db.schema.account.as_ref(), Some(&account));
+    assert!(!path.join("CoreV4.db").exists());
+}
+
+#[test]
+fn migrates_extensionless_log() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path();
+    let account = Account::new("migration".into(), "http://localhost".into());
+    {
+        let mut old = CoreV4::init(OldConfig::in_folder(path)).unwrap();
+        old.account.insert(account.clone()).unwrap();
+    }
+    let bytes = fs::read(path.join("CoreV4.db")).unwrap();
+    // The extensionless format has no two-byte metadata header.
+    fs::write(path.join("CoreV4"), &bytes[2..]).unwrap();
+    fs::remove_file(path.join("CoreV4.db")).unwrap();
+
+    let db = io::init_with_migration(path).unwrap();
+    assert_eq!(db.schema.account.as_ref(), Some(&account));
+    assert!(!path.join("CoreV4").exists());
+    assert!(!path.join("CoreV4.db").exists());
+}
+
+#[test]
+fn skips_migration_when_new_database_has_an_account() {
+    let directory = tempfile::tempdir().unwrap();
+    let path = directory.path();
+    let account = Account::new("current".into(), "http://localhost".into());
+    {
+        let mut db = io::init_with_migration(path).unwrap();
+        let tx = db.write_tx().unwrap();
+        db.schema.account.replace(account.clone()).unwrap();
+        tx.end_tx(&mut db).unwrap();
+    }
+    {
+        let mut old = CoreV4::init(OldConfig::in_folder(path)).unwrap();
+        old.last_synced.insert(42).unwrap();
+    }
+    let original = fs::read(path.join("CoreV4.db")).unwrap();
+
+    let db = io::init_with_migration(path).unwrap();
+    assert_eq!(db.schema.account.as_ref(), Some(&account));
+    assert!(db.schema.last_synced.is_none());
+    assert_eq!(fs::read(path.join("CoreV4.db")).unwrap(), original);
 }
 
 #[tokio::test]

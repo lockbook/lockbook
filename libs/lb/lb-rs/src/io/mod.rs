@@ -7,7 +7,6 @@
 
 pub mod docs;
 pub mod legacy;
-pub mod migration;
 pub mod network;
 
 use crate::Lb;
@@ -17,6 +16,7 @@ use crate::model::signed_meta::SignedMeta;
 use crate::service::activity::DocEvent;
 use crate::service::lb_id::LbID;
 use db_rs::View;
+use db_rs::config::Config;
 use db_rs::guard::WriteTx;
 use db_rs::views::{
     composite_view::{Composite, Schema},
@@ -27,7 +27,8 @@ use db_rs::views::{
 use db_rs_old::hasher::UuidIdentityHasherBuilder;
 use db_rs_old::{Config as OldConfig, Db};
 use legacy::CoreV4;
-use migration::MigrationResult;
+use std::error::Error;
+use std::fs;
 use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::{RwLock, RwLockReadGuard, RwLockWriteGuard};
@@ -37,6 +38,7 @@ use web_time::{Duration, Instant};
 pub(crate) type LbDb = Arc<RwLock<CoreDb>>;
 // todo: limit visibility
 pub type CoreDb = Composite<CoreV5>;
+pub type MigrationResult<T> = Result<T, Box<dyn Error + Send + Sync>>;
 
 #[derive(Default)]
 pub struct CoreV5 {
@@ -78,21 +80,22 @@ impl Schema for CoreV5 {
 }
 
 pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
-    migration::init_with_migration(path, "CoreV5", |dest: &mut CoreV5| {
-        if !path.join("CoreV4.db").try_exists()? {
-            if path.join("CoreV4").try_exists()? {
-                return Err("upgrade the legacy CoreV4 log with the previous app first".into());
-            }
-            return Ok(());
+    let directory = path.join("CoreV5");
+    fs::create_dir_all(&directory)?;
+    let mut db = CoreDb::init(&Config::default().log_location(directory))?;
+    let old_path = path.join("CoreV4.db");
+
+    if db.schema.account.is_none() {
+        if !old_path.try_exists()? && !path.join("CoreV4").try_exists()? {
+            return Ok(db);
         }
         let source = CoreV4::init(OldConfig {
             create_db: false,
             create_path: false,
             ..OldConfig::in_folder(path)
         })?;
-        if source.incomplete_write()? {
-            return Err("refusing to migrate an incomplete CoreV4 log".into());
-        }
+        let tx = db.write_tx()?;
+        let dest = &mut db.schema;
         if let Some(value) = source.account.get() {
             dest.account.replace(value.clone())?;
         }
@@ -123,8 +126,11 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<CoreDb> {
         if let Some(value) = source.last_extracted_panic.get() {
             dest.last_extracted_panic.replace(*value)?;
         }
-        Ok(())
-    })
+        tx.end_tx(&mut db)?;
+        drop(source);
+        fs::remove_file(old_path)?;
+    }
+    Ok(db)
 }
 
 pub struct LbRO<'a> {

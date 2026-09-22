@@ -1,6 +1,7 @@
 pub mod legacy;
 
 use db_rs::View;
+use db_rs::config::Config;
 use db_rs::views::{
     composite_view::{Composite, Schema},
     hashmap::DbHashMap,
@@ -9,12 +10,13 @@ use db_rs::views::{
     option::DbOption,
 };
 use db_rs_old::{Config as OldConfig, Db};
-use lb_rs::io::migration::{self, MigrationResult};
+use lb_rs::io::MigrationResult;
 use lb_rs::model::file_metadata::{DocumentHmac, Owner};
 use lb_rs::model::server_meta::ServerMeta;
 use lb_rs::service::debug::DebugInfo;
 use lb_rs::service::lb_id::LbID;
 use serde::{Deserialize, Serialize};
+use std::fs;
 use std::path::Path;
 use uuid::Uuid;
 
@@ -73,12 +75,14 @@ impl Schema for ServerV6 {
 }
 
 pub fn init_with_migration(path: &Path) -> MigrationResult<ServerDb> {
-    migration::init_with_migration(path, "ServerV6", |dest: &mut ServerV6| {
-        if !path.join("ServerV5.db").try_exists()? {
-            if path.join("ServerV5").try_exists()? {
-                return Err("upgrade the legacy ServerV5 log with the previous server first".into());
-            }
-            return Ok(());
+    let directory = path.join("ServerV6");
+    fs::create_dir_all(&directory)?;
+    let mut db = ServerDb::init(&Config::default().log_location(directory))?;
+    let old_path = path.join("ServerV5.db");
+
+    if db.schema.accounts.is_empty() {
+        if !old_path.try_exists()? && !path.join("ServerV5").try_exists()? {
+            return Ok(db);
         }
         let source = ServerV5::init(OldConfig {
             create_db: false,
@@ -88,6 +92,8 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<ServerDb> {
         if source.incomplete_write()? {
             return Err("refusing to migrate an incomplete ServerV5 log".into());
         }
+        let tx = db.write_tx()?;
+        let dest = &mut db.schema;
         for (key, value) in source.usernames.get() {
             dest.usernames.insert(key.clone(), *value)?;
         }
@@ -142,6 +148,9 @@ pub fn init_with_migration(path: &Path) -> MigrationResult<ServerDb> {
                 dest.debug_info.insert(*key, *inner_key, value.clone())?;
             }
         }
-        Ok(())
-    })
+        tx.end_tx(&mut db)?;
+        drop(source);
+        fs::remove_file(old_path)?;
+    }
+    Ok(db)
 }

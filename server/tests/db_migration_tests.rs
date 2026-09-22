@@ -18,6 +18,9 @@ use uuid::Uuid;
 fn copies_every_server_table_including_empty_groups() {
     let config = Config::test();
     let path = &config.log_location;
+    let empty = schema::init_with_migration(path).unwrap();
+    assert!(empty.schema.accounts.is_empty());
+    drop(empty);
     let account = CoreAccount::new("migration".into(), "http://localhost".into());
     let owner = Owner(account.public_key());
     let empty_owner =
@@ -79,9 +82,9 @@ fn copies_every_server_table_including_empty_groups() {
         old.debug_info.create_key(empty_owner).unwrap();
         tx.drop_safely().unwrap();
     }
-    let original = fs::read(path.join("ServerV5.db")).unwrap();
     {
         let mut db = schema::init_with_migration(path).unwrap();
+        assert!(!path.join("ServerV5.db").exists());
         assert_eq!(db.schema.usernames.get("migration"), Some(&owner));
         assert_eq!(
             bincode::serialize(db.schema.metas.get(&root).unwrap()).unwrap(),
@@ -117,6 +120,60 @@ fn copies_every_server_table_including_empty_groups() {
     let db = schema::init_with_migration(path).unwrap();
     assert!(db.schema.usernames.is_empty());
     assert_eq!(db.schema.metas.get(&root), Some(&meta));
+}
+
+#[test]
+fn migrates_extensionless_log() {
+    let config = Config::test();
+    let path = &config.log_location;
+    let account = CoreAccount::new("migration".into(), "http://localhost".into());
+    let owner = Owner(account.public_key());
+    {
+        let mut old = ServerV5::init(OldConfig::in_folder(path)).unwrap();
+        old.accounts
+            .insert(
+                owner,
+                Account { username: account.username.clone(), billing_info: Default::default() },
+            )
+            .unwrap();
+    }
+    let bytes = fs::read(path.join("ServerV5.db")).unwrap();
+    // The extensionless format has no two-byte metadata header.
+    fs::write(path.join("ServerV5"), &bytes[2..]).unwrap();
+    fs::remove_file(path.join("ServerV5.db")).unwrap();
+
+    let db = schema::init_with_migration(path).unwrap();
+    assert_eq!(db.schema.accounts.get(&owner).unwrap().username, account.username);
+    assert!(!path.join("ServerV5").exists());
+    assert!(!path.join("ServerV5.db").exists());
+}
+
+#[test]
+fn skips_migration_when_new_database_has_accounts() {
+    let config = Config::test();
+    let path = &config.log_location;
+    let account = CoreAccount::new("current".into(), "http://localhost".into());
+    let owner = Owner(account.public_key());
+    {
+        let mut db = schema::init_with_migration(path).unwrap();
+        let mut tx = ServerTx::begin(&mut db).unwrap();
+        tx.accounts
+            .insert(
+                owner,
+                Account { username: account.username.clone(), billing_info: Default::default() },
+            )
+            .unwrap();
+        tx.end().unwrap();
+    }
+    {
+        let mut old = ServerV5::init(OldConfig::in_folder(path)).unwrap();
+        old.last_seen.insert(owner, 99).unwrap();
+    }
+    let original = fs::read(path.join("ServerV5.db")).unwrap();
+
+    let db = schema::init_with_migration(path).unwrap();
+    assert_eq!(db.schema.accounts.get(&owner).unwrap().username, account.username);
+    assert!(db.schema.last_seen.is_empty());
     assert_eq!(fs::read(path.join("ServerV5.db")).unwrap(), original);
 }
 
