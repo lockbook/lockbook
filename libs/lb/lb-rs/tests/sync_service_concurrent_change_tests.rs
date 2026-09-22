@@ -655,12 +655,9 @@ async fn different_content_edit_not_mergable() {
     .await;
 }
 
-/// A second conflicting edit of the same non-mergeable document produces a duplicate whose
-/// preferred name (`document-1.jsonl`) is already taken by the first duplicate. The resulting
-/// path conflict restarts merge construction, which generates a fresh key for the duplicate,
-/// but the document is encrypted with the key cached in the keychain during the first attempt.
-/// Only the client that created the duplicate can read it (from its in-memory key cache);
-/// every other client fails with `Crypto(Decryption(..))`.
+/// A second conflict on the same non-mergeable file has to name the new duplicate
+/// `document-2.jsonl`, because `document-1.jsonl` already exists. That retry must keep
+/// the duplicate's key, so a client that did not create the copy can still decrypt it.
 #[tokio::test]
 async fn different_content_edit_not_mergable_twice() {
     let c1 = test_core_with_account().await;
@@ -697,20 +694,12 @@ async fn different_content_edit_not_mergable_twice() {
     assert::all_paths(&c1, &["/", "/document.jsonl", "/document-1.jsonl", "/document-2.jsonl"])
         .await;
 
-    // c1 did not create the duplicate, so it must decrypt it using the key in the metadata
+    // c1 did not create the second duplicate, so it decrypts that copy from metadata.
     let expected: &[(&str, &[u8])] = &[
         ("/document.jsonl", b"c1 edit 2\n"),
         ("/document-1.jsonl", b"c2 edit 1\n"),
         ("/document-2.jsonl", b"c2 edit 2\n"),
     ];
-    for (path, contents) in expected {
-        let id = c1.get_by_path(path).await.unwrap().id;
-        let actual = c1
-            .read_document(id, false)
-            .await
-            .unwrap_or_else(|err| panic!("c1 failed to read {path}: {:?}", err.kind));
-        assert_eq!(&actual, contents, "unexpected contents for {path}");
-    }
     assert::all_document_contents(&c1, expected).await;
 
     // a freshly synced device must be able to read everything too
