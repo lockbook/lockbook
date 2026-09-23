@@ -181,6 +181,19 @@ impl Lb {
         LbRO { guard }
     }
 
+    /// note: you cannot call init for the same config, from the same tokio runtime, or you risk
+    /// deadlock. See the test `contended_transactions_do_not_block_the_runtime` for more info.
+    /// several workarounds exist for this situation that shouldn't really be required:
+    /// Lb is cheap to clone within the same runtime
+    /// Different data directories are fine
+    ///
+    /// If this situation actually becomes required:
+    ///
+    /// a config could be added to turn off file locks which is what results in tokio deadlocks, but
+    /// then what are you doing with multiple log writers writing to the same location?
+    ///
+    /// we could incur a small perf penalty and put the begin_tx in a tokio::blocking wrapper. This
+    /// is how tokio wants us to handle this, but I do not want the overhead.
     pub async fn begin_tx(&self) -> LbTx<'_> {
         let start = Instant::now();
 

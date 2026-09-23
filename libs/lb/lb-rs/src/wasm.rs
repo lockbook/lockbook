@@ -1,5 +1,7 @@
 use std::sync::Arc;
 
+use db_rs::View;
+use db_rs::config::Config as DbConfig;
 use tokio::sync::RwLock;
 use web_time::Instant;
 
@@ -11,7 +13,7 @@ use crate::model::errors::LbResult;
 
 impl Lb {
     pub fn init_dummy(config: Config) -> LbResult<Self> {
-        let db = CoreDb::default();
+        let db = CoreDb::init(&DbConfig::in_memory())?;
         let user_last_seen = Arc::new(RwLock::new(Instant::now()));
 
         Ok(Self {
