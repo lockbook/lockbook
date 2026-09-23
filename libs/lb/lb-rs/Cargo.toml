@@ -24,7 +24,7 @@ bytes = "1"
 chrono = "0.4"
 crossbeam = "0.8.1"
 db-rs-derive = "0.3.7"
-db-rs = { git = "https://github.com/lockbook/db-rs", rev = "08596b565bd8f832731647ab53adf0ce1d5ec46c" }
+db-rs = { git = "https://github.com/lockbook/db-rs", rev = "e75e6ad6a1b3f3c162cff321ae9dce22affe6671" }
 db-rs-old = { package = "db-rs", version = "=0.3.7" }
 flate2 = "1.0"
 futures = "0.3.30"
