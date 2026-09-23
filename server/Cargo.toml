@@ -52,7 +52,7 @@ reqwest = { version = "0.11", default-features = false, features = [
 ] }
 jsonwebtoken = "8.2.0"
 x509-parser = { version = "0.15.0", features = ["verify", "validate"] }
-db-rs = { git = "https://github.com/lockbook/db-rs", rev = "7b5f578c825e2674d42bc5a93845af94eb671450" }
+db-rs = { git = "https://github.com/lockbook/db-rs", rev = "08596b565bd8f832731647ab53adf0ce1d5ec46c" }
 db-rs-old = { package = "db-rs", version = "=0.3.7" }
 db-rs-derive = "0.3.7"
 semver = "1.0.17"
