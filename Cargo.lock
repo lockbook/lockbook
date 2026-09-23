@@ -1835,7 +1835,7 @@ dependencies = [
 [[package]]
 name = "db-rs"
 version = "0.4.0"
-source = "git+https://github.com/lockbook/db-rs?rev=fdab4da1b467ca1cc6b0be98e422c0d58e64f3be#fdab4da1b467ca1cc6b0be98e422c0d58e64f3be"
+source = "git+https://github.com/lockbook/db-rs?rev=7b5f578c825e2674d42bc5a93845af94eb671450#7b5f578c825e2674d42bc5a93845af94eb671450"
 dependencies = [
  "bincode 2.0.1",
  "serde",
