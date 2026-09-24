@@ -24,7 +24,7 @@ use crate::{
             GetUsernameError, GetUsernameRequest, UpsertDebugInfoRequest, UpsertRequestV2,
         },
         chat,
-        crypto::{DecryptedDocument, EncryptedDocument},
+        crypto::{AESKey, DecryptedDocument, EncryptedDocument},
         errors::{LbErr, Unexpected},
         file::ShareMode,
         file_like::FileLike,
@@ -373,7 +373,9 @@ impl Lb {
             let mut files_to_unshare: HashSet<Uuid> = HashSet::new();
             let mut links_to_delete: HashSet<Uuid> = HashSet::new();
             let mut rename_increments: HashMap<Uuid, usize> = HashMap::new();
-            let mut duplicate_file_ids: HashMap<Uuid, Uuid> = HashMap::new();
+            // Id and key share one lifetime: the merge, including construction retries.
+            // A new key per attempt encrypts with the key cached by the failed attempt.
+            let mut duplicate_file_ids: HashMap<Uuid, (Uuid, AESKey)> = HashMap::new();
 
             'merge_construction: loop {
                 // process just the edits which allow us to check deletions in the result
@@ -698,16 +700,17 @@ impl Lb {
                                     DocumentType::Other => {
                                         // duplicate file
                                         let merge_parent = *merge.find(&id)?.parent();
-                                        let duplicate_id = if let Some(&duplicate_id) =
-                                            duplicate_file_ids.get(&id)
-                                        {
-                                            duplicate_id
-                                        } else {
-                                            let duplicate_id = Uuid::new_v4();
-                                            duplicate_file_ids.insert(id, duplicate_id);
-                                            rename_increments.insert(duplicate_id, 1);
-                                            duplicate_id
-                                        };
+                                        let (duplicate_id, duplicate_key) =
+                                            if let Some(&tracked) = duplicate_file_ids.get(&id) {
+                                                tracked
+                                            } else {
+                                                let duplicate_id = Uuid::new_v4();
+                                                let duplicate_key = symkey::generate_key();
+                                                duplicate_file_ids
+                                                    .insert(id, (duplicate_id, duplicate_key));
+                                                rename_increments.insert(duplicate_id, 1);
+                                                (duplicate_id, duplicate_key)
+                                            };
 
                                         let mut merge_name = merge_name;
                                         merge_name = NameComponents::from(&merge_name)
@@ -721,7 +724,7 @@ impl Lb {
 
                                         merge.create_unvalidated(
                                             duplicate_id,
-                                            symkey::generate_key(),
+                                            duplicate_key,
                                             &merge_parent,
                                             &merge_name,
                                             FileType::Document,
@@ -829,7 +832,7 @@ impl Lb {
                                 // pick one local id and generate a non-conflicting filename
                                 let mut progress = false;
                                 for &id in ids {
-                                    if duplicate_file_ids.values().any(|&dup| dup == id) {
+                                    if duplicate_file_ids.values().any(|&(dup, _)| dup == id) {
                                         *rename_increments.entry(id).or_insert(0) += 1;
                                         progress = true;
                                         break;

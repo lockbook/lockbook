@@ -54,6 +54,7 @@ class WorkspaceTextInputConnection(
     val wsEditable = WorkspaceTextEditable(workspaceView, this)
 
     var batchEditCount = 0
+    private var selectionUpdatePending = false
 
     private var cursorMonitorStatus = CursorMonitorStatus()
 
@@ -77,6 +78,13 @@ class WorkspaceTextInputConnection(
     }
 
     fun notifySelectionUpdated() {
+        // IMEs expect one coherent selection update after a batch, not the transient states
+        // produced while BaseInputConnection moves selection and composing spans.
+        if (batchEditCount > 0) {
+            selectionUpdatePending = true
+            return
+        }
+
         val selection = wsEditable.getSelection()
         getInputMethodManager().updateSelection(
             textInputWrapper,
@@ -85,6 +93,7 @@ class WorkspaceTextInputConnection(
             wsEditable.composingStart,
             wsEditable.composingEnd,
         )
+        selectionUpdatePending = false
     }
 
     override fun sendKeyEvent(event: KeyEvent?): Boolean {
@@ -264,12 +273,14 @@ class WorkspaceTextInputConnection(
 
     override fun beginBatchEdit(): Boolean {
         batchEditCount += 1
-
         return true
     }
 
     override fun endBatchEdit(): Boolean {
         batchEditCount = (batchEditCount - 1).coerceAtLeast(0)
+        if (batchEditCount == 0 && selectionUpdatePending) {
+            notifySelectionUpdated()
+        }
 
         return batchEditCount > 0
     }
