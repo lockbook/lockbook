@@ -1835,7 +1835,8 @@ dependencies = [
 [[package]]
 name = "db-rs"
 version = "0.4.0"
-source = "git+https://github.com/lockbook/db-rs?rev=e75e6ad6a1b3f3c162cff321ae9dce22affe6671#e75e6ad6a1b3f3c162cff321ae9dce22affe6671"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d1dcda4542c1e02ec4a6226587da23907db2bb351d02b4af956f38ccf847b849"
 dependencies = [
  "bincode 2.0.1",
  "serde",
