@@ -1,4 +1,4 @@
-use crate::{get_dirty_ids, local, slices_equal_ignore_order, test_core_from};
+use crate::{get_dirty_ids, slices_equal_ignore_order, test_core_from};
 use lb_rs::Lb;
 use lb_rs::model::api::GetUpdatesRequestV2;
 use lb_rs::model::file_like::FileLike;
@@ -6,6 +6,7 @@ use lb_rs::model::file_metadata::{FileType, Owner};
 use lb_rs::model::path_ops::Filter::DocumentsOnly;
 use lb_rs::model::staged::StagedTreeLikeMut;
 use lb_rs::model::tree_like::TreeLike;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[macro_export]
@@ -26,23 +27,38 @@ pub async fn cores_equal(left: &Lb, right: &Lb) {
     assert_eq!(&left.get_account().unwrap(), &right.get_account().unwrap());
     assert_eq!(&left.root().await.unwrap(), &right.root().await.unwrap());
 
-    let left_lb = local(left);
-    let right_lb = local(right);
-    let mut left_tx = left_lb.begin_tx().await;
-    let mut right_tx = right_lb.begin_tx().await;
+    let mut left_tx = left.begin_tx().await;
+    let mut right_tx = right.begin_tx().await;
 
-    assert_eq!(&left_tx.db().local_metadata.get(), &right_tx.db().local_metadata.get());
-    assert_eq!(&left_tx.db().base_metadata.get(), &right_tx.db().base_metadata.get());
+    assert_eq!(
+        &left_tx
+            .db()
+            .local_metadata
+            .iter()
+            .collect::<HashMap<_, _>>(),
+        &right_tx
+            .db()
+            .local_metadata
+            .iter()
+            .collect::<HashMap<_, _>>()
+    );
+    assert_eq!(
+        &left_tx.db().base_metadata.iter().collect::<HashMap<_, _>>(),
+        &right_tx
+            .db()
+            .base_metadata
+            .iter()
+            .collect::<HashMap<_, _>>()
+    );
 }
 
 pub async fn new_synced_client_core_equal(lb: &Lb) {
     let new_client = test_core_from(lb).await;
 
-    let lb_local = local(lb);
-    let tx = lb_local.ro_tx().await;
+    let tx = lb.ro_tx().await;
     let db = tx.db();
 
-    let account = db.account.get().unwrap().clone();
+    let account = db.account.as_ref().unwrap().clone();
     let mut local = db.base_metadata.stage(&db.local_metadata).to_lazy();
     local.validate(Owner(account.public_key())).unwrap();
 
@@ -177,8 +193,7 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
     let dirty = get_dirty_ids(lb, false).await;
     let mut expected_paths = expected_paths.to_vec();
 
-    let lb_local = local(lb);
-    let tx = lb_local.ro_tx().await;
+    let tx = lb.ro_tx().await;
     let db = tx.db();
 
     let mut tree = db.base_metadata.stage(&db.local_metadata).to_lazy();
@@ -190,7 +205,7 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
         .filter(|id| !tree.in_pending_share(id).unwrap())
         .collect::<Vec<_>>()
         .iter()
-        .map(|id| tree.id_to_path(id, &local(lb).keychain))
+        .map(|id| tree.id_to_path(id, &lb.keychain))
         .collect::<Result<Vec<String>, _>>()
         .unwrap();
     actual_paths.sort_unstable();
@@ -205,17 +220,16 @@ pub async fn local_work_paths(lb: &Lb, expected_paths: &[&'static str]) {
 pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
     let mut expected_paths = expected_paths.to_vec();
 
-    let lb_local = local(core);
-    let tx = lb_local.ro_tx().await;
+    let tx = core.ro_tx().await;
     let db = tx.db();
 
-    let account = db.account.get().unwrap();
-    let remote_changes = lb_local
+    let account = db.account.as_ref().unwrap();
+    let remote_changes = core
         .client
         .request(
             account,
             GetUpdatesRequestV2 {
-                since_metadata_version: db.last_synced.get().copied().unwrap_or_default() as u64,
+                since_metadata_version: db.last_synced.as_ref().copied().unwrap_or_default() as u64,
             },
         )
         .await
@@ -238,7 +252,7 @@ pub async fn server_work_paths(core: &Lb, expected_paths: &[&'static str]) {
         .filter(|id| !remote.in_pending_share(id).unwrap())
         .collect::<Vec<_>>()
         .iter()
-        .map(|id| remote.id_to_path(id, &lb_local.keychain))
+        .map(|id| remote.id_to_path(id, &core.keychain))
         .collect::<Result<Vec<String>, _>>()
         .unwrap();
     actual_paths.sort_unstable();

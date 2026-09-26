@@ -33,10 +33,9 @@ async fn test_no_account() {
 #[tokio::test]
 async fn test_no_root() {
     let core = test_core_with_account().await;
-    let core_lb = local(&core);
-    let mut tx = core_lb.begin_tx().await;
+    let mut tx = core.begin_tx().await;
     tx.db().base_metadata.clear().unwrap();
-    tx.db().root.clear().unwrap();
+    tx.db().root.take().unwrap();
     tx.end();
     assert_matches!(
         core.test_repo_integrity(true).await.unwrap_err().kind,
@@ -54,8 +53,7 @@ async fn test_orphaned_children() {
     core.test_repo_integrity(true).await.unwrap();
 
     let parent = core.get_by_path("folder1").await.unwrap().id;
-    local(&core)
-        .begin_tx()
+    core.begin_tx()
         .await
         .db()
         .local_metadata
@@ -71,14 +69,11 @@ async fn test_orphaned_children() {
 async fn test_invalid_file_name_slash() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document1.md").await.unwrap();
-    let core_lb = local(&core);
-    let mut tx = core_lb.begin_tx().await;
+    let mut tx = core.begin_tx().await;
     let db = tx.db();
     let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
-    let key = tree.decrypt_key(&doc.id, &local(&core).keychain).unwrap();
-    let parent = tree
-        .decrypt_key(&doc.parent, &local(&core).keychain)
-        .unwrap();
+    let key = tree.decrypt_key(&doc.id, &core.keychain).unwrap();
+    let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("te/st", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.set_name(new_name);
@@ -96,14 +91,11 @@ async fn test_invalid_file_name_slash() {
 async fn empty_filename() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document1.md").await.unwrap();
-    let core_lb = local(&core);
-    let mut tx = core_lb.begin_tx().await;
+    let mut tx = core.begin_tx().await;
     let db = tx.db();
     let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
-    let key = tree.decrypt_key(&doc.id, &local(&core).keychain).unwrap();
-    let parent = tree
-        .decrypt_key(&doc.parent, &local(&core).keychain)
-        .unwrap();
+    let key = tree.decrypt_key(&doc.id, &core.keychain).unwrap();
+    let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.set_name(new_name);
@@ -124,27 +116,23 @@ async fn test_cycle() {
         .await
         .unwrap();
     let parent = core.get_by_path("folder1").await.unwrap().id;
-    local(&core)
-        .begin_tx()
+    core.begin_tx()
         .await
         .db()
         .local_metadata
-        .get()
         .get(&parent)
         .unwrap();
-    let mut parent = local(&core)
+    let mut parent = core
         .begin_tx()
         .await
         .db()
         .local_metadata
-        .get()
         .get(&parent)
         .unwrap()
         .clone();
     let child = core.get_by_path("folder1/folder2").await.unwrap();
     parent.timestamped_value.value.set_parent(child.id);
-    local(&core)
-        .begin_tx()
+    core.begin_tx()
         .await
         .db()
         .local_metadata
@@ -163,18 +151,16 @@ async fn test_documents_treated_as_folders() {
         .await
         .unwrap();
     let parent = core.get_by_path("folder1").await.unwrap();
-    let mut parent = local(&core)
+    let mut parent = core
         .begin_tx()
         .await
         .db()
         .local_metadata
-        .get()
         .get(&parent.id)
         .unwrap()
         .clone();
     parent.timestamped_value.value.set_type(Document);
-    local(&core)
-        .begin_tx()
+    core.begin_tx()
         .await
         .db()
         .local_metadata
@@ -191,14 +177,11 @@ async fn test_name_conflict() {
     let core = test_core_with_account().await;
     let doc = core.create_at_path("document1.md").await.unwrap();
     core.create_at_path("document2.md").await.unwrap();
-    let core_lb = local(&core);
-    let mut tx = core_lb.begin_tx().await;
+    let mut tx = core.begin_tx().await;
     let db = tx.db();
     let mut tree = db.base_metadata.stage(&mut db.local_metadata).to_lazy();
-    let key = tree.decrypt_key(&doc.id, &local(&core).keychain).unwrap();
-    let parent = tree
-        .decrypt_key(&doc.parent, &local(&core).keychain)
-        .unwrap();
+    let key = tree.decrypt_key(&doc.id, &core.keychain).unwrap();
+    let parent = tree.decrypt_key(&doc.parent, &core.keychain).unwrap();
     let new_name = SecretFileName::from_str("document2.md", &key, &parent).unwrap();
     let mut doc = tree.find(&doc.id).unwrap().clone();
     doc.timestamped_value.value.set_name(new_name);

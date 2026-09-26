@@ -189,10 +189,9 @@ async fn import_account_nonexistent() {
     let account =
         Account { api_url: url(), username: random_name(), private_key: pubkey::generate_key() };
 
-    let core2_lb = local(&core2);
-    let mut tx = core2_lb.begin_tx().await;
-    tx.db().account.insert(account.clone()).unwrap();
-    local(&core2).keychain.cache_account(account).await.unwrap();
+    let mut tx = core2.begin_tx().await;
+    tx.db().account.replace(account.clone()).unwrap();
+    core2.keychain.cache_account(account).await.unwrap();
 
     let account_string = core2.export_account_private_key().unwrap();
 
@@ -242,9 +241,9 @@ async fn delete_account_then_request() {
 
     core.delete_account().await.unwrap();
 
-    let result = local(&core)
+    let result = core
         .client
-        .request(&account, GetUpdatesRequestV2 { since_metadata_version: 0 })
+        .request(account, GetUpdatesRequestV2 { since_metadata_version: 0 })
         .await
         .unwrap();
 

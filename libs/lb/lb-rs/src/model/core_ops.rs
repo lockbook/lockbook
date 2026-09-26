@@ -11,7 +11,7 @@ use crate::model::staged::{StagedTree, StagedTreeLike};
 use crate::model::tree_like::{TreeLike, TreeLikeMut};
 use crate::model::{compression_service, symkey, validate};
 use crate::service::keychain::Keychain;
-use db_rs::LookupTable;
+use db_rs::views::hashmap::DbHashMap;
 use hmac::{Mac, NewMac};
 use libsecp256k1::PublicKey;
 use tracing::debug;
@@ -29,7 +29,7 @@ where
 {
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
     pub fn decrypt(
-        &mut self, keychain: &Keychain, id: &Uuid, public_key_cache: &LookupTable<Owner, String>,
+        &mut self, keychain: &Keychain, id: &Uuid, public_key_cache: &DbHashMap<Owner, String>,
     ) -> LbResult<File> {
         let account = keychain.get_account()?;
         let pk = keychain.get_pk()?;
@@ -40,14 +40,12 @@ where
         let name = self.name_using_links(id, keychain)?;
         let parent = self.parent_using_links(id)?;
         let last_modified_by = public_key_cache
-            .get()
             .get(&Owner(meta.public_key))
             .cloned()
             .unwrap_or_else(|| String::from("<unknown>"));
 
         let owner = meta.owner();
         let owner_username = public_key_cache
-            .get()
             .get(&owner)
             .cloned()
             .unwrap_or_else(|| String::from("<unknown>"));
@@ -70,7 +68,6 @@ where
                     account.username.clone()
                 } else {
                     public_key_cache
-                        .get()
                         .get(&Owner(user_access_key.encrypted_by))
                         .cloned()
                         .unwrap_or_else(|| String::from("<unknown>"))
@@ -79,7 +76,6 @@ where
                     account.username.clone()
                 } else {
                     public_key_cache
-                        .get()
                         .get(&Owner(user_access_key.encrypted_for))
                         .cloned()
                         .unwrap_or_else(|| String::from("<unknown>"))
@@ -103,7 +99,7 @@ where
 
     /// convert FileMetadata into File. fields have been decrypted, public keys replaced with usernames, deleted files filtered out, etc.
     pub fn decrypt_all<I>(
-        &mut self, keychain: &Keychain, ids: I, public_key_cache: &LookupTable<Owner, String>,
+        &mut self, keychain: &Keychain, ids: I, public_key_cache: &DbHashMap<Owner, String>,
         skip_invisible: bool,
     ) -> LbResult<Vec<File>>
     where

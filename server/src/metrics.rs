@@ -3,7 +3,8 @@ use crate::billing::billing_model::{BillingPlatform, SubscriptionProfile};
 use crate::billing::google_play_client::GooglePlayClient;
 use crate::billing::stripe_client::StripeClient;
 use crate::document_service::DocumentService;
-use crate::schema::ServerDb;
+use crate::guard::ServerTx;
+use crate::schema::ServerV6;
 use crate::{ServerError, ServerState};
 use lazy_static::lazy_static;
 use lb_rs::model::clock::get_time;
@@ -13,6 +14,7 @@ use lb_rs::model::server_tree::ServerTree;
 use lb_rs::model::tree_like::TreeLike;
 use prometheus::{IntGaugeVec, register_int_gauge_vec};
 use prometheus_static_metric::make_static_metric;
+use std::collections::HashMap;
 use std::fmt::Debug;
 use tracing::*;
 
@@ -113,13 +115,22 @@ where
         loop {
             info!("Metrics refresh started");
 
-            let public_keys_and_usernames = self.index_db.lock().await.usernames.get().clone();
+            let public_keys_and_usernames = self
+                .index_db
+                .lock()
+                .await
+                .schema
+                .usernames
+                .iter()
+                .map(|(key, value)| (key.clone(), *value))
+                .collect::<HashMap<_, _>>();
             let server_wide_egress = self
                 .index_db
                 .lock()
                 .await
+                .schema
                 .server_egress
-                .get()
+                .as_ref()
                 .map(|total| total.all_bandwidth())
                 .unwrap_or_default();
 
@@ -139,8 +150,10 @@ where
 
             for (username, owner) in public_keys_and_usernames {
                 {
-                    let mut db = self.index_db.lock().await;
-                    let maybe_user_info = Self::get_user_info(&mut db, owner)?;
+                    let mut guard = self.index_db.lock().await;
+                    let mut tx = ServerTx::begin(&mut guard)?;
+                    let db = &mut *tx;
+                    let maybe_user_info = Self::get_user_info(db, owner)?;
 
                     let user_info = match maybe_user_info {
                         None => {
@@ -188,7 +201,7 @@ where
                         .with_label_values(&[&username])
                         .set(user_info.account_age);
 
-                    let billing_info = Self::get_user_billing_info(&db, &owner)?;
+                    let billing_info = Self::get_user_billing_info(db, &owner)?;
 
                     if billing_info.is_premium() {
                         premium_users += 1;
@@ -208,7 +221,7 @@ where
                             },
                         }
                     }
-                    drop(db);
+                    tx.end()?;
                 }
 
                 tokio::time::sleep(self.config.metrics.time_between_metrics).await;
@@ -251,20 +264,20 @@ where
         }
     }
     pub fn get_user_billing_info(
-        db: &ServerDb, owner: &Owner,
+        db: &ServerV6, owner: &Owner,
     ) -> Result<SubscriptionProfile, ServerError<MetricsError>> {
-        let account =
-            db.accounts.get().get(owner).ok_or_else(|| {
-                internal!("Could not get user's account during metrics {:?}", owner)
-            })?;
+        let account = db
+            .accounts
+            .get(owner)
+            .ok_or_else(|| internal!("Could not get user's account during metrics {:?}", owner))?;
 
         Ok(account.billing_info.clone())
     }
 
     pub fn get_user_info(
-        db: &mut ServerDb, owner: Owner,
+        db: &mut ServerV6, owner: Owner,
     ) -> Result<Option<UserInfo>, ServerError<MetricsError>> {
-        if db.owned_files.get().get(&owner).is_none() {
+        if db.owned_files.get(&owner).is_none() {
             return Ok(None);
         }
 
@@ -301,13 +314,11 @@ where
 
         let last_seen = *db
             .last_seen
-            .get()
             .get(&owner)
             .unwrap_or(&(root_creation_timestamp as u64));
 
         let total_egress = db
             .egress_by_owner
-            .get()
             .get(&owner)
             .cloned()
             .unwrap_or_default()
@@ -323,7 +334,7 @@ where
 
         let total_bytes = tree.calculate_usage(owner).unwrap_or_default();
 
-        let total_documents = if let Some(owned_files) = db.owned_files.get().get(&owner) {
+        let total_documents = if let Some(owned_files) = db.owned_files.get(&owner) {
             owned_files.len() as i64
         } else {
             return Ok(None);

@@ -1,4 +1,4 @@
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::clock;
 use crate::model::errors::LbResult;
 use crate::service::lb_id::LbID;
@@ -56,12 +56,12 @@ impl DebugInfoDisplay for LbResult<DebugInfo> {
     }
 }
 
-impl LocalLb {
+impl Lb {
     async fn human_last_synced(&self) -> String {
         let tx = self.ro_tx().await;
         let db = tx.db();
 
-        let last_synced = *db.last_synced.get().unwrap_or(&0);
+        let last_synced = *db.last_synced.as_ref().unwrap_or(&0);
 
         if last_synced != 0 {
             Duration::milliseconds(clock::get_time().0 - last_synced)
@@ -76,11 +76,11 @@ impl LocalLb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
-        let lb_id = if let Some(id) = db.id.get().copied() {
+        let lb_id = if let Some(id) = db.id.as_ref().copied() {
             id
         } else {
             let new_id = LbID::generate();
-            db.id.insert(new_id)?;
+            db.id.replace(new_id)?;
             new_id
         };
 

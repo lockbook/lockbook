@@ -173,7 +173,7 @@ impl Workspace {
             activation_history: Vec::new(),
             closed_tabs: Vec::new(),
             landing_page: cfg.get_landing_page(),
-            account: core.get_account().expect("failed to get account"),
+            account: core.get_account().cloned().expect("failed to get account"),
 
             tasks: TaskManager::new(core.clone(), ctx.clone()),
             files,

@@ -1,4 +1,4 @@
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::errors::LbResult;
 use crate::model::tree_like::TreeLike;
 use crate::service::events::Actor;
@@ -7,13 +7,13 @@ use std::cmp::{self, Ordering};
 use std::collections::HashMap;
 use uuid::Uuid;
 
-impl LocalLb {
+impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn suggested_docs(&self, settings: RankingWeights) -> LbResult<Vec<Uuid>> {
         let db = self.ro_tx().await;
         let db = db.db();
 
-        let mut scores = db.doc_events.get().iter().get_activity_metrics();
+        let mut scores = db.doc_events.as_slice().iter().get_activity_metrics();
         self.normalize(&mut scores);
 
         scores.sort_unstable_by_key(|b| cmp::Reverse(b.score(settings)));
@@ -53,7 +53,7 @@ impl LocalLb {
         let mut tx = self.begin_tx().await;
         let db = tx.db();
 
-        let mut entries = db.doc_events.get().to_vec();
+        let mut entries = db.doc_events.as_slice().to_vec();
         db.doc_events.clear()?;
         entries.retain(|e| e.id() != id);
         for entry in entries {
@@ -70,7 +70,7 @@ impl LocalLb {
         let max_stored_events = 1000;
         let events = &db.doc_events;
 
-        if events.get().len() > max_stored_events {
+        if events.len() > max_stored_events {
             db.doc_events.remove(0)?;
         }
         db.doc_events.push(event)?;
@@ -151,7 +151,7 @@ impl DocEvent {
     }
 }
 
-#[derive(Debug, Copy, Clone, Serialize, Deserialize)]
+#[derive(Debug, Copy, Clone)]
 pub struct RankingWeights {
     /// the freshness of a doc as determined by the last activity
     pub temporality: i64,

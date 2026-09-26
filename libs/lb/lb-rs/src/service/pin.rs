@@ -1,10 +1,10 @@
-use crate::LocalLb;
+use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::tree_like::TreeLike;
 use uuid::Uuid;
 
-impl LocalLb {
+impl Lb {
     #[instrument(level = "debug", skip(self), err(Debug))]
     pub async fn pin_file(&self, id: Uuid) -> LbResult<()> {
         let mut tx = self.begin_tx().await;
@@ -22,7 +22,7 @@ impl LocalLb {
             return Err(LbErrKind::FileNonexistent.into());
         }
 
-        if db.pinned_files.get().contains(&id) {
+        if db.pinned_files.as_slice().contains(&id) {
             return Ok(());
         }
 
@@ -37,7 +37,7 @@ impl LocalLb {
 
         let entries: Vec<Uuid> = db
             .pinned_files
-            .get()
+            .as_slice()
             .iter()
             .filter(|pinned| **pinned != id)
             .copied()
@@ -59,7 +59,7 @@ impl LocalLb {
         let mut tree = (&db.base_metadata).to_staged(&db.local_metadata).to_lazy();
 
         let mut result = Vec::new();
-        for id in db.pinned_files.get().iter() {
+        for id in db.pinned_files.as_slice().iter() {
             if tree.maybe_find(id).is_none() {
                 continue;
             }

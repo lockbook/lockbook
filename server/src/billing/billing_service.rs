@@ -8,10 +8,10 @@ use crate::billing::billing_service::LockBillingWorkflowError::{
 };
 use crate::billing::google_play_model::NotificationType;
 use crate::document_service::DocumentService;
+use crate::guard::ServerTx;
 use crate::schema::Account;
 use crate::{RequestContext, ServerError, ServerState};
 use base64::DecodeError;
-use db_rs::Db;
 use lb_rs::model::api::{
     AdminSetUserTierError, AdminSetUserTierInfo, AdminSetUserTierRequest, AdminSetUserTierResponse,
     AppStoreAccountState, CancelSubscriptionError, CancelSubscriptionRequest,
@@ -30,7 +30,6 @@ use lb_rs::model::tree_like::TreeLike;
 use libsecp256k1::PublicKey;
 use std::collections::HashMap;
 use std::fmt::Debug;
-use std::ops::DerefMut;
 use tracing::*;
 use warp::http::HeaderValue;
 use warp::hyper::body::Bytes;
@@ -50,11 +49,11 @@ where
         &self, public_key: &PublicKey,
     ) -> Result<Account, ServerError<LockBillingWorkflowError>> {
         let owner = Owner(*public_key);
-        let mut db = self.index_db.lock().await;
-        let tx = db.begin_transaction()?;
+        let mut guard = self.index_db.lock().await;
+        let mut tx = ServerTx::begin(&mut guard)?;
+        let db = &mut *tx;
         let mut account = db
             .accounts
-            .get()
             .get(&owner)
             .ok_or(ClientError(UserNotFound))?
             .clone();
@@ -77,7 +76,7 @@ where
 
         debug!(?owner, "User successfully entered payment flow");
 
-        tx.drop_safely()?;
+        tx.end()?;
         Ok(account)
     }
 
@@ -85,11 +84,10 @@ where
         &self, public_key: PublicKey, mut account: Account,
     ) -> Result<(), ServerError<T>> {
         account.billing_info.last_in_payment_flow = 0;
-        self.index_db
-            .lock()
-            .await
-            .accounts
-            .insert(Owner(public_key), account)?;
+        let mut db = self.index_db.lock().await;
+        let mut tx = ServerTx::begin(&mut db)?;
+        tx.accounts.insert(Owner(public_key), account)?;
+        tx.end()?;
         Ok(())
     }
 
@@ -105,8 +103,8 @@ where
         {
             let db = self.index_db.lock().await;
             if db
+                .schema
                 .app_store_ids
-                .get()
                 .get(&request.app_account_token)
                 .is_some()
             {
@@ -136,11 +134,13 @@ where
             account_state,
         }));
 
-        self.index_db
-            .lock()
-            .await
-            .app_store_ids
-            .insert(request.app_account_token.clone(), Owner(context.public_key))?;
+        {
+            let mut db = self.index_db.lock().await;
+            let mut tx = ServerTx::begin(&mut db)?;
+            tx.app_store_ids
+                .insert(request.app_account_token.clone(), Owner(context.public_key))?;
+            tx.end()?;
+        }
 
         self.release_subscription_profile::<UpgradeAccountAppStoreError>(
             context.public_key,
@@ -181,11 +181,13 @@ where
             expiry_info,
         )?);
 
-        self.index_db
-            .lock()
-            .await
-            .google_play_ids
-            .insert(request.account_id.clone(), Owner(context.public_key))?;
+        {
+            let mut db = self.index_db.lock().await;
+            let mut tx = ServerTx::begin(&mut db)?;
+            tx.google_play_ids
+                .insert(request.account_id.clone(), Owner(context.public_key))?;
+            tx.end()?;
+        }
 
         self.release_subscription_profile::<UpgradeAccountGooglePlayError>(
             context.public_key,
@@ -283,8 +285,8 @@ where
             .index_db
             .lock()
             .await
+            .schema
             .accounts
-            .get()
             .get(&Owner(*public_key))
             .ok_or(ClientError(GetSubscriptionInfoError::UserNotFound))?
             .billing_info
@@ -303,7 +305,8 @@ where
 
         {
             let mut lock = self.index_db.lock().await;
-            let db = lock.deref_mut();
+            let mut tx = ServerTx::begin(&mut lock)?;
+            let db = &mut *tx;
 
             let mut tree = ServerTree::new(
                 Owner(context.public_key),
@@ -377,7 +380,7 @@ where
             let db = self.index_db.lock().await;
 
             if !Self::is_admin::<AdminSetUserTierError>(
-                &db,
+                &db.schema,
                 &context.public_key,
                 &self.config.admin.admins,
             )? {
@@ -389,8 +392,8 @@ where
             .index_db
             .lock()
             .await
+            .schema
             .usernames
-            .get()
             .get(&request.username)
             .ok_or(ClientError(AdminSetUserTierError::UserNotFound))?
             .0;
@@ -730,8 +733,8 @@ where
             .index_db
             .lock()
             .await
+            .schema
             .accounts
-            .get()
             .get(&owner)
             .map(|acc| acc.username.clone());
 

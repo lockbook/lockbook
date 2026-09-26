@@ -1,9 +1,9 @@
 pub mod assert;
 
+use lb_rs::Lb;
 use lb_rs::model::api::{PaymentMethod, StripeAccountTier};
 use lb_rs::model::core_config::{ClientType, Config};
 use lb_rs::model::crypto::EncryptedDocument;
-use lb_rs::{Lb, LocalLb};
 use std::collections::HashMap;
 use std::fmt::Debug;
 use std::hash::Hash;
@@ -11,11 +11,6 @@ use std::path::{Path, PathBuf};
 use std::{env, fs};
 use time::OffsetDateTime;
 use uuid::Uuid;
-
-pub fn local(lb: &Lb) -> LocalLb {
-    lb.try_local()
-        .expect("test_utils::local() called on a Remote (guest) wrapper")
-}
 
 pub fn test_config() -> Config {
     Config {
@@ -103,42 +98,70 @@ fn err_to_string<E: Debug>(e: E) -> String {
 
 pub async fn get_dirty_ids(lb: &Lb, server: bool) -> Vec<Uuid> {
     if server {
-        local(lb).server_dirty_ids().await.unwrap()
+        lb.server_dirty_ids().await.unwrap()
     } else {
-        local(lb)
-            .db
+        lb.db
             .read()
             .await
+            .schema
             .local_metadata
-            .get()
-            .keys()
+            .iter()
+            .map(|(key, _)| key)
             .copied()
             .collect()
     }
 }
 
 pub async fn dbs_equal(left: &Lb, right: &Lb) -> bool {
-    let left_lb = local(left);
-    let right_lb = local(right);
-    let mut left_tx = left_lb.begin_tx().await;
-    let mut right_tx = right_lb.begin_tx().await;
+    let mut left_tx = left.begin_tx().await;
+    let mut right_tx = right.begin_tx().await;
 
-    right_tx.db().account.get() == left_tx.db().account.get()
-        && right_tx.db().root.get() == left_tx.db().root.get()
-        && right_tx.db().local_metadata.get() == left_tx.db().local_metadata.get()
-        && right_tx.db().base_metadata.get() == left_tx.db().base_metadata.get()
+    right_tx.db().account.as_ref() == left_tx.db().account.as_ref()
+        && right_tx.db().root.as_ref() == left_tx.db().root.as_ref()
+        && right_tx
+            .db()
+            .local_metadata
+            .iter()
+            .collect::<HashMap<_, _>>()
+            == left_tx
+                .db()
+                .local_metadata
+                .iter()
+                .collect::<HashMap<_, _>>()
+        && right_tx
+            .db()
+            .base_metadata
+            .iter()
+            .collect::<HashMap<_, _>>()
+            == left_tx.db().base_metadata.iter().collect::<HashMap<_, _>>()
 }
 
 pub async fn assert_dbs_equal(left: &Lb, right: &Lb) {
-    let left_lb = local(left);
-    let right_lb = local(right);
-    let mut left_tx = left_lb.begin_tx().await;
-    let mut right_tx = right_lb.begin_tx().await;
+    let mut left_tx = left.begin_tx().await;
+    let mut right_tx = right.begin_tx().await;
 
-    assert_eq!(left_tx.db().account.get(), right_tx.db().account.get());
-    assert_eq!(left_tx.db().root.get(), right_tx.db().root.get());
-    assert_eq!(left_tx.db().base_metadata.get(), right_tx.db().base_metadata.get());
-    assert_eq!(left_tx.db().local_metadata.get(), right_tx.db().local_metadata.get());
+    assert_eq!(left_tx.db().account.as_ref(), right_tx.db().account.as_ref());
+    assert_eq!(left_tx.db().root.as_ref(), right_tx.db().root.as_ref());
+    assert_eq!(
+        left_tx.db().base_metadata.iter().collect::<HashMap<_, _>>(),
+        right_tx
+            .db()
+            .base_metadata
+            .iter()
+            .collect::<HashMap<_, _>>()
+    );
+    assert_eq!(
+        left_tx
+            .db()
+            .local_metadata
+            .iter()
+            .collect::<HashMap<_, _>>(),
+        right_tx
+            .db()
+            .local_metadata
+            .iter()
+            .collect::<HashMap<_, _>>()
+    );
 }
 
 pub fn doc_repo_get_all(config: &Config) -> Vec<EncryptedDocument> {
