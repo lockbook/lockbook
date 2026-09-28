@@ -363,7 +363,7 @@ class MainScreenActivity : AppCompatActivity() {
             if (!isFileSelectionActive && item.itemId == R.id.filesListFragment) {
                 (maybeGetFilesFragment() as? FilesListFragment)?.let { filesFragment ->
                     if (filesFragment.navigateToRoot()) {
-                        binding.bottomNavigation.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                        binding.bottomNavigation.performHapticFeedback(HapticFeedbackConstants.CLOCK_TICK)
                     }
                 }
             }
