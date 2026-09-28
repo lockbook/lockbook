@@ -216,6 +216,7 @@ pub(crate) async fn dispatch(lb: &LocalLb, req: Request) -> Vec<u8> {
         Request::GetPendingShares => enc(lb.get_pending_shares().await),
         Request::GetPendingShareFiles => enc(lb.get_pending_share_files().await),
         Request::KnownUsernames => enc(lb.known_usernames().await),
+        Request::GetSharingContacts => enc(lb.get_sharing_contacts().await),
         Request::RejectShare { id } => enc(lb.reject_share(&id).await),
 
         Request::PinFile { id } => enc(lb.pin_file(id).await),

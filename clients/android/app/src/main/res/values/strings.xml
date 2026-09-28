@@ -289,15 +289,14 @@
     <string name="create_link_file_for">Creating link for \"%s\".</string>
     <string name="pending_shares_empty_message">When others share files with you, they\'ll appear here.</string>
 
-    <string name="access">Access</string>
+    <string name="sharing_contacts">People you share with</string>
+    <string name="no_sharing_contacts">No shared files yet</string>
     <string name="add_person">Add person</string>
     <string name="grant_access">Grant access</string>
     <string name="grant_access_description">Choose a Lockbook user and their access level.</string>
     <string name="share_with_lockbook_user">Add person</string>
     <string name="share_with_user">Share with a user</string>
     <string name="share_with_named_user">Share with %1$s</string>
-    <string name="people_with_access">People with access</string>
-    <string name="only_you_have_access">Only you</string>
     <string name="export">Export</string>
     <string name="exporting">Exporting…</string>
     <string name="export_no_documents">There are no documents to export.</string>

@@ -237,6 +237,8 @@ pub enum Request {
     DuplicateFile {
         id: Uuid,
     },
+    // Append variants to preserve existing bincode discriminants.
+    GetSharingContacts,
 }
 
 #[cfg(test)]

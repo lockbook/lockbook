@@ -182,6 +182,10 @@ impl Lb {
         self.block_on(self.lb.known_usernames())
     }
 
+    pub fn get_sharing_contacts(&self) -> LbResult<Vec<crate::service::share::SharingContact>> {
+        self.block_on(self.lb.get_sharing_contacts())
+    }
+
     /// Whether `username` exists (cache + server). May hit the network.
     pub fn username_exists(&self, username: &str) -> LbResult<bool> {
         self.block_on(self.lb.username_exists(username))

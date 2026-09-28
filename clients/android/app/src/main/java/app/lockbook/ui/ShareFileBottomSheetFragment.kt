@@ -85,9 +85,11 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
         super.onViewCreated(view, savedInstanceState)
         val singleFile = files.single()
         binding.shareFileName.text = singleFile.name
-        sharedUsernames.clear()
-        shareParticipants(singleFile, fileTreeViewModel.fileModel.idsAndFiles).forEach(::addParticipant)
-        updateAccessRow()
+        fileTreeViewModel.sharingContacts.observe(viewLifecycleOwner) { contacts ->
+            sharedUsernames.clear()
+            contacts.forEach { addParticipant(it.username) }
+            updateAccessRow()
+        }
         binding.shareFileAccessPeople.doOnLayout { updateAccessRow() }
         binding.shareFileAddPerson.setOnClickListener { showInviteForm() }
         binding.shareFileAddFirstPerson.setOnClickListener { showInviteForm() }
@@ -264,9 +266,7 @@ class ShareFileBottomSheetFragment : BottomSheetDialogFragment() {
                     binding.shareFileAddUser.isEnabled = true
                     binding.shareFileBack.isEnabled = true
                     binding.shareFileUsername.text?.clear()
-                    runCatching { Lb.getAccount().username }.getOrNull()?.let(::addParticipant)
-                    addParticipant(username)
-                    updateAccessRow()
+                    fileTreeViewModel.refreshSharingContacts()
                     showMainSheet()
                     showSuccessSnackbar(getString(R.string.shared_with, username), offerLink = true)
                 }

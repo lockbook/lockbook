@@ -52,7 +52,7 @@
                 <com.google.android.material.textview.MaterialTextView
                     android:layout_width="match_parent"
                     android:layout_height="wrap_content"
-                    android:text="@string/access"
+                    android:text="@string/sharing_contacts"
                     android:textAppearance="?attr/textAppearanceLabelLarge"
                     android:textColor="?attr/colorOnSurfaceVariant" />
 
@@ -81,14 +81,14 @@
                         <com.google.android.material.textview.MaterialTextView
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="@string/people_with_access"
+                            android:text="@string/sharing_contacts"
                             android:textAppearance="?attr/textAppearanceTitleSmall" />
 
                         <com.google.android.material.textview.MaterialTextView
                             android:id="@+id/share_file_access_count"
                             android:layout_width="match_parent"
                             android:layout_height="wrap_content"
-                            android:text="@string/only_you_have_access"
+                            android:text="@string/no_sharing_contacts"
                             android:textAppearance="?attr/textAppearanceBodySmall"
                             android:textColor="?attr/colorOnSurfaceVariant" />
 

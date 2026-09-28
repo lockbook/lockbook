@@ -585,6 +585,13 @@ impl Lb {
         self.call(Request::KnownUsernames).await
     }
 
+    pub async fn get_sharing_contacts(&self) -> LbResult<Vec<service::share::SharingContact>> {
+        if let Some(local) = self.local.get() {
+            return local.get_sharing_contacts().await;
+        }
+        self.call(Request::GetSharingContacts).await
+    }
+
     /// Local cache, then server public-key lookup. `false` = no such user.
     pub async fn username_exists(&self, username: &str) -> LbResult<bool> {
         if let Some(local) = self.local.get() {
