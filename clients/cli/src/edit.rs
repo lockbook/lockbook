@@ -2,16 +2,26 @@ use std::convert::Infallible;
 use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::str::FromStr;
+use std::sync::Arc;
 use std::{env, fs};
 
 use cli_rs::cli_error::{CliError, CliResult};
 use cli_rs::flag::Flag;
 use hotwatch::{Event, EventKind, Hotwatch};
+use lb_rs::model::errors::LbErrKind;
+use lb_rs::model::file_metadata::DocumentHmac;
+use lb_rs::model::text::buffer::Buffer as TextBuffer;
 use lb_rs::{Lb, Uuid};
 use tokio::runtime::Handle;
+use tokio::sync::Mutex;
 
 use crate::input::find_file;
 use crate::{core, ensure_account_and_root};
+
+struct Base {
+    hmac: Option<DocumentHmac>,
+    text: String,
+}
 
 #[tokio::main]
 pub async fn edit(editor: Editor, target: String) -> CliResult<()> {
@@ -19,8 +29,8 @@ pub async fn edit(editor: Editor, target: String) -> CliResult<()> {
     ensure_account_and_root(lb).await?;
 
     let f = find_file(lb, &target).await?;
-
-    let file_content = lb.read_document(f.id, true).await?;
+    let (hmac, file_content) = lb.read_document_with_hmac(f.id, true).await?;
+    let text = String::from_utf8_lossy(&file_content).into_owned();
 
     let mut temp_file_path = create_tmp_dir()?;
     temp_file_path.push(f.name);
@@ -31,7 +41,8 @@ pub async fn edit(editor: Editor, target: String) -> CliResult<()> {
     file_handle.write_all(&file_content)?;
     file_handle.sync_all()?;
 
-    let maybe_watcher = set_up_auto_save(lb, f.id, &temp_file_path);
+    let base = Arc::new(Mutex::new(Base { hmac, text }));
+    let maybe_watcher = set_up_auto_save(lb, f.id, &temp_file_path, base.clone());
     let edit_was_successful = edit_file_with_editor(editor, &temp_file_path);
 
     if let Some(mut watcher) = maybe_watcher {
@@ -41,7 +52,7 @@ pub async fn edit(editor: Editor, target: String) -> CliResult<()> {
     }
 
     if edit_was_successful {
-        match save_temp_file_contents(lb.clone(), f.id, &temp_file_path).await {
+        match save(lb.clone(), f.id, &temp_file_path, base).await {
             Ok(_) => println!("Document encrypted and saved. Cleaning up temporary file."),
             Err(err) => eprintln!("{err:?}"),
         }
@@ -110,7 +121,7 @@ pub fn editor_flag() -> Flag<'static, Editor> {
                 .filter(|entry| entry.starts_with(prompt))
                 .map(|s| s.to_string())
                 .collect())
-    })
+        })
 }
 
 impl FromStr for Editor {
@@ -189,17 +200,24 @@ fn edit_file_with_editor<S: AsRef<Path>>(editor: Editor, path: S) -> bool {
         .success()
 }
 
-fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<Hotwatch> {
+fn set_up_auto_save(core: &Lb, id: Uuid, path: &Path, base: Arc<Mutex<Base>>) -> Option<Hotwatch> {
     match Hotwatch::new_with_custom_delay(core::time::Duration::from_secs(5)) {
         Ok(mut watcher) => {
             let core = core.clone();
-            let path = PathBuf::from(path.as_ref());
+            let path = PathBuf::from(path);
             let handle = Handle::current();
 
             watcher
                 .watch(path.clone(), move |event: Event| {
                     if let EventKind::Modify(_) = event.kind {
-                        handle.spawn(save_temp_file_contents(core.clone(), id, path.clone()));
+                        let core = core.clone();
+                        let path = path.clone();
+                        let base = base.clone();
+                        handle.spawn(async move {
+                            if let Err(err) = save(core, id, &path, base).await {
+                                eprintln!("autosave failed: {err:?}");
+                            }
+                        });
                     }
                 })
                 .unwrap_or_else(|err| println!("file watcher failed to watch: {err:#?}"));
@@ -213,19 +231,44 @@ fn set_up_auto_save<P: AsRef<Path>>(core: &Lb, id: Uuid, path: P) -> Option<Hotw
     }
 }
 
-async fn save_temp_file_contents<P: AsRef<Path>>(
-    lb: Lb, id: Uuid, path: P,
-) -> Result<(), CliError> {
-    let secret = fs::read_to_string(&path)
-        .map_err(|err| {
-            CliError::from(format!(
-                "could not read from temporary file, not deleting {}, err: {:#?}",
-                path.as_ref().display(),
-                err
-            ))
-        })?
-        .into_bytes();
+/// CAS write of the temp file. On concurrent change, 3-way merge then retry (chat `write_back` pattern).
+async fn save(lb: Lb, id: Uuid, path: &Path, base: Arc<Mutex<Base>>) -> Result<(), CliError> {
+    let mut base = base.lock().await;
+    let ours = fs::read_to_string(path).map_err(|err| {
+        CliError::from(format!(
+            "could not read from temporary file, not deleting {}, err: {err:#?}",
+            path.display()
+        ))
+    })?;
+    if ours == base.text {
+        return Ok(());
+    }
 
-    lb.write_document(id, &secret).await?;
-    Ok(())
+    loop {
+        let (disk_hmac, disk_bytes) = lb.read_document_with_hmac(id, false).await?;
+        let clean = disk_hmac == base.hmac;
+        let to_write = if clean {
+            ours.clone()
+        } else {
+            let theirs = String::from_utf8_lossy(&disk_bytes);
+            TextBuffer::from(base.text.as_str()).merge(ours.clone(), theirs.into_owned())
+        };
+
+        match lb
+            .safe_write(id, disk_hmac, to_write.clone().into_bytes(), None)
+            .await
+        {
+            Ok(new_hmac) => {
+                if !clean {
+                    eprintln!("Merged concurrent changes into the document.");
+                    let _ = fs::write(path, &to_write);
+                }
+                base.hmac = Some(new_hmac);
+                base.text = to_write;
+                return Ok(());
+            }
+            Err(e) if matches!(e.kind, LbErrKind::ReReadRequired) => continue,
+            Err(e) => return Err(CliError::from(e.to_string())),
+        }
+    }
 }
