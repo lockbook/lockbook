@@ -70,6 +70,7 @@ impl SearchExecutor for PathSearch {
 
     fn show_result_picker(
         &mut self, ui: &mut egui::Ui, allow_kb_nav: bool, scope_name: &str, empty_centered: bool,
+        pin_state: &dyn Fn(lb_rs::Uuid) -> Option<bool>,
     ) -> super::PickerResponse {
         let rows = self.rows();
         let n = rows.len();
@@ -98,6 +99,7 @@ impl SearchExecutor for PathSearch {
                 selected: self.selected_id,
                 selected_range: None,
                 clear_scope: false,
+                file_cmd: None,
             };
         }
 
@@ -109,6 +111,7 @@ impl SearchExecutor for PathSearch {
                 selected: self.selected_id,
                 selected_range: None,
                 clear_scope,
+                file_cmd: None,
             };
         }
 
@@ -116,6 +119,7 @@ impl SearchExecutor for PathSearch {
         let mut clicked: Option<usize> = None;
         let mut clicked_id: Option<lb_rs::Uuid> = None;
         let mut clicked_new_tab = false;
+        let mut file_cmd = None;
 
         const ROW_HEIGHT: f32 = FileRow::height_for(true);
 
@@ -143,14 +147,13 @@ impl SearchExecutor for PathSearch {
                             clicked_id = Some(row.id);
                             clicked_new_tab = ui.input(|i| i.modifiers.command);
                         }
-                        if let Some(new_tab) = crate::style::context_menu::show(&resp, &t, |e| {
-                            e.item(phosphor::ARROW_SQUARE_OUT, "Open", false);
-                            if !row.is_folder {
-                                e.item(phosphor::APP_WINDOW, "Open in new tab", true);
+                        match super::row_menu(&resp, &t, row.is_folder, || pin_state(row.id)) {
+                            Some(super::RowMenu::Open { new_tab }) => {
+                                clicked_id = Some(row.id);
+                                clicked_new_tab = new_tab;
                             }
-                        }) {
-                            clicked_id = Some(row.id);
-                            clicked_new_tab = new_tab;
+                            Some(super::RowMenu::File(cmd)) => file_cmd = Some((row.id, cmd)),
+                            None => {}
                         }
                     }
                 });
@@ -176,6 +179,7 @@ impl SearchExecutor for PathSearch {
             selected: self.selected_id,
             selected_range: None,
             clear_scope: false,
+            file_cmd,
         }
     }
 }

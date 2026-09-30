@@ -75,6 +75,40 @@ pub struct PickerResponse {
     pub selected_range: Option<std::ops::Range<usize>>,
     /// Empty-state control: clear the folder chip and search everywhere.
     pub clear_scope: bool,
+    /// Copy link / pin from a row's context menu, for the workspace to run.
+    pub file_cmd: Option<(lb_rs::Uuid, FileCmd)>,
+}
+
+/// A choice from a result row's context menu.
+#[derive(Clone, Copy)]
+pub enum RowMenu {
+    Open { new_tab: bool },
+    File(FileCmd),
+}
+
+#[derive(Clone, Copy)]
+pub enum FileCmd {
+    CopyLink,
+    TogglePin,
+}
+
+/// Context menu for a result row. `pin_state` is `Some(pinned)` for your own
+/// files; shares can't be pinned.
+pub(crate) fn row_menu(
+    resp: &egui::Response, t: &Theme, is_folder: bool, pin_state: impl FnOnce() -> Option<bool>,
+) -> Option<RowMenu> {
+    crate::style::context_menu::show(resp, t, |e| {
+        e.item(phosphor::ARROW_SQUARE_OUT, "Open", RowMenu::Open { new_tab: false });
+        if !is_folder {
+            e.item(phosphor::APP_WINDOW, "Open in new tab", RowMenu::Open { new_tab: true });
+        }
+        e.separator();
+        e.item(phosphor::LINK, "Copy link", RowMenu::File(FileCmd::CopyLink));
+        if let Some(pinned) = pin_state() {
+            let label = if pinned { "Unpin" } else { "Pin" };
+            e.item(phosphor::PUSH_PIN, label, RowMenu::File(FileCmd::TogglePin));
+        }
+    })
 }
 
 pub trait SearchExecutor: Send + Sync {
@@ -92,6 +126,7 @@ pub trait SearchExecutor: Send + Sync {
     /// the preview pane. `scope_name` is the chip folder (glyphon, may contain emoji).
     fn show_result_picker(
         &mut self, ui: &mut Ui, allow_kb_nav: bool, scope_name: &str, empty_centered: bool,
+        pin_state: &dyn Fn(lb_rs::Uuid) -> Option<bool>,
     ) -> PickerResponse;
 }
 
@@ -592,7 +627,7 @@ impl Workspace {
             return;
         }
 
-        let ((activated, clear_scope), _) = crate::style::place_at(
+        let (picker, _) = crate::style::place_at(
             ui,
             results_rect,
             egui::Layout::top_down(egui::Align::Min),
@@ -610,12 +645,24 @@ impl Workspace {
             },
         );
         crate::style::claim(ui, max);
+        let activated = picker.activated.map(|id| (id, picker.activated_in_new_tab));
 
-        if clear_scope {
+        if picker.clear_scope {
             if let Some(tab) = self.current_tab_mut() {
                 if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
                     search.scope_path.clear();
                 }
+            }
+        }
+
+        if let Some((id, cmd)) = picker.file_cmd {
+            match cmd {
+                FileCmd::CopyLink => {
+                    if let Ok(url) = self.core.get_file_link_url(id) {
+                        ui.ctx().copy_text(url);
+                    }
+                }
+                FileCmd::TogglePin => self.toggle_pin(id),
             }
         }
 
@@ -649,8 +696,16 @@ impl Workspace {
         &mut self, ui: &mut Ui, executor: &Arc<RwLock<Option<Box<dyn SearchExecutor>>>>,
         search_type: SearchType, allow_kb_nav: bool, enter_activate: bool, enter_new_tab: bool,
         index_age: Option<f32>, scope_name: &str,
-    ) -> (Option<(lb_rs::Uuid, bool)>, bool) {
+    ) -> PickerResponse {
         const MIN_PREVIEW_WIDTH: f32 = 560.0;
+        let (files, core) = (self.files.clone(), self.core.clone());
+        let pin_state = move |id: lb_rs::Uuid| {
+            let own = {
+                let files = files.read().unwrap();
+                files.tree_root(id) == files.root.id
+            };
+            own.then(|| core.list_pinned().unwrap_or_default().contains(&id))
+        };
         let pad = LIST_PAD.pts();
         let max = ui.max_rect();
         let has_rows = executor
@@ -688,7 +743,14 @@ impl Workspace {
                                     e.request_activate();
                                 }
                             }
-                            (e.show_result_picker(ui, allow_kb_nav, scope_name, unify_empty), true)
+                            let picker = e.show_result_picker(
+                                ui,
+                                allow_kb_nav,
+                                scope_name,
+                                unify_empty,
+                                &pin_state,
+                            );
+                            (picker, true)
                         }
                         None => (index_not_ready(ui, search_type, index_age, unify_empty), false),
                     },
@@ -770,7 +832,7 @@ impl Workspace {
             crate::style::claim(ui, preview_rect);
         }
 
-        (picker.activated.map(|id| (id, picker.activated_in_new_tab)), picker.clear_scope)
+        picker
     }
 }
 

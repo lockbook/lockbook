@@ -185,6 +185,7 @@ impl SearchExecutor for ContentSearch {
 
     fn show_result_picker(
         &mut self, ui: &mut egui::Ui, allow_kb_nav: bool, scope_name: &str, empty_centered: bool,
+        pin_state: &dyn Fn(Uuid) -> Option<bool>,
     ) -> super::PickerResponse {
         self.process_keys(ui.ctx(), allow_kb_nav);
 
@@ -245,6 +246,7 @@ impl SearchExecutor for ContentSearch {
                     selected: self.selected_id,
                     selected_range: None,
                     clear_scope: false,
+                    file_cmd: None,
                 };
             }
             let activated = self
@@ -264,6 +266,7 @@ impl SearchExecutor for ContentSearch {
                 selected: self.selected_id,
                 selected_range,
                 clear_scope: false,
+                file_cmd: None,
             };
         }
 
@@ -275,6 +278,7 @@ impl SearchExecutor for ContentSearch {
                 selected: self.selected_id,
                 selected_range: None,
                 clear_scope,
+                file_cmd: None,
             };
         }
 
@@ -284,6 +288,7 @@ impl SearchExecutor for ContentSearch {
         let mut ctx_id: Option<Uuid> = None;
         let mut ctx_new_tab = false;
         let mut toggled: Option<(usize, Uuid, bool)> = None;
+        let mut file_cmd = None;
 
         let heights: Vec<f32> = flat
             .iter()
@@ -367,14 +372,13 @@ impl SearchExecutor for ContentSearch {
                             clicked_new_tab = ui.input(|i| i.modifiers.command);
                         }
                         if !disclose {
-                            if let Some(new_tab) =
-                                crate::style::context_menu::show(&resp, &t, |e| {
-                                    e.item(phosphor::ARROW_SQUARE_OUT, "Open", false);
-                                    e.item(phosphor::APP_WINDOW, "Open in new tab", true);
-                                })
-                            {
-                                ctx_id = Some(r.id);
-                                ctx_new_tab = new_tab;
+                            match super::row_menu(&resp, &t, false, || pin_state(r.id)) {
+                                Some(super::RowMenu::Open { new_tab }) => {
+                                    ctx_id = Some(r.id);
+                                    ctx_new_tab = new_tab;
+                                }
+                                Some(super::RowMenu::File(cmd)) => file_cmd = Some((r.id, cmd)),
+                                None => {}
                             }
                         }
                     }
@@ -420,6 +424,7 @@ impl SearchExecutor for ContentSearch {
             selected: self.selected_id,
             selected_range,
             clear_scope: false,
+            file_cmd,
         }
     }
 }
