@@ -1114,13 +1114,6 @@ impl ElapsedHumanString for Instant {
     }
 }
 
-impl ElapsedHumanString for u64 {
-    fn elapsed_human_string(&self) -> String {
-        time::Duration::milliseconds(lb_rs::model::clock::get_time().0 - *self as i64)
-            .elapsed_human_string()
-    }
-}
-
 #[derive(PartialEq, Clone, Copy, Serialize, Deserialize)]
 pub enum DocType {
     PlainText,
