@@ -1,7 +1,7 @@
 use crate::file_cache::{FileCache, FilesExt};
 #[cfg(not(target_family = "wasm"))]
 use crate::mind_map::show::MindMap;
-use crate::search::Search;
+use crate::search::{Search, SearchState};
 use crate::space_inspector::show::SpaceInspector;
 #[cfg(not(target_family = "wasm"))]
 use crate::tab::chat::Chat;
@@ -39,14 +39,14 @@ pub enum Destination {
     File(Uuid),
     MindMap(Uuid),
     SpaceInspector(Uuid),
-    Search,
+    Search(SearchState),
 }
 
 impl Destination {
     pub fn id(&self) -> Uuid {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => *id,
-            Self::Search => Uuid::nil(),
+            Self::Search(_) => Uuid::nil(),
         }
     }
 
@@ -54,7 +54,7 @@ impl Destination {
     pub fn backing_file(&self) -> Option<Uuid> {
         match self {
             Self::File(id) | Self::MindMap(id) | Self::SpaceInspector(id) => Some(*id),
-            Self::Search => None,
+            Self::Search(_) => None,
         }
     }
 
@@ -62,7 +62,7 @@ impl Destination {
     pub fn kind_code(&self) -> i32 {
         match self {
             Self::File(_) => 0,
-            Self::Search => 1,
+            Self::Search(_) => 1,
             Self::MindMap(_) => 2,
             Self::SpaceInspector(_) => 3,
         }
@@ -159,9 +159,12 @@ impl Session {
     }
 }
 
-/// Search tab that was created (not navigated to): safe to close when leaving.
+/// A tab that has only ever shown search: safe to close when leaving search.
 pub fn session_is_disposable_search(s: &Session) -> bool {
-    matches!(s.dest, Destination::Search) && s.back.is_empty() && s.forward.is_empty()
+    std::iter::once(&s.dest)
+        .chain(&s.back)
+        .chain(&s.forward)
+        .all(|d| matches!(d, Destination::Search(_)))
 }
 
 /// How an "open from sidebar" action should treat the tab strip.
@@ -228,7 +231,7 @@ pub struct Tab {
 impl Tab {
     pub fn id(&self) -> Option<Uuid> {
         match self.destination {
-            Destination::Search => None,
+            Destination::Search(_) => None,
             _ => Some(self.destination.id()),
         }
     }
@@ -1120,19 +1123,25 @@ mod nav_tests {
         assert!(session.back.is_empty());
     }
 
+    fn search(scope: &str) -> Destination {
+        Destination::Search(SearchState { scope_path: scope.into(), ..Default::default() })
+    }
+
     #[test]
-    fn disposable_search_is_empty_history_only() {
-        let s = Session::new(Destination::Search);
+    fn disposable_search_is_search_only_history() {
+        let mut s = Session::new(search(""));
+        assert!(session_is_disposable_search(&s));
+        s.navigate(search("/notes"));
         assert!(session_is_disposable_search(&s));
         let mut from_file = Session::new(file(1));
-        from_file.navigate(Destination::Search);
+        from_file.navigate(search(""));
         assert!(!session_is_disposable_search(&from_file));
     }
 
     #[test]
     fn dest_kind_codes_are_stable() {
         assert_eq!(file(1).kind_code(), 0);
-        assert_eq!(Destination::Search.kind_code(), 1);
+        assert_eq!(search("").kind_code(), 1);
         assert_eq!(Destination::MindMap(Uuid::nil()).kind_code(), 2);
         assert_eq!(Destination::SpaceInspector(Uuid::nil()).kind_code(), 3);
     }

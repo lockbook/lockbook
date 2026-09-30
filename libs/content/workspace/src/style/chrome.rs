@@ -441,7 +441,7 @@ pub fn display_file_name(name: &str) -> &str {
 pub fn tab_icon(dest: &crate::tab::Destination, name: &str) -> &'static str {
     use crate::tab::Destination;
     match dest {
-        Destination::Search => phosphor::SEARCH,
+        Destination::Search(_) => phosphor::SEARCH,
         Destination::MindMap(_) => phosphor::GRAPH,
         Destination::SpaceInspector(_) => phosphor::CHART_PIE_SLICE,
         Destination::File(_) => file_row_icon(name, false),

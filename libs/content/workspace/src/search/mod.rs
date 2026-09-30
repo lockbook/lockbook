@@ -30,11 +30,20 @@ pub struct Search {
     core: Lb,
 }
 
-#[derive(Default, Debug, Eq, PartialEq, Clone, Copy)]
+#[derive(Default, Debug, Eq, PartialEq, Hash, Clone, Copy, Serialize, Deserialize)]
 pub enum SearchType {
     #[default]
     Path,
     Content,
+}
+
+/// What a search page shows. Part of its destination, so Back and a restart
+/// bring it back.
+#[derive(Clone, Debug, Default, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct SearchState {
+    pub search_type: SearchType,
+    pub scope_path: String,
+    pub query: String,
 }
 
 impl SearchType {
@@ -87,14 +96,14 @@ pub trait SearchExecutor: Send + Sync {
 }
 
 impl Search {
-    pub fn new(lb: &Lb, ctx: &Context, search_type: SearchType) -> Search {
+    pub fn new(lb: &Lb, ctx: &Context, state: &SearchState) -> Search {
         let mut search = Search {
-            search_type,
-            query: String::new(),
+            search_type: state.search_type,
+            query: state.query.clone(),
             initialized: false,
             select_query: true,
             executor: Arc::new(RwLock::new(None)),
-            scope_path: String::new(),
+            scope_path: state.scope_path.clone(),
             scope_open: false,
             scope_dest: None,
             scope_expanded: std::collections::HashSet::new(),
@@ -110,6 +119,23 @@ impl Search {
         };
         search.spawn_build(ctx);
         search
+    }
+
+    pub fn state(&self) -> SearchState {
+        SearchState {
+            search_type: self.search_type,
+            scope_path: self.scope_path.clone(),
+            query: self.query.clone(),
+        }
+    }
+
+    /// Show `state` in place (Back/Forward between searches); keeps the index
+    /// unless the mode changes.
+    pub fn apply(&mut self, state: &SearchState) {
+        self.search_type = state.search_type;
+        self.scope_path.clone_from(&state.scope_path);
+        self.query.clone_from(&state.query);
+        self.close_scope_sheet();
     }
 
     fn spawn_build(&mut self, ctx: &Context) {
@@ -522,14 +548,12 @@ impl Workspace {
                 search.search_type,
                 search.query_focused && !search.scope_open,
                 index_age,
-                search.scope_path.clone(),
-                search.query.clone(),
+                search.state(),
             )
         };
-        let (executor, search_type, query_focused, index_age, scope_path, query) = extracted;
-        self.last_search_type = search_type;
-        self.last_search_scope.clone_from(&scope_path);
-        self.last_search_query = query;
+        let (executor, search_type, query_focused, index_age, state) = extracted;
+        self.record_search(&state);
+        let scope_path = state.scope_path;
         let folder_name = {
             let files = self.files.read().unwrap();
             scope_folder_name(&files, &scope_path)
@@ -879,6 +903,7 @@ use std::thread;
 use egui::{Align, Context, Layout, Rect, Ui, Vec2, pos2, vec2};
 use lb_rs::blocking::Lb;
 use lb_rs::search::SearchFilter;
+use serde::{Deserialize, Serialize};
 
 use crate::{
     file_cache::FilesExt,
