@@ -788,35 +788,6 @@ fn match_positions(query: &str, name: &str) -> Vec<bool> {
     result
 }
 
-/// Shorten directory segments to their first character until `measure(full)`
-/// fits `max_width`. Used by the landing recents list.
-pub(crate) fn abbreviate_segments(
-    segments: &mut [(String, bool)], max_width: f32, measure: &impl Fn(&str) -> f32,
-) {
-    let full: String = segments.iter().map(|(t, _)| t.as_str()).collect();
-    if measure(&full) <= max_width {
-        return;
-    }
-    let name_indices: Vec<usize> = segments
-        .iter()
-        .enumerate()
-        .filter(|(_, (t, _))| t != "/")
-        .map(|(i, _)| i)
-        .collect();
-    let dir_indices: Vec<usize> = name_indices.iter().rev().skip(1).copied().rev().collect();
-    for i in dir_indices {
-        let text = &segments[i].0;
-        if text == ".." || text == "." || text.chars().count() <= 1 {
-            continue;
-        }
-        segments[i].0 = text.chars().next().unwrap().to_string();
-        let full: String = segments.iter().map(|(t, _)| t.as_str()).collect();
-        if measure(&full) <= max_width {
-            break;
-        }
-    }
-}
-
 impl MdEdit {
     pub fn show_link_completions(&mut self, ui: &mut Ui) {
         if self.renderer.readonly || !self.link_completions.active {
