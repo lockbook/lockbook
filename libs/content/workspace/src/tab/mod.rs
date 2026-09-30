@@ -159,6 +159,11 @@ impl Session {
     }
 }
 
+/// Search tab that was created (not navigated to): safe to close when leaving.
+pub fn session_is_disposable_search(s: &Session) -> bool {
+    matches!(s.dest, Destination::Search) && s.back.is_empty() && s.forward.is_empty()
+}
+
 /// How an "open from sidebar" action should treat the tab strip.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum TabAction {
@@ -282,6 +287,11 @@ impl Tab {
             ContentState::Open(TabContent::Image(img)) => Some(img),
             _ => None,
         }
+    }
+
+    /// Safe to put on screen: bytes are in (or the load failed).
+    pub fn preview_ready(&self) -> bool {
+        !matches!(self.content, ContentState::Loading(_))
     }
 
     pub fn svg(&self) -> Option<&SVGEditor> {
@@ -1108,6 +1118,15 @@ mod nav_tests {
         assert_eq!(session.id, id);
         assert!(session.forward.is_empty());
         assert!(session.back.is_empty());
+    }
+
+    #[test]
+    fn disposable_search_is_empty_history_only() {
+        let s = Session::new(Destination::Search);
+        assert!(session_is_disposable_search(&s));
+        let mut from_file = Session::new(file(1));
+        from_file.navigate(Destination::Search);
+        assert!(!session_is_disposable_search(&from_file));
     }
 
     #[test]

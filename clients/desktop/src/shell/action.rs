@@ -388,7 +388,8 @@ pub enum Action {
     },
     ImportParentSelect(Uuid),
     ConfirmImportParent,
-    OpenSearch,
+    /// `None` keeps the last search's mode.
+    OpenSearch(Option<workspace_rs::search::SearchType>),
     /// Open cancel-subscription confirm.
     CancelSubscription,
     ConfirmCancelSub,
@@ -503,7 +504,7 @@ impl Action {
             Self::OpenImportParent { .. } => "OpenImportParent",
             Self::ImportParentSelect(_) => "ImportParentSelect",
             Self::ConfirmImportParent => "ConfirmImportParent",
-            Self::OpenSearch => "OpenSearch",
+            Self::OpenSearch(_) => "OpenSearch",
             Self::CancelSubscription => "CancelSubscription",
             Self::ConfirmCancelSub => "ConfirmCancelSub",
             Self::SetThemeMode(_) => "SetThemeMode",

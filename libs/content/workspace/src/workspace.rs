@@ -40,7 +40,8 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
     ContentState, Destination, ExtendedInput as _, Session, SessionId, Tab, TabAction, TabContent,
-    TabFailure, TabSaveContent, index_of_dest_to_activate, tab_action_for_open,
+    TabFailure, TabSaveContent, index_of_dest_to_activate, session_is_disposable_search,
+    tab_action_for_open,
 };
 use crate::task_manager;
 use crate::task_manager::{
@@ -80,6 +81,13 @@ pub struct Workspace {
     pub account: Account,
 
     pub preview: Option<Tab>,
+    /// In-flight search preview load. Displayed pane stays on [`Self::preview`]
+    /// until this is Open/Failed (or 200ms, then a spinner).
+    pub preview_pending: Option<Tab>,
+    /// A new search starts where the last one left off.
+    pub last_search_type: SearchType,
+    pub last_search_scope: String,
+    pub last_search_query: String,
 
     pending_open_range: Option<(Uuid, std::ops::Range<usize>)>,
 
@@ -202,6 +210,10 @@ impl Workspace {
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
             preview: None,
+            preview_pending: None,
+            last_search_type: SearchType::default(),
+            last_search_scope: String::new(),
+            last_search_query: String::new(),
             pending_open_range: None,
             ws_rx,
         };
@@ -285,7 +297,10 @@ impl Workspace {
                 )))
             }
             Destination::Search => {
-                ContentState::Open(TabContent::Search(Search::new(&self.core, &self.ctx)))
+                let mut search = Search::new(&self.core, &self.ctx, self.last_search_type);
+                search.scope_path.clone_from(&self.last_search_scope);
+                search.query.clone_from(&self.last_search_query);
+                ContentState::Open(TabContent::Search(search))
             }
         };
         let now = Instant::now();
@@ -341,38 +356,58 @@ impl Workspace {
     }
 
     pub fn set_preview(&mut self, id: Option<lb_rs::Uuid>) {
-        let id = id.filter(|id| {
-            self.files
-                .read()
-                .unwrap()
-                .get_by_id(*id)
-                .is_some_and(|f| f.is_document())
-        });
+        let Some(id) = id else {
+            self.preview = None;
+            self.preview_pending = None;
+            return;
+        };
 
-        if self.preview.as_ref().and_then(|t| t.id()) == id {
+        let is_doc = self
+            .files
+            .read()
+            .unwrap()
+            .get_by_id(id)
+            .is_some_and(|f| f.is_document());
+        if !is_doc {
+            // Folder / non-doc: keep the last preview, drop an in-flight load.
+            self.preview_pending = None;
             return;
         }
 
-        match id {
-            Some(id) => {
-                let now = Instant::now();
-                self.preview = Some(Tab {
-                    destination: Destination::File(id),
-                    content: ContentState::Loading(id),
-                    last_changed: now,
-                    last_saved: now,
-                    read_only: true,
-                    rename: None,
-                });
-                self.tasks.queue_load(LoadRequest {
-                    id,
-                    tab_created: true,
-                    make_current: false,
-                    is_preview: true,
-                    target: None,
-                });
-            }
-            None => self.preview = None,
+        if self.preview.as_ref().and_then(|t| t.id()) == Some(id) {
+            self.preview_pending = None;
+            return;
+        }
+        if self.preview_pending.as_ref().and_then(|t| t.id()) == Some(id) {
+            return;
+        }
+
+        let now = Instant::now();
+        self.preview_pending = Some(Tab {
+            destination: Destination::File(id),
+            content: ContentState::Loading(id),
+            last_changed: now,
+            last_saved: now,
+            read_only: true,
+            rename: None,
+        });
+        self.tasks.queue_load(LoadRequest {
+            id,
+            tab_created: true,
+            make_current: false,
+            is_preview: true,
+            target: None,
+        });
+    }
+
+    /// Move a finished pending preview into the displayed slot.
+    pub fn promote_preview(&mut self) {
+        if self
+            .preview_pending
+            .as_ref()
+            .is_some_and(|t| t.preview_ready())
+        {
+            self.preview = self.preview_pending.take();
         }
     }
 
@@ -629,7 +664,12 @@ impl Workspace {
     pub fn open_dest_as_session(
         &mut self, dest: Destination, make_current: bool, in_new_tab: bool,
     ) {
-        match self.tab_action_for_open(&dest, in_new_tab) {
+        let action = self.tab_action_for_open(&dest, in_new_tab);
+        self.open_dest_with(dest, make_current, action);
+    }
+
+    fn open_dest_with(&mut self, dest: Destination, make_current: bool, action: TabAction) {
+        match action {
             TabAction::Activate => {
                 if let Some(pos) = index_of_dest_to_activate(
                     &self.tab_strip,
@@ -693,34 +733,39 @@ impl Workspace {
         self.set_current_tab(Some(tab_id));
     }
 
-    /// Replace the current Search session with `dest`. If that dest is already
-    /// open, focus it and close this Search session instead.
-    pub fn open_file_replacing_search(&mut self, id: Uuid) {
+    /// Search results open in place whatever the new-tab preference, so Back
+    /// returns to search. A file that's already open is focused instead.
+    pub(crate) fn open_search_result(&mut self, id: Uuid) {
         let dest = Destination::File(id);
-        let current_search = self.current_slot_index().filter(|&i| {
-            self.tab_strip
-                .get(i)
-                .is_some_and(|s| matches!(s.dest, Destination::Search))
-        });
-        if self.tab_strip.iter().any(|s| s.dest == dest) {
-            if let Some(i) = current_search {
-                self.close_tab(i);
-            }
-            if let Some(pos) = index_of_dest_to_activate(
-                &self.tab_strip,
-                self.current_tab,
-                &self.activation_history,
-                &dest,
-            ) {
+        match index_of_dest_to_activate(
+            &self.tab_strip,
+            self.current_tab,
+            &self.activation_history,
+            &dest,
+        ) {
+            Some(pos) => {
                 self.make_current(pos);
             }
+            None => self.navigate_to(dest),
+        }
+    }
+
+    /// Esc after chip/query: Back if this session has history, else close a
+    /// disposable Search tab.
+    pub(crate) fn dismiss_search(&mut self) {
+        if self.can_back() {
+            self.back();
             return;
         }
-        if current_search.is_some() {
-            self.replace_current_session(dest, true);
-            return;
+        if let Some(i) = self.current_slot_index() {
+            if self
+                .tab_strip
+                .get(i)
+                .is_some_and(session_is_disposable_search)
+            {
+                self.close_tab(i);
+            }
         }
-        self.create_tab(dest, true);
     }
 
     pub fn open_file_at_range(
@@ -1158,7 +1203,10 @@ impl Workspace {
                 let show_tabs = self.show_tabs;
 
                 let tab_opt = if is_preview {
-                    self.preview.as_mut().filter(|t| t.id() == Some(id))
+                    self.preview_pending
+                        .as_mut()
+                        .filter(|t| t.id() == Some(id))
+                        .or_else(|| self.preview.as_mut().filter(|t| t.id() == Some(id)))
                 } else {
                     self.tabs.find_for_load_mut(id, target)
                 };
@@ -1552,14 +1600,15 @@ impl Workspace {
         if cfg!(target_os = "ios") {
             return;
         }
-        if let Some(i) = self
-            .tab_strip
-            .iter()
-            .position(|s| matches!(s.dest, Destination::Search))
-        {
-            self.make_current(i);
-        } else {
-            self.open_dest_as_session(Destination::Search, true, false);
+        // Follows the new-tab setting, even when another tab has a search open.
+        if !matches!(self.current_dest(), Some(Destination::Search)) {
+            let action = tab_action_for_open(
+                false,
+                false,
+                self.desktop_tab_policy,
+                self.cfg.get_open_in_new_tab(),
+            );
+            self.open_dest_with(Destination::Search, true, action);
         }
         // refocus the query field each time the tab is opened/focused
         if let Some(tab) = self.current_tab_mut() {
@@ -1578,7 +1627,6 @@ impl Workspace {
         if let Some(tab) = self.current_tab_mut() {
             if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
                 search.scope_path = path;
-                search.filters_open = true;
             }
         }
         self.out.selected_file = Some(folder_id);
