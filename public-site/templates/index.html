@@ -11,16 +11,15 @@
         <span class="rot-line" aria-hidden="true"><b class="rot" id="rot-word"><span class="rot-text" id="rot-text">notes</span></b><b class="rot rot-measure" id="rot-measure"></b></span>
       </h1>
       <p class="hero-sub">
-        Lockbook is an <a href="https://github.com/lockbook/lockbook">open-source</a> notebook
-        for <a href="#formats">markdown</a> notes &amp; <a href="#formats">SVG</a> drawings &mdash;
-        <a href="#encryption">encrypted</a> on your device and shared only by invitation.
+        Lockbook is an open-source app for Markdown notes and drawings,
+        encrypted on your device and shared only by invitation.
       </p>
       <div class="hero-cta">
         <a class="btn btn-primary btn-lg" id="hero-download" href="/download">Download</a>
         <a class="btn btn-quiet btn-lg" href="/download">Other platforms</a>
       </div>
       <p class="hero-proof">
-        Open source since 2020 &nbsp;·&nbsp; 25&nbsp;MB free &nbsp;·&nbsp; No email required
+        25&nbsp;MB free &nbsp;·&nbsp; No email required
       </p>
     </div>
     <a class="hero-shot" href="#screenshots" aria-label="See Lockbook on every platform">
@@ -34,7 +33,7 @@
   <div class="wrap">
     <div class="measure">
       <p class="eyebrow">Open formats</p>
-      <h2>Files you could still read if we disappeared.</h2>
+      <h2>Universal Compatibility</h2>
     </div>
 
     <div class="fmt-body">
@@ -43,7 +42,7 @@
           <span class="seg-thumb" id="fmt-thumb" aria-hidden="true"></span>
           <button role="tab" id="tab-md" aria-controls="text-md visual-md" aria-selected="true" data-panel="md">Markdown</button>
           <button role="tab" id="tab-svg" aria-controls="text-svg visual-svg" aria-selected="false" data-panel="svg" tabindex="-1">SVG</button>
-          <button role="tab" id="tab-tree" aria-controls="text-tree visual-tree" aria-selected="false" data-panel="tree" tabindex="-1">Files</button>
+          <button role="tab" id="tab-tree" aria-controls="text-tree visual-tree" aria-selected="false" data-panel="tree" tabindex="-1">Folders</button>
           <button role="tab" id="tab-other" aria-controls="text-other visual-other" aria-selected="false" data-panel="other" tabindex="-1">Other</button>
         </div>
 
@@ -51,41 +50,31 @@
           <div class="fmt-text is-on" id="text-md" role="tabpanel" aria-labelledby="tab-md">
             <h3>Notes are Markdown.</h3>
             <p>
-              Plain text with formatting: headings, lists, checkboxes,
-              tables, links. A note you write here is a file any text editor can
-              open, and every Markdown app can too, so nothing about it depends
-              on Lockbook.
+              Headings, lists, and other formatting works seamlessly across
+              Reddit, Substack, ChatGPT, GitHub, and more. Lockbook notes are
+              Markdown, the universal language of the internet.
             </p>
-            <p class="fmt-opens">Also works in Slack, Discord, Reddit, GitHub, ChatGPT, Google Docs, Notion, Obsidian.</p>
           </div>
           <div class="fmt-text" id="text-svg" role="tabpanel" aria-labelledby="tab-svg">
             <h3>Drawings are SVG.</h3>
             <p>
-              Your sketches are saved as SVG, the standard vector format the web
-              uses for graphics. Every stroke stays editable, nothing turns blurry
-              when you zoom, and the file opens in design apps and browsers alike.
+              Lockbook drawings look sharp at any size and in any application
+              because they&rsquo;re SVG, the universal format for scalable graphics.
             </p>
-            <p class="fmt-opens">Also opens in Figma, Illustrator, Canva, PowerPoint, Keynote, Inkscape, Preview, any browser.</p>
           </div>
           <div class="fmt-text" id="text-tree" role="tabpanel" aria-labelledby="tab-tree">
-            <h3>Folders are folders.</h3>
+            <h3>Notebooks are folders.</h3>
             <p>
-              Export writes your notebook to disk exactly like this &mdash; folders
-              you named, Markdown and SVG inside. No manifest, no database, nothing
-              to reconstruct.
+              Your Lockbook stays organized wherever you export or back it up
+              because it&rsquo;s plain folders, the universal way to organize files.
             </p>
-            <p class="fmt-opens">Back it up with anything: Time Machine, a USB stick, Dropbox, git.</p>
           </div>
           <div class="fmt-text" id="text-other" role="tabpanel" aria-labelledby="tab-other">
             <h3>Your home for everything.</h3>
             <p>
-              Photos, scans, PDFs, spreadsheets, code: keep them beside the notes
-              they belong with. Lockbook encrypts them like everything else and
-              opens images, PDFs and code right in the app, with more formats on
-              the way. They stay ordinary files, so they come back out exactly as
-              they went in.
+              Use Lockbook to write notes and drawings, preview photos and PDFs,
+              and store anything else.
             </p>
-            <p class="fmt-opens">Opens in the app today: PNG, JPEG, PDF, code. More coming soon.</p>
           </div>
         </div>
       </div>
@@ -226,10 +215,9 @@
       <p class="eyebrow">Encryption</p>
       <h2>We built a notebook we can&rsquo;t read.</h2>
       <p class="lede">
-        Your keys are generated on your device and never leave it. Everything is
-        encrypted before it syncs, so what reaches our servers is noise. Your
-        notes live on your device first, so offline isn&rsquo;t a mode — it&rsquo;s the
-        default. Sharing hands a key to a person you name — never to us.
+        Lockbook encrypts your notes on your device before they sync, so no one
+        else can read them &mdash; not even us. When you share a note, only the
+        people you invite can open it.
       </p>
     </div>
 
@@ -289,12 +277,12 @@ e6Ms2Hf9Ub7Nw0Lq+Yi</pre>
   <div class="wrap">
     <div class="measure">
       <p class="eyebrow">Platforms</p>
-      <h2>Six clients, one Rust core.</h2>
+      <h2>Native Everywhere</h2>
       <p class="lede">
-        Each interface is written for its own platform, so every app launches
-        instantly and behaves the way that platform should — no Electron, no
-        web view. The apps share one editor engine; everything, CLI included,
-        stands on one Rust core. Pick a client:
+        Lockbook is built for each platform it runs on, so it&rsquo;s fast and feels
+        right on your Mac, iPhone, Android, Windows, or Linux device. Your notes
+        live on your device, so they&rsquo;re there even when the internet isn&rsquo;t.
+        See it on:
       </p>
     </div>
 
@@ -353,11 +341,10 @@ e6Ms2Hf9Ub7Nw0Lq+Yi</pre>
         <p class="eyebrow">Developers</p>
         <h2>Scriptable all the way down.</h2>
         <p class="lede">
-          Find notes with <code>fzf</code>, schedule backups with <code>cron</code>,
-          pipe a note into anything &mdash; or run <code>lockbook fs</code> and mount the
-          whole notebook as a drive. When the shell is not enough, link the same
-          Rust library the apps are built on, or use one of the SDKs available
-          for many other languages.
+          Search with <code>fzf</code>, edit in <code>$EDITOR</code>, pipe notes into
+          anything, or run <code>lockbook fs</code> to mount everything as a drive.
+          When the shell isn&rsquo;t enough, build on the same Rust library our
+          apps use.
         </p>
         <div class="link-list">
           <a href="https://github.com/lockbook/lockbook/tree/master/clients/cli">CLI reference &rarr;</a>
@@ -415,8 +402,7 @@ COMMANDS
       <p class="eyebrow">Pricing</p>
       <h2>Be the customer, not the product.</h2>
       <p class="lede">
-        We sell storage, not data. There is no ad model and no analytics
-        business &mdash; and nothing to mine even if we wanted one.
+        We sell a notes app, not your data.
       </p>
     </div>
 
@@ -425,14 +411,14 @@ COMMANDS
         <p class="plan-name">Free</p>
         <p class="plan-price">$0</p>
         <p class="plan-cap">25&nbsp;MB of encrypted storage</p>
-        <p class="plan-note">Thousands of notes &mdash; it is text, and text is small. Every feature included, sharing included.</p>
+        <p class="plan-note">Room for thousands of notes. Every feature included.</p>
         <a class="btn btn-quiet" href="/download">Download</a>
       </div>
       <div class="card plan featured">
         <p class="plan-name">Premium</p>
         <p class="plan-price">$2.99<span>/month</span></p>
         <p class="plan-cap">30&nbsp;GB of encrypted storage</p>
-        <p class="plan-note">Room for images, scans and PDFs. Funds the work.</p>
+        <p class="plan-note">Room for photos, PDFs, and everything else.</p>
         <a class="btn btn-primary" href="/download">Subscribe in the app</a>
       </div>
     </div>
@@ -441,7 +427,7 @@ COMMANDS
 
 <style>{% raw %}
   .hero{padding:var(--s-3xl) 0 var(--s-2xl);border-top:0}
-  .hero-grid{display:grid;gap:var(--s-xl);align-items:center}
+  .hero-grid{display:grid;gap:var(--s-2xl);align-items:center}
   .hero h1{font-size:clamp(28px,3.4vw,36px);line-height:1.25}
   .hero-lead{display:block}
   .rot-line{position:relative;display:block;margin-top:var(--s-xs);white-space:nowrap}
@@ -461,7 +447,7 @@ COMMANDS
   .hero-shot{display:block}
   @media (min-width:900px){
     .hero{overflow-x:clip}
-    .hero-grid{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--s-xl)}
+    .hero-grid{grid-template-columns:minmax(0,5fr) minmax(0,7fr);gap:var(--s-2xl)}
     .hero-shot{display:block;margin-right:calc(-1 * max(0px, (100vw - var(--page)) / 2))}
   }
   .shot{display:block;width:100%;height:auto;border-radius:9px;
@@ -1049,9 +1035,15 @@ COMMANDS
 
     var heroImg = document.getElementById('hero-img');
     if (heroImg && os === 'ios') {
-      heroImg.src = '/shots/ipad-editor.png';
-      heroImg.width = 1600; heroImg.height = 1103;
-      heroImg.alt = 'Lockbook on iPad: a Markdown note open beside the file tree';
+      var iphone = /iPhone|iPod/.test(ua);
+      heroImg.src = iphone ? '/shots/iphone-editor.png' : '/shots/ipad-editor.png';
+      if (iphone) {
+        heroImg.width = 552; heroImg.height = 1200;
+        heroImg.alt = 'Lockbook on iPhone: a Markdown note';
+      } else {
+        heroImg.width = 1600; heroImg.height = 1103;
+        heroImg.alt = 'Lockbook on iPad: a Markdown note open beside the file tree';
+      }
     }
     var strip = document.getElementById('platform-switch');
     var btn = strip && strip.querySelector('button[data-platform="' + os + '"]');
