@@ -27,7 +27,7 @@ use crate::landing::LandingPage;
 use crate::output::Response;
 use crate::resolvers::FileCacheLinkResolver;
 use crate::resolvers::image_embed::ImageEmbedResolver;
-use crate::search::{Search, SearchType};
+use crate::search::{Search, SearchState, SearchType};
 use crate::show::DocType;
 use crate::space_inspector::show::SpaceInspector;
 #[cfg(not(target_family = "wasm"))]
@@ -40,7 +40,8 @@ use crate::tab::pdf_viewer::PdfViewer;
 use crate::tab::svg_editor::{CanvasSettings, SVGEditor};
 use crate::tab::{
     ContentState, Destination, ExtendedInput as _, Session, SessionId, Tab, TabAction, TabContent,
-    TabFailure, TabSaveContent, index_of_dest_to_activate, tab_action_for_open,
+    TabFailure, TabSaveContent, index_of_dest_to_activate, session_is_disposable_search,
+    tab_action_for_open,
 };
 use crate::task_manager;
 use crate::task_manager::{
@@ -80,6 +81,11 @@ pub struct Workspace {
     pub account: Account,
 
     pub preview: Option<Tab>,
+    /// In-flight search preview load. Displayed pane stays on [`Self::preview`]
+    /// until this is Open/Failed (or 200ms, then a spinner).
+    pub preview_pending: Option<Tab>,
+    /// A new search starts where the last one left off.
+    pub last_search: SearchState,
 
     pending_open_range: Option<(Uuid, std::ops::Range<usize>)>,
 
@@ -202,6 +208,8 @@ impl Workspace {
             landing_rename_buffer: String::new(),
             lb_rx: core.subscribe(),
             preview: None,
+            preview_pending: None,
+            last_search: SearchState::default(),
             pending_open_range: None,
             ws_rx,
         };
@@ -232,6 +240,7 @@ impl Workspace {
                 ws.make_current(pos);
             }
         }
+        ws.last_search = ws.cfg.get_last_search();
 
         let core = ws.core.clone();
         let ctx = ctx.clone();
@@ -256,6 +265,13 @@ impl Workspace {
                 .is_some_and(|t| &t.destination == dest)
             {
                 return;
+            }
+            if let (Some(tab), Destination::Search(state)) = (self.tabs.get_mut(&tab_id), dest) {
+                if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
+                    search.apply(state);
+                    tab.destination = dest.clone();
+                    return;
+                }
             }
             self.persist_tab_content(tab_id);
         }
@@ -284,8 +300,8 @@ impl Workspace {
                     self.ctx.clone(),
                 )))
             }
-            Destination::Search => {
-                ContentState::Open(TabContent::Search(Search::new(&self.core, &self.ctx)))
+            Destination::Search(state) => {
+                ContentState::Open(TabContent::Search(Search::new(&self.core, &self.ctx, state)))
             }
         };
         let now = Instant::now();
@@ -341,38 +357,58 @@ impl Workspace {
     }
 
     pub fn set_preview(&mut self, id: Option<lb_rs::Uuid>) {
-        let id = id.filter(|id| {
-            self.files
-                .read()
-                .unwrap()
-                .get_by_id(*id)
-                .is_some_and(|f| f.is_document())
-        });
+        let Some(id) = id else {
+            self.preview = None;
+            self.preview_pending = None;
+            return;
+        };
 
-        if self.preview.as_ref().and_then(|t| t.id()) == id {
+        let is_doc = self
+            .files
+            .read()
+            .unwrap()
+            .get_by_id(id)
+            .is_some_and(|f| f.is_document());
+        if !is_doc {
+            // Folder / non-doc: keep the last preview, drop an in-flight load.
+            self.preview_pending = None;
             return;
         }
 
-        match id {
-            Some(id) => {
-                let now = Instant::now();
-                self.preview = Some(Tab {
-                    destination: Destination::File(id),
-                    content: ContentState::Loading(id),
-                    last_changed: now,
-                    last_saved: now,
-                    read_only: true,
-                    rename: None,
-                });
-                self.tasks.queue_load(LoadRequest {
-                    id,
-                    tab_created: true,
-                    make_current: false,
-                    is_preview: true,
-                    target: None,
-                });
-            }
-            None => self.preview = None,
+        if self.preview.as_ref().and_then(|t| t.id()) == Some(id) {
+            self.preview_pending = None;
+            return;
+        }
+        if self.preview_pending.as_ref().and_then(|t| t.id()) == Some(id) {
+            return;
+        }
+
+        let now = Instant::now();
+        self.preview_pending = Some(Tab {
+            destination: Destination::File(id),
+            content: ContentState::Loading(id),
+            last_changed: now,
+            last_saved: now,
+            read_only: true,
+            rename: None,
+        });
+        self.tasks.queue_load(LoadRequest {
+            id,
+            tab_created: true,
+            make_current: false,
+            is_preview: true,
+            target: None,
+        });
+    }
+
+    /// Move a finished pending preview into the displayed slot.
+    pub fn promote_preview(&mut self) {
+        if self
+            .preview_pending
+            .as_ref()
+            .is_some_and(|t| t.preview_ready())
+        {
+            self.preview = self.preview_pending.take();
         }
     }
 
@@ -629,7 +665,12 @@ impl Workspace {
     pub fn open_dest_as_session(
         &mut self, dest: Destination, make_current: bool, in_new_tab: bool,
     ) {
-        match self.tab_action_for_open(&dest, in_new_tab) {
+        let action = self.tab_action_for_open(&dest, in_new_tab);
+        self.open_dest_with(dest, make_current, action);
+    }
+
+    fn open_dest_with(&mut self, dest: Destination, make_current: bool, action: TabAction) {
+        match action {
             TabAction::Activate => {
                 if let Some(pos) = index_of_dest_to_activate(
                     &self.tab_strip,
@@ -693,34 +734,70 @@ impl Workspace {
         self.set_current_tab(Some(tab_id));
     }
 
-    /// Replace the current Search session with `dest`. If that dest is already
-    /// open, focus it and close this Search session instead.
-    pub fn open_file_replacing_search(&mut self, id: Uuid) {
+    /// Search results open in place whatever the new-tab preference, so Back
+    /// returns to search. A file that's already open is focused instead.
+    pub(crate) fn open_search_result(&mut self, id: Uuid) {
         let dest = Destination::File(id);
-        let current_search = self.current_slot_index().filter(|&i| {
-            self.tab_strip
-                .get(i)
-                .is_some_and(|s| matches!(s.dest, Destination::Search))
-        });
-        if self.tab_strip.iter().any(|s| s.dest == dest) {
-            if let Some(i) = current_search {
-                self.close_tab(i);
-            }
-            if let Some(pos) = index_of_dest_to_activate(
-                &self.tab_strip,
-                self.current_tab,
-                &self.activation_history,
-                &dest,
-            ) {
+        match index_of_dest_to_activate(
+            &self.tab_strip,
+            self.current_tab,
+            &self.activation_history,
+            &dest,
+        ) {
+            Some(pos) => {
                 self.make_current(pos);
             }
+            None => self.navigate_to(dest),
+        }
+    }
+
+    /// Esc after chip/query: back past search entries to the last other page,
+    /// else close a tab that has only shown search.
+    pub(crate) fn dismiss_search(&mut self) {
+        let Some(i) = self.current_slot_index() else { return };
+        let session = &self.tab_strip[i];
+        let other = session
+            .back
+            .iter()
+            .rev()
+            .position(|d| !matches!(d, Destination::Search(_)));
+        match other {
+            Some(n) => {
+                for _ in 0..=n {
+                    self.tab_strip[i].go_back();
+                }
+                let (tab_id, dest) = (self.tab_strip[i].id, self.tab_strip[i].dest.clone());
+                self.open_dest(tab_id, &dest);
+                self.out.tabs_changed = true;
+                self.set_current_tab(Some(tab_id));
+            }
+            None if session_is_disposable_search(session) => self.close_tab(i),
+            None => {}
+        }
+    }
+
+    /// Keep the current entry in step with its search page. A scope change is a
+    /// navigation (Back undoes it); query and mode edits update the entry.
+    pub(crate) fn record_search(&mut self, state: &SearchState) {
+        if self.last_search != *state {
+            self.last_search = state.clone();
+        }
+        let Some(i) = self.current_slot_index() else { return };
+        let Destination::Search(saved) = &self.tab_strip[i].dest else { return };
+        if saved == state {
             return;
         }
-        if current_search.is_some() {
-            self.replace_current_session(dest, true);
-            return;
+        let dest = Destination::Search(state.clone());
+        if saved.scope_path != state.scope_path {
+            self.tab_strip[i].navigate(dest.clone());
+        } else {
+            self.tab_strip[i].dest = dest.clone();
         }
-        self.create_tab(dest, true);
+        let tab_id = self.tab_strip[i].id;
+        if let Some(tab) = self.tabs.get_mut(&tab_id) {
+            tab.destination = dest;
+        }
+        self.out.tabs_changed = true;
     }
 
     pub fn open_file_at_range(
@@ -1158,7 +1235,10 @@ impl Workspace {
                 let show_tabs = self.show_tabs;
 
                 let tab_opt = if is_preview {
-                    self.preview.as_mut().filter(|t| t.id() == Some(id))
+                    self.preview_pending
+                        .as_mut()
+                        .filter(|t| t.id() == Some(id))
+                        .or_else(|| self.preview.as_mut().filter(|t| t.id() == Some(id)))
                 } else {
                     self.tabs.find_for_load_mut(id, target)
                 };
@@ -1552,14 +1632,15 @@ impl Workspace {
         if cfg!(target_os = "ios") {
             return;
         }
-        if let Some(i) = self
-            .tab_strip
-            .iter()
-            .position(|s| matches!(s.dest, Destination::Search))
-        {
-            self.make_current(i);
-        } else {
-            self.open_dest_as_session(Destination::Search, true, false);
+        // Follows the new-tab setting, even when another tab has a search open.
+        if !matches!(self.current_dest(), Some(Destination::Search(_))) {
+            let action = tab_action_for_open(
+                false,
+                false,
+                self.desktop_tab_policy,
+                self.cfg.get_open_in_new_tab(),
+            );
+            self.open_dest_with(Destination::Search(self.last_search.clone()), true, action);
         }
         // refocus the query field each time the tab is opened/focused
         if let Some(tab) = self.current_tab_mut() {
@@ -1578,7 +1659,6 @@ impl Workspace {
         if let Some(tab) = self.current_tab_mut() {
             if let ContentState::Open(TabContent::Search(search)) = &mut tab.content {
                 search.scope_path = path;
-                search.filters_open = true;
             }
         }
         self.out.selected_file = Some(folder_id);
@@ -1715,6 +1795,9 @@ pub struct WsPresistentData {
     /// replaces.
     #[serde(default = "default_open_in_new_tab")]
     open_in_new_tab: bool,
+    /// Where the next new search starts.
+    #[serde(default)]
+    last_search: SearchState,
 }
 
 impl Default for WsPresistentData {
@@ -1733,6 +1816,7 @@ impl Default for WsPresistentData {
             zoom_factor: 1.,
             image_dims: HashMap::default(),
             contact_linked_sites: false,
+            last_search: SearchState::default(),
         }
     }
 }
@@ -1770,8 +1854,12 @@ impl WsPersistentStore {
         store
     }
 
-    pub fn set_tabs(&mut self, tab_strip: &[Session], current_tab: &Option<SessionId>) {
+    pub fn set_tabs(
+        &mut self, tab_strip: &[Session], current_tab: &Option<SessionId>,
+        last_search: &SearchState,
+    ) {
         let mut data_lock = self.data.write().unwrap();
+        data_lock.last_search.clone_from(last_search);
         data_lock.sessions = tab_strip.to_vec();
         data_lock.open_tabs = tab_strip.iter().map(|s| s.dest.clone()).collect();
         data_lock.current_tab_index =
@@ -1781,6 +1869,10 @@ impl WsPersistentStore {
             .and_then(|i| tab_strip.get(i))
             .map(|s| s.dest.clone());
         self.write_to_file();
+    }
+
+    pub fn get_last_search(&self) -> SearchState {
+        self.data.read().unwrap().last_search.clone()
     }
 
     pub fn get_sessions(&self) -> (Vec<Session>, Option<usize>) {
