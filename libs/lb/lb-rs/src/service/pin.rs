@@ -2,6 +2,7 @@ use crate::Lb;
 use crate::model::errors::{LbErrKind, LbResult};
 use crate::model::file_like::FileLike;
 use crate::model::tree_like::TreeLike;
+use crate::service::events::Actor;
 use uuid::Uuid;
 
 impl Lb {
@@ -27,6 +28,8 @@ impl Lb {
         }
 
         db.pinned_files.push(id)?;
+        tx.end();
+        self.events.meta_changed(Actor::User(None));
         Ok(())
     }
 
@@ -42,11 +45,16 @@ impl Lb {
             .filter(|pinned| **pinned != id)
             .copied()
             .collect();
+        if entries.len() == db.pinned_files.as_slice().len() {
+            return Ok(());
+        }
 
         db.pinned_files.clear()?;
         for entry in entries {
             db.pinned_files.push(entry)?;
         }
+        tx.end();
+        self.events.meta_changed(Actor::User(None));
 
         Ok(())
     }
