@@ -12,6 +12,7 @@ use crate::file_cache::{FileCache, FilesExt as _, relative_path, strip_ext};
 use crate::style::{Space, ThemeExt as _, TypeRole, ellipsize_path, parent_crumbs};
 use crate::tab::image_viewer::is_supported_image_fmt;
 use crate::tab::markdown_editor::MdEdit;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::bounds::{Paragraphs, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::{
@@ -880,7 +881,9 @@ impl MdEdit {
             completion_popup_size(popup_width - completion_chrome_w(), results.len()),
             ui.ctx().screen_rect(),
         );
-        self.renderer.touch_consuming_rects.push(popup_rect);
+        self.renderer
+            .touch_targets
+            .push((popup_rect, TouchTarget::Popup));
 
         let row_rects = completion_row_rects(popup_rect, results.len());
 

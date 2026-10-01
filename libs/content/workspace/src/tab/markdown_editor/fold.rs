@@ -17,6 +17,7 @@ use lb_rs::model::text::offset_types::{Grapheme, IntoRangeExt as _, RangeExt as 
 use lb_rs::model::text::operation_types::{Operation, Replace};
 
 use crate::style::phosphor;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::bounds::FoldBounds;
 use crate::tab::markdown_editor::input::{Advance, Bound, Increment, Region};
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{
@@ -149,21 +150,16 @@ impl<'ast> MdRender {
                 continue;
             };
 
-            // iOS routes touches through `touch_consuming_rects` —
-            // without this entry a tap on the chip would place the
-            // cursor instead of reaching the expand handler below.
-            self.touch_consume_interaction(id);
+            let unfold =
+                Event::Replace { region: fold.tag.into(), text: "".into(), advance_cursor: false };
+            self.touch_consume_interaction(id, TouchTarget::Tap(unfold.clone()));
 
             if response.hovered() {
                 ui.ctx()
                     .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
             }
             if response.clicked() {
-                self.render_events.push(Event::Replace {
-                    region: fold.tag.into(),
-                    text: "".into(),
-                    advance_cursor: false,
-                });
+                self.render_events.push(unfold);
             }
             response.on_hover_text("Show Contents");
         }

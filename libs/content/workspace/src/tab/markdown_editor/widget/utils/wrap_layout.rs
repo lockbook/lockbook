@@ -5,6 +5,7 @@ use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
 pub trait BufferExt {
@@ -2073,13 +2074,14 @@ impl MdRender {
         self.interaction_rects = per_parent_rects;
     }
 
-    /// Mark a scope's fragments touch-consuming (iOS routes taps there to
-    /// egui). Per-fragment rects, not the merged bounding box — a wrapped
-    /// scope's bbox would eat cursor taps in its gaps and trailing space.
-    pub fn touch_consume_interaction(&mut self, parent_id: egui::Id) {
-        if let Some(rects) = self.interaction_rects.get(&parent_id) {
-            self.touch_consuming_rects.extend_from_slice(rects);
-        }
+    /// Register a scope's fragments as `target`. Per-fragment rects, not
+    /// the merged bounding box — a wrapped scope's bbox would eat cursor
+    /// taps in its gaps and trailing space. A text-band rect grows to its
+    /// row, as a finger sees a line.
+    pub fn touch_consume_interaction(&mut self, parent_id: egui::Id, target: TouchTarget) {
+        let Some(rects) = self.interaction_rects.get(&parent_id) else { return };
+        self.touch_targets
+            .extend(rects.iter().map(|&rect| (rect, target.clone())));
     }
 
     /// Find the closest fragment to `pos` by (y_dist, x_dist), with

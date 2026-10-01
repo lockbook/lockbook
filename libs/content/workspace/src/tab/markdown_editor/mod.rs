@@ -59,6 +59,7 @@ pub fn syntax_theme() -> &'static Theme {
 }
 
 pub mod bounds;
+pub mod commands;
 pub mod fold;
 pub mod input;
 pub mod md_label;
@@ -99,6 +100,18 @@ pub struct Response {
     pub mobile_toolbar_shown: bool,
 }
 
+/// A region painted this frame that a platform deciding touches itself
+/// must not treat as text (see [`commands`]).
+#[derive(Clone, Debug)]
+pub enum TouchTarget {
+    /// A tap applies this event.
+    Tap(input::Event),
+    /// The scrollbar: a drag on its thumb.
+    Scrollbar,
+    /// A popup egui handles itself.
+    Popup,
+}
+
 pub struct MdRender {
     // context
     pub ctx: Context,
@@ -123,7 +136,8 @@ pub struct MdRender {
     /// Strikethroughs and underlines painted on top of text
     pub deco_lines: Vec<widget::utils::wrap_layout::DecoLine>,
     pub render_events: Vec<input::Event>,
-    pub touch_consuming_rects: Vec<Rect>,
+    /// Touch targets painted this frame.
+    pub touch_targets: Vec<(Rect, TouchTarget)>,
     /// Per-frame geometry index of every list item, populated during the
     /// render DFS. Cleared each frame (mirrors `fragments`); read for
     /// pointer hit-testing and drop-gap math by drag-to-reorder.
@@ -491,7 +505,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             render_events: Vec::new(),
-            touch_consuming_rects: Default::default(),
+            touch_targets: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -566,7 +580,7 @@ impl MdRender {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             render_events: Vec::new(),
-            touch_consuming_rects: Default::default(),
+            touch_targets: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -724,7 +738,7 @@ impl Editor {
             text_areas: Default::default(),
             deco_lines: Default::default(),
             render_events: Vec::new(),
-            touch_consuming_rects: Default::default(),
+            touch_targets: Default::default(),
             interaction_responses: Default::default(),
             interaction_rects: Default::default(),
             revealed_spoilers: Default::default(),
@@ -1081,7 +1095,7 @@ impl Editor {
                                     // repopulated inside MdEdit::show — don't
                                     // clear here or input handling (which
                                     // reads last-frame galleys) sees nothing.
-                                    self.edit.renderer.touch_consuming_rects.clear();
+                                    self.edit.renderer.touch_targets.clear();
                                     self.show_scrollable_editor(ui, root);
                                     true
                                 } else {
@@ -1126,7 +1140,7 @@ impl Editor {
                     // galleys / wrap_lines are cleared and repopulated inside
                     // MdEdit::show — don't clear here or input handling (which
                     // reads last-frame galleys) sees nothing.
-                    self.edit.renderer.touch_consuming_rects.clear();
+                    self.edit.renderer.touch_targets.clear();
 
                     self.show_scrollable_editor(ui, root);
                     true
@@ -1395,9 +1409,9 @@ impl Editor {
     pub fn touches_interactive_element(&self, pos: Pos2) -> bool {
         self.edit
             .renderer
-            .touch_consuming_rects
+            .touch_targets
             .iter()
-            .any(|rect| rect.contains(pos))
+            .any(|(rect, _)| rect.contains(pos))
     }
 
     #[tracing::instrument(name = "MarkdownEditor::input", level = "trace", skip_all)]
@@ -1542,8 +1556,8 @@ impl Editor {
                         // summon handlers.
                         self.edit
                             .renderer
-                            .touch_consuming_rects
-                            .extend(scrollbar_grab);
+                            .touch_targets
+                            .extend(scrollbar_grab.map(|rect| (rect, TouchTarget::Scrollbar)));
 
                         // Phase 2: paint each visible row with a mutable
                         // renderer borrow. Block list re-collected
