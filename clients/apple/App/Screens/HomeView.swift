@@ -280,6 +280,24 @@ struct HomeView: View {
                 #endif
             }
         }
+        .onReceive(NotificationCenter.default.publisher(for: .findInDocument)) { _ in
+            workspaceInput.showFindInDoc()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .searchEverywhere)) { _ in
+            #if os(iOS)
+                searchModel.mode = .content
+                searchEverywhere()
+            #endif
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .openByName)) { _ in
+            #if os(iOS)
+                searchModel.mode = .path
+                searchEverywhere()
+            #endif
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .closeActiveTab)) { _ in
+            workspaceInput.closeActiveTab()
+        }
         .onReceive(NotificationCenter.default.publisher(for: .createNewFile)) { _ in
             #if os(macOS)
                 guard controlActiveState == .key else { return }
@@ -471,6 +489,7 @@ struct HomeView: View {
                 homeState.compactColumn = .sidebar
                 homeState.splitViewVisibility = .all
             }
+            NotificationCenter.default.post(name: .focusSearchField, object: nil)
         }
 
         private var tabsDrawer: some View {

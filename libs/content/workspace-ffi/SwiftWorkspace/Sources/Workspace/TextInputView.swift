@@ -423,8 +423,14 @@
                 return false
             default:
                 guard mods.contains(.command) || mods.contains(.control) else { return false }
-                let standard: Set<UIKeyboardHIDUsage> = [.keyboardA, .keyboardC, .keyboardV, .keyboardX, .keyboardZ]
-                return !(mods.contains(.command) && !mods.contains(.control) && standard.contains(key.keyCode))
+                let system: Set<UIKeyboardHIDUsage> = [
+                    .keyboardA, .keyboardC, .keyboardV, .keyboardX, .keyboardZ, .keyboardW, .keyboardO,
+                ]
+                if mods.contains(.command), !mods.contains(.control) {
+                    if system.contains(key.keyCode) { return false }
+                    if key.keyCode == .keyboardF, mods.contains(.shift) { return false }
+                }
+                return true
             }
         }
 
@@ -440,11 +446,15 @@
 
         /// The system claims these chords before `pressesBegan`.
         override var keyCommands: [UIKeyCommand]? {
+            let find = UIKeyCommand(
+                input: "f", modifierFlags: .command, action: #selector(findInDocument(_:))
+            )
+            find.wantsPriorityOverSystemBehavior = true
             // Command-Return sends in the chat composer; unregistered, the
             // system swallows the chord before `pressesBegan`.
             let send = UIKeyCommand(input: "\r", modifierFlags: .command, action: #selector(sendCommand(_:)))
             send.wantsPriorityOverSystemBehavior = true
-            return iOSMTK.workspaceBracketKeyCommands() + [send]
+            return iOSMTK.workspaceBracketKeyCommands() + [find, send]
         }
 
         @objc private func sendCommand(_: UIKeyCommand) {
@@ -452,6 +462,12 @@
             let key = UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue
             ios_key_event(wsHandle, key, false, false, false, true, true)
             ios_key_event(wsHandle, key, false, false, false, false, false)
+            mtkView.requestFrame()
+        }
+
+        @objc private func findInDocument(_: UIKeyCommand) {
+            guard let wsHandle else { return }
+            show_find(wsHandle)
             mtkView.requestFrame()
         }
 

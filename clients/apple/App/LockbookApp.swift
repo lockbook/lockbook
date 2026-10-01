@@ -38,6 +38,32 @@ struct LockbookApp: App {
                 }
                 .keyboardShortcut("s", modifiers: .command)
             }
+
+            #if os(iOS)
+                CommandGroup(after: .textEditing) {
+                    Button("Find in Document") {
+                        NotificationCenter.default.post(name: .findInDocument, object: nil)
+                    }
+                    .keyboardShortcut("f", modifiers: .command)
+
+                    Button("Search Everywhere") {
+                        NotificationCenter.default.post(name: .searchEverywhere, object: nil)
+                    }
+                    .keyboardShortcut("f", modifiers: [.command, .shift])
+
+                    Button("Open by Name") {
+                        NotificationCenter.default.post(name: .openByName, object: nil)
+                    }
+                    .keyboardShortcut("o", modifiers: .command)
+                }
+
+                CommandGroup(replacing: .saveItem) {
+                    Button("Close Tab") {
+                        NotificationCenter.default.post(name: .closeActiveTab, object: nil)
+                    }
+                    .keyboardShortcut("w", modifiers: .command)
+                }
+            #endif
         }
 
         WindowGroup(id: documentWindowId, for: UUID.self) { $fileId in
@@ -62,6 +88,11 @@ struct LockbookApp: App {
 extension Notification.Name {
     static let createNewFile = Notification.Name("createNewFile")
     static let toggleSidebar = Notification.Name("toggleSidebar")
+    static let findInDocument = Notification.Name("findInDocument")
+    static let searchEverywhere = Notification.Name("searchEverywhere")
+    static let closeActiveTab = Notification.Name("closeActiveTab")
+    static let focusSearchField = Notification.Name("focusSearchField")
+    static let openByName = Notification.Name("openByName")
 }
 
 struct ContentView: View {

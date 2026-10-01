@@ -198,6 +198,12 @@ import Observation
         redraw.send(())
     }
 
+    public func closeActiveTab() {
+        guard let wsHandle else { return }
+        close_active_tab(wsHandle)
+        redraw.send(())
+    }
+
     public func closeAllTabs() {
         guard let wsHandle else { return }
 
