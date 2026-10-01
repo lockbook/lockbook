@@ -76,6 +76,19 @@ impl MdEdit {
         self.renderer.ctx.request_repaint();
     }
 
+    /// A crawl at the viewport's edge scrolls like a pan.
+    pub fn crawl_by(&mut self, precise_pixels: f32) {
+        self.scroll_area.gesture_scroll(precise_pixels);
+    }
+
+    /// Scroll a standalone field (the chat composer) whose content outgrew
+    /// its rect; the frame clamps the far end.
+    pub fn overflow_scroll_by(&mut self, precise_pixels: f32) {
+        if precise_pixels.is_finite() {
+            self.overflow_scroll = (self.overflow_scroll + precise_pixels).max(0.0);
+        }
+    }
+
     /// The live pointer of a block drag: the platform's while it drives
     /// the reorder, else egui's.
     pub(crate) fn drag_pointer(&self, ui: &egui::Ui) -> Option<Pos2> {

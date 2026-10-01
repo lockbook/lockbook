@@ -1056,6 +1056,16 @@ pub struct AffineScrollArea<Id: Clone + Eq + std::fmt::Debug> {
     /// Latched while a momentum-cancelling stop-tap is in progress (press
     /// to release). See [`momentum_cancel_press`](Self::momentum_cancel_press).
     momentum_cancel_press: bool,
+    /// Precise pixels from a platform gesture recognizer, applied next frame.
+    gesture_pixels: f32,
+    /// Release velocity from a platform gesture recognizer, applied next frame.
+    gesture_fling: Option<f32>,
+    /// Thumb travel in track pixels from a platform scrollbar drag, applied
+    /// next frame against that frame's bar geometry.
+    gesture_thumb_px: f32,
+    /// A platform touch on the track: jump the thumb to this y next frame.
+    /// The bar as last shown, for a platform recognizer's hit test.
+    last_scrollbar: Option<Scrollbar>,
 }
 
 impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
@@ -1066,7 +1076,64 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             suppress_body_drag: false,
             id_salt: egui::Id::new(id_salt),
             momentum_cancel_press: false,
+            gesture_pixels: 0.0,
+            gesture_fling: None,
+            gesture_thumb_px: 0.0,
+            last_scrollbar: None,
         }
+    }
+
+    /// Scroll from a platform pan. Positive moves content up. Ignored while
+    /// a block drag owns the finger.
+    pub fn gesture_scroll(&mut self, precise_pixels: f32) {
+        if self.suppress_body_drag || !precise_pixels.is_finite() {
+            return;
+        }
+        self.state.kill_momentum();
+        self.gesture_fling = None;
+        self.gesture_pixels += precise_pixels;
+    }
+
+    /// Coast from a platform pan's release velocity (precise px/sec).
+    pub fn gesture_fling(&mut self, velocity_precise: f32) {
+        if self.suppress_body_drag || !velocity_precise.is_finite() {
+            return;
+        }
+        self.gesture_fling = Some(velocity_precise);
+    }
+
+    /// Stop coasting. Returns whether momentum was in flight.
+    pub fn gesture_stop(&mut self) -> bool {
+        let coasting = self.is_coasting();
+        self.state.kill_momentum();
+        self.gesture_fling = None;
+        coasting
+    }
+
+    /// A platform touch landed on the scrollbar at `y`: off the thumb, the
+    /// thumb jumps there; a drag then moves it either way.
+    pub fn gesture_scrollbar_begin(&mut self) {
+        self.state.kill_momentum();
+        self.gesture_fling = None;
+    }
+
+    /// Whether `y` is on the scrollbar's thumb as last shown: the only place
+    /// a scrollbar drag may start.
+    pub fn on_thumb(&self, y: f32) -> bool {
+        self.last_scrollbar
+            .as_ref()
+            .is_some_and(|bar| bar.hit(y) == ScrollbarHit::Thumb)
+    }
+
+    /// Thumb travel in track pixels from a platform scrollbar drag.
+    pub fn gesture_scrollbar_drag(&mut self, dy: f32) {
+        if dy.is_finite() {
+            self.gesture_thumb_px += dy;
+        }
+    }
+
+    pub fn is_coasting(&self) -> bool {
+        self.state.velocity_precise.abs() > 1.0 || self.gesture_fling.is_some()
     }
 
     /// Touch-scroll velocity (precise px/sec). y is vertical; x is
@@ -1175,6 +1242,20 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
                 .handle(rows, Action::ScrollByPixels(-smooth_scroll_delta));
         }
 
+        let gesture_pixels = std::mem::take(&mut self.gesture_pixels);
+        if gesture_pixels != 0.0 {
+            self.state
+                .handle(rows, Action::ScrollByPixels(gesture_pixels));
+        }
+        if let Some(velocity) = self.gesture_fling.take() {
+            self.state.velocity_precise = velocity;
+        }
+        let thumb_px = std::mem::take(&mut self.gesture_thumb_px);
+        if thumb_px != 0.0 {
+            self.state
+                .handle(rows, Action::ScrollByThumb(bar_geom.pixel_to_approx(thumb_px)));
+        }
+
         // Touch body drag → scroll + velocity tracking.
         let dt = ui.input(|i| i.stable_dt).max(0.0001);
         // Read before the kills below: a press on the drag-only body fires
@@ -1277,6 +1358,7 @@ impl<Id: Clone + Eq + std::fmt::Debug> AffineScrollArea<Id> {
             }
         }
 
+        self.last_scrollbar = bar_live.then_some(bar_geom);
         ShowResponse { response, visible, scrollbar_grab: bar_live.then_some(bar_interact_rect) }
     }
 }
