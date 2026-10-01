@@ -6,6 +6,8 @@
     final class TouchWatch: UIGestureRecognizer {
         private var down = 0
         var touching: Bool { down > 0 }
+        /// The first finger of a touch sequence came down.
+        var onFirstTouch: ((CGPoint) -> Void)?
 
         override init(target: Any?, action: Selector?) {
             super.init(target: target, action: action)
@@ -19,7 +21,11 @@
         }
 
         override func touchesBegan(_ touches: Set<UITouch>, with _: UIEvent) {
+            let wasTouching = touching
             down += touches.count
+            if !wasTouching, let touch = touches.first {
+                onFirstTouch?(touch.location(in: view))
+            }
         }
 
         override func touchesEnded(_ touches: Set<UITouch>, with _: UIEvent) {

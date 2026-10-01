@@ -34,7 +34,6 @@
         let scrollbar = ScrollbarDragRecognizer()
         private(set) var crawl: EdgeCrawl!
 
-
         init(mtkView: iOSMTK) {
             self.mtkView = mtkView
             super.init(frame: .zero)
@@ -44,6 +43,7 @@
             crawl = EdgeCrawl(page: self)
             taps = TapLayer(page: self)
             text = TextInputView(mtkView: mtkView, page: self)
+            touches.onFirstTouch = { [weak self] point in self?.text.touchDown(at: point) }
             for view in [taps!, text!] as [UIView] {
                 view.frame = bounds
                 view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
@@ -209,6 +209,9 @@
                 crawl.update(recognizer.location(in: self))
             case .ended, .cancelled, .failed:
                 crawl.stop()
+                if recognizer.isCaretDrag, recognizer.state == .ended {
+                    text.loupeEnded()
+                }
             default:
                 break
             }

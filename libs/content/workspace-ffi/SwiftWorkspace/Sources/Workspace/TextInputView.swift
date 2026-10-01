@@ -276,6 +276,59 @@
             mtkView.layoutFrame()
         }
 
+        // MARK: - Caret taps
+
+        /// The selection when the finger came down, before UIKit's placement.
+        private var touchDownSelection: TextRange?
+        private var touchDownEditing = false
+        /// A touch closes an open menu; that tap opens nothing.
+        private var menuWasVisibleAtTouchDown = false
+        /// A menu is up, ours or the text interaction's, as far as we know.
+        private var menuVisible = false
+        private var uikitMenuAsked = false
+        private var loupeToken: UUID?
+
+        func touchDown(at pagePoint: CGPoint) {
+            // A menu dismissed under a live touch re-routes the touch, and
+            // UIKit's drag keeps the dead one: no menu by the time it begins.
+            if let page, nearSelectionHandle(convert(pagePoint, from: page)) {
+                UIView.performWithoutAnimation { dismissEditMenus() }
+            }
+            atomMenuPending = false
+            touchDownSelection = selectedTextRange as? TextRange
+            touchDownEditing = isFirstResponder && documentEditable
+            menuWasVisibleAtTouchDown = menuVisible
+            menuVisible = false
+            uikitMenuAsked = false
+            loupeToken = nil
+        }
+
+        /// UIKit shows the menu after a long loupe that never moved the
+        /// caret, and nothing after a short one, which is what a slow tap on
+        /// the caret becomes. A loupe that sets the caret down where it was
+        /// gets the menu either way, as in Notes.
+        func loupeEnded() {
+            guard touchDownEditing, !menuWasVisibleAtTouchDown, let start = touchDownSelection, start.isEmpty
+            else { return }
+            let token = UUID()
+            loupeToken = token
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.2) { [weak self] in
+                guard let self, self.loupeToken == token, !self.uikitMenuAsked, !self.menuVisible,
+                      !(self.page?.touches.touching ?? false), self.isFirstResponder,
+                      let now = self.selectedTextRange as? TextRange, now == start
+                else { return }
+                self.presentCaretMenu()
+            }
+        }
+
+        private func presentCaretMenu() {
+            guard let range = selectedTextRange as? TextRange, range.isEmpty, let rect = realCaretRect(range.lo)
+            else { return }
+            menuForAtom = false
+            let point = CGPoint(x: rect.midX, y: rect.minY)
+            editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
+        }
+
         // MARK: - Atoms
 
         /// Select the tapped link or image and show its menu; the keyboard
@@ -320,6 +373,7 @@
             let menus = interactions.compactMap { $0 as? UIEditMenuInteraction }
             menus.forEach { $0.dismissMenu() }
             menuForAtom = false
+            menuVisible = false
         }
 
         // MARK: - Hardware keys
@@ -585,6 +639,7 @@
 
         func insertText(_ text: String) {
             commitPendingSelection()
+            editMenu.dismissMenu()
             guard let wsHandle else { return }
             if chromeFocused {
                 // A committed composition replaces what it sent so far.
@@ -620,6 +675,7 @@
 
         func deleteBackward() {
             commitPendingSelection()
+            editMenu.dismissMenu()
             guard let wsHandle else { return }
             marked = nil
             let before = selectedTextRange as? TextRange
@@ -922,11 +978,13 @@
         }
 
         override func copy(_: Any?) {
+            menuVisible = false
             guard let range = selectedTextRange, let text = text(in: range), !text.isEmpty else { return }
             UIPasteboard.general.string = text
         }
 
         override func cut(_ sender: Any?) {
+            menuVisible = false
             commitPendingSelection()
             guard let range = selectedTextRange, !range.isEmpty else { return }
             copy(sender)
@@ -938,6 +996,7 @@
         /// The editor's paste: a URL over a selection becomes a link. Text
         /// applies now, like any UIKit edit; an image arrives next frame.
         override func paste(_: Any?) {
+            menuVisible = false
             commitPendingSelection()
             guard let wsHandle else { return }
             if let image = UIPasteboard.general.image {
@@ -968,6 +1027,7 @@
         }
 
         override func select(_: Any?) {
+            menuVisible = false
             guard !chromeFocused, let caret = selectedTextRange?.start,
                   let word = tokenizer.rangeEnclosingPosition(caret, with: .word, inDirection: .storage(.backward))
                   ?? tokenizer.rangeEnclosingPosition(caret, with: .word, inDirection: .storage(.forward))
@@ -978,6 +1038,7 @@
         }
 
         override func selectAll(_: Any?) {
+            menuVisible = false
             guard !chromeFocused else { return }
             inputDelegate?.selectionWillChange(self)
             selectedTextRange = TextRange(0, endOffset)
@@ -1116,9 +1177,9 @@
         /// null one puts NaN in that animation. A position with no geometry
         /// (off screen, mid-layout) answers with the last caret rect.
         func caretRect(for position: UITextPosition) -> CGRect {
-            if let wsHandle, let offset = (position as? TextPosition)?.offset, !staleCarets.isEmpty {
+            if let offset = (position as? TextPosition)?.offset, !staleCarets.isEmpty {
                 let now = (selectedTextRange as? TextRange)?.lo
-                if staleCarets.contains(offset), let now, var rect = localRect(cursor_rect_at_position(wsHandle, cPosition(now))) {
+                if staleCarets.contains(offset), let now, var rect = realCaretRect(now) {
                     rect.size.width = 2
                     return rect
                 }
@@ -1127,8 +1188,7 @@
                     staleCarets = []
                 }
             }
-            guard let wsHandle, let position = position as? TextPosition else { return lastCaretRect }
-            guard var rect = localRect(cursor_rect_at_position(wsHandle, cPosition(position.offset))) else {
+            guard let position = position as? TextPosition, var rect = realCaretRect(position.offset) else {
                 return lastCaretRect
             }
             rect.size.width = 2
@@ -1137,6 +1197,12 @@
         }
 
         private var lastCaretRect = CGRect(x: 0, y: 0, width: 2, height: 22)
+
+        /// The caret's rect at an offset, or nil where nothing is laid out.
+        private func realCaretRect(_ offset: Int) -> CGRect? {
+            guard let wsHandle else { return nil }
+            return localRect(cursor_rect_at_position(wsHandle, cPosition(offset)))
+        }
 
         func selectionRects(for range: UITextRange) -> [UITextSelectionRect] {
             guard let wsHandle, let range = range as? TextRange, !range.isEmpty else { return [] }
@@ -1238,7 +1304,9 @@
     extension TextInputView: UIEditMenuInteractionDelegate {
         /// The text interaction's own menu: link actions join the standard ones.
         func editMenu(for _: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-            UIMenu(children: editorMenuItems(atom: false) + suggestedActions.withoutUndo)
+            uikitMenuAsked = true
+            menuVisible = true
+            return UIMenu(children: editorMenuItems(atom: false) + suggestedActions.withoutUndo)
         }
 
         /// The menu for a tapped link or image.
@@ -1253,8 +1321,25 @@
         func editMenuInteraction(
             _: UIEditMenuInteraction, targetRectFor _: UIEditMenuConfiguration
         ) -> CGRect {
-            guard let range = selectedTextRange else { return .null }
+            guard let range = selectedTextRange as? TextRange else { return .null }
+            if range.isEmpty {
+                return realCaretRect(range.lo) ?? .null
+            }
             return selectionRects(for: range).reduce(CGRect.null) { $0.union($1.rect) }
+        }
+
+        func editMenuInteraction(
+            _: UIEditMenuInteraction, willPresentMenuFor _: UIEditMenuConfiguration,
+            animator _: UIEditMenuInteractionAnimating
+        ) {
+            menuVisible = true
+        }
+
+        func editMenuInteraction(
+            _: UIEditMenuInteraction, willDismissMenuFor _: UIEditMenuConfiguration,
+            animator _: UIEditMenuInteractionAnimating
+        ) {
+            menuVisible = false
         }
 
         /// Open and Copy for a selected link; Edit and Refresh for an atom
