@@ -481,10 +481,19 @@
                 )
             }
 
+            let created = UUID(uuid: output.doc_created._0)
+            if !created.isNil() {
+                mtkView.workspaceInput?.pendingFocusDoc = created
+            }
+
             if let text = mtkView.currentWrapper as? TextPage,
                currentTab == .Markdown || currentTab == .PlainText || currentTab == .Chat
             {
                 text.apply(output)
+                if let pending = mtkView.workspaceInput?.pendingFocusDoc, pending == mtkView.currentOpenDoc {
+                    mtkView.workspaceInput?.pendingFocusDoc = nil
+                    text.becomeFirstResponder()
+                }
             }
 
             if output.urls_opened.size > 0 {
@@ -672,6 +681,8 @@
             isPaused = false
             enableSetNeedsDisplay = false
             delegate = mtkDelegate
+            // A hidden keyboard insets nothing; the page runs to the screen edge.
+            keyboardLayoutGuide.usesBottomSafeArea = false
             preferredFramesPerSecond = 144
             isUserInteractionEnabled = true
 

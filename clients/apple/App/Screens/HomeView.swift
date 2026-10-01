@@ -901,7 +901,8 @@ struct HomeView: View {
         } else {
             WorkspaceView()
                 .frame(minWidth: 5, minHeight: 5)
-                .ignoresSafeArea(.keyboard)
+                // One modifier: the view keeps its height across keyboard transitions.
+                .ignoresSafeArea(.all, edges: .bottom)
         }
     }
 }

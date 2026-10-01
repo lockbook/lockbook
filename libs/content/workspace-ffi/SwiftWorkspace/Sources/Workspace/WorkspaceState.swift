@@ -43,6 +43,8 @@ import Observation
 
     @ObservationIgnored public var redraw = PassthroughSubject<Void, Never>()
     @ObservationIgnored public var focus = PassthroughSubject<Void, Never>()
+    /// A note just created; it opens ready to type.
+    @ObservationIgnored public var pendingFocusDoc: UUID?
 
     public init(coreHandle: UnsafeMutableRawPointer?) {
         self.coreHandle = coreHandle
@@ -73,7 +75,10 @@ import Observation
         redraw.send(())
     }
 
-    public func openFile(id: UUID, newTab: Bool = false) {
+    public func openFile(id: UUID, newTab: Bool = false, focus: Bool = false) {
+        if focus {
+            pendingFocusDoc = id
+        }
         guard let wsHandle else {
             pendingOpens.append(id)
             return

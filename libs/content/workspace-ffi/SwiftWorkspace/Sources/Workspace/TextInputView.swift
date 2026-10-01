@@ -100,6 +100,12 @@
             for gesture in textInteraction.gesturesForFailureRequirements {
                 gesture.require(toFail: reorderPress)
             }
+
+            for name in [UIResponder.keyboardWillShowNotification, UIResponder.keyboardWillHideNotification] {
+                NotificationCenter.default.addObserver(
+                    self, selector: #selector(keyboardChanged(_:)), name: name, object: nil
+                )
+            }
         }
 
         /// UIKit's selection views keep the first claim on a touch. A touch on
@@ -134,6 +140,13 @@
         }
 
         override var canBecomeFirstResponder: Bool { true }
+
+        /// The viewport is about to change under a menu, so the menu goes,
+        /// as in Notes.
+        @objc private func keyboardChanged(_: Notification) {
+            guard page != nil else { return }
+            dismissEditMenus()
+        }
 
         override func didMoveToWindow() {
             super.didMoveToWindow()
