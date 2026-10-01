@@ -760,6 +760,13 @@ impl<Id: Clone + Eq + std::fmt::Debug> ScrollArea<Id> {
         }
     }
 
+    /// Where `off` sits relative to the viewport's top, in approximate
+    /// pixels from the cheap row heights: negative above, beyond the
+    /// viewport height below. For geometry of rows not laid out.
+    pub fn viewport_y_of<R: Rows<RowId = Id>>(&self, rows: &R, off: &Offset<Id>) -> f32 {
+        affine::thumb_approx(rows, off) - self.thumb_approx(rows)
+    }
+
     /// Signed precise-pixel distance from `a` to `b`, bounded by
     /// `bound`. Positive if `b` is below `a`. Returns `None` if `b`
     /// isn't within `bound` in either direction.

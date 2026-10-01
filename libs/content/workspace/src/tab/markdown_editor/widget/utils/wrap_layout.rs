@@ -310,6 +310,9 @@ pub struct Fragment {
     /// Id salt + sense for `interact_fragments`. Innermost open
     /// scope wins; `None` means no per-fragment interact.
     pub interaction: Option<(egui::Id, egui::Sense)>,
+    /// Laid out beyond the band of rows around the viewport, at an
+    /// estimated y: exact within its row, adjacent to no other row.
+    pub far: bool,
 }
 
 /// What a fragment renders.
@@ -1460,6 +1463,7 @@ pub fn build_rows(
                 content: FragmentContent::Spacer,
                 atomic: false,
                 interaction: interaction_stack.last().copied(),
+                far: false,
             });
             x += inline_pad;
         }
@@ -1513,6 +1517,7 @@ pub fn build_rows(
                         },
                         atomic: *atomic,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1569,6 +1574,7 @@ pub fn build_rows(
                         content,
                         atomic: false,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += effective_advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1590,6 +1596,7 @@ pub fn build_rows(
                         content: FragmentContent::Spacer,
                         atomic: false,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += advance;
                 }
@@ -1610,6 +1617,7 @@ pub fn build_rows(
                         content: FragmentContent::Embed { url: spec.url.clone(), kind: spec.kind },
                         atomic: true,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += spec.advance;
                 }
@@ -1634,6 +1642,7 @@ pub fn build_rows(
                         content: FragmentContent::Spacer,
                         atomic: false,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                 }
                 InlineItem::StyleOpen(info) => style_stack.push(info.clone()),
@@ -1682,6 +1691,7 @@ pub fn build_rows(
                 content: FragmentContent::Spacer,
                 atomic: false,
                 interaction: interaction_stack.last().copied(),
+                far: false,
             });
         }
 
@@ -1972,6 +1982,7 @@ impl MdRender {
                     content: FragmentContent::Spacer,
                     atomic: true,
                     interaction: None,
+                    far: false,
                 });
             }
 
@@ -2113,6 +2124,10 @@ impl MdRender {
             } else {
                 (pos.y - rtop).abs().min((pos.y - rbottom).abs())
             };
+            // A far row's y is an estimate: only points within it hit it.
+            if f.far && y_dist > 0.0 {
+                continue;
+            }
             let x_dist = if f.rect.x_range().contains(pos.x) {
                 0.0
             } else {

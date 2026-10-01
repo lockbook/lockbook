@@ -1522,8 +1522,8 @@ impl Editor {
                         // entries. The immutable `DocScrollContent`
                         // borrow is released here before phase 2's
                         // mutable renderer paint.
-                        let (visible, neighbors, scrollbar_grab) = {
-                            use crate::widgets::affine_scroll::{Rows as _, VisibleRow};
+                        let (visible, neighbors, far, scrollbar_grab) = {
+                            use crate::widgets::affine_scroll::{Offset, Rows as _, VisibleRow};
 
                             let content = scroll_content::DocScrollContent::for_frame(
                                 &self.edit.renderer,
@@ -1561,7 +1561,72 @@ impl Editor {
                                     id = next_id;
                                 }
                             }
-                            (resp.visible, neighbors, resp.scrollbar_grab)
+
+                            // Rows holding the selection's ends beyond
+                            // that band, at the scroll model's estimate
+                            // of their distance, kept outside the band.
+                            // Their layout is exact within the row, so a
+                            // platform text system gets real geometry
+                            // for a far end without the rows between.
+                            let band_top = resp
+                                .visible
+                                .iter()
+                                .chain(neighbors.iter())
+                                .map(|r| r.top)
+                                .fold(f32::INFINITY, f32::min);
+                            let band_bottom = resp
+                                .visible
+                                .iter()
+                                .chain(neighbors.iter())
+                                .map(|r| r.top + r.height)
+                                .fold(f32::NEG_INFINITY, f32::max);
+                            let index = |id: &scroll_content::DocRowId| match id {
+                                scroll_content::DocRowId::Block(i)
+                                | scroll_content::DocRowId::Line(i) => Some(*i),
+                                _ => None,
+                            };
+                            let band_first = resp
+                                .visible
+                                .iter()
+                                .chain(neighbors.iter())
+                                .filter_map(|r| index(&r.id))
+                                .min();
+                            let selection = self
+                                .edit
+                                .in_progress_selection
+                                .unwrap_or(self.edit.renderer.buffer.current.selection);
+                            let mut far: Vec<VisibleRow<scroll_content::DocRowId>> = Vec::new();
+                            for end in [selection.0, selection.1] {
+                                let Some(row) = content.find_text_row(end) else { continue };
+                                let (Some(i), Some(first)) = (index(&row), band_first) else {
+                                    continue;
+                                };
+                                let laid_out = resp
+                                    .visible
+                                    .iter()
+                                    .chain(neighbors.iter())
+                                    .chain(far.iter())
+                                    .any(|r| r.id == row);
+                                if laid_out {
+                                    continue;
+                                }
+                                let height = content.precise(&row);
+                                if height <= 0.0 {
+                                    continue;
+                                }
+                                let estimate = self
+                                    .edit
+                                    .scroll_area
+                                    .state
+                                    .viewport_y_of(&content, &Offset::at_top_of(row));
+                                let top = if i < first {
+                                    estimate.min(band_top - height)
+                                } else {
+                                    estimate.max(band_bottom)
+                                };
+                                far.push(VisibleRow { id: row, top, height });
+                            }
+                            (resp.visible, neighbors, far, resp.scrollbar_grab)
                         };
                         // Register the scrollbar's grab area so iOS taps on it
                         // don't fall through to cursor-placement / keyboard-
@@ -1579,9 +1644,10 @@ impl Editor {
                         // the canvas — only to register fragments and
                         // wrap-line bounds for navigation.
                         let blocks: Vec<_> = root.children().collect();
-                        for vrow in visible.iter().chain(neighbors.iter()) {
+                        for vrow in visible.iter().chain(neighbors.iter()).chain(far.iter()) {
                             let top_left =
                                 Pos2::new(canvas_rect.min.x, canvas_rect.min.y + vrow.top);
+                            let from = self.edit.renderer.fragments.len();
                             scroll_content::paint_row(
                                 ui,
                                 &mut self.edit.renderer,
@@ -1591,6 +1657,11 @@ impl Editor {
                                 top_left,
                                 content_x,
                             );
+                            if far.contains(vrow) {
+                                for f in &mut self.edit.renderer.fragments[from..] {
+                                    f.far = true;
+                                }
+                            }
                         }
 
                         // paint find match highlights after galleys positioned
@@ -1847,7 +1918,7 @@ fn endpoint_offset(
     canvas_rect: Rect, side: EndpointSide, pad: f32,
 ) -> Option<Offset<DocRowId>> {
     use crate::widgets::affine_scroll::Rows as _;
-    if let Some(frag) = renderer.fragment_at_offset(target) {
+    if let Some(frag) = renderer.fragment_at_offset(target).filter(|f| !f.far) {
         let y_range = frag.rect.y_range().expand(pad);
         let y = match side {
             EndpointSide::Top => y_range.min - android_top_overlay(content),

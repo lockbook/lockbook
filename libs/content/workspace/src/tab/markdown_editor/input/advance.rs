@@ -68,6 +68,10 @@ impl MdEdit {
         else {
             return offset;
         };
+        // A far row has no laid-out neighbors to move to.
+        if self.renderer.fragments[cur_idx].far {
+            return offset;
+        }
         let cur_top = self.renderer.fragments[cur_idx].rect.top();
 
         // Walk one visual row at a time in the travel direction, nearest
@@ -148,6 +152,10 @@ impl MdEdit {
                 }
             }
             let frag = &fragments[idx];
+            if frag.far {
+                continue;
+            }
+
             // Adjacent in the travel direction, and not yet onto the row
             // past the first one we land on.
             let adjacent = if backwards {
