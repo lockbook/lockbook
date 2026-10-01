@@ -478,6 +478,13 @@ impl Workspace {
         }
     }
 
+    /// A text field of the editor's chrome (find, replace) has focus, so a
+    /// platform text system's keystrokes are egui events, not edits.
+    pub fn chrome_text_focused(&self) -> bool {
+        self.current_tab_markdown()
+            .is_some_and(|md| md.find.focused(&self.ctx))
+    }
+
     /// Apply an edit from the platform text system to the focused editor now.
     /// A text change marks the tab changed so it saves.
     pub fn apply_platform_event(
@@ -491,6 +498,13 @@ impl Workspace {
         &mut self, event: crate::tab::markdown_editor::input::Event, reveal: bool,
     ) -> lb_rs::model::text::buffer::Response {
         use crate::tab::markdown_editor::input::Event;
+        // A selection written for a touch on the note takes focus from the
+        // find field, as a click does on a desktop.
+        if matches!(event, Event::Select { .. }) && self.chrome_text_focused() {
+            if let Some(md) = self.current_tab_markdown() {
+                md.focus(&self.ctx);
+            }
+        }
         let Some(md) = self.focused_mdedit_mut() else { return Default::default() };
         if md.renderer.readonly && !matches!(event, Event::Select { .. }) {
             return Default::default();

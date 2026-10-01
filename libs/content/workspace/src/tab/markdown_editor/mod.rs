@@ -367,6 +367,9 @@ pub struct Editor {
     pub unprocessed_scroll: Option<Instant>,
     prev_dimensions: Option<Vec2>,
     prev_virtual_keyboard_shown: bool,
+    /// The find bar's height while open; opening and closing scroll the
+    /// page by it so the content stays put on screen.
+    find_bar_height: f32,
     embeds_seq: u64,
     link_seq: u64,
 
@@ -567,7 +570,14 @@ impl MdRender {
     /// that want to drive layout at a known viewport size without
     /// running a full egui frame.
     pub fn set_viewport_height(&mut self, viewport_height: f32) {
-        self.viewport_height = viewport_height;
+        // Images fit the viewport, so its height is a layout dimension as
+        // the width is: a change invalidates the cached heights.
+        if self.viewport_height.to_bits() != viewport_height.to_bits() {
+            self.viewport_height = viewport_height;
+            self.width_seq = self
+                .ws_seq
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+        }
     }
 
     #[cfg(test)]
@@ -835,6 +845,7 @@ impl Editor {
 
             prev_dimensions: None,
             prev_virtual_keyboard_shown: cfg!(target_os = "android"),
+            find_bar_height: 0.0,
 
             next_resp: Default::default(),
         }
@@ -959,6 +970,9 @@ impl Editor {
             Some(prev) => (prev.y != dimensions.y, prev.x != dimensions.x),
             None => (true, true),
         };
+        let height_shrunk = self
+            .prev_dimensions
+            .is_some_and(|prev| prev.y > dimensions.y);
         self.prev_dimensions = Some(dimensions);
 
         let dark_mode = ui.style().visuals.dark_mode;
@@ -1067,7 +1081,7 @@ impl Editor {
         let editor_shown = ui
             .vertical(|ui| {
                 if self.edit.phone_mode {
-                    self.show_find_centered(ui);
+                    self.show_find_bar(ui);
 
                     // ...then show editor content (or toolbar settings)...
                     let available_width = ui.available_width();
@@ -1145,7 +1159,7 @@ impl Editor {
                     {
                         self.show_toolbar(root, ui);
                     }
-                    self.show_find_centered(ui);
+                    self.show_find_bar(ui);
 
                     self.next_resp.text_interaction_rect = Some(ui.available_rect_before_wrap());
 
@@ -1283,17 +1297,22 @@ impl Editor {
             ui.ctx().request_repaint();
         }
         // Pull the cursor out from behind the virtual keyboard: scroll on
-        // its rising edge, and keep re-asserting across the show animation
-        // while the keyboard is shown. The `virtual_keyboard_shown` guard
-        // keeps the dismiss animation — which grows the viewport, also
-        // firing `height_updated` — from scrolling.
+        // its rising edge, and keep re-asserting while the viewport shrinks
+        // across the show animation. A growing viewport hides nothing.
         let keyboard_just_shown = self.virtual_keyboard_shown && !self.prev_virtual_keyboard_shown;
         self.prev_virtual_keyboard_shown = self.virtual_keyboard_shown;
+        // A viewport of no height is a transition (rotation); nothing to reveal.
         if self.initialized
             && self.edit.renderer.touch_mode
-            && (keyboard_just_shown || (height_updated && self.virtual_keyboard_shown))
+            && dimensions.y > 0.0
+            && (keyboard_just_shown || (height_shrunk && self.virtual_keyboard_shown))
         {
-            self.edit.pending_scroll = Some(ScrollTarget::Cursor);
+            // Under find, the keyboard is the field's: keep the match in view.
+            self.edit.pending_scroll = Some(if self.find.focused(ui.ctx()) {
+                ScrollTarget::FindMatch
+            } else {
+                ScrollTarget::Cursor
+            });
             ui.ctx().request_repaint();
         }
         if self.next_resp.scroll_updated {
@@ -1738,7 +1757,22 @@ impl Editor {
         }
     }
 
-    fn show_find_centered(&mut self, ui: &mut Ui) {
+    /// The find bar above the document, with the page scrolled by its height
+    /// as it opens and closes so the content stays put on screen.
+    fn show_find_bar(&mut self, ui: &mut Ui) {
+        let height = self.show_find_centered(ui);
+        // The bar has no height in the frame it opens, and its height can
+        // change with the keyboard: the page scrolls by each change.
+        let target = if self.find.term.is_some() { height } else { 0.0 };
+        if target != self.find_bar_height {
+            self.edit
+                .scroll_area
+                .gesture_scroll(target - self.find_bar_height);
+            self.find_bar_height = target;
+        }
+    }
+
+    fn show_find_centered(&mut self, ui: &mut Ui) -> f32 {
         let available = ui.available_width();
         let content_width = if self.edit.renderer.touch_mode {
             self.edit.renderer.width
@@ -1779,6 +1813,7 @@ impl Editor {
                 .ws_seq
                 .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
         }
+        rendered_rect.height()
     }
 
     fn scroll_to_find_match(&mut self, canvas_rect: Rect) {

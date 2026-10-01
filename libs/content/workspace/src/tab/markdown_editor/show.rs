@@ -281,6 +281,7 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
+        self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
             // Clip the (possibly overflowing) layout to the field.
@@ -636,7 +637,7 @@ impl MdEdit {
         &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
-        self.renderer.viewport_height = ui.clip_rect().height();
+        self.renderer.set_viewport_height(ui.clip_rect().height());
         let prior_entered_atom = self.renderer.entered_atom;
 
         ui.ctx().check_for_id_clash(id, rect, "");
@@ -1022,6 +1023,12 @@ impl MdEdit {
         self.in_progress_selection = None;
         self.in_progress_handle = None;
         self.event.internal_events.clear();
+        // A platform text system asks about the new text before the next
+        // frame: its units come from bounds, and nothing may answer from the
+        // old text's layout.
+        let arena = Arena::new();
+        self.renderer.reparse(&arena);
+        self.renderer.fragments.clear();
     }
 
     /// Center-top of the first wrap line of the given range — where a

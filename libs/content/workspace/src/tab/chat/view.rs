@@ -2816,7 +2816,10 @@ impl Chat {
         let composer_updated = composer_seq != self.composer_seq;
         self.composer_seq = composer_seq;
         let text_seq = self.composer.renderer.text_seq;
-        let composer_text_updated = text_seq != self.composer_text_seq;
+        let key_field_shown = self.key_entry.is_some();
+        let field_switched = key_field_shown != self.key_field_shown;
+        self.key_field_shown = key_field_shown;
+        let composer_text_updated = text_seq != self.composer_text_seq || field_switched;
         self.composer_text_seq = text_seq;
 
         (
