@@ -85,6 +85,12 @@ impl<'ast> MdRender {
             return (target * scale).max(Vec2::ZERO);
         }
 
+        // A degenerate texture (a decode with no size yet, a failed one)
+        // collapses rather than dividing by zero into NaN geometry.
+        if natural.x <= 0.0 || natural.y <= 0.0 {
+            return Vec2::ZERO;
+        }
+
         // only shrink images, never stretch beyond their natural size
         let width = width.min(natural.x).min(image_max_size.x);
         let height = (natural.y * width / natural.x).min(image_max_size.y);

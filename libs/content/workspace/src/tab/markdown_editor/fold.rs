@@ -298,6 +298,19 @@ impl MdRender {
 // ─── event hooks ─────────────────────────────────────────────────────
 
 impl<'ast> MdEdit {
+    /// Selections are snapped out of fold sections, but an edit can still
+    /// leave one inside, e.g. indenting an item into a folded item; after
+    /// an edit or a user move, unfold around it.
+    pub fn unfold_after_edit<'a>(
+        &mut self, arena: &'a Arena<'a>, edited: bool, undo_redo: bool,
+    ) -> buffer::Response {
+        if edited && !undo_redo && !self.renderer.readonly && !self.renderer.plaintext {
+            self.unfold_at_selection(arena)
+        } else {
+            buffer::Response::default()
+        }
+    }
+
     /// Apply [`MdRender::unfold_ops_for_selection`], reparsing on
     /// change so this frame renders the unfolded state.
     pub fn unfold_at_selection<'a>(&mut self, arena: &'a Arena<'a>) -> buffer::Response {

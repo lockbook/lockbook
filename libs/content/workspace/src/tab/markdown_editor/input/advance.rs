@@ -45,6 +45,13 @@ impl MdEdit {
         self.renderer.snap_offset_out_of_folds(result, backwards)
     }
 
+    /// `n` visual lines from `offset`, holding its column. Pure: a platform
+    /// text system keeps the column by always moving from the same start.
+    pub fn lines_from(&self, offset: Grapheme, n: usize, backwards: bool) -> Grapheme {
+        let Some(x_target) = self.x(offset) else { return offset };
+        (0..n).fold(offset, |result, _| self.advance_by_line(result, x_target, backwards))
+    }
+
     fn advance_by_line(&self, offset: Grapheme, x_target: f32, backwards: bool) -> Grapheme {
         // Mirror `fragment_at_offset`'s last-match semantics so navigation
         // agrees with cursor rendering at wrap boundaries.
@@ -141,7 +148,6 @@ impl MdEdit {
                 }
             }
             let frag = &fragments[idx];
-
             // Adjacent in the travel direction, and not yet onto the row
             // past the first one we land on.
             let adjacent = if backwards {

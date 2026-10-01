@@ -163,6 +163,9 @@ pub struct MdRender {
     /// can dim the source and draw the drop indicator.
     pub in_progress_block_drag: Option<widget::block::drag::BlockDrag>,
     pub find_current_match: Option<(Grapheme, Grapheme)>,
+    /// The platform text system's marked text (dictation in progress, an
+    /// IME composition), painted so provisional text reads as such.
+    pub platform_marked: Option<(Grapheme, Grapheme)>,
     /// Read-only search-preview highlight: the snippet range to reveal,
     /// scroll to, and box-highlight. Independent of the find feature.
     pub preview_match: Option<(Grapheme, Grapheme)>,
@@ -517,6 +520,7 @@ impl MdRender {
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
+            platform_marked: None,
             preview_match: None,
             interactive: false,
             readonly: true,
@@ -597,6 +601,7 @@ impl MdRender {
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
+            platform_marked: None,
             preview_match: None,
             interactive: false,
             readonly: true,
@@ -751,6 +756,7 @@ impl Editor {
             in_progress_selection: None,
             in_progress_block_drag: None,
             find_current_match: None,
+            platform_marked: None,
             preview_match: None,
             interactive: true,
             readonly,
@@ -1608,6 +1614,12 @@ impl Editor {
                         if let Some(range) = self.edit.renderer.preview_match {
                             let theme = self.edit.renderer.ctx.get_lb_theme();
                             let color = theme.fg().yellow.lerp_to_gamma(theme.neutral_bg(), 0.5);
+                            self.edit.show_range(ui, range, color);
+                        }
+
+                        if let Some(range) = self.edit.renderer.platform_marked {
+                            let theme = self.edit.renderer.ctx.get_lb_theme();
+                            let color = theme.accent().lerp_to_gamma(theme.neutral_bg(), 0.75);
                             self.edit.show_range(ui, range, color);
                         }
 
