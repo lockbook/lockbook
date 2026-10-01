@@ -63,7 +63,6 @@ pub mod commands;
 pub mod fold;
 pub mod input;
 pub mod md_label;
-pub mod output;
 mod scroll_content;
 pub mod show;
 pub mod text_units;
@@ -94,7 +93,7 @@ pub struct Response {
 
     /// Screen rect (egui points) where native iOS text interaction should
     /// live — the editor viewport minus the find widget and toolbar. The
-    /// single source of truth for positioning the `MdView` iOS overlay.
+    /// single source of truth for positioning the platform text view.
     pub text_interaction_rect: Option<egui::Rect>,
 
     pub mobile_toolbar_shown: bool,
@@ -1414,16 +1413,6 @@ impl Editor {
             || self.edit.scroll_area.momentum_cancel_press() // platform can check at touch up
             || self.reorder_armed() // a committed reorder isn't a tap
             || self.toolbar.menu_open
-    }
-
-    /// Whether a touch long-press is arming (`Pending`) or running (`Armed`)
-    /// a list-item drag-reorder. iOS reads this at its native long-press's
-    /// `.began` so the loupe yields *before* our threshold fires; only ever
-    /// true keyboard-down on a reorderable item (see
-    /// [`MdEdit::detect_touch_reorder`]).
-    pub fn reorder_in_progress(&self) -> bool {
-        use widget::block::drag::TouchReorder;
-        matches!(self.edit.touch_reorder, TouchReorder::Pending { .. } | TouchReorder::Armed { .. })
     }
 
     /// Whether a reorder is committed and dragging (`Armed`, not the

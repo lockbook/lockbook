@@ -1,15 +1,18 @@
 use egui::{Key, Modifiers, PointerButton, TouchDeviceId, TouchId, TouchPhase};
-use lb_c::model::text::offset_types::{Grapheme, Graphemes, RangeExt as _};
+use lb_c::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};
-use std::ptr::null;
 use tracing::instrument;
-use workspace_rs::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Region};
-use workspace_rs::tab::markdown_editor::output::ui_text_input_tokenizer::UITextInputTokenizer as _;
+use workspace_rs::tab::markdown_editor::bounds::BoundExt as _;
+use workspace_rs::tab::markdown_editor::input::{
+    Advance, Bound, Event, Increment, Location, Region,
+};
+use workspace_rs::tab::markdown_editor::text_units::Unit;
 use workspace_rs::tab::svg_editor::Tool;
 use workspace_rs::tab::{ContentState, ExtendedInput as _, TabContent};
 
 use super::super::response::*;
+use super::position::{grapheme_at, graphemes_in, position};
 use super::response::*;
 use crate::WgpuWorkspace;
 use crate::apple::keyboard::UIKeys;
@@ -20,8 +23,57 @@ use crate::apple::keyboard::UIKeys;
 #[instrument(level = "trace", skip(obj))]
 pub unsafe extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-
     obj.frame().into()
+}
+
+/// A frame that consumes no queued input, for geometry right after a UIKit
+/// edit. Input queued meanwhile waits for the next frame.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_layout_frame(obj: *mut c_void) -> IOSResponse {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let events = std::mem::take(&mut obj.renderer.raw_input.events);
+    let response = obj.frame();
+    obj.renderer.raw_input.events = events;
+    response.into()
+}
+
+/// Page scroll from the text view's pan; `dy` is finger travel in points.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_scroll(obj: *mut c_void, dy: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.scroll_area.gesture_scroll(-dy);
+    }
+}
+
+/// Coast from the pan's release velocity in points per second.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_fling(obj: *mut c_void, vy: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.scroll_area.gesture_fling(-vy);
+    }
+}
+
+/// Stop coasting. Returns whether the page was coasting.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_stop_scroll(obj: *mut c_void) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.scroll_area.gesture_stop())
 }
 
 /// # Safety
@@ -31,72 +83,64 @@ pub unsafe extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
 #[no_mangle]
 pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let content = CStr::from_ptr(content).to_str().unwrap().into();
+    let Ok(content) = CStr::from_ptr(content).to_str() else { return };
 
     if content == "\n" {
-        // The return key (hardware or virtual) arrives as inserted text, never
-        // as an egui Key::Enter, so when a completion popup is open submit it
-        // with the Enter it listens for instead of inserting a newline.
+        // An open completion popup submits on the Enter it listens for.
         let completions_active = obj
             .workspace
-            .current_tab_markdown_mut()
-            .map(|md| md.edit.emoji_completions.active || md.edit.link_completions.active)
+            .focused_mdedit_mut()
+            .map(|md| md.emoji_completions.active || md.link_completions.active)
             .unwrap_or(false);
         if completions_active {
-            obj.renderer.raw_input.events.push(egui::Event::Key {
-                key: Key::Enter,
-                physical_key: None,
-                pressed: true,
-                repeat: false,
-                modifiers: Modifiers::NONE,
-            });
+            obj.renderer.raw_input.events.push(key_event(Key::Enter));
+            obj.renderer.context.request_repaint();
         } else {
-            obj.renderer
-                .context
-                .push_markdown_event(Event::Newline { shift: false });
+            obj.workspace
+                .apply_platform_event(Event::Newline { shift: false });
         }
     } else if content == "\t" {
-        obj.renderer
-            .context
-            .push_markdown_event(Event::Indent { deindent: false });
+        obj.workspace
+            .apply_platform_event(Event::Indent { deindent: false });
     } else {
-        obj.renderer
-            .raw_input
-            .events
-            .push(egui::Event::Text(content));
+        obj.workspace.apply_platform_event(Event::Replace {
+            region: Region::Selection,
+            text: content.into(),
+            advance_cursor: true,
+        });
+    }
+}
+
+/// Paste text now, as the editor pastes: a URL over a selection links it.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuEditor
+#[no_mangle]
+pub unsafe extern "C" fn paste_text(obj: *mut c_void, content: *const c_char) {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Ok(content) = CStr::from_ptr(content).to_str() else { return };
+    let event = obj
+        .workspace
+        .focused_mdedit_mut()
+        .and_then(|md| md.paste_event(content.into()));
+    if let Some(event) = event {
+        obj.workspace.apply_platform_event(event);
     }
 }
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 ///
-/// https://developer.apple.com/documentation/uikit/uikeyinput/1614543-inserttext
+/// https://developer.apple.com/documentation/uikit/uikeyinput/1614572-deletebackward
 #[no_mangle]
 pub unsafe extern "C" fn backspace(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    obj.renderer.raw_input.events.push(egui::Event::Key {
-        key: Key::Backspace,
-        physical_key: None,
-        pressed: true,
-        repeat: false,
-        modifiers: Default::default(),
+    obj.workspace.apply_platform_event(Event::Delete {
+        region: Region::SelectionOrAdvance {
+            advance: Advance::By(Increment::Char),
+            backwards: true,
+        },
     });
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uikeyinput/1614457-hastext
-#[no_mangle]
-pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return false,
-    };
-
-    !markdown.renderer.buffer.is_empty()
 }
 
 /// # Safety
@@ -106,24 +150,17 @@ pub unsafe extern "C" fn has_text(obj: *mut c_void) -> bool {
 #[no_mangle]
 pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let text: String = CStr::from_ptr(text).to_str().unwrap().into();
-
-    let region: Option<Region> = range.into();
-    if let Some(region) = region {
-        obj.renderer.context.push_markdown_event(Event::Replace {
-            region,
-            text,
-            advance_cursor: true,
-        });
-    }
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn copy_selection(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.renderer.context.push_markdown_event(Event::Copy);
+    let Ok(text) = CStr::from_ptr(text).to_str() else { return };
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return };
+    let Some((start, end)) = graphemes_in(md, &range) else { return };
+    obj.workspace.apply_platform_event(Event::Replace {
+        region: Region::BetweenLocations {
+            start: Location::Grapheme(start),
+            end: Location::Grapheme(end),
+        },
+        text: text.into(),
+        advance_cursor: true,
+    });
 }
 
 /// # Safety
@@ -136,12 +173,15 @@ pub unsafe extern "C" fn copy_image(obj: *mut c_void) {
     }
 }
 
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.renderer.context.push_markdown_event(Event::Cut);
+/// A key press as egui sees it, for the editor's chrome and popups.
+fn key_event(key: Key) -> egui::Event {
+    egui::Event::Key {
+        key,
+        physical_key: None,
+        pressed: true,
+        repeat: false,
+        modifiers: Modifiers::NONE,
+    }
 }
 
 /// # Safety
@@ -151,31 +191,12 @@ pub unsafe extern "C" fn cut_selection(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *const c_char {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let is_chat = obj
+    let text = obj
         .workspace
-        .current_tab()
-        .is_some_and(|tab| tab.chat().is_some());
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return null(),
-    };
-
-    let range: Option<(Grapheme, Grapheme)> = range.into();
-    if let Some(range) = range {
-        let last = markdown.renderer.buffer.current.segs.last_cursor_position();
-        // Chat send-clear: UIKit still holds pre-clear positions and asks
-        // text(in:) during textDidChange. Clamp like a normal UITextInput.
-        // Notes keep the index so a bad range stays loud.
-        let range = if is_chat { (range.start().min(last), range.end().min(last)) } else { range };
-        CString::new(&markdown.renderer.buffer[range])
-            .expect("Could not Rust String -> C String")
-            .into_raw()
-    } else {
-        println!("warning: text_in_range() called with nil range");
-        CString::new("")
-            .expect("Could not Rust String -> C String")
-            .into_raw()
-    }
+        .focused_mdedit_mut()
+        .and_then(|md| graphemes_in(md, &range).map(|range| md.renderer.buffer[range].to_string()))
+        .unwrap_or_default();
+    CString::new(text).unwrap_or_default().into_raw()
 }
 
 /// # Safety
@@ -185,18 +206,12 @@ pub unsafe extern "C" fn text_in_range(obj: *mut c_void, range: CTextRange) -> *
 #[no_mangle]
 pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return CTextRange::default(),
-    };
-
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CTextRange::default() };
+    let selection = md.renderer.buffer.current.selection;
     CTextRange {
         none: false,
-        start: CTextPosition {
-            pos: markdown.renderer.buffer.current.selection.start().0,
-            none: false,
-        },
-        end: CTextPosition { pos: markdown.renderer.buffer.current.selection.end().0, none: false },
+        start: position(md, selection.start()),
+        end: position(md, selection.end()),
     }
 }
 
@@ -204,75 +219,33 @@ pub unsafe extern "C" fn get_selected(obj: *mut c_void) -> CTextRange {
 /// obj must be a valid pointer to WgpuEditor
 ///
 /// https://developer.apple.com/documentation/uikit/uitextinput/1614541-selectedtextrange
+///
+/// `reveal` scrolls the caret into view afterwards; false for a write made
+/// mid-gesture, where the caret is under the finger and the gesture scrolls.
 #[no_mangle]
-pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange) {
+pub unsafe extern "C" fn set_selected(obj: *mut c_void, range: CTextRange, reveal: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    if let Some(region) = range.into() {
-        obj.renderer
-            .context
-            .push_markdown_event(Event::Select { region });
-    }
-}
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return };
+    let Some((lo, hi)) = graphemes_in(md, &range) else { return };
 
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn select_current_word(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.renderer.context.push_markdown_event(Event::Select {
-        region: Region::Bound { bound: Bound::Word, backwards: true },
-    });
-}
+    // UIKit's range has no direction. Keep the end that didn't move as the
+    // anchor so the head is the end that did, e.g. a dragged handle.
+    let (anchor, head) = md.renderer.buffer.current.selection;
+    let (old_lo, old_hi) = (anchor.min(head), anchor.max(head));
+    let hi_moved = lo == old_lo && hi != old_hi;
+    let lo_moved = hi == old_hi && lo != old_lo;
+    let head_is_lo = !hi_moved && (lo_moved || head < anchor);
+    let (start, end) = if head_is_lo { (hi, lo) } else { (lo, hi) };
 
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn select_all(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.renderer.context.push_markdown_event(Event::Select {
-        region: Region::Bound { bound: Bound::Doc, backwards: true },
-    });
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uitextinput/1614489-markedtextrange
-#[no_mangle]
-pub unsafe extern "C" fn get_marked(_obj: *mut c_void) -> CTextRange {
-    // I wanted to put `unimplemented!()` but this function is occasionally called. If I return a `CTextRange` for
-    // (0, 0), iOS opens a context menu on every tap toward the top of the screen. This value, which was a lucky guess,
-    // prevents that from happening.
-    CTextRange::default()
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uitextinput/1614465-setmarkedtext
-#[no_mangle]
-pub unsafe extern "C" fn set_marked(_obj: *mut c_void, _range: CTextRange, _text: *const c_char) {
-    unimplemented!()
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uitextinput/1614512-unmarktext
-#[no_mangle]
-pub unsafe extern "C" fn unmark_text(_obj: *mut c_void) {
-    unimplemented!()
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uitextinput/1614489-markedtextrange
-/// isn't this always just going to be 0?
-/// should we be returning a subset of the document? https://stackoverflow.com/questions/12676851/uitextinput-is-it-ok-to-return-incorrect-beginningofdocument-endofdocumen
-#[no_mangle]
-pub unsafe extern "C" fn beginning_of_document(_obj: *mut c_void) -> CTextPosition {
-    Grapheme(0).into()
+    obj.workspace.apply_platform(
+        Event::Select {
+            region: Region::BetweenLocations {
+                start: Location::Grapheme(start),
+                end: Location::Grapheme(end),
+            },
+        },
+        reveal,
+    );
 }
 
 /// # Safety
@@ -283,18 +256,8 @@ pub unsafe extern "C" fn beginning_of_document(_obj: *mut c_void) -> CTextPositi
 #[no_mangle]
 pub unsafe extern "C" fn end_of_document(obj: *mut c_void) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return CTextPosition::default(),
-    };
-
-    markdown
-        .renderer
-        .buffer
-        .current
-        .segs
-        .last_cursor_position()
-        .into()
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CTextPosition::default() };
+    position(md, md.renderer.buffer.current.segs.last_cursor_position())
 }
 
 /// # Safety
@@ -452,69 +415,6 @@ pub unsafe extern "C" fn will_consume_touch(obj: *mut c_void, x: f32, y: f32) ->
     }
 }
 
-/// Whether a list-item drag-reorder is arming or running. The native
-/// long-press (loupe) and tap gestures fail when this is true so the
-/// reorder owns the touch. See [`Editor::reorder_in_progress`].
-///
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn is_reordering(obj: *mut c_void) -> bool {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    if let Some(tab) = obj.workspace.current_tab() {
-        if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
-            md.reorder_in_progress()
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
-
-/// Whether a reorder is committed and dragging (not the pending hold). iOS
-/// refuses first-responder on this so a reorder doesn't summon the keyboard,
-/// while a tap still focuses. See [`Editor::reorder_armed`].
-///
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn is_reorder_armed(obj: *mut c_void) -> bool {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    if let Some(tab) = obj.workspace.current_tab() {
-        if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
-            md.reorder_armed()
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
-
-/// Region-only variant of [`will_consume_touch`]: interactive-element
-/// rects without the transient terms (momentum, open menu).
-///
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn touches_interactive_element(obj: *mut c_void, x: f32, y: f32) -> bool {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    let pos = obj.renderer.pos_from_points(x, y);
-    if let Some(tab) = obj.workspace.current_tab() {
-        if let ContentState::Open(TabContent::Markdown(md)) = &tab.content {
-            md.touches_interactive_element(pos)
-        } else {
-            false
-        }
-    } else {
-        false
-    }
-}
-
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
@@ -550,50 +450,6 @@ fn parse_start_positions(
         .collect()
 }
 
-/// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
-#[no_mangle]
-pub extern "C" fn text_range(start: CTextPosition, end: CTextPosition) -> CTextRange {
-    if start.pos < end.pos {
-        CTextRange { none: false, start, end }
-    } else {
-        CTextRange { none: false, start: end, end: start }
-    }
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uiresponder/1621142-touchesbegan
-#[no_mangle]
-pub unsafe extern "C" fn position_offset(
-    obj: *mut c_void, start: CTextPosition, offset: i32,
-) -> CTextPosition {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return CTextPosition::default(),
-    };
-
-    let start: Option<Grapheme> = start.into();
-    if let Some(start) = start {
-        let last_cursor_position = markdown.renderer.buffer.current.segs.last_cursor_position();
-
-        let result = if offset < 0 && -offset > start.0 as i32 {
-            Grapheme::default()
-        } else if offset > 0 && (start.0).saturating_add(offset as usize) > last_cursor_position.0 {
-            last_cursor_position
-        } else {
-            start + Graphemes(offset as _)
-        };
-
-        result.into()
-    } else {
-        println!("warning: position_offset() called with nil start position");
-
-        CTextPosition::default()
-    }
-}
-
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 ///
@@ -603,122 +459,21 @@ pub unsafe extern "C" fn position_offset_in_direction(
     obj: *mut c_void, start: CTextPosition, direction: CTextLayoutDirection, offset: i32,
 ) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return CTextPosition::default(),
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CTextPosition::default() };
+    let Some(start) = grapheme_at(md, &start) else { return CTextPosition::default() };
+    let n = offset.max(0) as usize;
+    let last = md.renderer.buffer.current.segs.last_cursor_position();
+    let result = match direction {
+        CTextLayoutDirection::Right => md
+            .renderer
+            .snap_offset_out_of_folds((start + n).min(last), false),
+        CTextLayoutDirection::Left => md
+            .renderer
+            .snap_offset_out_of_folds(Grapheme(start.0.saturating_sub(n)), true),
+        CTextLayoutDirection::Down => md.lines_from(start, n, false),
+        CTextLayoutDirection::Up => md.lines_from(start, n, true),
     };
-
-    let advance = if matches!(direction, CTextLayoutDirection::Right | CTextLayoutDirection::Left) {
-        Advance::By(Increment::Char)
-    } else {
-        Advance::By(Increment::Lines(1))
-    };
-    let backwards = matches!(direction, CTextLayoutDirection::Left | CTextLayoutDirection::Up);
-
-    let mut result: Grapheme = start.pos.into();
-    for _ in 0..offset {
-        result = markdown.advance(result, advance, backwards);
-    }
-
-    CTextPosition { none: start.none, pos: result.0 }
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614553-isposition
-#[no_mangle]
-pub unsafe extern "C" fn is_position_at_bound(
-    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
-) -> bool {
-    if granularity == CTextGranularity::Character {
-        return true;
-    }
-
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return false,
-    };
-
-    let text_position = pos.pos.into();
-    let at_boundary = granularity.into();
-
-    markdown.is_position_at_boundary(text_position, at_boundary, backwards)
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614491-isposition
-#[no_mangle]
-pub unsafe extern "C" fn is_position_within_bound(
-    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
-) -> bool {
-    if granularity == CTextGranularity::Character {
-        return true;
-    }
-
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return false,
-    };
-
-    let text_position = pos.pos.into();
-    let at_boundary = granularity.into();
-
-    markdown.is_position_within_text_unit(text_position, at_boundary, backwards)
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614513-position
-#[no_mangle]
-pub unsafe extern "C" fn bound_from_position(
-    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
-) -> CTextPosition {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return CTextPosition::default(),
-    };
-
-    let text_position = pos.pos.into();
-    let advance = if granularity == CTextGranularity::Character {
-        Advance::By(Increment::Char)
-    } else {
-        Advance::Next(granularity.into())
-    };
-
-    Some(markdown.advance(text_position, advance, backwards)).into()
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uitextinputtokenizer/1614464-rangeenclosingposition
-#[no_mangle]
-pub unsafe extern "C" fn bound_at_position(
-    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backwards: bool,
-) -> CTextRange {
-    if granularity == CTextGranularity::Character {
-        unimplemented!();
-    }
-
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return CTextRange::default(),
-    };
-
-    let text_position = pos.pos.into();
-    let with_granularity = granularity.into();
-
-    let result = markdown.range_enclosing_position(text_position, with_granularity, backwards);
-
-    result.into()
+    position(md, result)
 }
 
 /// # Safety
@@ -728,39 +483,19 @@ pub unsafe extern "C" fn bound_at_position(
 #[no_mangle]
 pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRect {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return CRect::default(),
-    };
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CRect::default() };
+    let Some((start, end)) = graphemes_in(md, &range) else { return CRect::default() };
 
-    let selection_representing_rect = {
-        let range: Option<(Grapheme, Grapheme)> = range.into();
-        let range = match range {
-            Some(range) => range,
-            None => {
-                println!("warning: first_rect() called with nil range");
-                return CRect::default();
-            }
-        };
-        let mut selection_start = range.start();
-        let selection_end = range.end();
-        selection_start = markdown.advance(selection_start, Advance::To(Bound::Line), false);
-        let end_of_selection_start_line = selection_start;
-        let end_of_rect = cmp::min(selection_end, end_of_selection_start_line);
-        (selection_start, end_of_rect)
-    };
-
-    let Some(start_line) = markdown.cursor_line(selection_representing_rect.start()) else {
+    // The range's first line: from its start to its end or the line's end.
+    let line_end = start.advance_to_bound(Bound::Line, false, &md.renderer.bounds);
+    let end = cmp::min(end, cmp::max(line_end, start));
+    let (Some(start_line), Some(end_line)) = (md.cursor_line(start), md.cursor_line(end)) else {
         return CRect::default();
     };
-    let Some(end_line) = markdown.cursor_line(selection_representing_rect.end()) else {
-        return CRect::default();
-    };
-
     CRect {
-        min_x: (start_line[1].x + 1.0) as f64,
+        min_x: start_line[0].x as f64,
         min_y: start_line[0].y as f64,
-        max_x: end_line[0].x as f64,
+        max_x: end_line[1].x as f64,
         max_y: end_line[1].y as f64,
     }
 }
@@ -768,49 +503,12 @@ pub unsafe extern "C" fn first_rect(obj: *mut c_void, range: CTextRange) -> CRec
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
-pub unsafe extern "C" fn clipboard_cut(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.renderer.context.push_markdown_event(Event::Cut);
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn clipboard_copy(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    obj.renderer.context.push_markdown_event(Event::Copy);
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
 pub unsafe extern "C" fn position_at_point(obj: *mut c_void, point: CPoint) -> CTextPosition {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return CTextPosition::default(),
-    };
-
-    let offset =
-        markdown.pos_to_char_offset(obj.renderer.pos_from_points(point.x as f32, point.y as f32));
-
-    CTextPosition { none: false, pos: offset.0 }
-}
-
-/// # Safety
-#[no_mangle]
-pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return null(),
-    };
-
-    let value = markdown.renderer.buffer.current.text.as_str();
-
-    CString::new(value)
-        .expect("Could not Rust String -> C String")
-        .into_raw()
+    let pos = obj.renderer.pos_from_points(point.x as f32, point.y as f32);
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CTextPosition::default() };
+    let offset = md.pos_to_char_offset(pos);
+    position(md, offset)
 }
 
 /// # Safety
@@ -818,13 +516,12 @@ pub unsafe extern "C" fn get_text(obj: *mut c_void) -> *const c_char {
 #[no_mangle]
 pub unsafe extern "C" fn cursor_rect_at_position(obj: *mut c_void, pos: CTextPosition) -> CRect {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return CRect::default(),
-    };
-
-    let Some(line) = markdown.cursor_line(pos.pos.into()) else { return CRect::default() };
-
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CRect::default() };
+    let Some(offset) = grapheme_at(md, &pos) else { return CRect::default() };
+    let Some(line) = md.cursor_line(offset) else { return CRect::default() };
+    if !(line[0].x.is_finite() && line[0].y.is_finite() && line[1].y.is_finite()) {
+        return CRect::default();
+    }
     CRect {
         min_x: line[0].x as f64,
         min_y: line[0].y as f64,
@@ -854,33 +551,24 @@ pub unsafe extern "C" fn selection_rects(
     obj: *mut c_void, range: CTextRange,
 ) -> UITextSelectionRects {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    let markdown = match obj.workspace.focused_mdedit_mut() {
-        Some(markdown) => markdown,
-        None => return UITextSelectionRects::default(),
+    let Some(md) = obj.workspace.focused_mdedit_mut() else {
+        return UITextSelectionRects::default();
     };
+    let Some(range) = graphemes_in(md, &range) else { return UITextSelectionRects::default() };
 
-    let range: Option<(Grapheme, Grapheme)> = range.into();
-    let range = match range {
-        Some(range) => range,
-        None => {
-            println!("warning: selection_rects() called with nil range");
-            return UITextSelectionRects::default();
-        }
-    };
-
-    let mut selection_rects = Vec::new();
-    for rect in markdown.range_rects(range) {
-        selection_rects.push(CRect {
+    let rects: Vec<CRect> = md
+        .selection_rects(range)
+        .into_iter()
+        .map(|rect| CRect {
             min_x: rect.min.x as f64,
             min_y: rect.min.y as f64,
             max_x: rect.max.x as f64,
             max_y: rect.max.y as f64,
-        });
-    }
-
+        })
+        .collect();
     UITextSelectionRects {
-        size: selection_rects.len() as i32,
-        rects: Box::into_raw(selection_rects.into_boxed_slice()) as *const CRect,
+        size: rects.len() as i32,
+        rects: Box::into_raw(rects.into_boxed_slice()) as *const CRect,
     }
 }
 
@@ -980,11 +668,8 @@ pub unsafe extern "C" fn indent_at_cursor(obj: *mut c_void, deindent: bool) {
 #[no_mangle]
 pub unsafe extern "C" fn undo_redo(obj: *mut c_void, redo: bool) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
-    if redo {
-        obj.renderer.context.push_event(workspace_rs::Event::Redo);
-    } else {
-        obj.renderer.context.push_event(workspace_rs::Event::Undo);
-    }
+    obj.workspace
+        .apply_platform_event(if redo { Event::Redo } else { Event::Undo });
 }
 
 /// # Safety
@@ -1015,40 +700,11 @@ pub unsafe extern "C" fn can_redo(obj: *mut c_void) -> bool {
 
 /// # Safety
 /// obj must be a valid pointer to WgpuEditor
-///
-/// https://developer.apple.com/documentation/uikit/uikeyinput/1614543-inserttext
-#[no_mangle]
-pub unsafe extern "C" fn delete_word(obj: *mut c_void) {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    obj.renderer.raw_input.events.push(egui::Event::Key {
-        key: Key::Backspace,
-        physical_key: None,
-        pressed: true,
-        repeat: false,
-        modifiers: Modifiers::ALT,
-    });
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
 #[no_mangle]
 pub unsafe extern "C" fn current_tab(obj: *mut c_void) -> i64 {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     crate::current_tab_type(&obj.workspace) as i64
-}
-
-/// # Safety
-/// obj must be a valid pointer to WgpuEditor
-#[no_mangle]
-pub unsafe extern "C" fn is_current_tab_editable(obj: *mut c_void) -> bool {
-    let obj = &mut *(obj as *mut WgpuWorkspace);
-
-    obj.workspace
-        .current_tab()
-        .map(|tab| !tab.read_only)
-        .unwrap_or(true)
 }
 
 /// # Safety
@@ -1177,4 +833,73 @@ pub unsafe extern "C" fn set_ws_inset(obj: *mut c_void, inset: f32) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
 
     obj.renderer.bottom_inset = Some(inset as u32);
+}
+
+/// UIKit's tokenizer, answered from the editor's text units in place. See
+/// [`workspace_rs::tab::markdown_editor::text_units`].
+fn unit_of(granularity: CTextGranularity) -> Unit {
+    match granularity {
+        CTextGranularity::Character => Unit::Character,
+        CTextGranularity::Word => Unit::Word,
+        CTextGranularity::Sentence => Unit::Sentence,
+        CTextGranularity::Paragraph => Unit::Paragraph,
+        CTextGranularity::Line => Unit::Line,
+        CTextGranularity::Document => Unit::Document,
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn unit_at_boundary(
+    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backward: bool,
+) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return false };
+    let Some(p) = grapheme_at(md, &pos) else { return false };
+    md.unit_at_boundary(unit_of(granularity), p, backward)
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn unit_within(
+    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backward: bool,
+) -> bool {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return false };
+    let Some(p) = grapheme_at(md, &pos) else { return false };
+    md.unit_within(unit_of(granularity), p, backward)
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn unit_boundary_from(
+    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backward: bool,
+) -> CTextPosition {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CTextPosition::default() };
+    let Some(p) = grapheme_at(md, &pos) else { return CTextPosition::default() };
+    match md.unit_boundary_from(unit_of(granularity), p, backward) {
+        Some(b) => position(md, b),
+        None => CTextPosition::default(),
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn unit_enclosing(
+    obj: *mut c_void, pos: CTextPosition, granularity: CTextGranularity, backward: bool,
+) -> CTextRange {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CTextRange::default() };
+    let Some(p) = grapheme_at(md, &pos) else { return CTextRange::default() };
+    match md.unit_enclosing(unit_of(granularity), p, backward) {
+        Some((start, end)) => {
+            CTextRange { none: false, start: position(md, start), end: position(md, end) }
+        }
+        None => CTextRange::default(),
+    }
 }

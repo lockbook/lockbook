@@ -1,7 +1,7 @@
 use lb_c::Uuid;
 use lb_c::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::ffi::{CString, c_char};
-use workspace_rs::tab::markdown_editor::input::{Bound, Location, Region};
+use workspace_rs::tab::markdown_editor::input::{Location, Region};
 
 use super::super::macos::response::{CBytes, CUrls};
 use super::super::response::*;
@@ -25,25 +25,21 @@ pub struct IOSResponse {
 
     pub text_updated: bool,
     pub selection_updated: bool,
-    pub scroll_updated: bool,
     pub tab_title_clicked: bool,
     pub selected_folder_changed: bool,
 
-    /// Screen rect (points) the native text-interaction overlay (`MdView`)
-    /// should occupy — the editor viewport minus the find widget and toolbar.
+    /// Screen rect (points) of the platform's text view: the editor viewport
+    /// minus the find widget and toolbar.
     pub has_text_interaction_rect: bool,
     pub text_interaction_rect: CRect,
 
     pub mobile_toolbar_shown: bool,
 
     /// Present the edit menu (copy/paste) at this point — set on tapping a
-    /// selected image. Egui screen points; `MdView` converts to local space.
+    /// selected image, in egui screen points.
     pub has_context_menu: bool,
     pub context_menu_x: f64,
     pub context_menu_y: f64,
-    /// The menu is over a selected atom (image, link card/capsule) — offer "Edit"
-    /// (`enter_selected_atom`) alongside the standard actions.
-    pub context_menu_for_atom: bool,
     pub context_menu_for_image: bool,
 }
 
@@ -62,7 +58,7 @@ impl From<crate::Response> for IOSResponse {
                     file_created,
                     markdown_editor_text_updated,
                     markdown_editor_selection_updated,
-                    markdown_editor_scroll_updated,
+                    markdown_editor_scroll_updated: _,
                     text_interaction_rect,
                     mobile_toolbar_shown,
                     tabs_changed,
@@ -109,7 +105,6 @@ impl From<crate::Response> for IOSResponse {
             open_camera,
             text_updated: markdown_editor_text_updated,
             selection_updated: markdown_editor_selection_updated,
-            scroll_updated: markdown_editor_scroll_updated,
             tab_title_clicked,
             has_virtual_keyboard_shown: virtual_keyboard_shown.is_some(),
             virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
@@ -127,10 +122,6 @@ impl From<crate::Response> for IOSResponse {
             has_context_menu: context_menu.is_some(),
             context_menu_x: context_menu.map(|(p, _)| p.x as f64).unwrap_or_default(),
             context_menu_y: context_menu.map(|(p, _)| p.y as f64).unwrap_or_default(),
-            context_menu_for_atom: matches!(
-                context_menu,
-                Some((_, workspace_rs::tab::ContextMenuTarget::Atom))
-            ),
             context_menu_for_image: matches!(
                 context_menu,
                 Some((_, workspace_rs::tab::ContextMenuTarget::Image))
@@ -208,7 +199,7 @@ impl From<Option<(Grapheme, Grapheme)>> for CTextRange {
 pub struct CTextPosition {
     /// used to represent a non-existent state of this struct
     pub none: bool,
-    pub pos: usize, // represents a grapheme index
+    pub pos: usize, // UTF-16 offset, as UIKit counts
 }
 
 impl Default for CTextPosition {
@@ -257,19 +248,6 @@ pub enum CTextGranularity {
     Paragraph = 3,
     Line = 4,
     Document = 5,
-}
-
-impl From<CTextGranularity> for Bound {
-    fn from(val: CTextGranularity) -> Bound {
-        match val {
-            CTextGranularity::Character => unimplemented!(),
-            CTextGranularity::Word => Bound::Word,
-            CTextGranularity::Sentence => Bound::Paragraph, // note: sentence handled as paragraph
-            CTextGranularity::Paragraph => Bound::Paragraph,
-            CTextGranularity::Line => Bound::Line,
-            CTextGranularity::Document => Bound::Doc,
-        }
-    }
 }
 
 #[repr(C)]
