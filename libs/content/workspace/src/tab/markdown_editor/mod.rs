@@ -255,6 +255,10 @@ pub struct MdEdit {
     /// the marker handle directly). See [`MdEdit::detect_touch_reorder`].
     pub touch_reorder: widget::block::drag::TouchReorder,
 
+    /// The platform's own recognizer drives the reorder (see [`commands`]),
+    /// so [`MdEdit::detect_touch_reorder`] leaves the state alone.
+    pub touch_reorder_driven: bool,
+
     /// A committed reorder `(section_range, insert_offset)`, applied at the
     /// start of the next `handle_input` so the move lands pre-render — the
     /// new layout is then current before the platform refetches selection
@@ -325,6 +329,7 @@ impl MdEdit {
             in_progress_handle: None,
             in_progress_block_drag: None,
             touch_reorder: Default::default(),
+            touch_reorder_driven: false,
             pending_block_move: None,
             pending_scroll: None,
             single_line_scroll: 0.0,
@@ -789,6 +794,7 @@ impl Editor {
                 in_progress_handle: None,
                 in_progress_block_drag: None,
                 touch_reorder: Default::default(),
+                touch_reorder_driven: false,
                 pending_block_move: None,
                 pending_scroll: None,
                 single_line_scroll: 0.0,

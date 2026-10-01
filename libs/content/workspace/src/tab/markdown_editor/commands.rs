@@ -1,10 +1,12 @@
 //! Editor actions a platform delivers as commands instead of pointer
-//! events: taps on its touch targets, decided by the platform's own gesture system.
+//! events: taps on its touch targets, and a long-press reorder, decided by the
+//! platform's own gesture system.
 
 use egui::Pos2;
 use lb_rs::model::text::offset_types::Grapheme;
 
 use super::input::Event;
+use super::widget::block::drag::{BlockDragAction, TouchReorder};
 use super::{MdEdit, TouchTarget};
 
 impl MdEdit {
@@ -31,6 +33,55 @@ impl MdEdit {
                 self.renderer.render_events.push(event);
                 None
             }
+        }
+    }
+
+    /// Whether a long press at `pos` can lift a list item. The platform
+    /// checks the keyboard: with it up, a long press is text selection.
+    pub fn reorder_can_start(&self, pos: Pos2) -> bool {
+        let r = &self.renderer;
+        r.touch_mode && !r.readonly && r.interactive && r.touch_reorder_target(pos).is_some()
+    }
+
+    /// Lift the list item under `pos`; the platform then drives the drag.
+    pub fn reorder_start(&mut self, pos: Pos2) -> bool {
+        let Some(drag) = self.renderer.touch_reorder_target(pos) else { return false };
+        self.renderer.block_drag_action = Some(BlockDragAction::Started(drag));
+        self.touch_reorder = TouchReorder::Armed { last: pos };
+        self.touch_reorder_driven = true;
+        self.renderer.ctx.request_repaint();
+        true
+    }
+
+    pub fn reorder_move(&mut self, pos: Pos2) {
+        if self.touch_reorder_driven {
+            self.touch_reorder = TouchReorder::Armed { last: pos };
+            self.renderer.ctx.request_repaint();
+        }
+    }
+
+    /// Drop at `pos`, or put the item back if `cancelled`.
+    pub fn reorder_end(&mut self, pos: Pos2, cancelled: bool) {
+        if !self.touch_reorder_driven {
+            return;
+        }
+        if cancelled {
+            self.in_progress_block_drag = None;
+            self.renderer.block_drag_action = None;
+        } else {
+            self.renderer.block_drag_action = Some(BlockDragAction::Released(pos));
+        }
+        self.touch_reorder = TouchReorder::Idle;
+        self.touch_reorder_driven = false;
+        self.renderer.ctx.request_repaint();
+    }
+
+    /// The live pointer of a block drag: the platform's while it drives
+    /// the reorder, else egui's.
+    pub(crate) fn drag_pointer(&self, ui: &egui::Ui) -> Option<Pos2> {
+        match self.touch_reorder {
+            TouchReorder::Armed { last } if self.touch_reorder_driven => Some(last),
+            _ => ui.input(|i| i.pointer.latest_pos()),
         }
     }
 }

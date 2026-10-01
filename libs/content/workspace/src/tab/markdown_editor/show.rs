@@ -428,7 +428,7 @@ impl MdEdit {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
         use crate::widgets::affine_scroll::{Align, Reveal};
 
-        let Some(pointer) = ui.input(|i| i.pointer.latest_pos()) else { return };
+        let Some(pointer) = self.drag_pointer(ui) else { return };
         let viewport = ui.clip_rect();
         let viewport_y = (pointer.y - viewport.min.y).clamp(0.0, viewport.height());
         let pad = self.renderer.layout.row_height;
@@ -461,7 +461,7 @@ impl MdEdit {
         &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
     ) {
         let Some(drag) = self.in_progress_block_drag else { return };
-        let Some(p) = ui.input(|i| i.pointer.latest_pos()) else { return };
+        let Some(p) = self.drag_pointer(ui) else { return };
         let theme = self.renderer.ctx.get_lb_theme();
         let primary = theme.bg().get_color(theme.prefs().primary);
 
