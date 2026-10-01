@@ -2,10 +2,11 @@
     import Bridge
     import UIKit
 
-    /// The page of text: the text input view and the recognizers that
-    /// decide the page's touches. The page's own pan and coast-stop see every
-    /// touch on the page, so a drag scrolls and a touch during a coast stops
-    /// it, beside whatever UIKit's text gestures make of the same touch.
+    /// The page of text: a tap layer, the text input view above it, and
+    /// the recognizers that decide the page's touches. A touch on a touch target is
+    /// hit-tested to the tap layer, so UIKit's text gestures never see it;
+    /// the page's own pan and coast-stop see every touch on the page, so a
+    /// drag from a touch target scrolls and a touch during a coast stops it.
     final class TextPage: UIView {
         unowned let mtkView: iOSMTK
         var wsHandle: UnsafeMutableRawPointer? { mtkView.wsHandle }
@@ -13,6 +14,7 @@
         /// A pending selection commits once no finger is on the page.
         let touches = TouchWatch()
         private(set) var text: TextInputView!
+        private(set) var taps: TapLayer!
         let scrollPan = UIPanGestureRecognizer()
         let coastStop = CoastStopRecognizer()
         private var observedDrags: [UIGestureRecognizer] = []
@@ -27,6 +29,7 @@
             observedDrags.contains { [.began, .changed].contains($0.state) }
         }
 
+        let scrollbar = ScrollbarDragRecognizer()
 
         init(mtkView: iOSMTK) {
             self.mtkView = mtkView
@@ -34,10 +37,13 @@
             backgroundColor = .clear
             clipsToBounds = true
 
+            taps = TapLayer(page: self)
             text = TextInputView(mtkView: mtkView, page: self)
-            text.frame = bounds
-            text.autoresizingMask = [.flexibleWidth, .flexibleHeight]
-            addSubview(text)
+            for view in [taps!, text!] as [UIView] {
+                view.frame = bounds
+                view.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+                addSubview(view)
+            }
 
             scrollPan.addTarget(self, action: #selector(handleScrollPan(_:)))
             scrollPan.allowedScrollTypesMask = .all
@@ -55,6 +61,31 @@
             coastStop.delegate = self
             addGestureRecognizer(coastStop)
 
+            // The coast-stop decides at touch-down, so the tap never waits.
+            taps.tap.require(toFail: coastStop)
+
+            // The scrollbar takes its touch at touch-down; the page pan and
+            // the layer's tap are then out of the running.
+            scrollbar.isOnScrollbar = { [weak self] point in
+                guard let self, let wsHandle = self.wsHandle, self.touchTarget(at: point) == 2 else {
+                    return false
+                }
+                let p = self.convert(point, to: self.mtkView)
+                return ios_on_scroll_thumb(wsHandle, Float(p.y))
+            }
+            scrollbar.begin = { [weak self] _ in
+                guard let self, let wsHandle = self.wsHandle else { return }
+                ios_scrollbar_begin(wsHandle)
+                self.mtkView.requestFrame()
+            }
+            scrollbar.drag = { [weak self] dy in
+                guard let self, let wsHandle = self.wsHandle else { return }
+                ios_scrollbar_drag(wsHandle, Float(dy))
+                self.mtkView.requestFrame()
+            }
+            scrollbar.delegate = self
+            addGestureRecognizer(scrollbar)
+
             touches.delegate = self
             addGestureRecognizer(touches)
         }
@@ -64,8 +95,8 @@
             fatalError("init(coder:) has not been implemented")
         }
 
-        /// The page itself takes no touches: they belong to the text view or
-        /// whatever lies beneath (popups, the toolbar band).
+        /// The page itself takes no touches: they belong to the text view, the
+        /// tap layer, or whatever lies beneath (popups, the toolbar band).
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
             let hit = super.hitTest(point, with: event)
             return hit === self ? nil : hit
@@ -81,6 +112,28 @@
         @discardableResult
         override func resignFirstResponder() -> Bool {
             text.resignFirstResponder()
+        }
+
+        // MARK: - Touch targets
+
+        /// What the editor painted under a point of the page, as
+        /// `ios_touch_target_at` numbers it; 0 for text.
+        func touchTarget(at point: CGPoint) -> UInt8 {
+            guard let wsHandle else { return 0 }
+            let p = convert(point, to: mtkView)
+            return ios_touch_target_at(wsHandle, Float(p.x), Float(p.y))
+        }
+
+        /// Tap the target. A link or an image answers the range to select,
+        /// which the text view does with its menu.
+        func tap(at point: CGPoint) {
+            guard let wsHandle else { return }
+            let p = convert(point, to: mtkView)
+            let select = ios_tap(wsHandle, Float(p.x), Float(p.y))
+            mtkView.requestFrame()
+            if !select.none {
+                text.selectAtom(TextRange(Int(select.start.pos), Int(select.end.pos)))
+            }
         }
 
         // MARK: - Frame output
@@ -170,11 +223,102 @@
                 return true
             }
             if gestureRecognizer === coastStop {
-                return otherGestureRecognizer === scrollPan || otherGestureRecognizer.isRangeAdjustment
-                    || otherGestureRecognizer.isSelectionDrag
+                return otherGestureRecognizer === scrollPan || otherGestureRecognizer === scrollbar
+                    || otherGestureRecognizer.isRangeAdjustment || otherGestureRecognizer.isSelectionDrag
+            }
+            if gestureRecognizer === scrollbar {
+                return otherGestureRecognizer === coastStop
+            }
+            if gestureRecognizer === scrollPan {
+                return otherGestureRecognizer is ReorderPressRecognizer
             }
             return false
         }
     }
 
+    /// Takes a touch that lands on the scrollbar at touch-down and drives the
+    /// thumb with it. Fails at once anywhere else, so nothing waits.
+    final class ScrollbarDragRecognizer: UIGestureRecognizer {
+        var isOnScrollbar: (CGPoint) -> Bool = { _ in false }
+        var begin: (CGPoint) -> Void = { _ in }
+        var drag: (CGFloat) -> Void = { _ in }
+        private var last: CGPoint?
+
+        override init(target: Any?, action: Selector?) {
+            super.init(target: target, action: action)
+            delaysTouchesBegan = false
+            delaysTouchesEnded = false
+        }
+
+        convenience init() {
+            self.init(target: nil, action: nil)
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with _: UIEvent) {
+            guard state == .possible, last == nil, touches.count == 1, let touch = touches.first else {
+                state = .failed
+                return
+            }
+            let point = touch.location(in: view)
+            guard isOnScrollbar(point) else {
+                state = .failed
+                return
+            }
+            last = point
+            begin(point)
+            state = .began
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with _: UIEvent) {
+            guard let last, state == .began || state == .changed, let touch = touches.first else { return }
+            let point = touch.location(in: view)
+            drag(point.y - last.y)
+            self.last = point
+            state = .changed
+        }
+
+        override func touchesEnded(_: Set<UITouch>, with _: UIEvent) {
+            state = state == .began || state == .changed ? .ended : .failed
+        }
+
+        override func touchesCancelled(_: Set<UITouch>, with _: UIEvent) {
+            state = state == .began || state == .changed ? .cancelled : .failed
+        }
+
+        override func reset() {
+            last = nil
+        }
+    }
+
+    /// Beneath the text view, taking the touches the text view declines:
+    /// those on the editor's touch targets. Popups stay with the editor's own
+    /// touch path beneath the page.
+    final class TapLayer: UIView {
+        weak var page: TextPage?
+        let tap = UITapGestureRecognizer()
+
+        init(page: TextPage) {
+            self.page = page
+            super.init(frame: .zero)
+            backgroundColor = .clear
+            tap.addTarget(self, action: #selector(handleTap(_:)))
+            addGestureRecognizer(tap)
+        }
+
+        @available(*, unavailable)
+        required init?(coder _: NSCoder) {
+            fatalError("init(coder:) has not been implemented")
+        }
+
+        override func point(inside point: CGPoint, with event: UIEvent?) -> Bool {
+            guard super.point(inside: point, with: event), let page else { return false }
+            let kind = page.touchTarget(at: convert(point, to: page))
+            return kind != 0 && kind != 3
+        }
+
+        @objc private func handleTap(_ tap: UITapGestureRecognizer) {
+            guard let page else { return }
+            page.tap(at: tap.location(in: page))
+        }
+    }
 #endif

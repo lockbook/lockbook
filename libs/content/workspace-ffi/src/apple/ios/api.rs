@@ -3,6 +3,7 @@ use lb_c::model::text::offset_types::{Grapheme, RangeExt as _};
 use std::cmp;
 use std::ffi::{CStr, CString, c_char, c_void};
 use tracing::instrument;
+use workspace_rs::tab::markdown_editor::TouchTarget;
 use workspace_rs::tab::markdown_editor::bounds::BoundExt as _;
 use workspace_rs::tab::markdown_editor::input::{
     Advance, Bound, Event, Increment, Location, Region,
@@ -901,5 +902,131 @@ pub unsafe extern "C" fn unit_enclosing(
             CTextRange { none: false, start: position(md, start), end: position(md, end) }
         }
         None => CTextRange::default(),
+    }
+}
+
+/// What the editor painted under a point, for the host's hit test: 0 text,
+/// 1 a tap target, 2 the scrollbar, 3 a popup egui handles itself.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_touch_target_at(obj: *mut c_void, x: f32, y: f32) -> u8 {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let pos = obj.renderer.pos_from_points(x, y);
+    obj.workspace
+        .focused_mdedit_mut()
+        .and_then(|md| {
+            md.touch_target_at(pos).map(|target| match target {
+                TouchTarget::Tap(_) => 1,
+                TouchTarget::Scrollbar => 2,
+                TouchTarget::Popup => 3,
+            })
+        })
+        .unwrap_or(0)
+}
+
+/// Tap the target under a point. A link or an image answers the range the
+/// host selects, with the atom menu; `none` when the editor acted or
+/// nothing was there.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_tap(obj: *mut c_void, x: f32, y: f32) -> CTextRange {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let pos = obj.renderer.pos_from_points(x, y);
+    let Some(md) = obj.workspace.focused_mdedit_mut() else { return CTextRange::default() };
+    match md.tap(pos) {
+        Some((start, end)) => {
+            CTextRange { none: false, start: position(md, start), end: position(md, end) }
+        }
+        None => CTextRange::default(),
+    }
+}
+
+/// Whether a long press at a point can lift a list item. The host checks
+/// the keyboard.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_reorder_can_start(obj: *mut c_void, x: f32, y: f32) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let pos = obj.renderer.pos_from_points(x, y);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.reorder_can_start(pos))
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_reorder_start(obj: *mut c_void, x: f32, y: f32) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let pos = obj.renderer.pos_from_points(x, y);
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.reorder_start(pos))
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_reorder_move(obj: *mut c_void, x: f32, y: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let pos = obj.renderer.pos_from_points(x, y);
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.reorder_move(pos);
+    }
+}
+
+/// Drop the lifted item at a point, or put it back if `cancelled`.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_reorder_end(obj: *mut c_void, x: f32, y: f32, cancelled: bool) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let pos = obj.renderer.pos_from_points(x, y);
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.reorder_end(pos, cancelled);
+    }
+}
+
+/// A touch landed on the scrollbar at `y` points.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_scrollbar_begin(obj: *mut c_void) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.scroll_area.gesture_scrollbar_begin();
+    }
+}
+
+/// Whether the point is on the scrollbar's thumb, where a drag may start.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_on_scroll_thumb(obj: *mut c_void, y: f32) -> bool {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let y = obj.renderer.pos_from_points(0.0, y).y;
+    obj.workspace
+        .focused_mdedit_mut()
+        .is_some_and(|md| md.scroll_area.on_thumb(y))
+}
+
+/// The scrollbar thumb was dragged `dy` points.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_scrollbar_drag(obj: *mut c_void, dy: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.scroll_area.gesture_scrollbar_drag(dy);
     }
 }

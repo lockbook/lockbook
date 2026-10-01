@@ -20,6 +20,9 @@
 
         private let textInteraction = UITextInteraction(for: .editable)
         private let history = EditorUndoManager()
+        private let reorderPress = ReorderPressRecognizer()
+        private lazy var editMenu = UIEditMenuInteraction(delegate: self)
+        private var menuForAtom = false
         /// A UIKit tap, loupe drag, or handle drag is writing the selection.
         private var textInteractionActive = false
 
@@ -40,7 +43,55 @@
             textInteraction.textInput = self
             textInteraction.delegate = self
             addInteraction(textInteraction)
+            addInteraction(editMenu)
             addInteraction(UIDropInteraction(delegate: self))
+            NotificationCenter.default.addObserver(
+                self, selector: #selector(keyboardShown(_:)), name: UIResponder.keyboardDidShowNotification,
+                object: nil
+            )
+
+            // A hold on a list item with the keyboard down lifts the item. It
+            // fails at touch-down anywhere else, so no text gesture waits.
+            reorderPress.canStart = { [weak self] point in
+                guard let self, let wsHandle = self.wsHandle, !self.isSoftwareKeyboardUp else {
+                    return false
+                }
+                let p = self.convert(point, to: self.mtkView)
+                return ios_reorder_can_start(wsHandle, Float(p.x), Float(p.y))
+            }
+            reorderPress.start = { [weak self] point in
+                guard let self, let wsHandle = self.wsHandle else { return false }
+                let p = self.convert(point, to: self.mtkView)
+                let lifted = ios_reorder_start(wsHandle, Float(p.x), Float(p.y))
+                self.mtkView.requestFrame()
+                return lifted
+            }
+            reorderPress.move = { [weak self] point in
+                guard let self, let wsHandle = self.wsHandle else { return }
+                let p = self.convert(point, to: self.mtkView)
+                ios_reorder_move(wsHandle, Float(p.x), Float(p.y))
+                self.mtkView.requestFrame()
+            }
+            reorderPress.end = { [weak self] point, cancelled in
+                guard let self, let wsHandle = self.wsHandle else { return }
+                let p = self.convert(point, to: self.mtkView)
+                ios_reorder_end(wsHandle, Float(p.x), Float(p.y), cancelled)
+                self.mtkView.requestFrame()
+            }
+            reorderPress.delegate = self
+            addGestureRecognizer(reorderPress)
+            for gesture in textInteraction.gesturesForFailureRequirements {
+                gesture.require(toFail: reorderPress)
+            }
+        }
+
+        /// UIKit's selection views keep the first claim on a touch. A touch on
+        /// one of the editor's touch targets is declined, so it lands on the page's
+        /// tap layer beneath and UIKit's text gestures never see it.
+        override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
+            let hit = super.hitTest(point, with: event)
+            guard hit === self, let page else { return hit }
+            return page.touchTarget(at: convert(point, to: page)) == 0 ? self : nil
         }
 
         /// The software keyboard is up: first responder without a hardware keyboard.
@@ -80,6 +131,7 @@
 
         @discardableResult
         override func resignFirstResponder() -> Bool {
+            atomMenuPending = false
             commitPendingSelection()
             let result = super.resignFirstResponder()
             if result {
@@ -147,6 +199,7 @@
 
         /// A different document is behind this view now.
         func documentReplaced() {
+            atomMenuPending = false
             pendingSelection = nil
             textInteractionActive = false
             focusForHardwareKeyboard()
@@ -166,10 +219,50 @@
             mtkView.layoutFrame()
         }
 
+        // MARK: - Atoms
+
+        /// Select the tapped link or image and show its menu; the keyboard
+        /// comes with the menu.
+        func selectAtom(_ range: TextRange) {
+            commitPendingSelection()
+            inputDelegate?.selectionWillChange(self)
+            selectedTextRange = range
+            inputDelegate?.selectionDidChange(self)
+            let keyboardWasUp = isFirstResponder
+            if !keyboardWasUp {
+                becomeFirstResponder()
+            }
+            layoutNow()
+            if keyboardWasUp || GCKeyboard.coalesced != nil {
+                presentAtomMenu()
+            } else {
+                // Once the keyboard has risen and the page has scrolled for it.
+                atomMenuPending = true
+            }
+        }
+
+        private var atomMenuPending = false
+
+        @objc private func keyboardShown(_: Notification) {
+            guard atomMenuPending else { return }
+            atomMenuPending = false
+            presentAtomMenu()
+        }
+
+        private func presentAtomMenu() {
+            guard let range = selectedTextRange, !range.isEmpty else { return }
+            let rect = selectionRects(for: range).reduce(CGRect.null) { $0.union($1.rect) }
+            guard !rect.isNull else { return }
+            menuForAtom = true
+            let point = CGPoint(x: rect.midX, y: rect.minY)
+            editMenu.presentEditMenu(with: UIEditMenuConfiguration(identifier: nil, sourcePoint: point))
+        }
+
         /// A scroll dismisses the edit menu, as in Notes.
         func dismissEditMenus() {
             let menus = interactions.compactMap { $0 as? UIEditMenuInteraction }
             menus.forEach { $0.dismissMenu() }
+            menuForAtom = false
         }
 
         // MARK: - Hardware keys
@@ -800,12 +893,19 @@
     }
 
     extension TextInputView: UIGestureRecognizerDelegate {
-        /// The touch watch runs beside everything.
+        /// The list-item hold runs beside the page pan (the editor ignores the
+        /// pan while an item is lifted) and the touch watch.
         func gestureRecognizer(
             _ gestureRecognizer: UIGestureRecognizer,
             shouldRecognizeSimultaneouslyWith otherGestureRecognizer: UIGestureRecognizer
         ) -> Bool {
-            gestureRecognizer === page?.touches || otherGestureRecognizer === page?.touches
+            if gestureRecognizer === page?.touches || otherGestureRecognizer === page?.touches {
+                return true
+            }
+            if gestureRecognizer === reorderPress {
+                return otherGestureRecognizer === page?.scrollPan
+            }
+            return false
         }
     }
 
@@ -826,16 +926,40 @@
 
     // MARK: - Menus
 
-    extension TextInputView {
+    extension TextInputView: UIEditMenuInteractionDelegate {
         /// The text interaction's own menu: link actions join the standard ones.
         func editMenu(for _: UITextRange, suggestedActions: [UIMenuElement]) -> UIMenu? {
-            UIMenu(children: editorMenuItems() + suggestedActions.withoutUndo)
+            UIMenu(children: editorMenuItems(atom: false) + suggestedActions.withoutUndo)
         }
 
-        /// Open and Copy for a selected link.
-        private func editorMenuItems() -> [UIMenuElement] {
+        /// The menu for a tapped link or image.
+        func editMenuInteraction(
+            _: UIEditMenuInteraction, menuFor _: UIEditMenuConfiguration,
+            suggestedActions: [UIMenuElement]
+        ) -> UIMenu? {
+            UIMenu(children: editorMenuItems(atom: menuForAtom) + suggestedActions.withoutUndo)
+        }
+
+        /// Clear of the selection, so the menu does not cover what it acts on.
+        func editMenuInteraction(
+            _: UIEditMenuInteraction, targetRectFor _: UIEditMenuConfiguration
+        ) -> CGRect {
+            guard let range = selectedTextRange else { return .null }
+            return selectionRects(for: range).reduce(CGRect.null) { $0.union($1.rect) }
+        }
+
+        /// Open and Copy for a selected link; Edit and Refresh for an atom
+        /// (image, preview), which has no source on screen to select.
+        private func editorMenuItems(atom: Bool) -> [UIMenuElement] {
             guard let wsHandle else { return [] }
             var items: [UIMenuElement] = []
+            if atom {
+                items.append(UIAction(title: "Edit", image: UIImage(systemName: "pencil")) { [weak self] _ in
+                    enter_selected_atom(wsHandle)
+                    self?.becomeFirstResponder()
+                    self?.mtkView.requestFrame()
+                })
+            }
             if let target = selection_open_target(wsHandle) {
                 let url = String(cString: target)
                 free_text(target)
@@ -845,6 +969,12 @@
                 })
                 items.append(UIAction(title: "Copy Link", image: UIImage(systemName: "link")) { _ in
                     UIPasteboard.general.string = url
+                })
+            }
+            if atom {
+                items.append(UIAction(title: "Refresh Preview", image: UIImage(systemName: "arrow.clockwise")) { [weak self] _ in
+                    refresh_selection_previews(wsHandle)
+                    self?.mtkView.requestFrame()
                 })
             }
             return items
@@ -950,6 +1080,92 @@
         override func touchesBegan(_ touches: Set<UITouch>, with event: UIEvent) {
             guard state == .possible else { return }
             state = stopCoast() ? .recognized : .failed
+        }
+    }
+
+    /// A stationary hold on a list item lifts it for reordering. Decides at
+    /// touch-down whether it can begin at all, fails on movement before the
+    /// hold, and then drives the drag until the finger lifts.
+    final class ReorderPressRecognizer: UIGestureRecognizer {
+        var canStart: (CGPoint) -> Bool = { _ in false }
+        var start: (CGPoint) -> Bool = { _ in false }
+        var move: (CGPoint) -> Void = { _ in }
+        var end: (CGPoint, Bool) -> Void = { _, _ in }
+
+        private var origin: CGPoint?
+        private var hold: DispatchWorkItem?
+
+        override init(target: Any?, action: Selector?) {
+            super.init(target: target, action: action)
+            delaysTouchesBegan = false
+            delaysTouchesEnded = false
+        }
+
+        convenience init() {
+            self.init(target: nil, action: nil)
+        }
+
+        override func touchesBegan(_ touches: Set<UITouch>, with _: UIEvent) {
+            guard state == .possible, origin == nil, touches.count == 1, let touch = touches.first else {
+                state = .failed
+                return
+            }
+            let point = touch.location(in: view)
+            guard canStart(point) else {
+                state = .failed
+                return
+            }
+            origin = point
+            let task = DispatchWorkItem { [weak self] in self?.lift() }
+            hold = task
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4, execute: task)
+        }
+
+        private func lift() {
+            guard state == .possible, let origin else { return }
+            state = start(origin) ? .began : .failed
+        }
+
+        override func touchesMoved(_ touches: Set<UITouch>, with _: UIEvent) {
+            guard let origin, let touch = touches.first else { return }
+            let point = touch.location(in: view)
+            switch state {
+            case .possible:
+                if hypot(point.x - origin.x, point.y - origin.y) > 12 {
+                    hold?.cancel()
+                    state = .failed
+                }
+            case .began, .changed:
+                state = .changed
+                move(point)
+            default:
+                break
+            }
+        }
+
+        override func touchesEnded(_ touches: Set<UITouch>, with _: UIEvent) {
+            finish(touches, cancelled: false)
+        }
+
+        override func touchesCancelled(_ touches: Set<UITouch>, with _: UIEvent) {
+            finish(touches, cancelled: true)
+        }
+
+        private func finish(_ touches: Set<UITouch>, cancelled: Bool) {
+            hold?.cancel()
+            if state == .began || state == .changed {
+                let point = touches.first?.location(in: view) ?? origin ?? .zero
+                end(point, cancelled)
+                state = cancelled ? .cancelled : .ended
+            } else {
+                state = .failed
+            }
+        }
+
+        override func reset() {
+            hold?.cancel()
+            hold = nil
+            origin = nil
         }
     }
 
