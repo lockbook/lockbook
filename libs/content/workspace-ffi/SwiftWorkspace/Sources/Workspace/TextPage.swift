@@ -29,7 +29,11 @@
             observedDrags.contains { [.began, .changed].contains($0.state) }
         }
 
+        /// The page scrolled under a drag since the last frame.
+        private var crawledSinceFrame = false
         let scrollbar = ScrollbarDragRecognizer()
+        private(set) var crawl: EdgeCrawl!
+
 
         init(mtkView: iOSMTK) {
             self.mtkView = mtkView
@@ -37,6 +41,7 @@
             backgroundColor = .clear
             clipsToBounds = true
 
+            crawl = EdgeCrawl(page: self)
             taps = TapLayer(page: self)
             text = TextInputView(mtkView: mtkView, page: self)
             for view in [taps!, text!] as [UIView] {
@@ -151,6 +156,11 @@
                 }
             }
             text.apply(output)
+            // The page moved under a still finger: the selection follows.
+            if crawledSinceFrame, text.selectionMoved, textDragActive, crawl.point != nil {
+                text.followCrawl()
+            }
+            crawledSinceFrame = false
         }
 
         func documentReplaced() {
@@ -159,6 +169,23 @@
 
         // MARK: - Page scroll
 
+        /// Crawl the page by `delta` points of content travel: positive
+        /// moves the content up, as a finger dragging up would. A crawl
+        /// stops at the document's end.
+        func crawl(by delta: CGFloat) {
+            guard let wsHandle else { return }
+            guard delta.isFinite else {
+                return
+            }
+            ios_crawl(wsHandle, Float(-delta))
+            crawledSinceFrame = true
+            mtkView.requestFrame()
+        }
+
+        var rowHeight: CGFloat {
+            wsHandle.map { CGFloat(ios_row_height($0)) } ?? 28
+        }
+
         /// UIKit's handle drag and loupe drag, seen once they share a touch
         /// with the page's recognizers. A target only observes.
         fileprivate func observeTextDrag(_ recognizer: UIGestureRecognizer) {
@@ -166,6 +193,25 @@
                   !observedDrags.contains(where: { $0 === recognizer })
             else { return }
             observedDrags.append(recognizer)
+            recognizer.addTarget(self, action: #selector(textDragChanged(_:)))
+        }
+
+        /// The finger near the edge during a handle or loupe drag crawls
+        /// the page. A loupe crawls only once the finger has moved.
+        @objc private func textDragChanged(_ recognizer: UIGestureRecognizer) {
+            switch recognizer.state {
+            case .began:
+                text.dragBegan()
+                if recognizer.isRangeAdjustment {
+                    crawl.update(recognizer.location(in: self))
+                }
+            case .changed:
+                crawl.update(recognizer.location(in: self))
+            case .ended, .cancelled, .failed:
+                crawl.stop()
+            default:
+                break
+            }
         }
 
         @objc private func handleScrollPan(_ pan: UIPanGestureRecognizer) {
@@ -233,6 +279,70 @@
                 return otherGestureRecognizer is ReorderPressRecognizer
             }
             return false
+        }
+    }
+
+    /// A selection handle, the loupe, or the spacebar cursor near the
+    /// viewport's edge crawls the page. Speed grows linearly with depth:
+    /// nothing one and a half rows inside the edge, thirty rows a second
+    /// at the edge, and thirty more for every further band beyond the
+    /// viewport, up to ninety. Top and bottom are alike.
+    final class EdgeCrawl {
+        private weak var page: TextPage?
+        private var link: CADisplayLink?
+        private var lastTick: CFTimeInterval?
+        /// The finger's latest position while a crawl may run.
+        private(set) var point: CGPoint?
+
+        init(page: TextPage) {
+            self.page = page
+        }
+
+        /// The finger's latest position in the page; it may lie outside.
+        func update(_ point: CGPoint) {
+            self.point = point
+            if link == nil {
+                let link = CADisplayLink(target: self, selector: #selector(tick(_:)))
+                link.add(to: .main, forMode: .common)
+                self.link = link
+            }
+        }
+
+        func stop() {
+            link?.invalidate()
+            link = nil
+            lastTick = nil
+            point = nil
+        }
+
+        @objc private func tick(_ link: CADisplayLink) {
+            guard let point, let page else {
+                stop()
+                return
+            }
+            let row = page.rowHeight
+            let band = row * 1.5
+            guard band > 0 else { return }
+            let top = point.y
+            let bottom = page.bounds.height - point.y
+            guard top < band || bottom < band else { return }
+            // Measured, so a dropped frame skips ahead instead of slowing.
+            let now = link.timestamp
+            let dt = CGFloat(min(now - (lastTick ?? now - link.duration), 0.05))
+            lastTick = now
+            guard dt.isFinite, dt > 0 else { return }
+            let gain = { (inside: CGFloat) -> CGFloat in min((band - inside) / band, 3) }
+            let speed = 30 * row
+            var delta: CGFloat = 0
+            if top < band {
+                delta -= gain(top) * speed * dt
+            }
+            if bottom < band {
+                delta += gain(bottom) * speed * dt
+            }
+            if delta != 0 {
+                page.crawl(by: delta)
+            }
         }
     }
 

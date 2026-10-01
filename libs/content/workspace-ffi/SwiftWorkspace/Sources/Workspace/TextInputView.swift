@@ -465,8 +465,8 @@
             layoutNow()
         }
 
-        /// UIKit's writes during a tap, loupe, or handle drag, held until it
-        /// ends: the note neither reveals nor reflows under a moving caret.
+        /// UIKit's writes during a loupe or handle drag, held until it ends:
+        /// the note neither reveals nor reflows under a moving caret.
         private var pendingSelection: TextRange?
 
         var selectedTextRange: UITextRange? {
@@ -515,10 +515,71 @@
             }
         }
 
-        /// The editor takes the range UIKit last wrote. The caret is under
-        /// the finger that placed it, so no reveal scroll. The keyboard is
-        /// told: it computed its context (capitalization, suggestions) at
-        /// the old caret before the tap and only recomputes on this pair.
+        /// UIKit's drag of a handle or the loupe asks for the position under
+        /// its own handle or loupe caret as the finger moves. A handle's
+        /// candidate range stays UIKit's until the lift; the loupe's caret is
+        /// written as it goes. Either way the point it asked about last is
+        /// where the moving end sits, and a crawl re-asks that point.
+        private var lastProbe: (offset: Int, point: CGPoint)?
+        /// The end that stays put while a crawl moves the other; nil for a
+        /// caret. Fixed when the crawl starts, so crossing it keeps the pair.
+        private var crawlAnchor: Int??
+        private var followingCrawl = false
+        func dragBegan() {
+            lastProbe = nil
+            crawlAnchor = nil
+        }
+
+        /// UIKit's loupe magnifies the handle, not the page moving under it:
+        /// while a crawl scrolls the page, the loupe is hidden. It has no
+        /// API; it is the loupe-named view in the scene's windows.
+        func hideLoupe() {
+            func walk(_ v: UIView, _ depth: Int) {
+                if depth > 8 { return }
+                if String(describing: type(of: v)).lowercased().contains("loupe") {
+                    v.isHidden = true
+                    v.alpha = 0
+                    return
+                }
+                for c in v.subviews { walk(c, depth + 1) }
+            }
+            for w in window?.windowScene?.windows ?? [] { walk(w, 0) }
+        }
+
+        /// A crawl scrolled the page under a still finger, so UIKit asked for
+        /// nothing: the moving end goes to the text now beneath the point
+        /// UIKit last asked about, as UIKit's next move would put it.
+        func followCrawl() {
+            hideLoupe()
+            DispatchQueue.main.async { [weak self] in self?.hideLoupe() }
+            guard floating == nil, let probe = lastProbe, let range = selectedTextRange as? TextRange
+            else { return }
+            if crawlAnchor == nil {
+                crawlAnchor = .some(range.isEmpty ? nil
+                    : (abs(probe.offset - range.hi) <= abs(probe.offset - range.lo) ? range.lo : range.hi))
+            }
+            followingCrawl = true
+            defer { followingCrawl = false }
+            guard let under = closestPosition(to: probe.point) as? TextPosition, let anchor = crawlAnchor else { return }
+            let next = anchor.map { TextRange(min($0, under.offset), max($0, under.offset)) }
+                ?? TextRange(under.offset, under.offset)
+            if next != range {
+                selectedTextRange = next
+                // UIKit draws its highlight from its own candidate range,
+                // which follows a change it hears of; the bare notification
+                // leaves the keyboard's context alone.
+                inputDelegate?.selectionDidChange(self)
+                if let display = selectionDisplay {
+                    display.setNeedsSelectionUpdate()
+                    display.layoutManagedSubviews()
+                }
+            }
+        }
+
+        /// The editor takes the range UIKit last wrote. The moved end is
+        /// under the finger that placed it, so no reveal scroll. The keyboard
+        /// is told: it computed its context (capitalization, suggestions) at
+        /// the old selection and only recomputes on this pair.
         private func commitPendingSelection() {
             guard let range = pendingSelection, let wsHandle else { return }
             pendingSelection = nil
@@ -584,6 +645,9 @@
                 return
             }
             let local = floating.slide(to: point)
+            if let page {
+                page.crawl.update(convert(local, to: page))
+            }
             let size = floating.landing.bounds.size
             let x = min(max(local.x, 0), bounds.width)
             let y = min(max(local.y, size.height / 2), bounds.height - size.height / 2)
@@ -592,6 +656,7 @@
         }
 
         func endFloatingCursor() {
+            page?.crawl.stop()
             guard let cursor = floating else { return }
             floating = nil
             cursor.finger.removeFromSuperview()
@@ -850,6 +915,9 @@
             let point = floating.map { CGPoint(x: point.x - $0.window.minX, y: point.y - $0.window.minY) } ?? point
             let p = convert(point, to: mtkView)
             let result = position_at_point(wsHandle, CPoint(x: p.x, y: p.y))
+            if !result.none, !followingCrawl, page?.textDragMoving == true {
+                lastProbe = (Int(result.pos), point)
+            }
             return result.none ? nil : TextPosition(Int(result.pos))
         }
 

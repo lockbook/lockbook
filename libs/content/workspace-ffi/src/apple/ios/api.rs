@@ -1030,3 +1030,29 @@ pub unsafe extern "C" fn ios_scrollbar_drag(obj: *mut c_void, dy: f32) {
         md.scroll_area.gesture_scrollbar_drag(dy);
     }
 }
+
+/// One text row with its spacing, in points, for the host's edge crawl.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_row_height(obj: *mut c_void) -> f32 {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    obj.workspace
+        .focused_mdedit_mut()
+        .map(|md| md.renderer.layout.row_height + md.renderer.layout.row_spacing)
+        .unwrap_or(28.0)
+}
+
+/// An edge crawl of `dy` points of finger-equivalent travel: a pan that
+/// stops at the document's end.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_crawl(obj: *mut c_void, dy: f32) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.crawl_by(-dy);
+    }
+}
