@@ -1223,7 +1223,7 @@ impl<'ast> Editor {
         // pre-render work
         self.edit.renderer.calc_source_lines();
         self.edit.renderer.calc_fold_bounds(root);
-        self.edit.renderer.calc_image_bounds(root);
+        self.edit.renderer.calc_atom_bounds(root);
         self.edit.renderer.populate_hidden_by_fold(root);
         self.edit.renderer.compute_bounds(root);
         self.edit.renderer.bounds.inline_paragraphs.sort();
@@ -1260,7 +1260,7 @@ impl<'ast> Editor {
         // pre-render work
         self.edit.renderer.calc_source_lines();
         self.edit.renderer.calc_fold_bounds(root);
-        self.edit.renderer.calc_image_bounds(root);
+        self.edit.renderer.calc_atom_bounds(root);
         self.edit.renderer.populate_hidden_by_fold(root);
         self.edit.renderer.compute_bounds(root);
         self.edit.renderer.bounds.inline_paragraphs.sort();

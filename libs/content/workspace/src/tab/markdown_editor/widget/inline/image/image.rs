@@ -163,13 +163,14 @@ impl<'ast> MdRender {
     }
 
     /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
-    /// range of every inline image. Empty when images render raw (disabled),
-    /// since then the source is plain editable text. Depends on text only.
-    pub fn calc_image_bounds<'a>(&mut self, root: &'a AstNode<'a>) {
+    /// range of every inline image. Images are empty when they render raw
+    /// (disabled), since then the source is plain editable text. Depends on
+    /// text only.
+    pub fn calc_atom_bounds<'a>(&mut self, root: &'a AstNode<'a>) {
         let mut images = Vec::new();
-        if !self.disable_images {
-            for node in root.descendants() {
-                if matches!(node.data.borrow().value, NodeValue::Image(_)) {
+        for node in root.descendants() {
+            if let NodeValue::Image(_) = node.data.borrow().value {
+                if !self.disable_images {
                     images.push(self.node_range(node));
                 }
             }
