@@ -35,6 +35,10 @@ pub struct IOSResponse {
 
     pub mobile_toolbar_shown: bool,
 
+    /// The editor's find or replace field has focus: keystrokes are its,
+    /// and the document's selection UI hides.
+    pub chrome_text_focused: bool,
+
     /// Present the edit menu (copy/paste) at this point — set on tapping a
     /// selected image, in egui screen points.
     pub has_context_menu: bool,
@@ -110,6 +114,7 @@ impl From<crate::Response> for IOSResponse {
             virtual_keyboard_shown: virtual_keyboard_shown.unwrap_or_default(),
             selected_folder_changed,
             mobile_toolbar_shown,
+            chrome_text_focused: false,
             has_text_interaction_rect: text_interaction_rect.is_some(),
             text_interaction_rect: text_interaction_rect
                 .map(|r| CRect {
@@ -295,4 +300,21 @@ impl From<CTextPosition> for Option<Grapheme> {
     fn from(value: CTextPosition) -> Self {
         if value.none { None } else { Some(value.pos.into()) }
     }
+}
+
+/// What the focused text field is, for the platform's input traits.
+#[repr(C)]
+#[derive(Debug, Default, Clone, Copy)]
+pub struct CTextTraits {
+    /// A text field is focused; without one the rest means nothing.
+    pub valid: bool,
+    pub editable: bool,
+    pub secure: bool,
+    pub single_line: bool,
+    /// A shortcode or link completion is being typed: autocorrect would
+    /// rewrite the query.
+    pub completions: bool,
+    /// The chat composer: a hardware Return sends, with Shift it breaks the
+    /// line.
+    pub send_on_return: bool,
 }

@@ -24,7 +24,9 @@ use crate::apple::keyboard::UIKeys;
 #[instrument(level = "trace", skip(obj))]
 pub unsafe extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
-    obj.frame().into()
+    let mut response: IOSResponse = obj.frame().into();
+    response.chrome_text_focused = obj.workspace.chrome_text_focused();
+    response
 }
 
 /// A frame that consumes no queued input, for geometry right after a UIKit
@@ -36,9 +38,10 @@ pub unsafe extern "C" fn ios_frame(obj: *mut c_void) -> IOSResponse {
 pub unsafe extern "C" fn ios_layout_frame(obj: *mut c_void) -> IOSResponse {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
     let events = std::mem::take(&mut obj.renderer.raw_input.events);
-    let response = obj.frame();
+    let mut response: IOSResponse = obj.frame().into();
     obj.renderer.raw_input.events = events;
-    response.into()
+    response.chrome_text_focused = obj.workspace.chrome_text_focused();
+    response
 }
 
 /// Page scroll from the text view's pan; `dy` is finger travel in points.
@@ -48,8 +51,13 @@ pub unsafe extern "C" fn ios_layout_frame(obj: *mut c_void) -> IOSResponse {
 #[no_mangle]
 pub unsafe extern "C" fn ios_scroll(obj: *mut c_void, dy: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let standalone = obj.workspace.current_tab_markdown().is_none();
     if let Some(md) = obj.workspace.focused_mdedit_mut() {
-        md.scroll_area.gesture_scroll(-dy);
+        if standalone {
+            md.overflow_scroll_by(-dy);
+        } else {
+            md.scroll_area.gesture_scroll(-dy);
+        }
     }
 }
 
@@ -60,6 +68,9 @@ pub unsafe extern "C" fn ios_scroll(obj: *mut c_void, dy: f32) {
 #[no_mangle]
 pub unsafe extern "C" fn ios_fling(obj: *mut c_void, vy: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if obj.workspace.current_tab_markdown().is_none() {
+        return;
+    }
     if let Some(md) = obj.workspace.focused_mdedit_mut() {
         md.scroll_area.gesture_fling(-vy);
     }
@@ -85,6 +96,18 @@ pub unsafe extern "C" fn ios_stop_scroll(obj: *mut c_void) -> bool {
 pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let Ok(content) = CStr::from_ptr(content).to_str() else { return };
+
+    // The find field takes keystrokes as egui events, as a desktop types them.
+    if obj.workspace.chrome_text_focused() {
+        let event = match content {
+            "\n" => key_event(Key::Enter),
+            "\t" => key_event(Key::Tab),
+            _ => egui::Event::Text(content.into()),
+        };
+        obj.renderer.raw_input.events.push(event);
+        obj.renderer.context.request_repaint();
+        return;
+    }
 
     if content == "\n" {
         // An open completion popup submits on the Enter it listens for.
@@ -120,6 +143,14 @@ pub unsafe extern "C" fn insert_text(obj: *mut c_void, content: *const c_char) {
 pub unsafe extern "C" fn paste_text(obj: *mut c_void, content: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     let Ok(content) = CStr::from_ptr(content).to_str() else { return };
+    if obj.workspace.chrome_text_focused() {
+        obj.renderer
+            .raw_input
+            .events
+            .push(egui::Event::Paste(content.into()));
+        obj.renderer.context.request_repaint();
+        return;
+    }
     let event = obj
         .workspace
         .focused_mdedit_mut()
@@ -136,6 +167,14 @@ pub unsafe extern "C" fn paste_text(obj: *mut c_void, content: *const c_char) {
 #[no_mangle]
 pub unsafe extern "C" fn backspace(obj: *mut c_void) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+    if obj.workspace.chrome_text_focused() {
+        obj.renderer
+            .raw_input
+            .events
+            .push(key_event(Key::Backspace));
+        obj.renderer.context.request_repaint();
+        return;
+    }
     obj.workspace.apply_platform_event(Event::Delete {
         region: Region::SelectionOrAdvance {
             advance: Advance::By(Increment::Char),
@@ -151,6 +190,10 @@ pub unsafe extern "C" fn backspace(obj: *mut c_void) {
 #[no_mangle]
 pub unsafe extern "C" fn replace_text(obj: *mut c_void, range: CTextRange, text: *const c_char) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
+    // A replacement is UIKit's edit of the document; the find field has none.
+    if obj.workspace.chrome_text_focused() {
+        return;
+    }
     let Ok(text) = CStr::from_ptr(text).to_str() else { return };
     let Some(md) = obj.workspace.focused_mdedit_mut() else { return };
     let Some((start, end)) = graphemes_in(md, &range) else { return };
@@ -1044,6 +1087,19 @@ pub unsafe extern "C" fn ios_row_height(obj: *mut c_void) -> f32 {
         .unwrap_or(28.0)
 }
 
+/// The platform's marked text, or none, for the editor to paint.
+///
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_set_marked(obj: *mut c_void, range: CTextRange) {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    if let Some(md) = obj.workspace.focused_mdedit_mut() {
+        md.renderer.platform_marked = graphemes_in(md, &range).filter(|r| r.0 < r.1);
+        md.renderer.ctx.request_repaint();
+    }
+}
+
 /// An edge crawl of `dy` points of finger-equivalent travel: a pan that
 /// stops at the document's end.
 ///
@@ -1052,7 +1108,35 @@ pub unsafe extern "C" fn ios_row_height(obj: *mut c_void) -> f32 {
 #[no_mangle]
 pub unsafe extern "C" fn ios_crawl(obj: *mut c_void, dy: f32) {
     let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let standalone = obj.workspace.current_tab_markdown().is_none();
     if let Some(md) = obj.workspace.focused_mdedit_mut() {
-        md.crawl_by(-dy);
+        if standalone {
+            md.overflow_scroll_by(-dy);
+        } else {
+            md.crawl_by(-dy);
+        }
+    }
+}
+
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn ios_text_traits(obj: *mut c_void) -> CTextTraits {
+    let obj = unsafe { &mut *(obj as *mut WgpuWorkspace) };
+    let send_on_return = obj
+        .workspace
+        .current_tab()
+        .and_then(|tab| tab.chat())
+        .is_some_and(|chat| chat.composing());
+    match obj.workspace.focused_mdedit_mut() {
+        Some(md) => CTextTraits {
+            valid: true,
+            editable: !md.renderer.readonly,
+            secure: md.renderer.mask,
+            single_line: md.renderer.single_line,
+            completions: md.emoji_completions.active || md.link_completions.active,
+            send_on_return,
+        },
+        None => CTextTraits::default(),
     }
 }

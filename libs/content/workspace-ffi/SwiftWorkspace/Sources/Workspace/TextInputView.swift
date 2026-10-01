@@ -29,8 +29,25 @@
         weak var inputDelegate: UITextInputDelegate?
         lazy var tokenizer: UITextInputTokenizer = EditorTokenizer(textInput: self)
         var markedTextStyle: [NSAttributedString.Key: Any]?
-        /// The marked range as UIKit set it.
-        private var marked: (lo: Int, hi: Int)?
+        /// The marked range as UIKit set it; the editor paints it.
+        private var marked: (lo: Int, hi: Int)? {
+            didSet {
+                guard let wsHandle else { return }
+                let range = marked.map { cRange($0.lo, $0.hi) }
+                    ?? CTextRange(none: true, start: cPosition(0), end: cPosition(0))
+                ios_set_marked(wsHandle, range)
+            }
+        }
+        /// The editor's find or replace field has focus, per the frame output.
+        private var chromeFocused = false
+        /// Characters of a composition (a swipe-typed word) sent to that
+        /// field so far; a revision deletes them first.
+        private var chromeMarkedLength = 0
+        /// The chat composer with a hardware keyboard: Return sends.
+        private var sendOnReturn = false
+        private lazy var readOnlyInteraction = UITextInteraction(for: .nonEditable)
+        private var documentEditable = true
+        private let noKeyboard = UIView()
 
         init(mtkView: iOSMTK, page: TextPage) {
             self.mtkView = mtkView
@@ -91,7 +108,19 @@
         override func hitTest(_ point: CGPoint, with event: UIEvent?) -> UIView? {
             let hit = super.hitTest(point, with: event)
             guard hit === self, let page else { return hit }
+            if !documentEditable, nearSelectionHandle(point) {
+                return self
+            }
             return page.touchTarget(at: convert(point, to: page)) == 0 ? self : nil
+        }
+
+        /// The non-editable interaction's handle views take no touches
+        /// themselves, so a handle over a link would be declined as the link.
+        private func nearSelectionHandle(_ point: CGPoint) -> Bool {
+            guard let handles = selectionDisplay?.handleViews else { return false }
+            return handles.contains { handle in
+                !handle.isHidden && handle.convert(handle.bounds, to: self).insetBy(dx: -22, dy: -22).contains(point)
+            }
         }
 
         /// The software keyboard is up: first responder without a hardware keyboard.
@@ -114,9 +143,14 @@
         /// With a hardware keyboard the editor keeps focus, so opening or
         /// switching notes leaves you typing.
         @objc func focusForHardwareKeyboard() {
-            guard GCKeyboard.coalesced != nil, window != nil, !isFirstResponder else { return }
+            guard documentEditable, GCKeyboard.coalesced != nil, window != nil, !isFirstResponder else { return }
             becomeFirstResponder()
         }
+
+        override var inputView: UIView? { documentEditable ? nil : noKeyboard }
+
+        /// UIKit's own question since iOS 18.
+        var isEditable: Bool { documentEditable }
 
         @discardableResult
         override func becomeFirstResponder() -> Bool {
@@ -124,7 +158,7 @@
             // Focus from code leaves the caret hidden until a tap (FB12622609);
             // Runestone activates the display the same way.
             if result {
-                selectionDisplay?.isActivated = true
+                selectionDisplay?.isActivated = !chromeFocused
             }
             return result
         }
@@ -157,11 +191,19 @@
                 }
             }
 
+            if output.chrome_text_focused != chromeFocused {
+                chromeFocused = output.chrome_text_focused
+                chromeMarkedLength = 0
+                selectionDisplay?.isActivated = !chromeFocused
+                refreshTraits()
+            }
             if output.text_updated {
                 marked = nil
                 inputDelegate?.textWillChange(self)
                 inputDelegate?.textDidChange(self)
             }
+            // The focused field is known only once its document has loaded.
+            refreshTraits()
             if output.text_updated || output.selection_updated {
                 inputDelegate?.selectionWillChange(self)
                 inputDelegate?.selectionDidChange(self)
@@ -202,6 +244,8 @@
             atomMenuPending = false
             pendingSelection = nil
             textInteractionActive = false
+            chromeMarkedLength = 0
+            refreshTraits()
             focusForHardwareKeyboard()
             marked = nil
             inputDelegate?.textWillChange(self)
@@ -338,15 +382,28 @@
             mtkView.requestFrame()
         }
 
+        /// Caret keys are the find field's while it has focus, so UIKit never
+        /// moves the note's caret for them.
+        private static let findFieldKeys: Set<UIKeyboardHIDUsage> = [
+            .keyboardLeftArrow, .keyboardRightArrow, .keyboardUpArrow, .keyboardDownArrow,
+            .keyboardHome, .keyboardEnd, .keyboardPageUp, .keyboardPageDown,
+        ]
+
         private func isEditorKey(_ key: UIKey) -> Bool {
+            if chromeFocused, Self.findFieldKeys.contains(key.keyCode) {
+                return true
+            }
             let mods = key.modifierFlags
             switch key.keyCode {
             case .keyboardEscape:
                 return true
             case .keyboardTab:
                 return mods.contains(.shift)
+            case .keyboardReturnOrEnter:
+                // Return sends in the composer; with Shift it is UIKit's, a newline.
+                return sendOnReturn && GCKeyboard.coalesced != nil && !mods.contains(.shift)
             case .keyboardLeftArrow, .keyboardRightArrow, .keyboardUpArrow, .keyboardDownArrow,
-                 .keyboardDeleteOrBackspace, .keyboardDeleteForward, .keyboardReturnOrEnter,
+                 .keyboardDeleteOrBackspace, .keyboardDeleteForward,
                  .keyboardLeftShift, .keyboardRightShift, .keyboardLeftControl, .keyboardRightControl,
                  .keyboardLeftAlt, .keyboardRightAlt, .keyboardLeftGUI, .keyboardRightGUI,
                  .keyboardCapsLock:
@@ -370,7 +427,19 @@
 
         /// The system claims these chords before `pressesBegan`.
         override var keyCommands: [UIKeyCommand]? {
-            iOSMTK.workspaceBracketKeyCommands()
+            // Command-Return sends in the chat composer; unregistered, the
+            // system swallows the chord before `pressesBegan`.
+            let send = UIKeyCommand(input: "\r", modifierFlags: .command, action: #selector(sendCommand(_:)))
+            send.wantsPriorityOverSystemBehavior = true
+            return iOSMTK.workspaceBracketKeyCommands() + [send]
+        }
+
+        @objc private func sendCommand(_: UIKeyCommand) {
+            guard let wsHandle, sendOnReturn else { return }
+            let key = UIKeyboardHIDUsage.keyboardReturnOrEnter.rawValue
+            ios_key_event(wsHandle, key, false, false, false, true, true)
+            ios_key_event(wsHandle, key, false, false, false, false, false)
+            mtkView.requestFrame()
         }
 
         @objc func forwardBracketCommand(_ command: UIKeyCommand) {
@@ -404,6 +473,80 @@
             inputDelegate?.textDidChange(self)
         }
 
+        // MARK: - UITextInputTraits
+
+        var autocorrectionType: UITextAutocorrectionType = .default
+        var autocapitalizationType: UITextAutocapitalizationType = .sentences
+        var spellCheckingType: UITextSpellCheckingType = .default
+        var smartQuotesType: UITextSmartQuotesType = .default
+        var smartDashesType: UITextSmartDashesType = .default
+        var smartInsertDeleteType: UITextSmartInsertDeleteType = .default
+        var keyboardType: UIKeyboardType = .default
+        var returnKeyType: UIReturnKeyType = .default
+        var isSecureTextEntry = false
+
+        /// Traits follow the focused field: a masked secret and the find
+        /// field take no suggestions or autocorrect, a single line ends with
+        /// Done and find with Search; the note keeps the defaults.
+        func refreshTraits() {
+            guard let wsHandle else { return }
+            let traits = ios_text_traits(wsHandle)
+            guard traits.valid else { return }
+            let before = traitSummary
+            let plain = chromeFocused || traits.secure || traits.completions
+            autocorrectionType = plain ? .no : .default
+            spellCheckingType = plain ? .no : .default
+            smartQuotesType = plain ? .no : .default
+            smartDashesType = plain ? .no : .default
+            smartInsertDeleteType = plain ? .no : .default
+            autocapitalizationType = plain ? .none : .sentences
+            isSecureTextEntry = traits.secure
+            returnKeyType = traits.single_line ? .done : .default
+            sendOnReturn = traits.send_on_return
+            setEditable(traits.editable)
+            if traitSummary != before, isFirstResponder {
+                // Outside UIKit's own insert or layout callback, which may be
+                // running this frame.
+                DispatchQueue.main.async { [weak self] in self?.reloadInputViews() }
+            }
+        }
+
+        private var traitSummary: [Int] {
+            [
+                autocorrectionType.rawValue, autocapitalizationType.rawValue, returnKeyType.rawValue,
+                isSecureTextEntry ? 1 : 0,
+            ]
+        }
+
+        /// A read-only note keeps selection and copy, with no caret, no
+        /// keyboard, and no reorder.
+        private func setEditable(_ editable: Bool) {
+            guard editable != documentEditable else { return }
+            documentEditable = editable
+            if editable {
+                removeInteraction(readOnlyInteraction)
+                addInteraction(textInteraction)
+                for gesture in textInteraction.gesturesForFailureRequirements {
+                    gesture.require(toFail: reorderPress)
+                }
+                // The input session was set up for a read-only view.
+                if isFirstResponder {
+                    reloadInputViews()
+                } else {
+                    focusForHardwareKeyboard()
+                }
+            } else {
+                if isFirstResponder {
+                    resignFirstResponder()
+                }
+                removeInteraction(textInteraction)
+                readOnlyInteraction.textInput = self
+                readOnlyInteraction.delegate = self
+                addInteraction(readOnlyInteraction)
+            }
+            reorderPress.isEnabled = editable
+        }
+
         // MARK: - UIKeyInput
 
         var hasText: Bool {
@@ -414,6 +557,17 @@
         func insertText(_ text: String) {
             commitPendingSelection()
             guard let wsHandle else { return }
+            if chromeFocused {
+                // A committed composition replaces what it sent so far.
+                for _ in 0..<chromeMarkedLength {
+                    backspace(wsHandle)
+                }
+                chromeMarkedLength = 0
+                marked = nil
+                text.withCString { insert_text(wsHandle, $0) }
+                mtkView.requestFrame()
+                return
+            }
             let before = selectedTextRange as? TextRange
             if let marked {
                 self.marked = nil
@@ -441,10 +595,33 @@
             marked = nil
             let before = selectedTextRange as? TextRange
             backspace(wsHandle)
+            if chromeFocused {
+                chromeMarkedLength = 0
+                mtkView.requestFrame()
+                return
+            }
             rememberStaleCaret(before)
             layoutNow()
             // Deleting a range leaves UIKit's selection display at its old end.
             inputDelegate?.selectionDidChange(nil)
+        }
+
+        // MARK: - Dictation
+
+        /// Dictation's final phrases, inserted as one text. UIKit re-reads
+        /// the selection after a keyboard insert but not after this one, so
+        /// it is told; dictation is over, so no composition state is at stake.
+        func insertDictationResult(_ dictationResult: [UIDictationPhrase]) {
+            let text = dictationResult.map(\.text).joined()
+            insertText(text)
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.selectionDidChange(self)
+        }
+
+        /// Text with alternatives (dictation, some keyboards): the text is
+        /// what counts; alternatives are not kept.
+        func insertText(_ text: String, alternatives _: [String], style _: UITextAlternativeStyle) {
+            insertText(text)
         }
 
         // MARK: - UITextInput: text
@@ -664,7 +841,7 @@
             selectionDisplay?.cursorView.isHidden = false
             // The keyboard recomputes its suggestions on this pair, as after
             // a tap.
-            if let target = cursor.target, let wsHandle {
+            if let target = cursor.target, let wsHandle, !chromeFocused {
                 inputDelegate?.selectionWillChange(self)
                 set_selected(wsHandle, cRange(target.lo, target.hi), false)
                 inputDelegate?.selectionDidChange(self)
@@ -697,14 +874,19 @@
             case #selector(copy(_:)):
                 return selection?.isEmpty == false
             case #selector(cut(_:)):
-                return selection?.isEmpty == false
+                return documentEditable && selection?.isEmpty == false
             case #selector(paste(_:)):
-                return UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
-                    || UIPasteboard.general.hasURLs
+                return documentEditable
+                    && (UIPasteboard.general.hasStrings || UIPasteboard.general.hasImages
+                        || UIPasteboard.general.hasURLs)
             case #selector(select(_:)):
                 return selection?.isEmpty == true && hasText
             case #selector(selectAll(_:)):
                 return hasText
+            case NSSelectorFromString("replace:"):
+                return documentEditable
+            case #selector(replace(_:withText:)):
+                return false
             default:
                 return super.canPerformAction(action, withSender: sender)
             }
@@ -740,8 +922,24 @@
             }
         }
 
+        /// The spelling bubble's pick, and the autocorrect revert. UIKit sends
+        /// its private replacement object; its range and text are read by key.
+        /// Unlike the keyboard's own replacements, this one leaves UIKit's
+        /// selection where it was, so the edit is reported like the editor's.
+        @objc func replace(_ sender: Any?) {
+            guard documentEditable, let replacement = sender as? NSObject,
+                  let range = replacement.value(forKey: "range") as? UITextRange,
+                  let text = replacement.value(forKey: "replacementText") as? String
+            else { return }
+            inputDelegate?.selectionWillChange(self)
+            inputDelegate?.textWillChange(self)
+            replace(range, withText: text)
+            inputDelegate?.textDidChange(self)
+            inputDelegate?.selectionDidChange(self)
+        }
+
         override func select(_: Any?) {
-            guard let caret = selectedTextRange?.start,
+            guard !chromeFocused, let caret = selectedTextRange?.start,
                   let word = tokenizer.rangeEnclosingPosition(caret, with: .word, inDirection: .storage(.backward))
                   ?? tokenizer.rangeEnclosingPosition(caret, with: .word, inDirection: .storage(.forward))
             else { return }
@@ -751,6 +949,7 @@
         }
 
         override func selectAll(_: Any?) {
+            guard !chromeFocused else { return }
             inputDelegate?.selectionWillChange(self)
             selectedTextRange = TextRange(0, endOffset)
             inputDelegate?.selectionDidChange(self)
@@ -766,6 +965,15 @@
             commitPendingSelection()
             guard let wsHandle else { return }
             let text = markedText ?? ""
+            if chromeFocused {
+                for _ in 0..<chromeMarkedLength {
+                    backspace(wsHandle)
+                }
+                text.withCString { insert_text(wsHandle, $0) }
+                chromeMarkedLength = text.count
+                mtkView.requestFrame()
+                return
+            }
             let target = marked ?? currentRange()
             text.withCString { replace_text(wsHandle, cRange(target.lo, target.hi), $0) }
             let length = text.utf16.count
@@ -780,6 +988,10 @@
         }
 
         func unmarkText() {
+            if chromeFocused {
+                chromeMarkedLength = 0
+                return
+            }
             guard marked != nil else { return }
             inputDelegate?.selectionWillChange(self)
             marked = nil
