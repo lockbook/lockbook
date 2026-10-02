@@ -1,7 +1,8 @@
 //! Where a chat's agent may roam: an include list minus an exclude list,
 //! exclude winning at any depth. Dotted names are always out, and so is
 //! anything a `.agentignore` file walls off below the folder it sits in. A
-//! walled path does not exist as far as the model is concerned.
+//! walled path does not exist as far as the model is concerned, and neither
+//! does the chat's own file.
 
 use lb_rs::blocking::Lb;
 use lb_rs::model::chat::Settings;
@@ -16,6 +17,8 @@ pub struct Territory {
     pub exclude: Vec<String>,
     /// `(folder with a trailing slash, patterns relative to it)`.
     pub ignores: Vec<(String, Vec<String>)>,
+    /// The chat's own file, which its tools never see.
+    pub own: Option<String>,
 }
 
 impl Territory {
@@ -25,6 +28,7 @@ impl Territory {
             include: settings.include.iter().map(|p| normalize(p)).collect(),
             exclude: settings.exclude.iter().map(|p| normalize(p)).collect(),
             ignores: Vec::new(),
+            own: None,
         }
     }
 
@@ -50,7 +54,13 @@ impl Territory {
 
     /// The model may see and touch `path`.
     pub fn visible(&self, path: &str) -> bool {
-        self.allowed(path) && !self.walled(path)
+        self.allowed(path) && !self.walled(path) && !self.own(path)
+    }
+
+    /// `path` is the chat's own file.
+    pub fn own(&self, path: &str) -> bool {
+        let path = normalize(path);
+        self.own.as_deref() == Some(path.trim_end_matches('/'))
     }
 
     /// `path` is inside the include set.
@@ -194,6 +204,17 @@ mod tests {
         assert!(t.walled("/home/.agent/providers/x.json"));
         assert!(t.walled("/home/.agentignore"));
         assert!(!t.visible("/team/drafts/x.md"));
+    }
+
+    #[test]
+    fn the_chats_own_file_is_out_and_other_chats_are_not() {
+        let mut t = territory();
+        t.own = Some("/home/talk.chat".into());
+        assert!(!t.visible("/home/talk.chat"));
+        assert!(!t.visible("/home//talk.chat/"));
+        assert!(!t.walled("/home/talk.chat"));
+        assert!(t.visible("/home/other.chat"));
+        assert!(t.visible("/team/talk.chat"));
     }
 
     #[test]

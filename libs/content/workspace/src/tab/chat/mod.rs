@@ -22,12 +22,12 @@ use lb_chat::{Cmd, Driver, Event, ModelInfo, Place, Provider, SharedStore, Vault
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
-use lb_rs::model::chat::{self, Body, Chat as Transcript, Entry, Settings};
+use lb_rs::model::chat::{self, Body, Chat as Transcript, Entry, Mention, Settings};
 use lb_rs::model::file_metadata::DocumentHmac;
 use tracing::error;
 
 use crate::file_cache::{FileCache, FilesExt};
-use crate::resolvers::link::FileCacheLinkResolver;
+use crate::resolvers::link::{FileCacheLinkResolver, LinkResolver as _, ResolvedLink};
 use crate::style::{Icon, phosphor};
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
 
@@ -507,12 +507,15 @@ impl Chat {
                     let settings = store.chat.lock().unwrap().settings_for(&user);
                     Provider::resolve(&resolver_lb, &settings)
                 }),
+                window: lb_chat::window,
             };
             let ctx = self.ctx.clone();
-            let driver =
-                Driver::spawn(self.store.clone(), VaultTools::new(lb), config, move || {
-                    ctx.request_repaint()
-                });
+            let driver = Driver::spawn(
+                self.store.clone(),
+                VaultTools::new(lb, self.id),
+                config,
+                move || ctx.request_repaint(),
+            );
             self.driver = Some(driver);
         }
         self.driver.as_ref().expect("spawned")
@@ -585,13 +588,15 @@ impl Chat {
         }
     }
 
-    fn label(&mut self, id: Uuid) -> &mut MdLabel {
-        let (ctx, files, chat_id) = (&self.ctx, &self.files, self.id);
+    /// The label drawing a note quoted in card `id`. Its links resolve from
+    /// `from`, the note they were written in.
+    fn label(&mut self, id: Uuid, from: Uuid) -> &mut MdLabel {
+        let (ctx, files) = (&self.ctx, &self.files);
         self.labels.entry(id).or_insert_with(|| {
             let mut label = MdLabel::new(ctx.clone());
             label.renderer.files = Arc::clone(files);
             label.renderer.link_resolver =
-                Box::new(FileCacheLinkResolver::new(Arc::clone(files), chat_id));
+                Box::new(FileCacheLinkResolver::new(Arc::clone(files), from));
             label
         })
     }
@@ -613,8 +618,23 @@ impl Chat {
         reader
     }
 
-    /// The entries that draw a row. A reply with no text (a round that was
-    /// only tool calls) draws nothing, so it takes no gap either.
+    /// The notes a message links to, which are what it attaches: each
+    /// once, in the order linked. Folders and links out of the vault are not.
+    fn linked(&self, text: &str) -> Vec<Mention> {
+        let resolver = FileCacheLinkResolver::new(Arc::clone(&self.files), self.id);
+        let files = self.files.read().unwrap();
+        let mut found: Vec<Mention> = Vec::new();
+        for (i, _) in text.match_indices("](") {
+            let Some(url) = text[i + 2..].split(')').next() else { continue };
+            let Some(ResolvedLink::File(id)) = resolver.resolve_link(url.trim()) else { continue };
+            let is_note = files.get_by_id(id).is_some_and(|f| f.is_document());
+            if is_note && found.iter().all(|m| m.id != Some(id)) {
+                found.push(Mention { path: files.path(id), id: Some(id) });
+            }
+        }
+        found
+    }
+
     /// Takes in one thing the driver reports.
     fn hear(&mut self, event: Event) {
         match event {
@@ -652,6 +672,8 @@ impl Chat {
         }
     }
 
+    /// The entries that draw a row. A reply with neither text nor thinking
+    /// (a round that was only tool calls) draws nothing, so it takes no gap.
     fn visible_entries(&self) -> Vec<Entry> {
         self.transcript
             .entries

@@ -230,6 +230,29 @@ mod in_a_workspace {
         );
     }
 
+    /// A note a message links to goes with it: it is read as the message
+    /// is sent, once however often it is linked, and a link out of the
+    /// vault attaches nothing.
+    #[test]
+    fn a_linked_note_goes_with_the_message() {
+        let (lb, id) = account_with_chat();
+        write(&lb, "/home/plan.md", "ship in october");
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let mut ws = Workspace::new(&lb, &ctx, true, false, Some(files));
+        ws.open_file(id, true, false);
+        send(&ctx, &mut ws, "see [plan](plan.md), [again](/home/plan.md), [web](https://x.test)");
+        frames_until(&ctx, &mut ws, |ws| shows(ws, 3));
+
+        let entries = &chat(&ws).unwrap().transcript.entries;
+        let Body::User { mentions, .. } = &entries[0].body else { panic!() };
+        let paths: Vec<&str> = mentions.iter().map(|m| m.path.as_str()).collect();
+        assert_eq!(paths, ["/home/plan.md"]);
+        assert!(
+            matches!(&entries[1].body, Body::Tool { name, result, .. } if name == "read" && result == "ship in october")
+        );
+    }
+
     /// A folder among a card's files is somewhere to go, not something to
     /// open: a click makes it the workspace's folder, which is what each
     /// client's file tree follows. The chat stays where it is.
@@ -876,6 +899,86 @@ mod on_its_own {
         chat.hear(Heard::Written(reply.clone()));
         assert!(chat.expanded.contains(&reply.id) && !chat.expanded.contains(&IN_FLIGHT));
         assert!(chat.thinking.is_empty());
+    }
+
+    /// A note quoted in a card keeps its own bearings: a relative link in
+    /// it leads where it does in the note. A right click on the row offers
+    /// ways to the note itself.
+    #[test]
+    fn a_quoted_note_links_from_where_it_lives() {
+        use crate::resolvers::link::ResolvedLink;
+        let (lb, id) = account_with_chat();
+        write(&lb, "/home/trips/plan.md", "see [packing](packing.md)");
+        write(&lb, "/home/trips/packing.md", "socks");
+        let packing = lb.get_by_path("/home/trips/packing.md").unwrap().id;
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let me = account.username.clone();
+        let mut t = Transcript::default();
+        t.push(Entry::user(&me, "read the plan"));
+        let args = serde_json::json!({"path": "/home/trips/plan.md"});
+        let read = Entry::tool(&me, "read", args, "see [packing](packing.md)", true);
+        let card = read.id;
+        t.push(read);
+        let mut chat = Chat::new(&t.serialize(), id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        for _ in 0..3 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        let row = egui::Id::new(("chat_tool", card));
+        let bar = ctx.read_response(row).expect("the call's bar").rect;
+        click(&ctx, &mut chat, bar.center());
+        frame(&ctx, &mut chat, vec![]);
+        let resolver = &chat.labels[&card].renderer.link_resolver;
+        assert!(
+            matches!(resolver.resolve_link("packing.md"), Some(ResolvedLink::File(f)) if f == packing)
+        );
+
+        let button = |pressed| Event::PointerButton {
+            pos: bar.center(),
+            button: egui::PointerButton::Secondary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        frame(&ctx, &mut chat, vec![button(true)]);
+        frame(&ctx, &mut chat, vec![button(false)]);
+        assert!(crate::style::context_menu::is_open_id(&ctx, row));
+    }
+
+    /// The wheel over a reply scrolls the chat: a reply whose rect was
+    /// rounded a hair short of its text does not keep the wheel for itself.
+    #[test]
+    fn a_reply_leaves_the_wheel_to_the_chat() {
+        let ctx = context();
+        let (mut chat, _) = long_chat(&ctx);
+        let reply = chat
+            .transcript
+            .entries
+            .iter()
+            .find(|e| matches!(e.body, Body::Assistant { .. }));
+        let id = reply.unwrap().id;
+        let text = reply.unwrap().text().to_string();
+        let rect = Rect::from_min_size(pos2(40.0, 40.0), egui::vec2(400.0, 10.0));
+        let mut left = 0.0;
+        let _ = ctx.run(
+            raw_input(vec![
+                Event::PointerMoved(rect.center()),
+                Event::MouseWheel {
+                    unit: egui::MouseWheelUnit::Point,
+                    delta: egui::vec2(0.0, -30.0),
+                    modifiers: Modifiers::NONE,
+                },
+            ]),
+            |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    chat.reader(id, &text)
+                        .show(ui, rect, egui::Id::new("short"));
+                    left = ui.input(|i| i.smooth_scroll_delta.y);
+                });
+            },
+        );
+        assert!(left != 0.0, "the reader took the wheel");
     }
 
     /// Jump to latest pressed while the wheel still coasts: the view goes to

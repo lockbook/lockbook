@@ -229,8 +229,10 @@ impl MdEdit {
         // max height) scrolls vertically: wheel here, cursor-follow at the
         // bottom of this fn. `height` is memoized — computing it early is free.
         let height = self.renderer.height(root);
-        let overflow =
-            if self.renderer.single_line { 0.0 } else { (height - rect.height()).max(0.0) };
+        // A reader is given its whole height, less at most the rounding of
+        // its rect to pixels; it never scrolls within itself.
+        let fixed = self.renderer.single_line || self.renderer.readonly;
+        let overflow = if fixed { 0.0 } else { (height - rect.height()).max(0.0) };
         if overflow > 0.0 && ui.rect_contains_pointer(rect) {
             let delta = ui.input_mut(|i| std::mem::take(&mut i.smooth_scroll_delta.y));
             self.overflow_scroll -= delta;

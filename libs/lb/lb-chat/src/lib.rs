@@ -18,7 +18,7 @@ pub mod wire;
 pub(crate) mod mock;
 
 pub use driver::{Cmd, Driver, Event};
-pub use models::{ModelInfo, list_models, list_models_blocking, prettify};
+pub use models::{ModelInfo, list_models, list_models_blocking, prettify, window};
 pub use provider::{Kind, Place, Provider, friendly_name, host, place};
 pub use store::{LbStore, MemStore, SharedStore, Store};
 pub use territory::Territory;

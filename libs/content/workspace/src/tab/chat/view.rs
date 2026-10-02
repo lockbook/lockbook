@@ -79,6 +79,15 @@ enum Kind {
     Error,
 }
 
+/// What a row's context menu can do.
+#[derive(Clone)]
+enum RowAction {
+    Open(Uuid),
+    /// Point the file tree at a folder.
+    Show(Uuid),
+    Copy(String),
+}
+
 #[derive(Clone, Copy, PartialEq, Eq)]
 enum Status {
     Running,
@@ -194,7 +203,7 @@ impl Chat {
                                 ui.set_width(col_w);
                                 ui.spacing_mut().item_spacing = Vec2::ZERO;
                                 if ready {
-                                    ui.add(Spacer::new(Space::Lg));
+                                    ui.add(Spacer::new(FADE));
                                     self.show_transcript(
                                         ui,
                                         &t,
@@ -223,9 +232,11 @@ impl Chat {
                         ));
                 }
                 if ready {
-                    let top = transcript_rect.bottom() - FADE.pts();
-                    let fade = transcript_rect.with_min_y(top);
-                    fade_down(ui.painter(), fade, t.neutral_bg());
+                    let (bg, clear) = (t.neutral_bg(), Color32::TRANSPARENT);
+                    let top = transcript_rect.with_max_y(transcript_rect.top() + FADE.pts());
+                    fade(ui.painter(), top, bg, clear);
+                    let bottom = transcript_rect.with_min_y(transcript_rect.bottom() - FADE.pts());
+                    fade(ui.painter(), bottom, clear, bg);
                 }
                 let at_bottom =
                     out.state.offset.y + out.inner_rect.height() >= out.content_size.y - 1.0;
@@ -689,6 +700,7 @@ impl Chat {
             if resp.clicked() && !self.expanded.remove(&id) {
                 self.expanded.insert(id);
             }
+            self.row_menu(ui, t, &resp, name, args, outcome.map_or("", |(result, _)| result));
         }
         if !open {
             self.bodies.remove(&id);
@@ -731,6 +743,10 @@ impl Chat {
             Some(parts) => parts,
             None => self.card_body(name, args, result, ok),
         };
+        // A quoted note's links are relative to where the note is.
+        let quoted = args.get("path").and_then(Value::as_str);
+        let quoted = quoted.and_then(|path| self.files.read().unwrap().by_path(path).map(|f| f.id));
+        let from = quoted.unwrap_or(self.id);
         // File rows are padded already; text is not, above or below.
         let mut after_files = false;
         for part in &parts {
@@ -738,7 +754,7 @@ impl Chat {
             if !files {
                 ui.add(Spacer::new(if after_files { Space::Xs } else { Space::Sm }));
             }
-            self.tool_part(ui, t, col_w, id, part, query, text_areas);
+            self.tool_part(ui, t, col_w, (id, from), part, query, text_areas);
             after_files = files;
         }
         if !after_files {
@@ -754,6 +770,50 @@ impl Chat {
             Stroke::new(STROKE_HAIRLINE, t.neutral()),
             StrokeKind::Inside,
         );
+    }
+
+    /// A row's context menu: go to what the call was about, or copy it.
+    fn row_menu(
+        &self, ui: &Ui, t: &Theme, resp: &egui::Response, name: &str, args: &Value, result: &str,
+    ) {
+        let arg = |key: &str| args.get(key).and_then(Value::as_str);
+        // A moved note is where it went.
+        let path = arg("to").or(arg("path")).map(str::to_string);
+        let found = path.as_deref().and_then(|path| {
+            let files = self.files.read().unwrap();
+            files.by_path(path).map(|f| (f.id, f.parent, f.is_folder()))
+        });
+        let text = match name {
+            "search" => arg("query"),
+            "read" | "thought" | "thinking" => Some(result),
+            _ => None,
+        };
+        let chosen = context_menu::show(resp, t, |e| {
+            match found {
+                Some((id, _, true)) => {
+                    e.item(phosphor::FOLDER, "Show in files", RowAction::Show(id))
+                }
+                Some((id, parent, false)) => {
+                    e.item(phosphor::ARROW_SQUARE_OUT, "Open", RowAction::Open(id));
+                    e.item(phosphor::FOLDER, "Show in files", RowAction::Show(parent));
+                }
+                None => {}
+            }
+            e.separator();
+            if let Some(path) = &path {
+                e.item(phosphor::LINK, "Copy path", RowAction::Copy(path.clone()));
+            }
+            if let Some(text) = text.filter(|text| !text.is_empty()) {
+                let label = if name == "search" { "Copy query" } else { "Copy text" };
+                e.item(phosphor::COPY, label, RowAction::Copy(text.to_string()));
+            }
+        });
+        match chosen {
+            Some(RowAction::Open(id)) => ui.ctx().open_file(id, false),
+            Some(RowAction::Show(id)) => ui.ctx().focus_folder(id),
+            Some(RowAction::Copy(text)) => ui.ctx().copy_text(text),
+            None => {}
+        }
     }
 
     /// What a card opens onto, with each file it lists looked up once.
@@ -772,8 +832,8 @@ impl Chat {
     /// One piece of an opened card, edge to edge under the bar.
     #[allow(clippy::too_many_arguments)]
     fn tool_part(
-        &mut self, ui: &mut Ui, t: &Theme, col_w: f32, id: Uuid, part: &rows::Part, query: &str,
-        text_areas: &mut Vec<crate::TextBufferArea>,
+        &mut self, ui: &mut Ui, t: &Theme, col_w: f32, (id, from): (Uuid, Uuid), part: &rows::Part,
+        query: &str, text_areas: &mut Vec<crate::TextBufferArea>,
     ) {
         let pad = Space::Sm.pts();
         let inner_w = (col_w - pad * 2.0).max(24.0);
@@ -795,10 +855,10 @@ impl Chat {
                 }
             }
             rows::Part::Note(text) => {
-                let h = self.label(id).height(text, inner_w);
+                let h = self.label(id, from).height(text, inner_w);
                 let (rect, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
                 let origin = pos2((rect.left() + pad).round(), rect.top());
-                let (areas, _) = self.label(id).paint_at(ui, text, origin, inner_w);
+                let (areas, _) = self.label(id, from).paint_at(ui, text, origin, inner_w);
                 text_areas.extend(areas);
             }
             rows::Part::Text(text) => plain(ui, text, t.neutral_fg()),
@@ -1090,9 +1150,10 @@ impl Chat {
             self.composer.clear();
             self.composer_text_seq += 1;
         } else if (send_requested || resp.clicked()) && !text.trim().is_empty() && !self.busy {
+            let mentions = self.linked(&text);
             let cmd = match self.editing.take() {
-                Some(id) => Cmd::Edit { id, text },
-                None => Cmd::Say { text, mentions: Vec::new() },
+                Some(id) => Cmd::Edit { id, text, mentions },
+                None => Cmd::Say { text, mentions },
             };
             self.send_cmd(cmd);
             self.composer.clear();
@@ -1727,13 +1788,13 @@ fn effort_name(effort: &str) -> &str {
     }
 }
 
-/// Paints `rect` from clear at its top to `color` at its bottom.
-fn fade_down(painter: &egui::Painter, rect: Rect, color: Color32) {
+/// Paints `rect` from `top` at its top edge to `bottom` at its bottom edge.
+fn fade(painter: &egui::Painter, rect: Rect, top: Color32, bottom: Color32) {
     let mut mesh = egui::Mesh::default();
-    mesh.colored_vertex(rect.left_top(), Color32::TRANSPARENT);
-    mesh.colored_vertex(rect.right_top(), Color32::TRANSPARENT);
-    mesh.colored_vertex(rect.left_bottom(), color);
-    mesh.colored_vertex(rect.right_bottom(), color);
+    mesh.colored_vertex(rect.left_top(), top);
+    mesh.colored_vertex(rect.right_top(), top);
+    mesh.colored_vertex(rect.left_bottom(), bottom);
+    mesh.colored_vertex(rect.right_bottom(), bottom);
     mesh.add_triangle(0, 1, 2);
     mesh.add_triangle(1, 2, 3);
     painter.add(egui::Shape::mesh(mesh));
