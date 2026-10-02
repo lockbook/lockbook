@@ -5,6 +5,7 @@ resolver = "2"
 members = [
     "libs/lb/lb-rs",
     "libs/lb/lb-chat",
+    "libs/apple-ai",
     "libs/lb/test_utils",
     "libs/content/workspace",
     "libs/content/workspace-ffi",

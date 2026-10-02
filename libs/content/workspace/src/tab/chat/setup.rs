@@ -16,6 +16,8 @@ pub enum Key {
     Required,
     /// A server of the user's own may or may not want one.
     Optional,
+    /// The device's own model wants none.
+    None,
 }
 
 pub struct Template {
@@ -29,8 +31,18 @@ pub struct Template {
 
 const DEFAULT_PATH: &str = "/.agent/default.json";
 
-/// Hosted providers: a company runs the model and issues a key.
+/// Hosted providers: a company runs the model and issues a key. On a Mac,
+/// the device's own model comes first, wanting nothing.
 pub const TEMPLATES: &[Template] = &[
+    #[cfg(target_os = "macos")]
+    Template {
+        name: "apple",
+        label: "Apple Intelligence",
+        kind: "apple",
+        base_url: "",
+        model: "on-device",
+        key: Key::None,
+    },
     Template {
         name: "anthropic",
         label: "Anthropic",
@@ -359,7 +371,8 @@ mod tests {
     #[test]
     fn a_hosted_provider_needs_its_key() {
         let mut setup = Setup::default();
-        setup.pick(&TEMPLATES[0]);
+        let anthropic = TEMPLATES.iter().find(|t| t.name == "anthropic").unwrap();
+        setup.pick(anthropic);
         assert_eq!(setup.describe().unwrap_err(), "paste an API key");
         setup.key = "k".into();
         let (name, file) = setup.describe().unwrap();
