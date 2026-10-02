@@ -482,3 +482,29 @@ pub extern "C" fn voice_played(reply: u32, ms: u64) {
 pub extern "C" fn voice_hang_up() {
     voice::hang_up();
 }
+
+/// What the bridge answers through: request id, event kind (0 text, 1
+/// done, 2 error, 3 tool call), and the event's bytes, copied before the
+/// call returns.
+pub type AppleAiCallback = extern "C" fn(u64, u32, *const u8, usize);
+
+/// The app's Apple Intelligence bridge, registered once so the device's
+/// model can be a provider: the four calls the Rust side makes, each
+/// answering through the callback it is handed.
+#[repr(C)]
+pub struct AppleAiHooks {
+    pub availability: unsafe extern "C" fn(u64, AppleAiCallback),
+    pub start: unsafe extern "C" fn(u64, *const u8, usize, AppleAiCallback),
+    pub cancel: unsafe extern "C" fn(u64),
+    pub tool_result: unsafe extern "C" fn(u64, *const u8, usize),
+}
+
+#[no_mangle]
+pub extern "C" fn apple_ai_register(hooks: AppleAiHooks) {
+    lb_apple_ai::register(lb_apple_ai::Hooks {
+        availability: hooks.availability,
+        start: hooks.start,
+        cancel: hooks.cancel,
+        tool_result: hooks.tool_result,
+    });
+}

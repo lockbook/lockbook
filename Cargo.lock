@@ -9906,6 +9906,7 @@ dependencies = [
  "egui_wgpu_renderer",
  "glyphon",
  "jni 0.21.1",
+ "lb-apple-ai",
  "lb-c",
  "lb-java",
  "ndk-sys 0.4.1+23.1.7779620",

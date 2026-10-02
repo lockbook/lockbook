@@ -30,7 +30,7 @@ pub async fn complete(
 /// The answer to the call a session is parked on, when the transcript ends
 /// with that call and its result. Calls are matched by what they asked,
 /// since a line's id is not the server's.
-#[cfg(any(target_os = "macos", test))]
+#[cfg(any(target_os = "macos", target_os = "ios", test))]
 fn answered(req: &Request, name: &str, args: &serde_json::Value) -> Option<String> {
     use super::Turn;
     let n = req.turns.len();
@@ -47,7 +47,7 @@ fn answered(req: &Request, name: &str, args: &serde_json::Value) -> Option<Strin
     Some(if result.ok { result.text.clone() } else { format!("The tool failed: {}", result.text) })
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "ios"))]
 mod native {
     use std::sync::Mutex;
     use std::time::Duration;
@@ -151,11 +151,11 @@ mod native {
     }
 }
 
-#[cfg(not(target_os = "macos"))]
+#[cfg(not(any(target_os = "macos", target_os = "ios")))]
 mod native {
     use super::*;
 
-    const ELSEWHERE: &str = "Apple Intelligence runs only in the Mac app for now";
+    const ELSEWHERE: &str = "Apple Intelligence runs only on Apple devices";
 
     pub fn available() -> Result<(), String> {
         Err(ELSEWHERE.into())

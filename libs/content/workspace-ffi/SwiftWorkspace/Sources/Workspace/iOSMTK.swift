@@ -864,6 +864,7 @@
                 Unmanaged.passUnretained(layer).toOpaque()
             )
             claimedPersistence = true
+            AppleIntelligence.register()
             wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), false, WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
 

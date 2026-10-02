@@ -8,7 +8,7 @@ Create a chat from the new-file menu. The first chat walks you through choosing 
 
 A server of your own, such as Ollama, LM Studio, or llama.cpp on a machine on your network, is added the same way with its address and no key. Models on such a server are often small; the assistant works harder for them and tells them when a note is long.
 
-On a Mac with Apple Intelligence, the device's own model is offered first and needs nothing at all. It is kept to reading: it searches, lists, and reads notes and answers from them, but cannot edit, follows no `AGENTS.md`, and is shown no pictures. Ask it about one note at a time.
+On a Mac or an iPhone with Apple Intelligence, the device's own model is offered first and needs nothing at all. It is kept to reading: it searches, lists, and reads notes and answers from them, but cannot edit, follows no `AGENTS.md`, and is shown no pictures. Ask it about one note at a time.
 
 ## What the assistant can do
 
