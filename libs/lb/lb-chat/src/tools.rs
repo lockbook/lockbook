@@ -2,28 +2,45 @@
 //! each call through `call()`; the vault toolset lives with the territory
 //! rules, this module only fixes the shape.
 
-use lb_rs::model::chat::Mention;
+use lb_rs::model::chat::{Chat, Mention};
 
 use crate::wire::{Call, ToolSchema};
 
-pub struct ToolOutcome {
-    pub text: String,
-    pub ok: bool,
+pub enum ToolOutcome {
+    Done {
+        text: String,
+        ok: bool,
+    },
+    /// The user must approve first; the driver calls again with `approved`.
+    Ask {
+        prompt: String,
+    },
+    /// The territory grew by `path`; the driver persists the grant.
+    Grant {
+        path: String,
+        text: String,
+    },
+    /// The run ends and the model never learns why.
+    Abort {
+        text: String,
+    },
 }
 
 impl ToolOutcome {
     pub fn ok(text: impl Into<String>) -> Self {
-        Self { text: text.into(), ok: true }
+        Self::Done { text: text.into(), ok: true }
     }
 
     pub fn err(text: impl Into<String>) -> Self {
-        Self { text: text.into(), ok: false }
+        Self::Done { text: text.into(), ok: false }
     }
 }
 
 pub trait Tools: Send {
     fn schemas(&self) -> Vec<ToolSchema>;
-    fn call(&mut self, call: &Call) -> ToolOutcome;
+    /// Called before each completion with the chat as it stands.
+    fn prepare(&mut self, _chat: &Chat, _user: &str, _working_dir: &str) {}
+    fn call(&mut self, call: &Call, approved: bool) -> ToolOutcome;
     /// Current text of a file the user attached, or nothing if it is gone.
     fn read_mention(&mut self, _mention: &Mention) -> Option<String> {
         None
@@ -37,7 +54,7 @@ impl Tools for NoTools {
         Vec::new()
     }
 
-    fn call(&mut self, call: &Call) -> ToolOutcome {
+    fn call(&mut self, call: &Call, _approved: bool) -> ToolOutcome {
         ToolOutcome::err(format!("no tool named {}", call.name))
     }
 }

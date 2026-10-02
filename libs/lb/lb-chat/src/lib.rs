@@ -8,7 +8,9 @@ pub mod context;
 pub mod driver;
 pub mod provider;
 pub mod store;
+pub mod territory;
 pub mod tools;
+pub mod vault;
 pub mod wire;
 
 #[cfg(test)]
@@ -17,5 +19,7 @@ pub(crate) mod mock;
 pub use driver::{Cmd, Driver, Event};
 pub use provider::{Kind, Provider};
 pub use store::{LbStore, MemStore, Store};
+pub use territory::Territory;
 pub use tools::{NoTools, ToolOutcome, Tools};
+pub use vault::VaultTools;
 pub use wire::{Call, ToolSchema};

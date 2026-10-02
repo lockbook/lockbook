@@ -1,10 +1,10 @@
-use std::io::Write;
+use std::io::{BufRead, Write};
 use std::thread::sleep;
 use std::time::Duration;
 
 use cli_rs::cli_error::{CliError, CliResult};
 use lb_chat::driver::Config;
-use lb_chat::{Cmd, Driver, Event, LbStore, NoTools, Provider};
+use lb_chat::{Cmd, Driver, Event, LbStore, Provider, VaultTools};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::chat::{Body, Chat};
@@ -46,7 +46,8 @@ pub fn chat(target: String, message: String) -> CliResult<()> {
             Provider::resolve(&resolver_lb, &settings)
         }),
     };
-    let driver = Driver::spawn(LbStore { lb, id }, NoTools, config, || {});
+    let tools = VaultTools::new(lb.clone());
+    let driver = Driver::spawn(LbStore { lb, id }, tools, config, || {});
     driver.send(Cmd::Say { text: message, mentions: Vec::new() });
 
     let mut out = std::io::stdout();
@@ -58,6 +59,13 @@ pub fn chat(target: String, message: String) -> CliResult<()> {
                     out.flush()?;
                 }
                 Event::ToolStarted(call) => eprintln!("[{} {}]", call.name, call.args),
+                Event::Ask { prompt, .. } => {
+                    eprint!("{prompt} [y/N] ");
+                    let mut answer = String::new();
+                    let _ = std::io::stdin().lock().read_line(&mut answer);
+                    let yes = answer.trim().eq_ignore_ascii_case("y");
+                    driver.send(if yes { Cmd::Approve } else { Cmd::Deny });
+                }
                 Event::Written(entry) => {
                     if let Body::Error { text } = entry.body {
                         eprintln!("error: {text}");
