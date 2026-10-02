@@ -432,6 +432,7 @@ impl Search {
             dest,
             &[],
             "search_scope",
+            None,
             "Folder",
             "Choose a folder to search in.",
             "Done",

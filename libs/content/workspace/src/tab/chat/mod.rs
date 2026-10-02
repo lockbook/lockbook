@@ -17,7 +17,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, RwLock};
 use std::time::{Duration, Instant};
 
-use egui::{Context, Rect};
+use egui::{Context, Id, Rect};
 use lb_chat::driver::Config;
 use lb_chat::{Cmd, Driver, Event, Kind, ModelInfo, Place, Provider, SharedStore, VaultTools};
 use lb_rs::Uuid;
@@ -122,6 +122,8 @@ pub struct Chat {
 
     composer: MdEdit,
     composer_rect: Rect,
+    /// The tab's whole rect this frame, above any keyboard.
+    view: Rect,
     composer_seq: usize,
     composer_text_seq: usize,
     editing: Option<Uuid>,
@@ -210,6 +212,7 @@ impl Chat {
             streaming_label,
             images: None,
             tapped: None,
+            view: Rect::ZERO,
             voice: false,
             hearing: String::new(),
             persistence: None,
@@ -386,6 +389,19 @@ impl Chat {
             Some(Place::YourNetwork) => Icon::Glyph(phosphor::HARD_DRIVES),
             Some(Place::Internet) | None => Icon::Mark(self.glyphs.get(ctx, name, px)),
         }
+    }
+
+    /// Whether a text field of the chat's own chrome has the keyboard: the
+    /// model filter or the setup form's fields, which a platform text
+    /// system then types into as egui events.
+    pub fn chrome_focused(&self, ctx: &Context) -> bool {
+        let fields = [
+            Id::new(("chat_models", self.id)).with("filter"),
+            Id::new(("chat_setup_url", self.id)),
+            Id::new(("chat_setup_key", self.id)),
+            Id::new(("chat_setup_model", self.id)),
+        ];
+        ctx.memory(|m| fields.iter().any(|id| m.has_focus(id.with("edit"))))
     }
 
     /// The current model's listing entry, once the listing has landed.

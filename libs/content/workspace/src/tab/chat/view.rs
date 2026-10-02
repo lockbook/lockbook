@@ -20,7 +20,9 @@ use super::{Chat, IN_FLIGHT, Setup, rows};
 use crate::file_cache::FilesExt;
 use crate::resolvers::embed::EmbedResolver as _;
 use crate::resolvers::image_embed::ImageEmbedResolver;
-use crate::style::chrome::{display_file_name, file_row_icon, shortcut_enter, shortcut_esc};
+use crate::style::chrome::{
+    display_file_name, file_row_icon, is_touch, shortcut_enter, shortcut_esc,
+};
 use crate::style::file_name;
 use crate::style::interact::{ControlFills, interact_fill_response, quiet_canvas_fills};
 use crate::style::layout::paint_control_pads;
@@ -144,6 +146,7 @@ impl Chat {
         let t = ui.ctx().get_lb_theme();
         ui.spacing_mut().item_spacing = Vec2::ZERO;
         let full = ui.max_rect();
+        self.view = full;
         let col_w = (full.width() - Space::Lg.pts() * 2.0).clamp(160.0, COLUMN_W);
         let col_x = (full.center().x - col_w / 2.0).round();
         let ready = self.is_ready();
@@ -283,7 +286,8 @@ impl Chat {
             self.send_cmd(cmd);
         }
         if !ready {
-            return (Rect::NOTHING, false, false);
+            // Nothing to type into: a frame that takes no touch and draws no caret.
+            return (Rect::from_min_size(full.min, Vec2::ZERO), false, false);
         }
         if !at_bottom {
             let above_fade = transcript_rect.bottom() - FADE.pts();
@@ -375,6 +379,7 @@ impl Chat {
         });
         self.scope_dest = Some(id);
         self.scope_open = true;
+        ctx.set_virtual_keyboard_shown(false);
     }
 
     fn close_scope_sheet(&mut self) {
@@ -413,6 +418,7 @@ impl Chat {
             dest,
             &[],
             "chat_scope",
+            is_touch(ui.ctx()).then_some(self.view),
             "Folder",
             "Choose the folder this chat can read and edit.",
             "Done",
@@ -725,6 +731,7 @@ impl Chat {
         self.composer_text_seq += 1;
         ui.ctx()
             .memory_mut(|m| m.request_focus(Id::new(("chat_composer", self.id))));
+        ui.ctx().set_virtual_keyboard_shown(true);
     }
 
     /// A settled message's text in `rect`. It selects with the mouse and
@@ -1336,6 +1343,13 @@ impl Chat {
         if text_changed {
             self.composer_seq += 1;
         }
+        // While a menu or a sheet is up, the platform's text view takes no
+        // touch and draws no caret, so a tap lands on what is up.
+        let text_rect = if self.sheet_open() || menu_open {
+            Rect::from_min_size(text_rect.min, Vec2::ZERO)
+        } else {
+            text_rect
+        };
         (text_rect, selection_changed, text_changed)
     }
 
@@ -1540,24 +1554,32 @@ impl Chat {
             // provider is its key first.
             let own = template.key == KeyNeed::Optional;
             if own {
-                Field::new(t, &mut self.setup.base_url)
+                if Field::new(t, &mut self.setup.base_url)
                     .hint("address, such as linux-box:11434")
                     .width(col_w)
                     .id(Id::new(("chat_setup_url", self.id)))
-                    .show(ui);
+                    .show(ui)
+                    .clicked()
+                {
+                    ui.ctx().set_virtual_keyboard_shown(true);
+                }
                 ui.add(Spacer::new(Space::Xs));
             }
             if template.key == KeyNeed::Required {
-                Field::new(t, &mut self.setup.key)
+                if Field::new(t, &mut self.setup.key)
                     .hint(format!("{} API key", template.label))
                     .password(true)
                     .width(col_w)
                     .id(Id::new(("chat_setup_key", self.id)))
-                    .show(ui);
+                    .show(ui)
+                    .clicked()
+                {
+                    ui.ctx().set_virtual_keyboard_shown(true);
+                }
                 ui.add(Spacer::new(Space::Xs));
             }
-            if template.key != KeyNeed::None {
-                Field::new(t, &mut self.setup.model)
+            if template.key != KeyNeed::None
+                && Field::new(t, &mut self.setup.model)
                     .hint(if own {
                         "model, or blank for the first the server lists"
                     } else {
@@ -1565,16 +1587,23 @@ impl Chat {
                     })
                     .width(col_w)
                     .id(Id::new(("chat_setup_model", self.id)))
-                    .show(ui);
+                    .show(ui)
+                    .clicked()
+            {
+                ui.ctx().set_virtual_keyboard_shown(true);
             }
             if own {
                 ui.add(Spacer::new(Space::Xs));
-                Field::new(t, &mut self.setup.key)
+                if Field::new(t, &mut self.setup.key)
                     .hint("API key, if the server wants one")
                     .password(true)
                     .width(col_w)
                     .id(Id::new(("chat_setup_key", self.id)))
-                    .show(ui);
+                    .show(ui)
+                    .clicked()
+                {
+                    ui.ctx().set_virtual_keyboard_shown(true);
+                }
                 ui.add(Spacer::new(Space::Xs));
                 ui.add(
                     GlyphonLabel::new(OWN_HELP, t.neutral_fg_secondary())

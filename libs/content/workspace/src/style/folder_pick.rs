@@ -210,10 +210,13 @@ pub struct FolderSheetOut {
 /// Clicking a row selects (and expands); [`FolderSheetOut::confirm`] commits.
 /// `after_tree` is the summary band under the list (may be empty).
 #[allow(clippy::too_many_arguments)]
+/// `fill` is the rect the sheet takes whole, as on a phone; without it the
+/// sheet is a plate of its own size in the middle.
 pub fn show_folder_sheet(
     ctx: &egui::Context, t: &Theme, files: &impl FilesExt, expanded: &mut HashSet<Uuid>,
-    dest: Option<Uuid>, moving: &[Uuid], id_salt: &str, title: &str, hint: &str, primary: &str,
-    footer: super::sheet::SheetFooterOpts, after_tree: impl FnOnce(&mut Ui),
+    dest: Option<Uuid>, moving: &[Uuid], id_salt: &str, fill: Option<egui::Rect>, title: &str,
+    hint: &str, primary: &str, footer: super::sheet::SheetFooterOpts,
+    after_tree: impl FnOnce(&mut Ui),
 ) -> FolderSheetOut {
     use super::sheet::{sheet_dim, sheet_footer, sheet_panel_fit, sheet_title_muted};
     use super::space::Space;
@@ -226,34 +229,55 @@ pub fn show_folder_sheet(
         out.dismiss = true;
     }
 
-    egui::Area::new(Id::new(id_salt))
-        .order(egui::Order::Foreground)
-        .anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
-        .show(ctx, |ui| {
-            sheet_panel_fit(ui, t, 360.0, |ui| {
-                if sheet_title_muted(ui, t, title) {
-                    out.dismiss = true;
-                }
-                ui.add(Spacer::new(Space::Md));
-                ui.label(TypeRole::Body.rich(hint).color(t.neutral_fg()));
-                ui.add(Spacer::new(Space::Sm));
-                let tree_h = folder_tree_default_height();
-                if let Some(id) =
-                    show_folder_tree_plate(ui, t, files, expanded, dest, moving, id_salt, tree_h)
-                {
-                    out.picked = Some(id);
-                }
-                after_tree(ui);
-                ui.add(Spacer::new(Space::Md));
-                let foot = sheet_footer(ui, t, primary, footer.primary_enabled(dest.is_some()));
-                if foot.cancel {
-                    out.dismiss = true;
-                }
-                if foot.primary {
-                    out.confirm = true;
-                }
-            });
-        });
+    let mut after_tree = Some(after_tree);
+    let mut body = |ui: &mut Ui, tree_h: f32| {
+        if sheet_title_muted(ui, t, title) {
+            out.dismiss = true;
+        }
+        ui.add(Spacer::new(Space::Md));
+        ui.label(TypeRole::Body.rich(hint).color(t.neutral_fg()));
+        ui.add(Spacer::new(Space::Sm));
+        if let Some(id) =
+            show_folder_tree_plate(ui, t, files, expanded, dest, moving, id_salt, tree_h)
+        {
+            out.picked = Some(id);
+        }
+        if let Some(after_tree) = after_tree.take() {
+            after_tree(ui);
+        }
+        ui.add(Spacer::new(Space::Md));
+        let foot = sheet_footer(ui, t, primary, footer.primary_enabled(dest.is_some()));
+        if foot.cancel {
+            out.dismiss = true;
+        }
+        if foot.primary {
+            out.confirm = true;
+        }
+    };
+    let area = egui::Area::new(Id::new(id_salt)).order(egui::Order::Foreground);
+    match fill {
+        Some(fill) => {
+            let (edge, pad) = (Space::Sm.pts(), Space::Md.pts());
+            let inner = fill.shrink(edge + pad);
+            let chrome = super::chrome::control_height() * 2.0
+                + TypeRole::Body.line_height()
+                + Space::Md.pts() * 2.0
+                + Space::Sm.pts();
+            let tree_h = (inner.height() - chrome).max(super::tree_metrics::ROW_H * 3.0);
+            area.fixed_pos(fill.min + egui::vec2(edge, edge))
+                .show(ctx, |ui| {
+                    super::sheet::sheet_panel_fixed(ui, t, inner.width(), inner.height(), |ui| {
+                        body(ui, tree_h)
+                    });
+                });
+        }
+        None => {
+            area.anchor(egui::Align2::CENTER_CENTER, egui::vec2(0.0, 0.0))
+                .show(ctx, |ui| {
+                    sheet_panel_fit(ui, t, 360.0, |ui| body(ui, folder_tree_default_height()));
+                });
+        }
+    }
     out
 }
 

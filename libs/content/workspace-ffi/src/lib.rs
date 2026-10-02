@@ -60,16 +60,10 @@ impl WgpuWorkspace<'_> {
         let workspace_frame =
             egui::Frame::default().fill(self.renderer.context.style().visuals.extreme_bg_color);
 
+        // The screen rect already ends above the keyboard.
         let workspace_response = egui::CentralPanel::default()
             .frame(workspace_frame)
-            .show(&self.renderer.context, |ui| {
-                let mut rect = ui.max_rect();
-                rect.max.y -= keyboard_height;
-                ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-                    self.workspace.show(ui)
-                })
-                .inner
-            })
+            .show(&self.renderer.context, |ui| self.workspace.show(ui))
             .inner;
 
         let prepared = self.renderer.prepare_frame();

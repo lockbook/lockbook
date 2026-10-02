@@ -221,6 +221,13 @@ fn show_at<T: Clone>(
     }
 
     if open {
+        // The host that opened the menu closes it.
+        if is_open_id(ctx, resp.id) {
+            ctx.memory_mut(|m| {
+                m.data.remove::<OpenState>(open_id());
+            });
+            return None;
+        }
         let press = ctx
             .pointer_interact_pos()
             .or_else(|| ctx.input(|i| i.pointer.hover_pos()))

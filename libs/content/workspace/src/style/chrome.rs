@@ -121,6 +121,11 @@ pub fn control_icon_hit() -> f32 {
     control_line_height()
 }
 
+/// Whether a finger does the pointing: no hover, no hardware shortcuts.
+pub fn is_touch(ctx: &egui::Context) -> bool {
+    matches!(ctx.os(), egui::os::OperatingSystem::Android | egui::os::OperatingSystem::IOS)
+}
+
 /// Uniform inset for row hover/select washes (all four sides).
 ///
 /// File rows, menu rows, nav: **1 px** air so adjacent washes read as separate

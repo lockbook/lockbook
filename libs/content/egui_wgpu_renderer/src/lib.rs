@@ -247,12 +247,14 @@ impl<'w> RendererState<'w> {
     fn set_egui_screen(&mut self) {
         use egui::{Pos2, Rect};
 
+        // The screen ends where the soft keyboard begins, so every area,
+        // menu, and sheet is laid out above it.
+        let ppp = self.screen.pixels_per_point;
+        let inset = self.bottom_inset.unwrap_or(0) as f32 / ppp;
+        let height = (self.screen.size_in_pixels[1] as f32 / ppp - inset).max(1.0);
         self.raw_input.screen_rect = Some(Rect {
             min: Pos2::ZERO,
-            max: Pos2::new(
-                self.screen.size_in_pixels[0] as f32 / self.screen.pixels_per_point,
-                self.screen.size_in_pixels[1] as f32 / self.screen.pixels_per_point,
-            ),
+            max: Pos2::new(self.screen.size_in_pixels[0] as f32 / ppp, height),
         });
         if let Some(viewport) = self
             .raw_input
