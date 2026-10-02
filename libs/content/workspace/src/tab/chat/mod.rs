@@ -773,6 +773,8 @@ impl Chat {
                 self.expanded.remove(&IN_FLIGHT);
                 self.running_tool = None;
             }
+            // Voice has no surface in the tab yet.
+            Event::VoiceStarted | Event::VoiceEnded | Event::Audio { .. } | Event::Interrupted => {}
         }
     }
 

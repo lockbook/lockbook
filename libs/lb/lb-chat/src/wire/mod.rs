@@ -1,10 +1,11 @@
-//! Provider-neutral request and completion types, and the three wire
-//! dialects that carry them: OpenAI-compatible chat completions, the
-//! Responses API, and Anthropic messages.
+//! Provider-neutral request and completion types, and the wire dialects
+//! that carry them: OpenAI-compatible chat completions, the Responses API,
+//! Anthropic messages, and the realtime socket for voice.
 
 pub mod anthropic;
 pub mod images;
 pub mod openai;
+pub mod realtime;
 pub mod responses;
 
 use std::time::Duration;

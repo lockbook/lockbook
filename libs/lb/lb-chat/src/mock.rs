@@ -1,9 +1,14 @@
 //! A real socket serving canned responses, so tests exercise the full
-//! reqwest and SSE path offline.
+//! reqwest and SSE path offline; and a scripted websocket server for the
+//! realtime dialect.
 
 use std::io::{Read, Write};
 use std::net::{TcpListener, TcpStream};
 use std::sync::mpsc::{Receiver, channel};
+
+use futures::{SinkExt, StreamExt};
+use serde_json::Value;
+use tokio_tungstenite::tungstenite::Message;
 
 pub const SSE_HELLO: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
      data: {\"choices\":[{\"delta\":{\"content\":\"Hel\"}}]}\n\n\
@@ -96,4 +101,62 @@ fn read_request(sock: &mut TcpStream) -> String {
             return String::from_utf8_lossy(&buf[end + 4..end + 4 + len]).into_owned();
         }
     }
+}
+
+/// A step of a scripted realtime server.
+pub enum Step {
+    Send(Value),
+    /// Read until an event of this type arrives.
+    Expect(&'static str),
+    Wait(u64),
+    Close,
+}
+
+/// A websocket server that plays `steps` to one client and hands back
+/// every event the client sent. After the last step it reads on until the
+/// client goes. The address is a provider's base URL.
+pub fn serve_ws(steps: Vec<Step>) -> (String, Receiver<Value>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    listener.set_nonblocking(true).unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (tx, rx) = channel();
+    std::thread::spawn(move || {
+        let rt = tokio::runtime::Builder::new_current_thread()
+            .enable_all()
+            .build()
+            .unwrap();
+        rt.block_on(async move {
+            let listener = tokio::net::TcpListener::from_std(listener).unwrap();
+            let (stream, _) = listener.accept().await.unwrap();
+            let mut ws = tokio_tungstenite::accept_async(stream).await.unwrap();
+            let sent = |message: Message| -> Option<Value> {
+                let Message::Text(text) = message else { return None };
+                let event: Value = serde_json::from_str(&text).unwrap();
+                let _ = tx.send(event.clone());
+                Some(event)
+            };
+            for step in steps {
+                match step {
+                    Step::Send(event) => ws.send(Message::Text(event.to_string())).await.unwrap(),
+                    Step::Expect(kind) => loop {
+                        let Some(Ok(message)) = ws.next().await else { return };
+                        if sent(message).is_some_and(|event| event["type"] == kind) {
+                            break;
+                        }
+                    },
+                    Step::Wait(ms) => {
+                        tokio::time::sleep(std::time::Duration::from_millis(ms)).await
+                    }
+                    Step::Close => {
+                        let _ = ws.close(None).await;
+                        return;
+                    }
+                }
+            }
+            while let Some(Ok(message)) = ws.next().await {
+                sent(message);
+            }
+        });
+    });
+    (format!("http://{addr}/v1"), rx)
 }

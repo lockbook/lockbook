@@ -175,7 +175,8 @@ fn run() -> CliResult<()> {
                 .input(Flag::<String>::new("effort").description("how hard the model thinks from now on, where that is known to work: none, low, medium, high, ..., or default"))
                 .input(Flag::<String>::new("attach").description("path of a note to send with the message")
                     .completor(|prompt| input::file_completor(prompt, None)))
-                .handler(|target, message, model, effort, attach| chat::chat(target.get(), message.get(), model.get(), effort.get(), attach.get()))
+                .input(Flag::<String>::new("voice").description("speak instead, from recorded clips: WAV files (PCM16 mono 24 kHz) to say, seconds to stay quiet, '.' to hear the reply out"))
+                .handler(|target, message, model, effort, attach, voice| chat::chat(target.get(), message.get(), model.get(), effort.get(), attach.get(), voice.get()))
         )
         .subcommand(
             Command::name("cat")
