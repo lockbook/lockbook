@@ -38,7 +38,7 @@ impl ContentSearcher {
 
         let md_files: Vec<File> = metas
             .into_iter()
-            .filter(|m| m.is_document() && m.name.ends_with(".md"))
+            .filter(|m| m.is_document() && (m.name.ends_with(".md") || m.name.ends_with(".chat")))
             .collect();
 
         let queue = Arc::new(Mutex::new(md_files));
@@ -59,10 +59,14 @@ impl ContentSearcher {
                         };
 
                         let id = meta.id;
-                        let doc = lb
-                            .read_document(meta.id, false)
-                            .ok()
-                            .and_then(|bytes| String::from_utf8(bytes).ok());
+                        let is_chat = meta.name.ends_with(".chat");
+                        let doc = lb.read_document(meta.id, false).ok().and_then(|bytes| {
+                            if is_chat {
+                                Some(crate::model::chat::Chat::parse(&bytes).text())
+                            } else {
+                                String::from_utf8(bytes).ok()
+                            }
+                        });
 
                         if let Some(content) = doc {
                             let path = paths
