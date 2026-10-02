@@ -29,6 +29,11 @@ use crate::wire::{self, Call, Piece, Request, images};
 
 /// Bytes of a tool result written to the chat.
 pub const TOOL_RESULT_CAP: usize = 16 * 1024;
+/// The same for the device's own model, whose window is small.
+const FENCED_RESULT_CAP: usize = 8 * 1024;
+/// Said to the device's own model in place of the note tools it is not given.
+const FENCED: &str = "You can only read notes here, not change them; if the user asks for a \
+    change, say that a cloud model in Lockbook can make it.";
 
 /// What a call is answered with once it has answered the same twice.
 const REPEATED: &str = "you have made this call twice already and it answered the same; \
@@ -144,6 +149,7 @@ impl Driver {
                     rt,
                     made: Made::default(),
                     artist: None,
+                    result_cap: TOOL_RESULT_CAP,
                 }
                 .run(cmd_rx);
             })
@@ -178,6 +184,8 @@ struct Worker {
     made: Made,
     /// The provider and model that make pictures for this round's model.
     artist: Option<(Provider, &'static str)>,
+    /// Bytes of a tool result kept, for this round's model.
+    result_cap: usize,
 }
 
 /// Where settled lines go, and who is told of them.
@@ -453,7 +461,7 @@ impl Worker {
                     return false;
                 }
             };
-            let result = truncate(&text, TOOL_RESULT_CAP);
+            let result = truncate(&text, self.result_cap);
             let mut entry = Entry::tool(&user, call.name, call.args, result, ok);
             if let Some(echo) = call.echo.and_then(|e| serde_json::to_value(e).ok()) {
                 entry.extra.insert("echo".into(), echo);
@@ -492,11 +500,21 @@ impl Worker {
         let territory = Territory::new(&self.config.working_dir, &settings);
         self.tools
             .prepare(&chat, &self.config.user, &self.config.working_dir);
-        let instructions = self.tools.instructions(&self.config.working_dir);
-        let system = context::system_prompt(&territory, &instructions);
+        let fenced = provider.fenced();
+        let instructions =
+            if fenced { Vec::new() } else { self.tools.instructions(&self.config.working_dir) };
+        let mut system = context::system_prompt(&territory, &instructions);
         let mut tools = self.tools.schemas();
         if provider.reaches_the_web() && !spoken {
             tools.retain(|tool| tool.name != web::SEARCH && tool.name != web::FETCH);
+        }
+        self.result_cap = if fenced { FENCED_RESULT_CAP } else { TOOL_RESULT_CAP };
+        if fenced {
+            tools.retain(|tool| {
+                ["search", "read", "list", web::SEARCH, web::FETCH].contains(&tool.name.as_str())
+            });
+            tools.iter_mut().for_each(slim);
+            system = format!("{system} {FENCED}");
         }
         self.artist = provider
             .draws()
@@ -563,6 +581,20 @@ impl Worker {
                 self.lines.emit(Event::Thinking(text));
             }
         }
+    }
+}
+
+/// Leaves a tool only its required arguments: the device's own model
+/// reaches for optional ones it then gets wrong.
+fn slim(tool: &mut wire::ToolSchema) {
+    let required: Vec<String> = tool.parameters["required"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|v| v.as_str().map(str::to_string))
+        .collect();
+    if let Some(props) = tool.parameters["properties"].as_object_mut() {
+        props.retain(|name, _| required.contains(name));
     }
 }
 

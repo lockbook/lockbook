@@ -27,5 +27,8 @@ tokio-tungstenite = { version = "0.20", features = ["rustls-tls-webpki-roots"] }
 tracing = "0.1.5"
 uuid = { version = "1.2.2", features = ["v4", "serde"] }
 
+[target.'cfg(target_os = "macos")'.dependencies]
+lb-apple-ai = { path = "../../apple-ai" }
+
 [dev-dependencies]
 test_utils = { path = "../test_utils" }

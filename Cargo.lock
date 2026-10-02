@@ -4176,6 +4176,15 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "bbd2bcb4c963f2ddae06a2efc7e9f3591312473c50c6685e1f298068316e66fe"
 
 [[package]]
+name = "lb-apple-ai"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "tokio",
+]
+
+[[package]]
 name = "lb-c"
 version = "26.9.25"
 dependencies = [
@@ -4190,6 +4199,7 @@ dependencies = [
  "chrono",
  "futures",
  "image 0.25.10",
+ "lb-apple-ai",
  "lb-rs",
  "reqwest",
  "resvg",

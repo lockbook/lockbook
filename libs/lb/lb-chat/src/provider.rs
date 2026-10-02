@@ -12,6 +12,8 @@ use serde::{Deserialize, Serialize};
 pub enum Kind {
     OpenAi,
     Anthropic,
+    /// Apple Intelligence: the device's own model, with no address and no key.
+    Apple,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -132,6 +134,7 @@ struct ProviderFile {
     display_name: Option<String>,
     #[serde(default = "default_kind")]
     kind: String,
+    #[serde(default)]
     base_url: String,
     #[serde(default)]
     model: String,
@@ -253,8 +256,12 @@ impl Provider {
         let kind = match file.kind.as_str() {
             "anthropic" => Kind::Anthropic,
             "openai" => Kind::OpenAi,
+            "apple" => Kind::Apple,
             other => return Err(format!("{path}: unknown kind {other:?}")),
         };
+        if file.base_url.trim().is_empty() && kind != Kind::Apple {
+            return Err(format!("{path}: no base_url"));
+        }
         let needs_key = file
             .api_key
             .as_deref()
@@ -287,7 +294,13 @@ impl Provider {
     }
 
     pub fn place(&self) -> Place {
-        place(&self.base_url)
+        if self.kind == Kind::Apple { Place::ThisDevice } else { place(&self.base_url) }
+    }
+
+    /// Whether this is the device's own model, which is kept to reading:
+    /// the probe found it unsafe with edits and lost past a small window.
+    pub fn fenced(&self) -> bool {
+        self.kind == Kind::Apple
     }
 }
 
@@ -360,6 +373,7 @@ pub fn friendly_name(provider: &str) -> String {
     match provider {
         "openai" => "OpenAI".into(),
         "xai" => "xAI".into(),
+        "apple" => "Apple Intelligence".into(),
         "openrouter" => "OpenRouter".into(),
         other => capitalize(other),
     }

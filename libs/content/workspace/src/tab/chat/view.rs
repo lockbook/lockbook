@@ -1500,15 +1500,17 @@ impl Chat {
                     .show(ui);
                 ui.add(Spacer::new(Space::Xs));
             }
-            Field::new(t, &mut self.setup.model)
-                .hint(if own {
-                    "model, or blank for the first the server lists"
-                } else {
-                    "model id"
-                })
-                .width(col_w)
-                .id(Id::new(("chat_setup_model", self.id)))
-                .show(ui);
+            if template.key != KeyNeed::None {
+                Field::new(t, &mut self.setup.model)
+                    .hint(if own {
+                        "model, or blank for the first the server lists"
+                    } else {
+                        "model id"
+                    })
+                    .width(col_w)
+                    .id(Id::new(("chat_setup_model", self.id)))
+                    .show(ui);
+            }
             if own {
                 ui.add(Spacer::new(Space::Xs));
                 Field::new(t, &mut self.setup.key)

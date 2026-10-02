@@ -3,6 +3,7 @@
 //! Anthropic messages, and the realtime socket for voice.
 
 pub mod anthropic;
+pub mod apple;
 pub mod images;
 pub mod openai;
 pub mod realtime;
@@ -132,6 +133,7 @@ pub async fn complete(
         }
         Kind::OpenAi => openai::complete(client, provider, req, deltas).await,
         Kind::Anthropic => anthropic::complete(client, provider, req, deltas).await,
+        Kind::Apple => apple::complete(req, deltas).await,
     }
 }
 

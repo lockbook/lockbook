@@ -42,6 +42,13 @@ pub async fn list_models(provider: &Provider) -> Result<Vec<ModelInfo>, String> 
     match provider.kind {
         Kind::Anthropic => list_anthropic(provider).await,
         Kind::OpenAi => list_openai(provider).await,
+        Kind::Apple => crate::wire::apple::available().map(|()| {
+            vec![ModelInfo {
+                id: crate::wire::apple::MODEL.into(),
+                display_name: Some("Apple Intelligence".into()),
+                window: Some(crate::wire::apple::WINDOW),
+            }]
+        }),
     }
 }
 
@@ -61,6 +68,9 @@ static WINDOWS: Mutex<Vec<(String, String, Option<u64>)>> = Mutex::new(Vec::new(
 /// may be far smaller than the model's. Asks the listing once a process;
 /// call from a plain thread.
 pub fn window(provider: &Provider) -> Option<u64> {
+    if provider.kind == Kind::Apple {
+        return Some(crate::wire::apple::WINDOW);
+    }
     if provider.place() == Place::Internet {
         return None;
     }
