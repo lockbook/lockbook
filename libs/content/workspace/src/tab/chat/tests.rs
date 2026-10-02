@@ -92,7 +92,7 @@ fn account_with_chat() -> (Lb, Uuid) {
     (lb, file.id)
 }
 
-fn context() -> Context {
+pub(super) fn context() -> Context {
     let ctx = Context::default();
     let mut fonts = egui::FontDefinitions::default();
     crate::register_fonts(&mut fonts);
@@ -141,12 +141,28 @@ fn bob_says(lb: &Lb, id: Uuid, text: &str) -> Vec<u8> {
 mod in_a_workspace {
     use super::*;
 
-    fn frame(ctx: &Context, ws: &mut Workspace, events: Vec<Event>) {
+    fn frame(ctx: &Context, ws: &mut Workspace, events: Vec<Event>) -> crate::output::Response {
+        let mut out = Default::default();
         let _ = ctx.run(raw_input(events), |ctx| {
             egui::CentralPanel::default().show(ctx, |ui| {
-                ws.show(ui);
+                out = ws.show(ui);
             });
         });
+        out
+    }
+
+    /// A click at `pos`; what the workspace reported over its frames.
+    fn click(ctx: &Context, ws: &mut Workspace, pos: egui::Pos2) -> Vec<crate::output::Response> {
+        let button = |pressed| Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        [vec![Event::PointerMoved(pos)], vec![button(true)], vec![button(false)], vec![]]
+            .into_iter()
+            .map(|events| frame(ctx, ws, events))
+            .collect()
     }
 
     fn frames_until(ctx: &Context, ws: &mut Workspace, done: impl Fn(&Workspace) -> bool) {
@@ -213,6 +229,48 @@ mod in_a_workspace {
             ]
         );
     }
+
+    /// A folder among a card's files is somewhere to go, not something to
+    /// open: a click makes it the workspace's folder, which is what each
+    /// client's file tree follows. The chat stays where it is.
+    #[test]
+    fn a_folder_in_a_card_takes_the_file_tree_there() {
+        let (lb, id) = account_with_chat();
+        write(&lb, "/home/notes/plan.md", "x");
+        let notes = lb.get_by_path("/home/notes").unwrap().id;
+        let me = lb.get_account().unwrap().username.clone();
+        let mut t = Transcript::default();
+        t.push(Entry::user(&me, "what is here"));
+        let list = serde_json::json!({"path": "/home/"});
+        let list = Entry::tool(&me, "list", list, "notes/\nc.chat", true);
+        let card = list.id;
+        t.push(list);
+        t.push(Entry::assistant(&me, "that is all", "m", Usage::default()));
+        lb.write_document(id, &t.serialize()).unwrap();
+
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let mut ws = Workspace::new(&lb, &ctx, true, false, Some(files));
+        ws.open_file(id, true, false);
+        frames_until(&ctx, &mut ws, |ws| shows(ws, 3));
+        for _ in 0..3 {
+            frame(&ctx, &mut ws, vec![]);
+        }
+        let rect = |id: egui::Id| ctx.read_response(id).map(|r| r.rect);
+        let bar = rect(egui::Id::new(("chat_tool", card))).expect("the call's bar");
+        click(&ctx, &mut ws, bar.center());
+        let folder = rect(egui::Id::new(("chat_tool_file", (card, 0usize)))).expect("the folder");
+
+        let reported = click(&ctx, &mut ws, folder.center());
+        assert!(
+            reported
+                .iter()
+                .any(|out| out.selected_file == Some(notes) && out.selected_folder_changed),
+            "the clients are told"
+        );
+        assert_eq!(ws.focused_parent, Some(notes));
+        assert_eq!(ws.current_tab().and_then(|t| t.id()), Some(id), "the chat is still the tab");
+    }
 }
 
 mod on_its_own {
@@ -249,16 +307,36 @@ mod on_its_own {
         t.push(Entry::user("bob", "hi from bob 🙂"));
         t.push(Entry::assistant("bob", "bob's reply", "m", Usage::default()));
         t.push(Entry::user(&me, "mine"));
-        let tool = Entry::tool(
-            &me,
-            "edit",
-            serde_json::json!({"path": "/home/a.md", "old": "x", "new": "y"}),
-            "edited /home/a.md",
-            true,
-        );
-        let tool_id = tool.id;
-        t.push(tool);
-        t.push(Entry::tool(&me, "search", serde_json::json!({"query": "q"}), "nothing", false));
+        // One call of each kind of card: a diff, a reason, files with and
+        // without snippets, a note, plain text, and a bare confirmation
+        // whose path is longer than any window.
+        let json = |text: &str| serde_json::from_str::<serde_json::Value>(text).unwrap();
+        let long = format!("/home/{}.md", "long-name-".repeat(40));
+        let calls = [
+            (
+                "edit",
+                json(r#"{"path": "/home/a.md", "old": "one two", "new": "one 2"}"#),
+                "ok",
+                true,
+            ),
+            ("edit", json(r#"{"path": "/home/a.md", "old": "x", "new": "y"}"#), "not found", false),
+            (
+                "search",
+                json(r#"{"query": "q"}"#),
+                "/home/c.chat\n  a q here\n/home/x.md\n(2 more)",
+                true,
+            ),
+            ("list", json(r#"{}"#), "notes/\nc.chat", true),
+            ("read", json(r#"{"path": "/home/a.md"}"#), "# Title\n\n- a\n- b", true),
+            ("read", json(r#"{"path": "/home/a.txt"}"#), "plain\ntext", true),
+            ("delete", serde_json::json!({ "path": long }), "deleted", true),
+        ];
+        let mut tool_ids = Vec::new();
+        for (name, args, result, ok) in calls {
+            let tool = Entry::tool(&me, name, args, result, ok);
+            tool_ids.push(tool.id);
+            t.push(tool);
+        }
         let mut reply = Entry::assistant(&me, "**bold** reply\n\n- a\n- b", "m", Usage::default());
         if let Body::Assistant { interrupted, .. } = &mut reply.body {
             *interrupted = true;
@@ -272,8 +350,10 @@ mod on_its_own {
 
         let mut chat = Chat::new(&bytes, id, None, account, ctx.clone(), files, &lb);
         frames_until(&ctx, &mut chat, |c| c.is_ready());
-        assert_eq!(chat.entry_count(), 8);
-        chat.expanded.insert(tool_id);
+        assert_eq!(chat.entry_count(), 13);
+        // Closed, then every card open.
+        frame(&ctx, &mut chat, vec![]);
+        chat.expanded.extend(tool_ids);
         for _ in 0..2 {
             frame(&ctx, &mut chat, vec![]);
         }
@@ -290,18 +370,6 @@ mod on_its_own {
         chat.streaming = "partial…".into();
         frame(&ctx, &mut chat, vec![]);
         chat.streaming.clear();
-        chat.pending_ask = Some((
-            lb_chat::Call {
-                id: "c".into(),
-                name: "delete".into(),
-                args: serde_json::json!({}),
-                echo: None,
-            },
-            "Delete /home/a.md?".into(),
-        ));
-        frame(&ctx, &mut chat, vec![]);
-        chat.pending_ask = None;
-        frame(&ctx, &mut chat, vec![]);
         chat.busy = false;
         chat.scope_open = true;
         frame(&ctx, &mut chat, vec![]);
@@ -680,6 +748,259 @@ mod on_its_own {
                 });
             });
         }
+    }
+
+    /// A settled call opens on a click into a card, and a file inside it
+    /// opens in the workspace on another.
+    #[test]
+    fn a_card_opens_and_its_files_open() {
+        let (lb, id) = account_with_chat();
+        write(&lb, "/home/plan.md", "we ship chat in october");
+        let plan = lb.get_by_path("/home/plan.md").unwrap().id;
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let me = account.username.clone();
+        let mut t = Transcript::default();
+        t.push(Entry::user(&me, "find it"));
+        let search = Entry::tool(
+            &me,
+            "search",
+            serde_json::json!({"query": "chat"}),
+            "/home/plan.md\n  we ship chat in october\n/home/gone.md",
+            true,
+        );
+        let card = search.id;
+        t.push(search);
+        t.push(Entry::assistant(&me, "found it", "m", Usage::default()));
+        let mut chat = Chat::new(&t.serialize(), id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        for _ in 0..3 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        let rect = |id: egui::Id| ctx.read_response(id).map(|r| r.rect);
+        let file = |i: usize| egui::Id::new(("chat_tool_file", (card, i)));
+        assert!(rect(file(0)).is_none(), "a card starts closed");
+
+        let bar = rect(egui::Id::new(("chat_tool", card))).expect("the call's bar");
+        click(&ctx, &mut chat, bar.center());
+        assert!(chat.expanded.contains(&card));
+        use crate::tab::ExtendedOutput as _;
+        let _ = ctx.pop_open_files();
+        click(&ctx, &mut chat, rect(file(0)).expect("the first hit").center());
+        assert_eq!(ctx.pop_open_files(), [(plan, false)]);
+        // A note that is no longer there has nothing to open.
+        click(&ctx, &mut chat, rect(file(1)).expect("the second hit").center());
+        assert_eq!(ctx.pop_open_files(), []);
+
+        click(&ctx, &mut chat, bar.center());
+        assert!(!chat.expanded.contains(&card), "a second click closes it");
+        frame(&ctx, &mut chat, vec![]);
+        assert!(rect(file(0)).is_none() && chat.bodies.is_empty());
+    }
+
+    /// Jump to latest pressed while the wheel still coasts: the view goes to
+    /// the newest line and stays there, and once the wheel has rested it
+    /// scrolls again.
+    #[test]
+    fn jump_to_latest_outruns_scroll_momentum() {
+        let (lb, id) = account_with_chat();
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let me = account.username.clone();
+        let mut t = Transcript::default();
+        for i in 0..40 {
+            t.push(Entry::user(&me, format!("question {i}")));
+            t.push(Entry::assistant(&me, format!("answer {i}"), "m", Usage::default()));
+        }
+        let mut chat = Chat::new(&t.serialize(), id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        // Opening heads for the newest line too; let that rest.
+        for _ in 0..20 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        let jump = || {
+            ctx.read_response(egui::Id::new(("chat_jump", id)))
+                .map(|r| r.rect.center())
+        };
+        assert!(jump().is_none(), "a chat opens at its newest line");
+
+        let coast = |points: f32| Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, points),
+            modifiers: Modifiers::NONE,
+        };
+        frame(&ctx, &mut chat, vec![Event::PointerMoved(pos2(450.0, 300.0))]);
+        for _ in 0..6 {
+            frame(&ctx, &mut chat, vec![coast(80.0)]);
+        }
+        let button = jump().expect("scrolled up, the button shows");
+
+        // The click lands mid-coast, and the coasting outlasts it.
+        let press = |pressed| Event::PointerButton {
+            pos: button,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        frame(&ctx, &mut chat, vec![Event::PointerMoved(button), coast(40.0)]);
+        frame(&ctx, &mut chat, vec![press(true), coast(40.0)]);
+        frame(&ctx, &mut chat, vec![press(false), coast(40.0)]);
+        for i in 0..30 {
+            frame(&ctx, &mut chat, vec![coast(30.0 - i as f32)]);
+        }
+        for _ in 0..40 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        assert!(jump().is_none(), "the jump held against the coasting wheel");
+
+        for _ in 0..4 {
+            frame(&ctx, &mut chat, vec![coast(80.0)]);
+        }
+        assert!(jump().is_some(), "a rested wheel scrolls again");
+    }
+
+    /// A long chat between one person and their model, opened and at rest.
+    /// Returns the tab and the id of its last reply.
+    fn long_chat(ctx: &Context) -> (Chat, Uuid) {
+        let (lb, id) = account_with_chat();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let me = account.username.clone();
+        let mut t = Transcript::default();
+        for i in 0..30 {
+            t.push(Entry::user(&me, format!("question {i}")));
+            t.push(Entry::assistant(&me, format!("alpha beta gamma {i}"), "m", Usage::default()));
+        }
+        let last = t.entries.last().unwrap().id;
+        let mut chat = Chat::new(&t.serialize(), id, None, account, ctx.clone(), files, &lb);
+        frames_until(ctx, &mut chat, |c| c.is_ready());
+        for _ in 0..20 {
+            frame(ctx, &mut chat, vec![]);
+        }
+        (chat, last)
+    }
+
+    fn button(pos: egui::Pos2, pressed: bool) -> Event {
+        Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        }
+    }
+
+    /// Press at `from`, move to `to`, and let go.
+    fn drag(ctx: &Context, chat: &mut Chat, from: egui::Pos2, to: egui::Pos2) {
+        frame(ctx, chat, vec![Event::PointerMoved(from)]);
+        frame(ctx, chat, vec![button(from, true)]);
+        for step in 1..=5 {
+            let at = from + (to - from) * (step as f32 / 5.0);
+            frame(ctx, chat, vec![Event::PointerMoved(at)]);
+        }
+        frame(ctx, chat, vec![button(to, false)]);
+        frame(ctx, chat, vec![]);
+    }
+
+    /// A reply's text selects with the mouse and copies. The next keystroke
+    /// lands in the composer, and the selection goes with the keyboard.
+    #[test]
+    fn a_reply_selects_copies_and_hands_the_keyboard_back() {
+        let ctx = context();
+        let (mut chat, last) = long_chat(&ctx);
+        let text = egui::Id::new(("chat_text", last));
+        let rect = ctx.read_response(text).expect("the last reply").rect;
+
+        drag(&ctx, &mut chat, rect.left_center(), rect.right_center());
+        assert!(ctx.memory(|m| m.has_focus(text)), "the reply holds the keyboard");
+        let selection = |chat: &Chat| chat.readers[&last].renderer.buffer.current.selection;
+        assert_ne!(selection(&chat).0, selection(&chat).1, "and a selection");
+
+        let out = ctx.run(raw_input(vec![Event::Copy]), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                chat.show(ui);
+            });
+        });
+        let copied: Vec<_> = out
+            .platform_output
+            .commands
+            .iter()
+            .filter_map(|cmd| match cmd {
+                egui::OutputCommand::CopyText(text) => Some(text.as_str()),
+                _ => None,
+            })
+            .collect();
+        assert_eq!(copied, ["alpha beta gamma 29"]);
+
+        frame(&ctx, &mut chat, vec![Event::Text("x".into())]);
+        for _ in 0..3 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        assert_eq!(chat.composer.renderer.buffer.current.text, "x", "typing lands");
+        assert!(!ctx.memory(|m| m.has_focus(text)));
+        assert_eq!(selection(&chat).0, selection(&chat).1, "one selection at a time");
+    }
+
+    /// A mouse drag over the transcript is not a scroll: the page stays put
+    /// under it, where a wheel moves it.
+    #[test]
+    fn a_mouse_drag_does_not_scroll() {
+        let ctx = context();
+        let (mut chat, last) = long_chat(&ctx);
+        let top = |ctx: &Context| {
+            let text = egui::Id::new(("chat_text", last));
+            ctx.read_response(text).expect("the last reply").rect.top()
+        };
+        let before = top(&ctx);
+
+        // The margin beside the column, where no text takes the drag.
+        drag(&ctx, &mut chat, pos2(20.0, 200.0), pos2(20.0, 400.0));
+        assert_eq!(top(&ctx), before, "a drag left the page where it was");
+
+        let wheel = Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, 80.0),
+            modifiers: Modifiers::NONE,
+        };
+        frame(&ctx, &mut chat, vec![Event::PointerMoved(pos2(450.0, 300.0)), wheel]);
+        for _ in 0..20 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        assert!(top(&ctx) > before, "the wheel scrolls");
+    }
+
+    /// The transcript fades out over its last stretch above the composer.
+    /// At the end of a chat that stretch is blank: the newest line ends
+    /// where the fade begins, which is where the jump button rests.
+    #[test]
+    fn the_end_of_a_chat_sits_clear_of_the_fade() {
+        let ctx = context();
+        let (mut chat, last) = long_chat(&ctx);
+        let text = egui::Id::new(("chat_text", last));
+        let newest = ctx
+            .read_response(text)
+            .expect("the last reply")
+            .rect
+            .bottom();
+
+        let wheel = Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, 80.0),
+            modifiers: Modifiers::NONE,
+        };
+        frame(&ctx, &mut chat, vec![Event::PointerMoved(pos2(450.0, 300.0)), wheel]);
+        for _ in 0..20 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        let jump = ctx
+            .read_response(egui::Id::new(("chat_jump", chat.id)))
+            .expect("scrolled up, the button shows");
+        let fade_top = jump.rect.bottom();
+        assert!(
+            (newest - fade_top).abs() < 1.0,
+            "newest line ends at {newest}, fade from {fade_top}"
+        );
     }
 
     /// Lines the tab holds but has not saved survive a reload from disk,

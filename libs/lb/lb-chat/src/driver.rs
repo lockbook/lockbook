@@ -12,6 +12,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 use lb_rs::Uuid;
 use lb_rs::model::chat::{Body, Chat, Entry, Mention, Settings};
 use tokio::runtime::Runtime;
+use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tracing::warn;
 
@@ -37,9 +38,6 @@ pub enum Cmd {
     },
     /// Drop everything after the last message and run again.
     Regenerate,
-    /// Answer the pending [`Event::Ask`].
-    Approve,
-    Deny,
     /// Persist this user's settings without running.
     SetSettings(Settings),
     Stop,
@@ -50,11 +48,6 @@ pub enum Event {
     RunStarted,
     Delta(String),
     ToolStarted(Call),
-    /// A tool needs the user's go-ahead; the run waits for Approve or Deny.
-    Ask {
-        call: Call,
-        prompt: String,
-    },
     /// A line settled into the chat.
     Written(Entry),
     /// A line could not be written to the chat; the run stops.
@@ -177,7 +170,7 @@ impl Worker {
                     }
                     continue;
                 }
-                Cmd::Approve | Cmd::Deny | Cmd::Stop => continue,
+                Cmd::Stop => continue,
             };
             match staged {
                 Ok(entry) => {
@@ -251,34 +244,8 @@ impl Worker {
         let user = self.config.user.clone();
         for call in calls {
             self.emit(Event::ToolStarted(call.clone()));
-            let mut outcome = self.tools.call(&call, false);
-            if let ToolOutcome::Ask { prompt } = &outcome {
-                self.emit(Event::Ask { call: call.clone(), prompt: prompt.clone() });
-                outcome = loop {
-                    match cmds.blocking_recv() {
-                        Some(Cmd::Approve) => break self.tools.call(&call, true),
-                        Some(Cmd::Deny) => break ToolOutcome::err("the user declined"),
-                        Some(Cmd::Stop) | None => return false,
-                        Some(_) => warn!("chat command ignored while a tool awaits approval"),
-                    }
-                };
-            }
-            let (text, ok) = match outcome {
+            let (text, ok) = match self.tools.call(&call) {
                 ToolOutcome::Done { text, ok } => (text, ok),
-                ToolOutcome::Ask { .. } => ("the user declined".to_string(), false),
-                ToolOutcome::Grant { path, text } => {
-                    let granted = self.store.update(&mut |chat| {
-                        let mut settings = chat.settings_for(&user);
-                        if !settings.include.contains(&path) {
-                            settings.include.push(path.clone());
-                        }
-                        chat.set_settings(&user, settings);
-                    });
-                    match granted {
-                        Ok(_) => (text, true),
-                        Err(err) => (err, false),
-                    }
-                }
                 ToolOutcome::Abort { text } => {
                     self.settle(Entry::error(&user, format!("stopped: {text}")));
                     return false;
@@ -292,7 +259,8 @@ impl Worker {
             if !self.settle(entry) {
                 return false;
             }
-            if matches!(cmds.try_recv(), Ok(Cmd::Stop)) {
+            // Told to stop, or nothing holds the driver any more.
+            if matches!(cmds.try_recv(), Ok(Cmd::Stop) | Err(TryRecvError::Disconnected)) {
                 return false;
             }
         }
@@ -316,6 +284,7 @@ impl Worker {
             system: context::system_prompt(&territory),
             turns,
             tools: self.tools.schemas(),
+            today: context::today(),
         };
         Ok((provider, request))
     }
@@ -434,12 +403,12 @@ mod tests {
             .collect()
     }
 
-    /// `echo` answers; `danger` asks first; `wall` aborts; `grant` grants.
+    /// `echo` answers; `wall` aborts.
     struct Mock;
 
     impl Tools for Mock {
         fn schemas(&self) -> Vec<ToolSchema> {
-            ["echo", "danger", "wall", "grant"]
+            ["echo", "wall"]
                 .iter()
                 .map(|name| ToolSchema {
                     name: name.to_string(),
@@ -449,17 +418,12 @@ mod tests {
                 .collect()
         }
 
-        fn call(&mut self, call: &Call, approved: bool) -> ToolOutcome {
+        fn call(&mut self, call: &Call) -> ToolOutcome {
             match call.name.as_str() {
                 "echo" => {
                     ToolOutcome::ok(format!("echo:{}", call.args["text"].as_str().unwrap_or("")))
                 }
-                "danger" if !approved => ToolOutcome::Ask { prompt: "ok?".into() },
-                "danger" => ToolOutcome::ok("did it"),
                 "wall" => ToolOutcome::Abort { text: "blocked".into() },
-                "grant" => {
-                    ToolOutcome::Grant { path: "/more/".into(), text: "granted /more/".into() }
-                }
                 _ => ToolOutcome::err("unknown"),
             }
         }
@@ -508,27 +472,6 @@ mod tests {
     }
 
     #[test]
-    fn approval_runs_the_tool_and_denial_answers_the_model() {
-        for (decision, expected) in [(Cmd::Approve, "did it"), (Cmd::Deny, "the user declined")] {
-            let store = MemStore::default();
-            let (url, _) = mock::serve(vec![sse_call("danger", "{}"), sse_text("ok")]);
-            let d = driver(store.clone(), Mock, url);
-            d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
-            let events = wait_for(&d, |e| e.iter().any(|e| matches!(e, Event::Ask { .. })));
-            assert!(
-                events
-                    .iter()
-                    .any(|e| matches!(e, Event::Ask { prompt, .. } if prompt == "ok?"))
-            );
-            d.send(decision);
-            wait_for_run(&d);
-            let chat = store.chat();
-            assert_eq!(kinds(&chat), ["user", "assistant", "tool", "assistant"]);
-            assert_eq!(chat.entries[2].text(), expected);
-        }
-    }
-
-    #[test]
     fn an_abort_ends_the_run_with_an_error_and_no_further_completion() {
         let store = MemStore::default();
         let (url, bodies) = mock::serve(vec![sse_call("wall", "{}")]);
@@ -541,16 +484,51 @@ mod tests {
         assert_eq!(bodies.try_iter().count(), 1);
     }
 
+    /// Nothing holds the driver any more: a tab navigated away, an app
+    /// closing. The call in flight finishes and the run ends there, before
+    /// the next call and before another request.
     #[test]
-    fn a_grant_widens_the_users_settings() {
+    fn a_dropped_driver_ends_its_run() {
+        struct Gated {
+            gate: std::sync::mpsc::Receiver<()>,
+            calls: Arc<std::sync::atomic::AtomicUsize>,
+        }
+        impl Tools for Gated {
+            fn schemas(&self) -> Vec<ToolSchema> {
+                Mock.schemas()
+            }
+            fn call(&mut self, _: &Call) -> ToolOutcome {
+                if self.calls.fetch_add(1, Ordering::SeqCst) == 0 {
+                    let _ = self.gate.recv_timeout(Duration::from_secs(10));
+                }
+                ToolOutcome::ok("did it")
+            }
+        }
+        let two_calls = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+            data: {\"choices\":[{\"delta\":{\"tool_calls\":[\
+            {\"index\":0,\"id\":\"c1\",\"function\":{\"name\":\"echo\",\"arguments\":\"{}\"}},\
+            {\"index\":1,\"id\":\"c2\",\"function\":{\"name\":\"echo\",\"arguments\":\"{}\"}}]}}]}\n\n\
+            data: [DONE]\n\n"
+            .to_string();
         let store = MemStore::default();
-        let (url, _) = mock::serve(vec![sse_call("grant", "{}"), sse_text("ok")]);
-        let d = driver(store.clone(), Mock, url);
+        let (url, bodies) = mock::serve(vec![two_calls, sse_text("never asked for")]);
+        let (release, gate) = std::sync::mpsc::channel();
+        let calls = Arc::new(std::sync::atomic::AtomicUsize::new(0));
+        let d = driver(store.clone(), Gated { gate, calls: calls.clone() }, url);
         d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
-        wait_for_run(&d);
-        let chat = store.chat();
-        assert_eq!(kinds(&chat), ["user", "assistant", "tool", "assistant"]);
-        assert_eq!(chat.settings_for("u").include, ["/more/"]);
+        wait_for(&d, |e| e.iter().any(|e| matches!(e, Event::ToolStarted(_))));
+        drop(d);
+        release.send(()).unwrap();
+
+        let start = Instant::now();
+        while kinds(&store.chat()).len() < 3 {
+            assert!(start.elapsed() < Duration::from_secs(10), "the call in flight never settled");
+            std::thread::sleep(Duration::from_millis(10));
+        }
+        std::thread::sleep(Duration::from_millis(300));
+        assert_eq!(kinds(&store.chat()), ["user", "assistant", "tool"]);
+        assert_eq!(calls.load(Ordering::SeqCst), 1, "the second call never ran");
+        assert_eq!(bodies.try_iter().count(), 1, "and nothing more was asked of the provider");
     }
 
     /// What a provider attaches to a tool call (Gemini's thought signature)
@@ -585,7 +563,7 @@ mod tests {
 
         // The same transcript, folded for a different provider.
         let turns = context::turns(&chat, "u", &mut |_| None);
-        let req = Request { system: String::new(), turns, tools: Vec::new() };
+        let req = Request { system: String::new(), turns, tools: Vec::new(), today: String::new() };
         let other = Provider {
             name: "other".into(),
             display_name: None,

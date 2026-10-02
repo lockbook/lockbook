@@ -11,15 +11,6 @@ pub enum ToolOutcome {
         text: String,
         ok: bool,
     },
-    /// The user must approve first; the driver calls again with `approved`.
-    Ask {
-        prompt: String,
-    },
-    /// The territory grew by `path`; the driver persists the grant.
-    Grant {
-        path: String,
-        text: String,
-    },
     /// The run ends and the model never learns why.
     Abort {
         text: String,
@@ -40,7 +31,7 @@ pub trait Tools: Send {
     fn schemas(&self) -> Vec<ToolSchema>;
     /// Called before each completion with the chat as it stands.
     fn prepare(&mut self, _chat: &Chat, _user: &str, _working_dir: &str) {}
-    fn call(&mut self, call: &Call, approved: bool) -> ToolOutcome;
+    fn call(&mut self, call: &Call) -> ToolOutcome;
     /// Current text of a file the user attached, or nothing if it is gone.
     fn read_mention(&mut self, _mention: &Mention) -> Option<String> {
         None
@@ -54,7 +45,7 @@ impl Tools for NoTools {
         Vec::new()
     }
 
-    fn call(&mut self, call: &Call, _approved: bool) -> ToolOutcome {
+    fn call(&mut self, call: &Call) -> ToolOutcome {
         ToolOutcome::err(format!("no tool named {}", call.name))
     }
 }

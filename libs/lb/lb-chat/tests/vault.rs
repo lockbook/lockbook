@@ -18,15 +18,13 @@ fn write(lb: &Lb, path: &str, text: &str) {
     lb.write_document(file.id, text.as_bytes()).unwrap();
 }
 
-fn call(tools: &mut VaultTools, name: &str, args: Value, approved: bool) -> ToolOutcome {
-    tools.call(&Call { id: "c".into(), name: name.into(), args, echo: None }, approved)
+fn call(tools: &mut VaultTools, name: &str, args: Value) -> ToolOutcome {
+    tools.call(&Call { id: "c".into(), name: name.into(), args, echo: None })
 }
 
 fn done(outcome: ToolOutcome) -> (String, bool) {
     match outcome {
         ToolOutcome::Done { text, ok } => (text, ok),
-        ToolOutcome::Ask { prompt } => panic!("unexpected ask: {prompt}"),
-        ToolOutcome::Grant { text, .. } => panic!("unexpected grant: {text}"),
         ToolOutcome::Abort { text } => panic!("unexpected abort: {text}"),
     }
 }
@@ -46,39 +44,29 @@ fn librarian_over_a_small_vault() {
     let mut tools = VaultTools::new(lb.clone());
     tools.prepare(&chat, "u", "/home/");
 
-    assert_eq!(done(call(&mut tools, "list", json!({}), false)).0, "notes/\ntodo.md");
-    assert_eq!(done(call(&mut tools, "list", json!({"path": "/team/"}), false)).0, "public.md");
+    assert_eq!(done(call(&mut tools, "list", json!({}))).0, "notes/\ntodo.md");
+    assert_eq!(done(call(&mut tools, "list", json!({"path": "/team/"}))).0, "public.md");
 
-    let (section, ok) = done(call(
-        &mut tools,
-        "read",
-        json!({"path": "/home/notes/plan.md", "section": "later"}),
-        false,
-    ));
+    let (section, ok) =
+        done(call(&mut tools, "read", json!({"path": "/home/notes/plan.md", "section": "later"})));
     assert!(ok && section == "## Later\n\nvoice", "{section}");
 
-    let (hits, _) = done(call(&mut tools, "search", json!({"query": "ship chat"}), false));
+    let (hits, _) = done(call(&mut tools, "search", json!({"query": "ship chat"})));
     assert!(hits.contains("/home/notes/plan.md") && hits.contains("ship chat"), "{hits}");
-    let (hits, _) =
-        done(call(&mut tools, "search", json!({"query": "k", "folder": "/team"}), false));
+    let (hits, _) = done(call(&mut tools, "search", json!({"query": "k", "folder": "/team"})));
     assert!(!hits.contains("secret"), "{hits}");
 
-    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/team/secret/keys.md"}), false));
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/team/secret/keys.md"})));
     assert!(!ok && text.contains("does not exist"), "{text}");
-    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/elsewhere/x.md"}), false));
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/elsewhere/x.md"})));
     assert!(!ok && text.contains("outside"), "{text}");
 
     assert!(matches!(
-        call(&mut tools, "create", json!({"path": "/team/secret/new.md"}), false),
+        call(&mut tools, "create", json!({"path": "/team/secret/new.md"})),
         ToolOutcome::Abort { .. }
     ));
     assert!(matches!(
-        call(
-            &mut tools,
-            "move",
-            json!({"path": "/home/todo.md", "to": "/team/secret/todo.md"}),
-            false
-        ),
+        call(&mut tools, "move", json!({"path": "/home/todo.md", "to": "/team/secret/todo.md"})),
         ToolOutcome::Abort { .. }
     ));
 
@@ -86,58 +74,37 @@ fn librarian_over_a_small_vault() {
         &mut tools,
         "edit",
         json!({"path": "/home/todo.md", "old": "- milk", "new": "- milk\n- eggs"}),
-        false,
     ));
     assert!(ok, "{text}");
-    let (text, _) = done(call(&mut tools, "read", json!({"path": "/home/todo.md"}), false));
+    let (text, _) = done(call(&mut tools, "read", json!({"path": "/home/todo.md"})));
     assert!(text.contains("- eggs"));
-    let (text, ok) = done(call(
-        &mut tools,
-        "edit",
-        json!({"path": "/home/todo.md", "old": "nope", "new": ""}),
-        false,
-    ));
+    let (text, ok) =
+        done(call(&mut tools, "edit", json!({"path": "/home/todo.md", "old": "nope", "new": ""})));
     assert!(!ok && text.contains("not found"), "{text}");
 
     let (_, ok) =
-        done(call(&mut tools, "create", json!({"path": "/home/new.md", "text": "fresh"}), false));
+        done(call(&mut tools, "create", json!({"path": "/home/new.md", "text": "fresh"})));
     assert!(ok);
     let (_, ok) = done(call(
         &mut tools,
         "move",
         json!({"path": "/home/new.md", "to": "/home/notes/renamed.md"}),
-        false,
     ));
     assert!(ok);
     assert_eq!(
-        done(call(&mut tools, "list", json!({"path": "/home/notes"}), false)).0,
+        done(call(&mut tools, "list", json!({"path": "/home/notes"}))).0,
         "plan.md\nrenamed.md"
     );
 
-    assert!(matches!(
-        call(&mut tools, "delete", json!({"path": "/home/notes/renamed.md"}), false),
-        ToolOutcome::Ask { .. }
-    ));
-    let (_, ok) = done(call(&mut tools, "delete", json!({"path": "/home/notes/renamed.md"}), true));
-    assert!(ok);
-    assert_eq!(done(call(&mut tools, "list", json!({"path": "/home/notes"}), false)).0, "plan.md");
+    // A delete goes through at once: the folder is the only limit.
+    let (text, ok) = done(call(&mut tools, "delete", json!({"path": "/home/notes/renamed.md"})));
+    assert!(ok, "{text}");
+    assert_eq!(done(call(&mut tools, "list", json!({"path": "/home/notes"}))).0, "plan.md");
 
-    assert!(matches!(
-        call(&mut tools, "request_access", json!({"path": "/elsewhere/", "reason": "x"}), false),
-        ToolOutcome::Ask { .. }
-    ));
-    assert!(matches!(
-        call(&mut tools, "request_access", json!({"path": "/elsewhere/", "reason": "x"}), true),
-        ToolOutcome::Grant { .. }
-    ));
-    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/elsewhere/x.md"}), false));
-    assert!(ok && text == "x marks");
-
-    let (text, ok) = done(call(
-        &mut tools,
-        "request_access",
-        json!({"path": "/team/secret/", "reason": "x"}),
-        false,
-    ));
-    assert!(!ok && text.contains("does not exist"), "{text}");
+    // Out of reach stays out of reach: no tool widens it.
+    let ask = json!({"path": "/elsewhere/", "reason": "x"});
+    let (text, ok) = done(call(&mut tools, "request_access", ask));
+    assert!(!ok && text.contains("no tool named"), "{text}");
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/elsewhere/x.md"})));
+    assert!(!ok && text.contains("outside") && !text.contains("request_access"), "{text}");
 }

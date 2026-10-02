@@ -186,6 +186,9 @@ impl Workspace {
                         self.navigate_to_range(id, range);
                     }
                 }
+                if let Some(id) = ui.ctx().pop_focus_folder() {
+                    self.focus_folder(id);
+                }
             });
         });
     }

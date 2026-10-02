@@ -103,6 +103,34 @@ impl ShapedLabel {
         areas
     }
 
+    /// Where each span landed, in points from the label's top left: a rect
+    /// per unbroken stretch of a span on one line, in drawing order. For
+    /// painting behind or across marked spans.
+    pub fn span_rects(&self, ctx: &egui::Context) -> Vec<(usize, egui::Rect)> {
+        let ppi = ctx.pixels_per_point();
+        let buffer = self.main.buffer.read().unwrap();
+        let mut rects: Vec<(usize, egui::Rect)> = Vec::new();
+        for run in buffer.layout_runs() {
+            let top = run.line_top / ppi;
+            let bottom = (run.line_top + run.line_height) / ppi;
+            for glyph in run.glyphs {
+                let (left, right) = (glyph.x / ppi, (glyph.x + glyph.w) / ppi);
+                match rects.last_mut() {
+                    Some((span, rect))
+                        if *span == glyph.metadata && rect.top() == top && left >= rect.left() =>
+                    {
+                        rect.max.x = right;
+                    }
+                    _ => rects.push((
+                        glyph.metadata,
+                        egui::Rect::from_min_max(egui::pos2(left, top), egui::pos2(right, bottom)),
+                    )),
+                }
+            }
+        }
+        rects
+    }
+
     /// Convenience for labels without hints — returns a single [`TextBufferArea`].
     pub fn text_area(
         self, rect: egui::Rect, ctx: &egui::Context, clip_rect: egui::Rect,
@@ -382,16 +410,19 @@ impl<'a> GlyphonLabel<'a> {
                 // span's own attrs. Mirrors the editor's `shape_chunk`.
                 buf.set_rich_text(
                     &mut fs,
-                    spans.iter().flat_map(|&(text, style)| {
+                    spans.iter().enumerate().flat_map(|(i, &(text, style))| {
+                        // The span's index rides along as metadata, which
+                        // does not split shaping: see `ShapedLabel::span_rects`.
                         let mut attrs = if style.bold {
                             base.clone().weight(Weight::BOLD)
                         } else {
                             base.clone()
-                        };
+                        }
+                        .metadata(i);
                         if let Some(c) = style.color {
                             attrs = attrs.color(glyphon::Color::rgba(c.r(), c.g(), c.b(), c.a()));
                         }
-                        let emoji = emoji.clone();
+                        let emoji = emoji.clone().metadata(i);
                         text.graphemes(true).map(move |g| {
                             if is_emoji_grapheme(g) {
                                 (g, emoji.clone())

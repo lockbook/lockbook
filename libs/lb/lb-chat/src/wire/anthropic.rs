@@ -75,7 +75,7 @@ struct WireError {
 }
 
 pub(super) fn body(provider: &Provider, req: &Request, max_tokens: u32) -> Value {
-    let messages: Vec<Value> = req
+    let mut messages: Vec<Value> = req
         .turns
         .iter()
         .map(|turn| match turn {
@@ -106,6 +106,18 @@ pub(super) fn body(provider: &Provider, req: &Request, max_tokens: u32) -> Value
             }
         })
         .collect();
+
+    // Said only in the system prompt, the date is lost on a small model by
+    // the time a note full of dates comes back. Said again where the model
+    // answers from, and in the user's voice rather than a tool's, it holds.
+    let newest = messages.last_mut().filter(|m| m["role"] == "user");
+    if let Some(newest) = newest.filter(|_| !req.today.is_empty()) {
+        let today = json!({ "type": "text", "text": req.today });
+        match &mut newest["content"] {
+            Value::Array(blocks) => blocks.push(today),
+            text => *text = json!([{ "type": "text", "text": text.take() }, today]),
+        }
+    }
 
     let mut body = json!({
         "model": provider.model,
@@ -267,8 +279,12 @@ mod tests {
 
     #[test]
     fn streams_text_usage_and_tool_use() {
-        let req =
-            Request { system: "s".into(), turns: vec![Turn::User("hi".into())], tools: vec![] };
+        let req = Request {
+            system: "s".into(),
+            turns: vec![Turn::User("hi".into())],
+            tools: vec![],
+            today: String::new(),
+        };
         let (result, deltas) = run(&mock::serve_once(SSE), req);
         let c = result.unwrap();
         assert_eq!(deltas, ["Hel", "lo"]);
@@ -308,6 +324,7 @@ mod tests {
                 }]),
             ],
             tools: vec![],
+            today: String::new(),
         };
         run(&url, req).0.unwrap();
         let sent: Value = serde_json::from_str(&rx.recv().unwrap()).unwrap();
@@ -315,5 +332,35 @@ mod tests {
         assert_eq!(sent["messages"][1]["content"][1]["type"], "tool_use");
         assert_eq!(sent["messages"][2]["role"], "user");
         assert_eq!(sent["messages"][2]["content"][0]["is_error"], true);
+    }
+
+    /// The date follows whatever the model reads last, as text of its own:
+    /// after the user's message, and after tool results rather than inside
+    /// one. Only the newest turn carries it.
+    #[test]
+    fn the_date_is_said_again_after_the_newest_turn() {
+        let today = "Today is Thursday, October 1, 2026.";
+        let call = Call { id: "t1".into(), name: "read".into(), args: json!({}), echo: None };
+        let result = super::super::ToolResult { id: "t1".into(), text: "r".into(), ok: true };
+        let asked = vec![Turn::User("u".into())];
+        let answered = vec![
+            Turn::User("u".into()),
+            Turn::Assistant { text: String::new(), calls: vec![call] },
+            Turn::ToolResults(vec![result]),
+        ];
+        let sent = |turns: Vec<Turn>| {
+            let req = Request { system: "s".into(), turns, tools: vec![], today: today.into() };
+            body(&provider("http://unused"), &req, MAX_TOKENS)["messages"].clone()
+        };
+        let said = json!({ "type": "text", "text": today });
+
+        let messages = sent(asked);
+        assert_eq!(messages[0]["content"], json!([{ "type": "text", "text": "u" }, said]));
+
+        let messages = sent(answered);
+        assert_eq!(messages[0]["content"], "u");
+        assert_eq!(messages[2]["content"][0]["type"], "tool_result");
+        assert_eq!(messages[2]["content"][0]["content"], "r");
+        assert_eq!(messages[2]["content"][1], said);
     }
 }

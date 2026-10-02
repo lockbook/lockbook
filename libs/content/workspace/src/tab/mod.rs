@@ -734,6 +734,9 @@ pub trait ExtendedOutput {
     /// to type over).
     fn open_file_at_range(&self, id: Uuid, byte_range: std::ops::Range<usize>, new_tab: bool);
     fn pop_open_ranges(&self) -> Vec<(Uuid, std::ops::Range<usize>, bool)>;
+    /// Point the file tree at a folder, leaving the tab where it is.
+    fn focus_folder(&self, id: Uuid);
+    fn pop_focus_folder(&self) -> Option<Uuid>;
 }
 
 impl ExtendedOutput for egui::Context {
@@ -790,6 +793,14 @@ impl ExtendedOutput for egui::Context {
                 .remove_temp::<Vec<(Uuid, std::ops::Range<usize>, bool)>>(Id::new("open_ranges"))
                 .unwrap_or_default()
         })
+    }
+
+    fn focus_folder(&self, id: Uuid) {
+        self.memory_mut(|m| m.data.insert_temp(Id::new("focus_folder"), id))
+    }
+
+    fn pop_focus_folder(&self) -> Option<Uuid> {
+        self.memory_mut(|m| m.data.remove_temp(Id::new("focus_folder")))
     }
 }
 

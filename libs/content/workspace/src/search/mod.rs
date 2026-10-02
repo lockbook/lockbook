@@ -681,9 +681,7 @@ impl Workspace {
                     search.scope_open = false;
                 }
             }
-            self.out.selected_file = Some(id);
-            self.out.selected_folder_changed = true;
-            self.focused_parent = Some(id);
+            self.focus_folder(id);
         } else if new_tab {
             self.open_file(id, false, true);
         } else {

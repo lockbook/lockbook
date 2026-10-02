@@ -1657,6 +1657,13 @@ impl Workspace {
         }
     }
 
+    /// Points the file tree at a folder; new files land there.
+    pub fn focus_folder(&mut self, id: Uuid) {
+        self.out.selected_file = Some(id);
+        self.out.selected_folder_changed = true;
+        self.focused_parent = Some(id);
+    }
+
     pub fn search_in_folder(&mut self, folder_id: Uuid) {
         self.upsert_search(Some(SearchType::Content));
         let path = self.files.read().unwrap().path(folder_id);

@@ -2,22 +2,26 @@
 //! composer that holds its own controls. Everything is placed by hand on the
 //! design system's plates, rows, and buttons.
 
-use egui::text::{LayoutJob, TextWrapping};
+use egui::os::OperatingSystem;
+use egui::scroll_area::ScrollSource;
 use egui::{
-    Align, Align2, Color32, CursorIcon, FontFamily, FontId, Id, Key, Layout, Modifiers, Rect,
-    ScrollArea, Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2,
+    Align, Align2, Color32, CornerRadius, CursorIcon, Id, Key, Layout, Modifiers, Rect, ScrollArea,
+    Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2,
 };
 use lb_chat::{Cmd, Place, Provider, prettify};
 use lb_rs::Uuid;
 use lb_rs::model::chat::{Body, Entry};
 use serde_json::Value;
+use unicode_segmentation::UnicodeSegmentation as _;
 
+use super::diff::Change;
 use super::setup::{Key as KeyNeed, OWN, TEMPLATES};
 use super::{Chat, Setup, rows};
 use crate::file_cache::FilesExt;
-use crate::style::chrome::{row_wash_inset, shortcut_enter, shortcut_esc};
+use crate::style::chrome::{display_file_name, file_row_icon, shortcut_enter, shortcut_esc};
 use crate::style::file_name;
 use crate::style::interact::{ControlFills, interact_fill_response, quiet_canvas_fills};
+use crate::style::layout::paint_control_pads;
 use crate::style::space::control as control_space;
 use crate::style::{
     Button, FG_HOVER, FG_PRESS, Field, Icon, Radius, STROKE_HAIRLINE, Space, Spacer, Theme,
@@ -25,9 +29,12 @@ use crate::style::{
     measure_file_name, paint_file_name, phosphor, phosphor_ui_font_id, place_at, sense_click,
     tip_text, with_overlay_scroll,
 };
+use crate::style::{FileRow, parent_crumbs};
 use crate::style::{
     SheetFooterOpts, expand_ancestors_of, folder_tree_scroll_key, show_folder_sheet, tree_metrics,
 };
+use crate::tab::ExtendedOutput as _;
+use crate::tab::markdown_editor::input::{Event as Edit, Location, Region};
 use crate::widgets::{GlyphonLabel, TextOverflow};
 
 const COLUMN_W: f32 = 720.0;
@@ -39,6 +46,20 @@ const CHIP_MAX_W: f32 = 180.0;
 const CAPTION_SIZE: f32 = 12.0;
 const CAPTION_LH: f32 = 16.8;
 const COPIED_SECS: f64 = 1.2;
+/// How strongly a diff tints the words that went and the words that came:
+/// enough to find at a glance, 1.3 to 1.7 against the page in either mode.
+const DIFF_WASH: f32 = 0.32;
+/// The longest piece of a diff that still reads well on one line with the rest.
+const DIFF_INLINE: usize = 40;
+/// After a scroll to the newest line is asked for, wheel motion is dropped
+/// until the wheel has rested this long: momentum still in flight would
+/// cancel the scroll.
+const WHEEL_REST_SECS: f64 = 0.15;
+/// How far above the composer the transcript fades out. The transcript ends
+/// on as much blank, so at the end of a chat nothing sits under the fade.
+const FADE: Space = Space::Lg;
+/// The stop square's side: the weight of a glyph at body size.
+const STOP_SIDE: f32 = 10.0;
 
 #[derive(Clone)]
 enum ModelChoice {
@@ -128,30 +149,41 @@ impl Chat {
         } else {
             0.0
         };
-        let ask_h = match &self.pending_ask {
-            Some((_, prompt)) => self.ask_height(ui, prompt, col_w),
-            None => 0.0,
-        };
-        let (lg, md, sm) = (Space::Lg.pts(), Space::Md.pts(), Space::Sm.pts());
-        let bottom_h = if ready {
-            md + composer_h + if ask_h > 0.0 { sm + ask_h } else { 0.0 } + lg
-        } else {
-            0.0
-        };
+        let lg = Space::Lg.pts();
+        let bottom_h = if ready { composer_h + lg } else { 0.0 };
 
         let transcript_rect =
             Rect::from_min_max(full.min, pos2(full.max.x, (full.max.y - bottom_h).round()));
         let mut command = None;
         let scroll_id = Id::new(("chat_scroll", self.id));
         let mut at_bottom = true;
+        let now = ui.input(|i| i.time);
+        if std::mem::take(&mut self.scroll_to_bottom) {
+            self.to_latest = Some(now);
+        }
+        self.to_latest = self
+            .to_latest
+            .filter(|since| now - since <= WHEEL_REST_SECS);
+        if self.to_latest.is_some() && ui.rect_contains_pointer(transcript_rect) {
+            let coasting = ui
+                .ctx()
+                .input_mut(|i| std::mem::take(&mut i.smooth_scroll_delta.y) != 0.0);
+            if coasting {
+                self.to_latest = Some(now);
+            }
+        }
         ui.scope_builder(UiBuilder::new().max_rect(transcript_rect), |ui| {
             ui.set_clip_rect(transcript_rect.intersect(ui.clip_rect()));
             at_bottom = with_overlay_scroll(ui, scroll_id, |ui| {
                 let mut text_areas = Vec::new();
+                // A mouse drag selects text; only a finger drags the page.
+                let touch =
+                    matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
                 let out = ScrollArea::vertical()
                     .id_salt(scroll_id)
                     .stick_to_bottom(true)
                     .auto_shrink([false, false])
+                    .scroll_source(ScrollSource { drag: touch, ..ScrollSource::ALL })
                     .show(ui, |ui| {
                         ui.spacing_mut().item_spacing = Vec2::ZERO;
                         ui.horizontal_top(|ui| {
@@ -169,7 +201,7 @@ impl Chat {
                                         &mut text_areas,
                                         &mut command,
                                     );
-                                    ui.add(Spacer::new(Space::Md));
+                                    ui.add(Spacer::new(FADE));
                                 } else {
                                     ui.add(Spacer::new(Space::Xl));
                                     self.show_setup(ui, &t, col_w);
@@ -177,7 +209,7 @@ impl Chat {
                                 }
                             });
                         });
-                        if std::mem::take(&mut self.scroll_to_bottom) {
+                        if self.to_latest.is_some() {
                             ui.scroll_to_cursor(Some(Align::BOTTOM));
                         }
                     });
@@ -187,6 +219,11 @@ impl Chat {
                             transcript_rect,
                             crate::GlyphonRendererCallback::new(text_areas),
                         ));
+                }
+                if ready {
+                    let top = transcript_rect.bottom() - FADE.pts();
+                    let fade = transcript_rect.with_min_y(top);
+                    fade_down(ui.painter(), fade, t.neutral_bg());
                 }
                 let at_bottom =
                     out.state.offset.y + out.inner_rect.height() >= out.content_size.y - 1.0;
@@ -200,29 +237,16 @@ impl Chat {
             return (Rect::NOTHING, false, false);
         }
         if !at_bottom {
-            self.show_jump_to_latest(ui, &t, full.center().x, transcript_rect.bottom() - sm);
+            let above_fade = transcript_rect.bottom() - FADE.pts();
+            self.show_jump_to_latest(ui, &t, full.center().x, above_fade);
         }
 
-        let mut y = full.max.y - lg;
+        let y = full.max.y - lg;
         let composer_rect =
             Rect::from_min_max(pos2(col_x, (y - composer_h).round()), pos2(col_x + col_w, y));
-        y -= composer_h + sm;
-        let ask_rect = Rect::from_min_max(pos2(col_x, y - ask_h), pos2(col_x + col_w, y));
-        if ask_h > 0.0 {
-            self.show_ask(ui, &t, ask_rect);
-        }
-        let column = |top: f32, bottom: f32| {
-            Rect::from_min_max(pos2(col_x, top), pos2(col_x + col_w, bottom))
-        };
-        Spacer::paint_at(
-            ui,
-            Space::Md,
-            column(transcript_rect.bottom(), transcript_rect.bottom() + md),
-        );
-        if ask_h > 0.0 {
-            Spacer::paint_at(ui, Space::Sm, column(ask_rect.bottom(), composer_rect.top()));
-        }
-        Spacer::paint_at(ui, Space::Lg, column(composer_rect.bottom(), full.max.y));
+        let under =
+            Rect::from_min_max(composer_rect.left_bottom(), pos2(col_x + col_w, full.max.y));
+        Spacer::paint_at(ui, Space::Lg, under);
         let out = self.show_composer(ui, &t, composer_rect, composer_id, &geom);
         claim(ui, Rect::from_min_max(pos2(full.min.x, transcript_rect.max.y), full.max));
         out
@@ -388,22 +412,19 @@ impl Chat {
             }
             let mine = entry.from == me;
             match &entry.body {
-                Body::User { text, .. } => self.show_user(ui, t, col_w, entry, text, text_areas),
+                Body::User { text, .. } => self.show_user(ui, t, col_w, entry, text),
                 Body::Assistant { text, interrupted, .. } => {
                     if !mine {
                         caption(ui, t, col_w, &format!("{}'s assistant", entry.from));
                     }
-                    self.show_assistant(ui, t, col_w, entry.id, text, text_areas);
+                    self.show_assistant(ui, t, col_w, entry.id, text);
                     if *interrupted {
                         caption(ui, t, col_w, "stopped");
                     }
                 }
                 Body::Tool { name, args, result, ok, .. } => {
-                    let status = if *ok { Status::Done } else { Status::Failed };
-                    if self.tool_row(ui, t, col_w, entry.id, name, args, status) {
-                        let detail = rows::detail(name, args, result);
-                        self.show_tool_detail(ui, col_w, entry.id, &detail, text_areas);
-                    }
+                    let outcome = Some((result.as_str(), *ok));
+                    self.tool_card(ui, t, col_w, entry.id, name, args, outcome, text_areas);
                 }
                 Body::Error { text } => {
                     if !mine {
@@ -427,12 +448,13 @@ impl Chat {
 
         if let Some(call) = self.running_tool.clone() {
             ui.add(Spacer::new(gap(prev_kind.unwrap_or(Kind::User), Kind::Tool)));
-            self.tool_row(ui, t, col_w, Uuid::nil(), &call.name, &call.args, Status::Running);
+            let (name, args) = (&call.name, &call.args);
+            self.tool_card(ui, t, col_w, Uuid::nil(), name, args, None, text_areas);
         } else if !self.streaming.is_empty() {
             ui.add(Spacer::new(Space::Md));
             let streaming = self.streaming.clone();
             text_areas.extend(self.streaming_label.show(ui, &streaming, col_w));
-        } else if self.busy && self.pending_ask.is_none() {
+        } else if self.busy {
             ui.add(Spacer::new(Space::Md));
             caption_pulsing(ui, t, col_w, "Thinking…");
         } else if !self.busy {
@@ -457,7 +479,7 @@ impl Chat {
         let mark = self.provider_mark(ui.ctx(), MARK_PX);
 
         let block_h = MARK_PX + Space::Md.pts() + heading_lh + Space::Xs.pts() + body_lh;
-        let slot_h = (transcript_h - Space::Lg.pts() - Space::Md.pts()).max(block_h);
+        let slot_h = (transcript_h - Space::Lg.pts() - FADE.pts()).max(block_h);
         let (rect, _) = ui.allocate_exact_size(vec2(col_w, slot_h), Sense::hover());
         let mut y = rect.center().y - block_h / 2.0;
         let mark_rect =
@@ -493,10 +515,7 @@ impl Chat {
         });
     }
 
-    fn show_user(
-        &mut self, ui: &mut Ui, t: &Theme, col_w: f32, entry: &Entry, text: &str,
-        text_areas: &mut Vec<crate::TextBufferArea>,
-    ) {
+    fn show_user(&mut self, ui: &mut Ui, t: &Theme, col_w: f32, entry: &Entry, text: &str) {
         let mine = entry.from == self.account.username;
         if !mine {
             caption(ui, t, col_w, &entry.from);
@@ -513,9 +532,10 @@ impl Chat {
             .max_width(inner_max)
             .measure(ui)
             .x;
-        let bubble_w = (natural + pad * 2.0 + 2.0).clamp(control_height() * 2.0, max_w);
+        let bubble_w = (natural + pad * 2.0 + 2.0).min(max_w);
         let inner_w = bubble_w - pad * 2.0;
-        let h = self.label(entry.id).height(text, inner_w) + pad * 2.0;
+        let text_h = self.reader(entry.id, text).measure_height(inner_w);
+        let h = text_h + pad * 2.0;
         let (row, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
         let bubble = if mine {
             Rect::from_min_max(pos2(row.right() - bubble_w, row.top()), row.max)
@@ -525,15 +545,8 @@ impl Chat {
         ui.painter()
             .rect_filled(bubble, Radius::Surface.corner(), t.neutral_bg_secondary());
         paint_inset_bands(ui, bubble, Space::Sm, Space::Sm);
-        let (areas, painted) =
-            self.label(entry.id)
-                .paint_at(ui, text, bubble.min + vec2(pad, pad), inner_w);
-        debug_assert!(
-            painted.bottom() <= bubble.bottom() - pad + 0.5,
-            "bubble {h} short of its text {}",
-            painted.height()
-        );
-        text_areas.extend(areas);
+        let inner = Rect::from_min_size(bubble.min + vec2(pad, pad), vec2(inner_w, text_h));
+        self.show_reader(ui, entry.id, text, inner);
 
         if mine && ui.rect_contains_pointer(row) && !self.busy {
             let slot = action_rect(bubble.left(), bubble.top() + pad, md);
@@ -553,17 +566,39 @@ impl Chat {
             .memory_mut(|m| m.request_focus(Id::new(("chat_composer", self.id))));
     }
 
-    fn show_assistant(
-        &mut self, ui: &mut Ui, t: &Theme, col_w: f32, id: Uuid, text: &str,
-        text_areas: &mut Vec<crate::TextBufferArea>,
-    ) {
+    /// A settled message's text in `rect`. It selects with the mouse and
+    /// copies; one message holds a selection at a time.
+    fn show_reader(&mut self, ui: &mut Ui, id: Uuid, text: &str, rect: Rect) {
+        let at = text_id(id);
+        let reader = self.reader(id, text);
+        if ui.memory(|m| m.has_focus(at)) || !reader.event.internal_events.is_empty() {
+            reader.handle_input(ui.ctx(), at);
+        }
+        // A child of its own: the text's layout leaves the column's cursor
+        // alone, and its widgets are not confused with another message's.
+        let mut child = ui.new_child(UiBuilder::new().max_rect(rect).id_salt(at));
+        reader.show(&mut child, rect, at);
+        // The selection goes when the keyboard does.
+        let (start, end) = reader.renderer.buffer.current.selection;
+        if start != end && !ui.memory(|m| m.has_focus(at)) {
+            let region = Region::Location(Location::Grapheme(end));
+            reader.event.internal_events.push(Edit::Select { region });
+        }
+    }
+
+    /// Whether a message holds the keyboard for its selection.
+    fn reading(&self, ui: &Ui) -> bool {
+        ui.memory(|m| m.focused())
+            .is_some_and(|focused| self.readers.keys().any(|id| text_id(*id) == focused))
+    }
+
+    fn show_assistant(&mut self, ui: &mut Ui, t: &Theme, col_w: f32, id: Uuid, text: &str) {
         if text.is_empty() {
             return;
         }
-        let h = self.label(id).height(text, col_w);
+        let h = self.reader(id, text).measure_height(col_w);
         let (rect, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
-        let (areas, _) = self.label(id).paint_at(ui, text, rect.min, col_w);
-        text_areas.extend(areas);
+        self.show_reader(ui, id, text, rect);
 
         // Copy shows while the pointer is over the reply, and a check for a
         // moment after it was used.
@@ -589,22 +624,29 @@ impl Chat {
         }
     }
 
-    /// One row for a tool call. Returns whether its detail is open.
+    /// A tool call as a card. Its bar holds the icon, the statement, and how
+    /// the call went; `outcome` is its result and whether it worked, once
+    /// it has one. A settled card opens on a click, and then the bar and
+    /// what the call returned share one border.
     #[allow(clippy::too_many_arguments)]
-    fn tool_row(
+    fn tool_card(
         &mut self, ui: &mut Ui, t: &Theme, col_w: f32, id: Uuid, name: &str, args: &Value,
-        status: Status,
-    ) -> bool {
+        outcome: Option<(&str, bool)>, text_areas: &mut Vec<crate::TextBufferArea>,
+    ) {
         let row = rows::row(name, args);
-        let settled = status != Status::Running;
-        let open = settled && self.expanded.contains(&id);
-        let (rect, _) = ui.allocate_exact_size(vec2(col_w, control_height()), Sense::hover());
-        let sense = if settled { sense_click() } else { Sense::hover() };
-        let resp = ui.interact(rect, Id::new(("chat_tool", id)), sense);
-        if settled {
-            let fill = interact_fill_response(ui.ctx(), &resp, quiet_canvas_fills(t));
-            ui.painter()
-                .rect_filled(rect.shrink(row_wash_inset()), Radius::Control.corner(), fill);
+        let open = outcome.is_some() && self.expanded.contains(&id);
+        let pad = control_space::PAD_X.pts();
+        let lead = tool_text_inset(ui);
+        let lh = TypeRole::Body.line_height();
+        let status_w = glyph_width(ui, phosphor::CHECK);
+        let spans = fit_statement(ui, row.words, col_w - lead - Space::Sm.pts() - status_w - pad);
+
+        let (bar, _) = ui.allocate_exact_size(vec2(col_w, control_height()), Sense::hover());
+        let fills = chip_fills(t, true);
+        let mut fill = fills.rest;
+        if outcome.is_some() {
+            let resp = ui.interact(bar, Id::new(("chat_tool", id)), sense_click());
+            fill = interact_fill_response(ui.ctx(), &resp, fills);
             if resp.hovered() {
                 ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
             }
@@ -613,74 +655,147 @@ impl Chat {
                 self.expanded.insert(id);
             }
         }
-
-        let muted = t.neutral_fg_secondary();
-        let ink = if status == Status::Failed { t.danger() } else { t.neutral_fg() };
-        let cy = rect.center().y;
-        let mut x = rect.left() + control_space::PAD_X.pts();
-        if settled {
-            let caret = if open { phosphor::CARET_DOWN } else { phosphor::CARET_RIGHT };
-            x += paint_glyph(ui, caret, muted, x, cy) + control_space::ICON_GAP.pts();
+        if !open {
+            self.bodies.remove(&id);
         }
-        x += paint_glyph(ui, row.icon, muted, x, cy) + control_space::ICON_GAP.pts();
+        let radius = Radius::Control.corner();
+        let corners = if open { CornerRadius { sw: 0, se: 0, ..radius } } else { radius };
+        ui.painter().rect_filled(bar, corners, fill);
+        paint_control_pads(ui, bar, control_space::PAD_X, control_space::PAD_Y);
 
-        let (status_text, status_ink) = match status {
-            Status::Running => ("…", pulse(ui, muted)),
-            Status::Done => ("", muted),
-            Status::Failed => ("failed", t.danger()),
+        let cy = bar.center().y;
+        let icon_w = paint_glyph(ui, row.icon, t.neutral_fg(), bar.left() + pad, cy);
+        let icon_gap = Rect::from_min_max(
+            pos2(bar.left() + pad + icon_w, cy - lh / 2.0),
+            pos2(bar.left() + lead, cy + lh / 2.0),
+        );
+        Spacer::paint_at(ui, control_space::ICON_GAP, icon_gap);
+        let text = Rect::from_min_max(
+            pos2(bar.left() + lead, cy - lh / 2.0),
+            pos2(bar.right() - pad - status_w, cy + lh / 2.0),
+        );
+        place_at(ui, text, Layout::left_to_right(Align::Center), |ui| {
+            ui.add(statement(span_refs(&spans), t.neutral_fg()));
+        });
+        let status = match outcome {
+            None => Status::Running,
+            Some((_, true)) => Status::Done,
+            Some((_, false)) => Status::Failed,
         };
-        let mut right = rect.right() - control_space::PAD_X.pts();
-        if !status_text.is_empty() {
-            let g = ui.painter().layout_no_wrap(
-                status_text.into(),
-                TypeRole::Body.font_id(),
-                status_ink,
-            );
-            right -= g.size().x;
-            ui.painter()
-                .galley(pos2(right, cy - g.size().y / 2.0), g, status_ink);
-            right -= Space::Sm.pts();
-        }
+        paint_status(ui, t, status, bar.right() - pad, cy);
 
-        let verb = truncated(ui, &row.verb, TypeRole::Body.font_id(), ink, (right - x).max(24.0));
-        let baseline = cy + TypeRole::Body.line_height() / 2.0;
-        ui.painter()
-            .galley(pos2(x, baseline - verb.size().y), verb.clone(), ink);
-        x += verb.size().x;
-        if let Some(path) = &row.path {
-            x += Space::Xs.pts();
-            let mono = FontId::new(TypeRole::Mono.size(), FontFamily::Monospace);
-            let g = truncated(ui, path, mono, ink, (right - x).max(24.0));
-            ui.painter().galley(pos2(x, baseline - g.size().y), g, ink);
+        let Some((result, ok)) = outcome.filter(|_| open) else { return };
+        let query = args
+            .get("query")
+            .and_then(Value::as_str)
+            .unwrap_or_default();
+        let parts = match self.bodies.remove(&id) {
+            Some(parts) => parts,
+            None => self.card_body(name, args, result, ok),
+        };
+        // File rows are padded already; text is not, above or below.
+        let mut after_files = false;
+        for part in &parts {
+            let files = matches!(part, rows::Part::Files(_));
+            if !files {
+                ui.add(Spacer::new(if after_files { Space::Xs } else { Space::Sm }));
+            }
+            self.tool_part(ui, t, col_w, id, part, query, text_areas);
+            after_files = files;
         }
-        open
+        if !after_files {
+            ui.add(Spacer::new(Space::Sm));
+        }
+        self.bodies.insert(id, parts);
+        let card = Rect::from_min_max(bar.min, pos2(bar.right(), ui.cursor().top()));
+        ui.painter().rect_stroke(
+            card,
+            radius,
+            Stroke::new(STROKE_HAIRLINE, t.neutral()),
+            StrokeKind::Inside,
+        );
     }
 
-    /// The opened row's markdown, indented to the row's text.
-    fn show_tool_detail(
-        &mut self, ui: &mut Ui, col_w: f32, id: Uuid, detail: &str,
+    /// What a card opens onto, with each file it lists looked up once.
+    fn card_body(&self, name: &str, args: &Value, result: &str, ok: bool) -> Vec<rows::Part> {
+        let mut parts = rows::body(name, args, result, ok, &self.scope());
+        let files = self.files.read().unwrap();
+        for part in &mut parts {
+            let rows::Part::Files(found) = part else { continue };
+            for file in found.iter_mut() {
+                file.target = files.by_path(&file.path).map(|f| f.id);
+            }
+        }
+        parts
+    }
+
+    /// One piece of an opened card, edge to edge under the bar.
+    #[allow(clippy::too_many_arguments)]
+    fn tool_part(
+        &mut self, ui: &mut Ui, t: &Theme, col_w: f32, id: Uuid, part: &rows::Part, query: &str,
         text_areas: &mut Vec<crate::TextBufferArea>,
     ) {
-        if detail.is_empty() {
-            return;
+        let pad = Space::Sm.pts();
+        let inner_w = (col_w - pad * 2.0).max(24.0);
+        let plain = |ui: &mut Ui, text: &str, ink: Color32| {
+            let label = GlyphonLabel::new(text, ink)
+                .font_size(TypeRole::Body.size())
+                .line_height(TypeRole::Body.line_height())
+                .max_width(inner_w);
+            let h = label.measure(ui).y;
+            let (rect, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
+            place_at(ui, rect.shrink2(vec2(pad, 0.0)), Layout::top_down(Align::Min), |ui| {
+                ui.add(label);
+            });
+        };
+        match part {
+            rows::Part::Files(files) => {
+                for (i, file) in files.iter().enumerate() {
+                    self.tool_file(ui, t, (id, i), file, query);
+                }
+            }
+            rows::Part::Note(text) => {
+                let h = self.label(id).height(text, inner_w);
+                let (rect, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
+                let origin = pos2((rect.left() + pad).round(), rect.top());
+                let (areas, _) = self.label(id).paint_at(ui, text, origin, inner_w);
+                text_areas.extend(areas);
+            }
+            rows::Part::Text(text) => plain(ui, text, t.neutral_fg()),
+            rows::Part::Line(text) => plain(ui, text, t.neutral_fg_secondary()),
+            rows::Part::Diff(changes) => tool_diff(ui, t, col_w, changes, text_areas),
         }
-        ui.add(Spacer::new(Space::Xxs));
-        let glyph_w = ui
-            .painter()
-            .layout_no_wrap(
-                phosphor::CARET_RIGHT.into(),
-                phosphor_ui_font_id(),
-                Color32::PLACEHOLDER,
-            )
-            .size()
-            .x;
-        let indent = control_space::PAD_X.pts() + (glyph_w + control_space::ICON_GAP.pts()) * 2.0;
-        let inner_w = (col_w - indent).max(24.0);
-        let h = self.label(id).height(detail, inner_w);
-        let (rect, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
-        let origin = pos2((rect.left() + indent).round(), rect.top());
-        let (areas, _) = self.label(id).paint_at(ui, detail, origin, inner_w);
-        text_areas.extend(areas);
+    }
+
+    /// A file a search or a listing found. A click opens a note or points
+    /// the file tree at a folder; one that is gone only reads.
+    fn tool_file(
+        &mut self, ui: &mut Ui, t: &Theme, id: (Uuid, usize), file: &rows::FileRef, query: &str,
+    ) {
+        let folder = file.path.ends_with('/');
+        let path = file.path.trim_end_matches('/');
+        let name = path.rsplit('/').next().unwrap_or(path);
+        let target = file.target;
+        let mut row = FileRow::new(t, display_file_name(name))
+            .icon(file_row_icon(name, folder))
+            .interactive(target.is_some());
+        if !file.snippet.is_empty() {
+            row = row.caption_spans(rows::marked(&file.snippet, query));
+        } else if !query.is_empty() {
+            row = row.subtitle(parent_crumbs(path));
+        }
+        let resp = row.show(ui, Id::new(("chat_tool_file", id)));
+        if let Some(target) = target {
+            if resp.hovered() {
+                ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+            }
+            if resp.clicked() && folder {
+                ui.ctx().focus_folder(target);
+            } else if resp.clicked() {
+                ui.ctx()
+                    .open_file(target, ui.input(|i| i.modifiers.command));
+            }
+        }
     }
 
     /// A plate with an icon, a title, optional detail, and optionally Retry.
@@ -782,104 +897,6 @@ impl Chat {
         }
     }
 
-    fn ask_height(&self, ui: &Ui, prompt: &str, col_w: f32) -> f32 {
-        let pad = Space::Sm.pts();
-        let text_w = col_w
-            - pad * 2.0
-            - glyph_width(ui, phosphor::LOCK_SIMPLE_OPEN)
-            - control_space::ICON_GAP.pts();
-        let text_h = GlyphonLabel::new(prompt, Color32::PLACEHOLDER)
-            .font_size(TypeRole::Body.size())
-            .line_height(TypeRole::Body.line_height())
-            .max_width(text_w.max(40.0))
-            .measure(ui)
-            .y
-            .max(TypeRole::Body.line_height());
-        pad + text_h + Space::Sm.pts() + control_height() + pad
-    }
-
-    /// A tool wants permission: the prompt, Deny (esc) on the left, Allow
-    /// (return) on the right.
-    fn show_ask(&mut self, ui: &mut Ui, t: &Theme, rect: Rect) {
-        let Some((_, prompt)) = self.pending_ask.clone() else { return };
-        ui.painter().rect(
-            rect,
-            Radius::Surface.corner(),
-            t.neutral_bg_secondary(),
-            Stroke::new(STROKE_HAIRLINE, t.neutral()),
-            StrokeKind::Inside,
-        );
-        let pad = Space::Sm.pts();
-        let lh = TypeRole::Body.line_height();
-        let glyph_w = paint_glyph(
-            ui,
-            phosphor::LOCK_SIMPLE_OPEN,
-            t.accent(),
-            rect.left() + pad,
-            rect.top() + pad + lh / 2.0,
-        );
-        paint_inset_bands(ui, rect, Space::Sm, Space::Sm);
-        let icon_gap = Rect::from_min_size(
-            pos2(rect.left() + pad + glyph_w, rect.top() + pad),
-            vec2(control_space::ICON_GAP.pts(), lh),
-        );
-        Spacer::paint_at(ui, control_space::ICON_GAP, icon_gap);
-        let text_x = rect.left() + pad + glyph_w + control_space::ICON_GAP.pts();
-        let text_rect = Rect::from_min_max(
-            pos2(text_x, rect.top() + pad),
-            pos2(rect.right() - pad, rect.bottom() - pad - control_height() - Space::Sm.pts()),
-        );
-        place_at(ui, text_rect, Layout::top_down(Align::Min), |ui| {
-            ui.add(
-                GlyphonLabel::new(&prompt, t.neutral_fg())
-                    .font_size(TypeRole::Body.size())
-                    .line_height(lh)
-                    .max_width(text_rect.width()),
-            );
-        });
-
-        let approve = ui
-            .ctx()
-            .input_mut(|i| i.consume_key(Modifiers::NONE, Key::Enter));
-        let deny = ui
-            .ctx()
-            .input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
-        let mut decision = if approve {
-            Some(Cmd::Approve)
-        } else if deny {
-            Some(Cmd::Deny)
-        } else {
-            None
-        };
-        let footer = Rect::from_min_size(
-            pos2(text_x, rect.bottom() - pad - control_height()),
-            vec2(rect.right() - pad - text_x, control_height()),
-        );
-        place_at(ui, footer, Layout::left_to_right(Align::Center), |ui| {
-            if Button::quiet(t, "Deny")
-                .shortcut(shortcut_esc())
-                .show(ui)
-                .clicked()
-            {
-                decision = Some(Cmd::Deny);
-            }
-        });
-        place_at(ui, footer, Layout::right_to_left(Align::Center), |ui| {
-            if Button::primary(t, "Allow")
-                .shortcut(shortcut_enter())
-                .show(ui)
-                .clicked()
-            {
-                decision = Some(Cmd::Approve);
-            }
-        });
-        claim(ui, rect);
-        if let Some(cmd) = decision {
-            self.pending_ask = None;
-            self.send_cmd(cmd);
-        }
-    }
-
     fn show_composer(
         &mut self, ui: &mut Ui, t: &Theme, rect: Rect, composer_id: Id, geom: &ComposerGeom,
     ) -> (Rect, bool, bool) {
@@ -910,11 +927,18 @@ impl Chat {
         let text_rect = Rect::from_min_size(pos2(band.min.x, text_top), vec2(geom.text_w, text_h));
         self.composer_rect = text_rect;
 
-        // A sheet owns the keyboard while it is open. Otherwise, with nothing
-        // else focused, the composer takes it, so typing always lands.
+        // A sheet owns the keyboard while it is open. Otherwise the composer
+        // takes it when nothing else has it, and takes it back from a
+        // message's selection on a keystroke, so typing always lands.
+        let reading = self.reading(ui);
+        let typed = ui.input(|i| {
+            i.events
+                .iter()
+                .any(|e| matches!(e, egui::Event::Text(_) | egui::Event::Paste(_)))
+        });
         if self.sheet_open() {
             ui.ctx().memory_mut(|m| m.surrender_focus(composer_id));
-        } else if !self.initialized || ui.memory(|m| m.focused().is_none()) {
+        } else if !self.initialized || ui.memory(|m| m.focused().is_none()) || (reading && typed) {
             ui.ctx().memory_mut(|m| m.request_focus(composer_id));
             self.initialized = true;
         }
@@ -1001,17 +1025,23 @@ impl Chat {
         }
         let menu_open = self.show_chips(ui, t, focused, model_rect, folder_rect);
 
-        let active = self.busy || !text.trim().is_empty();
-        let glyph = if self.busy { phosphor::SQUARE } else { phosphor::PAPER_PLANE_TILT };
-        let resp = send_button(ui, t, send_rect, glyph, active, next_fill(t, focused));
+        let action = match (self.busy, text.trim().is_empty()) {
+            (true, _) => Action::Stop,
+            (false, true) => Action::Idle,
+            (false, false) => Action::Send,
+        };
+        let resp = send_button(ui, t, send_rect, action, focused);
         tip_text(ui.ctx(), &resp, if self.busy { "Stop · esc" } else { "Send · return" });
 
-        let esc = focused
+        let esc = (focused || reading)
             && !completions_open
             && !menu_open
             && ui
                 .ctx()
                 .input_mut(|i| i.consume_key(Modifiers::NONE, Key::Escape));
+        if esc && reading {
+            ui.ctx().memory_mut(|m| m.request_focus(composer_id));
+        }
         let mut sent = false;
         if self.busy && (resp.clicked() || esc) {
             self.send_cmd(Cmd::Stop);
@@ -1406,6 +1436,173 @@ fn chip_width(ui: &Ui, lead_w: f32, label: &str) -> f32 {
         .max(control_height())
 }
 
+/// Where a tool capsule's statement starts, from its left edge: the pad,
+/// the icon, the gap. Its opened detail lines up with it.
+fn tool_text_inset(ui: &Ui) -> f32 {
+    control_space::PAD_X.pts()
+        + glyph_width(ui, phosphor::FILE_TEXT)
+        + control_space::ICON_GAP.pts()
+}
+
+/// A tool statement, or part of one, at body size.
+fn statement(spans: Vec<(&str, bool)>, ink: Color32) -> GlyphonLabel<'_> {
+    GlyphonLabel::new_rich(spans, ink)
+        .font_size(TypeRole::Body.size())
+        .line_height(TypeRole::Body.line_height())
+}
+
+fn span_refs(spans: &[(String, bool)]) -> Vec<(&str, bool)> {
+    spans
+        .iter()
+        .map(|(text, bold)| (text.as_str(), *bold))
+        .collect()
+}
+
+fn statement_width(ui: &Ui, spans: &[(String, bool)]) -> f32 {
+    statement(span_refs(spans), Color32::PLACEHOLDER)
+        .measure(ui)
+        .x
+}
+
+/// A statement's words as one line of spans no wider than `max_w`. Paths
+/// give up their folders first, a letter each from the outside in; after
+/// that the longest variable gives up its end.
+fn fit_statement(ui: &Ui, words: Vec<(String, bool)>, max_w: f32) -> Vec<(String, bool)> {
+    let mut spans: Vec<(String, bool)> = Vec::new();
+    for (i, word) in words.into_iter().enumerate() {
+        if i > 0 {
+            spans.push((" ".into(), false));
+        }
+        spans.push(word);
+    }
+    while statement_width(ui, &spans) > max_w {
+        let shorter = spans
+            .iter_mut()
+            .filter(|(_, variable)| *variable)
+            .filter_map(|(text, _)| rows::abbreviate(text).map(|shorter| (text, shorter)))
+            .max_by_key(|(text, _)| text.len());
+        match shorter {
+            Some((text, shorter)) => *text = shorter,
+            None => break,
+        }
+    }
+    for _ in 0..8 {
+        let over = statement_width(ui, &spans) - max_w;
+        if over <= 0.0 {
+            break;
+        }
+        let Some((text, _)) = spans
+            .iter_mut()
+            .filter(|(_, variable)| *variable)
+            .max_by_key(|(text, _)| text.len())
+        else {
+            break;
+        };
+        let kept: Vec<&str> = text.trim_end_matches('…').graphemes(true).collect();
+        if kept.is_empty() {
+            break;
+        }
+        let width = statement(vec![(text.as_str(), true)], Color32::PLACEHOLDER)
+            .measure(ui)
+            .x;
+        let cut = (over * kept.len() as f32 / width).ceil() as usize + 1;
+        let keep = kept.len().saturating_sub(cut).max(1);
+        *text = format!("{}…", kept[..keep].concat());
+    }
+    spans
+}
+
+/// How a call went, at the right end of its bar: a spinner while it runs, a
+/// quiet check, a red x.
+fn paint_status(ui: &Ui, t: &Theme, status: Status, right: f32, cy: f32) {
+    let (glyph, ink) = match status {
+        Status::Running => (phosphor::SPINNER_GAP, t.neutral_fg_secondary()),
+        Status::Done => (phosphor::CHECK, t.neutral_fg_secondary()),
+        Status::Failed => (phosphor::X, t.danger()),
+    };
+    let g = ui
+        .painter()
+        .layout_no_wrap(glyph.into(), phosphor_ui_font_id(), ink);
+    let pos = pos2(right - g.size().x, cy - g.size().y / 2.0);
+    let mut shape = egui::epaint::TextShape::new(pos, g, ink);
+    if status == Status::Running && ui.ctx().style().animation_time >= 0.01 {
+        ui.ctx().request_repaint();
+        let angle = (ui.input(|i| i.time) * std::f64::consts::TAU) as f32;
+        shape = shape.with_angle_and_anchor(angle, Align2::CENTER_CENTER);
+    }
+    ui.painter().add(shape);
+}
+
+/// What an edit changed, as one flow of text: what went is struck through on
+/// a red wash, what came is on a green one, and the rest reads as it is.
+/// Color is never the only cue: what went is also struck and quieter.
+fn tool_diff(
+    ui: &mut Ui, t: &Theme, col_w: f32, changes: &[Change],
+    text_areas: &mut Vec<crate::TextBufferArea>,
+) {
+    let long = |text: &str| text.len() > DIFF_INLINE || text.trim_end().contains('\n');
+    // Whether the line ends where the piece at `i` does.
+    let ends_line = |i: usize| {
+        changes[i].text().ends_with('\n')
+            || changes
+                .get(i + 1)
+                .is_none_or(|next| next.text().starts_with('\n'))
+    };
+    // Quieter than the text around it, and still 4.5 to 1 on its wash.
+    let gone_ink = t.neutral_fg_secondary().lerp_to_gamma(t.neutral_fg(), 0.5);
+    let mut spans: Vec<(&str, Option<Color32>)> = Vec::new();
+    let mut kinds: Vec<Option<bool>> = Vec::new();
+    // Whether the flow so far ends a line.
+    let mut fresh = true;
+    for (i, change) in changes.iter().enumerate() {
+        let (ink, kind) = match change {
+            Change::Same(_) => (None, None),
+            Change::Gone(_) => (Some(gone_ink), Some(false)),
+            Change::New(_) => (None, Some(true)),
+        };
+        spans.push((change.text(), ink));
+        kinds.push(kind);
+        // Whole lines replaced: the new text starts its own line when
+        // either is long, and sits a space away when both are short.
+        if let (Change::Gone(went), Some(Change::New(came))) = (change, changes.get(i + 1)) {
+            if fresh && ends_line(i + 1) && !went.ends_with('\n') {
+                spans.push((if long(went) || long(came) { "\n" } else { " " }, None));
+                kinds.push(None);
+            }
+        }
+        fresh = spans.last().is_some_and(|(text, _)| text.ends_with('\n'));
+    }
+    let pad = Space::Sm.pts();
+    let shaped = GlyphonLabel::new_colored(spans, t.neutral_fg())
+        .font_size(TypeRole::Body.size())
+        .line_height(TypeRole::Body.line_height())
+        .max_width((col_w - pad * 2.0).max(24.0))
+        .build(ui.ctx());
+    let (slot, _) = ui.allocate_exact_size(vec2(col_w, shaped.size.y), Sense::hover());
+    let origin = pos2(slot.left() + pad, slot.top());
+    if !ui.is_rect_visible(slot) {
+        return;
+    }
+    // The saturated red and green, whichever variant holds them.
+    let hues = if t.light() { t.fg() } else { t.bg() };
+    let (gone_wash, new_wash) =
+        (hues.red.gamma_multiply(DIFF_WASH), hues.green.gamma_multiply(DIFF_WASH));
+    for (span, rect) in shaped.span_rects(ui.ctx()) {
+        let Some(came) = kinds.get(span).copied().flatten() else { continue };
+        // A hair of air on every side keeps neighboring marks apart.
+        let rect = rect.translate(origin.to_vec2()).shrink(0.5);
+        let wash = if came { new_wash } else { gone_wash };
+        ui.painter().rect_filled(rect, Radius::Sm.corner(), wash);
+        if !came {
+            let y = rect.center().y.round() + 0.5;
+            ui.painter()
+                .hline(rect.x_range(), y, Stroke::new(STROKE_HAIRLINE, gone_ink));
+        }
+    }
+    let rect = Rect::from_min_size(origin, shaped.size);
+    text_areas.push(shaped.text_area(rect, ui.ctx(), ui.clip_rect()));
+}
+
 /// What the form says under a server of the user's own.
 const OWN_HELP: &str = "Any OpenAI-compatible server works. Ollama answers on port 11434, LM Studio on 1234, llama.cpp on 8080. For another machine, put its name or address in place of localhost.";
 
@@ -1423,32 +1620,66 @@ fn privacy_line(provider: Option<&Provider>) -> String {
     }
 }
 
-/// The primary action: accent plate with canvas ink while there is something
-/// to send or stop; the plain next level otherwise.
+/// What the composer's button does right now.
+#[derive(Clone, Copy, PartialEq, Eq, Hash)]
+enum Action {
+    Idle,
+    Send,
+    Stop,
+}
+
+/// The composer's one button. Sending is the accent plate with canvas ink
+/// once there is something to send; stopping is a solid red square on the
+/// plain plate, so a live run never reads as "go".
 fn send_button(
-    ui: &mut Ui, t: &Theme, rect: Rect, glyph: &'static str, active: bool, idle_fill: Color32,
+    ui: &mut Ui, t: &Theme, rect: Rect, action: Action, on_canvas: bool,
 ) -> egui::Response {
-    let resp = ui.interact(rect, Id::new(("chat_send", glyph)), sense_click());
-    let (fill, ink) = if active {
-        let fills = ControlFills {
-            rest: t.accent(),
-            hover: t.accent().lerp_to_gamma(t.neutral_bg(), 0.16),
-            press: t.accent().lerp_to_gamma(t.neutral_bg(), 0.24),
-        };
-        (interact_fill_response(ui.ctx(), &resp, fills), t.neutral_bg())
-    } else {
-        (idle_fill, t.neutral_fg_secondary())
+    let resp = ui.interact(rect, Id::new(("chat_send", action)), sense_click());
+    let plain = chip_fills(t, on_canvas);
+    let accent = ControlFills {
+        rest: t.accent(),
+        hover: t.accent().lerp_to_gamma(t.neutral_bg(), 0.16),
+        press: t.accent().lerp_to_gamma(t.neutral_bg(), 0.24),
+    };
+    let fill = match action {
+        Action::Idle => plain.rest,
+        Action::Send => interact_fill_response(ui.ctx(), &resp, accent),
+        Action::Stop => interact_fill_response(ui.ctx(), &resp, plain),
     };
     ui.painter()
         .rect_filled(rect, Radius::Control.corner(), fill);
-    if active && resp.hovered() {
+    if action != Action::Idle && resp.hovered() {
         ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
     }
-    let g = ui
-        .painter()
-        .layout_no_wrap(glyph.into(), phosphor_ui_font_id(), ink);
+    if action == Action::Stop {
+        let square = Rect::from_center_size(rect.center(), Vec2::splat(STOP_SIDE));
+        ui.painter()
+            .rect_filled(square, CornerRadius::same(2), t.danger());
+        return resp;
+    }
+    let ink = if action == Action::Send { t.neutral_bg() } else { t.neutral_fg_secondary() };
+    let g =
+        ui.painter()
+            .layout_no_wrap(phosphor::PAPER_PLANE_TILT.into(), phosphor_ui_font_id(), ink);
     ui.painter().galley(rect.center() - g.size() / 2.0, g, ink);
     resp
+}
+
+/// Paints `rect` from clear at its top to `color` at its bottom.
+fn fade_down(painter: &egui::Painter, rect: Rect, color: Color32) {
+    let mut mesh = egui::Mesh::default();
+    mesh.colored_vertex(rect.left_top(), Color32::TRANSPARENT);
+    mesh.colored_vertex(rect.right_top(), Color32::TRANSPARENT);
+    mesh.colored_vertex(rect.left_bottom(), color);
+    mesh.colored_vertex(rect.right_bottom(), color);
+    mesh.add_triangle(0, 1, 2);
+    mesh.add_triangle(1, 2, 3);
+    painter.add(egui::Shape::mesh(mesh));
+}
+
+/// The widget holding a settled message's text.
+fn text_id(id: Uuid) -> Id {
+    Id::new(("chat_text", id))
 }
 
 /// Where a message's action sits: just left of the message, centred on its
@@ -1556,14 +1787,6 @@ fn paint_glyph(ui: &Ui, glyph: &str, color: Color32, x: f32, cy: f32) -> f32 {
     w
 }
 
-fn truncated(
-    ui: &Ui, text: &str, font: FontId, color: Color32, max_w: f32,
-) -> std::sync::Arc<egui::Galley> {
-    let mut job = LayoutJob::simple_singleline(text.to_string(), font, color);
-    job.wrap = TextWrapping::truncate_at_width(max_w);
-    ui.painter().layout_job(job)
-}
-
 fn local_day(ts: i64) -> Option<chrono::NaiveDate> {
     chrono::DateTime::from_timestamp_millis(ts)
         .map(|d| d.with_timezone(&chrono::Local).date_naive())
@@ -1584,6 +1807,32 @@ fn day_label(day: chrono::NaiveDate) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A statement too wide for its line: its path gives up folders first,
+    /// keeping the note's name, and only then its end. The verb stays.
+    #[test]
+    fn a_statement_is_cut_to_fit() {
+        let ctx = super::super::tests::context();
+        let _ = ctx.run(Default::default(), |ctx| {
+            egui::CentralPanel::default().show(ctx, |ui| {
+                let words =
+                    |path: &str| vec![("delete".to_string(), false), (path.to_string(), true)];
+                let long = format!("/projects/{}note.md", "deeper/".repeat(30));
+                let natural = statement_width(ui, &fit_statement(ui, words(&long), f32::MAX));
+
+                let cut = fit_statement(ui, words(&long), natural / 2.0);
+                assert!(statement_width(ui, &cut) <= natural / 2.0);
+                assert_eq!(cut[0].0, "delete");
+                assert!(cut[2].0.starts_with("/p/d/") && cut[2].0.ends_with("/note.md"), "{cut:?}");
+
+                let cut = fit_statement(ui, words(&long), 120.0);
+                assert!(statement_width(ui, &cut) <= 120.0);
+                assert!(cut[2].0.starts_with("/p/d/") && cut[2].0.ends_with('…'), "{cut:?}");
+
+                assert_eq!(fit_statement(ui, words("…"), 1.0)[2].0, "…");
+            });
+        });
+    }
 
     /// The line follows the address: a host that only starts with
     /// "localhost" is somewhere else.

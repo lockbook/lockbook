@@ -842,7 +842,7 @@ impl MdEdit {
         ui.set_clip_rect(rect.intersect(entry_clip));
 
         // cursor / selection — iOS draws natively
-        if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
+        if ui.ctx().os() != OperatingSystem::IOS {
             let selection = self
                 .in_progress_selection
                 .unwrap_or(self.renderer.buffer.current.selection);
@@ -860,20 +860,25 @@ impl MdEdit {
             ui.painter()
                 .set(pre.selection_shape, egui::Shape::Vec(shapes));
 
-            let now = ui.ctx().input(|i| i.time);
-            if self.in_progress_selection.is_some()
-                || (focused && self.cursor_last_interact.is_none())
-            {
-                self.cursor_last_interact = Some(now);
-            }
-            let blink = focused.then(|| now - self.cursor_last_interact.unwrap_or(now));
-            self.show_offset(ui, selection.1, theme.bright.get_color(theme.prefs().primary), blink);
-            if focused {
-                if let Some([top, bot]) = self.cursor_line(selection.1) {
-                    let cursor_rect = Rect::from_min_max(top, bot);
-                    ui.output_mut(|o| {
-                        o.ime = Some(egui::output::IMEOutput { rect, cursor_rect });
-                    });
+            // Read-only text is selected and copied, never typed into: it
+            // shows its selection and no caret.
+            if !self.renderer.readonly {
+                let now = ui.ctx().input(|i| i.time);
+                if self.in_progress_selection.is_some()
+                    || (focused && self.cursor_last_interact.is_none())
+                {
+                    self.cursor_last_interact = Some(now);
+                }
+                let blink = focused.then(|| now - self.cursor_last_interact.unwrap_or(now));
+                let caret = theme.bright.get_color(theme.prefs().primary);
+                self.show_offset(ui, selection.1, caret, blink);
+                if focused {
+                    if let Some([top, bot]) = self.cursor_line(selection.1) {
+                        let cursor_rect = Rect::from_min_max(top, bot);
+                        ui.output_mut(|o| {
+                            o.ime = Some(egui::output::IMEOutput { rect, cursor_rect });
+                        });
+                    }
                 }
             }
         }

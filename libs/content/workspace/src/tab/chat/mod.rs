@@ -3,6 +3,7 @@
 //! workspace saves it like any other document. Lines that reach the
 //! document another way (sync, a collaborator, the CLI) are merged in by id.
 
+mod diff;
 mod glyphs;
 mod model_sheet;
 mod rows;
@@ -74,7 +75,11 @@ pub struct Chat {
     /// A copy of the store for drawing, refreshed when the seq moves.
     transcript: Transcript,
     labels: HashMap<Uuid, MdLabel>,
+    /// Each settled message's text, read-only: it selects and copies.
+    readers: HashMap<Uuid, MdEdit>,
     expanded: HashSet<Uuid>,
+    /// What each opened tool card holds, worked out when it opens.
+    bodies: HashMap<Uuid, Vec<rows::Part>>,
 
     driver: Option<Driver>,
     pub busy: bool,
@@ -82,7 +87,6 @@ pub struct Chat {
     streaming_label: MdLabel,
     /// The call the driver is executing right now, drawn as a live row.
     running_tool: Option<lb_chat::Call>,
-    pending_ask: Option<(lb_chat::Call, String)>,
 
     composer: MdEdit,
     composer_rect: Rect,
@@ -90,6 +94,9 @@ pub struct Chat {
     composer_text_seq: usize,
     editing: Option<Uuid>,
     scroll_to_bottom: bool,
+    /// Heading for the newest line since this time, or since the wheel last
+    /// moved. See `view::WHEEL_REST_SECS`.
+    to_latest: Option<f64>,
     /// The folder sheet: open, the draft choice, and which rows are unfolded.
     pub scope_open: bool,
     scope_dest: Option<Uuid>,
@@ -158,19 +165,21 @@ impl Chat {
             save_seq: 0,
             transcript,
             labels: HashMap::new(),
+            readers: HashMap::new(),
             expanded: HashSet::new(),
+            bodies: HashMap::new(),
             driver: None,
             busy: false,
             streaming: String::new(),
             streaming_label,
             running_tool: None,
-            pending_ask: None,
             composer,
             composer_rect: Rect::NOTHING,
             composer_seq: 0,
             composer_text_seq: 0,
             editing: None,
             scroll_to_bottom: true,
+            to_latest: None,
             scope_open: false,
             scope_dest: None,
             scope_expanded: HashSet::new(),
@@ -236,6 +245,7 @@ impl Chat {
         self.transcript = self.store.chat.lock().unwrap().clone();
         let ids: HashSet<Uuid> = self.transcript.entries.iter().map(|e| e.id).collect();
         self.labels.retain(|id, _| ids.contains(id));
+        self.readers.retain(|id, _| ids.contains(id));
     }
 
     pub fn focused_field(&mut self) -> Option<&mut MdEdit> {
@@ -541,14 +551,12 @@ impl Chat {
                         self.streaming.clear();
                         self.running_tool = Some(call);
                     }
-                    Event::Ask { call, prompt } => self.pending_ask = Some((call, prompt)),
                     Event::Written(entry) => {
                         if matches!(entry.body, Body::Assistant { .. }) {
                             self.streaming.clear();
                         }
                         if matches!(entry.body, Body::Tool { .. }) {
                             self.running_tool = None;
-                            self.pending_ask = None;
                         }
                     }
                     Event::Lost { error, .. } => error!("chat line lost: {error}"),
@@ -556,7 +564,6 @@ impl Chat {
                         self.busy = false;
                         self.streaming.clear();
                         self.running_tool = None;
-                        self.pending_ask = None;
                     }
                 }
             }
@@ -575,6 +582,23 @@ impl Chat {
                 Box::new(FileCacheLinkResolver::new(Arc::clone(files), chat_id));
             label
         })
+    }
+
+    fn reader(&mut self, id: Uuid, text: &str) -> &mut MdEdit {
+        let (ctx, files, chat_id) = (&self.ctx, &self.files, self.id);
+        let reader = self.readers.entry(id).or_insert_with(|| {
+            let mut reader = MdEdit::empty(ctx.clone());
+            reader.renderer.readonly = true;
+            reader.renderer.files = Arc::clone(files);
+            reader.renderer.link_resolver =
+                Box::new(FileCacheLinkResolver::new(Arc::clone(files), chat_id));
+            reader.file_id = chat_id;
+            reader
+        });
+        if reader.renderer.buffer.current.text != text {
+            reader.set_text(text);
+        }
+        reader
     }
 
     /// The entries that draw a row. A reply with no text (a round that was
