@@ -284,7 +284,7 @@ impl Worker {
             system: context::system_prompt(&territory),
             turns,
             tools: self.tools.schemas(),
-            today: context::today(),
+            effort: provider.effort.clone(),
         };
         Ok((provider, request))
     }
@@ -367,6 +367,7 @@ mod tests {
                     base_url: base_url.clone(),
                     api_key: None,
                     model: "m".into(),
+                    effort: None,
                 })
             }),
         };
@@ -563,7 +564,7 @@ mod tests {
 
         // The same transcript, folded for a different provider.
         let turns = context::turns(&chat, "u", &mut |_| None);
-        let req = Request { system: String::new(), turns, tools: Vec::new(), today: String::new() };
+        let req = Request { turns, ..Default::default() };
         let other = Provider {
             name: "other".into(),
             display_name: None,
@@ -572,8 +573,68 @@ mod tests {
             base_url: String::new(),
             api_key: None,
             model: "m".into(),
+            effort: None,
         };
         assert!(!wire::openai::body(&other, &req).to_string().contains("SIG"));
+    }
+
+    /// A provider resolved with an effort asks Claude to think, keeps what it
+    /// thought on the tool line, and hands it back in front of the call when
+    /// the result goes.
+    #[test]
+    fn a_thinking_run_hands_its_thinking_back() {
+        let thought = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+            data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"thinking\",\"thinking\":\"\",\"signature\":\"\"}}\n\n\
+            data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"thinking_delta\",\"thinking\":\"hm\"}}\n\n\
+            data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"signature_delta\",\"signature\":\"SIG\"}}\n\n\
+            data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"tool_use\",\"id\":\"t1\",\"name\":\"echo\"}}\n\n\
+            data: {\"type\":\"content_block_delta\",\"index\":1,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"text\\\":\\\"x\\\"}\"}}\n\n\
+            data: {\"type\":\"message_stop\"}\n\n"
+            .to_string();
+        let done = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+            data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\"}}\n\n\
+            data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"ok\"}}\n\n\
+            data: {\"type\":\"message_stop\"}\n\n"
+            .to_string();
+        let store = MemStore::default();
+        let (url, bodies) = mock::serve(vec![thought, done]);
+        let config = Config {
+            user: "u".into(),
+            working_dir: "/".into(),
+            provider: Box::new(move || {
+                Ok(Provider {
+                    name: "claude".into(),
+                    display_name: None,
+                    needs_key: false,
+                    kind: Kind::Anthropic,
+                    base_url: url.clone(),
+                    api_key: Some("k".into()),
+                    model: "m".into(),
+                    effort: Some("on".into()),
+                })
+            }),
+        };
+        let d = Driver::spawn(store.clone(), Mock, config, || {});
+        d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
+        wait_for_run(&d);
+
+        let chat = store.chat();
+        assert_eq!(kinds(&chat), ["user", "assistant", "tool", "assistant"]);
+        assert!(
+            chat.entries[2]
+                .to_json_line()
+                .contains("\"signature\":\"SIG\"")
+        );
+        let sent: Vec<serde_json::Value> = bodies
+            .try_iter()
+            .map(|body| serde_json::from_str(&body).unwrap())
+            .collect();
+        assert_eq!(sent[0]["thinking"]["type"], "enabled");
+        assert_eq!(
+            sent[1]["messages"][1]["content"][0],
+            json!({ "type": "thinking", "thinking": "hm", "signature": "SIG" })
+        );
+        assert_eq!(sent[1]["messages"][1]["content"][1]["type"], "tool_use");
     }
 
     /// Replies settle without the whitespace models pad them with; a reply

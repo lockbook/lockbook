@@ -4,16 +4,17 @@ use std::time::Duration;
 
 use cli_rs::cli_error::{CliError, CliResult};
 use lb_chat::driver::Config;
-use lb_chat::{Cmd, Driver, Event, LbStore, Provider, VaultTools};
+use lb_chat::{Cmd, Driver, Event, LbStore, Provider, Store, VaultTools};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::model::chat::{Body, Chat};
+use lb_rs::model::chat::{Body, Chat, Settings};
 use lb_rs::model::core_config::Config as LbConfig;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 
 /// With a message: send it and stream the reply. Without: print the chat.
-pub fn chat(target: String, message: String) -> CliResult<()> {
+/// A model or an effort is remembered in the chat first.
+pub fn chat(target: String, message: String, model: String, effort: String) -> CliResult<()> {
     let lb = Lb::init(LbConfig::cli_config("cli")).map_err(|e| CliError::from(e.to_string()))?;
     let user = lb
         .get_account()
@@ -21,6 +22,9 @@ pub fn chat(target: String, message: String) -> CliResult<()> {
         .username
         .clone();
     let file = resolve_or_create(&lb, &target)?;
+    if !model.is_empty() || !effort.is_empty() {
+        choose(&lb, file.id, &user, &model, &effort)?;
+    }
 
     if message.trim().is_empty() {
         let bytes = lb.read_document(file.id, true)?;
@@ -76,6 +80,37 @@ pub fn chat(target: String, message: String) -> CliResult<()> {
         }
         sleep(Duration::from_millis(20));
     }
+}
+
+/// Remembers a model or an effort in the chat. A new model starts at its own
+/// default effort, and "default" goes back to it. An effort must be one the
+/// model has been shown to take.
+fn choose(lb: &Lb, id: Uuid, user: &str, model: &str, effort: &str) -> CliResult<()> {
+    let mut settings = Chat::parse(&lb.read_document(id, false)?).settings_for(user);
+    if !model.is_empty() {
+        settings.model = Some(model.to_string());
+        settings.effort = None;
+    }
+    if !effort.is_empty() {
+        settings.effort = (effort != "default").then(|| effort.to_string());
+    }
+    if let Some(effort) = &settings.effort {
+        let asked = Settings { effort: None, ..settings.clone() };
+        let provider = Provider::resolve(lb, &asked).map_err(CliError::from)?;
+        let offered = provider.efforts();
+        if offered.is_empty() {
+            let model = &provider.model;
+            return Err(CliError::from(format!("{model} has no --effort that is known to work")));
+        }
+        if !offered.contains(&effort.as_str()) {
+            let offered = offered.join(", ");
+            return Err(CliError::from(format!("{} takes --effort: {offered}", provider.model)));
+        }
+    }
+    LbStore { lb: lb.clone(), id }
+        .update(&mut |chat| chat.set_settings(user, settings.clone()))
+        .map_err(CliError::from)?;
+    Ok(())
 }
 
 fn resolve_or_create(lb: &Lb, target: &str) -> CliResult<File> {

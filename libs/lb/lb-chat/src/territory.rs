@@ -160,6 +160,7 @@ mod tests {
             model: None,
             include: vec!["/team/".into(), "/single.md".into()],
             exclude: vec!["/team/drafts/".into()],
+            effort: None,
         };
         let mut t = Territory::new("/home/", &settings);
         t.ignores.push((

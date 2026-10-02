@@ -11,7 +11,7 @@ use egui::{
     Vec2, pos2, vec2,
 };
 
-use crate::style::chrome::{Icon, Radius, STROKE_HAIRLINE, control_height};
+use crate::style::chrome::{Icon, Radius, STROKE_HAIRLINE, control_height, phosphor};
 use crate::style::color::{FG_HOVER, Theme};
 use crate::style::space::Space;
 use crate::style::space::control as control_space;
@@ -86,6 +86,13 @@ impl<T> Entries<T> {
     pub fn item_icon(&mut self, icon: Icon, label: impl Into<String>, value: T) {
         self.rows
             .push(Row::Item { icon: Some(icon), label: label.into(), danger: false, value });
+    }
+
+    /// One choice among several: the chosen one carries a check.
+    pub fn item_checked(&mut self, checked: bool, label: impl Into<String>, value: T) {
+        let icon = checked.then_some(Icon::Glyph(phosphor::CHECK));
+        self.rows
+            .push(Row::Item { icon, label: label.into(), danger: false, value });
     }
 
     pub fn item_danger(&mut self, icon: &'static str, label: impl Into<String>, value: T) {

@@ -27,7 +27,43 @@ pub struct Provider {
     /// placeholder a template leaves. A file without the field needs none.
     pub needs_key: bool,
     pub model: String,
+    /// How hard the model is asked to think: the chat's choice or the
+    /// default's, and only a value `efforts` lists. Absent means the
+    /// provider's own default.
+    pub effort: Option<String>,
 }
+
+/// Where a real request has shown the effort setting to work beside tools:
+/// host, model, and the values it took, least thinking first. Everything
+/// else runs at its provider's default until it has been tried.
+const EFFORTS: &[(&str, &str, &[&str])] = &[
+    ("api.x.ai", "grok-4.7", &["low", "medium", "high", "xhigh"]),
+    ("api.x.ai", "grok-4.3", &["none", "low", "medium", "high", "xhigh"]),
+    ("generativelanguage.googleapis.com", "gemini-3.8-flash", &["none", "low", "medium", "high"]),
+    ("generativelanguage.googleapis.com", "gemini-3.5-flash", &["none", "low", "medium", "high"]),
+    ("api.cerebras.ai", "qwen-3.8-27b", &["none", "low", "medium", "high"]),
+    ("api.cerebras.ai", "gpt-oss-120b", &["low", "medium", "high"]),
+    ("api.groq.com", "openai/gpt-oss-120b", &["low", "medium", "high"]),
+    ("api.groq.com", "openai/gpt-oss-20b", &["low", "medium", "high"]),
+    ("api.groq.com", "qwen/qwen3.8-27b", &["none", "low", "medium"]),
+    ("api.anthropic.com", "claude-sonnet-5-5", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.anthropic.com", "claude-opus-5-5", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.anthropic.com", "claude-fable-5-1", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.anthropic.com", "claude-opus-5", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.anthropic.com", "claude-sonnet-5", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.anthropic.com", "claude-fable-5", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.anthropic.com", "claude-opus-4-8", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.anthropic.com", "claude-opus-4-7", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.anthropic.com", "claude-sonnet-4-6", &["low", "medium", "high", "max"]),
+    ("api.anthropic.com", "claude-opus-4-6", &["low", "medium", "high", "max"]),
+    ("api.anthropic.com", "claude-opus-4-5-20251101", &["on"]),
+    ("api.anthropic.com", "claude-haiku-4-5-20251001", &["on"]),
+    ("api.anthropic.com", "claude-sonnet-4-5-20250929", &["on"]),
+    ("openrouter.ai", "anthropic/claude-haiku-4.5", &["none", "low", "medium", "high"]),
+    ("openrouter.ai", "anthropic/claude-sonnet-5.5", &["low", "medium", "high", "xhigh", "max"]),
+    ("openrouter.ai", "anthropic/claude-opus-5.5", &["low", "medium", "high", "xhigh", "max"]),
+    ("openrouter.ai", "openai/gpt-5.5", &["none", "low", "medium", "high", "xhigh"]),
+];
 
 #[derive(Deserialize)]
 struct ProviderFile {
@@ -51,6 +87,8 @@ struct DefaultFile {
     provider: String,
     #[serde(default)]
     model: String,
+    #[serde(default)]
+    effort: Option<String>,
 }
 
 const PLACEHOLDER_KEY: &str = "YOUR API KEY HERE";
@@ -58,23 +96,39 @@ const PLACEHOLDER_KEY: &str = "YOUR API KEY HERE";
 impl Provider {
     /// The provider a chat's settings select, falling back to the vault
     /// default. `model` in settings is `provider/model`; a bare provider name
-    /// means the file's own model.
+    /// means the file's own model. A chat that follows the default's model
+    /// follows its effort too, unless it has chosen one.
     pub fn resolve(lb: &Lb, settings: &Settings) -> Result<Provider, String> {
-        let (name, model) = match &settings.model {
-            Some(selection) => split(selection),
+        let (name, model, effort) = match &settings.model {
+            Some(selection) => {
+                let (name, model) = split(selection);
+                (name, model, None)
+            }
             None => {
                 let bytes = read(lb, "/.agent/default.json")?
                     .ok_or("no provider selected and no /.agent/default.json")?;
                 let default: DefaultFile = serde_json::from_slice(&bytes)
                     .map_err(|e| format!("/.agent/default.json: {e}"))?;
-                (default.provider, default.model)
+                (default.provider, default.model, default.effort)
             }
         };
-        let provider = Self::load(lb, &name, &model)?;
+        let mut provider = Self::load(lb, &name, &model)?;
         if provider.model.is_empty() {
             return Err(format!("/.agent/providers/{name}.json: no model"));
         }
+        let effort = settings.effort.clone().or(effort);
+        provider.effort = effort.filter(|e| provider.efforts().contains(&e.as_str()));
         Ok(provider)
+    }
+
+    /// The values this model's effort may take: those it has been shown to
+    /// take, and none for a model that has not been tried.
+    pub fn efforts(&self) -> &'static [&'static str] {
+        let host = host(&self.base_url);
+        EFFORTS
+            .iter()
+            .find(|(at, model, _)| *at == host && *model == self.model)
+            .map_or(&[], |(_, _, values)| values)
     }
 
     pub fn load(lb: &Lb, name: &str, model: &str) -> Result<Provider, String> {
@@ -108,6 +162,7 @@ impl Provider {
             api_key,
             needs_key,
             model,
+            effort: None,
         })
     }
 
@@ -302,5 +357,33 @@ mod tests {
         assert_eq!(friendly_name("xai"), "xAI");
         assert_eq!(friendly_name("anthropic"), "Anthropic");
         assert_eq!(friendly_name("my-box"), "My-box");
+    }
+    /// The effort setting exists only where it has been shown to work: a
+    /// model that was tried lists what it took, and nothing else lists
+    /// anything, whatever its listing or its documentation says.
+    #[test]
+    fn only_a_tried_model_offers_an_effort() {
+        let at = |base_url: &str, model: &str| {
+            let file = serde_json::json!({ "base_url": base_url }).to_string();
+            Provider::parse("p", model, file.as_bytes()).unwrap()
+        };
+        let grok = at("https://api.x.ai/v1/", "grok-4.7");
+        assert_eq!(grok.efforts(), ["low", "medium", "high", "xhigh"]);
+        assert!(at("https://api.x.ai/v1", "grok-9").efforts().is_empty());
+        // The same model by another road is another row.
+        let haiku = at("https://openrouter.ai/api/v1", "anthropic/claude-haiku-4.5");
+        assert_eq!(haiku.efforts(), ["none", "low", "medium", "high"]);
+        let haiku = at("https://api.anthropic.com/v1", "claude-haiku-4-5-20251001");
+        assert_eq!(haiku.efforts(), ["on"]);
+        assert!(
+            at("https://api.openai.com/v1", "gpt-5.5")
+                .efforts()
+                .is_empty()
+        );
+        assert!(
+            at("http://localhost:11434/v1", "grok-4.7")
+                .efforts()
+                .is_empty()
+        );
     }
 }

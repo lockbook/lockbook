@@ -445,11 +445,39 @@ impl Chat {
     /// what the next new chat starts with. The last pick anywhere is the
     /// default, so there is nothing else to set.
     fn select(&mut self, selection: String) {
-        if let Err(err) = setup::write_default(&self.core, &selection) {
+        if let Err(err) = setup::write_default(&self.core, &selection, None) {
             error!("could not save the default model: {err}");
         }
         let mut settings = self.settings();
         settings.model = Some(selection);
+        // An effort belongs to the model it was chosen for.
+        settings.effort = None;
+        self.set_settings(settings);
+    }
+
+    /// The values this chat's model may be asked to think at.
+    fn efforts(&self) -> &'static [&'static str] {
+        match &self.provider {
+            Some(Ok(provider)) => provider.efforts(),
+            _ => &[],
+        }
+    }
+
+    /// The effort this chat runs at; none is the provider's own default.
+    fn effort(&self) -> Option<&str> {
+        self.provider.as_ref()?.as_ref().ok()?.effort.as_deref()
+    }
+
+    /// Picks an effort for this chat. Like a model, the last one picked
+    /// anywhere is what a new chat starts with.
+    fn set_effort(&mut self, effort: Option<String>) {
+        let Some(Ok(provider)) = &self.provider else { return };
+        let written = setup::write_default(&self.core, &provider.selection(), effort.as_deref());
+        if let Err(err) = written {
+            error!("could not save the default effort: {err}");
+        }
+        let mut settings = self.settings();
+        settings.effort = effort;
         self.set_settings(settings);
     }
 

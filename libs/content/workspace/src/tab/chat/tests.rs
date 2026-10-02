@@ -1003,6 +1003,34 @@ mod on_its_own {
         );
     }
 
+    /// An effort, like a model, is remembered in the chat and becomes what
+    /// the next new chat starts with. A new model starts back at its own.
+    #[test]
+    fn an_effort_sticks_until_the_model_changes() {
+        let (lb, id) = account_with_chat();
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let mut chat = Chat::new(b"", id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        let default = || -> serde_json::Value {
+            let file = lb.get_by_path("/.agent/default.json").unwrap();
+            serde_json::from_slice(&lb.read_document(file.id, false).unwrap()).unwrap()
+        };
+
+        chat.set_effort(Some("high".into()));
+        assert_eq!(chat.settings().effort.as_deref(), Some("high"));
+        assert_eq!(
+            (default()["provider"].clone(), default()["effort"].clone()),
+            ("mock".into(), "high".into())
+        );
+
+        chat.select("mock/another".into());
+        assert_eq!(chat.settings().effort, None);
+        assert_eq!(default()["model"], "another");
+        assert_eq!(default()["effort"], serde_json::Value::Null);
+    }
+
     /// Lines the tab holds but has not saved survive a reload from disk,
     /// and the reload leaves the tab dirty so the merge gets written.
     #[test]

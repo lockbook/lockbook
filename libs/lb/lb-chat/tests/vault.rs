@@ -1,7 +1,7 @@
 //! The librarian against a real vault. Needs a local server
 //! (`lbdev ci start-server`), like the lb-rs integration tests.
 
-use lb_chat::{Call, ToolOutcome, Tools, VaultTools};
+use lb_chat::{Call, Provider, ToolOutcome, Tools, VaultTools};
 use lb_rs::blocking::Lb;
 use lb_rs::model::chat::{Chat, Settings};
 use serde_json::{Value, json};
@@ -107,4 +107,26 @@ fn librarian_over_a_small_vault() {
     assert!(!ok && text.contains("no tool named"), "{text}");
     let (text, ok) = done(call(&mut tools, "read", json!({"path": "/elsewhere/x.md"})));
     assert!(!ok && text.contains("outside") && !text.contains("request_access"), "{text}");
+}
+
+/// A chat's effort is its own choice, else the default's while it follows
+/// the default's model, and never a value its model has not been shown to
+/// take.
+#[test]
+fn a_chat_resolves_its_effort() {
+    let lb = account();
+    let grok = r#"{"base_url": "https://api.x.ai/v1", "model": "grok-4.7", "api_key": "k"}"#;
+    write(&lb, "/.agent/providers/xai.json", grok);
+    let default = r#"{"provider": "xai", "model": "grok-4.7", "effort": "high"}"#;
+    write(&lb, "/.agent/default.json", default);
+    let effort = |settings: Settings| Provider::resolve(&lb, &settings).unwrap().effort;
+    let chose = |effort: &str| Settings { effort: Some(effort.into()), ..Default::default() };
+
+    assert_eq!(effort(Settings::default()).as_deref(), Some("high"));
+    assert_eq!(effort(chose("low")).as_deref(), Some("low"));
+    assert_eq!(effort(chose("enormous")), None);
+    // Its own model, so not the default's effort; and one nothing is known of.
+    let own = |model: &str| Settings { model: Some(model.into()), ..Default::default() };
+    assert_eq!(effort(own("xai/grok-4.7")), None);
+    assert_eq!(effort(Settings { model: Some("xai/grok-9".into()), ..chose("low") }), None);
 }

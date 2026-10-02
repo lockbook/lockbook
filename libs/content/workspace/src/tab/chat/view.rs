@@ -65,6 +65,8 @@ const STOP_SIDE: f32 = 10.0;
 enum ModelChoice {
     /// A pinned `provider/model` selection.
     Use(String),
+    /// How hard the model thinks; none is its provider's default.
+    Effort(Option<String>),
     Browse,
     AddProvider,
 }
@@ -126,7 +128,7 @@ impl Chat {
 
         let (pad_x, pad_y, gap, hit) =
             (Space::Md.pts(), Space::Sm.pts(), Space::Xs.pts(), control_height());
-        let model_w = chip_width(ui, TypeRole::Body.size(), &self.model_label());
+        let model_w = chip_width(ui, TypeRole::Body.size(), &self.model_chip_label());
         let folder_w = scope_chip_width(ui, &self.folder_label(), self.scope_chosen());
         let trailing = folder_w + gap + model_w + gap + hit;
         let wrap_w = (col_w - pad_x * 2.0).max(1.0);
@@ -259,6 +261,14 @@ impl Chat {
         match &self.provider {
             Some(Ok(p)) if !p.model.is_empty() => prettify(&p.model),
             _ => "model".into(),
+        }
+    }
+
+    /// The model as its chip names it, with the effort when one is chosen.
+    fn model_chip_label(&self) -> String {
+        match self.effort() {
+            Some(effort) => format!("{} · {}", self.model_label(), effort_name(effort)),
+            None => self.model_label(),
         }
     }
 
@@ -1078,10 +1088,11 @@ impl Chat {
         let fills = chip_fills(t, focused);
         let settings = self.settings();
 
-        let model_label = self.model_label();
+        let model_label = self.model_chip_label();
         let mark = self.provider_mark(ui.ctx(), TypeRole::Body.size());
         let resp = chip(ui, t, model_rect, mark, &model_label, fills);
         tip_text(ui.ctx(), &resp, format!("{} · {}", self.provider_name(), model_label));
+        let (efforts, effort) = (self.efforts(), self.effort().map(str::to_string));
         let favorites: Vec<(String, String, Icon)> = self
             .favorites
             .clone()
@@ -1098,6 +1109,17 @@ impl Chat {
                 e.item_icon(*mark, label.clone(), ModelChoice::Use(sel.clone()));
             }
             e.separator();
+            // Offered only for a model that has been shown to take it.
+            if !efforts.is_empty() {
+                let default = ModelChoice::Effort(None);
+                e.item_checked(effort.is_none(), "Thinking: default", default);
+            }
+            for value in efforts {
+                let chosen = effort.as_deref() == Some(*value);
+                let pick = ModelChoice::Effort(Some(value.to_string()));
+                e.item_checked(chosen, format!("Thinking: {}", effort_name(value)), pick);
+            }
+            e.separator();
             e.item(phosphor::LIST, "Browse models…", ModelChoice::Browse);
             e.item(phosphor::FILE_PLUS, "Add a provider…", ModelChoice::AddProvider);
         });
@@ -1105,6 +1127,7 @@ impl Chat {
         let mut models_opened_now = false;
         match choice {
             Some(ModelChoice::Use(selection)) => self.select(selection),
+            Some(ModelChoice::Effort(effort)) => self.set_effort(effort),
             Some(ModelChoice::Browse) => {
                 self.open_model_sheet();
                 models_opened_now = true;
@@ -1663,6 +1686,15 @@ fn send_button(
             .layout_no_wrap(phosphor::PAPER_PLANE_TILT.into(), phosphor_ui_font_id(), ink);
     ui.painter().galley(rect.center() - g.size() / 2.0, g, ink);
     resp
+}
+
+/// An effort as the interface says it: a provider's "none" is thinking off.
+fn effort_name(effort: &str) -> &str {
+    match effort {
+        "none" => "off",
+        "xhigh" => "extra high",
+        other => other,
+    }
 }
 
 /// Paints `rect` from clear at its top to `color` at its bottom.

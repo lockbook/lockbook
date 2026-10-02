@@ -234,10 +234,14 @@ fn own_label(base_url: &str) -> String {
     }
 }
 
-/// Makes `selection` (`provider/model`) what a new chat starts with.
-pub(super) fn write_default(lb: &Lb, selection: &str) -> Result<(), String> {
+/// Makes `selection` (`provider/model`) and its effort, if it has one, what
+/// a new chat starts with.
+pub(super) fn write_default(lb: &Lb, selection: &str, effort: Option<&str>) -> Result<(), String> {
     let (provider, model) = selection.split_once('/').unwrap_or((selection, ""));
-    let default = json!({ "provider": provider, "model": model });
+    let mut default = json!({ "provider": provider, "model": model });
+    if let Some(effort) = effort {
+        default["effort"] = json!(effort);
+    }
     write(lb, DEFAULT_PATH, &serde_json::to_vec_pretty(&default).unwrap())
 }
 
