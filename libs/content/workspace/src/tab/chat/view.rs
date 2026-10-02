@@ -450,6 +450,8 @@ impl Chat {
         let last = entries.last().map(|e| e.id);
         let mut prev_kind = None;
         let mut prev_day = None;
+        // The last message ended in its action strip, which is most of a gap.
+        let mut after_strip = false;
         self.spans.clear();
         for entry in &entries {
             let Some(kind) = kind(entry) else { continue };
@@ -474,11 +476,11 @@ impl Chat {
                 _ => (kind, kind),
             };
             if let Some(prev) = prev_kind {
-                ui.add(Spacer::new(gap(prev, lead)));
+                ui.add(Spacer::new(if after_strip { Space::Xs } else { gap(prev, lead) }));
             }
             let mine = entry.from == me;
             let row_top = ui.cursor().top();
-            match &entry.body {
+            after_strip = match &entry.body {
                 Body::User { text, .. } => self.show_user(ui, t, col_w, entry, text),
                 Body::Assistant { text, thinking, interrupted, .. } => {
                     if !mine {
@@ -494,14 +496,16 @@ impl Chat {
                             ui.add(Spacer::new(gap(lead, kind)));
                         }
                     }
-                    self.show_assistant(ui, t, col_w, entry.id, text);
+                    let strip = self.show_assistant(ui, t, col_w, entry.id, text);
                     if *interrupted {
                         caption(ui, t, col_w, "stopped");
                     }
+                    strip && !*interrupted
                 }
                 Body::Tool { name, args, result, ok, .. } => {
                     let outcome = Some((result.as_str(), *ok));
                     self.tool_card(ui, t, col_w, entry.id, name, args, outcome, text_areas);
+                    false
                 }
                 Body::Error { text } => {
                     if !mine {
@@ -511,9 +515,10 @@ impl Chat {
                     if self.show_notice(ui, t, col_w, Notice::error(text, retry)) {
                         *command = Some(Cmd::Regenerate);
                     }
+                    false
                 }
-                Body::Other(_) => {}
-            }
+                Body::Other(_) => false,
+            };
             self.spans.push((entry.id, row_top, ui.cursor().top()));
             // Rows stack: the cursor ends under everything laid out so far.
             debug_assert!(
@@ -600,7 +605,8 @@ impl Chat {
         });
     }
 
-    fn show_user(&mut self, ui: &mut Ui, t: &Theme, col_w: f32, entry: &Entry, text: &str) {
+    /// Returns whether the message ended in its action strip.
+    fn show_user(&mut self, ui: &mut Ui, t: &Theme, col_w: f32, entry: &Entry, text: &str) -> bool {
         let mine = entry.from == self.account.username;
         if !mine {
             caption(ui, t, col_w, &entry.from);
@@ -633,14 +639,23 @@ impl Chat {
         let inner = Rect::from_min_size(bubble.min + vec2(pad, pad), vec2(inner_w, text_h));
         self.show_reader(ui, entry.id, text, inner);
 
-        if mine && self.shows_actions(ui, entry.id, row) && !self.busy {
-            let slot = action_rect(bubble.left(), bubble.top() + pad, md);
-            let resp = action_button(ui, t, slot, bubble.left(), phosphor::PENCIL, false);
+        if !mine {
+            return false;
+        }
+        let strip = action_strip(ui, col_w);
+        if self.shows_actions(ui, entry.id, row.union(strip)) && !self.busy {
+            // The glyph's right edge on the bubble's.
+            let slot = Rect::from_min_size(
+                pos2(bubble.right() - strip.height() + glyph_inset(), strip.top()),
+                Vec2::splat(strip.height()),
+            );
+            let resp = action_button(ui, t, slot, phosphor::PENCIL, false);
             tip_text(ui.ctx(), &resp, "Edit and restart from here");
             if resp.clicked() {
                 self.start_editing(ui, entry.id, text);
             }
         }
+        true
     }
 
     /// Whether the message `id`, drawn in `rect`, shows its actions: under
@@ -699,9 +714,10 @@ impl Chat {
             .is_some_and(|focused| self.readers.keys().any(|id| text_id(*id) == focused))
     }
 
-    fn show_assistant(&mut self, ui: &mut Ui, t: &Theme, col_w: f32, id: Uuid, text: &str) {
+    /// Returns whether the reply ended in its action strip.
+    fn show_assistant(&mut self, ui: &mut Ui, t: &Theme, col_w: f32, id: Uuid, text: &str) -> bool {
         if text.is_empty() {
-            return;
+            return false;
         }
         let h = self.reader(id, text).measure_height(col_w);
         let (rect, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
@@ -709,7 +725,12 @@ impl Chat {
 
         // Copy shows while the pointer is over the reply, and a check for a
         // moment after it was used.
-        let btn = action_rect(rect.left(), rect.top(), self.composer.row_height());
+        let strip = action_strip(ui, col_w);
+        // The glyph's left edge on the text's.
+        let btn = Rect::from_min_size(
+            pos2(strip.left() - glyph_inset(), strip.top()),
+            Vec2::splat(strip.height()),
+        );
         let fid = Id::new(("chat_copied", id));
         let now = ui.input(|i| i.time);
         let copied = ui
@@ -719,16 +740,17 @@ impl Chat {
         if copied {
             ui.ctx().request_repaint();
         }
-        if !copied && !self.shows_actions(ui, id, rect.union(btn)) {
-            return;
+        if !copied && !self.shows_actions(ui, id, rect.union(strip)) {
+            return true;
         }
         let glyph = if copied { phosphor::CHECK } else { phosphor::COPY };
-        let resp = action_button(ui, t, btn, rect.left(), glyph, copied);
+        let resp = action_button(ui, t, btn, glyph, copied);
         tip_text(ui.ctx(), &resp, "Copy");
         if resp.clicked() {
             ui.ctx().copy_text(text.to_string());
             ui.ctx().data_mut(|d| d.insert_temp(fid, now + COPIED_SECS));
         }
+        true
     }
 
     /// A tool call as a card. Its bar holds the icon, the statement, and how
@@ -1982,22 +2004,23 @@ fn text_id(id: Uuid) -> Id {
     Id::new(("chat_text", id))
 }
 
-/// Where a message's action sits: just left of the message, centred on its
-/// first line of height `row`.
-fn action_rect(message_left: f32, first_line_top: f32, row: f32) -> Rect {
-    let hit = control_icon_hit();
-    Rect::from_center_size(
-        pos2(message_left - Space::Xs.pts() - hit / 2.0, first_line_top + row / 2.0),
-        Vec2::splat(hit),
-    )
+/// The row under a message where its action sits, one icon tall, kept
+/// whether or not the action shows so nothing moves when it does.
+fn action_strip(ui: &mut Ui, col_w: f32) -> Rect {
+    ui.allocate_exact_size(vec2(col_w, control_icon_hit()), Sense::hover())
+        .0
 }
 
-/// An action in its [`action_rect`], with the gap to its message.
+/// How far a glyph sits inside its hit box, so a slot can put the glyph's
+/// edge where the message's is.
+fn glyph_inset() -> f32 {
+    (control_icon_hit() - TypeRole::Body.size()) / 2.0
+}
+
+/// An action in its slot of the strip.
 fn action_button(
-    ui: &mut Ui, t: &Theme, slot: Rect, message_left: f32, glyph: &'static str, active: bool,
+    ui: &mut Ui, t: &Theme, slot: Rect, glyph: &'static str, active: bool,
 ) -> egui::Response {
-    let gap = Rect::from_min_max(slot.right_top(), pos2(message_left, slot.bottom()));
-    Spacer::paint_at(ui, Space::Xs, gap);
     place_at(ui, slot, Layout::left_to_right(Align::Center), |ui| {
         icon_button_hit(ui, t, glyph, active, t.neutral_bg(), slot.width())
     })

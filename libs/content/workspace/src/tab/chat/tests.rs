@@ -1241,18 +1241,19 @@ mod on_its_own {
     }
 
     /// The transcript fades out over its last stretch above the composer.
-    /// At the end of a chat that stretch is blank: the newest line ends
-    /// where the fade begins, which is where the jump button rests.
+    /// At the end of a chat that stretch is blank: the newest row, its
+    /// action strip included, ends where the fade begins, which is where
+    /// the jump button rests.
     #[test]
     fn the_end_of_a_chat_sits_clear_of_the_fade() {
         let ctx = context();
         let (mut chat, last) = long_chat(&ctx);
-        let text = egui::Id::new(("chat_text", last));
-        let newest = ctx
-            .read_response(text)
-            .expect("the last reply")
-            .rect
-            .bottom();
+        let newest = chat
+            .spans
+            .iter()
+            .find(|(id, _, _)| *id == last)
+            .map(|(_, _, bottom)| *bottom)
+            .expect("the last reply");
 
         let wheel = Event::MouseWheel {
             unit: egui::MouseWheelUnit::Point,
