@@ -35,6 +35,11 @@ pub enum Incoming {
         item: String,
         text: Option<String>,
     },
+    /// More of what the user is saying in `item`, as it is made out.
+    Hearing {
+        item: String,
+        text: String,
+    },
     ResponseCreated,
     /// More of the reply `item`, as audio.
     Audio {
@@ -237,6 +242,9 @@ pub(crate) fn parse(event: &Value) -> Option<Incoming> {
         "session.updated" => Incoming::Ready,
         "input_audio_buffer.speech_started" => Incoming::SpeechStarted,
         "input_audio_buffer.committed" => Incoming::Committed { item },
+        "conversation.item.input_audio_transcription.delta" => {
+            Incoming::Hearing { item, text: text(&event["delta"]) }
+        }
         "conversation.item.input_audio_transcription.completed" => {
             Incoming::Heard { item, text: Some(text(&event["transcript"])) }
         }
@@ -344,6 +352,11 @@ mod tests {
         assert_eq!(
             parse(&words),
             Some(Incoming::Transcript { item: "m1".into(), text: "Hi".into() })
+        );
+        let hearing = json!({ "type": "conversation.item.input_audio_transcription.delta", "item_id": "u1", "delta": "hel" });
+        assert_eq!(
+            parse(&hearing),
+            Some(Incoming::Hearing { item: "u1".into(), text: "hel".into() })
         );
         let heard = json!({ "type": "conversation.item.input_audio_transcription.completed", "item_id": "u1", "transcript": "hello" });
         assert_eq!(

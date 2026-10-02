@@ -179,6 +179,7 @@ impl Session<'_> {
             Incoming::Ready => self.host.lines.emit(Event::VoiceStarted),
             Incoming::SpeechStarted => self.interrupt().await?,
             Incoming::Committed { item } => self.queue.push_back(Slot::Heard(item)),
+            Incoming::Hearing { text, .. } => self.host.lines.emit(Event::Hearing(text)),
             Incoming::Heard { item, text } => {
                 let slot = self
                     .queue

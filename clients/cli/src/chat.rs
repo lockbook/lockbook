@@ -102,6 +102,7 @@ pub fn chat(
                 | Event::VoiceStarted
                 | Event::VoiceEnded
                 | Event::Audio { .. }
+                | Event::Hearing(_)
                 | Event::Interrupted => {}
             }
         }
@@ -165,7 +166,7 @@ fn speak(driver: &Driver, script: &str) -> CliResult<()> {
                 }
                 Event::ToolStarted(call) => eprintln!("[{} {}]", call.name, call.args),
                 Event::Written(entry) => match entry.body {
-                    Body::User { text, .. } => eprintln!("> {text}"),
+                    Body::User { text, .. } => eprintln!("\n> {text}"),
                     Body::Assistant { interrupted: true, .. } => println!(" [interrupted]"),
                     Body::Error { text } => eprintln!("error: {text}"),
                     _ => {}
@@ -174,6 +175,7 @@ fn speak(driver: &Driver, script: &str) -> CliResult<()> {
                     eprintln!("error: the chat could not be written: {error}")
                 }
                 Event::VoiceEnded => return Ok(()),
+                Event::Hearing(text) => eprint!("{text}"),
                 Event::Thinking(_) => {}
             }
         }
