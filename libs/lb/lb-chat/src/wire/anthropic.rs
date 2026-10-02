@@ -216,7 +216,7 @@ pub async fn complete(
 fn finish(blocks: BTreeMap<usize, (String, String, String)>) -> Vec<Call> {
     blocks
         .into_values()
-        .map(|(id, name, args)| Call { id, name, args: parse_args(&args) })
+        .map(|(id, name, args)| Call { id, name, args: parse_args(&args), echo: None })
         .collect()
 }
 
@@ -241,6 +241,8 @@ mod tests {
     fn provider(base_url: &str) -> Provider {
         Provider {
             name: "mock".into(),
+            display_name: None,
+            needs_key: false,
             kind: Kind::Anthropic,
             base_url: base_url.into(),
             api_key: Some("k".into()),
@@ -274,7 +276,12 @@ mod tests {
         assert_eq!(c.usage, Usage { input: 5, output: 9, cache_read: 2, cache_write: 0 });
         assert_eq!(
             c.calls,
-            [Call { id: "t1".into(), name: "read".into(), args: json!({"path": "/a"}) }]
+            [Call {
+                id: "t1".into(),
+                name: "read".into(),
+                args: json!({"path": "/a"}),
+                echo: None
+            }]
         );
     }
 
@@ -287,7 +294,12 @@ mod tests {
                 Turn::User("u".into()),
                 Turn::Assistant {
                     text: "t".into(),
-                    calls: vec![Call { id: "t1".into(), name: "read".into(), args: json!({}) }],
+                    calls: vec![Call {
+                        id: "t1".into(),
+                        name: "read".into(),
+                        args: json!({}),
+                        echo: None,
+                    }],
                 },
                 Turn::ToolResults(vec![super::super::ToolResult {
                     id: "t1".into(),

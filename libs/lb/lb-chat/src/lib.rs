@@ -6,6 +6,7 @@
 
 pub mod context;
 pub mod driver;
+pub mod models;
 pub mod provider;
 pub mod store;
 pub mod territory;
@@ -17,7 +18,8 @@ pub mod wire;
 pub(crate) mod mock;
 
 pub use driver::{Cmd, Driver, Event};
-pub use provider::{Kind, Provider, friendly_model, friendly_name};
+pub use models::{ModelInfo, list_models, list_models_blocking, prettify};
+pub use provider::{Kind, Place, Provider, friendly_name, host, place};
 pub use store::{LbStore, MemStore, SharedStore, Store};
 pub use territory::Territory;
 pub use tools::{NoTools, ToolOutcome, Tools};

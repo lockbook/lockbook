@@ -28,7 +28,7 @@ pub mod tree_metrics;
 pub mod typography;
 
 pub use chrome::{
-    ANIM_MAX_SECS, CHROME_BAND_GLYPH, CHROME_BAND_H, EDGE_FADE, HOVER_ANIM_SECS, Radius,
+    ANIM_MAX_SECS, CHROME_BAND_GLYPH, CHROME_BAND_H, EDGE_FADE, HOVER_ANIM_SECS, Icon, Radius,
     STROKE_HAIRLINE, TOGGLE_ANIM_SECS, canvas_overlay_frame, control_height, control_icon_hit,
     display_file_name, file_row_icon, fit_outside_stroke_fill, loading_indicator,
     message_indicator, overlay_shadow, paint_fade, paint_plate, paint_plate_stroke, phosphor,

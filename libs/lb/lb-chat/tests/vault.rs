@@ -19,7 +19,7 @@ fn write(lb: &Lb, path: &str, text: &str) {
 }
 
 fn call(tools: &mut VaultTools, name: &str, args: Value, approved: bool) -> ToolOutcome {
-    tools.call(&Call { id: "c".into(), name: name.into(), args }, approved)
+    tools.call(&Call { id: "c".into(), name: name.into(), args, echo: None }, approved)
 }
 
 fn done(outcome: ToolOutcome) -> (String, bool) {

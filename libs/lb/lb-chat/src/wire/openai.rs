@@ -7,7 +7,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Call, Completion, Request, STREAM_IDLE, Sse, Turn, parse_args, send};
+use super::{Call, Completion, Echo, Request, STREAM_IDLE, Sse, Turn, parse_args, send};
 use crate::provider::Provider;
 
 #[derive(Deserialize)]
@@ -39,6 +39,9 @@ struct CallDelta {
     id: Option<String>,
     #[serde(default)]
     function: Option<FunctionDelta>,
+    /// Google's compatibility layer: the call's thought signature.
+    #[serde(default)]
+    extra_content: Option<Value>,
 }
 
 #[derive(Deserialize)]
@@ -70,9 +73,10 @@ struct Partial {
     id: String,
     name: String,
     args: String,
+    extra: Option<Value>,
 }
 
-pub(super) fn body(provider: &Provider, req: &Request) -> Value {
+pub(crate) fn body(provider: &Provider, req: &Request) -> Value {
     let mut messages = Vec::new();
     if !req.system.is_empty() {
         messages.push(json!({ "role": "system", "content": req.system }));
@@ -88,11 +92,17 @@ pub(super) fn body(provider: &Provider, req: &Request) -> Value {
                     m["tool_calls"] = calls
                         .iter()
                         .map(|c| {
-                            json!({
+                            let mut call = json!({
                                 "id": c.id,
                                 "type": "function",
                                 "function": { "name": c.name, "arguments": c.args.to_string() },
-                            })
+                            });
+                            if let Some(echo) =
+                                c.echo.as_ref().filter(|e| e.provider == provider.name)
+                            {
+                                call["extra_content"] = echo.content.clone();
+                            }
+                            call
                         })
                         .collect();
                 }
@@ -153,7 +163,7 @@ pub async fn complete(
         let bytes = bytes.map_err(|e| format!("stream failed: {e}"))?;
         for payload in sse.push(&bytes) {
             if payload == "[DONE]" {
-                out.calls = finish(partials);
+                out.calls = finish(partials, &provider.name);
                 return Ok(out);
             }
             let Ok(chunk) = serde_json::from_str::<Chunk>(&payload) else { continue };
@@ -179,6 +189,9 @@ pub async fn complete(
                 if let Some(id) = frag.id {
                     call.id = id;
                 }
+                if frag.extra_content.is_some() {
+                    call.extra = frag.extra_content;
+                }
                 if let Some(f) = frag.function {
                     if let Some(name) = f.name {
                         call.name = name;
@@ -190,11 +203,11 @@ pub async fn complete(
             }
         }
     }
-    out.calls = finish(partials);
+    out.calls = finish(partials, &provider.name);
     Ok(out)
 }
 
-fn finish(partials: Vec<Partial>) -> Vec<Call> {
+fn finish(partials: Vec<Partial>, provider: &str) -> Vec<Call> {
     partials
         .into_iter()
         .filter(|p| !p.name.is_empty())
@@ -203,6 +216,9 @@ fn finish(partials: Vec<Partial>) -> Vec<Call> {
             id: if p.id.is_empty() { format!("call_{i}") } else { p.id },
             name: p.name,
             args: parse_args(&p.args),
+            echo: p
+                .extra
+                .map(|content| Echo { provider: provider.to_string(), content }),
         })
         .collect()
 }
@@ -217,6 +233,8 @@ mod tests {
     fn provider(base_url: &str) -> Provider {
         Provider {
             name: "mock".into(),
+            display_name: None,
+            needs_key: false,
             kind: Kind::OpenAi,
             base_url: base_url.into(),
             api_key: Some("k".into()),
@@ -271,7 +289,12 @@ mod tests {
         let c = result.unwrap();
         assert_eq!(
             c.calls,
-            [Call { id: "c1".into(), name: "read".into(), args: json!({"path": "/a"}) }]
+            [Call {
+                id: "c1".into(),
+                name: "read".into(),
+                args: json!({"path": "/a"}),
+                echo: None
+            }]
         );
     }
 
@@ -288,6 +311,7 @@ mod tests {
                         id: "c1".into(),
                         name: "read".into(),
                         args: json!({"path": "/a"}),
+                        echo: None,
                     }],
                 },
                 Turn::ToolResults(vec![ToolResult {
