@@ -3,7 +3,8 @@
 //! each finished piece settled into the store as it lands. Stop cancels the
 //! stream and settles what was streamed. The thread is synchronous; only the
 //! streaming completion runs on the runtime, so the store and the tools may
-//! block freely.
+//! block freely. A voice session is the exception: it holds the runtime
+//! until it ends and steps out of it to write lines and run tools.
 
 use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
@@ -22,6 +23,7 @@ use crate::provider::Provider;
 use crate::store::Store;
 use crate::territory::Territory;
 use crate::tools::{ToolOutcome, Tools};
+use crate::voice;
 use crate::web;
 use crate::wire::{self, Call, Piece, Request, images};
 
@@ -47,6 +49,15 @@ pub enum Cmd {
     Regenerate,
     /// Persist this user's settings without running.
     SetSettings(Settings),
+    /// Open a spoken conversation on the chat; `Stop` ends it.
+    StartVoice,
+    /// The user's voice, as PCM16 mono at `realtime::RATE`.
+    Audio(Vec<u8>),
+    /// How much of a reply has been played so far.
+    Played {
+        reply: u32,
+        ms: u64,
+    },
     Stop,
 }
 
@@ -65,6 +76,17 @@ pub enum Event {
         error: String,
     },
     RunEnded,
+    /// A spoken conversation is open: the microphone should run.
+    VoiceStarted,
+    VoiceEnded,
+    /// More of reply `reply`, as PCM16 mono at `realtime::RATE`: play it,
+    /// and report what has played with `Cmd::Played`.
+    Audio {
+        reply: u32,
+        pcm: Vec<u8>,
+    },
+    /// The user spoke over the reply: drop what is queued to play.
+    Interrupted,
 }
 
 pub struct Config {
@@ -95,21 +117,21 @@ impl Driver {
         std::thread::Builder::new()
             .name("lb-chat".into())
             .spawn(move || {
-                let rt = tokio::runtime::Builder::new_current_thread()
+                // Multi-threaded so a voice session can step out of it.
+                let rt = tokio::runtime::Builder::new_multi_thread()
+                    .worker_threads(1)
                     .enable_all()
                     .build()
                     .expect("runtime");
                 let client = rt.block_on(async { reqwest::Client::new() });
                 Worker {
-                    store: Box::new(store),
+                    lines: Lines { store: Box::new(store), events: event_tx, wake: Box::new(wake) },
                     tools: Box::new(tools),
                     config,
-                    events: event_tx,
-                    wake: Box::new(wake),
                     busy: worker_busy,
                     client,
                     rt,
-                    made: Vec::new(),
+                    made: Made::default(),
                     artist: None,
                 }
                 .run(cmd_rx);
@@ -132,26 +154,94 @@ impl Driver {
 }
 
 struct Worker {
-    store: Box<dyn Store>,
+    lines: Lines,
     tools: Box<dyn Tools>,
     config: Config,
-    events: Sender<Event>,
-    wake: Box<dyn Fn() + Send + Sync>,
     busy: Arc<AtomicBool>,
     client: reqwest::Client,
     rt: Runtime,
-    made: Vec<Made>,
+    made: Made,
     /// The provider and model that make pictures for this round's model.
     artist: Option<(Provider, &'static str)>,
 }
 
-/// A call made in this run, what it last answered, and how many times
-/// running it has since answered the same.
-struct Made {
+/// Where settled lines go, and who is told of them.
+pub(crate) struct Lines {
+    pub(crate) store: Box<dyn Store>,
+    events: Sender<Event>,
+    wake: Box<dyn Fn() + Send + Sync>,
+}
+
+impl Lines {
+    /// Appends `entry`; false means it was lost and the run should stop.
+    pub(crate) fn settle(&self, entry: Entry) -> bool {
+        match self.store.append(entry.clone()) {
+            Ok(stored) => {
+                self.emit(Event::Written(stored));
+                true
+            }
+            Err(error) => {
+                self.emit(Event::Lost { entry, error });
+                false
+            }
+        }
+    }
+
+    pub(crate) fn emit(&self, event: Event) {
+        let _ = self.events.send(event);
+        (self.wake)();
+    }
+}
+
+/// The calls made in a run and what each answered: one made again to the
+/// same answer is refused, and made once more it ends the run.
+#[derive(Default)]
+pub(crate) struct Made(Vec<MadeCall>);
+
+struct MadeCall {
     name: String,
     args: serde_json::Value,
     answer: Option<(String, bool)>,
     repeats: usize,
+}
+
+impl Made {
+    pub(crate) fn clear(&mut self) {
+        self.0.clear();
+    }
+
+    /// Runs `call` through `run`, unless it has answered the same twice.
+    pub(crate) fn call(
+        &mut self, call: &Call, run: impl FnOnce(&Call) -> ToolOutcome,
+    ) -> ToolOutcome {
+        let same = |m: &MadeCall| m.name == call.name && m.args == call.args;
+        let at = self.0.iter().position(same).unwrap_or_else(|| {
+            let (name, args) = (call.name.clone(), call.args.clone());
+            self.0
+                .push(MadeCall { name, args, answer: None, repeats: 0 });
+            self.0.len() - 1
+        });
+        match self.0[at].repeats {
+            0 => {}
+            1 => {
+                self.0[at].repeats = 2;
+                return ToolOutcome::err(REPEATED);
+            }
+            _ => return ToolOutcome::Abort { text: format!("{} kept repeating", call.name) },
+        }
+        let outcome = run(call);
+        if let ToolOutcome::Done { text, ok } = &outcome {
+            let answer = Some((text.clone(), *ok));
+            if self.0[at].answer == answer {
+                self.0[at].repeats = 1;
+            } else {
+                // A new answer is progress: earlier repeats no longer count.
+                self.0.iter_mut().for_each(|m| m.repeats = 0);
+                self.0[at].answer = answer;
+            }
+        }
+        outcome
+    }
 }
 
 enum Outcome {
@@ -165,12 +255,15 @@ impl Worker {
         while let Some(cmd) = cmds.blocking_recv() {
             let user = self.config.user.clone();
             let staged = match cmd {
-                Cmd::Say { text, mentions } => {
-                    self.store.append(said(&user, text, mentions)).map(Some)
-                }
+                Cmd::Say { text, mentions } => self
+                    .lines
+                    .store
+                    .append(said(&user, text, mentions))
+                    .map(Some),
                 Cmd::Edit { id, text, mentions } => {
                     let entry = said(&user, text, mentions);
-                    self.store
+                    self.lines
+                        .store
                         .update(&mut |chat| {
                             chat.truncate_from(id, &user);
                             chat.push(entry.clone());
@@ -178,6 +271,7 @@ impl Worker {
                         .map(|chat| chat.entries.last().cloned())
                 }
                 Cmd::Regenerate => self
+                    .lines
                     .store
                     .update(&mut |chat| {
                         chat.truncate_after_last_user(&user);
@@ -185,24 +279,29 @@ impl Worker {
                     .map(|_| None),
                 Cmd::SetSettings(settings) => {
                     let saved = self
+                        .lines
                         .store
                         .update(&mut |chat| chat.set_settings(&user, settings.clone()));
                     if let Err(err) = saved {
-                        self.settle(Entry::error(&user, err));
+                        self.lines.settle(Entry::error(&user, err));
                     }
                     continue;
                 }
-                Cmd::Stop => continue,
+                Cmd::StartVoice => {
+                    self.voice(&mut cmds);
+                    continue;
+                }
+                Cmd::Audio(_) | Cmd::Played { .. } | Cmd::Stop => continue,
             };
             match staged {
                 Ok(entry) => {
                     if let Some(entry) = entry {
-                        self.emit(Event::Written(entry));
+                        self.lines.emit(Event::Written(entry));
                     }
                     self.turn(&mut cmds);
                 }
                 Err(err) => {
-                    self.settle(Entry::error(&user, err));
+                    self.lines.settle(Entry::error(&user, err));
                 }
             }
         }
@@ -210,20 +309,51 @@ impl Worker {
 
     fn turn(&mut self, cmds: &mut UnboundedReceiver<Cmd>) {
         self.busy.store(true, Ordering::Relaxed);
-        self.emit(Event::RunStarted);
+        self.lines.emit(Event::RunStarted);
         self.made.clear();
         if self.read_attached(cmds) {
             self.rounds(cmds);
         }
         self.busy.store(false, Ordering::Relaxed);
-        self.emit(Event::RunEnded);
+        self.lines.emit(Event::RunEnded);
+    }
+
+    /// Holds a spoken conversation on the chat until told to stop.
+    fn voice(&mut self, cmds: &mut UnboundedReceiver<Cmd>) {
+        let user = self.config.user.clone();
+        let ready = self.prepare(true).and_then(|(provider, request)| {
+            let model = provider
+                .speaks()
+                .ok_or_else(|| format!("{} has no model that speaks", provider.label()))?;
+            Ok((provider, model, request))
+        });
+        let (provider, model, request) = match ready {
+            Ok(ready) => ready,
+            Err(err) => {
+                self.lines.settle(Entry::error(&user, err));
+                self.lines.emit(Event::VoiceEnded);
+                return;
+            }
+        };
+        self.made.clear();
+        let Worker { lines, tools, config, busy, rt, made, .. } = self;
+        let host = voice::Host {
+            user: &config.user,
+            model: format!("{}/{model}", provider.name),
+            working_dir: &config.working_dir,
+            lines,
+            tools: &mut **tools,
+            made,
+            busy,
+        };
+        rt.block_on(voice::run(host, &provider, &model, request, cmds));
     }
 
     /// Reads what the newest message attached, as tool lines: the model
     /// keeps each note as it was then. Returns whether the run continues.
     fn read_attached(&mut self, cmds: &mut UnboundedReceiver<Cmd>) -> bool {
         let user = self.config.user.clone();
-        let Ok((_, bytes)) = self.store.load() else { return true };
+        let Ok((_, bytes)) = self.lines.store.load() else { return true };
         let chat = Chat::parse(&bytes);
         let newest = chat.entries.iter().rfind(|e| e.from == user);
         let Some(Body::User { mentions, .. }) = newest.map(|e| &e.body) else { return true };
@@ -243,10 +373,10 @@ impl Worker {
     fn rounds(&mut self, cmds: &mut UnboundedReceiver<Cmd>) {
         let user = self.config.user.clone();
         loop {
-            let (provider, request) = match self.prepare() {
+            let (provider, request) = match self.prepare(false) {
                 Ok(ready) => ready,
                 Err(err) => {
-                    self.settle(Entry::error(&user, err));
+                    self.lines.settle(Entry::error(&user, err));
                     break;
                 }
             };
@@ -254,12 +384,12 @@ impl Worker {
             match outcome {
                 Outcome::Stopped => {
                     if !heard.text.trim().is_empty() {
-                        self.settle(reply(&user, &provider, &heard, true));
+                        self.lines.settle(reply(&user, &provider, &heard, true));
                     }
                     break;
                 }
                 Outcome::Failed(err) => {
-                    self.settle(Entry::error(&user, err));
+                    self.lines.settle(Entry::error(&user, err));
                     break;
                 }
                 Outcome::Finished(mut completion) => {
@@ -279,12 +409,12 @@ impl Worker {
                     if !served
                         .collect::<Vec<_>>()
                         .into_iter()
-                        .all(|e| self.settle(e))
+                        .all(|e| self.lines.settle(e))
                     {
                         break;
                     }
                     let said = reply(&user, &provider, &completion, false);
-                    if !self.settle(said) || completion.calls.is_empty() {
+                    if !self.lines.settle(said) || completion.calls.is_empty() {
                         break;
                     }
                     if !self.run_tools(completion.calls, cmds) {
@@ -299,11 +429,12 @@ impl Worker {
     fn run_tools(&mut self, calls: Vec<Call>, cmds: &mut UnboundedReceiver<Cmd>) -> bool {
         let user = self.config.user.clone();
         for call in calls {
-            self.emit(Event::ToolStarted(call.clone()));
+            self.lines.emit(Event::ToolStarted(call.clone()));
             let (text, ok) = match self.call(&call) {
                 ToolOutcome::Done { text, ok } => (text, ok),
                 ToolOutcome::Abort { text } => {
-                    self.settle(Entry::error(&user, format!("stopped: {text}")));
+                    self.lines
+                        .settle(Entry::error(&user, format!("stopped: {text}")));
                     return false;
                 }
             };
@@ -312,7 +443,7 @@ impl Worker {
             if let Some(echo) = call.echo.and_then(|e| serde_json::to_value(e).ok()) {
                 entry.extra.insert("echo".into(), echo);
             }
-            if !self.settle(entry) {
+            if !self.lines.settle(entry) {
                 return false;
             }
             // Told to stop, or nothing holds the driver any more.
@@ -323,57 +454,20 @@ impl Worker {
         true
     }
 
-    /// Has the provider make the picture `call` asks for, and keeps it.
-    fn draw(&mut self, provider: &Provider, model: &str, call: &Call) -> ToolOutcome {
-        let prompt = call.args["prompt"].as_str().unwrap_or_default();
-        let drawing = images::generate(&self.client, provider, model, prompt);
-        let kept = self
-            .rt
-            .block_on(drawing)
-            .and_then(|(ext, bytes)| self.tools.keep(&picture_name(&ext), &bytes));
-        match kept {
-            Ok(path) => ToolOutcome::ok(path),
-            Err(e) => ToolOutcome::err(e),
-        }
-    }
-
-    /// Runs `call` unless it has answered the same twice in this run: then
-    /// it is refused once, and after that it ends the run.
+    /// Runs `call`, the artist drawing when it asks for a picture.
     fn call(&mut self, call: &Call) -> ToolOutcome {
-        let same = |m: &Made| m.name == call.name && m.args == call.args;
-        let at = self.made.iter().position(same).unwrap_or_else(|| {
-            let (name, args) = (call.name.clone(), call.args.clone());
-            self.made
-                .push(Made { name, args, answer: None, repeats: 0 });
-            self.made.len() - 1
-        });
-        match self.made[at].repeats {
-            0 => {}
-            1 => {
-                self.made[at].repeats = 2;
-                return ToolOutcome::err(REPEATED);
-            }
-            _ => return ToolOutcome::Abort { text: format!("{} kept repeating", call.name) },
-        }
-        let outcome = match self.artist.clone().filter(|_| call.name == images::NAME) {
-            Some((provider, model)) => self.draw(&provider, model, call),
-            None => self.tools.call(call),
-        };
-        if let ToolOutcome::Done { text, ok } = &outcome {
-            let answer = Some((text.clone(), *ok));
-            if self.made[at].answer == answer {
-                self.made[at].repeats = 1;
-            } else {
-                // A new answer is progress: earlier repeats no longer count.
-                self.made.iter_mut().for_each(|m| m.repeats = 0);
-                self.made[at].answer = answer;
-            }
-        }
-        outcome
+        let Worker { made, tools, artist, client, rt, .. } = self;
+        let artist = artist.as_ref().filter(|_| call.name == images::NAME);
+        made.call(call, |call| match artist {
+            Some((provider, model)) => draw(client, rt, &mut **tools, provider, model, call),
+            None => tools.call(call),
+        })
     }
 
-    fn prepare(&mut self) -> Result<(Provider, Request), String> {
-        let (_, bytes) = self.store.load()?;
+    /// The provider and request for the next completion; `spoken` keeps
+    /// every tool of ours, there being nothing the voice server runs itself.
+    fn prepare(&mut self, spoken: bool) -> Result<(Provider, Request), String> {
+        let (_, bytes) = self.lines.store.load()?;
         let chat = Chat::parse(&bytes);
         let provider = (self.config.provider)()?;
         if provider.needs_key {
@@ -386,10 +480,13 @@ impl Worker {
         let instructions = self.tools.instructions(&self.config.working_dir);
         let system = context::system_prompt(&territory, &instructions);
         let mut tools = self.tools.schemas();
-        if provider.reaches_the_web() {
+        if provider.reaches_the_web() && !spoken {
             tools.retain(|tool| tool.name != web::SEARCH && tool.name != web::FETCH);
         }
-        self.artist = provider.draws().map(|model| (provider.clone(), model));
+        self.artist = provider
+            .draws()
+            .filter(|_| !spoken)
+            .map(|model| (provider.clone(), model));
         if self.artist.is_some() {
             tools.push(images::schema());
         }
@@ -444,32 +541,28 @@ impl Worker {
         match piece {
             Piece::Text(text) => {
                 heard.text.push_str(&text);
-                self.emit(Event::Delta(text));
+                self.lines.emit(Event::Delta(text));
             }
             Piece::Thinking(text) => {
                 heard.thinking.push_str(&text);
-                self.emit(Event::Thinking(text));
+                self.lines.emit(Event::Thinking(text));
             }
         }
     }
+}
 
-    /// Appends `entry`; false means it was lost and the run should stop.
-    fn settle(&mut self, entry: Entry) -> bool {
-        match self.store.append(entry.clone()) {
-            Ok(stored) => {
-                self.emit(Event::Written(stored));
-                true
-            }
-            Err(error) => {
-                self.emit(Event::Lost { entry, error });
-                false
-            }
-        }
-    }
-
-    fn emit(&self, event: Event) {
-        let _ = self.events.send(event);
-        (self.wake)();
+/// Has the provider make the picture `call` asks for, and keeps it.
+fn draw(
+    client: &reqwest::Client, rt: &Runtime, tools: &mut dyn Tools, provider: &Provider,
+    model: &str, call: &Call,
+) -> ToolOutcome {
+    let prompt = call.args["prompt"].as_str().unwrap_or_default();
+    let kept = rt
+        .block_on(images::generate(client, provider, model, prompt))
+        .and_then(|(ext, bytes)| tools.keep(&picture_name(&ext), &bytes));
+    match kept {
+        Ok(path) => ToolOutcome::ok(path),
+        Err(e) => ToolOutcome::err(e),
     }
 }
 

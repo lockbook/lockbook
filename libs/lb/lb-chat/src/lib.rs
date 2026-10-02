@@ -13,6 +13,7 @@ pub mod territory;
 pub mod tools;
 pub mod transcribe;
 pub mod vault;
+mod voice;
 pub mod web;
 pub mod wire;
 

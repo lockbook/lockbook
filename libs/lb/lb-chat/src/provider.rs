@@ -122,6 +122,10 @@ const DRAWS: &[(&str, &str)] = &[("api.x.ai", "grok-imagine-image")];
 /// Hosts of `Kind::OpenAi` that are spoken to through the Responses API.
 const RESPONSES: &[&str] = &["api.openai.com", "api.x.ai"];
 
+/// Where a real session has held a spoken conversation: host and the model
+/// that speaks there.
+const SPEAKS: &[(&str, &str)] = &[("api.openai.com", "gpt-realtime")];
+
 #[derive(Deserialize)]
 struct ProviderFile {
     #[serde(default)]
@@ -212,6 +216,20 @@ impl Provider {
             .iter()
             .find(|(at, _)| *at == host)
             .map(|(_, model)| *model)
+    }
+
+    /// The model this provider speaks with: the chat's own when that is a
+    /// voice model, else the one its host has been shown to speak with.
+    pub fn speaks(&self) -> Option<String> {
+        if SPEAKS
+            .iter()
+            .any(|(_, model)| self.model.starts_with(model))
+        {
+            return Some(self.model.clone());
+        }
+        let host = host(&self.base_url);
+        let (_, model) = SPEAKS.iter().find(|(at, _)| *at == host)?;
+        Some(model.to_string())
     }
 
     /// Whether the provider searches and reads the web itself, so that our
