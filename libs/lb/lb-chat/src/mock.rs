@@ -68,6 +68,32 @@ pub fn serve(responses: Vec<String>) -> (String, Receiver<String>) {
     (format!("http://{addr}"), rx)
 }
 
+/// Serves `first` and holds its connection open until `release` is sent,
+/// then serves `rest` to the connections after it. Request bodies come
+/// back on the channel.
+pub fn serve_held(
+    first: &'static str, rest: Vec<String>,
+) -> (String, Receiver<String>, std::sync::mpsc::Sender<()>) {
+    let listener = TcpListener::bind("127.0.0.1:0").unwrap();
+    let addr = listener.local_addr().unwrap();
+    let (tx, rx) = channel();
+    let (release, released) = channel::<()>();
+    std::thread::spawn(move || {
+        let (mut sock, _) = listener.accept().unwrap();
+        let _ = tx.send(read_request(&mut sock));
+        sock.write_all(first.as_bytes()).unwrap();
+        sock.flush().unwrap();
+        let _ = released.recv_timeout(std::time::Duration::from_secs(10));
+        drop(sock);
+        for response in rest {
+            let (mut sock, _) = listener.accept().unwrap();
+            let _ = tx.send(read_request(&mut sock));
+            let _ = sock.write_all(response.as_bytes());
+        }
+    });
+    (format!("http://{addr}"), rx, release)
+}
+
 /// Serves `response` in two writes split at `split_at`, a chunk boundary
 /// landing wherever the caller aims it.
 pub fn serve_split(response: &'static str, split_at: usize) -> String {

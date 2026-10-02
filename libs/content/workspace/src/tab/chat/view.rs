@@ -497,10 +497,12 @@ impl Chat {
                         }
                     }
                     let strip = self.show_assistant(ui, t, col_w, entry.id, text);
-                    if *interrupted {
+                    // The newest reply cut short gets the notice instead.
+                    let noticed = mine && Some(entry.id) == last && !self.busy && !self.voice;
+                    if *interrupted && !noticed {
                         caption(ui, t, col_w, "stopped");
                     }
-                    strip && !*interrupted
+                    strip && (!*interrupted || noticed)
                 }
                 Body::Tool { name, args, result, ok, .. } => {
                     let outcome = Some((result.as_str(), *ok));
@@ -547,15 +549,10 @@ impl Chat {
         } else if self.busy && self.thinking.is_empty() {
             ui.add(Spacer::new(Space::Md));
             caption_pulsing(ui, t, col_w, "Thinking…");
-        } else if !self.busy {
-            let unanswered = entries
-                .last()
-                .is_some_and(|e| e.from == me && matches!(e.body, Body::User { .. }));
-            if unanswered {
-                ui.add(Spacer::new(Space::Md));
-                if self.show_notice(ui, t, col_w, Notice::unfinished()) {
-                    *command = Some(Cmd::Regenerate);
-                }
+        } else if !self.busy && !self.voice && unfinished(&entries, &me) {
+            ui.add(Spacer::new(Space::Md));
+            if self.show_notice(ui, t, col_w, Notice::unfinished()) {
+                *command = Some(Cmd::Resume);
             }
         }
     }
@@ -1009,7 +1006,8 @@ impl Chat {
                 .max_width(text_w)
         });
         let detail_h = detail.as_ref().map_or(0.0, |l| l.measure(ui).y);
-        let retry_h = if notice.retry { Space::Xs.pts() + control_height() } else { 0.0 };
+        let retry_h =
+            if notice.action.is_some() { Space::Xs.pts() + control_height() } else { 0.0 };
         let h = pad + lh + detail_h + retry_h + pad;
         let (rect, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
         let (fill, ink) = if notice.danger {
@@ -1050,16 +1048,13 @@ impl Chat {
             });
         }
         let mut clicked = false;
-        if notice.retry {
+        if let Some((label, icon)) = notice.action {
             let slot = Rect::from_min_size(
                 pos2(title.left(), rect.bottom() - pad - control_height()),
                 vec2(text_w, control_height()),
             );
             clicked = place_at(ui, slot, Layout::left_to_right(Align::Center), |ui| {
-                Button::quiet(t, "Retry")
-                    .icon(phosphor::ARROW_COUNTER_CLOCKWISE)
-                    .show(ui)
-                    .clicked()
+                Button::quiet(t, label).icon(icon).show(ui).clicked()
             })
             .0;
         }
@@ -1596,7 +1591,8 @@ struct Notice {
     title: String,
     detail: Option<String>,
     danger: bool,
-    retry: bool,
+    /// The button's label and icon, when there is one.
+    action: Option<(&'static str, &'static str)>,
 }
 
 impl Notice {
@@ -1606,19 +1602,33 @@ impl Notice {
             title: "Couldn't finish that turn".into(),
             detail: Some(text.to_string()),
             danger: true,
-            retry,
+            action: retry.then_some(("Retry", phosphor::ARROW_COUNTER_CLOCKWISE)),
         }
     }
 
+    /// A turn stopped short, by a stop, by leaving the chat, or by the app
+    /// closing; it goes on from where it was.
     fn unfinished() -> Self {
         Self {
             icon: phosphor::INFO,
             title: "This turn didn't finish".into(),
             detail: None,
             danger: false,
-            retry: true,
+            action: Some(("Resume", phosphor::PLAY)),
         }
     }
+}
+
+/// Whether the newest turn of `me`'s stopped short: a message unanswered,
+/// a reply cut off, or a round of calls left without its reply. A spoken
+/// reply cut off was spoken over, which is no stop.
+fn unfinished(entries: &[Entry], me: &str) -> bool {
+    let last = entries.iter().rev().find(|e| e.from == me);
+    last.is_some_and(|e| match &e.body {
+        Body::User { .. } | Body::Tool { .. } => true,
+        Body::Assistant { interrupted, spoken, .. } => *interrupted && !*spoken,
+        Body::Error { .. } | Body::Other(_) => false,
+    })
 }
 
 /// The fill one level under `on_canvas` ground: a control that reads as a

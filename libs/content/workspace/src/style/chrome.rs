@@ -249,6 +249,7 @@ pub mod phosphor {
     pub const CHAT: &str = "\u{e15c}";
     /// `ph-phone` (IcoMoon 2.1). Not U+E3D4.
     pub const PHONE: &str = "\u{e3b8}";
+    pub const PLAY: &str = "\u{e3d0}";
     /// `ph-phone-disconnect`.
     pub const PHONE_DISCONNECT: &str = "\u{e3bc}";
     /// `ph-phone-slash`.
