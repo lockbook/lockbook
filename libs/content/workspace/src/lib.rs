@@ -18,6 +18,7 @@ pub mod style;
 pub mod tab;
 pub mod task_manager;
 pub mod theme;
+pub mod voice;
 pub mod widgets;
 pub mod workspace;
 

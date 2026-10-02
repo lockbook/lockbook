@@ -490,6 +490,7 @@
             }
 
             let output = macos_frame(wsHandle)
+            VoiceEngine.shared.service(wsHandle)
 
             let c = output.ime_cursor
             let imeRect = NSRect(x: CGFloat(c.min_x), y: CGFloat(c.min_y), width: CGFloat(c.max_x - c.min_x), height: CGFloat(c.max_y - c.min_y))

@@ -9,6 +9,7 @@
 - [Collaboration](collaboration.md)
 - [Editing Markdown](editor.md)
 - [Drawing](canvas.md)
+- [Chat](chat.md)
 
 # Advanced Lockbook
 

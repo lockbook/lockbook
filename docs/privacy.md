@@ -12,4 +12,6 @@ When you sign up for our premium tiers, some information is sent to a payment pr
 
 We do not store emails, credit cards, addresses, or any personally identifiable information.
 
+When you use the chat feature, the messages you send and the notes the assistant reads on your behalf go to the AI provider you configured, under that provider's privacy terms. Lockbook's servers never see them. Provider keys are stored in your vault, encrypted like any note. With a server of your own, on your network or on the device itself, nothing leaves it.
+
 We do not co-operate with state actors unless we are ordered by a court to do so.

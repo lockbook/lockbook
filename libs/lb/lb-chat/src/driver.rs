@@ -104,6 +104,17 @@ pub struct Driver {
     busy: Arc<AtomicBool>,
 }
 
+/// A way to send the driver commands from any thread: a host's audio
+/// engine feeds a voice session through one.
+#[derive(Clone)]
+pub struct Handle(UnboundedSender<Cmd>);
+
+impl Handle {
+    pub fn send(&self, cmd: Cmd) {
+        let _ = self.0.send(cmd);
+    }
+}
+
 impl Driver {
     /// `wake` is called after every event, from the driver thread.
     pub fn spawn(
@@ -142,6 +153,10 @@ impl Driver {
 
     pub fn send(&self, cmd: Cmd) {
         let _ = self.cmds.send(cmd);
+    }
+
+    pub fn handle(&self) -> Handle {
+        Handle(self.cmds.clone())
     }
 
     pub fn poll(&self) -> Vec<Event> {

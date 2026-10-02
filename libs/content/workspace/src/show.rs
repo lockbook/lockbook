@@ -47,6 +47,7 @@ impl Workspace {
 
         self.take_link_sheet_input();
         self.process_bg_tasks();
+        self.pump_chats();
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();
