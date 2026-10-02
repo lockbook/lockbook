@@ -1,4 +1,5 @@
 mod account;
+mod chat;
 mod debug;
 mod edit;
 mod imex;
@@ -163,6 +164,14 @@ fn run() -> CliResult<()> {
                 .input(Arg::str("path").description("create a new file at the given path or do nothing if it exists")
                             .completor(|prompt| input::file_completor(prompt, Some(Filter::FoldersOnly))))
                 .handler(|target| create_file(target.get()))
+        )
+        .subcommand(
+            Command::name("chat")
+                .description("send a message to a chat and stream the reply, or print the chat")
+                .input(Arg::str("target").description("lockbook path or ID of a .chat document; created if missing")
+                    .completor(|prompt| input::file_completor(prompt, None)))
+                .input(Arg::str("message").default(String::new()).description("what to say; omit to print the chat"))
+                .handler(|target, message| chat::chat(target.get(), message.get()))
         )
         .subcommand(
             Command::name("cat")
