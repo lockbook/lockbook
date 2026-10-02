@@ -8,7 +8,7 @@ use egui::{
     Align, Align2, Color32, CornerRadius, CursorIcon, Id, Key, Layout, Modifiers, Rect, ScrollArea,
     Sense, Stroke, StrokeKind, Ui, UiBuilder, Vec2, pos2, vec2,
 };
-use lb_chat::{Cmd, Place, Provider, prettify};
+use lb_chat::{Cmd, Kind as ProviderKind, Place, Provider, prettify};
 use lb_rs::Uuid;
 use lb_rs::model::chat::{Body, Entry};
 use serde_json::Value;
@@ -306,6 +306,8 @@ impl Chat {
             return m.label();
         }
         match &self.provider {
+            // The device's one model goes by its provider's name.
+            Some(Ok(p)) if p.kind == ProviderKind::Apple => p.label(),
             Some(Ok(p)) if !p.model.is_empty() => prettify(&p.model),
             _ => "model".into(),
         }
@@ -538,6 +540,12 @@ impl Chat {
             self.tool_card(ui, t, col_w, IN_FLIGHT, "thinking", &Value::Null, so_far, text_areas);
             prev_kind = Some(Kind::Tool);
         }
+        if !self.hearing.is_empty() {
+            ui.add(Spacer::new(if after_strip { Space::Xs } else { Space::Md }));
+            let hearing = self.hearing.clone();
+            self.show_hearing(ui, t, col_w, &hearing);
+            prev_kind = Some(Kind::User);
+        }
         if let Some(call) = self.running_tool.clone() {
             ui.add(Spacer::new(gap(prev_kind.unwrap_or(Kind::User), Kind::Tool)));
             let (name, args) = (&call.name, &call.args);
@@ -641,18 +649,52 @@ impl Chat {
         }
         let strip = action_strip(ui, col_w);
         if self.shows_actions(ui, entry.id, row.union(strip)) && !self.busy {
-            // The glyph's right edge on the bubble's.
-            let slot = Rect::from_min_size(
-                pos2(bubble.right() - strip.height() + glyph_inset(), strip.top()),
-                Vec2::splat(strip.height()),
-            );
-            let resp = action_button(ui, t, slot, phosphor::PENCIL, false);
+            // The glyph's right edge on the bubble's; retry to its left.
+            let hit = control_icon_hit();
+            let edit = strip_slot(strip, bubble.right() - hit + glyph_inset());
+            let resp = action_button(ui, t, edit, phosphor::PENCIL, false);
             tip_text(ui.ctx(), &resp, "Edit and restart from here");
             if resp.clicked() {
                 self.start_editing(ui, entry.id, text);
             }
+            let retry = strip_slot(strip, edit.left() - Space::Xs.pts() - hit);
+            let resp = action_button(ui, t, retry, phosphor::ARROW_COUNTER_CLOCKWISE, false);
+            tip_text(ui.ctx(), &resp, "Restart from here");
+            if resp.clicked() {
+                let mentions = match &entry.body {
+                    Body::User { mentions, .. } => mentions.clone(),
+                    _ => Vec::new(),
+                };
+                self.send_cmd(Cmd::Edit { id: entry.id, text: text.to_string(), mentions });
+                self.scroll_to_bottom = true;
+            }
         }
         true
+    }
+
+    /// What the user is saying in a call, as a bubble of their own still
+    /// filling: secondary ink, since it is not settled.
+    fn show_hearing(&mut self, ui: &mut Ui, t: &Theme, col_w: f32, text: &str) {
+        let pad = Space::Sm.pts();
+        let max_w = col_w * BUBBLE_FRACTION;
+        let md = self.composer.row_height();
+        let label = |ink| {
+            GlyphonLabel::new(text, ink)
+                .font_size(md)
+                .line_height(md)
+                .max_width(max_w - pad * 2.0)
+        };
+        let size = label(Color32::PLACEHOLDER).measure(ui);
+        let bubble_w = (size.x + pad * 2.0 + 2.0).min(max_w);
+        let h = size.y + pad * 2.0;
+        let (row, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
+        let bubble = Rect::from_min_max(pos2(row.right() - bubble_w, row.top()), row.max);
+        ui.painter()
+            .rect_filled(bubble, Radius::Surface.corner(), t.neutral_bg_secondary());
+        paint_inset_bands(ui, bubble, Space::Sm, Space::Sm);
+        place_at(ui, bubble.shrink(pad), Layout::top_down(Align::Min), |ui| {
+            ui.add(label(t.neutral_fg_secondary()));
+        });
     }
 
     /// Whether the message `id`, drawn in `rect`, shows its actions: under
@@ -724,10 +766,7 @@ impl Chat {
         // moment after it was used.
         let strip = action_strip(ui, col_w);
         // The glyph's left edge on the text's.
-        let btn = Rect::from_min_size(
-            pos2(strip.left() - glyph_inset(), strip.top()),
-            Vec2::splat(strip.height()),
-        );
+        let btn = strip_slot(strip, strip.left() - glyph_inset());
         let fid = Id::new(("chat_copied", id));
         let now = ui.input(|i| i.time);
         let copied = ui
@@ -2014,11 +2053,27 @@ fn text_id(id: Uuid) -> Id {
     Id::new(("chat_text", id))
 }
 
-/// The row under a message where its action sits, one icon tall, kept
-/// whether or not the action shows so nothing moves when it does.
+/// The row under a message where its actions sit: one icon tall with a
+/// little air above and below, kept whether or not the actions show so
+/// nothing moves when they do.
 fn action_strip(ui: &mut Ui, col_w: f32) -> Rect {
-    ui.allocate_exact_size(vec2(col_w, control_icon_hit()), Sense::hover())
-        .0
+    let h = Space::Xs.pts() + control_icon_hit() + Space::Xs.pts();
+    let (strip, _) = ui.allocate_exact_size(vec2(col_w, h), Sense::hover());
+    Spacer::paint_at(ui, Space::Xs, Rect::from_min_size(strip.min, vec2(col_w, Space::Xs.pts())));
+    Spacer::paint_at(
+        ui,
+        Space::Xs,
+        Rect::from_min_size(
+            pos2(strip.left(), strip.bottom() - Space::Xs.pts()),
+            vec2(col_w, Space::Xs.pts()),
+        ),
+    );
+    strip
+}
+
+/// The icon-sized slot of the strip at `left`.
+fn strip_slot(strip: Rect, left: f32) -> Rect {
+    Rect::from_min_size(pos2(left, strip.top() + Space::Xs.pts()), Vec2::splat(control_icon_hit()))
 }
 
 /// How far a glyph sits inside its hit box, so a slot can put the glyph's

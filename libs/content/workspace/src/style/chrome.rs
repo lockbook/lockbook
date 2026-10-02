@@ -250,6 +250,7 @@ pub mod phosphor {
     /// `ph-phone` (IcoMoon 2.1). Not U+E3D4.
     pub const PHONE: &str = "\u{e3b8}";
     pub const PLAY: &str = "\u{e3d0}";
+    pub const APPLE_LOGO: &str = "\u{e516}";
     /// `ph-phone-disconnect`.
     pub const PHONE_DISCONNECT: &str = "\u{e3bc}";
     /// `ph-phone-slash`.

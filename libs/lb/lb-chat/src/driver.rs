@@ -91,6 +91,9 @@ pub enum Event {
     },
     /// The user spoke over the reply: drop what is queued to play.
     Interrupted,
+    /// More of what the user is saying, as it is made out; their line
+    /// settles when they are done.
+    Hearing(String),
 }
 
 pub struct Config {

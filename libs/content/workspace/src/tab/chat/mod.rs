@@ -19,7 +19,7 @@ use std::time::{Duration, Instant};
 
 use egui::{Context, Rect};
 use lb_chat::driver::Config;
-use lb_chat::{Cmd, Driver, Event, ModelInfo, Place, Provider, SharedStore, VaultTools};
+use lb_chat::{Cmd, Driver, Event, Kind, ModelInfo, Place, Provider, SharedStore, VaultTools};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
@@ -94,6 +94,8 @@ pub struct Chat {
     pub busy: bool,
     /// A spoken conversation is open on this chat.
     pub voice: bool,
+    /// What the user is saying in a call, as it is made out.
+    hearing: String,
     streaming: String,
     streaming_label: MdLabel,
     /// Draws the pictures that messages and quoted notes embed.
@@ -145,6 +147,10 @@ pub struct Chat {
     favorites: Vec<String>,
     /// The model sheet: open, the draft choice, and the filter text.
     pub models_open: bool,
+    /// The filter the model tree was last drawn with; a change scrolls to
+    /// the top, which `model_scroll_top` holds until the tree is there.
+    model_filter_shown: String,
+    model_scroll_top: bool,
     model_dest: Option<String>,
     model_filter: String,
     /// Providers folded shut in the model sheet.
@@ -205,6 +211,7 @@ impl Chat {
             images: None,
             tapped: None,
             voice: false,
+            hearing: String::new(),
             persistence: None,
             placed: false,
             held: None,
@@ -231,6 +238,8 @@ impl Chat {
             listing_rx,
             favorites: Vec::new(),
             models_open: false,
+            model_filter_shown: String::new(),
+            model_scroll_top: false,
             model_dest: None,
             model_filter: String::new(),
             model_folded: HashSet::new(),
@@ -369,12 +378,10 @@ impl Chat {
     /// What stands for a provider: where its server is when that is a
     /// machine of the user's own, else its brand.
     fn mark(&mut self, ctx: &Context, name: &str, px: f32) -> Icon {
-        match self
-            .providers
-            .iter()
-            .find(|o| o.name == name)
-            .map(Offered::place)
-        {
+        let offered = self.providers.iter().find(|o| o.name == name);
+        let apple = offered.is_some_and(|o| o.file.as_ref().is_some_and(|p| p.kind == Kind::Apple));
+        match offered.map(Offered::place) {
+            Some(Place::ThisDevice) if apple => Icon::Glyph(phosphor::APPLE_LOGO),
             Some(Place::ThisDevice) => Icon::Glyph(phosphor::LAPTOP),
             Some(Place::YourNetwork) => Icon::Glyph(phosphor::HARD_DRIVES),
             Some(Place::Internet) | None => Icon::Mark(self.glyphs.get(ctx, name, px)),
@@ -773,6 +780,9 @@ impl Chat {
                 self.running_tool = Some(call);
             }
             Event::Written(entry) => {
+                if matches!(entry.body, Body::User { .. }) {
+                    self.hearing.clear();
+                }
                 if matches!(entry.body, Body::Assistant { .. }) {
                     self.streaming.clear();
                     self.thinking.clear();
@@ -802,9 +812,14 @@ impl Chat {
             }
             Event::VoiceEnded => {
                 self.voice = false;
+                self.hearing.clear();
                 if let Some(driver) = &self.driver {
                     voice::end(&driver.handle());
                 }
+            }
+            Event::Hearing(text) => {
+                self.hearing.push_str(&text);
+                self.scroll_to_bottom = true;
             }
             Event::Audio { reply, pcm } => voice::play(reply, pcm),
             Event::Interrupted => voice::flush(),

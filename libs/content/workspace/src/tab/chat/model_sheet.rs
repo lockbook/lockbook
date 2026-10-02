@@ -254,7 +254,16 @@ impl Chat {
         let bottom_pad = list_h;
         let max_off = geom.total;
 
+        // A new filter means a new list: it starts at its top, or a short
+        // list is left scrolled past its rows with only a pinned provider in
+        // view. The top is asked for until the list reports being there,
+        // since a sheet's sizing pass keeps nothing.
+        if self.model_filter != self.model_filter_shown {
+            self.model_filter_shown = self.model_filter.clone();
+            self.model_scroll_top = true;
+        }
         let offset = match &self.model_reveal {
+            _ if self.model_scroll_top => Some(0.0),
             Some(Reveal::Chosen) => items
                 .iter()
                 .position(|it| matches!(it, Item::Model { selection, .. } if Some(selection) == self.model_dest.as_ref()))
@@ -290,7 +299,7 @@ impl Chat {
         let mut child = ui.new_child(UiBuilder::new().max_rect(slot));
         child.spacing_mut().item_spacing = Vec2::ZERO;
         child.set_clip_rect(slot.intersect(ui.clip_rect()));
-        with_overlay_scroll(&mut child, scroll_id, |ui| {
+        let shown_offset = with_overlay_scroll(&mut child, scroll_id, |ui| {
             let mut scroll = ScrollArea::vertical()
                 .id_salt(scroll_id)
                 .max_height(list_h)
@@ -412,8 +421,11 @@ impl Chat {
                     },
                 );
             });
-            ((), out.state.offset.y, out.id)
+            (out.state.offset.y, out.state.offset.y, out.id)
         });
+        if shown_offset == 0.0 {
+            self.model_scroll_top = false;
+        }
 
         match action {
             Some(Action::Fold { name, hold }) => {
@@ -535,6 +547,28 @@ mod tests {
             "ids match too"
         );
         assert!(tree(&providers, &listings, &folded, "nothing").is_empty());
+    }
+
+    /// A filter that spells a provider's name still lists its models.
+    #[test]
+    fn a_filter_naming_the_provider_keeps_its_models() {
+        let providers = vec!["apple".to_string()];
+        let mut listings = HashMap::new();
+        listings.insert(
+            "apple".into(),
+            ListingState::Ready(vec![ModelInfo {
+                id: "on-device".into(),
+                display_name: Some("Apple Intelligence".into()),
+                window: None,
+            }]),
+        );
+        for filter in ["appl", "apple", "Apple Intelligence"] {
+            assert_eq!(
+                outline(&tree(&providers, &listings, &HashSet::new(), filter)),
+                ["apple v", "  Apple Intelligence"],
+                "{filter}"
+            );
+        }
     }
 
     #[test]
