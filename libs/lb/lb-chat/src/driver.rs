@@ -31,6 +31,9 @@ use crate::wire::{self, Call, Piece, Request, images};
 pub const TOOL_RESULT_CAP: usize = 16 * 1024;
 /// The same for the device's own model, whose window is small.
 const FENCED_RESULT_CAP: usize = 8 * 1024;
+/// Added to the prompt while the device is offline.
+const OFFLINE: &str = " The device is offline right now: web search and fetch will not work \
+    until it is back, so say so when asked for something they would be needed for.";
 
 /// What a call is answered with once it has answered the same twice.
 const REPEATED: &str = "you have made this call twice already and it answered the same; \
@@ -525,7 +528,10 @@ impl Worker {
         let fenced = provider.fenced();
         let instructions =
             if fenced { Vec::new() } else { self.tools.instructions(&self.config.working_dir) };
-        let system = context::system_prompt(&territory, &instructions, fenced);
+        let mut system = context::system_prompt(&territory, &instructions, fenced);
+        if self.tools.offline() {
+            system.push_str(OFFLINE);
+        }
         let mut tools = self.tools.schemas();
         if provider.reaches_the_web() && !spoken {
             tools.retain(|tool| tool.name != web::SEARCH && tool.name != web::FETCH);
@@ -741,6 +747,40 @@ mod tests {
                 _ => "other",
             })
             .collect()
+    }
+
+    /// Says it is offline.
+    struct Cut;
+
+    impl Tools for Cut {
+        fn schemas(&self) -> Vec<ToolSchema> {
+            Vec::new()
+        }
+
+        fn call(&mut self, _call: &Call) -> ToolOutcome {
+            ToolOutcome::err("unknown")
+        }
+
+        fn offline(&self) -> bool {
+            true
+        }
+    }
+
+    /// The model is told when the device is offline, so a model on the
+    /// device does not reach for the web.
+    #[test]
+    fn an_offline_device_is_said_in_the_prompt() {
+        let store = MemStore::default();
+        let (url, bodies) = mock::serve(vec![sse_text("ok")]);
+        let d = driver(store.clone(), Cut, url);
+        d.send(Cmd::Say { text: "hi".into(), mentions: vec![] });
+        wait_for_run(&d);
+        let sent: serde_json::Value = serde_json::from_str(&bodies.recv().unwrap()).unwrap();
+        let system = sent["messages"][0]["content"].as_str().unwrap();
+        assert!(
+            system.ends_with(OFFLINE.trim_start()) || system.contains("offline right now"),
+            "{system}"
+        );
     }
 
     /// `echo` answers; `wall` aborts.

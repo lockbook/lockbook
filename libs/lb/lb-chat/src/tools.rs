@@ -51,6 +51,11 @@ pub trait Tools: Send {
     fn locate(&mut self, mention: &Mention) -> String {
         mention.path.clone()
     }
+    /// The device cannot reach the network right now, so the web tools
+    /// will not work; a model on the device goes on without them.
+    fn offline(&self) -> bool {
+        false
+    }
 }
 
 /// Whether `path` names a picture: something to be looked at, not read.
