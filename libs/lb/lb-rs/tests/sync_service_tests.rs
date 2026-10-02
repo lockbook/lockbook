@@ -368,15 +368,20 @@ async fn concurrent_chat_appends_union_cleanly() {
     let c1 = test_core_with_account().await;
     let doc = c1.create_at_path("convo.chat").await.unwrap();
 
-    let base = "{\"from\":\"a\",\"content\":\"hello\",\"ts\":1}\n";
+    let line = |n: u32, from: &str, text: &str| {
+        format!(
+            "{{\"id\":\"00000000-0000-4000-8000-00000000000{n}\",\"ts\":{n},\"from\":\"{from}\",\"kind\":\"user\",\"text\":\"{text}\"}}\n"
+        )
+    };
+    let base = line(1, "a", "hello");
     c1.write_document(doc.id, base.as_bytes()).await.unwrap();
     c1.sync().await.unwrap();
 
     let c2 = test_core_from(&c1).await;
 
     // each device appends its own turn on top of the shared base
-    let turn1 = format!("{base}{{\"from\":\"a\",\"content\":\"one\",\"ts\":2}}\n");
-    let turn2 = format!("{base}{{\"from\":\"b\",\"content\":\"two\",\"ts\":3}}\n");
+    let turn1 = format!("{base}{}", line(2, "a", "one"));
+    let turn2 = format!("{base}{}", line(3, "b", "two"));
     c1.write_document(doc.id, turn1.as_bytes()).await.unwrap();
     c2.write_document(doc.id, turn2.as_bytes()).await.unwrap();
 
@@ -397,9 +402,9 @@ async fn concurrent_chat_appends_union_cleanly() {
         assert_eq!(chats, 1, "expected line-union, found a conflict copy");
 
         let merged = String::from_utf8(c.read_document(doc.id, false).await.unwrap()).unwrap();
-        assert_eq!(merged.matches("\"content\":\"one\"").count(), 1);
-        assert_eq!(merged.matches("\"content\":\"two\"").count(), 1);
-        assert_eq!(merged.matches("\"content\":\"hello\"").count(), 1);
+        assert_eq!(merged.matches("\"text\":\"one\"").count(), 1);
+        assert_eq!(merged.matches("\"text\":\"two\"").count(), 1);
+        assert_eq!(merged.matches("\"text\":\"hello\"").count(), 1);
     }
     assert::cores_equal(&c1, &c2).await;
 }

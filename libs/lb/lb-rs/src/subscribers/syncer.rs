@@ -683,7 +683,7 @@ impl Lb {
                                     }
                                     DocumentType::Chat => {
                                         // line-union of append-only JSONL turns
-                                        let merged_document = chat::Buffer::merge(
+                                        let merged_document = chat::merge(
                                             &base_document,
                                             &local_document,
                                             &remote_document,

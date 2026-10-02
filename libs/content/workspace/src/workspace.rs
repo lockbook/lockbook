@@ -469,7 +469,7 @@ impl Workspace {
                 // While the connect step is open, the key field is the focused
                 // editor so the native keyboard/caret target it, not the
                 // composer.
-                tab.chat_mut().map(|chat| chat.focused_field())
+                tab.chat_mut().and_then(|chat| chat.focused_field())
             }
             #[cfg(target_family = "wasm")]
             {
@@ -1249,13 +1249,7 @@ impl Workspace {
                             let reload = tab.chat().is_some() && !tab_created;
                             if !reload {
                                 tab.content = ContentState::Open(TabContent::Chat(Chat::new(
-                                    &bytes,
-                                    id,
-                                    maybe_hmac,
-                                    self.account.clone(),
-                                    self.ctx.clone(),
-                                    Arc::clone(&self.files),
-                                    &self.core,
+                                    &bytes, id, maybe_hmac,
                                 )));
                             } else {
                                 let chat = tab.chat_mut().unwrap();
