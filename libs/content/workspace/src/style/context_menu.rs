@@ -52,10 +52,14 @@ fn area_id() -> Id {
     Id::new("lb_design_context_menu_area")
 }
 
+/// Space between an anchor and a menu opened above it.
+const ABOVE_GAP: f32 = 5.0;
 #[derive(Clone, Copy)]
 struct OpenState {
     host: Id,
     pos: Pos2,
+    /// The corner of the menu that sits at `pos`.
+    pivot: egui::Align2,
 }
 
 enum Row<T> {
@@ -172,6 +176,15 @@ pub fn show_click<T: Clone>(
     show_open(resp, t, resp.clicked(), build)
 }
 
+/// Like [`show_click`], but the menu opens above `anchor`, its right edge
+/// on the anchor's: for a host at the bottom of the screen.
+pub fn show_click_above<T: Clone>(
+    resp: &Response, t: &Theme, anchor: egui::Rect, build: impl FnOnce(&mut Entries<T>),
+) -> Option<T> {
+    let at = Some((anchor.right_top() - vec2(0.0, ABOVE_GAP), egui::Align2::RIGHT_BOTTOM));
+    show_at(resp, t, resp.clicked(), at, build)
+}
+
 /// True when this response is the host of the open menu.
 pub fn is_open(resp: &Response) -> bool {
     is_open_id(&resp.ctx, resp.id)
@@ -189,6 +202,15 @@ pub fn is_open_id(ctx: &egui::Context, id: Id) -> bool {
 fn show_open<T: Clone>(
     resp: &Response, t: &Theme, open: bool, build: impl FnOnce(&mut Entries<T>),
 ) -> Option<T> {
+    show_at(resp, t, open, None, build)
+}
+
+/// `at` places the menu by one of its corners; without it the menu opens
+/// by the pointer.
+fn show_at<T: Clone>(
+    resp: &Response, t: &Theme, open: bool, at: Option<(Pos2, egui::Align2)>,
+    build: impl FnOnce(&mut Entries<T>),
+) -> Option<T> {
     let ctx = &resp.ctx;
 
     let mut menu = Entries::new();
@@ -204,10 +226,10 @@ fn show_open<T: Clone>(
             .or_else(|| ctx.input(|i| i.pointer.hover_pos()))
             .unwrap_or(resp.rect.left_bottom());
         // Not under the cursor tip — pad/chrome first, then rows.
-        let pos = press + open_nudge();
+        let (pos, pivot) = at.unwrap_or((press + open_nudge(), egui::Align2::LEFT_TOP));
         ctx.memory_mut(|m| {
             m.data
-                .insert_temp(open_id(), OpenState { host: resp.id, pos });
+                .insert_temp(open_id(), OpenState { host: resp.id, pos, pivot });
         });
     }
 
@@ -225,6 +247,7 @@ fn show_open<T: Clone>(
 
     let root_area = Area::new(area_id())
         .order(Order::Foreground)
+        .pivot(state.pivot)
         .fixed_pos(state.pos)
         .constrain(true)
         .default_size(vec2(0.0, 0.0))

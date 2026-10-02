@@ -58,6 +58,8 @@ const WHEEL_REST_SECS: f64 = 0.15;
 /// How far above the composer the transcript fades out. The transcript ends
 /// on as much blank, so at the end of a chat nothing sits under the fade.
 const FADE: Space = Space::Lg;
+/// The least width of text that shares a row with the composer's controls.
+const MIN_BESIDE: f32 = 140.0;
 /// The stop square's side: the weight of a glyph at body size.
 const STOP_SIDE: f32 = 10.0;
 
@@ -69,6 +71,10 @@ enum ModelChoice {
     Effort(Option<String>),
     Browse,
     AddProvider,
+    /// Choose the folder the chat works in.
+    Folder,
+    /// Go back to working in the chat's own folder.
+    OwnFolder,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -99,6 +105,9 @@ enum Status {
 struct ComposerGeom {
     /// Text and controls share one row; otherwise the controls sit under it.
     single: bool,
+    /// One button stands for the folder and model chips, and the text
+    /// grows beside the controls.
+    compact: bool,
     measured: f32,
     text_w: f32,
     model_w: f32,
@@ -139,16 +148,24 @@ impl Chat {
             (Space::Md.pts(), Space::Sm.pts(), Space::Xs.pts(), control_height());
         let model_w = chip_width(ui, TypeRole::Body.size(), &self.model_chip_label());
         let folder_w = scope_chip_width(ui, &self.folder_label(), self.scope_chosen());
-        let trailing = folder_w + gap + model_w + gap + hit;
         let wrap_w = (col_w - pad_x * 2.0).max(1.0);
-        let inner_w = (col_w - pad_x * 2.0 - gap - trailing).max(1.0);
+        // Where the chips would leave too little room to type beside them,
+        // one button stands for both and the text keeps the row.
+        let compact = wrap_w - gap - (folder_w + gap + model_w + gap + hit) < MIN_BESIDE;
+        let (folder_w, model_w) = if compact { (0.0, hit) } else { (folder_w, model_w) };
+        let trailing = if compact { hit + gap + hit } else { folder_w + gap + model_w + gap + hit };
+        let inner_w = (wrap_w - gap - trailing).max(1.0);
         let row = self.composer.row_height();
         let wide_h = self.composer.measure_height(wrap_w);
-        let measured =
-            if wide_h <= row + 1.0 { self.composer.measure_height(inner_w) } else { wide_h };
-        let single = measured <= row + 1.0;
+        let measured = if compact || wide_h <= row + 1.0 {
+            self.composer.measure_height(inner_w)
+        } else {
+            wide_h
+        };
+        let single = compact || measured <= row + 1.0;
         let geom = ComposerGeom {
             single,
+            compact,
             measured,
             text_w: if single { inner_w } else { wrap_w },
             model_w,
@@ -609,7 +626,7 @@ impl Chat {
         let inner = Rect::from_min_size(bubble.min + vec2(pad, pad), vec2(inner_w, text_h));
         self.show_reader(ui, entry.id, text, inner);
 
-        if mine && ui.rect_contains_pointer(row) && !self.busy {
+        if mine && self.shows_actions(ui, entry.id, row) && !self.busy {
             let slot = action_rect(bubble.left(), bubble.top() + pad, md);
             let resp = action_button(ui, t, slot, bubble.left(), phosphor::PENCIL, false);
             tip_text(ui.ctx(), &resp, "Edit and restart from here");
@@ -617,6 +634,28 @@ impl Chat {
                 self.start_editing(ui, entry.id, text);
             }
         }
+    }
+
+    /// Whether the message `id`, drawn in `rect`, shows its actions: under
+    /// the pointer, or where there is none, once tapped and until a tap
+    /// lands elsewhere.
+    fn shows_actions(&mut self, ui: &Ui, id: Uuid, rect: Rect) -> bool {
+        let touch = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+        if !touch {
+            return ui.rect_contains_pointer(rect);
+        }
+        let tap = ui.input(|i| {
+            i.pointer
+                .any_click()
+                .then(|| i.pointer.interact_pos())
+                .flatten()
+        });
+        match tap.map(|at| rect.contains(at) && ui.clip_rect().contains(at)) {
+            Some(true) => self.tapped = Some(id),
+            Some(false) if self.tapped == Some(id) => self.tapped = None,
+            _ => {}
+        }
+        self.tapped == Some(id)
     }
 
     fn start_editing(&mut self, ui: &Ui, id: Uuid, text: &str) {
@@ -673,7 +712,7 @@ impl Chat {
         if copied {
             ui.ctx().request_repaint();
         }
-        if !copied && !ui.rect_contains_pointer(rect.union(btn)) {
+        if !copied && !self.shows_actions(ui, id, rect.union(btn)) {
             return;
         }
         let glyph = if copied { phosphor::CHECK } else { phosphor::COPY };
@@ -1107,7 +1146,8 @@ impl Chat {
             );
         }
 
-        let controls_cy = if geom.single { band.center().y } else { band.max.y - hit / 2.0 };
+        let centered = geom.single && !geom.compact;
+        let controls_cy = if centered { band.center().y } else { band.max.y - hit / 2.0 };
         let send_rect =
             Rect::from_center_size(pos2(band.max.x - hit / 2.0, controls_cy), vec2(hit, hit));
         let model_rect = Rect::from_center_size(
@@ -1118,7 +1158,11 @@ impl Chat {
             pos2(model_rect.left() - gap - geom.folder_w / 2.0, controls_cy),
             vec2(geom.folder_w, hit),
         );
-        for (left, right) in [(model_rect, send_rect), (folder_rect, model_rect)] {
+        let chips = if geom.compact { 1 } else { 2 };
+        for (left, right) in [(model_rect, send_rect), (folder_rect, model_rect)]
+            .into_iter()
+            .take(chips)
+        {
             let gap_rect = Rect::from_min_max(
                 pos2(left.right(), right.top()),
                 pos2(right.left(), right.bottom()),
@@ -1138,7 +1182,8 @@ impl Chat {
             );
             Spacer::paint_at(ui, Space::Xs, gap_rect);
         }
-        let menu_open = self.show_chips(ui, t, focused, model_rect, folder_rect);
+        let folder_rect = (!geom.compact).then_some(folder_rect);
+        let menu_open = self.show_chips(ui, t, focused, rect, model_rect, folder_rect);
 
         let action = match (self.busy, text.trim().is_empty()) {
             (true, _) => Action::Stop,
@@ -1189,15 +1234,21 @@ impl Chat {
     /// The model and folder pickers inside the composer. Returns whether a
     /// menu or sheet is open.
     fn show_chips(
-        &mut self, ui: &mut Ui, t: &Theme, focused: bool, model_rect: Rect, folder_rect: Rect,
+        &mut self, ui: &mut Ui, t: &Theme, focused: bool, composer: Rect, model_rect: Rect,
+        folder_rect: Option<Rect>,
     ) -> bool {
         let fills = chip_fills(t, focused);
         let settings = self.settings();
 
         let model_label = self.model_chip_label();
         let mark = self.provider_mark(ui.ctx(), TypeRole::Body.size());
-        let resp = chip(ui, t, model_rect, mark, &model_label, fills);
+        // With no folder chip, the model's button is the provider's mark
+        // alone and its menu leads to the folder too.
+        let label = if folder_rect.is_some() { model_label.as_str() } else { "" };
+        let resp = chip(ui, t, model_rect, mark, label, fills);
         tip_text(ui.ctx(), &resp, format!("{} · {}", self.provider_name(), model_label));
+        let folder_label = self.folder_label();
+        let chosen = self.scope_chosen();
         let (efforts, effort) = (self.efforts(), self.effort().map(str::to_string));
         let favorites: Vec<(String, String, Icon)> = self
             .favorites
@@ -1210,7 +1261,15 @@ impl Chat {
                 (sel, label, mark)
             })
             .collect();
-        let choice = context_menu::show_click(&resp, t, |e| {
+        let build = |e: &mut context_menu::Entries<ModelChoice>| {
+            if folder_rect.is_none() {
+                e.item(phosphor::FOLDER, format!("Folder: {folder_label}"), ModelChoice::Folder);
+                if chosen {
+                    e.item(phosphor::X, "Back to this chat's folder", ModelChoice::OwnFolder);
+                }
+                e.item_icon(mark, format!("Model: {model_label}"), ModelChoice::Browse);
+                e.separator();
+            }
             for (sel, label, mark) in &favorites {
                 e.item_icon(*mark, label.clone(), ModelChoice::Use(sel.clone()));
             }
@@ -1226,12 +1285,27 @@ impl Chat {
                 e.item_checked(chosen, format!("Thinking: {}", effort_name(value)), pick);
             }
             e.separator();
-            e.item(phosphor::LIST, "Browse models…", ModelChoice::Browse);
+            if folder_rect.is_some() {
+                e.item(phosphor::LIST, "Browse models…", ModelChoice::Browse);
+            }
             e.item(phosphor::FILE_PLUS, "Add a provider…", ModelChoice::AddProvider);
-        });
+        };
+        // The lone button sits at the screen's foot, so its menu opens
+        // over the composer and not under a thumb or a rounded corner.
+        let choice = match folder_rect {
+            Some(_) => context_menu::show_click(&resp, t, build),
+            None => context_menu::show_click_above(&resp, t, composer, build),
+        };
         let menu_open = context_menu::is_open(&resp);
         let mut models_opened_now = false;
+        let mut opened_now = false;
+        let mut cleared = false;
         match choice {
+            Some(ModelChoice::Folder) => {
+                self.open_scope_sheet(ui.ctx());
+                opened_now = true;
+            }
+            Some(ModelChoice::OwnFolder) => cleared = true,
             Some(ModelChoice::Use(selection)) => self.select(selection),
             Some(ModelChoice::Effort(effort)) => self.set_effort(effort),
             Some(ModelChoice::Browse) => {
@@ -1244,18 +1318,19 @@ impl Chat {
             None => {}
         }
 
-        let folder_label = self.folder_label();
-        let chosen = self.scope_chosen();
-        let (resp, cleared) =
-            scope_chip(ui, t, folder_rect, &folder_label, self.scope_open, chosen, fills);
-        tip_text(ui.ctx(), &resp, format!("Reads and edits notes in {}", self.scope()));
-        let mut opened_now = false;
+        let mut toggled = false;
+        if let Some(folder_rect) = folder_rect {
+            let (resp, x) =
+                scope_chip(ui, t, folder_rect, &folder_label, self.scope_open, chosen, fills);
+            tip_text(ui.ctx(), &resp, format!("Reads and edits notes in {}", self.scope()));
+            (cleared, toggled) = (x, resp.clicked());
+        }
         if cleared {
             self.close_scope_sheet();
             let mut s = settings.clone();
             s.include.clear();
             self.set_settings(s);
-        } else if resp.clicked() {
+        } else if toggled {
             if self.scope_open {
                 self.close_scope_sheet();
             } else {
@@ -1338,6 +1413,12 @@ impl Chat {
         }
         if let Some(template) = picked {
             self.setup.pick(template);
+            // A phone runs no model server, so "this device" is no address
+            // to offer there.
+            let phone = matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
+            if phone && std::ptr::eq(template, &OWN) {
+                self.setup.base_url.clear();
+            }
         }
         // Esc leaves the form when there is a working provider to go back to.
         let can_cancel = self.adding_provider && self.usable();
@@ -1494,6 +1575,11 @@ fn chip(
     let cy = rect.center().y;
     let x = rect.left() + control_space::PAD_X.pts();
     let side = TypeRole::Body.size();
+    // With no label the mark is the whole button.
+    if label.is_empty() {
+        mark.paint(ui.painter(), rect.center(), side, t.neutral_fg());
+        return resp;
+    }
     mark.paint(ui.painter(), pos2(x + side / 2.0, cy), side, t.neutral_fg());
     let x = x + side + control_space::ICON_GAP.pts();
     let lh = TypeRole::Body.line_height();

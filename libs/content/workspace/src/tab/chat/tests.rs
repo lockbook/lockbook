@@ -1015,6 +1015,24 @@ mod on_its_own {
         assert!((top_of(&back) - left_at).abs() < 1.0, "{} vs {left_at}", top_of(&back));
     }
 
+    /// Where a finger does the pointing, a tap on a message shows its
+    /// actions and a tap elsewhere puts them away.
+    #[test]
+    fn a_tap_shows_a_messages_actions() {
+        let ctx = context();
+        ctx.set_os(egui::os::OperatingSystem::IOS);
+        let (mut chat, last) = long_chat(&ctx);
+        let reply = ctx
+            .read_response(egui::Id::new(("chat_text", last)))
+            .unwrap()
+            .rect;
+        assert_eq!(chat.tapped, None);
+        click(&ctx, &mut chat, reply.center());
+        assert_eq!(chat.tapped, Some(last));
+        click(&ctx, &mut chat, pos2(reply.center().x, reply.top() - 60.0));
+        assert_ne!(chat.tapped, Some(last));
+    }
+
     /// Jump to latest pressed while the wheel still coasts: the view goes to
     /// the newest line and stays there, and once the wheel has rested it
     /// scrolls again.

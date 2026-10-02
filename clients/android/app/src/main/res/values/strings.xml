@@ -112,6 +112,7 @@
 
     <string name="document">Document</string>
     <string name="folder">Folder</string>
+    <string name="chat">Chat</string>
     <string name="drawing">Drawing</string>
     <string name="file">File</string>
 

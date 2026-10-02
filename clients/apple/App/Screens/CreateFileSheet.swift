@@ -357,6 +357,7 @@ enum LocationChoice: Equatable {
 
 enum NewFileType: CaseIterable, Identifiable {
     case markdown
+    case chat
     case drawing
     case folder
     case other
@@ -368,6 +369,7 @@ enum NewFileType: CaseIterable, Identifiable {
     var label: String {
         switch self {
         case .markdown: "Note"
+        case .chat: "Chat"
         case .drawing: "Drawing"
         case .folder: "Folder"
         case .other: "Other"
@@ -377,6 +379,7 @@ enum NewFileType: CaseIterable, Identifiable {
     var ext: String? {
         switch self {
         case .markdown: ".md"
+        case .chat: ".chat"
         case .drawing: ".svg"
         case .folder: nil
         case .other: nil

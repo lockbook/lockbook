@@ -10,7 +10,11 @@ use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 
 use super::{Call, Completion, Echo, Piece, Request, STREAM_IDLE, Sse, Turn, parse_args, send};
-use crate::provider::Provider;
+use crate::provider::{Provider, host};
+
+const GOOGLE: &str = "generativelanguage.googleapis.com";
+/// What Google accepts in place of a signature on a call it did not make.
+const UNSIGNED: &str = "skip_thought_signature_validator";
 
 #[derive(Deserialize)]
 struct Chunk {
@@ -129,6 +133,11 @@ pub(crate) fn body(provider: &Provider, req: &Request) -> Value {
                                 c.echo.as_ref().filter(|e| e.provider == provider.name)
                             {
                                 call["extra_content"] = echo.content.clone();
+                            } else if host(&provider.base_url) == GOOGLE {
+                                // A call Google did not sign: one the driver
+                                // made, or another provider's.
+                                call["extra_content"] =
+                                    json!({ "google": { "thought_signature": UNSIGNED } });
                             }
                             call
                         })
@@ -317,6 +326,29 @@ mod tests {
 
     fn hi() -> Request {
         Request { system: "s".into(), turns: vec![Turn::User("hi".into())], ..Default::default() }
+    }
+
+    /// Google wants every call signed. One it did not make, such as the
+    /// read of an attached note, goes with the placeholder it accepts;
+    /// nobody else is sent one.
+    #[test]
+    fn a_call_google_did_not_sign_goes_with_its_placeholder() {
+        let call = Call { id: "c".into(), name: "read".into(), args: json!({}), echo: None };
+        let req = Request {
+            turns: vec![
+                Turn::User("hi".into()),
+                Turn::Assistant { text: String::new(), calls: vec![call] },
+            ],
+            ..Default::default()
+        };
+        let sent = |base_url: &str| {
+            let sent = body(&provider(base_url), &req);
+            let asked = sent["messages"].as_array().unwrap().last().unwrap();
+            asked["tool_calls"][0]["extra_content"].clone()
+        };
+        let google = sent("https://generativelanguage.googleapis.com/v1beta/openai");
+        assert_eq!(google["google"]["thought_signature"], UNSIGNED);
+        assert_eq!(sent("https://api.x.ai/v1"), Value::Null);
     }
 
     /// Thinking comes beside the reply under either of two names.
