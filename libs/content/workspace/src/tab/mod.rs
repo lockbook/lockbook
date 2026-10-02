@@ -242,7 +242,7 @@ impl Tab {
         match &self.content {
             ContentState::Open(TabContent::Markdown(md)) => md.edit.renderer.buffer.current.seq,
             #[cfg(not(target_family = "wasm"))]
-            ContentState::Open(TabContent::Chat(chat)) => chat.seq,
+            ContentState::Open(TabContent::Chat(chat)) => chat.seq(),
             _ => 0,
         }
     }
@@ -374,11 +374,8 @@ impl Tab {
                 match content {
                     #[cfg(not(target_family = "wasm"))]
                     TabContent::Chat(chat) => {
-                        let (sent, interaction_rect, composer_updated, composer_text_updated) =
+                        let (interaction_rect, composer_updated, composer_text_updated) =
                             chat.show(ui);
-                        if sent {
-                            self.last_changed = Instant::now();
-                        }
                         // App-driven composer edits (send-clear, prefill) must
                         // re-sync the native text view. `text_updated` is the
                         // document replacement; selection-only is the caret.
@@ -423,6 +420,15 @@ impl Tab {
                 }
                 resp
             }
+        }
+    }
+
+    /// A chat's driver appends off the UI thread; fold that into
+    /// `last_changed` before asking `is_dirty`.
+    pub fn note_background_changes(&mut self) {
+        #[cfg(not(target_family = "wasm"))]
+        if self.chat_mut().is_some_and(|chat| chat.take_changed()) {
+            self.last_changed = Instant::now();
         }
     }
 
@@ -502,7 +508,7 @@ impl TabContent {
     pub fn seq(&self) -> usize {
         match self {
             #[cfg(not(target_family = "wasm"))]
-            TabContent::Chat(chat) => chat.seq,
+            TabContent::Chat(chat) => chat.seq(),
             TabContent::Markdown(md) => md.edit.renderer.buffer.current.seq,
             _ => 0,
         }

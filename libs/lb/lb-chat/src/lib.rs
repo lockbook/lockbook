@@ -17,8 +17,8 @@ pub mod wire;
 pub(crate) mod mock;
 
 pub use driver::{Cmd, Driver, Event};
-pub use provider::{Kind, Provider};
-pub use store::{LbStore, MemStore, Store};
+pub use provider::{Kind, Provider, friendly_model, friendly_name};
+pub use store::{LbStore, MemStore, SharedStore, Store};
 pub use territory::Territory;
 pub use tools::{NoTools, ToolOutcome, Tools};
 pub use vault::VaultTools;

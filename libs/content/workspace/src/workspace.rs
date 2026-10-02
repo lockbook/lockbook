@@ -550,7 +550,8 @@ impl Workspace {
     pub fn save_all_tabs(&mut self) {
         let slots: Vec<_> = self.tab_strip.clone();
         for slot in &slots {
-            if let Some(tab) = self.tabs.get(&slot.id) {
+            if let Some(tab) = self.tabs.get_mut(&slot.id) {
+                tab.note_background_changes();
                 if let Some(id) = tab.id() {
                     if tab.is_dirty(&self.tasks) {
                         self.tasks.queue_save(SaveRequest { id, origin: slot.id });
@@ -567,7 +568,8 @@ impl Workspace {
     }
 
     fn queue_save_for_session(&mut self, tab_id: SessionId) {
-        if let Some(tab) = self.tabs.get(&tab_id) {
+        if let Some(tab) = self.tabs.get_mut(&tab_id) {
+            tab.note_background_changes();
             if let Some(id) = tab.id() {
                 if tab.is_dirty(&self.tasks) {
                     self.tasks.queue_save(SaveRequest { id, origin: tab_id });
@@ -799,8 +801,10 @@ impl Workspace {
         let tab_id = slot.id;
         #[cfg(not(target_family = "wasm"))]
         if let Some(tab) = self.tabs.get_mut(&tab_id) {
-            if let ContentState::Open(TabContent::MindMap(mm)) = &mut tab.content {
-                mm.stop();
+            match &mut tab.content {
+                ContentState::Open(TabContent::MindMap(mm)) => mm.stop(),
+                ContentState::Open(TabContent::Chat(chat)) => chat.stop(),
+                _ => {}
             }
         }
 
@@ -1249,7 +1253,13 @@ impl Workspace {
                             let reload = tab.chat().is_some() && !tab_created;
                             if !reload {
                                 tab.content = ContentState::Open(TabContent::Chat(Chat::new(
-                                    &bytes, id, maybe_hmac,
+                                    &bytes,
+                                    id,
+                                    maybe_hmac,
+                                    self.account.clone(),
+                                    self.ctx.clone(),
+                                    Arc::clone(&self.files),
+                                    &self.core,
                                 )));
                             } else {
                                 let chat = tab.chat_mut().unwrap();

@@ -3,7 +3,7 @@
 
 use lb_chat::{Call, ToolOutcome, Tools, VaultTools};
 use lb_rs::blocking::Lb;
-use lb_rs::model::chat::{Chat, Entry, Settings};
+use lb_rs::model::chat::{Chat, Settings};
 use serde_json::{Value, json};
 use test_utils::{random_name, test_config, url};
 
@@ -42,10 +42,7 @@ fn librarian_over_a_small_vault() {
     write(&lb, "/elsewhere/x.md", "x marks");
 
     let mut chat = Chat::default();
-    chat.push(Entry::settings(
-        "u",
-        Settings { include: vec!["/team/".into()], ..Default::default() },
-    ));
+    chat.set_settings("u", Settings { include: vec!["/team/".into()], ..Default::default() });
     let mut tools = VaultTools::new(lb.clone());
     tools.prepare(&chat, "u", "/home/");
 

@@ -71,6 +71,9 @@ pub fn chat(target: String, message: String) -> CliResult<()> {
                         eprintln!("error: {text}");
                     }
                 }
+                Event::Lost { error, .. } => {
+                    eprintln!("error: the chat could not be written: {error}")
+                }
                 Event::RunEnded => {
                     println!();
                     return Ok(());

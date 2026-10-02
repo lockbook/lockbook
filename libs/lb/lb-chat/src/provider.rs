@@ -96,6 +96,56 @@ impl Provider {
     }
 }
 
+/// How a provider reads in the interface: "OpenAI", "xAI", "Anthropic".
+pub fn friendly_name(provider: &str) -> String {
+    match provider {
+        "openai" => "OpenAI".into(),
+        "xai" => "xAI".into(),
+        "openrouter" => "OpenRouter".into(),
+        other => capitalize(other),
+    }
+}
+
+/// How a model id reads: "claude-opus-5-5-20260401" is "Opus 5.5",
+/// "gpt-4o-mini" is "GPT 4o Mini", "llama-3.3-70b" is "Llama 3.3 70B".
+pub fn friendly_model(id: &str) -> String {
+    let id = id.rsplit('/').next().unwrap_or(id);
+    let tokens = id
+        .split(['-', '_', ':', ' '])
+        .filter(|t| !t.is_empty())
+        .filter(|t| !matches!(*t, "claude" | "latest"))
+        .filter(|t| !(t.len() == 8 && t.chars().all(|c| c.is_ascii_digit())));
+    let mut words: Vec<String> = Vec::new();
+    for token in tokens {
+        let numeric = token.chars().all(|c| c.is_ascii_digit() || c == '.');
+        match words.last_mut() {
+            Some(last) if numeric && last.chars().all(|c| c.is_ascii_digit() || c == '.') => {
+                last.push('.');
+                last.push_str(token);
+            }
+            _ => words.push(friendly_token(token)),
+        }
+    }
+    words.join(" ")
+}
+
+fn friendly_token(token: &str) -> String {
+    let letters = token.chars().filter(|c| c.is_ascii_alphabetic()).count();
+    let digits = token.chars().filter(|c| c.is_ascii_digit()).count();
+    let acronym = token.eq_ignore_ascii_case("gpt")
+        || (digits > 0 && letters <= 2 && !token.ends_with('o'))
+        || (digits > 0 && token.ends_with('b'));
+    if acronym { token.to_ascii_uppercase() } else { capitalize(token) }
+}
+
+fn capitalize(word: &str) -> String {
+    let mut chars = word.chars();
+    match chars.next() {
+        Some(first) => first.to_uppercase().chain(chars).collect(),
+        None => String::new(),
+    }
+}
+
 fn split(selection: &str) -> (String, String) {
     match selection.split_once('/') {
         Some((name, model)) => (name.to_string(), model.to_string()),
@@ -108,4 +158,32 @@ fn read(lb: &Lb, path: &str) -> Result<Option<Vec<u8>>, String> {
     lb.read_document(file.id, false)
         .map(Some)
         .map_err(|e| format!("{path}: {e}"))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn models_and_providers_read_like_their_names() {
+        for (id, name) in [
+            ("claude-opus-5-5-20260401", "Opus 5.5"),
+            ("claude-sonnet-4-5", "Sonnet 4.5"),
+            ("gpt-4o-mini", "GPT 4o Mini"),
+            ("gpt-5.5", "GPT 5.5"),
+            ("o3-pro", "O3 Pro"),
+            ("gemini-2.5-pro", "Gemini 2.5 Pro"),
+            ("grok-4.6", "Grok 4.6"),
+            ("llama-3.3-70b", "Llama 3.3 70B"),
+            ("anthropic/claude-opus-5-5", "Opus 5.5"),
+            ("qwen3:8b", "Qwen3 8B"),
+            ("deepseek-r1", "Deepseek R1"),
+        ] {
+            assert_eq!(friendly_model(id), name, "{id}");
+        }
+        assert_eq!(friendly_name("openai"), "OpenAI");
+        assert_eq!(friendly_name("xai"), "xAI");
+        assert_eq!(friendly_name("anthropic"), "Anthropic");
+        assert_eq!(friendly_name("my-box"), "My-box");
+    }
 }

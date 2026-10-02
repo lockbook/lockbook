@@ -263,6 +263,14 @@ pub mod phosphor {
     pub const GLOBE: &str = "\u{e288}";
     /// X search tool row (`ph-x-logo`).
     pub const X_LOGO: &str = "\u{e4bc}";
+    /// Provider marks for the chat's model picker.
+    pub const OPEN_AI_LOGO: &str = "\u{e7d2}";
+    pub const GOOGLE_LOGO: &str = "\u{e292}";
+    pub const ASTERISK: &str = "\u{e0aa}";
+    pub const LIGHTNING: &str = "\u{e2de}";
+    pub const CPU: &str = "\u{e610}";
+    pub const LAPTOP: &str = "\u{e586}";
+    pub const SPARKLE: &str = "\u{e6a2}";
     /// Zoom out (`ph-magnifying-glass-minus`).
     pub const MAGNIFYING_GLASS_MINUS: &str = "\u{e30e}";
     /// Zoom in (`ph-magnifying-glass-plus`).
