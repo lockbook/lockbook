@@ -981,6 +981,40 @@ mod on_its_own {
         assert!(left != 0.0, "the reader took the wheel");
     }
 
+    /// A chat opened again is where it was left: the same entry at the top
+    /// of the view. One left following its end keeps no place.
+    #[test]
+    fn a_chat_opens_where_it_was_left() {
+        use crate::workspace::WsPersistentStore;
+        let ctx = context();
+        let (mut chat, _) = long_chat(&ctx);
+        let store = WsPersistentStore::new(false, std::env::temp_dir().join("unused.json"), false);
+        chat.persistence = Some(store.clone());
+        let rest = |ctx: &Context, chat: &mut Chat| (0..20).for_each(|_| frame(ctx, chat, vec![]));
+        rest(&ctx, &mut chat);
+        assert!(!store.data.read().unwrap().chat.contains_key(&chat.id));
+
+        let wheel = Event::MouseWheel {
+            unit: egui::MouseWheelUnit::Point,
+            delta: egui::vec2(0.0, 300.0),
+            modifiers: Modifiers::NONE,
+        };
+        frame(&ctx, &mut chat, vec![Event::PointerMoved(pos2(450.0, 300.0)), wheel]);
+        rest(&ctx, &mut chat);
+        let (entry, _) = store.data.read().unwrap().chat[&chat.id];
+        let top_of = |chat: &Chat| chat.spans.iter().find(|s| s.0 == entry).unwrap().1;
+        let left_at = top_of(&chat);
+
+        let again = context();
+        let (bytes, account) = (chat.transcript.serialize(), chat.account.clone());
+        let files = Arc::clone(&chat.files);
+        let mut back = Chat::new(&bytes, chat.id, None, account, again.clone(), files, &chat.core);
+        back.persistence = Some(store);
+        frames_until(&again, &mut back, |c| c.is_ready());
+        rest(&again, &mut back);
+        assert!((top_of(&back) - left_at).abs() < 1.0, "{} vs {left_at}", top_of(&back));
+    }
+
     /// Jump to latest pressed while the wheel still coasts: the view goes to
     /// the newest line and stays there, and once the wheel has rested it
     /// scrolls again.

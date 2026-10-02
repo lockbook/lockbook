@@ -618,8 +618,10 @@ impl Workspace {
     fn persist_tab_content(&mut self, tab_id: SessionId) {
         #[cfg(not(target_family = "wasm"))]
         if let Some(tab) = self.tabs.get_mut(&tab_id) {
-            if let ContentState::Open(TabContent::MindMap(mm)) = &mut tab.content {
-                mm.stop();
+            match &mut tab.content {
+                ContentState::Open(TabContent::MindMap(mm)) => mm.stop(),
+                ContentState::Open(TabContent::Chat(chat)) => chat.stop(),
+                _ => {}
             }
         }
         self.queue_save_for_session(tab_id);
@@ -1332,7 +1334,7 @@ impl Workspace {
                         DocType::Chat => {
                             let reload = tab.chat().is_some() && !tab_created;
                             if !reload {
-                                tab.content = ContentState::Open(TabContent::Chat(Chat::new(
+                                let mut chat = Chat::new(
                                     &bytes,
                                     id,
                                     maybe_hmac,
@@ -1340,7 +1342,9 @@ impl Workspace {
                                     self.ctx.clone(),
                                     Arc::clone(&self.files),
                                     &self.core,
-                                )));
+                                );
+                                chat.persistence = Some(self.cfg.clone());
+                                tab.content = ContentState::Open(TabContent::Chat(chat));
                             } else {
                                 let chat = tab.chat_mut().unwrap();
                                 chat.reload(&bytes, maybe_hmac);
@@ -1789,6 +1793,11 @@ pub struct WsPresistentData {
     current_tab_index: Option<usize>,
     canvas: CanvasSettings,
     pub markdown: MdPersistence,
+    /// Where each chat was scrolled to: the entry at the top of the view
+    /// and how far into it, as a fraction of its height. A chat following
+    /// its end has none.
+    #[serde(default)]
+    pub chat: HashMap<Uuid, (Uuid, f32)>,
     auto_save: bool,
     auto_sync: bool,
     landing_page: LandingPage,
@@ -1823,6 +1832,7 @@ impl Default for WsPresistentData {
             open_in_new_tab: true,
             canvas: CanvasSettings::default(),
             markdown: MdPersistence::default(),
+            chat: HashMap::new(),
             landing_page: LandingPage::default(),
             zoom_factor: 1.,
             image_dims: HashMap::default(),

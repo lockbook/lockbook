@@ -15,6 +15,7 @@ mod view;
 use std::collections::{HashMap, HashSet};
 use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, RwLock};
+use std::time::{Duration, Instant};
 
 use egui::{Context, Rect};
 use lb_chat::driver::Config;
@@ -30,6 +31,7 @@ use crate::file_cache::{FileCache, FilesExt};
 use crate::resolvers::link::{FileCacheLinkResolver, LinkResolver as _, ResolvedLink};
 use crate::style::{Icon, phosphor};
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
+use crate::workspace::WsPersistentStore;
 
 pub use setup::Setup;
 
@@ -47,6 +49,8 @@ pub enum ListingState {
 
 /// Where pinned models live, as `provider/model` selections.
 const FAVORITES_PATH: &str = "/.agent/favorites.json";
+/// How long leaving a chat waits for its run to end.
+const STOP_WAIT: Duration = Duration::from_millis(250);
 /// The row of a thought still arriving, which has no line of its own yet.
 const IN_FLIGHT: Uuid = Uuid::nil();
 
@@ -87,6 +91,18 @@ pub struct Chat {
     pub busy: bool,
     streaming: String,
     streaming_label: MdLabel,
+    /// Where this device keeps the place each chat was scrolled to.
+    pub persistence: Option<WsPersistentStore>,
+    /// Whether the kept place has been gone back to.
+    placed: bool,
+    /// The view's offset last frame, until the kept place is gone back to.
+    held: Option<f32>,
+    /// An offset the view is to take on the next frame.
+    place_to: Option<f32>,
+    /// The place the view was at last frame; one it rests at is kept.
+    rested: Option<(Uuid, f32)>,
+    /// Each drawn entry's top and bottom on screen, this frame.
+    spans: Vec<(Uuid, f32, f32)>,
     /// What the model has shown of its thinking for the reply in flight.
     thinking: String,
     /// The call the driver is executing right now, drawn as a live row.
@@ -176,6 +192,12 @@ impl Chat {
             busy: false,
             streaming: String::new(),
             streaming_label,
+            persistence: None,
+            placed: false,
+            held: None,
+            place_to: None,
+            rested: None,
+            spans: Vec::new(),
             thinking: String::new(),
             running_tool: None,
             composer,
@@ -537,10 +559,18 @@ impl Chat {
         self.kick_config_load();
     }
 
-    /// Ends a live run; closing the tab calls this.
+    /// Ends a live run and waits a moment for what it had said so far to
+    /// settle, so the save that follows has it. Closing the tab and
+    /// navigating it elsewhere call this.
     pub fn stop(&mut self) {
-        if let Some(driver) = &self.driver {
-            driver.send(Cmd::Stop);
+        let Some(driver) = &self.driver else { return };
+        if !driver.busy() {
+            return;
+        }
+        driver.send(Cmd::Stop);
+        let asked = Instant::now();
+        while driver.busy() && asked.elapsed() < STOP_WAIT {
+            std::thread::sleep(Duration::from_millis(2));
         }
     }
 
@@ -633,6 +663,48 @@ impl Chat {
             }
         }
         found
+    }
+
+    /// Goes back to the kept place once the rows are laid out, and from
+    /// then on keeps the place the view is at. `offset` is how far the view
+    /// is scrolled, `top` the view's top on screen. Returns an offset to
+    /// scroll to.
+    fn keep_place(&mut self, offset: f32, top: f32, at_bottom: bool) -> Option<f32> {
+        let store = self.persistence.clone()?;
+        let within = |(_, from, to): &(Uuid, f32, f32)| (from - top + offset, to - top + offset);
+        if !self.placed {
+            // Rows are laid out at the offset the frame began with; they
+            // are where `offset` says once it has held for a frame.
+            let held = self.held.replace(offset) == Some(offset);
+            if self.spans.is_empty() || !held {
+                return None;
+            }
+            self.placed = true;
+            let (entry, into) = store.data.read().unwrap().chat.get(&self.id).copied()?;
+            let (from, to) = within(self.spans.iter().find(|(id, ..)| *id == entry)?);
+            // The kept place stands in for opening at the end.
+            (self.scroll_to_bottom, self.to_latest) = (false, None);
+            return Some(from + into * (to - from));
+        }
+        let at = self
+            .spans
+            .iter()
+            .map(|span| (span.0, within(span)))
+            .find(|(_, (_, to))| *to > offset)
+            .filter(|_| !at_bottom)
+            .map(|(id, (from, to))| (id, ((offset - from) / (to - from).max(1.0)).max(0.0)));
+        let kept = store.data.read().unwrap().chat.get(&self.id).copied();
+        let resting = std::mem::replace(&mut self.rested, at) == at;
+        if resting && at != kept {
+            let mut data = store.data.write().unwrap();
+            match at {
+                Some(at) => data.chat.insert(self.id, at),
+                None => data.chat.remove(&self.id),
+            };
+            drop(data);
+            store.write_to_file();
+        }
+        None
     }
 
     /// Takes in one thing the driver reports.

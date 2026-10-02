@@ -190,9 +190,16 @@ impl Chat {
                 // A mouse drag selects text; only a finger drags the page.
                 let touch =
                     matches!(ui.ctx().os(), OperatingSystem::Android | OperatingSystem::IOS);
-                let out = ScrollArea::vertical()
+                // A place to go back to is taken for a frame without the
+                // pull to the end, which would win.
+                let place_to = self.place_to.take();
+                let mut area = ScrollArea::vertical();
+                if let Some(to) = place_to {
+                    area = area.vertical_scroll_offset(to);
+                }
+                let out = area
                     .id_salt(scroll_id)
-                    .stick_to_bottom(true)
+                    .stick_to_bottom(place_to.is_none())
                     .auto_shrink([false, false])
                     .scroll_source(ScrollSource { drag: touch, ..ScrollSource::ALL })
                     .show(ui, |ui| {
@@ -240,6 +247,11 @@ impl Chat {
                 }
                 let at_bottom =
                     out.state.offset.y + out.inner_rect.height() >= out.content_size.y - 1.0;
+                let top = out.inner_rect.top();
+                self.place_to = self.keep_place(out.state.offset.y, top, at_bottom);
+                if self.place_to.is_some() {
+                    ui.ctx().request_repaint();
+                }
                 (at_bottom, out.state.offset.y, out.id)
             });
         });
@@ -414,6 +426,7 @@ impl Chat {
         let last = entries.last().map(|e| e.id);
         let mut prev_kind = None;
         let mut prev_day = None;
+        self.spans.clear();
         for entry in &entries {
             let Some(kind) = kind(entry) else { continue };
             let day = local_day(entry.ts);
@@ -440,6 +453,7 @@ impl Chat {
                 ui.add(Spacer::new(gap(prev, lead)));
             }
             let mine = entry.from == me;
+            let row_top = ui.cursor().top();
             match &entry.body {
                 Body::User { text, .. } => self.show_user(ui, t, col_w, entry, text),
                 Body::Assistant { text, thinking, interrupted, .. } => {
@@ -476,6 +490,7 @@ impl Chat {
                 }
                 Body::Other(_) => {}
             }
+            self.spans.push((entry.id, row_top, ui.cursor().top()));
             // Rows stack: the cursor ends under everything laid out so far.
             debug_assert!(
                 ui.cursor().top() >= ui.min_rect().bottom() - 0.5,
