@@ -3,6 +3,7 @@
 //! Responses API, and Anthropic messages.
 
 pub mod anthropic;
+pub mod images;
 pub mod openai;
 pub mod responses;
 
@@ -52,7 +53,29 @@ pub struct ToolResult {
     pub id: String,
     pub text: String,
     pub ok: bool,
+    /// Pictures the call read, for the model to look at with the result.
+    pub media: Vec<Media>,
 }
+
+/// A picture or a PDF as a provider takes it: its type and its bytes in
+/// base64.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Media {
+    pub mime: String,
+    pub data: String,
+}
+
+impl Media {
+    pub(crate) fn url(&self) -> String {
+        format!("data:{};base64,{}", self.mime, self.data)
+    }
+
+    pub fn is_pdf(&self) -> bool {
+        self.mime == PDF
+    }
+}
+
+pub const PDF: &str = "application/pdf";
 
 /// A flat JSON-schema object with `additionalProperties: false`.
 #[derive(Clone, Debug, PartialEq)]
@@ -79,6 +102,9 @@ pub struct Served {
     pub result: String,
     /// What the provider wants back to stand by what it then said.
     pub echo: Option<Echo>,
+    /// A file it made, as its extension and bytes; kept beside the chat,
+    /// its path then being the result.
+    pub file: Option<(String, Vec<u8>)>,
 }
 
 #[derive(Debug, Default)]
@@ -222,6 +248,8 @@ impl Sse {
 
 #[cfg(test)]
 mod tests {
+    use serde_json::json;
+
     use super::*;
 
     /// Providers wrap what went wrong in JSON of a few shapes; the user
@@ -256,6 +284,73 @@ mod tests {
         let mut got = sse.push(&bytes[..cut]);
         got.extend(sse.push(&bytes[cut..]));
         assert_eq!(got, ["{\"a\":\"é\"}", "[DONE]"]);
+    }
+
+    /// A picture a call read goes where each dialect takes one: inside the
+    /// result for Anthropic, and after the results as the user's elsewhere.
+    #[test]
+    fn a_picture_goes_where_each_dialect_takes_one() {
+        use crate::provider::{Kind, Provider};
+        let call =
+            Call { id: "c".into(), name: "read".into(), args: serde_json::json!({}), echo: None };
+        let picture = Media { mime: "image/png".into(), data: "AAAA".into() };
+        let result =
+            ToolResult { id: "c".into(), text: "a picture".into(), ok: true, media: vec![picture] };
+        let req = Request {
+            turns: vec![
+                Turn::User("look".into()),
+                Turn::Assistant { text: String::new(), calls: vec![call] },
+                Turn::ToolResults(vec![result]),
+            ],
+            ..Default::default()
+        };
+        let at = |kind: Kind, base_url: &str| Provider {
+            name: "p".into(),
+            display_name: None,
+            needs_key: false,
+            kind,
+            base_url: base_url.into(),
+            api_key: Some("k".into()),
+            model: "m".into(),
+            effort: None,
+        };
+        let url = "data:image/png;base64,AAAA";
+
+        let sent = anthropic::body(&at(Kind::Anthropic, "http://a"), &req, 1024);
+        let block = &sent["messages"][2]["content"][0];
+        assert_eq!(block["content"][0]["text"], "a picture");
+        assert_eq!(block["content"][1]["source"]["data"], "AAAA");
+
+        let sent = openai::body(&at(Kind::OpenAi, "http://o"), &req);
+        let messages = sent["messages"].as_array().unwrap();
+        let last = messages.last().unwrap();
+        assert_eq!(
+            (&last["role"], &last["content"][0]["image_url"]["url"]),
+            (&json!("user"), &json!(url))
+        );
+        assert_eq!(messages[messages.len() - 2]["role"], "tool");
+
+        let sent = responses::body(&at(Kind::OpenAi, "https://api.openai.com/v1"), &req);
+        let input = sent["input"].as_array().unwrap();
+        assert_eq!(input.last().unwrap()["content"][0]["image_url"], url);
+        assert_eq!(input[input.len() - 2]["type"], "function_call_output");
+
+        // A PDF goes the same ways, as each dialect's document.
+        let mut req = req;
+        let Turn::ToolResults(results) = &mut req.turns[2] else { panic!() };
+        results[0].media[0].mime = PDF.into();
+        let sent = anthropic::body(&at(Kind::Anthropic, "http://a"), &req, 1024);
+        assert_eq!(sent["messages"][2]["content"][0]["content"][1]["type"], "document");
+        let sent = openai::body(&at(Kind::OpenAi, "http://o"), &req);
+        assert_eq!(
+            sent["messages"].as_array().unwrap().last().unwrap()["content"][0]["type"],
+            "file"
+        );
+        let sent = responses::body(&at(Kind::OpenAi, "https://api.openai.com/v1"), &req);
+        assert_eq!(
+            sent["input"].as_array().unwrap().last().unwrap()["content"][0]["type"],
+            "input_file"
+        );
     }
 
     #[test]

@@ -150,6 +150,22 @@ pub(crate) fn body(provider: &Provider, req: &Request) -> Value {
                     messages
                         .push(json!({ "role": "tool", "tool_call_id": r.id, "content": r.text }));
                 }
+                // A tool's answer is text here, so what it read to be
+                // looked at follows as the user's.
+                let seen: Vec<Value> = results
+                    .iter()
+                    .flat_map(|r| &r.media)
+                    .map(|i| match i.is_pdf() {
+                        true => {
+                            let file = json!({ "filename": "document.pdf", "file_data": i.url() });
+                            json!({ "type": "file", "file": file })
+                        }
+                        false => json!({ "type": "image_url", "image_url": { "url": i.url() } }),
+                    })
+                    .collect();
+                if !seen.is_empty() {
+                    messages.push(json!({ "role": "user", "content": seen }));
+                }
             }
         }
     }
@@ -421,6 +437,7 @@ mod tests {
                     id: "c1".into(),
                     text: "contents".into(),
                     ok: true,
+                    media: vec![],
                 }]),
             ],
             ..Default::default()

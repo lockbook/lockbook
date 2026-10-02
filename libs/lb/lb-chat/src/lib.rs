@@ -11,6 +11,7 @@ pub mod provider;
 pub mod store;
 pub mod territory;
 pub mod tools;
+pub mod transcribe;
 pub mod vault;
 pub mod web;
 pub mod wire;

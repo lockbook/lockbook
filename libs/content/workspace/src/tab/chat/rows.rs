@@ -1,6 +1,7 @@
 //! How a tool call reads in the transcript: an icon, a statement whose
 //! variables stand out, and what its card holds when opened.
 
+use lb_chat::tools::pictured;
 use lb_rs::Uuid;
 use serde_json::Value;
 
@@ -27,6 +28,8 @@ pub enum Part {
     Diff(Vec<Change>),
     /// One quiet line: a confirmation, a count, a failure's reason.
     Line(String),
+    /// The picture at a path.
+    Picture(String),
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -67,9 +70,10 @@ pub fn row(name: &str, args: &Value) -> Row {
         "delete" => (phosphor::TRASH, "delete"),
         // What a provider ran itself.
         "web_search" => (phosphor::GLOBE, "search the web"),
-        "x_search" => (phosphor::GLOBE, "search X"),
+        "x_search" => (phosphor::X_LOGO, "search X"),
         "code" => (phosphor::CODE, "run code"),
         "fetch" => (phosphor::GLOBE, "fetch"),
+        "generate_image" => (phosphor::IMAGE, "draw"),
         // Not calls: what a reply showed of its thinking, live and settled.
         "thinking" | "thought" => (phosphor::LIGHTBULB, name),
         other => (phosphor::GEAR, other),
@@ -78,6 +82,10 @@ pub fn row(name: &str, args: &Value) -> Row {
     let mut variable = |text: String| words.push((text, true));
     match name {
         "search" | "web_search" | "x_search" => arg(args, "query")
+            .map(str::to_string)
+            .into_iter()
+            .for_each(&mut variable),
+        "generate_image" => arg(args, "prompt")
             .map(str::to_string)
             .into_iter()
             .for_each(&mut variable),
@@ -150,6 +158,12 @@ pub fn body(name: &str, args: &Value, result: &str, ok: bool, working_dir: &str)
             let folder = arg(args, "path").unwrap_or(working_dir);
             let folder = format!("{}/", folder.trim_end_matches('/'));
             parts.extend(listing(result, &folder));
+        }
+        // A picture that was made is the picture, at the path it answered.
+        "generate_image" => parts.push(Part::Picture(result.to_string())),
+        // A picture that was read is the picture.
+        "read" if arg(args, "path").is_some_and(pictured) => {
+            parts.push(Part::Picture(arg(args, "path").unwrap_or_default().to_string()));
         }
         "read" if arg(args, "path").is_some_and(is_note) => {
             parts.extend(clipped(result, Part::Note))
