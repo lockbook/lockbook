@@ -1155,6 +1155,7 @@
         deinit {
             if let wsHandle {
                 RepaintRelay.unregister(wsHandle)
+                VoiceEngine.shared.release(wsHandle)
             }
             deinit_editor(wsHandle)
 

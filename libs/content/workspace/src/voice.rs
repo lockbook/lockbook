@@ -50,22 +50,33 @@ pub fn offered() -> bool {
     OFFERED.load(Ordering::Relaxed)
 }
 
-/// A session is open; the host should start listening and playing.
+/// A session is open; the host should start listening and playing. A
+/// call already on ends, since there is one microphone.
 pub fn begin(session: Handle) {
     let mut live = live();
-    live.session = Some(session);
+    if let Some(older) = live.session.replace(session) {
+        older.send(Cmd::Stop);
+    }
+    live.play.clear();
     live.start = true;
 }
 
-pub fn end() {
+/// The session `ended` is over; nothing happens if another has since taken
+/// the floor.
+pub fn end(ended: &Handle) {
     let mut live = live();
+    if !live.session.as_ref().is_some_and(|s| s.is(ended)) {
+        return;
+    }
     live.session = None;
     live.stop = true;
     live.play.clear();
 }
 
 pub fn play(reply: u32, pcm: Vec<u8>) {
-    live().play.push_back((reply, pcm));
+    if !pcm.is_empty() {
+        live().play.push_back((reply, pcm));
+    }
 }
 
 /// The user spoke over the reply: what is queued to play is dropped.
@@ -132,13 +143,29 @@ mod tests {
         assert_eq!(take(), Out::default());
     }
 
-    /// Ending a session drops what was queued, and says so.
+    /// Ending a session drops what was queued and says stop, but only the
+    /// session that has the floor: a newer call ends the older one, whose
+    /// end then changes nothing.
     #[test]
-    fn ending_drops_the_queue_and_says_stop() {
+    fn ending_drops_the_queue_and_says_stop_for_the_session_with_the_floor() {
         let _guard = TEST_LOCK.lock().unwrap_or_else(|e| e.into_inner());
+        let (older, mut older_cmds) = handle();
+        let (newer, _newer_cmds) = handle();
+        begin(older.clone());
         play(1, vec![1]);
-        end();
+        begin(newer.clone());
+        assert!(matches!(older_cmds.try_recv(), Ok(Cmd::Stop)));
+        assert_eq!(take(), Out { start: true, ..Default::default() });
+        end(&older);
+        assert_eq!(take(), Out::default());
+        play(1, vec![1]);
+        end(&newer);
         assert_eq!(take(), Out { stop: true, ..Default::default() });
+    }
+
+    fn handle() -> (Handle, tokio::sync::mpsc::UnboundedReceiver<Cmd>) {
+        let (tx, rx) = tokio::sync::mpsc::unbounded_channel();
+        (Handle::from_sender(tx), rx)
     }
 
     static TEST_LOCK: Mutex<()> = Mutex::new(());

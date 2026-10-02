@@ -593,7 +593,9 @@ impl Chat {
         }
         if self.voice {
             self.voice = false;
-            voice::end();
+            if let Some(driver) = &self.driver {
+                voice::end(&driver.handle());
+            }
         }
     }
 
@@ -800,7 +802,9 @@ impl Chat {
             }
             Event::VoiceEnded => {
                 self.voice = false;
-                voice::end();
+                if let Some(driver) = &self.driver {
+                    voice::end(&driver.handle());
+                }
             }
             Event::Audio { reply, pcm } => voice::play(reply, pcm),
             Event::Interrupted => voice::flush(),
@@ -826,8 +830,8 @@ impl Chat {
 /// A chat dropped mid-call lets the host's engine go.
 impl Drop for Chat {
     fn drop(&mut self) {
-        if self.voice {
-            voice::end();
+        if let (true, Some(driver)) = (self.voice, &self.driver) {
+            voice::end(&driver.handle());
         }
     }
 }

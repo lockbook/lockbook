@@ -143,7 +143,10 @@ fn speak(driver: &Driver, script: &str) -> CliResult<()> {
     let mut player = Player::default();
     let mut mic: Option<Mic> = None;
     let (mut started, mut ended) = (0, 0);
-    let mut step: Option<(Step, Instant, usize)> = None;
+    // Runs that had started when the last clip began: the reply to the
+    // clip is the run after them.
+    let mut before_clip = 0;
+    let mut step: Option<(Step, Instant)> = None;
     let mut stopped = false;
     loop {
         for event in driver.poll() {
@@ -180,23 +183,26 @@ fn speak(driver: &Driver, script: &str) -> CliResult<()> {
         if let Some(mic) = &mut mic {
             let over = match &step {
                 None => true,
-                Some((Step::Say(pcm), _, _)) => mic.sent_of_clip >= pcm.len(),
-                Some((Step::Quiet(for_), since, _)) => since.elapsed() >= *for_,
-                Some((Step::Listen, since, runs)) => {
-                    let heard_out = started > *runs && ended == started && player.idle();
+                Some((Step::Say(pcm), _)) => mic.sent_of_clip >= pcm.len(),
+                Some((Step::Quiet(for_), since)) => since.elapsed() >= *for_,
+                Some((Step::Listen, since)) => {
+                    let heard_out = started > before_clip && ended == started && player.idle();
                     heard_out || since.elapsed() > Duration::from_secs(90)
                 }
             };
             if over {
                 mic.sent_of_clip = 0;
-                step = steps.pop_front().map(|s| (s, Instant::now(), started));
+                step = steps.pop_front().map(|s| (s, Instant::now()));
+                if let Some((Step::Say(_), _)) = &step {
+                    before_clip = started;
+                }
                 if step.is_none() && !stopped {
                     driver.send(Cmd::Stop);
                     stopped = true;
                 }
             }
             let clip = match &step {
-                Some((Step::Say(pcm), _, _)) => Some(pcm.as_slice()),
+                Some((Step::Say(pcm), _)) => Some(pcm.as_slice()),
                 _ => None,
             };
             for chunk in mic.due(clip) {

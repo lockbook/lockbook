@@ -48,11 +48,12 @@ impl Voice {
 }
 
 /// The replies' audio at the speaker's rate, in order, with how much of
-/// each has played.
+/// each has played and which have played since last reported.
 #[derive(Default)]
 struct Queue {
     chunks: VecDeque<(u32, Vec<i16>, usize)>,
     played: Vec<(u32, u64)>,
+    touched: Vec<u32>,
 }
 
 impl Queue {
@@ -69,7 +70,22 @@ impl Queue {
             Some((_, frames)) => *frames += 1,
             None => self.played.push((reply, 1)),
         }
+        if !self.touched.contains(&reply) {
+            self.touched.push(reply);
+        }
         Some(sample)
+    }
+
+    /// How far each reply played since last asked has got, in frames.
+    fn report(&mut self) -> Vec<(u32, u64)> {
+        let touched = std::mem::take(&mut self.touched);
+        touched
+            .into_iter()
+            .filter_map(|reply| {
+                let frames = self.played.iter().find(|(r, _)| *r == reply)?.1;
+                Some((reply, frames))
+            })
+            .collect()
     }
 }
 
@@ -93,6 +109,9 @@ impl Duplex {
 
     fn play(&self, reply: u32, pcm: &[u8]) {
         let samples = resample(&pcm16_le(pcm), WIRE_HZ, self.out_hz);
+        if samples.is_empty() {
+            return;
+        }
         self.queue
             .lock()
             .unwrap()
@@ -184,7 +203,7 @@ fn start_output(device: &cpal::Device, queue: Arc<Mutex<Queue>>) -> Result<(Stre
         for frame in 0..frames {
             put(frame, queue.pop().unwrap_or(0));
         }
-        let played: Vec<(u32, u64)> = queue.played.clone();
+        let played = queue.report();
         drop(queue);
         for (reply, frames) in played {
             voice::played(reply, frames * 1000 / u64::from(hz));
