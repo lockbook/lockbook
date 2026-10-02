@@ -168,7 +168,6 @@ impl<'ast> MdRender {
             ui,
             node,
             (fold_button_size, fold_button_icon_size, fold_button_space),
-            self.item_contents(node),
             self.item_fold_reveal(node),
         );
     }

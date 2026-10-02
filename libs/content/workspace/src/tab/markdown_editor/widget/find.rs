@@ -107,6 +107,11 @@ pub struct FindOutput {
 impl Find {
     /// Range of the currently focused match, if any. Caller snapshots this
     /// before and after [`Find::show`] to detect reveal-state changes.
+    /// The find or replace field has keyboard focus: typed text is its.
+    pub fn focused(&self, ctx: &egui::Context) -> bool {
+        ctx.memory(|m| m.has_focus(self.id) || m.has_focus(self.replace_id))
+    }
+
     pub fn current_match_range(&self) -> Option<(Grapheme, Grapheme)> {
         self.current_match
             .and_then(|idx| self.matches.get(idx).copied())
@@ -178,6 +183,14 @@ impl Find {
         let replace_focused = ui.memory(|m| m.has_focus(self.replace_id));
         let focused = find_focused || replace_focused;
         self.prev_focused = focused;
+        // The keyboard going down under a focused field (Done on a phone)
+        // ends find, as Escape does.
+        if focused && self.was_focused && !virtual_keyboard_shown && self.term.is_some() {
+            self.was_focused = false;
+            self.close_to_match(&mut output);
+            ui.ctx().request_repaint();
+            return output;
+        }
         if focused && !self.was_focused {
             ui.ctx().set_virtual_keyboard_shown(true);
         }

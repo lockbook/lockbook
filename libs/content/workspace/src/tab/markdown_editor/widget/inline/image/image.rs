@@ -7,6 +7,7 @@ use lb_rs::model::text::operation_types::Operation;
 
 use crate::file_cache::ResolvedLink;
 use crate::style::ThemeExt;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Advance, Bound, Event, Increment, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::LinkMetaState;
 use crate::tab::markdown_editor::widget::inline::link::{LinkMenuAction, fill_link_menu};
@@ -82,6 +83,12 @@ impl<'ast> MdRender {
                 .min(image_max_size.y / target.y)
                 .min(1.0);
             return (target * scale).max(Vec2::ZERO);
+        }
+
+        // A degenerate texture (a decode with no size yet, a failed one)
+        // collapses rather than dividing by zero into NaN geometry.
+        if natural.x <= 0.0 || natural.y <= 0.0 {
+            return Vec2::ZERO;
         }
 
         // only shrink images, never stretch beyond their natural size
@@ -163,13 +170,14 @@ impl<'ast> MdRender {
     }
 
     /// Recompute [`super::super::super::bounds::Bounds::images`] — the source
-    /// range of every inline image. Empty when images render raw (disabled),
-    /// since then the source is plain editable text. Depends on text only.
-    pub fn calc_image_bounds<'a>(&mut self, root: &'a AstNode<'a>) {
+    /// range of every inline image. Images are empty when they render raw
+    /// (disabled), since then the source is plain editable text. Depends on
+    /// text only.
+    pub fn calc_atom_bounds<'a>(&mut self, root: &'a AstNode<'a>) {
         let mut images = Vec::new();
-        if !self.disable_images {
-            for node in root.descendants() {
-                if matches!(node.data.borrow().value, NodeValue::Image(_)) {
+        for node in root.descendants() {
+            if let NodeValue::Image(_) = node.data.borrow().value {
+                if !self.disable_images {
                     images.push(self.node_range(node));
                 }
             }
@@ -191,8 +199,8 @@ impl<'ast> MdEdit {
     /// capsule): when `open`, a click opens `url`, else it selects the node
     /// and (touch) pops the edit menu as an `Atom` target, so the platform
     /// offers "Edit" (`Event::EnterAtom`). Desktop right-click shows the link
-    /// menu ([`fill_link_menu`]). Registers the fragment rects in
-    /// `touch_consuming_rects` so iOS routes the tap here; `salt` identifies
+    /// menu ([`fill_link_menu`]). Registers the fragment rects as a touch
+    /// target, whose tap selects the node or (read-only) opens; `salt` identifies
     /// the fragment's `Sense::click` scope. No-op if the embed wasn't rendered
     /// this frame. The per-kind handlers differ only in node lookup.
     #[allow(clippy::too_many_arguments)]
@@ -205,9 +213,15 @@ impl<'ast> MdEdit {
             None => return,
         };
 
-        self.renderer.touch_consume_interaction(ui.id().with(salt));
-
         let node_range = self.renderer.node_range(node);
+        let tap = if self.renderer.readonly {
+            Event::OpenLink { url: url.to_string(), wikilink: false }
+        } else {
+            Event::Select { region: node_range.into() }
+        };
+        self.renderer
+            .touch_consume_interaction(ui.id().with(salt), TouchTarget::Tap(tap));
+
         if open && response.hovered() {
             ui.ctx()
                 .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);

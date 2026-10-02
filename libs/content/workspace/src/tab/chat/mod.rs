@@ -275,6 +275,11 @@ impl Chat {
         self.readers.retain(|id, _| ids.contains(id));
     }
 
+    /// The composer is the field in use, so Return sends.
+    pub fn composing(&self) -> bool {
+        self.is_ready()
+    }
+
     pub fn focused_field(&mut self) -> Option<&mut MdEdit> {
         Some(&mut self.composer)
     }

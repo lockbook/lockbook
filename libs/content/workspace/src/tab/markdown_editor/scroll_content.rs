@@ -91,11 +91,12 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
         Self::new(renderer, root, viewport_height / 2.0).with_default_leading()
     }
 
-    /// Row whose source range contains `target` (endpoints inclusive,
-    /// so an end-of-line cursor matches). Targets past every row
-    /// resolve to `Trailing`, before every row to `Leading` — covers
-    /// `last_cursor_position` past the doc's trailing `\n`, which lies
-    /// outside any block's `node_range`.
+    /// Row whose layout holds `target`: the block whose source range
+    /// contains it (endpoints inclusive, so an end-of-line cursor
+    /// matches), or whose spacing lays out the blank line it is on, the
+    /// blank lines before a block and those after the last one. Other
+    /// targets past every row resolve to `Trailing`, before every row to
+    /// `Leading`.
     pub fn find_text_row(&self, target: Grapheme) -> Option<DocRowId> {
         if self.plaintext {
             for i in 0..self.line_count {
@@ -114,7 +115,19 @@ impl<'a, 'ast> DocScrollContent<'a, 'ast> {
                 return Some(DocRowId::Block(i));
             }
         }
+        let holds = |lines| {
+            let (s, e) = self.renderer.spacing_range(&lines);
+            s <= target && target <= e
+        };
+        for (i, node) in self.blocks.iter().enumerate() {
+            if holds(self.renderer.pre_spacing_lines(node)) {
+                return Some(DocRowId::Block(i));
+            }
+        }
         let last_node = self.blocks.last()?;
+        if holds(self.renderer.post_spacing_lines(last_node)) {
+            return Some(DocRowId::Block(self.blocks.len() - 1));
+        }
         let (_, last_end) = self.renderer.node_range(last_node);
         Some(if target > last_end { DocRowId::Trailing } else { DocRowId::Leading })
     }

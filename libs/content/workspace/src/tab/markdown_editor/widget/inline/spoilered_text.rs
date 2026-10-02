@@ -1,6 +1,8 @@
 use comrak::nodes::{AstNode, NodeValue};
 
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::{Format, Layout};
 use crate::theme::palette_v2::ThemeExt as _;
 use lb_rs::model::text::offset_types::Grapheme;
@@ -49,7 +51,7 @@ impl<'ast> MdRender {
         layout.interaction_close();
     }
 
-    /// Toggle `revealed_spoilers` when a spoiler chip is clicked.
+    /// A click or a tap on a spoiler chip toggles its reveal.
     /// Must run after `interact_fragments`.
     pub fn handle_spoiler_interactions(&mut self, root: &'ast AstNode<'ast>, ui: &egui::Ui) {
         let parent_base = ui.id();
@@ -60,10 +62,8 @@ impl<'ast> MdRender {
             let salt = Self::spoiler_interaction_id_salt(node);
             let id = parent_base.with(salt);
 
-            // iOS routes touches through `touch_consuming_rects` —
-            // without these entries a tap on a spoiler would place the
-            // cursor instead of reaching the toggle handler below.
-            self.touch_consume_interaction(id);
+            let toggle = Event::ToggleSpoiler { node: self.node_range(node) };
+            self.touch_consume_interaction(id, TouchTarget::Tap(toggle.clone()));
 
             let Some(response) = self.interaction_responses.get(&id) else {
                 continue;
@@ -73,8 +73,8 @@ impl<'ast> MdRender {
                 ui.ctx()
                     .output_mut(|o| o.cursor_icon = egui::CursorIcon::PointingHand);
             }
-            if response.clicked() && !self.revealed_spoilers.insert(salt) {
-                self.revealed_spoilers.remove(&salt);
+            if response.clicked() {
+                self.render_events.push(toggle);
             }
         }
     }

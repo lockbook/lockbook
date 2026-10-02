@@ -699,8 +699,7 @@ impl<'ast> Editor {
 
                             let fragments = mem::take(&mut self.edit.renderer.fragments);
                             let wrap_lines = mem::take(&mut self.edit.renderer.bounds.wrap_lines);
-                            let touch_consuming_rects =
-                                mem::take(&mut self.edit.renderer.touch_consuming_rects);
+                            let touch_targets = mem::take(&mut self.edit.renderer.touch_targets);
 
                             // menu labels: force blue links + plain image-link text
                             let link_resolver =
@@ -1150,7 +1149,7 @@ impl<'ast> Editor {
 
                             self.edit.renderer.fragments = fragments;
                             self.edit.renderer.bounds.wrap_lines = wrap_lines;
-                            self.edit.renderer.touch_consuming_rects = touch_consuming_rects;
+                            self.edit.renderer.touch_targets = touch_targets;
 
                             self.edit.renderer.link_resolver = link_resolver;
                             self.edit.renderer.disable_images = false;
@@ -1223,7 +1222,7 @@ impl<'ast> Editor {
         // pre-render work
         self.edit.renderer.calc_source_lines();
         self.edit.renderer.calc_fold_bounds(root);
-        self.edit.renderer.calc_image_bounds(root);
+        self.edit.renderer.calc_atom_bounds(root);
         self.edit.renderer.populate_hidden_by_fold(root);
         self.edit.renderer.compute_bounds(root);
         self.edit.renderer.bounds.inline_paragraphs.sort();
@@ -1260,7 +1259,7 @@ impl<'ast> Editor {
         // pre-render work
         self.edit.renderer.calc_source_lines();
         self.edit.renderer.calc_fold_bounds(root);
-        self.edit.renderer.calc_image_bounds(root);
+        self.edit.renderer.calc_atom_bounds(root);
         self.edit.renderer.populate_hidden_by_fold(root);
         self.edit.renderer.compute_bounds(root);
         self.edit.renderer.bounds.inline_paragraphs.sort();

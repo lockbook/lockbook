@@ -514,6 +514,49 @@ impl Workspace {
         }
     }
 
+    /// A text field of the editor's chrome (find, replace) has focus, so a
+    /// platform text system's keystrokes are egui events, not edits.
+    pub fn chrome_text_focused(&self) -> bool {
+        self.current_tab_markdown()
+            .is_some_and(|md| md.find.focused(&self.ctx))
+    }
+
+    /// Apply an edit from the platform text system to the focused editor now.
+    /// A text change marks the tab changed so it saves.
+    pub fn apply_platform_event(
+        &mut self, event: crate::tab::markdown_editor::input::Event,
+    ) -> lb_rs::model::text::buffer::Response {
+        self.apply_platform(event, true)
+    }
+
+    /// [`Self::apply_platform_event`] with the caret reveal optional.
+    pub fn apply_platform(
+        &mut self, event: crate::tab::markdown_editor::input::Event, reveal: bool,
+    ) -> lb_rs::model::text::buffer::Response {
+        use crate::tab::markdown_editor::input::Event;
+        // A selection written for a touch on the note takes focus from the
+        // find field, as a click does on a desktop.
+        if matches!(event, Event::Select { .. }) && self.chrome_text_focused() {
+            if let Some(md) = self.current_tab_markdown() {
+                md.focus(&self.ctx);
+            }
+        }
+        let Some(md) = self.focused_mdedit_mut() else { return Default::default() };
+        if md.renderer.readonly && !matches!(event, Event::Select { .. }) {
+            return Default::default();
+        }
+        let resp = md.apply_platform(event, reveal);
+        if resp.text_updated {
+            if let Some(tab) = self.current_tab_mut() {
+                let initialized = tab.markdown().is_none_or(|md| md.initialized);
+                if !tab.read_only && initialized {
+                    tab.last_changed = Instant::now();
+                }
+            }
+        }
+        resp
+    }
+
     pub fn make_current(&mut self, i: usize) -> bool {
         let Some(slot) = self.tab_strip.get(i) else { return false };
         let tab_id = slot.id;

@@ -5,6 +5,7 @@ use unicode_segmentation::UnicodeSegmentation as _;
 
 use crate::TextBufferArea;
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::TouchTarget;
 use crate::widgets::glyphon_cache::{GlyphonCache, GlyphonCacheKey, GlyphonFontFamily};
 
 pub trait BufferExt {
@@ -309,6 +310,9 @@ pub struct Fragment {
     /// Id salt + sense for `interact_fragments`. Innermost open
     /// scope wins; `None` means no per-fragment interact.
     pub interaction: Option<(egui::Id, egui::Sense)>,
+    /// Laid out beyond the band of rows around the viewport, at an
+    /// estimated y: exact within its row, adjacent to no other row.
+    pub far: bool,
 }
 
 /// What a fragment renders.
@@ -1459,6 +1463,7 @@ pub fn build_rows(
                 content: FragmentContent::Spacer,
                 atomic: false,
                 interaction: interaction_stack.last().copied(),
+                far: false,
             });
             x += inline_pad;
         }
@@ -1512,6 +1517,7 @@ pub fn build_rows(
                         },
                         atomic: *atomic,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1568,6 +1574,7 @@ pub fn build_rows(
                         content,
                         atomic: false,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += effective_advance;
                     byte_x.push((visible_byte_range.end, x));
@@ -1589,6 +1596,7 @@ pub fn build_rows(
                         content: FragmentContent::Spacer,
                         atomic: false,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += advance;
                 }
@@ -1609,6 +1617,7 @@ pub fn build_rows(
                         content: FragmentContent::Embed { url: spec.url.clone(), kind: spec.kind },
                         atomic: true,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                     x += spec.advance;
                 }
@@ -1633,6 +1642,7 @@ pub fn build_rows(
                         content: FragmentContent::Spacer,
                         atomic: false,
                         interaction: interaction_stack.last().copied(),
+                        far: false,
                     });
                 }
                 InlineItem::StyleOpen(info) => style_stack.push(info.clone()),
@@ -1681,6 +1691,7 @@ pub fn build_rows(
                 content: FragmentContent::Spacer,
                 atomic: false,
                 interaction: interaction_stack.last().copied(),
+                far: false,
             });
         }
 
@@ -1971,6 +1982,7 @@ impl MdRender {
                     content: FragmentContent::Spacer,
                     atomic: true,
                     interaction: None,
+                    far: false,
                 });
             }
 
@@ -2073,13 +2085,14 @@ impl MdRender {
         self.interaction_rects = per_parent_rects;
     }
 
-    /// Mark a scope's fragments touch-consuming (iOS routes taps there to
-    /// egui). Per-fragment rects, not the merged bounding box — a wrapped
-    /// scope's bbox would eat cursor taps in its gaps and trailing space.
-    pub fn touch_consume_interaction(&mut self, parent_id: egui::Id) {
-        if let Some(rects) = self.interaction_rects.get(&parent_id) {
-            self.touch_consuming_rects.extend_from_slice(rects);
-        }
+    /// Register a scope's fragments as `target`. Per-fragment rects, not
+    /// the merged bounding box — a wrapped scope's bbox would eat cursor
+    /// taps in its gaps and trailing space. A text-band rect grows to its
+    /// row, as a finger sees a line.
+    pub fn touch_consume_interaction(&mut self, parent_id: egui::Id, target: TouchTarget) {
+        let Some(rects) = self.interaction_rects.get(&parent_id) else { return };
+        self.touch_targets
+            .extend(rects.iter().map(|&rect| (rect, target.clone())));
     }
 
     /// Find the closest fragment to `pos` by (y_dist, x_dist), with
@@ -2111,6 +2124,10 @@ impl MdRender {
             } else {
                 (pos.y - rtop).abs().min((pos.y - rbottom).abs())
             };
+            // A far row's y is an estimate: only points within it hit it.
+            if f.far && y_dist > 0.0 {
+                continue;
+            }
             let x_dist = if f.rect.x_range().contains(pos.x) {
                 0.0
             } else {
