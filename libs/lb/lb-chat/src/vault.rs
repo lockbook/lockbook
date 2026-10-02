@@ -42,6 +42,8 @@ const INDEX_TTL: Duration = Duration::from_secs(30);
 pub const INSTRUCTIONS: &str = "AGENTS.md";
 /// Bytes of one such note that reach the prompt.
 const INSTRUCTIONS_CAP: usize = 16 * 1024;
+/// What a web tool answers while the device is offline.
+const OFFLINE: &str = "the device is offline: the web cannot be reached until it is back";
 
 pub struct VaultTools {
     lb: Lb,
@@ -54,6 +56,8 @@ pub struct VaultTools {
     /// What people said and tools returned in this chat: where an address
     /// has to have come from to be fetched.
     given: Vec<String>,
+    /// The app's own word that the network is out of reach.
+    offline: bool,
 }
 
 struct Doc {
@@ -64,7 +68,7 @@ struct Doc {
 impl VaultTools {
     pub fn new(lb: Lb, chat: Uuid) -> Self {
         let (territory, given) = (Territory::default(), Vec::new());
-        Self { lb, chat, territory, index: None, engine: None, given }
+        Self { lb, chat, territory, index: None, engine: None, given, offline: false }
     }
 
     pub fn territory(&self) -> &Territory {
@@ -317,6 +321,9 @@ impl VaultTools {
     }
 
     fn web_search(&mut self, args: &Value) -> ToolOutcome {
+        if self.offline {
+            return ToolOutcome::err(OFFLINE);
+        }
         let Some(engine) = &self.engine else {
             return ToolOutcome::err(format!("no search engine is set up in {}", web::ENGINES));
         };
@@ -329,6 +336,9 @@ impl VaultTools {
     /// An address the model composed could carry what it has read out with
     /// it, so only one that was given to it is fetched.
     fn fetch(&mut self, args: &Value) -> ToolOutcome {
+        if self.offline {
+            return ToolOutcome::err(OFFLINE);
+        }
         let url = str_arg(args, "url");
         let bare = url.trim_end_matches('/');
         if bare.is_empty() || !self.given.iter().any(|text| text.contains(bare)) {
@@ -546,6 +556,7 @@ impl Tools for VaultTools {
         }
         self.territory = territory;
         self.engine = web::Engine::load(&self.lb);
+        self.offline = self.lb.status().offline;
         let given = chat.entries.iter().filter_map(|e| match &e.body {
             Body::User { text, .. } => Some(text.clone()),
             Body::Tool { result, .. } => Some(result.clone()),
@@ -628,6 +639,10 @@ impl Tools for VaultTools {
             .map_err(|e| e.to_string())?;
         self.index = None;
         Ok(path)
+    }
+
+    fn offline(&self) -> bool {
+        self.offline
     }
 
     fn locate(&mut self, mention: &Mention) -> String {

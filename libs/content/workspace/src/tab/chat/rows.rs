@@ -113,8 +113,23 @@ pub fn row(name: &str, args: &Value) -> Row {
 /// Shortens the outermost folder of `path` still spelled out to its first
 /// letter: `/projects/work/note.md` is `/p/work/note.md`, then
 /// `/p/w/note.md`. The last name is never shortened, nor is anything after
-/// a `#`. Nothing when no folder is left to shorten.
+/// a `#`. Nothing when no folder is left to shorten. A web address loses
+/// its scheme, then everything between its host and its last segment.
 pub fn abbreviate(path: &str) -> Option<String> {
+    if let Some(rest) = path
+        .strip_prefix("https://")
+        .or_else(|| path.strip_prefix("http://"))
+    {
+        return Some(rest.to_string());
+    }
+    let host_like =
+        !path.starts_with('/') && path.split('/').next().is_some_and(|h| h.contains('.'));
+    if host_like {
+        let (host, rest) = path.split_once('/')?;
+        let rest = rest.trim_end_matches('/');
+        let last = rest.rsplit('/').next()?;
+        return (rest != last && rest != format!("…/{last}")).then(|| format!("{host}/…/{last}"));
+    }
     let (path, fragment) = match path.split_once('#') {
         Some((path, fragment)) => (path, Some(fragment)),
         None => (path, None),
@@ -326,6 +341,21 @@ mod tests {
 
     fn line(text: &str) -> Part {
         Part::Line(text.into())
+    }
+
+    /// An address is not a folder path: the scheme goes, then the middle of
+    /// the path, and the host is never touched.
+    #[test]
+    fn a_web_address_shortens_as_one() {
+        let url = "https://weather.example.com/us/ny/brooklyn/tomorrow";
+        let once = abbreviate(url).unwrap();
+        assert_eq!(once, "weather.example.com/us/ny/brooklyn/tomorrow");
+        let twice = abbreviate(&once).unwrap();
+        assert_eq!(twice, "weather.example.com/…/tomorrow");
+        assert_eq!(abbreviate(&twice), None);
+        assert_eq!(abbreviate("http://example.com/").as_deref(), Some("example.com/"));
+        assert_eq!(abbreviate("example.com/"), None);
+        assert_eq!(abbreviate("/projects/work/note.md").as_deref(), Some("/p/work/note.md"));
     }
 
     #[test]
