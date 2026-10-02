@@ -65,18 +65,12 @@ impl WgpuWorkspace<'_> {
                 .extreme_bg_color,
         );
 
+        // The screen rect already ends above the keyboard.
         let ctx = self.renderer.context.clone();
         let workspace_response = ctx.root_ui(|root| {
             egui::CentralPanel::default()
                 .frame(workspace_frame)
-                .show(root, |ui| {
-                    let mut rect = ui.max_rect();
-                    rect.max.y -= keyboard_height;
-                    ui.scope_builder(egui::UiBuilder::new().max_rect(rect), |ui| {
-                        self.workspace.show(ui)
-                    })
-                    .inner
-                })
+                .show(root, |ui| self.workspace.show(ui))
                 .inner
         });
 

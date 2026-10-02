@@ -239,16 +239,19 @@ pub fn sheet_footer(
     let row_h = control_height();
     let gap = Space::Sm;
     let primary_sc = opts.primary_shortcut.unwrap_or_else(shortcut_return);
+    // A finger has no keys to be told of.
+    let touch = super::chrome::is_touch(ui.ctx());
     let top_left = origin(ui);
     let outer = egui::Rect::from_min_size(top_left, vec2(row_w, row_h));
 
     let cancel_slot = egui::Rect::from_min_size(top_left, vec2(row_w, row_h));
     let (cancel, cancel_used) =
         place_at(ui, cancel_slot, Layout::top_down(egui::Align::Min), |ui| {
-            Button::quiet(t, opts.cancel_label)
-                .shortcut(shortcut_esc())
-                .height(row_h)
-                .show(ui)
+            let mut cancel = Button::quiet(t, opts.cancel_label).height(row_h);
+            if !touch {
+                cancel = cancel.shortcut(shortcut_esc());
+            }
+            cancel.show(ui)
         });
     if cancel.clicked() {
         out.cancel = true;
@@ -284,7 +287,7 @@ pub fn sheet_footer(
                     .enabled(opts.primary_enabled)
                     .height(row_h)
                     .max_width(primary_max);
-                if opts.primary_enabled {
+                if opts.primary_enabled && !touch {
                     done = done.shortcut(primary_sc);
                 }
                 done.show(ui).clicked()
@@ -299,7 +302,7 @@ pub fn sheet_footer(
                 .enabled(opts.primary_enabled)
                 .height(row_h)
                 .max_width(primary_max);
-                if opts.primary_enabled {
+                if opts.primary_enabled && !touch {
                     primary = primary.shortcut(primary_sc);
                 }
                 primary.show(ui).clicked()

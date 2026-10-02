@@ -13,7 +13,8 @@ use egui::{
 use lb_rs::Uuid;
 
 use super::{Chat, ListingState};
-use crate::style::chrome::shortcut_enter;
+use crate::style::chrome::{control_height, is_touch, shortcut_enter};
+use crate::style::sheet_panel_fixed;
 use crate::style::tree_metrics::{INDENT_BASE, ROW_H};
 use crate::style::{
     FG_HOVER, FG_PRESS, Field, FlatRow, Icon, Radius, RowGeom, SheetFooterOpts, Space, Spacer,
@@ -22,6 +23,7 @@ use crate::style::{
     sense_click, sheet_dim, sheet_footer, sheet_panel_fit, sheet_title_muted, sticky_band_above,
     tip_text, with_overlay_scroll,
 };
+use crate::tab::ExtendedOutput as _;
 
 /// The sheet's content width, as the folder sheet's.
 const SHEET_W: f32 = 360.0;
@@ -143,6 +145,7 @@ impl Chat {
         self.model_filter.clear();
         self.model_reveal = Some(Reveal::Chosen);
         self.models_open = true;
+        self.ctx.set_virtual_keyboard_shown(false);
         // A listing that failed gets another try each time the sheet opens.
         self.listings
             .retain(|_, state| !matches!(state, ListingState::Failed(_)));
@@ -181,37 +184,58 @@ impl Chat {
         let dim_clicked =
             sheet_dim(&ctx, sheet_id.with("dim"), LayerId::new(Order::Foreground, sheet_id));
         let (mut dismiss, mut confirm) = (false, false);
-        Area::new(sheet_id)
-            .order(Order::Foreground)
-            .anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
-            .show(&ctx, |ui| {
-                sheet_panel_fit(ui, t, SHEET_W, |ui| {
-                    dismiss |= sheet_title_muted(ui, t, "Model");
-                    ui.add(Spacer::new(Space::Md));
-                    Field::new(t, &mut self.model_filter)
-                        .hint("Filter models")
-                        .leading(phosphor::SEARCH)
-                        .clearable(true)
-                        .width(SHEET_W)
-                        .id(filter_id)
-                        .show(ui);
-                    ui.add(Spacer::new(Space::Sm));
-                    self.show_model_tree(ui, t, SHEET_W, folder_tree_default_height());
-                    ui.add(Spacer::new(Space::Md));
-                    let footer = sheet_footer(
-                        ui,
-                        t,
-                        "Done",
-                        SheetFooterOpts::default()
-                            .divider(false)
-                            .quiet_primary(true)
-                            .primary_shortcut(shortcut_enter())
-                            .primary_enabled(self.model_dest.is_some()),
-                    );
-                    dismiss |= footer.cancel;
-                    confirm |= footer.primary;
+        let touch = is_touch(&ctx);
+        let view = self.view;
+        let mut body = |ui: &mut Ui, w: f32, tree_h: f32| {
+            dismiss |= sheet_title_muted(ui, t, "Model");
+            ui.add(Spacer::new(Space::Md));
+            let field = Field::new(t, &mut self.model_filter)
+                .hint("Filter models")
+                .leading(phosphor::SEARCH)
+                .clearable(true)
+                .width(w)
+                .id(filter_id)
+                .show(ui);
+            if field.clicked() {
+                ctx.set_virtual_keyboard_shown(true);
+            }
+            ui.add(Spacer::new(Space::Sm));
+            self.show_model_tree(ui, t, w, tree_h);
+            ui.add(Spacer::new(Space::Md));
+            let footer = sheet_footer(
+                ui,
+                t,
+                "Done",
+                SheetFooterOpts::default()
+                    .divider(false)
+                    .quiet_primary(true)
+                    .primary_shortcut(shortcut_enter())
+                    .primary_enabled(self.model_dest.is_some()),
+            );
+            dismiss |= footer.cancel;
+            confirm |= footer.primary;
+        };
+        let area = Area::new(sheet_id).order(Order::Foreground);
+        if touch {
+            // The whole view, above the keyboard, as a phone's sheets are.
+            let (edge, pad) = (Space::Sm.pts(), Space::Md.pts());
+            let inner = view.shrink(edge + pad);
+            let chrome = control_height() * 3.0 + Space::Md.pts() * 2.0 + Space::Sm.pts();
+            let tree_h = (inner.height() - chrome).max(ROW_H * 3.0);
+            area.fixed_pos(view.min + vec2(edge, edge))
+                .show(&ctx, |ui| {
+                    sheet_panel_fixed(ui, t, inner.width(), inner.height(), |ui| {
+                        body(ui, inner.width(), tree_h)
+                    });
                 });
-            });
+        } else {
+            area.anchor(Align2::CENTER_CENTER, vec2(0.0, 0.0))
+                .show(&ctx, |ui| {
+                    sheet_panel_fit(ui, t, SHEET_W, |ui| {
+                        body(ui, SHEET_W, folder_tree_default_height())
+                    });
+                });
+        }
         // Nothing else focused: the filter takes it, so typing always lands.
         // (A request made before the sheet's first frame would be dropped:
         // that frame is an invisible sizing pass, and egui surrenders the
@@ -372,7 +396,9 @@ impl Chat {
                                     action = Some(Action::Pick(selection.clone()));
                                 }
                                 let pinned = favorites.contains(selection);
-                                let over = ui.ctx().rect_contains_pointer(ui.layer_id(), hit_r);
+                                // The chosen row keeps its pin in reach of a finger.
+                                let over = ui.ctx().rect_contains_pointer(ui.layer_id(), hit_r)
+                                    || chosen.as_ref() == Some(selection);
                                 // The row's own wash is the button's ground.
                                 let wash = if chosen.as_ref() == Some(selection) {
                                     FG_PRESS
@@ -435,6 +461,11 @@ impl Chat {
                 if let Some(vy) = hold {
                     self.model_reveal = Some(Reveal::Hold { provider: name, vy });
                 }
+            }
+            // A finger picks and is done; a pointer picks and confirms.
+            Some(Action::Pick(selection)) if is_touch(ui.ctx()) => {
+                self.select(selection);
+                self.close_model_sheet();
             }
             Some(Action::Pick(selection)) => self.model_dest = Some(selection),
             Some(Action::Pin(selection)) => self.toggle_favorite(&selection),

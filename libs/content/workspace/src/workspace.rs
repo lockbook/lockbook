@@ -585,6 +585,10 @@ impl Workspace {
     pub fn chrome_text_focused(&self) -> bool {
         self.current_tab_markdown()
             .is_some_and(|md| md.find.focused(&self.ctx))
+            || self
+                .current_tab()
+                .and_then(|tab| tab.chat())
+                .is_some_and(|chat| chat.chrome_focused(&self.ctx))
     }
 
     /// Apply the gestures queued for the next frame now, so a host call that
