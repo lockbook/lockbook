@@ -23,7 +23,7 @@ use crate::store::Store;
 use crate::territory::Territory;
 use crate::tools::{ToolOutcome, Tools};
 use crate::web;
-use crate::wire::{self, Call, Piece, Request};
+use crate::wire::{self, Call, Piece, Request, images};
 
 /// Bytes of a tool result written to the chat.
 pub const TOOL_RESULT_CAP: usize = 16 * 1024;
@@ -110,6 +110,7 @@ impl Driver {
                     client,
                     rt,
                     made: Vec::new(),
+                    artist: None,
                 }
                 .run(cmd_rx);
             })
@@ -140,6 +141,8 @@ struct Worker {
     client: reqwest::Client,
     rt: Runtime,
     made: Vec<Made>,
+    /// The provider and model that make pictures for this round's model.
+    artist: Option<(Provider, &'static str)>,
 }
 
 /// A call made in this run, what it last answered, and how many times
@@ -259,7 +262,8 @@ impl Worker {
                     self.settle(Entry::error(&user, err));
                     break;
                 }
-                Outcome::Finished(completion) => {
+                Outcome::Finished(mut completion) => {
+                    keep_made(&mut *self.tools, &mut completion);
                     // What the provider ran itself came before what it said.
                     let served = completion.served.iter().map(|s| {
                         let result = if s.result.is_empty() { "done" } else { &s.result };
@@ -319,6 +323,20 @@ impl Worker {
         true
     }
 
+    /// Has the provider make the picture `call` asks for, and keeps it.
+    fn draw(&mut self, provider: &Provider, model: &str, call: &Call) -> ToolOutcome {
+        let prompt = call.args["prompt"].as_str().unwrap_or_default();
+        let drawing = images::generate(&self.client, provider, model, prompt);
+        let kept = self
+            .rt
+            .block_on(drawing)
+            .and_then(|(ext, bytes)| self.tools.keep(&picture_name(&ext), &bytes));
+        match kept {
+            Ok(path) => ToolOutcome::ok(path),
+            Err(e) => ToolOutcome::err(e),
+        }
+    }
+
     /// Runs `call` unless it has answered the same twice in this run: then
     /// it is refused once, and after that it ends the run.
     fn call(&mut self, call: &Call) -> ToolOutcome {
@@ -337,7 +355,10 @@ impl Worker {
             }
             _ => return ToolOutcome::Abort { text: format!("{} kept repeating", call.name) },
         }
-        let outcome = self.tools.call(call);
+        let outcome = match self.artist.clone().filter(|_| call.name == images::NAME) {
+            Some((provider, model)) => self.draw(&provider, model, call),
+            None => self.tools.call(call),
+        };
         if let ToolOutcome::Done { text, ok } = &outcome {
             let answer = Some((text.clone(), *ok));
             if self.made[at].answer == answer {
@@ -368,6 +389,10 @@ impl Worker {
         if provider.reaches_the_web() {
             tools.retain(|tool| tool.name != web::SEARCH && tool.name != web::FETCH);
         }
+        self.artist = provider.draws().map(|model| (provider.clone(), model));
+        if self.artist.is_some() {
+            tools.push(images::schema());
+        }
         // Tool results get half of what the prompt and the schemas leave,
         // at four bytes a token.
         let budget = (self.config.window)(&provider).map(|window| {
@@ -376,7 +401,13 @@ impl Worker {
             });
             (window as usize * 4).saturating_sub(fixed) / 2
         });
-        let turns = context::turns(&chat, &self.config.user, budget);
+        let (sees, reads) = (provider.sees(), provider.reads_pdfs());
+        let eyes = &mut self.tools;
+        let mut see = |path: &str| {
+            eyes.media(path)
+                .filter(|m| if m.is_pdf() { reads } else { sees })
+        };
+        let turns = context::turns(&chat, &self.config.user, budget, &mut see);
         let request = Request { system, turns, tools, effort: provider.effort.clone() };
         Ok((provider, request))
     }
@@ -449,6 +480,26 @@ fn said(user: &str, text: String, mentions: Vec<Mention>) -> Entry {
         *attached = mentions;
     }
     entry
+}
+
+/// Keeps each file the provider made beside the chat: its path becomes
+/// the result of the call that made it, and it is shown under the reply.
+fn keep_made(tools: &mut dyn Tools, completion: &mut wire::Completion) {
+    for made in &mut completion.served {
+        let Some((ext, bytes)) = made.file.take() else { continue };
+        match tools.keep(&picture_name(&ext), &bytes) {
+            Ok(path) => {
+                completion.text.push_str(&format!("\n\n![]({path})"));
+                made.result = path;
+            }
+            Err(e) => made.result = format!("the picture could not be kept: {e}"),
+        }
+    }
+}
+
+/// A name for a picture made now.
+fn picture_name(ext: &str) -> String {
+    format!("picture_{}.{ext}", chrono::Local::now().format("%Y-%m-%d_%H-%M-%S"))
 }
 
 /// The reply line for what a completion said, whole or cut short.
@@ -547,6 +598,52 @@ mod tests {
                 _ => ToolOutcome::err("unknown"),
             }
         }
+    }
+
+    /// Keeps what it is handed and says where.
+    struct Shelves(Kept);
+    /// Names and bytes, in the order they were kept.
+    type Kept = Arc<std::sync::Mutex<Vec<(String, Vec<u8>)>>>;
+
+    impl Tools for Shelves {
+        fn schemas(&self) -> Vec<ToolSchema> {
+            Vec::new()
+        }
+
+        fn call(&mut self, _call: &Call) -> ToolOutcome {
+            ToolOutcome::err("unknown")
+        }
+
+        fn keep(&mut self, name: &str, bytes: &[u8]) -> Result<String, String> {
+            self.0
+                .lock()
+                .unwrap()
+                .push((name.to_string(), bytes.to_vec()));
+            Ok(format!("/imports/{name}"))
+        }
+    }
+
+    /// A picture the provider made is kept as a file, named on its tool
+    /// line, and shown under the reply.
+    #[test]
+    fn a_picture_the_provider_made_is_kept_and_shown() {
+        let kept = Arc::new(std::sync::Mutex::new(Vec::new()));
+        let made = wire::Served {
+            name: images::NAME.into(),
+            args: json!({ "prompt": "a red circle" }),
+            result: String::new(),
+            echo: None,
+            file: Some(("png".into(), vec![0, 1, 2])),
+        };
+        let mut said =
+            wire::Completion { text: "Here.".into(), served: vec![made], ..Default::default() };
+        keep_made(&mut Shelves(kept.clone()), &mut said);
+
+        let kept = kept.lock().unwrap();
+        let (name, bytes) = &kept[0];
+        assert!(name.starts_with("picture_") && name.ends_with(".png") && bytes == &[0, 1, 2]);
+        assert_eq!(said.served[0].result, format!("/imports/{name}"));
+        assert_eq!(said.text, format!("Here.\n\n![](/imports/{name})"));
     }
 
     /// Reads say how many reads there have been.
@@ -775,7 +872,7 @@ mod tests {
         );
 
         // The same transcript, folded for a different provider.
-        let turns = context::turns(&chat, "u", None);
+        let turns = context::turns(&chat, "u", None, &mut |_| None);
         let req = Request { turns, ..Default::default() };
         let other = Provider {
             name: "other".into(),

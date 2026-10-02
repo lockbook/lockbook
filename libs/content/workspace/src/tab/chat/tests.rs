@@ -253,6 +253,42 @@ mod in_a_workspace {
         );
     }
 
+    /// A picture pasted into the composer becomes a file beside the chat
+    /// and a link in the draft, and so goes with the message when sent.
+    #[test]
+    fn a_pasted_picture_is_imported_and_goes_with_the_message() {
+        use crate::tab::{ClipContent, Event as TabEvent, ExtendedInput as _};
+        let (lb, id) = account_with_chat();
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let mut ws = Workspace::new(&lb, &ctx, true, false, Some(files));
+        ws.open_file(id, true, false);
+        frames_until(&ctx, &mut ws, |ws| chat(ws).is_some_and(|c| c.is_ready()));
+
+        let mut png = std::io::Cursor::new(Vec::new());
+        image::DynamicImage::new_rgb8(8, 8)
+            .write_to(&mut png, image::ImageFormat::Png)
+            .unwrap();
+        let content = vec![ClipContent::Image(png.into_inner())];
+        ctx.push_event(TabEvent::Paste { content, position: pos2(0.0, 0.0) });
+        frame(&ctx, &mut ws, vec![]);
+        frame(&ctx, &mut ws, vec![]);
+        let draft = chat(&ws).unwrap().composer_text();
+        assert!(draft.starts_with("![") && draft.contains("imports/"), "{draft}");
+
+        frame(&ctx, &mut ws, vec![key(Key::Enter)]);
+        frames_until(&ctx, &mut ws, |ws| shows(ws, 3));
+        let entries = &chat(&ws).unwrap().transcript.entries;
+        let Body::User { mentions, .. } = &entries[0].body else { panic!() };
+        assert!(
+            mentions.len() == 1 && mentions[0].path.starts_with("/home/imports/"),
+            "{mentions:?}"
+        );
+        assert!(
+            matches!(&entries[1].body, Body::Tool { name, result, .. } if name == "read" && result.contains("is a picture, 8 by 8"))
+        );
+    }
+
     /// A folder among a card's files is somewhere to go, not something to
     /// open: a click makes it the workspace's folder, which is what each
     /// client's file tree follows. The chat stays where it is.

@@ -4071,10 +4071,13 @@ dependencies = [
 name = "lb-chat"
 version = "26.9.25"
 dependencies = [
+ "base64 0.13.1",
  "chrono",
  "futures",
+ "image 0.25.10",
  "lb-rs",
  "reqwest",
+ "resvg",
  "scraper",
  "serde",
  "serde_json",

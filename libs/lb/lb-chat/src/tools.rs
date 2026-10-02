@@ -4,7 +4,7 @@
 
 use lb_rs::model::chat::{Chat, Mention};
 
-use crate::wire::{Call, ToolSchema};
+use crate::wire::{Call, Media, ToolSchema};
 
 pub enum ToolOutcome {
     Done {
@@ -37,10 +37,34 @@ pub trait Tools: Send {
     fn instructions(&mut self, _working_dir: &str) -> Vec<(String, String)> {
         Vec::new()
     }
+    /// The picture or PDF at `path` as a model is shown it, a picture
+    /// brought down in size; nothing when it is gone or out of reach.
+    fn media(&mut self, _path: &str) -> Option<Media> {
+        None
+    }
+    /// Keeps something the model made as a file named `name` in the
+    /// chat's `imports` folder, and answers with the path it got.
+    fn keep(&mut self, _name: &str, _bytes: &[u8]) -> Result<String, String> {
+        Err("there is nowhere to keep a file".into())
+    }
     /// Where a file the user attached is now.
     fn locate(&mut self, mention: &Mention) -> String {
         mention.path.clone()
     }
+}
+
+/// Whether `path` names a picture: something to be looked at, not read.
+pub fn pictured(path: &str) -> bool {
+    let name = path.to_lowercase();
+    [".png", ".jpg", ".jpeg", ".gif", ".webp", ".bmp", ".svg"]
+        .iter()
+        .any(|ext| name.ends_with(ext))
+}
+
+/// Whether `path` names something a model is shown and not read to: a
+/// picture or a PDF.
+pub fn shown(path: &str) -> bool {
+    pictured(path) || path.to_lowercase().ends_with(".pdf")
 }
 
 pub struct NoTools;

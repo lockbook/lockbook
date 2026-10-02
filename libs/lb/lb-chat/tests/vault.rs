@@ -244,3 +244,79 @@ fn the_web_is_reached_by_what_the_user_set_up_and_gave() {
     let (text, ok) = done(call(&mut tools, "fetch", given));
     assert!(!ok && text.contains("can't reach"), "{text}");
 }
+
+/// A picture is read as its size, and shown at about a megapixel; a drawing
+/// is drawn first. What is no picture, or out of reach, is not shown.
+#[test]
+fn a_picture_is_read_as_its_size_and_shown_small() {
+    let lb = account();
+    let own = lb.create_at_path("/home/talk.chat").unwrap();
+    let put = |path: &str, bytes: &[u8]| {
+        let file = lb.create_at_path(path).unwrap();
+        lb.write_document(file.id, bytes).unwrap();
+    };
+    let mut photo = std::io::Cursor::new(Vec::new());
+    image::DynamicImage::new_rgb8(2000, 1500)
+        .write_to(&mut photo, image::ImageFormat::Png)
+        .unwrap();
+    put("/home/photo.png", &photo.into_inner());
+    put("/home/fake.png", b"not a picture");
+    put("/away/photo.png", b"");
+    let drawing = r#"<svg xmlns="http://www.w3.org/2000/svg" width="40" height="30"><rect width="10" height="10"/></svg>"#;
+    put("/home/drawing.svg", drawing.as_bytes());
+    let mut tools = VaultTools::new(lb.clone(), own.id);
+    tools.prepare(&Chat::default(), "u", "/home/");
+
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/photo.png"})));
+    assert!(ok && text.contains("is a picture, 2000 by 1500"), "{text}");
+    let shown = tools.media("/home/photo.png").unwrap();
+    let bytes = base64::decode(&shown.data).unwrap();
+    let small = image::load_from_memory(&bytes).unwrap();
+    assert_eq!(shown.mime, "image/jpeg");
+    assert!(small.width() * small.height() <= 1024 * 1024 && small.width() > 1000);
+
+    assert!(tools.media("/home/drawing.svg").is_some());
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/fake.png"})));
+    assert!(!ok && text.contains("could not be read as a picture"), "{text}");
+    assert!(tools.media("/away/photo.png").is_none());
+
+    // A PDF is read as its size and sent whole.
+    put("/home/paper.pdf", b"%PDF-1.4 and so on");
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/paper.pdf"})));
+    assert!(ok && text.contains("is a PDF"), "{text}");
+    let sent = tools.media("/home/paper.pdf").unwrap();
+    assert_eq!(sent.mime, "application/pdf");
+    assert_eq!(base64::decode(&sent.data).unwrap(), b"%PDF-1.4 and so on");
+}
+
+/// What the model made is kept in the chat's imports folder, and a name
+/// already taken there gets a number.
+#[test]
+fn what_was_made_is_kept_beside_the_chat() {
+    let lb = account();
+    let own = lb.create_at_path("/home/talk.chat").unwrap();
+    let mut tools = VaultTools::new(lb.clone(), own.id);
+    tools.prepare(&Chat::default(), "u", "/home/");
+    assert_eq!(tools.keep("a.png", b"one").unwrap(), "/home/imports/a.png");
+    assert_eq!(tools.keep("a.png", b"two").unwrap(), "/home/imports/a-2.png");
+    let second = lb.get_by_path("/home/imports/a-2.png").unwrap();
+    assert_eq!(lb.read_document(second.id, false).unwrap(), b"two");
+}
+
+/// A recording is read as the transcript note beside it; with none there
+/// and nobody set up to write one, the read says so.
+#[test]
+fn a_recording_is_read_as_its_transcript() {
+    let lb = account();
+    let own = lb.create_at_path("/home/talk.chat").unwrap();
+    let memo = lb.create_at_path("/home/memo.m4a").unwrap();
+    lb.write_document(memo.id, b"sound").unwrap();
+    let mut tools = VaultTools::new(lb.clone(), own.id);
+    tools.prepare(&Chat::default(), "u", "/home/");
+
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/memo.m4a"})));
+    assert!(!ok && text.contains("no provider that transcribes"), "{text}");
+    write(&lb, "/home/memo.m4a.transcript.md", "buy milk");
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/memo.m4a"})));
+    assert_eq!((text.as_str(), ok), ("buy milk", true));
+}

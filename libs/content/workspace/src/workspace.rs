@@ -1195,6 +1195,12 @@ impl Workspace {
     /// themselves. Non-clip events are left in the queue.
     pub fn process_clip_events(&mut self) {
         let Some(file_id) = self.current_tab().and_then(|tab| {
+            // A chat's composer takes a picture as a note does: imported
+            // beside the chat and linked, which attaches it.
+            #[cfg(not(target_family = "wasm"))]
+            if let Some(chat) = tab.chat() {
+                return chat.is_ready().then(|| chat.id());
+            }
             let md = tab.markdown()?;
             // image paste inserts `![](…)` markdown — skip when the
             // renderer can't display it as a real image.
@@ -1387,6 +1393,7 @@ impl Workspace {
                                     &self.core,
                                 );
                                 chat.persistence = Some(self.cfg.clone());
+                                chat.show_pictures(self.images.clone());
                                 tab.content = ContentState::Open(TabContent::Chat(chat));
                             } else {
                                 let chat = tab.chat_mut().unwrap();

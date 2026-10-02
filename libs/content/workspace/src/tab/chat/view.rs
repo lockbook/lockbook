@@ -18,6 +18,8 @@ use super::diff::Change;
 use super::setup::{Key as KeyNeed, OWN, TEMPLATES};
 use super::{Chat, IN_FLIGHT, Setup, rows};
 use crate::file_cache::FilesExt;
+use crate::resolvers::embed::EmbedResolver as _;
+use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::style::chrome::{display_file_name, file_row_icon, shortcut_enter, shortcut_esc};
 use crate::style::file_name;
 use crate::style::interact::{ControlFills, interact_fill_response, quiet_canvas_fills};
@@ -60,6 +62,8 @@ const WHEEL_REST_SECS: f64 = 0.15;
 const FADE: Space = Space::Lg;
 /// The least width of text that shares a row with the composer's controls.
 const MIN_BESIDE: f32 = 140.0;
+/// The tallest a picture is drawn in a card.
+const PICTURE_H: f32 = 360.0;
 /// The stop square's side: the weight of a glyph at body size.
 const STOP_SIDE: f32 = 10.0;
 
@@ -918,6 +922,19 @@ impl Chat {
             rows::Part::Text(text) => plain(ui, text, t.neutral_fg()),
             rows::Part::Line(text) => plain(ui, text, t.neutral_fg_secondary()),
             rows::Part::Diff(changes) => tool_diff(ui, t, col_w, changes, text_areas),
+            rows::Part::Picture(path) => {
+                let Some(images) = self.images.clone() else {
+                    return plain(ui, path, t.neutral_fg_secondary());
+                };
+                let drawn = ImageEmbedResolver::new(images, self.id);
+                let url = path.replace(' ', "%20");
+                // Whole, within the card's width and a screenful's height.
+                let size = drawn.size(&url);
+                let fit = (inner_w / size.x).min(PICTURE_H / size.y).min(1.0);
+                let (rect, _) = ui.allocate_exact_size(vec2(col_w, size.y * fit), Sense::hover());
+                let at = Rect::from_min_size(rect.min + vec2(pad, 0.0), size * fit);
+                drawn.show(ui, &url, at, CornerRadius::ZERO);
+            }
         }
     }
 
@@ -1130,6 +1147,10 @@ impl Chat {
         }
 
         let selection_before = self.composer.renderer.buffer.current.selection;
+        // What the workspace sends an editor, such as the link to a picture
+        // it just imported, is the composer's while a chat is the tab.
+        let sent = self.composer.drain_workspace_events(ui.ctx());
+        self.composer.event.internal_events.extend(sent);
         let input = self.composer.handle_input(ui.ctx(), composer_id);
         self.composer.show(ui, text_rect, composer_id);
 

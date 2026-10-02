@@ -28,9 +28,11 @@ use lb_rs::model::file_metadata::DocumentHmac;
 use tracing::error;
 
 use crate::file_cache::{FileCache, FilesExt};
+use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::resolvers::link::{FileCacheLinkResolver, LinkResolver as _, ResolvedLink};
 use crate::style::{Icon, phosphor};
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
+use crate::widgets::image_cache::ImageCache;
 use crate::workspace::WsPersistentStore;
 
 pub use setup::Setup;
@@ -91,6 +93,8 @@ pub struct Chat {
     pub busy: bool,
     streaming: String,
     streaming_label: MdLabel,
+    /// Draws the pictures that messages and quoted notes embed.
+    images: Option<ImageCache>,
     /// The message a finger last tapped: its actions show, as a pointer
     /// over it shows them.
     tapped: Option<Uuid>,
@@ -195,6 +199,7 @@ impl Chat {
             busy: false,
             streaming: String::new(),
             streaming_label,
+            images: None,
             tapped: None,
             persistence: None,
             placed: false,
@@ -627,27 +632,45 @@ impl Chat {
         }
     }
 
-    /// The label drawing a note quoted in card `id`. Its links resolve from
-    /// `from`, the note they were written in.
+    /// Gives the chat what draws embedded pictures, as a note has.
+    pub fn show_pictures(&mut self, images: ImageCache) {
+        let embeds = || Box::new(ImageEmbedResolver::new(images.clone(), self.id));
+        self.composer.renderer.embeds = embeds();
+        self.streaming_label.renderer.embeds = embeds();
+        self.images = Some(images);
+    }
+
+    pub fn id(&self) -> Uuid {
+        self.id
+    }
+
+    /// The label drawing a note quoted in card `id`. Its links and pictures
+    /// resolve from `from`, the note they were written in.
     fn label(&mut self, id: Uuid, from: Uuid) -> &mut MdLabel {
-        let (ctx, files) = (&self.ctx, &self.files);
+        let (ctx, files, images) = (&self.ctx, &self.files, &self.images);
         self.labels.entry(id).or_insert_with(|| {
             let mut label = MdLabel::new(ctx.clone());
             label.renderer.files = Arc::clone(files);
             label.renderer.link_resolver =
                 Box::new(FileCacheLinkResolver::new(Arc::clone(files), from));
+            if let Some(images) = images {
+                label.renderer.embeds = Box::new(ImageEmbedResolver::new(images.clone(), from));
+            }
             label
         })
     }
 
     fn reader(&mut self, id: Uuid, text: &str) -> &mut MdEdit {
-        let (ctx, files, chat_id) = (&self.ctx, &self.files, self.id);
+        let (ctx, files, chat_id, images) = (&self.ctx, &self.files, self.id, &self.images);
         let reader = self.readers.entry(id).or_insert_with(|| {
             let mut reader = MdEdit::empty(ctx.clone());
             reader.renderer.readonly = true;
             reader.renderer.files = Arc::clone(files);
             reader.renderer.link_resolver =
                 Box::new(FileCacheLinkResolver::new(Arc::clone(files), chat_id));
+            if let Some(images) = images {
+                reader.renderer.embeds = Box::new(ImageEmbedResolver::new(images.clone(), chat_id));
+            }
             reader.file_id = chat_id;
             reader
         });

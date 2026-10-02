@@ -71,6 +71,54 @@ const EFFORTS: &[(&str, &str, &[&str])] = &[
     ("openrouter.ai", "openai/gpt-5.5", &["none", "low", "medium", "high", "xhigh"]),
 ];
 
+/// Where a real request has shown a model to take a picture and say what
+/// is in it: host and models.
+const SEES: &[(&str, &[&str])] = &[
+    (
+        "api.anthropic.com",
+        &[
+            "claude-sonnet-5-5",
+            "claude-opus-5-5",
+            "claude-fable-5-1",
+            "claude-opus-5",
+            "claude-sonnet-5",
+            "claude-fable-5",
+            "claude-opus-4-8",
+            "claude-opus-4-7",
+            "claude-sonnet-4-6",
+            "claude-opus-4-6",
+            "claude-opus-4-5-20251101",
+            "claude-haiku-4-5-20251001",
+            "claude-sonnet-4-5-20250929",
+        ],
+    ),
+    (
+        "api.openai.com",
+        &["gpt-5.5", "gpt-5.4-mini", "gpt-5.6-terra", "gpt-6-luna", "gpt-6-astra", "gpt-6.1-sol"],
+    ),
+    ("api.x.ai", &["grok-4.7", "grok-4.3"]),
+    ("generativelanguage.googleapis.com", &["gemini-3.8-flash", "gemini-3.5-flash"]),
+    ("api.cerebras.ai", &["qwen-3.8-27b"]),
+    ("api.groq.com", &["qwen/qwen3.8-27b"]),
+    (
+        "openrouter.ai",
+        &[
+            "anthropic/claude-haiku-4.5",
+            "anthropic/claude-sonnet-5.5",
+            "anthropic/claude-opus-5.5",
+            "openai/gpt-5.5",
+        ],
+    ),
+];
+
+/// Hosts where every model that takes pictures has also been shown to read
+/// a PDF it is sent.
+const READS_PDFS: &[&str] = &["api.anthropic.com", "api.openai.com", "api.x.ai", "openrouter.ai"];
+
+/// Where a real request has made a picture at the images endpoint: host
+/// and the model that drew it.
+const DRAWS: &[(&str, &str)] = &[("api.x.ai", "grok-imagine-image")];
+
 /// Hosts of `Kind::OpenAi` that are spoken to through the Responses API.
 const RESPONSES: &[&str] = &["api.openai.com", "api.x.ai"];
 
@@ -143,6 +191,27 @@ impl Provider {
     /// Whether this provider is spoken to through the Responses API.
     pub fn responses(&self) -> bool {
         self.kind == Kind::OpenAi && RESPONSES.contains(&host(&self.base_url).as_str())
+    }
+
+    /// Whether this model has been shown to take pictures.
+    pub fn sees(&self) -> bool {
+        let host = host(&self.base_url);
+        SEES.iter()
+            .any(|(at, models)| *at == host && models.contains(&self.model.as_str()))
+    }
+
+    /// Whether this provider has been shown to read a PDF it is sent.
+    pub fn reads_pdfs(&self) -> bool {
+        READS_PDFS.contains(&host(&self.base_url).as_str()) && self.sees()
+    }
+
+    /// The model this provider makes pictures with at its images endpoint.
+    pub fn draws(&self) -> Option<&'static str> {
+        let host = host(&self.base_url);
+        DRAWS
+            .iter()
+            .find(|(at, _)| *at == host)
+            .map(|(_, model)| *model)
     }
 
     /// Whether the provider searches and reads the web itself, so that our
@@ -378,6 +447,24 @@ mod tests {
         assert_eq!(friendly_name("anthropic"), "Anthropic");
         assert_eq!(friendly_name("my-box"), "My-box");
     }
+    /// Only a model that was shown a picture and said what was in it is
+    /// sent one.
+    #[test]
+    fn only_a_tried_model_is_shown_pictures() {
+        let at = |base_url: &str, model: &str| {
+            let file = serde_json::json!({ "base_url": base_url }).to_string();
+            Provider::parse("p", model, file.as_bytes()).unwrap()
+        };
+        assert!(at("https://api.anthropic.com/v1", "claude-haiku-4-5-20251001").sees());
+        assert!(at("https://api.cerebras.ai/v1", "qwen-3.8-27b").sees());
+        assert!(!at("https://api.cerebras.ai/v1", "gpt-oss-120b").sees());
+        assert!(!at("http://pop-os:11435/v1", "k2-horizon-7b").sees());
+        // A PDF goes to fewer: Cerebras takes pictures and no documents.
+        assert!(at("https://api.anthropic.com/v1", "claude-haiku-4-5-20251001").reads_pdfs());
+        assert!(!at("https://api.cerebras.ai/v1", "qwen-3.8-27b").reads_pdfs());
+        assert!(!at("https://api.openai.com/v1", "gpt-9").reads_pdfs());
+    }
+
     /// The providers that search and read the web themselves are the two
     /// spoken to through Responses and Anthropic's own API.
     #[test]

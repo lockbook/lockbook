@@ -164,7 +164,7 @@ fn served(name: &str, input: &Value, content: &Value) -> Served {
             ("code", json!({ "code": code }), result.trim().to_string())
         }
     };
-    Served { name: name.into(), args, result, echo: None }
+    Served { name: name.into(), args, result, echo: None, file: None }
 }
 
 /// The blocks of a call Anthropic ran itself, when `call` is one and they
@@ -223,7 +223,15 @@ pub(super) fn body(provider: &Provider, req: &Request, max_tokens: u32) -> Value
                     .iter()
                     .filter(|r| !answered.contains(&r.id.as_str()))
                     .map(|r| {
-                        let mut b = json!({ "type": "tool_result", "tool_use_id": r.id, "content": r.text });
+                        // The text of the result, then whatever it read to be looked at.
+                        let seen = r.media.iter().map(|i| {
+                            let source = json!({ "type": "base64", "media_type": i.mime, "data": i.data });
+                            let kind = if i.is_pdf() { "document" } else { "image" };
+                            json!({ "type": kind, "source": source })
+                        });
+                        let content: Vec<Value> =
+                            [json!({ "type": "text", "text": r.text })].into_iter().chain(seen).collect();
+                        let mut b = json!({ "type": "tool_result", "tool_use_id": r.id, "content": content });
                         if !r.ok {
                             b["is_error"] = json!(true);
                         }
@@ -555,6 +563,7 @@ mod tests {
                     id: "t1".into(),
                     text: "r".into(),
                     ok: false,
+                    media: vec![],
                 }]),
             ],
             ..Default::default()
@@ -607,7 +616,12 @@ mod tests {
         let results = reply
             .calls
             .iter()
-            .map(|c| super::super::ToolResult { id: c.id.clone(), text: "r".into(), ok: true })
+            .map(|c| super::super::ToolResult {
+                id: c.id.clone(),
+                text: "r".into(),
+                ok: true,
+                media: vec![],
+            })
             .collect();
         req.turns
             .push(Turn::Assistant { text: reply.text.clone(), calls: reply.calls.clone() });
@@ -696,7 +710,12 @@ mod tests {
             args: ran.args.clone(),
             echo: ran.echo.clone(),
         };
-        let result = super::super::ToolResult { id: "line".into(), text: "kept".into(), ok: true };
+        let result = super::super::ToolResult {
+            id: "line".into(),
+            text: "kept".into(),
+            ok: true,
+            media: vec![],
+        };
         let mut req = asked(None);
         req.turns
             .push(Turn::Assistant { text: String::new(), calls: vec![call] });

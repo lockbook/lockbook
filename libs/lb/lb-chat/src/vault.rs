@@ -6,6 +6,8 @@
 
 use std::time::{Duration, Instant};
 
+use image::imageops::FilterType;
+use image::{DynamicImage, ImageFormat};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::chat::{Body, Chat, Mention};
@@ -13,19 +15,25 @@ use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::path_ops::Filter;
+use resvg::{tiny_skia, usvg};
 use serde_json::{Value, json};
 
 use crate::context::truncate;
 use crate::territory::{Territory, normalize};
-use crate::tools::{ToolOutcome, Tools};
+use crate::tools::{ToolOutcome, Tools, pictured};
+use crate::transcribe::{SIDECAR, recorded, transcribe, transcriber};
 use crate::web;
-use crate::wire::{Call, ToolSchema};
+use crate::wire::{Call, Media, PDF, ToolSchema};
 
 const SEARCH_HITS: usize = 20;
 const SNIPPET: usize = 80;
 const LIST_CAP: usize = 200;
 /// Above this, `read` answers with the outline unless a section was asked for.
 const LONG_NOTE: usize = 24 * 1024;
+/// The largest PDF that is sent to a model.
+const PDF_MAX: usize = 8 * 1024 * 1024;
+/// The size a picture is brought down to for a model: about a megapixel.
+const PICTURE_PIXELS: f32 = 1024.0 * 1024.0;
 /// Characters of a message's first line that name its section of a chat.
 const CHAT_HEADING: usize = 60;
 const INDEX_TTL: Duration = Duration::from_secs(30);
@@ -185,6 +193,30 @@ impl VaultTools {
 
     fn read(&mut self, args: &Value) -> ToolOutcome {
         let path = normalize(&str_arg(args, "path"));
+        if recorded(&path) {
+            return match self.heard(&path) {
+                Ok(said) => ToolOutcome::ok(said),
+                Err(e) => ToolOutcome::err(e),
+            };
+        }
+        if path.to_lowercase().ends_with(".pdf") {
+            return match self.pdf(&path) {
+                Ok(bytes) => {
+                    let kb = bytes.len().div_ceil(1024);
+                    ToolOutcome::ok(format!("{path} is a PDF, {kb} KB."))
+                }
+                Err(e) => ToolOutcome::err(e),
+            };
+        }
+        if pictured(&path) {
+            return match self.pixels(&path) {
+                Ok(picture) => {
+                    let (w, h) = (picture.width(), picture.height());
+                    ToolOutcome::ok(format!("{path} is a picture, {w} by {h}."))
+                }
+                Err(e) => ToolOutcome::err(e),
+            };
+        }
         let file = match self.visible_file(&path) {
             Ok(f) => f,
             Err(e) => return ToolOutcome::err(e),
@@ -220,6 +252,68 @@ impl VaultTools {
             ));
         }
         ToolOutcome::ok(text)
+    }
+
+    /// What is said in the recording at `path`: from the transcript note
+    /// beside it, written the first time it is asked for.
+    fn heard(&mut self, path: &str) -> Result<String, String> {
+        let file = self.visible_file(path)?;
+        let beside = format!("{path}{SIDECAR}");
+        if let Ok(Some(note)) = self.file_at(&beside) {
+            return self.text_of(&note, &beside);
+        }
+        let (provider, model) = transcriber(&self.lb)
+            .ok_or("no provider that transcribes recordings is set up; OpenAI does")?;
+        let bytes = self
+            .lb
+            .read_document(file.id, false)
+            .map_err(|e| e.to_string())?;
+        let said = transcribe(&provider, model, &file.name, bytes)?;
+        let note = self.lb.create_at_path(&beside).map_err(|e| e.to_string())?;
+        self.lb
+            .write_document(note.id, said.as_bytes())
+            .map_err(|e| e.to_string())?;
+        self.index = None;
+        Ok(said)
+    }
+
+    /// The PDF at `path`, if it is small enough to send whole.
+    fn pdf(&self, path: &str) -> Result<Vec<u8>, String> {
+        let file = self.visible_file(path)?;
+        let bytes = self
+            .lb
+            .read_document(file.id, false)
+            .map_err(|e| e.to_string())?;
+        if bytes.len() > PDF_MAX {
+            let mb = bytes.len() / (1024 * 1024);
+            return Err(format!("{path} is {mb} MB, too large to show"));
+        }
+        Ok(bytes)
+    }
+
+    /// The picture at `path`, decoded; a drawing is drawn on white.
+    fn pixels(&self, path: &str) -> Result<DynamicImage, String> {
+        let file = self.visible_file(path)?;
+        let bytes = self
+            .lb
+            .read_document(file.id, false)
+            .map_err(|e| e.to_string())?;
+        let unreadable = || format!("{path} could not be read as a picture");
+        if !path.to_lowercase().ends_with(".svg") {
+            return image::load_from_memory(&bytes).map_err(|_| unreadable());
+        }
+        let tree = usvg::Tree::from_data(&bytes, &Default::default(), &Default::default())
+            .map_err(|_| unreadable())?;
+        let size = tree.size();
+        let scale = (PICTURE_PIXELS / (size.width() * size.height()))
+            .sqrt()
+            .min(4.0);
+        let (w, h) = ((size.width() * scale).ceil() as u32, (size.height() * scale).ceil() as u32);
+        let mut pixmap = tiny_skia::Pixmap::new(w.max(1), h.max(1)).ok_or_else(unreadable)?;
+        pixmap.fill(tiny_skia::Color::WHITE);
+        resvg::render(&tree, tiny_skia::Transform::from_scale(scale, scale), &mut pixmap.as_mut());
+        let png = pixmap.encode_png().map_err(|_| unreadable())?;
+        image::load_from_memory(&png).map_err(|_| unreadable())
     }
 
     fn web_search(&mut self, args: &Value) -> ToolOutcome {
@@ -493,6 +587,49 @@ impl Tools for VaultTools {
             .collect()
     }
 
+    /// At most about a megapixel: as JPEG, or PNG where it has an alpha.
+    fn media(&mut self, path: &str) -> Option<Media> {
+        let path = normalize(path);
+        if path.to_lowercase().ends_with(".pdf") {
+            let data = base64::encode(self.pdf(&path).ok()?);
+            return Some(Media { mime: PDF.into(), data });
+        }
+        let mut picture = self.pixels(&path).ok()?;
+        let pixels = (picture.width() * picture.height()) as f32;
+        if pixels > PICTURE_PIXELS {
+            let scale = (PICTURE_PIXELS / pixels).sqrt();
+            let (w, h) = (picture.width() as f32 * scale, picture.height() as f32 * scale);
+            picture = picture.resize(w as u32, h as u32, FilterType::Triangle);
+        }
+        let mut bytes = std::io::Cursor::new(Vec::new());
+        let mime = if picture.color().has_alpha() {
+            picture.write_to(&mut bytes, ImageFormat::Png).ok()?;
+            "image/png"
+        } else {
+            let opaque = DynamicImage::ImageRgb8(picture.to_rgb8());
+            opaque.write_to(&mut bytes, ImageFormat::Jpeg).ok()?;
+            "image/jpeg"
+        };
+        Some(Media { mime: mime.into(), data: base64::encode(bytes.into_inner()) })
+    }
+
+    /// Beside the chat, where a pasted picture goes; a taken name gets a
+    /// number.
+    fn keep(&mut self, name: &str, bytes: &[u8]) -> Result<String, String> {
+        let (stem, ext) = name.rsplit_once('.').unwrap_or((name, "bin"));
+        let folder = format!("{}imports/", self.territory.working_dir);
+        let taken = |path: &str| self.lb.get_by_path(path).is_ok();
+        let numbered = (2..).map(|n| format!("{folder}{stem}-{n}.{ext}"));
+        let mut paths = std::iter::once(format!("{folder}{name}")).chain(numbered);
+        let path = paths.find(|path| !taken(path)).unwrap_or_default();
+        let file = self.lb.create_at_path(&path).map_err(|e| e.to_string())?;
+        self.lb
+            .write_document(file.id, bytes)
+            .map_err(|e| e.to_string())?;
+        self.index = None;
+        Ok(path)
+    }
+
     fn locate(&mut self, mention: &Mention) -> String {
         let moved = mention.id.and_then(|id| self.lb.get_path_by_id(id).ok());
         moved.unwrap_or_else(|| mention.path.clone())
@@ -686,7 +823,7 @@ pub fn schemas() -> Vec<ToolSchema> {
         ),
         schema(
             "read",
-            "Read a note. A long note answers with its headings and their sizes; pass section to read under one. A chat reads as a note with a heading per message.",
+            "Read a note. A long note answers with its headings and their sizes; pass section to read under one. A chat reads as a note with a heading per message. A picture, a drawing, or a PDF is shown to you; a recording is read as its transcript.",
             json!({
                 "path": { "type": "string", "description": "absolute path of the note" },
                 "section": { "type": "string", "description": "optional heading to read under; a distinct part of it is enough" },

@@ -19,7 +19,7 @@ use crate::provider::{Provider, host};
 const SERVER_TOOLS: &[(&str, &[&str], &[&str])] = &[
     (
         "api.openai.com",
-        &["web_search", "code_interpreter"],
+        &["web_search", "code_interpreter", "image_generation"],
         &["web_search_call.action.sources", "code_interpreter_call.outputs"],
     ),
     ("api.x.ai", &["web_search", "x_search", "code_interpreter"], &[]),
@@ -108,6 +108,7 @@ fn served(item: &Value) -> Option<Served> {
                     args,
                     result: String::new(),
                     echo: None,
+                    file: None,
                 });
             }
             action["query"].as_str()?;
@@ -117,7 +118,7 @@ fn served(item: &Value) -> Option<Served> {
                 .filter(|url| !url.is_empty());
             let result: String = urls.map(|url| link("", &url)).collect();
             let args = json!({ "query": action["query"] });
-            Some(Served { name: "web_search".into(), args, result, echo: None })
+            Some(Served { name: "web_search".into(), args, result, echo: None, file: None })
         }
         "code_interpreter_call" => {
             let logs = item["outputs"].as_array().into_iter().flatten();
@@ -131,12 +132,25 @@ fn served(item: &Value) -> Option<Served> {
                 .collect();
             let args = json!({ "code": item["code"] });
             let result = result.join("\n").trim().to_string();
-            Some(Served { name: "code".into(), args, result, echo: None })
+            Some(Served { name: "code".into(), args, result, echo: None, file: None })
+        }
+        "image_generation_call" => {
+            let bytes = base64::decode(item["result"].as_str()?).ok()?;
+            let ext = item["output_format"].as_str().unwrap_or("png").to_string();
+            let args = json!({ "prompt": item["revised_prompt"] });
+            let name = super::images::NAME.into();
+            Some(Served { name, args, result: String::new(), echo: None, file: Some((ext, bytes)) })
         }
         // xAI's searches of X come as calls to tools of its own.
         "custom_tool_call" if text(&item["name"]).starts_with("x_") => {
             let args = parse_args(&text(&item["input"]));
-            Some(Served { name: "x_search".into(), args, result: String::new(), echo: None })
+            Some(Served {
+                name: "x_search".into(),
+                args,
+                result: String::new(),
+                echo: None,
+                file: None,
+            })
         }
         _ => None,
     }
@@ -185,6 +199,21 @@ pub(crate) fn body(provider: &Provider, req: &Request) -> Value {
                         "call_id": r.id,
                         "output": r.text,
                     }));
+                }
+                // What a call read to be looked at follows as the user's.
+                let seen: Vec<Value> = results
+                    .iter()
+                    .flat_map(|r| &r.media)
+                    .map(|i| match i.is_pdf() {
+                        true => {
+                            let (name, data) = ("document.pdf", i.url());
+                            json!({ "type": "input_file", "filename": name, "file_data": data })
+                        }
+                        false => json!({ "type": "input_image", "image_url": i.url() }),
+                    })
+                    .collect();
+                if !seen.is_empty() {
+                    input.push(json!({ "role": "user", "content": seen }));
                 }
             }
         }
@@ -527,7 +556,8 @@ mod tests {
             args: json!({"path": "/a"}),
             echo: Some(echo),
         };
-        let failed = ToolResult { id: "c1".into(), text: "no such note".into(), ok: false };
+        let failed =
+            ToolResult { id: "c1".into(), text: "no such note".into(), ok: false, media: vec![] };
         let turns = || {
             vec![
                 Turn::User("u".into()),
@@ -663,6 +693,17 @@ mod tests {
         assert_eq!(out.served[0].result, sources);
     }
 
+    /// A picture the provider made comes back as its bytes, to be kept.
+    #[test]
+    fn a_picture_the_provider_made_comes_as_a_file() {
+        let made = json!({ "type": "image_generation_call", "result": "AAEC",
+            "output_format": "png", "revised_prompt": "a red circle" });
+        let made = served(&made).unwrap();
+        assert_eq!(made.name, "generate_image");
+        assert_eq!(made.args, json!({ "prompt": "a red circle" }));
+        assert_eq!(made.file, Some(("png".into(), vec![0, 1, 2])));
+    }
+
     /// Each host is offered the tools it runs itself, beside ours.
     #[test]
     fn each_host_is_offered_its_own_tools() {
@@ -674,7 +715,8 @@ mod tests {
                 .map(|t| t["type"].as_str().unwrap().to_string())
                 .collect()
         };
-        assert_eq!(kinds("https://api.openai.com/v1"), ["web_search", "code_interpreter"]);
+        let openai = ["web_search", "code_interpreter", "image_generation"];
+        assert_eq!(kinds("https://api.openai.com/v1"), openai);
         assert_eq!(kinds("https://api.x.ai/v1"), ["web_search", "x_search", "code_interpreter"]);
         assert!(kinds("http://localhost:1/v1").is_empty());
     }
