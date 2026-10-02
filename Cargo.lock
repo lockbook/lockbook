@@ -4218,6 +4218,21 @@ dependencies = [
 ]
 
 [[package]]
+name = "lb-chat"
+version = "26.9.25"
+dependencies = [
+ "chrono",
+ "futures",
+ "lb-rs",
+ "reqwest",
+ "serde",
+ "serde_json",
+ "tokio",
+ "tracing",
+ "uuid 1.24.0",
+]
+
+[[package]]
 name = "lb-fonts"
 version = "0.2.0"
 source = "git+https://github.com/lockbook/lb-fonts#65830f0f1597ce3ffd8968f9c7b4891e03023ca9"
@@ -4539,6 +4554,7 @@ dependencies = [
  "colored 3.1.1",
  "fs_extra",
  "is-terminal",
+ "lb-chat",
  "lb-fs",
  "lb-rs",
  "notify",

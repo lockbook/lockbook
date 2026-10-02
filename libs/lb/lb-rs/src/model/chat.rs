@@ -289,9 +289,13 @@ impl Chat {
         out.into_bytes()
     }
 
-    pub fn push(&mut self, entry: Entry) {
+    /// Appends at the end: a timestamp that doesn't exceed the last entry's is
+    /// bumped, so commit order within one writer is file order.
+    pub fn push(&mut self, mut entry: Entry) {
+        if let Some(last) = self.entries.last() {
+            entry.ts = entry.ts.max(last.ts + 1);
+        }
         self.entries.push(entry);
-        sort(&mut self.entries);
     }
 
     /// Removes `id` and everything after it. Returns whether `id` was present.
@@ -440,6 +444,16 @@ mod tests {
         let out = String::from_utf8(chat.serialize()).unwrap();
         assert!(out.contains("\"emoji\":\"x\""), "{out}");
         assert!(out.contains("\"mood\":3"), "{out}");
+        assert_eq!(Chat::parse(&chat.serialize()), chat);
+    }
+
+    #[test]
+    fn push_keeps_commit_order_within_a_millisecond() {
+        let mut chat = Chat::default();
+        chat.push(at(5, Entry::user("a", "first")));
+        chat.push(at(5, Entry::user("a", "second")));
+        chat.push(at(1, Entry::user("a", "third")));
+        assert_eq!(texts(&chat.serialize()), ["first", "second", "third"]);
         assert_eq!(Chat::parse(&chat.serialize()), chat);
     }
 
