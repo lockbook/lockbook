@@ -31,10 +31,10 @@ pub struct Template {
 
 const DEFAULT_PATH: &str = "/.agent/default.json";
 
-/// Hosted providers: a company runs the model and issues a key. On a Mac,
-/// the device's own model comes first, wanting nothing.
+/// Hosted providers: a company runs the model and issues a key. On an
+/// Apple device, its own model comes first, wanting nothing.
 pub const TEMPLATES: &[Template] = &[
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "ios"))]
     Template {
         name: "apple",
         label: "Apple Intelligence",

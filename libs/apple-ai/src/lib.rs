@@ -53,6 +53,33 @@ fn registry() -> &'static Mutex<Registry> {
     REQUESTS.get_or_init(Default::default)
 }
 
+/// What the bridge calls back with: request id, event kind (0 text, 1
+/// done, 2 error, 3 tool call), and the event's bytes.
+pub type Callback = extern "C" fn(u64, u32, *const u8, usize);
+
+/// The bridge's four entry points, as a host that holds the Swift side
+/// itself (an app on iOS) registers them. A Mac binary links them in.
+#[repr(C)]
+#[derive(Clone, Copy)]
+pub struct Hooks {
+    pub availability: unsafe extern "C" fn(u64, Callback),
+    pub start: unsafe extern "C" fn(u64, *const u8, usize, Callback),
+    pub cancel: unsafe extern "C" fn(u64),
+    pub tool_result: unsafe extern "C" fn(u64, *const u8, usize),
+}
+
+static HOOKS: Mutex<Option<Hooks>> = Mutex::new(None);
+
+/// Registers the host's bridge; once per process is enough.
+pub fn register(hooks: Hooks) {
+    *HOOKS.lock().unwrap_or_else(|e| e.into_inner()) = Some(hooks);
+}
+
+#[cfg(not(apple_ai_native))]
+fn hooks() -> Option<Hooks> {
+    *HOOKS.lock().unwrap_or_else(|e| e.into_inner())
+}
+
 pub struct Request {
     id: u64,
     events: UnboundedReceiver<Event>,
@@ -82,6 +109,10 @@ impl Request {
         unsafe {
             lb_apple_ai_tool_result(self.id, bytes.as_ptr(), bytes.len());
         }
+        #[cfg(not(apple_ai_native))]
+        if let Some(hooks) = hooks() {
+            unsafe { (hooks.tool_result)(self.id, bytes.as_ptr(), bytes.len()) };
+        }
         Ok(())
     }
 
@@ -103,6 +134,10 @@ impl Drop for Request {
         unsafe {
             lb_apple_ai_cancel(self.id)
         };
+        #[cfg(not(apple_ai_native))]
+        if let Some(hooks) = hooks() {
+            unsafe { (hooks.cancel)(self.id) };
+        }
     }
 }
 
@@ -119,7 +154,6 @@ fn deliver(id: u64, event: Event) {
 
 // Swift invokes this synchronously while the byte buffer is alive. No user code
 // runs here. The panic boundary prevents unwinding across the C ABI.
-#[cfg(apple_ai_native)]
 extern "C" fn receive(id: u64, kind: u32, bytes: *const u8, len: usize) {
     let _ = std::panic::catch_unwind(|| {
         let text = if len == 0 {
@@ -156,6 +190,10 @@ unsafe extern "C" {
     fn lb_apple_ai_tool_result(id: u64, bytes: *const u8, len: usize);
 }
 
+/// Said where neither a linked bridge nor a registered one is there.
+#[cfg(not(apple_ai_native))]
+const NOT_HERE: &str = "Apple Intelligence is not in this build";
+
 pub fn availability() -> Result<(), String> {
     let mut request = Request::register();
     #[cfg(apple_ai_native)]
@@ -163,7 +201,10 @@ pub fn availability() -> Result<(), String> {
         lb_apple_ai_availability(request.id, receive)
     };
     #[cfg(not(apple_ai_native))]
-    deliver(request.id, Event::Error("Apple Intelligence requires an Apple Silicon Mac and a build made with Xcode 26 or newer. This build does not include native inference.".into()));
+    match hooks() {
+        Some(hooks) => unsafe { (hooks.availability)(request.id, receive) },
+        None => deliver(request.id, Event::Error(NOT_HERE.into())),
+    }
     // The bridge answers before returning, so nothing waits here, and the
     // caller may be inside a runtime.
     match request.events.try_recv().ok() {
@@ -185,7 +226,10 @@ pub fn start(input: Input) -> Result<Request, String> {
         lb_apple_ai_start(request.id, bytes.as_ptr(), bytes.len(), receive)
     };
     #[cfg(not(apple_ai_native))]
-    deliver(request.id, Event::Error("Apple Intelligence is unavailable in this build. Use an Apple Silicon Mac built with Xcode 26 or newer.".into()));
+    match hooks() {
+        Some(hooks) => unsafe { (hooks.start)(request.id, bytes.as_ptr(), bytes.len(), receive) },
+        None => deliver(request.id, Event::Error(NOT_HERE.into())),
+    }
     Ok(request)
 }
 

@@ -121,6 +121,7 @@
         public func setInitialContent(_ coreHandle: UnsafeMutableRawPointer?) {
             let metalLayer = UnsafeMutableRawPointer(Unmanaged.passUnretained(layer!).toOpaque())
             claimedPersistence = true
+            AppleIntelligence.register()
             wsHandle = init_ws(coreHandle, metalLayer, isDarkMode(), WorkspacePersistence.claim())
             workspaceInput?.wsHandle = wsHandle
             if let wsHandle {
