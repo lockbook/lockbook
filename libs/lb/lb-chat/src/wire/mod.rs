@@ -1,8 +1,10 @@
-//! Provider-neutral request and completion types, and the two wire dialects
-//! that carry them: OpenAI-compatible chat completions and Anthropic messages.
+//! Provider-neutral request and completion types, and the three wire
+//! dialects that carry them: OpenAI-compatible chat completions, the
+//! Responses API, and Anthropic messages.
 
 pub mod anthropic;
 pub mod openai;
+pub mod responses;
 
 use std::time::Duration;
 
@@ -68,10 +70,23 @@ pub enum Piece {
     Thinking(String),
 }
 
+/// A call the provider made and answered itself: a web search, code it ran.
+#[derive(Clone, Debug, PartialEq)]
+pub struct Served {
+    pub name: String,
+    pub args: Value,
+    /// What came of it, as markdown: sources as a list of links, output as text.
+    pub result: String,
+    /// What the provider wants back to stand by what it then said.
+    pub echo: Option<Echo>,
+}
+
 #[derive(Debug, Default)]
 pub struct Completion {
     pub text: String,
     pub thinking: String,
+    /// In the order the provider made them, all before `text`.
+    pub served: Vec<Served>,
     pub calls: Vec<Call>,
     pub usage: Usage,
 }
@@ -85,9 +100,20 @@ pub async fn complete(
     client: &reqwest::Client, provider: &Provider, req: &Request, deltas: &UnboundedSender<Piece>,
 ) -> Result<Completion, String> {
     match provider.kind {
+        Kind::OpenAi if provider.responses() => {
+            responses::complete(client, provider, req, deltas).await
+        }
         Kind::OpenAi => openai::complete(client, provider, req, deltas).await,
         Kind::Anthropic => anthropic::complete(client, provider, req, deltas).await,
     }
+}
+
+/// A source as a line of a markdown list; one with no title of its own is
+/// named for its address.
+pub(crate) fn link(title: &str, url: &str) -> String {
+    let bare = url.split("://").last().unwrap_or(url).trim_end_matches('/');
+    let named = !title.is_empty() && title.parse::<u32>().is_err();
+    format!("- [{}]({url})\n", if named { title } else { bare })
 }
 
 /// Empty text is `{}`; malformed text is wrapped as `{"raw": text}` so the

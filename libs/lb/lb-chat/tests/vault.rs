@@ -216,3 +216,31 @@ fn a_long_note_without_headings_reads_from_its_start() {
     let (text, ok) = done(call(&mut tools, "read", args));
     assert!(!ok && text.contains("has no headings"), "{text}");
 }
+
+/// A search is offered once an engine is set up, and a page is fetched only
+/// from an address the chat was given, not one the model made up.
+#[test]
+fn the_web_is_reached_by_what_the_user_set_up_and_gave() {
+    let lb = account();
+    let own = lb.create_at_path("/home/talk.chat").unwrap();
+    let mut tools = VaultTools::new(lb.clone(), own.id);
+    let names = |tools: &VaultTools| -> Vec<String> {
+        tools.schemas().into_iter().map(|s| s.name).collect()
+    };
+    let mut chat = Chat::default();
+    tools.prepare(&chat, "u", "/home/");
+    assert!(names(&tools).contains(&"fetch".to_string()));
+    assert!(!names(&tools).contains(&"web_search".to_string()));
+
+    write(&lb, "/.agent/search/brave.json", r#"{"kind":"brave","api_key":"k"}"#);
+    chat.push(Entry::user("u", "see http://127.0.0.1:9/page for it"));
+    tools.prepare(&chat, "u", "/home/");
+    assert!(names(&tools).contains(&"web_search".to_string()));
+
+    let made_up = json!({"url": "http://127.0.0.1:9/page?leak=secret"});
+    let (text, ok) = done(call(&mut tools, "fetch", made_up));
+    assert!(!ok && text.contains("is not an address the user gave"), "{text}");
+    let given = json!({"url": "http://127.0.0.1:9/page"});
+    let (text, ok) = done(call(&mut tools, "fetch", given));
+    assert!(!ok && text.contains("can't reach"), "{text}");
+}

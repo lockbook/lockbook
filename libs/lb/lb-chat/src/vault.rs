@@ -18,6 +18,7 @@ use serde_json::{Value, json};
 use crate::context::truncate;
 use crate::territory::{Territory, normalize};
 use crate::tools::{ToolOutcome, Tools};
+use crate::web;
 use crate::wire::{Call, ToolSchema};
 
 const SEARCH_HITS: usize = 20;
@@ -40,6 +41,11 @@ pub struct VaultTools {
     chat: Uuid,
     territory: Territory,
     index: Option<(Instant, Vec<Doc>)>,
+    /// Where a web search goes, if the user has set an engine up.
+    engine: Option<web::Engine>,
+    /// What people said and tools returned in this chat: where an address
+    /// has to have come from to be fetched.
+    given: Vec<String>,
 }
 
 struct Doc {
@@ -49,7 +55,8 @@ struct Doc {
 
 impl VaultTools {
     pub fn new(lb: Lb, chat: Uuid) -> Self {
-        Self { lb, chat, territory: Territory::default(), index: None }
+        let (territory, given) = (Territory::default(), Vec::new());
+        Self { lb, chat, territory, index: None, engine: None, given }
     }
 
     pub fn territory(&self) -> &Territory {
@@ -213,6 +220,33 @@ impl VaultTools {
             ));
         }
         ToolOutcome::ok(text)
+    }
+
+    fn web_search(&mut self, args: &Value) -> ToolOutcome {
+        let Some(engine) = &self.engine else {
+            return ToolOutcome::err(format!("no search engine is set up in {}", web::ENGINES));
+        };
+        match engine.search(&str_arg(args, "query")) {
+            Ok(found) => ToolOutcome::ok(found),
+            Err(e) => ToolOutcome::err(e),
+        }
+    }
+
+    /// An address the model composed could carry what it has read out with
+    /// it, so only one that was given to it is fetched.
+    fn fetch(&mut self, args: &Value) -> ToolOutcome {
+        let url = str_arg(args, "url");
+        let bare = url.trim_end_matches('/');
+        if bare.is_empty() || !self.given.iter().any(|text| text.contains(bare)) {
+            return ToolOutcome::err(format!(
+                "{url} is not an address the user gave or a search, a page, or a note contained"
+            ));
+        }
+        let start = args.get("start").and_then(Value::as_u64).unwrap_or(0);
+        match web::fetch(&url, start as usize) {
+            Ok(text) => ToolOutcome::ok(text),
+            Err(e) => ToolOutcome::err(e),
+        }
     }
 
     fn list(&mut self, args: &Value) -> ToolOutcome {
@@ -405,7 +439,8 @@ impl VaultTools {
 
 impl Tools for VaultTools {
     fn schemas(&self) -> Vec<ToolSchema> {
-        schemas()
+        let web = web::schemas(self.engine.is_some());
+        schemas().into_iter().chain(web).collect()
     }
 
     fn prepare(&mut self, chat: &Chat, user: &str, working_dir: &str) {
@@ -416,6 +451,13 @@ impl Tools for VaultTools {
             self.index = None;
         }
         self.territory = territory;
+        self.engine = web::Engine::load(&self.lb);
+        let given = chat.entries.iter().filter_map(|e| match &e.body {
+            Body::User { text, .. } => Some(text.clone()),
+            Body::Tool { result, .. } => Some(result.clone()),
+            _ => None,
+        });
+        self.given = given.collect();
     }
 
     fn call(&mut self, call: &Call) -> ToolOutcome {
@@ -428,6 +470,8 @@ impl Tools for VaultTools {
             "create" => self.create(args),
             "move" => self.mv(args),
             "delete" => self.delete(args),
+            web::SEARCH => self.web_search(args),
+            web::FETCH => self.fetch(args),
             other => ToolOutcome::err(format!("no tool named {other}")),
         }
     }

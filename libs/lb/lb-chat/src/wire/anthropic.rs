@@ -8,8 +8,10 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Call, Completion, Echo, Piece, Request, STREAM_IDLE, Sse, Turn, parse_args, send};
-use crate::provider::Provider;
+use super::{
+    Call, Completion, Echo, Piece, Request, STREAM_IDLE, Served, Sse, Turn, link, parse_args, send,
+};
+use crate::provider::{Provider, host};
 
 const MAX_TOKENS: u32 = 16_384;
 const SMALL_MAX_TOKENS: u32 = 4096;
@@ -20,6 +22,14 @@ const THINKING_MAX_TOKENS: u32 = 64_000;
 const THINKING_BUDGET: u32 = 4096;
 /// Sent with a thinking request: thinking between tool calls where a budget
 /// model can, and leave to drop a block instead of refusing the request.
+const ANTHROPIC: &str = "api.anthropic.com";
+/// Tools Anthropic runs itself, tried with a real request: type and name.
+const SERVER_TOOLS: &[(&str, &str)] = &[
+    ("web_search_20250305", "web_search"),
+    ("web_fetch_20250910", "web_fetch"),
+    ("code_execution_20250825", "code_execution"),
+];
+const SERVER_BETAS: &str = "web-fetch-2025-09-10,code-execution-2025-08-25";
 const THINKING_BETAS: &str = "interleaved-thinking-2025-05-14,thinking-binding-controls-2026-08-01";
 
 #[derive(Deserialize)]
@@ -57,6 +67,11 @@ struct Block {
     /// A `redacted_thinking` block's sealed contents.
     #[serde(default)]
     data: Option<String>,
+    /// The call a result block answers, and what it answers with.
+    #[serde(default)]
+    tool_use_id: Option<String>,
+    #[serde(default)]
+    content: Value,
 }
 
 #[derive(Deserialize)]
@@ -130,7 +145,44 @@ struct WireError {
     message: String,
 }
 
+/// What the provider ran itself, from its call and the result block.
+fn served(name: &str, input: &Value, content: &Value) -> Served {
+    let text = |v: &Value| v.as_str().unwrap_or_default().to_string();
+    let (name, args, result) = match name {
+        "web_search" => {
+            let found = content.as_array().into_iter().flatten();
+            let result = found
+                .map(|r| link(&text(&r["title"]), &text(&r["url"])))
+                .collect();
+            ("web_search", json!({ "query": input["query"] }), result)
+        }
+        "web_fetch" => ("fetch", json!({ "url": input["url"] }), String::new()),
+        _ => {
+            let code =
+                if input["command"].is_string() { &input["command"] } else { &input["code"] };
+            let result = text(&content["stdout"]) + &text(&content["stderr"]);
+            ("code", json!({ "code": code }), result.trim().to_string())
+        }
+    };
+    Served { name: name.into(), args, result, echo: None }
+}
+
+/// The blocks of a call Anthropic ran itself, when `call` is one and they
+/// were kept for this provider: they go back in place of the call.
+fn kept<'a>(provider: &Provider, call: &'a Call) -> Option<&'a Vec<Value>> {
+    let echo = call.echo.as_ref().filter(|e| e.provider == provider.name)?;
+    echo.content["served"].as_array()
+}
+
 pub(super) fn body(provider: &Provider, req: &Request, max_tokens: u32) -> Value {
+    let calls = req.turns.iter().flat_map(|turn| match turn {
+        Turn::Assistant { calls, .. } => calls.as_slice(),
+        _ => &[],
+    });
+    let answered: Vec<&str> = calls
+        .filter(|c| kept(provider, c).is_some())
+        .map(|c| c.id.as_str())
+        .collect();
     let messages: Vec<Value> = req
         .turns
         .iter()
@@ -156,15 +208,20 @@ pub(super) fn body(provider: &Provider, req: &Request, max_tokens: u32) -> Value
                 }
                 blocks.extend(at(Some(true), 0));
                 for (n, c) in calls.iter().enumerate() {
-                    blocks.push(json!({ "type": "tool_use", "id": c.id, "name": c.name, "input": c.args }));
+                    match kept(provider, c) {
+                        Some(own) => blocks.extend(own.iter().cloned()),
+                        None => blocks.push(json!({ "type": "tool_use", "id": c.id, "name": c.name, "input": c.args })),
+                    }
                     blocks.extend(at(None, n + 1));
                 }
                 json!({ "role": "assistant", "content": blocks })
             }
             Turn::Assistant { text, .. } => json!({ "role": "assistant", "content": text }),
             Turn::ToolResults(results) => {
+                // A call that went back with its own result has none here.
                 let blocks: Vec<Value> = results
                     .iter()
+                    .filter(|r| !answered.contains(&r.id.as_str()))
                     .map(|r| {
                         let mut b = json!({ "type": "tool_result", "tool_use_id": r.id, "content": r.text });
                         if !r.ok {
@@ -173,9 +230,13 @@ pub(super) fn body(provider: &Provider, req: &Request, max_tokens: u32) -> Value
                         b
                     })
                     .collect();
+                if blocks.is_empty() {
+                    return Value::Null;
+                }
                 json!({ "role": "user", "content": blocks })
             }
         })
+        .filter(|message| !message.is_null())
         .collect();
 
     let mut body = json!({
@@ -196,6 +257,13 @@ pub(super) fn body(provider: &Provider, req: &Request, max_tokens: u32) -> Value
             .iter()
             .map(|t| json!({ "name": t.name, "description": t.description, "input_schema": t.parameters }))
             .collect();
+    }
+    if host(&provider.base_url) == ANTHROPIC {
+        let tools = body["tools"].as_array().cloned().unwrap_or_default();
+        let own = SERVER_TOOLS
+            .iter()
+            .map(|(kind, name)| json!({ "type": kind, "name": name }));
+        body["tools"] = tools.into_iter().chain(own).collect();
     }
     // "on" is a model that thinks against a budget, which must fit under
     // the output cap; any other value is an effort for one that paces
@@ -227,8 +295,15 @@ pub async fn complete(
         .clone()
         .ok_or("this provider needs an API key")?;
     let mut headers = vec![("x-api-key", key), ("anthropic-version", "2023-06-01".into())];
+    let mut betas = Vec::new();
+    if host(&provider.base_url) == ANTHROPIC {
+        betas.push(SERVER_BETAS);
+    }
     if req.effort.is_some() {
-        headers.push(("anthropic-beta", THINKING_BETAS.into()));
+        betas.push(THINKING_BETAS);
+    }
+    if !betas.is_empty() {
+        headers.push(("anthropic-beta", betas.join(",")));
     }
     let url = format!("{}/messages", provider.base_url);
 
@@ -244,6 +319,8 @@ pub async fn complete(
     // index → (id, name, accumulated json)
     let mut blocks: BTreeMap<usize, (String, String, String)> = BTreeMap::new();
     let mut thoughts: BTreeMap<usize, Thought> = BTreeMap::new();
+    // Calls the provider answers itself, like `blocks`.
+    let mut asks: BTreeMap<usize, (String, String, String)> = BTreeMap::new();
     let mut after_text = false;
     // The block the last thinking text came in.
     let mut thinking_in: Option<usize> = None;
@@ -289,6 +366,32 @@ pub async fn complete(
                             let sealed = json!({ "type": "redacted_thinking", "data": block.data });
                             thoughts.insert(index, thought(sealed));
                         }
+                        "server_tool_use" => {
+                            let asked = (
+                                block.id.unwrap_or_default(),
+                                block.name.unwrap_or_default(),
+                                String::new(),
+                            );
+                            asks.insert(index, asked);
+                        }
+                        // A result names the call of the provider's own
+                        // that it answers.
+                        kind if kind.ends_with("_tool_result") => {
+                            let asked = asks
+                                .values()
+                                .find(|(id, ..)| Some(id) == block.tool_use_id.as_ref());
+                            if let Some((id, name, input)) = asked {
+                                let input = parse_args(input);
+                                let mut ran = served(name, &input, &block.content);
+                                let own = json!([
+                                    { "type": "server_tool_use", "id": id, "name": name, "input": input },
+                                    { "type": kind, "tool_use_id": id, "content": block.content },
+                                ]);
+                                let content = json!({ "served": own });
+                                ran.echo = Some(Echo { provider: provider.name.clone(), content });
+                                out.served.push(ran);
+                            }
+                        }
                         _ => {}
                     }
                 }
@@ -310,7 +413,8 @@ pub async fn complete(
                         let _ = deltas.send(Piece::Thinking(text));
                     }
                     if let Some(fragment) = delta.partial_json {
-                        if let Some((_, _, args)) = event.index.and_then(|i| blocks.get_mut(&i)) {
+                        let at = event.index.unwrap_or(0);
+                        if let Some((_, _, args)) = blocks.get_mut(&at).or(asks.get_mut(&at)) {
                             args.push_str(&fragment);
                         }
                     }
@@ -564,5 +668,51 @@ mod tests {
         assert_eq!(sent(None, MAX_TOKENS)["thinking"], Value::Null);
         // A budget that would not fit under the output cap is not asked for.
         assert_eq!(sent(Some("on"), SMALL_MAX_TOKENS)["thinking"], Value::Null);
+    }
+    /// A search Anthropic ran itself comes back as a served call with its
+    /// sources, keeps the blocks it came as, and they go back in the call's
+    /// place with no result of ours after them.
+    #[test]
+    fn what_anthropic_ran_goes_back_as_it_came() {
+        const SSE: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+            data: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"server_tool_use\",\"id\":\"s1\",\"name\":\"web_search\",\"input\":{}}}\n\n\
+            data: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"input_json_delta\",\"partial_json\":\"{\\\"query\\\":\\\"rust\\\"}\"}}\n\n\
+            data: {\"type\":\"content_block_start\",\"index\":1,\"content_block\":{\"type\":\"web_search_tool_result\",\"tool_use_id\":\"s1\",\"content\":[{\"type\":\"web_search_result\",\"title\":\"Rust\",\"url\":\"https://r.test\",\"encrypted_content\":\"E\"}]}}\n\n\
+            data: {\"type\":\"content_block_start\",\"index\":2,\"content_block\":{\"type\":\"text\"}}\n\n\
+            data: {\"type\":\"content_block_delta\",\"index\":2,\"delta\":{\"type\":\"text_delta\",\"text\":\"1.99\"}}\n\n\
+            data: {\"type\":\"message_stop\"}\n\n";
+        let url = mock::serve_once(SSE);
+        let reply = run(&url, asked(None)).0.unwrap();
+        let ran = &reply.served[0];
+        assert_eq!(
+            (ran.name.as_str(), ran.result.as_str()),
+            ("web_search", "- [Rust](https://r.test)\n")
+        );
+        assert_eq!(ran.args, json!({ "query": "rust" }));
+
+        let call = Call {
+            id: "line".into(),
+            name: ran.name.clone(),
+            args: ran.args.clone(),
+            echo: ran.echo.clone(),
+        };
+        let result = super::super::ToolResult { id: "line".into(), text: "kept".into(), ok: true };
+        let mut req = asked(None);
+        req.turns
+            .push(Turn::Assistant { text: String::new(), calls: vec![call] });
+        req.turns.push(Turn::ToolResults(vec![result]));
+        req.turns
+            .push(Turn::Assistant { text: "1.99".into(), calls: vec![] });
+        let again = body(&provider(&url), &req, MAX_TOKENS);
+        let messages = again["messages"].as_array().unwrap();
+        assert_eq!(messages.len(), 3, "no result of ours follows");
+        let kinds: Vec<&str> = messages[1]["content"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|b| b["type"].as_str().unwrap())
+            .collect();
+        assert_eq!(kinds, ["server_tool_use", "web_search_tool_result"]);
+        assert_eq!(messages[1]["content"][1]["content"][0]["encrypted_content"], "E");
     }
 }

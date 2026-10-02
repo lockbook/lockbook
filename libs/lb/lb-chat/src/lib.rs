@@ -12,6 +12,7 @@ pub mod store;
 pub mod territory;
 pub mod tools;
 pub mod vault;
+pub mod web;
 pub mod wire;
 
 #[cfg(test)]

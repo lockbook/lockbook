@@ -4075,6 +4075,7 @@ dependencies = [
  "futures",
  "lb-rs",
  "reqwest",
+ "scraper",
  "serde",
  "serde_json",
  "test_utils",

@@ -37,8 +37,14 @@ pub struct Provider {
 /// host, model, and the values it took, least thinking first. Everything
 /// else runs at its provider's default until it has been tried.
 const EFFORTS: &[(&str, &str, &[&str])] = &[
-    ("api.x.ai", "grok-4.7", &["low", "medium", "high", "xhigh"]),
-    ("api.x.ai", "grok-4.3", &["none", "low", "medium", "high", "xhigh"]),
+    ("api.openai.com", "gpt-5.5", &["none", "low", "medium", "high", "xhigh"]),
+    ("api.openai.com", "gpt-5.4-mini", &["none", "low", "medium", "high", "xhigh"]),
+    ("api.openai.com", "gpt-5.6-terra", &["none", "low", "medium", "high", "xhigh", "max"]),
+    ("api.openai.com", "gpt-6-luna", &["none", "low", "medium", "high", "xhigh", "max"]),
+    ("api.openai.com", "gpt-6-astra", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.openai.com", "gpt-6.1-sol", &["low", "medium", "high", "xhigh", "max"]),
+    ("api.x.ai", "grok-4.7", &["minimal", "low", "medium", "high", "xhigh"]),
+    ("api.x.ai", "grok-4.3", &["none", "minimal", "low", "medium", "high", "xhigh"]),
     ("generativelanguage.googleapis.com", "gemini-3.8-flash", &["none", "low", "medium", "high"]),
     ("generativelanguage.googleapis.com", "gemini-3.5-flash", &["none", "low", "medium", "high"]),
     ("api.cerebras.ai", "qwen-3.8-27b", &["none", "low", "medium", "high"]),
@@ -64,6 +70,9 @@ const EFFORTS: &[(&str, &str, &[&str])] = &[
     ("openrouter.ai", "anthropic/claude-opus-5.5", &["low", "medium", "high", "xhigh", "max"]),
     ("openrouter.ai", "openai/gpt-5.5", &["none", "low", "medium", "high", "xhigh"]),
 ];
+
+/// Hosts of `Kind::OpenAi` that are spoken to through the Responses API.
+const RESPONSES: &[&str] = &["api.openai.com", "api.x.ai"];
 
 #[derive(Deserialize)]
 struct ProviderFile {
@@ -129,6 +138,17 @@ impl Provider {
             .iter()
             .find(|(at, model, _)| *at == host && *model == self.model)
             .map_or(&[], |(_, _, values)| values)
+    }
+
+    /// Whether this provider is spoken to through the Responses API.
+    pub fn responses(&self) -> bool {
+        self.kind == Kind::OpenAi && RESPONSES.contains(&host(&self.base_url).as_str())
+    }
+
+    /// Whether the provider searches and reads the web itself, so that our
+    /// own tools for it would only be in its way.
+    pub fn reaches_the_web(&self) -> bool {
+        self.responses() || host(&self.base_url) == "api.anthropic.com"
     }
 
     pub fn load(lb: &Lb, name: &str, model: &str) -> Result<Provider, String> {
@@ -358,6 +378,24 @@ mod tests {
         assert_eq!(friendly_name("anthropic"), "Anthropic");
         assert_eq!(friendly_name("my-box"), "My-box");
     }
+    /// The providers that search and read the web themselves are the two
+    /// spoken to through Responses and Anthropic's own API.
+    #[test]
+    fn who_reaches_the_web_themselves() {
+        let at = |base_url: &str| {
+            let file = serde_json::json!({ "base_url": base_url }).to_string();
+            Provider::parse("p", "m", file.as_bytes()).unwrap()
+        };
+        for own in
+            ["https://api.openai.com/v1", "https://api.x.ai/v1", "https://api.anthropic.com/v1"]
+        {
+            assert!(at(own).reaches_the_web(), "{own}");
+        }
+        for other in ["http://pop-os:11435/v1", "https://openrouter.ai/api/v1"] {
+            assert!(!at(other).reaches_the_web(), "{other}");
+        }
+    }
+
     /// The effort setting exists only where it has been shown to work: a
     /// model that was tried lists what it took, and nothing else lists
     /// anything, whatever its listing or its documentation says.
@@ -368,7 +406,7 @@ mod tests {
             Provider::parse("p", model, file.as_bytes()).unwrap()
         };
         let grok = at("https://api.x.ai/v1/", "grok-4.7");
-        assert_eq!(grok.efforts(), ["low", "medium", "high", "xhigh"]);
+        assert_eq!(grok.efforts(), ["minimal", "low", "medium", "high", "xhigh"]);
         assert!(at("https://api.x.ai/v1", "grok-9").efforts().is_empty());
         // The same model by another road is another row.
         let haiku = at("https://openrouter.ai/api/v1", "anthropic/claude-haiku-4.5");
@@ -376,7 +414,7 @@ mod tests {
         let haiku = at("https://api.anthropic.com/v1", "claude-haiku-4-5-20251001");
         assert_eq!(haiku.efforts(), ["on"]);
         assert!(
-            at("https://api.openai.com/v1", "gpt-5.5")
+            at("https://api.openai.com/v1", "gpt-9")
                 .efforts()
                 .is_empty()
         );
