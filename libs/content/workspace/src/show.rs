@@ -51,6 +51,7 @@ impl Workspace {
         self.set_tooltip_visibility(ui);
 
         self.process_bg_tasks();
+        self.pump_chats();
         self.process_lb_updates();
         self.process_task_updates();
         self.process_keys();

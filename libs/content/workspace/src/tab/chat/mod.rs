@@ -32,6 +32,7 @@ use crate::resolvers::image_embed::ImageEmbedResolver;
 use crate::resolvers::link::{FileCacheLinkResolver, LinkResolver as _, ResolvedLink};
 use crate::style::{Icon, phosphor};
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
+use crate::voice;
 use crate::widgets::image_cache::ImageCache;
 use crate::workspace::WsPersistentStore;
 
@@ -91,6 +92,8 @@ pub struct Chat {
 
     driver: Option<Driver>,
     pub busy: bool,
+    /// A spoken conversation is open on this chat.
+    pub voice: bool,
     streaming: String,
     streaming_label: MdLabel,
     /// Draws the pictures that messages and quoted notes embed.
@@ -201,6 +204,7 @@ impl Chat {
             streaming_label,
             images: None,
             tapped: None,
+            voice: false,
             persistence: None,
             placed: false,
             held: None,
@@ -573,18 +577,39 @@ impl Chat {
         self.kick_config_load();
     }
 
-    /// Ends a live run and waits a moment for what it had said so far to
-    /// settle, so the save that follows has it. Closing the tab and
+    /// Ends a live run or call and waits a moment for what it had said so
+    /// far to settle, so the save that follows has it. Closing the tab and
     /// navigating it elsewhere call this.
     pub fn stop(&mut self) {
         let Some(driver) = &self.driver else { return };
-        if !driver.busy() {
+        if !driver.busy() && !self.voice {
             return;
         }
         driver.send(Cmd::Stop);
         let asked = Instant::now();
-        while driver.busy() && asked.elapsed() < STOP_WAIT {
+        while self.running() && asked.elapsed() < STOP_WAIT {
             std::thread::sleep(Duration::from_millis(2));
+            self.pump_events();
+        }
+        if self.voice {
+            self.voice = false;
+            voice::end();
+        }
+    }
+
+    fn running(&self) -> bool {
+        self.voice || self.driver.as_ref().is_some_and(Driver::busy)
+    }
+
+    /// Takes in everything the driver has reported. Safe between frames.
+    pub fn pump_events(&mut self) {
+        for event in self
+            .driver
+            .iter()
+            .flat_map(Driver::poll)
+            .collect::<Vec<_>>()
+        {
+            self.hear(event);
         }
     }
 
@@ -619,14 +644,7 @@ impl Chat {
                 Err(err) => self.setup.error = Some(err),
             }
         }
-        for event in self
-            .driver
-            .iter()
-            .flat_map(Driver::poll)
-            .collect::<Vec<_>>()
-        {
-            self.hear(event);
-        }
+        self.pump_events();
         if self.store.seq() != self.view_seq {
             self.refresh_view();
         }
@@ -773,8 +791,19 @@ impl Chat {
                 self.expanded.remove(&IN_FLIGHT);
                 self.running_tool = None;
             }
-            // Voice has no surface in the tab yet.
-            Event::VoiceStarted | Event::VoiceEnded | Event::Audio { .. } | Event::Interrupted => {}
+            Event::VoiceStarted => {
+                self.voice = true;
+                self.scroll_to_bottom = true;
+                if let Some(driver) = &self.driver {
+                    voice::begin(driver.handle());
+                }
+            }
+            Event::VoiceEnded => {
+                self.voice = false;
+                voice::end();
+            }
+            Event::Audio { reply, pcm } => voice::play(reply, pcm),
+            Event::Interrupted => voice::flush(),
         }
     }
 
@@ -791,5 +820,14 @@ impl Chat {
             })
             .cloned()
             .collect()
+    }
+}
+
+/// A chat dropped mid-call lets the host's engine go.
+impl Drop for Chat {
+    fn drop(&mut self) {
+        if self.voice {
+            voice::end();
+        }
     }
 }

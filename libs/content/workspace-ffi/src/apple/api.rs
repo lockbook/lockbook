@@ -7,7 +7,9 @@ use std::path::PathBuf;
 use workspace_rs::tab::{ClipContent, ExtendedInput as _};
 use workspace_rs::theme::palette_v2::{Mode, ThemeExt, ensure_normal_text_contrast};
 
+use super::macos::response::CBytes;
 use super::response::*;
+use workspace_rs::voice;
 
 /// Edit-menu "Edit" over a selected image: select the URL inside the atom, revealing its
 /// source (mobile has no arrow keys to get inside).
@@ -432,4 +434,51 @@ pub unsafe extern "C" fn close_session(obj: *mut c_void, id: CUuid) {
     let obj = &mut *(obj as *mut WgpuWorkspace);
     obj.workspace
         .close_session(workspace_rs::tab::SessionId::from_uuid(id.into()));
+}
+
+/// What the host's audio engine takes from the live voice session: whether
+/// to start or stop, whether to drop what is queued to play, and the next
+/// of reply `reply`'s audio as PCM16 mono at 24 kHz, freed with
+/// `free_bytes`.
+#[repr(C)]
+pub struct CVoiceOut {
+    pub start: bool,
+    pub stop: bool,
+    pub flush: bool,
+    pub reply: u32,
+    pub pcm: CBytes,
+}
+
+/// Call after every frame, and every few tens of milliseconds while a
+/// call is on, since a call goes on with no frame drawn.
+/// # Safety
+/// obj must be a valid pointer to WgpuWorkspace
+#[no_mangle]
+pub unsafe extern "C" fn voice_take(obj: *mut c_void) -> CVoiceOut {
+    let obj = &mut *(obj as *mut WgpuWorkspace);
+    obj.workspace.pump_chats();
+    let out = voice::take();
+    let (reply, pcm) = out.play.unwrap_or_default();
+    CVoiceOut { start: out.start, stop: out.stop, flush: out.flush, reply, pcm: pcm.into() }
+}
+
+/// What the microphone heard, as PCM16 mono at 24 kHz. Any thread.
+/// # Safety
+/// pcm must point to len readable bytes
+#[no_mangle]
+pub unsafe extern "C" fn voice_audio(pcm: *const u8, len: usize) {
+    voice::audio(std::slice::from_raw_parts(pcm, len).to_vec());
+}
+
+/// Reply `reply` has played up to `ms`. Any thread.
+#[no_mangle]
+pub extern "C" fn voice_played(reply: u32, ms: u64) {
+    voice::played(reply, ms);
+}
+
+/// Ends the call from the host's side: the microphone was refused, or the
+/// engine failed.
+#[no_mangle]
+pub extern "C" fn voice_hang_up() {
+    voice::hang_up();
 }

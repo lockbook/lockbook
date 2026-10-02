@@ -24,6 +24,8 @@ mod sheets;
 pub mod sidebar;
 pub mod titlebar;
 pub mod toasts;
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+pub mod voice;
 
 pub use action::{Modal, SidebarPane};
 pub(crate) use apply::native_file_dialog_open;

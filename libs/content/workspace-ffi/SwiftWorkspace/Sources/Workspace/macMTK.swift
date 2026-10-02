@@ -456,6 +456,7 @@
             set_tab_strip_height(wsHandle, Float(tabStripMinHeight()))
 
             let output = macos_frame(wsHandle)
+            VoiceEngine.shared.service(wsHandle)
 
             if output.tabs_changed {
                 workspaceOutput?.tabCount = Int(tab_count(wsHandle))

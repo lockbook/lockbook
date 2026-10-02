@@ -37,6 +37,7 @@ use crate::style::{
 };
 use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::input::{Event as Edit, Location, Region};
+use crate::voice;
 use crate::widgets::{GlyphonLabel, TextOverflow};
 
 const COLUMN_W: f32 = 720.0;
@@ -157,7 +158,9 @@ impl Chat {
         // one button stands for both and the text keeps the row.
         let compact = wrap_w - gap - (folder_w + gap + model_w + gap + hit) < MIN_BESIDE;
         let (folder_w, model_w) = if compact { (0.0, hit) } else { (folder_w, model_w) };
-        let trailing = if compact { hit + gap + hit } else { folder_w + gap + model_w + gap + hit };
+        let call_w = if voice::offered() { hit + gap } else { 0.0 };
+        let trailing =
+            call_w + if compact { hit + gap + hit } else { folder_w + gap + model_w + gap + hit };
         let inner_w = (wrap_w - gap - trailing).max(1.0);
         let row = self.composer.row_height();
         let wide_h = self.composer.measure_height(wrap_w);
@@ -1156,8 +1159,12 @@ impl Chat {
 
         let text = self.composer.renderer.buffer.current.text.clone();
         if text.trim().is_empty() {
-            let hint =
-                if self.editing.is_some() { "Edit and restart from here" } else { "Message" };
+            let hint = match (self.voice, self.busy, self.editing.is_some()) {
+                (true, true, _) => "Speaking",
+                (true, false, _) => "Listening",
+                (false, _, true) => "Edit and restart from here",
+                (false, _, false) => "Message",
+            };
             ui.painter().text(
                 pos2(text_rect.left(), text_rect.top() + row / 2.0),
                 Align2::LEFT_CENTER,
@@ -1171,8 +1178,15 @@ impl Chat {
         let controls_cy = if centered { band.center().y } else { band.max.y - hit / 2.0 };
         let send_rect =
             Rect::from_center_size(pos2(band.max.x - hit / 2.0, controls_cy), vec2(hit, hit));
+        let call_rect = voice::offered().then(|| {
+            Rect::from_center_size(
+                pos2(send_rect.left() - gap - hit / 2.0, controls_cy),
+                vec2(hit, hit),
+            )
+        });
+        let before_model = call_rect.unwrap_or(send_rect);
         let model_rect = Rect::from_center_size(
-            pos2(send_rect.left() - gap - geom.model_w / 2.0, controls_cy),
+            pos2(before_model.left() - gap - geom.model_w / 2.0, controls_cy),
             vec2(geom.model_w, hit),
         );
         let folder_rect = Rect::from_center_size(
@@ -1180,9 +1194,10 @@ impl Chat {
             vec2(geom.folder_w, hit),
         );
         let chips = if geom.compact { 1 } else { 2 };
-        for (left, right) in [(model_rect, send_rect), (folder_rect, model_rect)]
+        for (left, right) in [(model_rect, before_model), (folder_rect, model_rect)]
             .into_iter()
             .take(chips)
+            .chain(call_rect.map(|call| (call, send_rect)))
         {
             let gap_rect = Rect::from_min_max(
                 pos2(left.right(), right.top()),
@@ -1206,10 +1221,18 @@ impl Chat {
         let folder_rect = (!geom.compact).then_some(folder_rect);
         let menu_open = self.show_chips(ui, t, focused, rect, model_rect, folder_rect);
 
-        let action = match (self.busy, text.trim().is_empty()) {
-            (true, _) => Action::Stop,
-            (false, true) => Action::Idle,
-            (false, false) => Action::Send,
+        if let Some(call_rect) = call_rect {
+            let resp = call_button(ui, t, call_rect, self.voice, focused);
+            tip_text(ui.ctx(), &resp, if self.voice { "Hang up" } else { "Call" });
+            if resp.clicked() {
+                self.send_cmd(if self.voice { Cmd::Stop } else { Cmd::StartVoice });
+                self.scroll_to_bottom = true;
+            }
+        }
+        let action = match (self.voice, self.busy, text.trim().is_empty()) {
+            (true, _, _) | (false, false, true) => Action::Idle,
+            (false, true, _) => Action::Stop,
+            (false, false, false) => Action::Send,
         };
         let resp = send_button(ui, t, send_rect, action, focused);
         tip_text(ui.ctx(), &resp, if self.busy { "Stop · esc" } else { "Send · return" });
@@ -1224,13 +1247,21 @@ impl Chat {
             ui.ctx().memory_mut(|m| m.request_focus(composer_id));
         }
         let mut sent = false;
-        if self.busy && (resp.clicked() || esc) {
+        if self.voice {
+            if esc {
+                self.send_cmd(Cmd::Stop);
+            }
+        } else if self.busy && (resp.clicked() || esc) {
             self.send_cmd(Cmd::Stop);
         } else if esc && self.editing.is_some() {
             self.editing = None;
             self.composer.clear();
             self.composer_text_seq += 1;
-        } else if (send_requested || resp.clicked()) && !text.trim().is_empty() && !self.busy {
+        } else if (send_requested || resp.clicked())
+            && !text.trim().is_empty()
+            && !self.busy
+            && !self.voice
+        {
             let mentions = self.linked(&text);
             let cmd = match self.editing.take() {
                 Some(id) => Cmd::Edit { id, text, mentions },
@@ -1897,6 +1928,28 @@ fn send_button(
     let g =
         ui.painter()
             .layout_no_wrap(phosphor::PAPER_PLANE_TILT.into(), phosphor_ui_font_id(), ink);
+    ui.painter().galley(rect.center() - g.size() / 2.0, g, ink);
+    resp
+}
+
+/// The call button: a phone on the plain plate, and the phone crossed in
+/// red while a call is on.
+fn call_button(ui: &mut Ui, t: &Theme, rect: Rect, live: bool, on_canvas: bool) -> egui::Response {
+    let resp = ui.interact(rect, Id::new(("chat_call", live)), sense_click());
+    let fill = interact_fill_response(ui.ctx(), &resp, chip_fills(t, on_canvas));
+    ui.painter()
+        .rect_filled(rect, Radius::Control.corner(), fill);
+    if resp.hovered() {
+        ui.output_mut(|o| o.cursor_icon = CursorIcon::PointingHand);
+    }
+    let (icon, ink) = if live {
+        (phosphor::PHONE_SLASH, t.danger())
+    } else {
+        (phosphor::PHONE, t.neutral_fg_secondary())
+    };
+    let g = ui
+        .painter()
+        .layout_no_wrap(icon.into(), phosphor_ui_font_id(), ink);
     ui.painter().galley(rect.center() - g.size() / 2.0, g, ink);
     resp
 }

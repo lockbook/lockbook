@@ -476,6 +476,17 @@ impl Workspace {
         self.current_tab.and_then(|id| self.tabs.get_mut(&id))
     }
 
+    /// Takes in what every chat's driver has reported, shown or not, so a
+    /// spoken conversation goes on while another tab is up or no frame is
+    /// drawn.
+    pub fn pump_chats(&mut self) {
+        for slot in &self.tab_strip {
+            if let Some(chat) = self.tabs.get_mut(&slot.id).and_then(Tab::chat_mut) {
+                chat.pump_events();
+            }
+        }
+    }
+
     pub fn current_tab_markdown(&self) -> Option<&Markdown> {
         self.current_tab()?.markdown()
     }

@@ -32,6 +32,7 @@ pub unsafe extern "C" fn init_ws(
     );
 
     visuals::init(&renderer.context);
+    workspace_rs::voice::offer();
     let mode = if dark_mode { Mode::Dark } else { Mode::Light };
     #[cfg(target_os = "macos")]
     let theme = Theme::apple_macos(mode);

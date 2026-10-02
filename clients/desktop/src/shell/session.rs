@@ -82,6 +82,9 @@ pub fn read_load_status(status: &LoadStatus) -> String {
 
 pub struct Ready {
     pub workspace: Workspace,
+    /// The audio behind a chat's spoken conversation.
+    #[cfg(any(target_os = "macos", target_os = "windows"))]
+    pub voice: super::voice::Voice,
     pub expanded: HashSet<Uuid>,
     /// Tree / list selection (highlight, multi-select, context-menu targets).
     /// Import dest uses it (folder, or parent of a selected file), then the
@@ -120,12 +123,16 @@ impl Ready {
         workspace.show_tabs = false;
         workspace.desktop_tab_policy = true;
         workspace.sidebar_open = true;
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        workspace_rs::voice::offer();
 
         let status = core.status();
         let pinned = core.list_pinned().unwrap_or_default();
         let known_usernames = core.known_usernames().unwrap_or_default();
         Self {
             workspace,
+            #[cfg(any(target_os = "macos", target_os = "windows"))]
+            voice: Default::default(),
             expanded: [root].into_iter().collect(),
             cursor: None,
             anchor: None,

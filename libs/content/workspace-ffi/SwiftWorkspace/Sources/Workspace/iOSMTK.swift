@@ -399,6 +399,7 @@
             set_ws_inset(wsHandle, Float(overlap * scale()))
 
             handle(ios_frame(wsHandle))
+            VoiceEngine.shared.service(wsHandle)
         }
 
         /// A frame that consumes no queued input, so geometry reflects an edit

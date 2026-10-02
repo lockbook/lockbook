@@ -32,6 +32,8 @@ pub fn show(app: &mut ShellApp, ui: &mut Ui, _t: &Theme, queue: &mut Vec<Action>
         let (out, _) =
             place_at(ui, rest, Layout::top_down(Align::Min), |ui| ready.workspace.show(ui));
         claim(ui, rest);
+        #[cfg(any(target_os = "macos", target_os = "windows"))]
+        ready.voice.service(&mut ready.workspace);
 
         if out.file_cache_updated {
             super::ops::note_files_changed(ready);
