@@ -13,7 +13,9 @@ use lb_rs::blocking::Lb;
 use lb_rs::model::chat::{Body, Chat as Transcript, Entry, Usage};
 use test_utils::{random_name, test_config, url};
 
-use super::Chat;
+use super::model_sheet::Item;
+use super::setup::{OWN, Offered, TEMPLATES};
+use super::{Chat, ListingState};
 use crate::file_cache::FileCache;
 use crate::theme::palette_v2::{Mode, Theme, ThemeExt as _};
 use crate::workspace::Workspace;
@@ -23,8 +25,17 @@ const SSE_HI: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConn
     data: {\"choices\":[],\"usage\":{\"prompt_tokens\":4,\"completion_tokens\":2}}\n\n\
     data: [DONE]\n\n";
 
+/// A model server's listing: two models, the second the newer.
+const MODELS: &str = "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n\
+    {\"data\":[{\"id\":\"older\",\"created\":1},{\"id\":\"newer\",\"created\":2}]}";
+
 /// Serves `response` to every connection.
 fn mock_provider(response: &'static str) -> String {
+    mock_server(response, response)
+}
+
+/// Serves `listing` to every GET and `reply` to everything else.
+fn mock_server(listing: &'static str, reply: &'static str) -> String {
     let listener = TcpListener::bind("127.0.0.1:0").unwrap();
     let addr = listener.local_addr().unwrap();
     std::thread::spawn(move || {
@@ -48,10 +59,17 @@ fn mock_provider(response: &'static str) -> String {
                     break;
                 }
             }
+            let response = if buf.starts_with(b"GET") { listing } else { reply };
             let _ = sock.write_all(response.as_bytes());
         }
     });
     format!("http://{addr}")
+}
+
+/// A provider file as the tab holds it.
+fn offered(name: &str, base_url: &str) -> Offered {
+    let file = serde_json::json!({ "base_url": base_url }).to_string();
+    Offered { name: name.into(), file: lb_chat::Provider::parse(name, "", file.as_bytes()).ok() }
 }
 
 fn write(lb: &Lb, path: &str, text: &str) {
@@ -265,6 +283,7 @@ mod on_its_own {
             id: "c".into(),
             name: "read".into(),
             args: serde_json::json!({"path": "/home/a.md", "section": "Plan"}),
+            echo: None,
         });
         frame(&ctx, &mut chat, vec![]);
         chat.running_tool = None;
@@ -272,25 +291,395 @@ mod on_its_own {
         frame(&ctx, &mut chat, vec![]);
         chat.streaming.clear();
         chat.pending_ask = Some((
-            lb_chat::Call { id: "c".into(), name: "delete".into(), args: serde_json::json!({}) },
+            lb_chat::Call {
+                id: "c".into(),
+                name: "delete".into(),
+                args: serde_json::json!({}),
+                echo: None,
+            },
             "Delete /home/a.md?".into(),
         ));
         frame(&ctx, &mut chat, vec![]);
         chat.pending_ask = None;
         frame(&ctx, &mut chat, vec![]);
         chat.busy = false;
-        chat.adding_root = true;
+        chat.scope_open = true;
+        frame(&ctx, &mut chat, vec![]);
+        chat.scope_open = false;
+        // The model sheet: two providers' listings, long enough to scroll,
+        // drawn open, scrolled so a provider pins, and with one folded.
+        let listing = |n: usize| -> Vec<lb_chat::ModelInfo> {
+            (0..n)
+                .map(|i| lb_chat::ModelInfo {
+                    id: format!("model-{i}"),
+                    display_name: None,
+                    window: None,
+                })
+                .collect()
+        };
+        // A brand, this device, a machine on the network, a file that does
+        // not parse.
+        chat.providers = vec![
+            offered("anthropic", "https://api.anthropic.com/v1"),
+            offered("mock", "http://localhost:11434/v1"),
+            offered("other", "http://linux-box:11434/v1"),
+            Offered { name: "broken".into(), file: None },
+        ];
+        chat.listings
+            .insert("mock".into(), ListingState::Ready(listing(30)));
+        chat.listings
+            .insert("other".into(), ListingState::Failed("offline".into()));
+        chat.favorites = vec!["mock/model-3".into()];
+        chat.models_open = true;
+        chat.model_dest = Some("mock/model-20".into());
+        chat.model_reveal = Some(super::super::model_sheet::Reveal::Chosen);
+        for _ in 0..3 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        chat.model_folded.insert("mock".into());
+        frame(&ctx, &mut chat, vec![]);
+        chat.model_filter = "model-2".into();
+        frame(&ctx, &mut chat, vec![]);
+        chat.model_filter = "nothing matches".into();
+        frame(&ctx, &mut chat, vec![]);
+        chat.models_open = false;
+
+        let narrow = |chat: &mut Chat| {
+            let narrow = RawInput {
+                screen_rect: Some(Rect::from_min_max(pos2(0.0, 0.0), pos2(300.0, 400.0))),
+                ..Default::default()
+            };
+            let _ = ctx.run(narrow, |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    chat.show(ui);
+                });
+            });
+        };
+        narrow(&mut chat);
+
+        // The setup form: nothing picked, a hosted provider, a server of the
+        // user's own, its error, and the wait while it is asked for models.
+        chat.begin_connect(None);
+        frame(&ctx, &mut chat, vec![]);
+        chat.setup.pick(&TEMPLATES[0]);
+        frame(&ctx, &mut chat, vec![]);
+        chat.setup.pick(&OWN);
+        frame(&ctx, &mut chat, vec![]);
+        chat.setup.error = Some("can't reach localhost:11434".into());
+        frame(&ctx, &mut chat, vec![]);
+        let (_pending, answer) = std::sync::mpsc::channel();
+        chat.setup.asking = Some(answer);
+        frame(&ctx, &mut chat, vec![]);
+        narrow(&mut chat);
+    }
+
+    fn click(ctx: &Context, chat: &mut Chat, pos: egui::Pos2) {
+        let button = |pressed| Event::PointerButton {
+            pos,
+            button: egui::PointerButton::Primary,
+            pressed,
+            modifiers: Modifiers::NONE,
+        };
+        frame(ctx, chat, vec![Event::PointerMoved(pos)]);
+        frame(ctx, chat, vec![button(true)]);
+        frame(ctx, chat, vec![button(false)]);
+        frame(ctx, chat, vec![]);
+    }
+
+    /// Where `item`'s row took the pointer last frame: its pinned copy when
+    /// it is stuck to the top of the list, else the row in the flow.
+    fn model_row(ctx: &Context, chat: &Chat, item: &Item) -> Rect {
+        let row = |pinned: bool| {
+            let id = egui::Id::new(("chat_model_row", chat.id)).with((item.flat().id, pinned));
+            ctx.read_response(id).map(|r| r.rect)
+        };
+        [row(true), row(false)]
+            .into_iter()
+            .flatten()
+            .max_by(|a, b| a.height().total_cmp(&b.height()))
+            .expect("the row was drawn")
+    }
+
+    /// The model sheet by pointer and keyboard: typing filters, a provider
+    /// row folds and unfolds, a model row is chosen, its pin lands in the
+    /// vault, and Enter makes the choice this chat's model.
+    #[test]
+    fn the_model_sheet_folds_pins_and_chooses() {
+        let (lb, id) = account_with_chat();
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let mut chat = Chat::new(b"", id, None, account, ctx.clone(), files, &lb);
+        // The mock provider answers its own listing request with nonsense;
+        // let that land, then stand a real listing in its place.
+        frames_until(&ctx, &mut chat, |c| {
+            matches!(c.listings.get("mock"), Some(ListingState::Failed(_)))
+        });
+        let models = ["model-0", "model-1", "model-2"].map(|id| lb_chat::ModelInfo {
+            id: id.into(),
+            display_name: None,
+            window: None,
+        });
+        chat.listings
+            .insert("mock".into(), ListingState::Ready(models.to_vec()));
+        chat.open_model_sheet();
+        // The sheet sizes itself over its first frames.
+        for _ in 0..6 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+
+        // The sheet owns the keyboard: typing filters instead of reaching the
+        // composer behind it, and Esc clears the filter before it closes.
+        frame(&ctx, &mut chat, vec![Event::Text("2".into())]);
+        frame(&ctx, &mut chat, vec![]);
+        assert_eq!((chat.model_filter.as_str(), chat.composer_text().as_str()), ("2", ""));
+        frame(&ctx, &mut chat, vec![key(Key::Escape)]);
+        assert!(chat.model_filter.is_empty() && chat.models_open);
         frame(&ctx, &mut chat, vec![]);
 
+        let provider = Item::Provider { name: "mock".into(), open: true };
+        let model = Item::Model { selection: "mock/model-1".into(), label: String::new() };
+        let header = model_row(&ctx, &chat, &provider).center();
+        click(&ctx, &mut chat, header);
+        assert!(chat.model_folded.contains("mock"), "a provider row folds");
+        click(&ctx, &mut chat, header);
+        assert!(chat.model_folded.is_empty(), "and unfolds");
+
+        let row = model_row(&ctx, &chat, &model);
+        click(&ctx, &mut chat, row.center());
+        assert_eq!(chat.model_dest.as_deref(), Some("mock/model-1"));
+
+        let pin = pos2(row.right() - 12.0, row.center().y);
+        click(&ctx, &mut chat, pin);
+        assert_eq!(chat.favorites, ["mock/model-1"]);
+        let saved = lb.get_by_path("/.agent/favorites.json").unwrap();
+        let saved: Vec<String> =
+            serde_json::from_slice(&lb.read_document(saved.id, false).unwrap()).unwrap();
+        assert_eq!(saved, ["mock/model-1"]);
+        assert_eq!(chat.model_dest.as_deref(), Some("mock/model-1"), "the pin is not the row");
+
+        frame(&ctx, &mut chat, vec![key(Key::Enter)]);
+        assert!(!chat.models_open);
+        assert_eq!(
+            chat.settings().model.as_deref(),
+            Some("mock/model-1"),
+            "settings change at once"
+        );
+        frames_until(
+            &ctx,
+            &mut chat,
+            |c| matches!(&c.provider, Some(Ok(p)) if p.model == "model-1"),
+        );
+        assert_eq!(chat.settings().model.as_deref(), Some("mock/model-1"));
+
+        // The pick is sticky: a chat with no choice of its own starts there.
+        let other = lb.create_at_path("/home/next.chat").unwrap();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let mut next = Chat::new(b"", other.id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut next, |c| c.is_ready());
+        assert!(next.settings().model.is_none());
+        assert!(matches!(&next.provider, Some(Ok(p)) if p.selection() == "mock/model-1"));
+    }
+
+    /// A provider file that still holds a template's placeholder key. The
+    /// model sheet offers to take the key instead of listing; choosing the
+    /// provider brings up its form rather than a composer; connecting keeps
+    /// the vault's default and points this chat at the provider.
+    #[test]
+    fn a_keyless_provider_asks_for_its_key() {
+        let (lb, id) = account_with_chat();
+        let read = |path: &str| -> serde_json::Value {
+            let file = lb.get_by_path(path).unwrap();
+            serde_json::from_slice(&lb.read_document(file.id, false).unwrap()).unwrap()
+        };
+        let endpoint = read("/.agent/providers/mock.json")["base_url"]
+            .as_str()
+            .unwrap()
+            .to_string();
+        let groq = serde_json::json!({
+            "display_name": "Groq",
+            "base_url": endpoint,
+            "model": "g",
+            "api_key": "YOUR API KEY HERE",
+        });
+        write(&lb, "/.agent/providers/groq.json", &groq.to_string());
+
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let mut chat = Chat::new(b"", id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+
+        // The sheet: no request goes out; the row opens the form; Esc returns.
+        chat.open_model_sheet();
+        frames_until(&ctx, &mut chat, |c| {
+            matches!(c.listings.get("groq"), Some(ListingState::NeedsKey))
+        });
+        for _ in 0..6 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        let row = model_row(&ctx, &chat, &Item::Connect { provider: "groq".into() });
+        click(&ctx, &mut chat, row.center());
+        assert!(!chat.models_open && !chat.is_ready());
+        assert_eq!(chat.setup.picked.map(|t| t.name), Some("groq"));
+        assert_eq!(chat.setup.base_url, endpoint, "the form keeps what the file says");
+        frame(&ctx, &mut chat, vec![key(Key::Escape)]);
+        assert!(chat.is_ready(), "Esc goes back to the provider that works");
+
+        // Choosing the keyless provider: the form again, this time to stay.
+        let mut settings = chat.settings();
+        settings.model = Some("groq".into());
+        chat.set_settings(settings);
+        frames_until(&ctx, &mut chat, |c| matches!(&c.provider, Some(Ok(p)) if p.name == "groq"));
+        assert!(!chat.is_ready());
+        assert_eq!(chat.setup.picked.map(|t| t.name), Some("groq"));
+        chat.setup.key = "gsk-test".into();
+        chat.connect();
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+
+        assert_eq!(read("/.agent/providers/groq.json")["api_key"], "gsk-test");
+        let default = read("/.agent/default.json");
+        assert_eq!(
+            (default["provider"].as_str(), default["model"].as_str()),
+            (Some("groq"), Some("g")),
+            "the last provider connected is what a new chat starts with"
+        );
+        assert_eq!(chat.settings().model.as_deref(), Some("groq/g"));
+        assert!(matches!(&chat.provider, Some(Ok(p)) if p.name == "groq" && !p.needs_key));
+    }
+
+    /// A server of the user's own, by its address alone. Nothing listening:
+    /// the form says so and writes nothing. A server that answers and no
+    /// model named: its newest is chosen, the file is named for the host,
+    /// and messages go to it.
+    #[test]
+    fn a_server_of_your_own_connects_by_its_address() {
+        let (lb, id) = account_with_chat();
+        let read = |path: &str| -> serde_json::Value {
+            let file = lb.get_by_path(path).unwrap();
+            serde_json::from_slice(&lb.read_document(file.id, false).unwrap()).unwrap()
+        };
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let mut chat = Chat::new(b"", id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+
+        chat.begin_connect(None);
+        chat.setup.pick(&OWN);
+        let closed = TcpListener::bind("127.0.0.1:0").unwrap();
+        let dead = closed.local_addr().unwrap();
+        drop(closed);
+        chat.setup.base_url = dead.to_string();
+        chat.connect();
+        assert!(chat.setup.asking.is_some(), "no model named, so the server is asked");
+        frames_until(&ctx, &mut chat, |c| c.setup.asking.is_none());
+        assert_eq!(chat.setup.error, Some(format!("can't reach {dead}")));
+        assert!(lb.get_by_path("/.agent/providers/127.0.0.1.json").is_err());
+
+        // Typed the way people say an address: no scheme, no path.
+        let server = mock_server(MODELS, SSE_HI);
+        chat.setup.base_url = server.trim_start_matches("http://").to_string();
+        chat.connect();
+        frames_until(&ctx, &mut chat, |c| {
+            c.is_ready() && matches!(&c.provider, Some(Ok(p)) if p.name == "127.0.0.1")
+        });
+
+        let file = read("/.agent/providers/127.0.0.1.json");
+        assert_eq!(file["base_url"], format!("{server}/v1"));
+        assert_eq!(
+            (file["display_name"].as_str(), file["model"].as_str()),
+            (Some("This device"), Some("newer"))
+        );
+        assert!(file.get("api_key").is_none(), "no key was given, so none is written");
+        assert_eq!(chat.settings().model.as_deref(), Some("127.0.0.1/newer"));
+        assert_eq!(read("/.agent/default.json")["provider"], "127.0.0.1");
+
+        frame(&ctx, &mut chat, vec![Event::Text("hello".into())]);
+        frame(&ctx, &mut chat, vec![key(Key::Enter)]);
+        frames_until(&ctx, &mut chat, |c| c.entry_count() == 2 && !c.busy);
+        let reply = chat.transcript.entries.last().unwrap();
+        assert!(matches!(&reply.body, Body::Assistant { model, .. } if model == "127.0.0.1/newer"));
+        assert_eq!(reply.text(), "hi there");
+    }
+
+    /// A provider file no template made, still holding a placeholder key:
+    /// the form opens on it as a server of the user's own and rewrites that
+    /// file, with the model as typed and nothing asked of the server.
+    #[test]
+    fn a_file_with_no_template_is_rewritten_in_place() {
+        let (lb, id) = account_with_chat();
+        let read = |path: &str| -> serde_json::Value {
+            let file = lb.get_by_path(path).unwrap();
+            serde_json::from_slice(&lb.read_document(file.id, false).unwrap()).unwrap()
+        };
+        let legacy = serde_json::json!({
+            "base_url": "https://api.example.com/v1",
+            "model": "model-id",
+            "api_key": "YOUR API KEY HERE",
+        });
+        write(&lb, "/.agent/providers/custom.json", &legacy.to_string());
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let mut chat = Chat::new(b"", id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+
+        chat.begin_connect(Some("custom"));
+        assert!(chat.setup.own());
+        assert_eq!(chat.setup.name.as_deref(), Some("custom"));
+        assert_eq!(
+            (chat.setup.base_url.as_str(), chat.setup.model.as_str()),
+            ("https://api.example.com/v1", "model-id"),
+            "the form keeps what the file says"
+        );
+        let server = mock_provider(SSE_HI);
+        chat.setup.base_url = server.clone();
+        chat.setup.model = "typed".into();
+        chat.connect();
+        assert!(chat.setup.asking.is_none(), "a model was named, so nothing is asked");
+        frames_until(&ctx, &mut chat, |c| {
+            c.is_ready() && matches!(&c.provider, Some(Ok(p)) if p.name == "custom")
+        });
+
+        let file = read("/.agent/providers/custom.json");
+        assert_eq!(file["base_url"], format!("{server}/v1"));
+        assert_eq!(file["model"], "typed");
+        assert!(file.get("api_key").is_none(), "the placeholder is gone");
+        assert!(lb.get_by_path("/.agent/providers/127.0.0.1.json").is_err());
+    }
+
+    /// Long messages wrap inside their bubbles and the reply starts below
+    /// them; the bubble painter asserts its text fits.
+    #[test]
+    fn long_messages_fit_their_bubbles() {
+        let (lb, id) = account_with_chat();
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let me = account.username.clone();
+        let long: String = (0..120).map(|i| format!("word{i} ")).collect();
+        let mut t = Transcript::default();
+        t.push(Entry::user(&me, long.trim()));
+        t.push(Entry::assistant(&me, long.repeat(2), "m", Usage::default()));
+        t.push(Entry::user(&me, "short"));
+        let mut chat = Chat::new(&t.serialize(), id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        for _ in 0..3 {
+            frame(&ctx, &mut chat, vec![]);
+        }
         let narrow = RawInput {
-            screen_rect: Some(Rect::from_min_max(pos2(0.0, 0.0), pos2(300.0, 400.0))),
+            screen_rect: Some(Rect::from_min_max(pos2(0.0, 0.0), pos2(420.0, 600.0))),
             ..Default::default()
         };
-        let _ = ctx.run(narrow, |ctx| {
-            egui::CentralPanel::default().show(ctx, |ui| {
-                chat.show(ui);
+        for _ in 0..2 {
+            let _ = ctx.run(narrow.clone(), |ctx| {
+                egui::CentralPanel::default().show(ctx, |ui| {
+                    chat.show(ui);
+                });
             });
-        });
+        }
     }
 
     /// Lines the tab holds but has not saved survive a reload from disk,

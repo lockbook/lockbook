@@ -3,6 +3,8 @@
 //! workspace saves it like any other document. Lines that reach the
 //! document another way (sync, a collaborator, the CLI) are merged in by id.
 
+mod glyphs;
+mod model_sheet;
 mod rows;
 mod setup;
 #[cfg(test)]
@@ -10,12 +12,12 @@ mod tests;
 mod view;
 
 use std::collections::{HashMap, HashSet};
-use std::sync::mpsc::{Receiver, channel};
+use std::sync::mpsc::{Receiver, Sender, channel};
 use std::sync::{Arc, RwLock};
 
 use egui::{Context, Rect};
 use lb_chat::driver::Config;
-use lb_chat::{Cmd, Driver, Event, Provider, SharedStore, VaultTools};
+use lb_chat::{Cmd, Driver, Event, ModelInfo, Place, Provider, SharedStore, VaultTools};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
 use lb_rs::model::account::Account;
@@ -25,12 +27,29 @@ use tracing::error;
 
 use crate::file_cache::{FileCache, FilesExt};
 use crate::resolvers::link::FileCacheLinkResolver;
+use crate::style::{Icon, phosphor};
 use crate::tab::markdown_editor::{MdEdit, MdLabel};
 
 pub use setup::Setup;
 
-/// What `/.agent` currently says: the selected provider and the names on offer.
-type ConfigLoad = (Result<Provider, String>, Vec<String>);
+use glyphs::Glyphs;
+use setup::Offered;
+
+/// What a provider can run, or why that is not known yet.
+pub enum ListingState {
+    Loading,
+    Ready(Vec<ModelInfo>),
+    /// The provider's file has no key yet, so nothing was asked of it.
+    NeedsKey,
+    Failed(String),
+}
+
+/// Where pinned models live, as `provider/model` selections.
+const FAVORITES_PATH: &str = "/.agent/favorites.json";
+
+/// What `/.agent` currently says: the selected provider, the providers on
+/// offer, and the pinned models.
+type ConfigLoad = (Result<Provider, String>, Vec<Offered>, Vec<String>);
 
 pub struct Chat {
     pub id: Uuid,
@@ -71,17 +90,33 @@ pub struct Chat {
     composer_text_seq: usize,
     editing: Option<Uuid>,
     scroll_to_bottom: bool,
-    adding_root: bool,
-    root_draft: String,
+    /// The folder sheet: open, the draft choice, and which rows are unfolded.
+    pub scope_open: bool,
+    scope_dest: Option<Uuid>,
+    scope_expanded: HashSet<Uuid>,
 
     /// The provider this chat would send to and the providers on offer,
     /// both read off-thread from `/.agent`.
     provider: Option<Result<Provider, String>>,
-    providers: Vec<String>,
+    providers: Vec<Offered>,
     provider_rx: Option<Receiver<ConfigLoad>>,
-    /// Top-level folders, as (name, path), for the folder picker.
-    folders: Vec<(String, String)>,
+    /// Each provider's `/models` listing, by provider name.
+    listings: HashMap<String, ListingState>,
+    listing_tx: Sender<(String, ListingState)>,
+    listing_rx: Receiver<(String, ListingState)>,
+    /// Pinned `provider/model` selections, shown in the model menu.
+    favorites: Vec<String>,
+    /// The model sheet: open, the draft choice, and the filter text.
+    pub models_open: bool,
+    model_dest: Option<String>,
+    model_filter: String,
+    /// Providers folded shut in the model sheet.
+    model_folded: HashSet<String>,
+    model_reveal: Option<model_sheet::Reveal>,
+    glyphs: Glyphs,
     setup: Setup,
+    /// The setup form is up by request, over a provider that already works.
+    adding_provider: bool,
 }
 
 impl Chat {
@@ -107,6 +142,7 @@ impl Chat {
         };
 
         let transcript = Transcript::parse(bytes);
+        let (listing_tx, listing_rx) = channel();
         let mut chat = Self {
             id,
             hmac,
@@ -135,13 +171,24 @@ impl Chat {
             composer_text_seq: 0,
             editing: None,
             scroll_to_bottom: true,
-            adding_root: false,
-            root_draft: String::new(),
+            scope_open: false,
+            scope_dest: None,
+            scope_expanded: HashSet::new(),
             provider: None,
             providers: Vec::new(),
             provider_rx: None,
-            folders: Vec::new(),
+            listings: HashMap::new(),
+            listing_tx,
+            listing_rx,
+            favorites: Vec::new(),
+            models_open: false,
+            model_dest: None,
+            model_filter: String::new(),
+            model_folded: HashSet::new(),
+            model_reveal: None,
+            glyphs: Glyphs::default(),
             setup: Setup::default(),
+            adding_provider: false,
         };
         chat.kick_config_load();
         chat
@@ -199,26 +246,23 @@ impl Chat {
         !self.composer_rect.contains(pos)
     }
 
-    /// Re-read the provider and the provider list off-thread, and the folder
-    /// list from the cache; called when `/.agent` or the tree changes.
+    /// Re-read the provider and the provider list off-thread; called when
+    /// `/.agent` changes.
     pub fn kick_config_load(&mut self) {
-        self.folders = {
-            let files = self.files.read().unwrap();
-            let root = files.root().id;
-            let mut folders: Vec<(String, String)> = files
-                .children(root)
-                .into_iter()
-                .filter(|f| f.is_folder() && !f.name.starts_with('.'))
-                .map(|f| (f.name.clone(), files.path(f.id)))
-                .collect();
-            folders.sort_by_key(|f| f.0.to_lowercase());
-            folders
-        };
+        // Whatever kept a listing from landing may be what just changed.
+        self.listings
+            .retain(|_, state| matches!(state, ListingState::Ready(_) | ListingState::Loading));
         let (tx, rx) = channel();
         let lb = self.core.clone();
         let settings = self.settings();
         std::thread::spawn(move || {
-            let _ = tx.send((Provider::resolve(&lb, &settings), setup::providers(&lb)));
+            let favorites = lb
+                .get_by_path(FAVORITES_PATH)
+                .ok()
+                .and_then(|f| lb.read_document(f.id, false).ok())
+                .and_then(|bytes| serde_json::from_slice(&bytes).ok())
+                .unwrap_or_default();
+            let _ = tx.send((Provider::resolve(&lb, &settings), setup::providers(&lb), favorites));
         });
         self.provider_rx = Some(rx);
         self.ctx.request_repaint();
@@ -234,6 +278,97 @@ impl Chat {
             .unwrap_or_else(|| self.working_dir.clone())
     }
 
+    /// Lists a provider's models off-thread, once per tab.
+    fn fetch_listing(&mut self, name: &str) {
+        if self.listings.contains_key(name) {
+            return;
+        }
+        self.listings
+            .insert(name.to_string(), ListingState::Loading);
+        let tx = self.listing_tx.clone();
+        let lb = self.core.clone();
+        let ctx = self.ctx.clone();
+        let name = name.to_string();
+        std::thread::spawn(move || {
+            let state = match Provider::load(&lb, &name, "") {
+                Ok(p) if p.needs_key => ListingState::NeedsKey,
+                Ok(p) => match lb_chat::list_models_blocking(&p) {
+                    Ok(models) => ListingState::Ready(models),
+                    Err(err) => ListingState::Failed(err),
+                },
+                Err(err) => ListingState::Failed(err),
+            };
+            let _ = tx.send((name, state));
+            ctx.request_repaint();
+        });
+    }
+
+    /// What a provider is called: what its file says, else its name.
+    fn provider_label(&self, name: &str) -> String {
+        match self.providers.iter().find(|o| o.name == name) {
+            Some(offered) => offered.label(),
+            None => lb_chat::friendly_name(name),
+        }
+    }
+
+    /// What stands for a provider: where its server is when that is a
+    /// machine of the user's own, else its brand.
+    fn mark(&mut self, ctx: &Context, name: &str, px: f32) -> Icon {
+        match self
+            .providers
+            .iter()
+            .find(|o| o.name == name)
+            .map(Offered::place)
+        {
+            Some(Place::ThisDevice) => Icon::Glyph(phosphor::LAPTOP),
+            Some(Place::YourNetwork) => Icon::Glyph(phosphor::HARD_DRIVES),
+            Some(Place::Internet) | None => Icon::Mark(self.glyphs.get(ctx, name, px)),
+        }
+    }
+
+    /// The current model's listing entry, once the listing has landed.
+    fn listed_model(&self) -> Option<&ModelInfo> {
+        let p = self.provider.as_ref()?.as_ref().ok()?;
+        match self.listings.get(&p.name)? {
+            ListingState::Ready(list) => list.iter().find(|m| m.id == p.model),
+            _ => None,
+        }
+    }
+
+    /// How a `provider/model` selection reads: the listing's name once it
+    /// has landed, else the id made readable.
+    fn selection_label(&self, selection: &str) -> String {
+        let (name, model) = selection.split_once('/').unwrap_or((selection, ""));
+        if let Some(ListingState::Ready(list)) = self.listings.get(name) {
+            if let Some(m) = list.iter().find(|m| m.id == model) {
+                return m.label();
+            }
+        }
+        lb_chat::prettify(model)
+    }
+
+    /// The current `provider/model` selection.
+    fn selection(&self) -> Option<String> {
+        match &self.provider {
+            Some(Ok(p)) => Some(p.selection()),
+            _ => None,
+        }
+    }
+
+    /// Pins or unpins a selection and writes the list to the vault.
+    fn toggle_favorite(&mut self, selection: &str) {
+        match self.favorites.iter().position(|f| f == selection) {
+            Some(i) => {
+                self.favorites.remove(i);
+            }
+            None => self.favorites.push(selection.to_string()),
+        }
+        let bytes = serde_json::to_vec_pretty(&self.favorites).expect("strings serialize");
+        if let Err(err) = setup::write(&self.core, FAVORITES_PATH, &bytes) {
+            error!("could not save pinned models: {err}");
+        }
+    }
+
     pub fn settings(&self) -> Settings {
         self.store
             .chat
@@ -242,8 +377,70 @@ impl Chat {
             .settings_for(&self.account.username)
     }
 
+    /// A provider is resolved and has what it needs to be called.
+    fn usable(&self) -> bool {
+        matches!(&self.provider, Some(Ok(p)) if !p.needs_key)
+    }
+
     pub fn is_ready(&self) -> bool {
-        matches!(self.provider, Some(Ok(_)))
+        self.usable() && !self.adding_provider
+    }
+
+    /// Brings up the setup form: for `name`, with what its file already
+    /// says, or with nothing picked.
+    fn begin_connect(&mut self, name: Option<&str>) {
+        self.adding_provider = true;
+        self.setup = Setup::default();
+        if let Some(name) = name {
+            if let Ok(provider) = Provider::load(&self.core, name, "") {
+                self.prefill_setup(&provider);
+            }
+        }
+    }
+
+    /// Picks `provider`'s template, keeping the model and endpoint its file
+    /// names. A file with no template is a server of the user's own, and is
+    /// rewritten in place.
+    fn prefill_setup(&mut self, provider: &Provider) {
+        match setup::TEMPLATES.iter().find(|t| t.name == provider.name) {
+            Some(template) => self.setup.pick(template),
+            None => {
+                self.setup.pick(&setup::OWN);
+                self.setup.name = Some(provider.name.clone());
+            }
+        }
+        if !provider.model.is_empty() {
+            self.setup.model = provider.model.clone();
+        }
+        self.setup.base_url = provider.base_url.clone();
+    }
+
+    /// Writes the provider the setup form describes and chooses it. A server
+    /// of the user's own with no model named is first asked what it offers.
+    fn connect(&mut self) {
+        if self.setup.ask(&self.ctx) {
+            return;
+        }
+        match self.setup.connect(&self.core) {
+            Ok(selection) => {
+                self.adding_provider = false;
+                self.setup = Setup::default();
+                self.select(selection);
+            }
+            Err(err) => self.setup.error = Some(err),
+        }
+    }
+
+    /// Chooses `selection` (`provider/model`) for this chat and makes it
+    /// what the next new chat starts with. The last pick anywhere is the
+    /// default, so there is nothing else to set.
+    fn select(&mut self, selection: String) {
+        if let Err(err) = setup::write_default(&self.core, &selection) {
+            error!("could not save the default model: {err}");
+        }
+        let mut settings = self.settings();
+        settings.model = Some(selection);
+        self.set_settings(settings);
     }
 
     pub fn composer_text(&self) -> String {
@@ -282,8 +479,16 @@ impl Chat {
         self.driver().send(cmd);
     }
 
+    /// Writes this user's settings into the transcript and re-reads the
+    /// provider they select.
     pub fn set_settings(&mut self, settings: Settings) {
-        self.send_cmd(Cmd::SetSettings(settings));
+        self.store
+            .chat
+            .lock()
+            .unwrap()
+            .set_settings(&self.account.username, settings);
+        self.store.bump();
+        self.kick_config_load();
     }
 
     /// Ends a live run; closing the tab calls this.
@@ -295,10 +500,33 @@ impl Chat {
 
     fn pump(&mut self) {
         if let Some(rx) = &self.provider_rx {
-            if let Ok((resolved, providers)) = rx.try_recv() {
+            if let Ok((resolved, providers, favorites)) = rx.try_recv() {
+                let name = resolved.as_ref().ok().map(|p| p.name.clone());
+                if let Ok(provider) = &resolved {
+                    if provider.needs_key && self.setup.picked.is_none() {
+                        self.prefill_setup(provider);
+                    }
+                }
                 self.provider = Some(resolved);
                 self.providers = providers;
+                self.favorites = favorites;
                 self.provider_rx = None;
+                if let Some(name) = name {
+                    self.fetch_listing(&name);
+                }
+            }
+        }
+        while let Ok((name, state)) = self.listing_rx.try_recv() {
+            self.listings.insert(name, state);
+        }
+        if let Some(Ok(first)) = self.setup.asking.as_ref().map(|rx| rx.try_recv()) {
+            self.setup.asking = None;
+            match first {
+                Ok(model) => {
+                    self.setup.model = model;
+                    self.connect();
+                }
+                Err(err) => self.setup.error = Some(err),
             }
         }
         if let Some(driver) = &self.driver {
@@ -349,11 +577,17 @@ impl Chat {
         })
     }
 
+    /// The entries that draw a row. A reply with no text (a round that was
+    /// only tool calls) draws nothing, so it takes no gap either.
     fn visible_entries(&self) -> Vec<Entry> {
         self.transcript
             .entries
             .iter()
-            .filter(|e| !matches!(e.body, Body::Other(_)))
+            .filter(|e| match &e.body {
+                Body::Other(_) => false,
+                Body::Assistant { text, .. } => !text.is_empty(),
+                _ => true,
+            })
             .cloned()
             .collect()
     }

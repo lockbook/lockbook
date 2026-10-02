@@ -208,10 +208,10 @@ impl Worker {
             let (streamed, outcome) = self.complete(&provider, &request, cmds);
             match outcome {
                 Outcome::Stopped => {
-                    if !streamed.is_empty() {
+                    if !streamed.trim().is_empty() {
                         let mut entry = Entry::assistant(
                             &user,
-                            streamed,
+                            streamed.trim(),
                             provider.selection(),
                             Default::default(),
                         );
@@ -229,7 +229,7 @@ impl Worker {
                 Outcome::Finished(completion) => {
                     let reply = Entry::assistant(
                         &user,
-                        completion.text,
+                        completion.text.trim(),
                         provider.selection(),
                         completion.usage,
                     );
@@ -285,7 +285,11 @@ impl Worker {
                 }
             };
             let result = truncate(&text, TOOL_RESULT_CAP);
-            if !self.settle(Entry::tool(&user, call.name, call.args, result, ok)) {
+            let mut entry = Entry::tool(&user, call.name, call.args, result, ok);
+            if let Some(echo) = call.echo.and_then(|e| serde_json::to_value(e).ok()) {
+                entry.extra.insert("echo".into(), echo);
+            }
+            if !self.settle(entry) {
                 return false;
             }
             if matches!(cmds.try_recv(), Ok(Cmd::Stop)) {
@@ -299,6 +303,9 @@ impl Worker {
         let (_, bytes) = self.store.load()?;
         let chat = Chat::parse(&bytes);
         let provider = (self.config.provider)()?;
+        if provider.needs_key {
+            return Err(format!("{} needs an API key", provider.label()));
+        }
         let settings = chat.settings_for(&self.config.user);
         let territory = Territory::new(&self.config.working_dir, &settings);
         self.tools
@@ -385,6 +392,8 @@ mod tests {
             provider: Box::new(move || {
                 Ok(Provider {
                     name: "mock".into(),
+                    display_name: None,
+                    needs_key: false,
                     kind: Kind::OpenAi,
                     base_url: base_url.clone(),
                     api_key: None,
@@ -542,6 +551,70 @@ mod tests {
         let chat = store.chat();
         assert_eq!(kinds(&chat), ["user", "assistant", "tool", "assistant"]);
         assert_eq!(chat.settings_for("u").include, ["/more/"]);
+    }
+
+    /// What a provider attaches to a tool call (Gemini's thought signature)
+    /// stays on the tool line and goes back with the call on the next
+    /// request; another provider never sees it.
+    #[test]
+    fn what_a_provider_attaches_to_a_call_returns_with_it() {
+        let signed =
+            "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+            data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\
+            \"extra_content\":{\"google\":{\"thought_signature\":\"SIG\"}},\
+            \"function\":{\"name\":\"echo\",\"arguments\":\"{\\\"text\\\":\\\"x\\\"}\"}}]}}]}\n\n\
+            data: [DONE]\n\n"
+                .to_string();
+        let store = MemStore::default();
+        let (url, bodies) = mock::serve(vec![signed, sse_text("ok")]);
+        let d = driver(store.clone(), Mock, url);
+        d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
+        wait_for_run(&d);
+
+        let chat = store.chat();
+        assert_eq!(kinds(&chat), ["user", "assistant", "tool", "assistant"]);
+        let line = chat.entries[2].to_json_line();
+        assert!(line.contains("\"thought_signature\":\"SIG\""), "{line}");
+        let sent: Vec<String> = bodies.try_iter().collect();
+        assert!(!sent[0].contains("SIG"));
+        assert!(
+            sent[1].contains("\"extra_content\":{\"google\":{\"thought_signature\":\"SIG\"}}"),
+            "{}",
+            sent[1]
+        );
+
+        // The same transcript, folded for a different provider.
+        let turns = context::turns(&chat, "u", &mut |_| None);
+        let req = Request { system: String::new(), turns, tools: Vec::new() };
+        let other = Provider {
+            name: "other".into(),
+            display_name: None,
+            needs_key: false,
+            kind: Kind::OpenAi,
+            base_url: String::new(),
+            api_key: None,
+            model: "m".into(),
+        };
+        assert!(!wire::openai::body(&other, &req).to_string().contains("SIG"));
+    }
+
+    /// Replies settle without the whitespace models pad them with; a reply
+    /// that was only padding around a tool call settles empty.
+    #[test]
+    fn replies_settle_trimmed() {
+        let store = MemStore::default();
+        let padded_call = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+            data: {\"choices\":[{\"delta\":{\"content\":\"  \"}}]}\n\n\
+            data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"id\":\"c1\",\"function\":{\"name\":\"echo\",\"arguments\":\"{}\"}}]}}]}\n\n\
+            data: [DONE]\n\n"
+            .to_string();
+        let (url, _) = mock::serve(vec![padded_call, sse_text("  42\n")]);
+        let d = driver(store.clone(), Mock, url);
+        d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
+        wait_for_run(&d);
+        let chat = store.chat();
+        assert_eq!(kinds(&chat), ["user", "assistant", "tool", "assistant"]);
+        assert_eq!((chat.entries[1].text(), chat.entries[3].text()), ("", "42"));
     }
 
     #[test]

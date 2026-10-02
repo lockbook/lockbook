@@ -92,8 +92,15 @@ pub fn turns(
             Body::Tool { name, args, result, ok, .. } if own => {
                 tool_seen += 1;
                 let elided = tool_seen + RECENT_TOOL_RESULTS <= tool_total;
-                let call =
-                    Call { id: entry.id.to_string(), name: name.clone(), args: args.clone() };
+                let call = Call {
+                    id: entry.id.to_string(),
+                    name: name.clone(),
+                    args: args.clone(),
+                    echo: entry
+                        .extra
+                        .get("echo")
+                        .and_then(|v| serde_json::from_value(v.clone()).ok()),
+                };
                 let result = ToolResult {
                     id: entry.id.to_string(),
                     text: if elided { ELIDED.to_string() } else { result.clone() },

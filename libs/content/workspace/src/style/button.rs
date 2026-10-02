@@ -9,7 +9,7 @@ use egui::{
 use std::sync::Arc;
 
 use crate::style::chrome::{
-    HOVER_ANIM_SECS, KbdPart, Radius, STROKE_HAIRLINE, Shortcut, control_height, phosphor,
+    HOVER_ANIM_SECS, Icon, KbdPart, Radius, STROKE_HAIRLINE, Shortcut, control_height, phosphor,
     phosphor_font_id, phosphor_ui_font_id,
 };
 use crate::style::color::{BG_HOVER, BG_PRESS, FG_HOVER, Theme};
@@ -52,6 +52,8 @@ pub struct Button<'a> {
     shortcut: Option<Shortcut>,
     /// Leading Phosphor glyph (PUA codepoint string).
     icon: Option<&'static str>,
+    /// Leading brand mark, in the glyph's place.
+    mark: Option<egui::load::SizedTexture>,
     /// Stable id: after click, replace label with a centered check for 1s.
     copy_feedback: Option<egui::Id>,
 }
@@ -85,6 +87,7 @@ impl<'a> Button<'a> {
             max_width: None,
             shortcut: None,
             icon: None,
+            mark: None,
             copy_feedback: None,
         }
     }
@@ -124,6 +127,12 @@ impl<'a> Button<'a> {
     /// only way to read the control.
     pub fn icon(mut self, icon: &'static str) -> Self {
         self.icon = Some(icon);
+        self
+    }
+
+    /// Leading brand mark: a texture tinted like the label.
+    pub fn mark(mut self, mark: egui::load::SizedTexture) -> Self {
+        self.mark = Some(mark);
         self
     }
 
@@ -178,14 +187,17 @@ impl<'a> Button<'a> {
             ui.painter()
                 .layout_no_wrap(g.to_owned(), phosphor_ui_font_id(), Color32::PLACEHOLDER)
         });
-        let icon_w = icon_galley.as_ref().map(|g| g.size().x).unwrap_or(0.0);
         let has_label = !self.label.is_empty();
         let icon_only = icon_galley.is_some() && !has_label;
-        let icon_block = if icon_galley.is_some() {
-            icon_w + if has_label { icon_gap } else { 0.0 }
-        } else {
-            0.0
+        let mark = self.mark.filter(|_| icon_galley.is_none());
+        let mark_side = TypeRole::Body.size();
+        let icon_w = match (&icon_galley, mark) {
+            (Some(g), _) => g.size().x,
+            (None, Some(_)) => mark_side,
+            (None, None) => 0.0,
         };
+        let icon_block =
+            if icon_w > 0.0 { icon_w + if has_label { icon_gap } else { 0.0 } } else { 0.0 };
 
         // (phosphor icon?, galley) — mono vs icon paint differently (bottom vs mid).
         let sc_parts: Vec<(bool, Arc<Galley>)> = self
@@ -274,6 +286,13 @@ impl<'a> Button<'a> {
             let ir = egui::Rect::from_min_size(pos2(x, block_top), vec2(iw, block_h));
             paint_galley_layout_mid(ui.painter(), ir, ig, text);
             x += iw;
+            if has_label {
+                x += icon_gap;
+            }
+        } else if let Some(mark) = mark {
+            let center = pos2(x + mark_side / 2.0, mid.center().y);
+            Icon::Mark(mark).paint(ui.painter(), center, mark_side, text);
+            x += mark_side;
             if has_label {
                 x += icon_gap;
             }

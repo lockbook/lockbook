@@ -7,6 +7,7 @@ pub mod openai;
 use std::time::Duration;
 
 use lb_rs::model::chat::Usage;
+use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use tokio::sync::mpsc::UnboundedSender;
 
@@ -30,6 +31,15 @@ pub struct Call {
     pub id: String,
     pub name: String,
     pub args: Value,
+    pub echo: Option<Echo>,
+}
+
+/// Something a provider attached to a call and expects back with it: Google
+/// signs each function call. It means nothing to any other provider.
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Echo {
+    pub provider: String,
+    pub content: Value,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -90,10 +100,7 @@ pub(crate) async fn send(
         for (name, value) in headers {
             request = request.header(*name, value);
         }
-        let resp = request
-            .send()
-            .await
-            .map_err(|e| format!("request failed: {e}"))?;
+        let resp = request.send().await.map_err(unsent)?;
         let status = resp.status();
         if status.is_success() {
             return Ok(resp);
@@ -109,9 +116,48 @@ pub(crate) async fn send(
             tokio::time::sleep(Duration::from_secs(wait)).await;
             continue;
         }
-        let text = resp.text().await.unwrap_or_default();
-        return Err(format!("{status}: {}", text.chars().take(500).collect::<String>()));
+        return Err(explain(status, &resp.text().await.unwrap_or_default()));
     }
+}
+
+/// Why a request got no response. A server that is not there reads as its
+/// address; reqwest's own text for that is "error sending request".
+pub(crate) fn unsent(err: reqwest::Error) -> String {
+    let target = err.url().and_then(|url| {
+        let host = url.host_str()?;
+        Some(
+            url.port()
+                .map_or(host.to_string(), |port| format!("{host}:{port}")),
+        )
+    });
+    match target {
+        Some(target) if err.is_connect() || err.is_timeout() => format!("can't reach {target}"),
+        _ => format!("request failed: {}", err.without_url()),
+    }
+}
+
+/// A failed response as a sentence: the status and the message inside the
+/// provider's JSON, whichever of the usual envelopes it came in.
+pub(crate) fn explain(status: reqwest::StatusCode, body: &str) -> String {
+    let message = serde_json::from_str::<Value>(body).ok().and_then(|v| {
+        let v = match v {
+            Value::Array(mut items) if !items.is_empty() => items.swap_remove(0),
+            v => v,
+        };
+        let error = v.get("error").unwrap_or(&v);
+        error
+            .get("message")
+            .or_else(|| v.get("message"))
+            .or(Some(error))
+            .and_then(Value::as_str)
+            .map(str::to_string)
+    });
+    let detail: String = message
+        .unwrap_or_else(|| body.trim().to_string())
+        .chars()
+        .take(500)
+        .collect();
+    if detail.is_empty() { status.to_string() } else { format!("{status}: {detail}") }
 }
 
 /// Splits a byte stream into SSE `data:` payloads. Bytes are decoded per
@@ -139,6 +185,29 @@ impl Sse {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// Providers wrap what went wrong in JSON of a few shapes; the user
+    /// reads the sentence, not the envelope.
+    #[test]
+    fn errors_read_as_their_message() {
+        let status = reqwest::StatusCode::NOT_FOUND;
+        for (body, message) in [
+            (
+                "{\n  \"error\": {\n    \"message\": \"Use the v1/responses endpoint.\",\n    \"type\": \"x\"\n  }\n}",
+                "Use the v1/responses endpoint.",
+            ),
+            ("[{\"error\": {\"code\": 404, \"message\": \"High demand.\"}}]", "High demand."),
+            (
+                "{\"message\":\"Model is archived.\",\"type\":\"model_archived_error\"}",
+                "Model is archived.",
+            ),
+            ("{\"error\":\"invalid api key\"}", "invalid api key"),
+            ("no key", "no key"),
+        ] {
+            assert_eq!(explain(status, body), format!("404 Not Found: {message}"), "{body}");
+        }
+        assert_eq!(explain(status, "  "), "404 Not Found");
+    }
 
     #[test]
     fn sse_splits_lines_and_survives_a_split_character() {

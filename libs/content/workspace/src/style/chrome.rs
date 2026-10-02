@@ -11,9 +11,10 @@
 
 use std::sync::Arc;
 
+use egui::load::SizedTexture;
 use egui::{
-    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Rect,
-    Response, Sense, Shadow, Stroke, StrokeKind, Ui, pos2, vec2,
+    Align, Align2, Color32, CornerRadius, FontFamily, FontId, Frame, Layout, Margin, Painter, Pos2,
+    Rect, Response, Sense, Shadow, Stroke, StrokeKind, Ui, Vec2, pos2, vec2,
 };
 
 use super::color::{Theme, ThemeExt};
@@ -263,14 +264,10 @@ pub mod phosphor {
     pub const GLOBE: &str = "\u{e288}";
     /// X search tool row (`ph-x-logo`).
     pub const X_LOGO: &str = "\u{e4bc}";
-    /// Provider marks for the chat's model picker.
-    pub const OPEN_AI_LOGO: &str = "\u{e7d2}";
-    pub const GOOGLE_LOGO: &str = "\u{e292}";
-    pub const ASTERISK: &str = "\u{e0aa}";
-    pub const LIGHTNING: &str = "\u{e2de}";
-    pub const CPU: &str = "\u{e610}";
+    /// A model server of your own in the chat's pickers: on this device
+    /// (`ph-laptop`), or on another machine (`ph-hard-drives`).
     pub const LAPTOP: &str = "\u{e586}";
-    pub const SPARKLE: &str = "\u{e6a2}";
+    pub const HARD_DRIVES: &str = "\u{e2a0}";
     /// Zoom out (`ph-magnifying-glass-minus`).
     pub const MAGNIFYING_GLASS_MINUS: &str = "\u{e30e}";
     /// Zoom in (`ph-magnifying-glass-plus`).
@@ -467,6 +464,35 @@ pub fn phosphor_font_id(size: f32) -> FontId {
 /// Phosphor at body size (leading button icons / file rows).
 pub fn phosphor_ui_font_id() -> FontId {
     phosphor_font_id(TypeRole::Body.size())
+}
+
+/// A leading mark: a Phosphor glyph, or a texture tinted like the text
+/// beside it (brand marks).
+#[derive(Clone, Copy)]
+pub enum Icon {
+    Glyph(&'static str),
+    Mark(SizedTexture),
+}
+
+impl Icon {
+    /// Paints the mark `side` points across, centered on `center`.
+    pub fn paint(self, painter: &Painter, center: Pos2, side: f32, ink: Color32) {
+        match self {
+            Icon::Glyph(glyph) => {
+                let galley = painter.layout_no_wrap(
+                    glyph.into(),
+                    phosphor_font_id(side),
+                    Color32::PLACEHOLDER,
+                );
+                painter.galley(center - galley.size() / 2.0, galley, ink);
+            }
+            Icon::Mark(mark) => {
+                let rect = Rect::from_center_size(center, Vec2::splat(side));
+                let uv = Rect::from_min_max(pos2(0.0, 0.0), pos2(1.0, 1.0));
+                painter.image(mark.id, rect, uv, ink);
+            }
+        }
+    }
 }
 
 /// Centered Phosphor spinner + muted caption. Call every frame while waiting.

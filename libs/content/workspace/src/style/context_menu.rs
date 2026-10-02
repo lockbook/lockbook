@@ -7,12 +7,11 @@
 //! Placement-only knobs (min/max width, open nudge) stay local.
 
 use egui::{
-    Align, Area, Color32, FontFamily, FontId, Frame, Id, Layout, Margin, Order, Pos2, Response,
-    Sense, Stroke, Ui, Vec2, pos2, vec2,
+    Align, Area, Color32, Frame, Id, Layout, Margin, Order, Pos2, Response, Sense, Stroke, Ui,
+    Vec2, pos2, vec2,
 };
-use std::sync::Arc;
 
-use crate::style::chrome::{Radius, STROKE_HAIRLINE, control_height};
+use crate::style::chrome::{Icon, Radius, STROKE_HAIRLINE, control_height};
 use crate::style::color::{FG_HOVER, Theme};
 use crate::style::space::Space;
 use crate::style::space::control as control_space;
@@ -60,7 +59,7 @@ struct OpenState {
 }
 
 enum Row<T> {
-    Item { icon: Option<&'static str>, label: String, danger: bool, value: T },
+    Item { icon: Option<Icon>, label: String, danger: bool, value: T },
     Sep,
 }
 
@@ -75,13 +74,27 @@ impl<T> Entries<T> {
     }
 
     pub fn item(&mut self, icon: &'static str, label: impl Into<String>, value: T) {
+        self.rows.push(Row::Item {
+            icon: Some(Icon::Glyph(icon)),
+            label: label.into(),
+            danger: false,
+            value,
+        });
+    }
+
+    /// An item led by any [`Icon`], a brand mark included.
+    pub fn item_icon(&mut self, icon: Icon, label: impl Into<String>, value: T) {
         self.rows
             .push(Row::Item { icon: Some(icon), label: label.into(), danger: false, value });
     }
 
     pub fn item_danger(&mut self, icon: &'static str, label: impl Into<String>, value: T) {
-        self.rows
-            .push(Row::Item { icon: Some(icon), label: label.into(), danger: true, value });
+        self.rows.push(Row::Item {
+            icon: Some(Icon::Glyph(icon)),
+            label: label.into(),
+            danger: true,
+            value,
+        });
     }
 
     pub fn separator(&mut self) {
@@ -325,8 +338,8 @@ fn paint_rows<T>(
 
 #[allow(clippy::too_many_arguments)]
 fn paint_one_row(
-    ui: &mut Ui, t: &Theme, row_id: Id, content_w: f32, with_icons: bool,
-    icon: Option<&'static str>, label: &str, danger: bool,
+    ui: &mut Ui, t: &Theme, row_id: Id, content_w: f32, with_icons: bool, icon: Option<Icon>,
+    label: &str, danger: bool,
 ) -> PaintRowOut {
     let (rect, _) = ui.allocate_at_least(vec2(content_w, control_height()), Sense::hover());
     let resp = ui.interact(rect, row_id, Sense::click());
@@ -353,16 +366,11 @@ fn paint_one_row(
     let lead = pad_leading();
     let slot = icon_slot();
     let gap = icon_text_gap();
-    let icon_font = FontId::new(icon_size(), FontFamily::Name(Arc::from("phosphor")));
 
     let text_x = if with_icons {
-        if let Some(glyph) = icon {
-            let ig = ui
-                .painter()
-                .layout_no_wrap(glyph.into(), icon_font, Color32::PLACEHOLDER);
-            let ix = rect.left() + lead + (slot - ig.size().x).max(0.0) * 0.5;
-            ui.painter()
-                .galley(pos2(ix, cy - ig.size().y / 2.0), ig, ink);
+        if let Some(icon) = icon {
+            let center = pos2(rect.left() + lead + slot / 2.0, cy);
+            icon.paint(ui.painter(), center, icon_size(), ink);
         }
         rect.left() + lead + slot + gap
     } else {
