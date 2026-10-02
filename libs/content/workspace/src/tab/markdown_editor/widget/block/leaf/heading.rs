@@ -9,6 +9,8 @@ use crate::style::{
     FG_HOVER, FG_PRESS, Radius, ThemeExt as _, phosphor, phosphor_font_id, sense_click, tip_text,
 };
 use crate::tab::markdown_editor::MdRender;
+use crate::tab::markdown_editor::TouchTarget;
+use crate::tab::markdown_editor::input::Event;
 use crate::tab::markdown_editor::widget::inline::Response;
 use crate::tab::markdown_editor::widget::utils::wrap_layout::Layout;
 
@@ -210,7 +212,6 @@ impl<'ast> MdRender {
                 ui,
                 node,
                 (fold_button_size, fold_button_icon_size, fold_button_space),
-                self.heading_contents(node),
                 self.heading_fold_reveal(node),
             );
         }
@@ -426,12 +427,17 @@ impl<'ast> MdRender {
 
     pub fn show_fold_button(
         &mut self, ui: &mut Ui, node: &'ast AstNode<'ast>, size_icon_size_space: (f32, f32, Rect),
-        contents: (Grapheme, Grapheme), fold_reveal: bool,
+        fold_reveal: bool,
     ) {
         let (_size, icon_size, space) = size_icon_size_space;
-        self.touch_consuming_rects.push(space);
-
         let folded = self.fold(node).is_some();
+        let toggle = Event::ToggleFold { node: Some(self.node_range(node)) };
+        // A finger's target: the gutter around the button, the row's height.
+        let target =
+            Rect::from_min_max(space.min - Vec2::new(6.0, 4.0), space.max + Vec2::new(6.0, 4.0));
+        self.touch_targets
+            .push((target, TouchTarget::Tap(toggle.clone())));
+
         if !folded && self.foldable(node).is_none() {
             return;
         }
@@ -484,7 +490,7 @@ impl<'ast> MdRender {
         tip_text(ui.ctx(), &resp, if folded { "Show Contents" } else { "Hide Contents" });
 
         if resp.clicked() {
-            self.apply_fold(node, contents, folded);
+            self.render_events.push(toggle);
         }
     }
 

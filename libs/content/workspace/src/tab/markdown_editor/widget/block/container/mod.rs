@@ -811,6 +811,7 @@ impl<'ast> MdRender {
                 // click selects it via `bounds.words`.
                 atomic: false,
                 interaction: None,
+                far: false,
             });
         }
     }

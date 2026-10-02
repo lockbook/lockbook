@@ -145,16 +145,8 @@ impl MdEdit {
             self.renderer.reparse(&arena);
         }
 
-        // selections are automatically snapped out of fold sections but
-        // sometimes you can still end up in them e.g. by indenting an item into
-        // a folded item
-        if (buf_resp.text_updated || buf_resp.selection_user_moved)
-            && !undo_redo
-            && !self.renderer.readonly
-            && !self.renderer.plaintext
-        {
-            buf_resp |= self.unfold_at_selection(&arena);
-        }
+        let edited = buf_resp.text_updated || buf_resp.selection_user_moved;
+        buf_resp |= self.unfold_after_edit(&arena, edited, undo_redo);
 
         // An entered atom stays revealed only while the selection remains
         // within it; the range is re-resolved against the (possibly edited)
@@ -184,6 +176,48 @@ impl MdEdit {
         }
 
         buf_resp
+    }
+
+    /// Apply an edit from a platform text system (UIKit) now, outside the
+    /// frame, so its next query reads the result. The frame that follows does
+    /// not report this change back as its own.
+    pub fn apply_platform_event(&mut self, event: Event) -> buffer::Response {
+        self.apply_platform(event, true)
+    }
+
+    /// [`Self::apply_platform_event`], revealing the caret afterwards only
+    /// if `reveal`: a selection the platform writes mid-gesture is under
+    /// the finger already, and a reveal would fight the gesture's scroll.
+    pub fn apply_platform(&mut self, event: Event, reveal: bool) -> buffer::Response {
+        let ctx = self.renderer.ctx.clone();
+        let arena = Arena::new();
+        let root = self.renderer.reparse(&arena);
+        let undo_redo = matches!(event, Event::Undo | Event::Redo);
+        let mut ops = Vec::new();
+        let mut resp = self.calc_operations(&ctx, root, event, &mut ops);
+        self.renderer.buffer.queue(ops);
+        resp |= self.renderer.buffer.update();
+        if resp.text_updated {
+            self.renderer.bump_text_seq();
+            self.renderer.reparse(&arena);
+        }
+        // The frame's own edits get this in `show`; a platform's edit is
+        // applied here, before that frame sees anything to unfold for.
+        let edited = resp.text_updated || resp.selection_user_moved;
+        resp |= self.unfold_after_edit(&arena, edited, undo_redo);
+        if reveal && (resp.text_updated || resp.selection_user_moved) {
+            self.pending_scroll = Some(ScrollTarget::Cursor);
+            self.cursor_last_interact = Some(ctx.input(|i| i.time));
+        }
+        ctx.request_repaint();
+        resp
+    }
+
+    /// The edit a paste of `text` makes: a URL over a selection links it.
+    pub fn paste_event(&mut self, text: String) -> Option<Event> {
+        let arena = Arena::new();
+        let root = self.renderer.reparse(&arena);
+        self.translate_egui_keyboard_event(egui::Event::Paste(text), root)
     }
 
     /// Sync `reveal_selection` to the buffer selection, bumping `reveal_seq`
@@ -247,6 +281,7 @@ impl MdEdit {
         self.renderer.bounds.wrap_lines.clear();
         self.renderer.text_areas.clear();
         self.renderer.deco_lines.clear();
+        self.renderer.touch_targets.clear();
         let render_rect = Rect::from_min_size(rect.min, egui::Vec2::new(rect.width(), height));
         ui.scope_builder(UiBuilder::new().max_rect(render_rect), |ui| {
             // Clip the (possibly overflowing) layout to the field.
@@ -428,7 +463,7 @@ impl MdEdit {
         use crate::tab::markdown_editor::scroll_content::DocScrollContent;
         use crate::widgets::affine_scroll::{Align, Reveal};
 
-        let Some(pointer) = ui.input(|i| i.pointer.latest_pos()) else { return };
+        let Some(pointer) = self.drag_pointer(ui) else { return };
         let viewport = ui.clip_rect();
         let viewport_y = (pointer.y - viewport.min.y).clamp(0.0, viewport.height());
         let pad = self.renderer.layout.row_height;
@@ -461,7 +496,7 @@ impl MdEdit {
         &mut self, ui: &mut Ui, root: &'a comrak::nodes::AstNode<'a>,
     ) {
         let Some(drag) = self.in_progress_block_drag else { return };
-        let Some(p) = ui.input(|i| i.pointer.latest_pos()) else { return };
+        let Some(p) = self.drag_pointer(ui) else { return };
         let theme = self.renderer.ctx.get_lb_theme();
         let primary = theme.bg().get_color(theme.prefs().primary);
 
@@ -602,7 +637,7 @@ impl MdEdit {
         &mut self, ui: &mut Ui, rect: Rect, id: Id, root: &'a comrak::nodes::AstNode<'a>,
     ) -> PreRenderState {
         self.renderer.dark_mode = ui.style().visuals.dark_mode;
-        self.renderer.viewport_height = ui.clip_rect().height();
+        self.renderer.set_viewport_height(ui.clip_rect().height());
         let prior_entered_atom = self.renderer.entered_atom;
 
         ui.ctx().check_for_id_clash(id, rect, "");
@@ -988,6 +1023,12 @@ impl MdEdit {
         self.in_progress_selection = None;
         self.in_progress_handle = None;
         self.event.internal_events.clear();
+        // A platform text system asks about the new text before the next
+        // frame: its units come from bounds, and nothing may answer from the
+        // old text's layout.
+        let arena = Arena::new();
+        self.renderer.reparse(&arena);
+        self.renderer.fragments.clear();
     }
 
     /// Center-top of the first wrap line of the given range — where a

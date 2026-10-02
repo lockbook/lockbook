@@ -246,6 +246,24 @@ impl MdEdit {
     }
 }
 
+impl MdEdit {
+    /// [`MdRender::range_rects`] for a platform text system, which places
+    /// the end handle in the last rect. A range ending at the start of a
+    /// line selects no glyph there, so the end caret's sliver is added on
+    /// that line.
+    pub fn selection_rects(&self, range: (Grapheme, Grapheme)) -> Vec<Rect> {
+        let mut rects = self.renderer.range_rects(range);
+        if let Some([top, bottom]) = self.cursor_line(range.end()) {
+            let mid_y = (top.y + bottom.y) / 2.;
+            let covered = rects.iter().any(|r| r.y_range().contains(mid_y));
+            if !covered {
+                rects.push(Rect::from_min_max(top, Pos2::new(bottom.x + 2., bottom.y)));
+            }
+        }
+        rects
+    }
+}
+
 impl MdRender {
     /// Highlights the provided range with a faded version of the provided accent color.
     pub fn show_range(&self, ui: &mut Ui, highlight_range: (Grapheme, Grapheme), color: Color32) {

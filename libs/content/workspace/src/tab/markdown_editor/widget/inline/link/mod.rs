@@ -15,6 +15,7 @@ use crate::egress::{FetchError, fetch_html};
 use crate::file_cache::{FilesExt as _, ResolvedLink};
 use crate::show::DocType;
 use crate::style::{phosphor, phosphor_font_id};
+use crate::tab::markdown_editor::TouchTarget;
 use crate::tab::markdown_editor::input::{Event, Location, Region};
 use crate::tab::markdown_editor::widget::inline::link::meta::{
     LinkMeta, LinkMetaState, extract_link_meta, is_junk_meta,
@@ -432,10 +433,13 @@ impl<'ast> MdRender {
             };
             let id = parent_base.with(Self::link_interaction_id_salt(self.node_range(node)));
 
-            // iOS routes touches through `touch_consuming_rects` —
-            // without these entries a tap on the open-link button would
-            // place the cursor instead of reaching the click handler below.
-            self.touch_consume_interaction(id);
+            let open = Event::OpenLink { url: url.clone(), wikilink: is_wikilink };
+            let tap = if self.readonly {
+                open.clone()
+            } else {
+                Event::Select { region: self.node_range(node).into() }
+            };
+            self.touch_consume_interaction(id, TouchTarget::Tap(tap));
 
             let Some(response) = self.interaction_responses.get(&id) else {
                 continue;
@@ -465,13 +469,7 @@ impl<'ast> MdRender {
             }
 
             if response.clicked() && (self.readonly || !self.touch_mode) {
-                if is_wikilink {
-                    if let Some(file_id) = self.resolve_wikilink(&url) {
-                        ui.ctx().open_file(file_id, false);
-                    }
-                } else {
-                    self.open_resolved_link(&url, ui.ctx(), false);
-                }
+                self.render_events.push(open);
                 return;
             }
         }

@@ -1,3 +1,4 @@
+use crate::tab::ExtendedOutput as _;
 use crate::tab::markdown_editor::bounds::{BoundExt as _, RangesExt as _};
 use crate::tab::markdown_editor::input::{Event, Increment};
 use crate::tab::markdown_editor::widget::utils::{
@@ -482,25 +483,50 @@ impl<'ast> MdEdit {
                 //         self.appearance.base_font_size.map(|size| size - 1.)
                 // }
             }
-            Event::ToggleFold => {
-                let unapply = self.unapply_fold(root);
+            Event::ToggleFold { node: at } => {
+                let unapply = at.is_none().then(|| self.unapply_fold(root));
                 for node in root.descendants() {
-                    if matches!(node.data().value, NodeValue::Heading(_))
-                        && self.renderer.selected_block(node)
+                    let targeted = |selected: bool| match at {
+                        Some(range) => self.renderer.node_range(node) == range,
+                        None => selected,
+                    };
+                    let contents = if matches!(node.data().value, NodeValue::Heading(_))
+                        && targeted(self.renderer.selected_block(node))
                     {
-                        self.renderer.apply_fold(
-                            node,
-                            self.renderer.heading_contents(node),
-                            unapply,
-                        );
-                    }
-
-                    if matches!(node.data().value, NodeValue::Item(_) | NodeValue::TaskItem(_))
-                        && self.renderer.selected_fold_item(node)
+                        self.renderer.heading_contents(node)
+                    } else if matches!(
+                        node.data().value,
+                        NodeValue::Item(_) | NodeValue::TaskItem(_)
+                    ) && targeted(self.renderer.selected_fold_item(node))
                     {
-                        self.renderer
-                            .apply_fold(node, self.renderer.item_contents(node), unapply);
+                        self.renderer.item_contents(node)
+                    } else {
+                        continue;
+                    };
+                    let unapply = unapply.unwrap_or_else(|| self.renderer.fold(node).is_some());
+                    self.renderer.apply_fold(node, contents, unapply);
+                }
+            }
+            Event::ToggleSpoiler { node: range } => {
+                let Some(node) = root
+                    .descendants()
+                    .find(|node| self.renderer.node_range(node) == range)
+                else {
+                    return response;
+                };
+                let salt = MdRender::spoiler_interaction_id_salt(node);
+                if !self.renderer.revealed_spoilers.insert(salt) {
+                    self.renderer.revealed_spoilers.remove(&salt);
+                }
+            }
+            Event::OpenLink { url, wikilink } => {
+                let ctx = self.renderer.ctx.clone();
+                if wikilink {
+                    if let Some(file) = self.renderer.resolve_wikilink(&url) {
+                        ctx.open_file(file, false);
                     }
+                } else {
+                    self.renderer.open_resolved_link(&url, &ctx, false);
                 }
             }
             Event::EnterAtom => {

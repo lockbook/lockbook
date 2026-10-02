@@ -106,9 +106,11 @@ pub enum Event {
     ToggleDebug,
     IncrementBaseFontSize,
     DecrementBaseFontSize,
-    Camera, // launch camera on platform
-    ToggleFold,
+    Camera,                                            // launch camera on platform
+    ToggleFold { node: Option<(Grapheme, Grapheme)> }, // the block whose range this is, else the selection's blocks
     EnterAtom, // select the URL inside the selected atom (e.g. image), revealing its source; the touch path in, since mobile has no arrow keys
+    ToggleSpoiler { node: (Grapheme, Grapheme) }, // reveal or hide the spoiler whose range this is
+    OpenLink { url: String, wikilink: bool }, // navigate, on the platform
 }
 
 impl From<(Grapheme, Grapheme)> for Region {

@@ -448,7 +448,7 @@ impl<'ast> MdEdit {
                 if self.renderer.readonly {
                     return None;
                 }
-                Some(Event::ToggleFold)
+                Some(Event::ToggleFold { node: None })
             }
 
             egui::Event::Key { key: Key::F2, pressed: true, .. } => Some(Event::ToggleDebug),
