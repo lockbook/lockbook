@@ -13,6 +13,8 @@ use crate::wire::{Call, ToolResult, Turn};
 pub const RECENT_TOOL_RESULTS: usize = 8;
 /// Tool results elided together.
 pub const ELIDE_BATCH: usize = 8;
+/// Said to the model under what its provider ran for it earlier.
+pub const SERVED: &str = "(what this returned was read when it ran; only this much is kept)";
 pub const ELIDED: &str = "(result no longer in context)";
 
 /// How many of the oldest results are stubbed, given each one's bytes (zero
@@ -123,16 +125,21 @@ pub fn turns(chat: &Chat, user: &str, budget: Option<usize>) -> Vec<Turn> {
             Body::Assistant { text, .. } => {
                 push_user(&mut turns, format!("**{}'s assistant**: {text}", entry.from));
             }
-            Body::Tool { name, args, result, ok, .. } if own => {
+            Body::Tool { name, args, result, ok, server } if own => {
+                // The provider read more than is kept of what it ran itself.
+                let result = if *server { &format!("{result}\n{SERVED}") } else { result };
                 tool_seen += 1;
                 let elided = *ok && tool_seen <= elide;
                 let call = Call {
                     id: entry.id.to_string(),
                     name: name.clone(),
                     args: args.clone(),
+                    // An elided call of the provider's own goes back as bare
+                    // as its result.
                     echo: entry
                         .extra
                         .get("echo")
+                        .filter(|_| !(elided && *server))
                         .and_then(|v| serde_json::from_value(v.clone()).ok()),
                 };
                 let result = ToolResult {
@@ -141,10 +148,14 @@ pub fn turns(chat: &Chat, user: &str, budget: Option<usize>) -> Vec<Turn> {
                     ok: *ok,
                 };
                 let n = turns.len();
-                let extends_results = n >= 2
+                // What a provider ran itself opened the reply after it; it
+                // was no part of the round before.
+                let extends_results = !*server
+                    && n >= 2
                     && matches!(turns[n - 2], Turn::Assistant { .. })
                     && matches!(turns[n - 1], Turn::ToolResults(_));
-                let follows_assistant = matches!(turns.last(), Some(Turn::Assistant { .. }));
+                let follows_assistant =
+                    !*server && matches!(turns.last(), Some(Turn::Assistant { .. }));
                 if extends_results {
                     if let Turn::Assistant { calls, .. } = &mut turns[n - 2] {
                         calls.push(call);
@@ -248,6 +259,27 @@ mod tests {
             other => panic!("{other:?}"),
         }
         assert_eq!(turns[3], Turn::Assistant { text: "done".into(), calls: vec![] });
+    }
+
+    /// What a provider ran itself is a turn of its own before the reply it
+    /// led to, not more of the round before, and is marked as kept in part.
+    #[test]
+    fn what_a_provider_ran_opens_its_own_turn() {
+        let mut chat = Chat::default();
+        chat.push(at(1, Entry::user("u", "q")));
+        chat.push(at(2, Entry::tool("u", "read", json!({}), "note", true)));
+        let mut searched = at(3, Entry::tool("u", "web_search", json!({"query": "x"}), "s", true));
+        if let Body::Tool { server, .. } = &mut searched.body {
+            *server = true;
+        }
+        chat.push(searched);
+        chat.push(at(4, Entry::assistant("u", "found", "m", Usage::default())));
+        let turns = fold(&chat);
+        assert_eq!(turns.len(), 6);
+        assert!(
+            matches!(&turns[3], Turn::Assistant { calls, .. } if calls[0].name == "web_search")
+        );
+        assert!(matches!(&turns[4], Turn::ToolResults(r) if r[0].text == format!("s\n{SERVED}")));
     }
 
     #[test]

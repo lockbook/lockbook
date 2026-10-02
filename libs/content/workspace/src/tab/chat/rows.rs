@@ -65,6 +65,11 @@ pub fn row(name: &str, args: &Value) -> Row {
         "create" => (phosphor::FILE_PLUS, "create"),
         "move" => (phosphor::FOLDER, "move"),
         "delete" => (phosphor::TRASH, "delete"),
+        // What a provider ran itself.
+        "web_search" => (phosphor::GLOBE, "search the web"),
+        "x_search" => (phosphor::GLOBE, "search X"),
+        "code" => (phosphor::CODE, "run code"),
+        "fetch" => (phosphor::GLOBE, "fetch"),
         // Not calls: what a reply showed of its thinking, live and settled.
         "thinking" | "thought" => (phosphor::LIGHTBULB, name),
         other => (phosphor::GEAR, other),
@@ -72,7 +77,11 @@ pub fn row(name: &str, args: &Value) -> Row {
     let mut words = vec![(verb.to_string(), false)];
     let mut variable = |text: String| words.push((text, true));
     match name {
-        "search" => arg(args, "query")
+        "search" | "web_search" | "x_search" => arg(args, "query")
+            .map(str::to_string)
+            .into_iter()
+            .for_each(&mut variable),
+        "fetch" => arg(args, "url")
             .map(str::to_string)
             .into_iter()
             .for_each(&mut variable),
@@ -154,6 +163,19 @@ pub fn body(name: &str, args: &Value, result: &str, ok: bool, working_dir: &str)
                 .map(|count| Part::Line(count.to_string())),
         ),
         "thinking" | "thought" => parts.push(Part::Note(result.to_string())),
+        // Sources, as the list of links they came as.
+        "web_search" | "x_search" if !result.is_empty() => {
+            parts.push(Part::Note(result.to_string()))
+        }
+        // Ours returns the page; a provider's own only says it went.
+        "fetch" if result != "done" => parts.extend(clipped(result, Part::Text)),
+        "code" => {
+            let code = arg(args, "code").unwrap_or_default();
+            parts.push(Part::Note(format!("```\n{code}\n```")));
+            if !result.is_empty() {
+                parts.push(Part::Text(result.to_string()));
+            }
+        }
         "create" => match arg(args, "text") {
             Some(text) if arg(args, "path").is_some_and(is_note) => {
                 parts.extend(clipped(text, Part::Note))

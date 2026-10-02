@@ -22,6 +22,7 @@ use crate::provider::Provider;
 use crate::store::Store;
 use crate::territory::Territory;
 use crate::tools::{ToolOutcome, Tools};
+use crate::web;
 use crate::wire::{self, Call, Piece, Request};
 
 /// Bytes of a tool result written to the chat.
@@ -259,6 +260,25 @@ impl Worker {
                     break;
                 }
                 Outcome::Finished(completion) => {
+                    // What the provider ran itself came before what it said.
+                    let served = completion.served.iter().map(|s| {
+                        let result = if s.result.is_empty() { "done" } else { &s.result };
+                        let mut entry = Entry::tool(&user, &s.name, s.args.clone(), result, true);
+                        if let Body::Tool { server, .. } = &mut entry.body {
+                            *server = true;
+                        }
+                        if let Some(echo) = &s.echo {
+                            entry.extra.insert("echo".into(), json!(echo));
+                        }
+                        entry
+                    });
+                    if !served
+                        .collect::<Vec<_>>()
+                        .into_iter()
+                        .all(|e| self.settle(e))
+                    {
+                        break;
+                    }
                     let said = reply(&user, &provider, &completion, false);
                     if !self.settle(said) || completion.calls.is_empty() {
                         break;
@@ -344,7 +364,10 @@ impl Worker {
             .prepare(&chat, &self.config.user, &self.config.working_dir);
         let instructions = self.tools.instructions(&self.config.working_dir);
         let system = context::system_prompt(&territory, &instructions);
-        let tools = self.tools.schemas();
+        let mut tools = self.tools.schemas();
+        if provider.reaches_the_web() {
+            tools.retain(|tool| tool.name != web::SEARCH && tool.name != web::FETCH);
+        }
         // Tool results get half of what the prompt and the schemas leave,
         // at four bytes a token.
         let budget = (self.config.window)(&provider).map(|window| {
