@@ -17,6 +17,9 @@ pub struct Request {
     pub system: String,
     pub turns: Vec<Turn>,
     pub tools: Vec<ToolSchema>,
+    /// Today's date as a sentence, for a dialect that can say it again
+    /// after the newest turn.
+    pub today: String,
 }
 
 #[derive(Clone, Debug, PartialEq)]

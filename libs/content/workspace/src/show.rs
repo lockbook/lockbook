@@ -180,6 +180,9 @@ impl Workspace {
                 }
                 self.link_sheets.extend(sheets);
                 self.show_link_sheet(ui.ctx());
+                if let Some(id) = ui.ctx().pop_focus_folder() {
+                    self.focus_folder(id);
+                }
             });
         });
     }

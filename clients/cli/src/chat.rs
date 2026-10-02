@@ -1,4 +1,4 @@
-use std::io::{BufRead, Write};
+use std::io::Write;
 use std::thread::sleep;
 use std::time::Duration;
 
@@ -59,13 +59,6 @@ pub fn chat(target: String, message: String) -> CliResult<()> {
                     out.flush()?;
                 }
                 Event::ToolStarted(call) => eprintln!("[{} {}]", call.name, call.args),
-                Event::Ask { prompt, .. } => {
-                    eprint!("{prompt} [y/N] ");
-                    let mut answer = String::new();
-                    let _ = std::io::stdin().lock().read_line(&mut answer);
-                    let yes = answer.trim().eq_ignore_ascii_case("y");
-                    driver.send(if yes { Cmd::Approve } else { Cmd::Deny });
-                }
                 Event::Written(entry) => {
                     if let Body::Error { text } = entry.body {
                         eprintln!("error: {text}");

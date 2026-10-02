@@ -1,5 +1,5 @@
-//! The librarian: search, read, list, edit, create, move, delete, and
-//! request_access over the vault, every one of them behind the territory.
+//! The librarian: search, read, list, edit, create, move, and delete over
+//! the vault, every one of them behind the territory and none of them asking.
 //! A walled path reads as nonexistent; creating or moving onto one ends the
 //! run instead of answering, so a name collision cannot leak a name.
 
@@ -363,15 +363,12 @@ impl VaultTools {
         }
     }
 
-    fn delete(&mut self, args: &Value, approved: bool) -> ToolOutcome {
+    fn delete(&mut self, args: &Value) -> ToolOutcome {
         let path = normalize(&str_arg(args, "path"));
         let file = match self.visible_file(&path) {
             Ok(f) => f,
             Err(e) => return ToolOutcome::err(e),
         };
-        if !approved {
-            return ToolOutcome::Ask { prompt: format!("Delete {path}?") };
-        }
         match self.lb.delete_file(&file.id) {
             Ok(()) => {
                 self.index = None;
@@ -379,28 +376,6 @@ impl VaultTools {
             }
             Err(e) => ToolOutcome::err(e.to_string()),
         }
-    }
-
-    fn request_access(&mut self, args: &Value, approved: bool) -> ToolOutcome {
-        let raw = str_arg(args, "path");
-        let path = normalize(&raw);
-        let reason = str_arg(args, "reason");
-        if self.territory.walled(&path) {
-            return ToolOutcome::err(format!("{path} does not exist"));
-        }
-        if self.territory.allowed(&path) {
-            return ToolOutcome::ok(format!("{path} is already available"));
-        }
-        if !approved {
-            let what =
-                if path.ends_with('/') { "read and edit notes under" } else { "read and edit" };
-            return ToolOutcome::Ask {
-                prompt: format!("Let this chat {what} {path}? The agent says: {reason}"),
-            };
-        }
-        self.territory.include.push(path.clone());
-        self.index = None;
-        ToolOutcome::Grant { path: path.clone(), text: format!("granted {path}") }
     }
 }
 
@@ -418,7 +393,7 @@ impl Tools for VaultTools {
         self.territory = territory;
     }
 
-    fn call(&mut self, call: &Call, approved: bool) -> ToolOutcome {
+    fn call(&mut self, call: &Call) -> ToolOutcome {
         let args = &call.args;
         match call.name.as_str() {
             "search" => self.search(args),
@@ -427,8 +402,7 @@ impl Tools for VaultTools {
             "edit" => self.edit(args),
             "create" => self.create(args),
             "move" => self.mv(args),
-            "delete" => self.delete(args, approved),
-            "request_access" => self.request_access(args, approved),
+            "delete" => self.delete(args),
             other => ToolOutcome::err(format!("no tool named {other}")),
         }
     }
@@ -451,10 +425,7 @@ fn outside_or_missing(territory: &Territory, path: &str) -> String {
     if territory.walled(path) || territory.allowed(path) {
         format!("{path} does not exist")
     } else {
-        format!(
-            "{path} is outside this chat's folders ({}); call request_access for it",
-            territory.roots().join(", ")
-        )
+        format!("{path} is outside this chat's folders ({})", territory.roots().join(", "))
     }
 }
 
@@ -633,18 +604,9 @@ pub fn schemas() -> Vec<ToolSchema> {
         ),
         schema(
             "delete",
-            "Delete a note or folder. The user confirms first.",
+            "Delete a note or folder.",
             json!({ "path": { "type": "string" } }),
             &["path"],
-        ),
-        schema(
-            "request_access",
-            "Ask the user to let this chat read and edit a folder (path ending in /) or a note outside its folders.",
-            json!({
-                "path": { "type": "string" },
-                "reason": { "type": "string", "description": "one sentence on why" },
-            }),
-            &["path", "reason"],
         ),
     ]
 }
@@ -680,6 +642,13 @@ mod tests {
         assert!(text[at..].starts_with("Pricing Decision"));
         assert!(snippet(text, at).contains("Pricing Decision"));
         assert_eq!(find_ci(text, "zzz"), None);
+    }
+
+    /// Nothing asks the user for anything: the folder is the only limit.
+    #[test]
+    fn the_tools_on_offer() {
+        let names: Vec<String> = schemas().into_iter().map(|s| s.name).collect();
+        assert_eq!(names, ["search", "read", "list", "edit", "create", "move", "delete"]);
     }
 
     #[test]

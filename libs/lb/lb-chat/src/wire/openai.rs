@@ -258,7 +258,12 @@ mod tests {
     }
 
     fn hi() -> Request {
-        Request { system: "s".into(), turns: vec![Turn::User("hi".into())], tools: vec![] }
+        Request {
+            system: "s".into(),
+            turns: vec![Turn::User("hi".into())],
+            tools: vec![],
+            today: String::new(),
+        }
     }
 
     #[test]
@@ -321,6 +326,7 @@ mod tests {
                 }]),
             ],
             tools: vec![],
+            today: String::new(),
         };
         run(&url, req).0.unwrap();
         let sent: Value = serde_json::from_str(&rx.recv().unwrap()).unwrap();

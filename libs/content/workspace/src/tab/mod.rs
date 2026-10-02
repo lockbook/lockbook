@@ -714,6 +714,9 @@ pub trait ExtendedOutput {
     /// A rendered copy; hosts put both flavors on the clipboard at once.
     fn set_copied_rendered(&self, copied: CopiedRendered);
     fn pop_copied_rendered(&self) -> Option<CopiedRendered>;
+    /// Point the file tree at a folder, leaving the tab where it is.
+    fn focus_folder(&self, id: Uuid);
+    fn pop_focus_folder(&self) -> Option<Uuid>;
 }
 
 #[derive(Clone, Debug, Default)]
@@ -867,6 +870,16 @@ impl ExtendedOutput for egui::Context {
                 .remove_temp::<Vec<(Uuid, Vec<String>)>>(Id::unique("create_notes"))
                 .unwrap_or_default()
         })
+    }
+
+    fn focus_folder(&self, id: Uuid) {
+        self.memory_mut(|m| {
+            m.data.insert_temp(Id::unique("focus_folder"), id);
+        })
+    }
+
+    fn pop_focus_folder(&self) -> Option<Uuid> {
+        self.memory_mut(|m| m.data.remove_temp(Id::unique("focus_folder")))
     }
 }
 

@@ -1116,7 +1116,7 @@ impl MdEdit {
         ui.set_clip_rect(rect.intersect(entry_clip));
 
         // cursor / selection — iOS draws natively
-        if ui.ctx().os() != OperatingSystem::IOS && !self.renderer.readonly {
+        if ui.ctx().os() != OperatingSystem::IOS {
             let selection = self
                 .renderer
                 .in_progress_selection
@@ -1143,42 +1143,46 @@ impl MdEdit {
                 ui.painter().set(slot, highlight(in_row));
             }
 
-            let now = ui.ctx().input(|i| i.time);
-            if self.in_progress_selection.is_some()
-                || (focused && self.cursor_last_interact.is_none())
-            {
-                self.cursor_last_interact = Some(now);
-            }
-            // Android Material You: `fg()` is colorPrimary in both modes.
-            // `bright` is the washed primaryContainer in light.
-            let caret = if ui.ctx().os() == OperatingSystem::Android {
-                theme.fg().get_color(theme.prefs().primary)
-            } else {
-                theme.bright.get_color(theme.prefs().primary)
-            };
-            if focused {
-                let blink = now - self.cursor_last_interact.unwrap_or(now);
-                self.show_offset(ui, selection.1, caret, blink);
-                // egui-winit disallows the IME without this, discarding a
-                // composition whose caret is off screen
-                let cursor = self
-                    .cursor_line(selection.1)
-                    .map(|[t, b]| Rect::from_min_max(t, b));
-                let cursor_rect = cursor.unwrap_or(rect);
-                // a composition this frame's click left ends now, so the input
-                // method lets go of it before the next key reaches it
-                if self.renderer.ime_marked.is_some() && self.ime_marked_range().is_none() {
-                    ui.ctx().request_repaint();
+            // Read-only text is selected and copied, never typed into: it
+            // shows its selection and no caret.
+            if !self.renderer.readonly {
+                let now = ui.ctx().input(|i| i.time);
+                if self.in_progress_selection.is_some()
+                    || (focused && self.cursor_last_interact.is_none())
+                {
+                    self.cursor_last_interact = Some(now);
                 }
-                if !std::mem::take(&mut self.ime_reset) {
-                    ui.output_mut(|o| {
-                        o.ime = Some(egui::output::IMEOutput {
-                            purpose: Default::default(),
-                            rect,
-                            cursor_rect,
-                            should_interrupt_composition: false,
-                        })
-                    });
+                // Android Material You: `fg()` is colorPrimary in both modes.
+                // `bright` is the washed primaryContainer in light.
+                let caret = if ui.ctx().os() == OperatingSystem::Android {
+                    theme.fg().get_color(theme.prefs().primary)
+                } else {
+                    theme.bright.get_color(theme.prefs().primary)
+                };
+                if focused {
+                    let blink = now - self.cursor_last_interact.unwrap_or(now);
+                    self.show_offset(ui, selection.1, caret, blink);
+                    // egui-winit disallows the IME without this, discarding a
+                    // composition whose caret is off screen
+                    let cursor = self
+                        .cursor_line(selection.1)
+                        .map(|[t, b]| Rect::from_min_max(t, b));
+                    let cursor_rect = cursor.unwrap_or(rect);
+                    // a composition this frame's click left ends now, so the input
+                    // method lets go of it before the next key reaches it
+                    if self.renderer.ime_marked.is_some() && self.ime_marked_range().is_none() {
+                        ui.ctx().request_repaint();
+                    }
+                    if !std::mem::take(&mut self.ime_reset) {
+                        ui.output_mut(|o| {
+                            o.ime = Some(egui::output::IMEOutput {
+                                purpose: Default::default(),
+                                rect,
+                                cursor_rect,
+                                should_interrupt_composition: false,
+                            })
+                        });
+                    }
                 }
             }
         }
