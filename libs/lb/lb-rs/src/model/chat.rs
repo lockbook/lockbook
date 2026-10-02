@@ -32,6 +32,8 @@ pub enum Body {
     },
     Assistant {
         text: String,
+        /// What the model showed of its thinking on the way to `text`.
+        thinking: String,
         model: String,
         usage: Usage,
         spoken: bool,
@@ -107,6 +109,7 @@ impl Entry {
     ) -> Self {
         let body = Body::Assistant {
             text: text.into(),
+            thinking: String::new(),
             model: model.into(),
             usage,
             spoken: false,
@@ -152,6 +155,7 @@ impl Entry {
             },
             "assistant" => Body::Assistant {
                 text: take_string(&mut map, "text"),
+                thinking: take_string(&mut map, "thinking"),
                 model: take_string(&mut map, "model"),
                 usage: take(&mut map, "usage").unwrap_or_default(),
                 spoken: take_bool(&mut map, "spoken", false),
@@ -189,9 +193,12 @@ impl Entry {
                     put("mentions", json!(mentions));
                 }
             }
-            Body::Assistant { text, model, usage, spoken, interrupted } => {
+            Body::Assistant { text, thinking, model, usage, spoken, interrupted } => {
                 put("kind", json!("assistant"));
                 put("text", json!(text));
+                if !thinking.is_empty() {
+                    put("thinking", json!(thinking));
+                }
                 put("model", json!(model));
                 put("usage", json!(usage));
                 if *spoken {
@@ -469,10 +476,12 @@ mod tests {
             mentions.push(Mention { path: "/x.md".into(), id: Some(Uuid::new_v4()) });
         }
         chat.push(user);
-        chat.push(at(
-            2,
-            Entry::assistant("a", "hello", "p/m", Usage { input: 1, ..Default::default() }),
-        ));
+        let mut reply =
+            at(2, Entry::assistant("a", "hello", "p/m", Usage { input: 1, ..Default::default() }));
+        if let Body::Assistant { thinking, .. } = &mut reply.body {
+            *thinking = "a greeting".into();
+        }
+        chat.push(reply);
         chat.push(at(3, Entry::tool("a", "search", json!({"query": "q"}), "r", false)));
         chat.push(at(4, Entry::error("a", "boom")));
         chat.set_settings(

@@ -65,6 +65,8 @@ pub fn row(name: &str, args: &Value) -> Row {
         "create" => (phosphor::FILE_PLUS, "create"),
         "move" => (phosphor::FOLDER, "move"),
         "delete" => (phosphor::TRASH, "delete"),
+        // Not calls: what a reply showed of its thinking, live and settled.
+        "thinking" | "thought" => (phosphor::LIGHTBULB, name),
         other => (phosphor::GEAR, other),
     };
     let mut words = vec![(verb.to_string(), false)];
@@ -151,6 +153,7 @@ pub fn body(name: &str, args: &Value, result: &str, ok: bool, working_dir: &str)
                 .filter(|count| !count.starts_with("1 "))
                 .map(|count| Part::Line(count.to_string())),
         ),
+        "thinking" | "thought" => parts.push(Part::Note(result.to_string())),
         "create" => match arg(args, "text") {
             Some(text) if arg(args, "path").is_some_and(is_note) => {
                 parts.extend(clipped(text, Part::Note))
@@ -344,6 +347,14 @@ mod tests {
             ]
         );
         assert_eq!(body("search", &json!({}), "no matches", true, "/"), [line("no matches")]);
+    }
+
+    /// What a reply thought is a row like a call's, and opens onto all of it.
+    #[test]
+    fn a_thought_opens_onto_all_of_it() {
+        assert_eq!(statement("thought", Value::Null), "thought");
+        let long = vec!["a line"; TEXT_LINES + 5].join("\n");
+        assert_eq!(body("thought", &Value::Null, &long, true, "/"), [Part::Note(long.clone())]);
     }
 
     #[test]

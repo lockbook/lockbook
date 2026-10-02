@@ -32,9 +32,9 @@ pub trait Tools: Send {
     /// Called before each completion with the chat as it stands.
     fn prepare(&mut self, _chat: &Chat, _user: &str, _working_dir: &str) {}
     fn call(&mut self, call: &Call) -> ToolOutcome;
-    /// Current text of a file the user attached, or nothing if it is gone.
-    fn read_mention(&mut self, _mention: &Mention) -> Option<String> {
-        None
+    /// Where a file the user attached is now.
+    fn locate(&mut self, mention: &Mention) -> String {
+        mention.path.clone()
     }
 }
 

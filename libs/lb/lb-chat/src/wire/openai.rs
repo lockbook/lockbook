@@ -9,7 +9,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Call, Completion, Echo, Request, STREAM_IDLE, Sse, Turn, parse_args, send};
+use super::{Call, Completion, Echo, Piece, Request, STREAM_IDLE, Sse, Turn, parse_args, send};
 use crate::provider::Provider;
 
 #[derive(Deserialize)]
@@ -29,6 +29,12 @@ struct Choice {
 struct Delta {
     #[serde(default)]
     content: Option<String>,
+    /// Thinking, as llama.cpp, xAI, and DeepSeek name it.
+    #[serde(default)]
+    reasoning_content: Option<Value>,
+    /// Thinking, as OpenRouter, Groq, Cerebras, and Ollama name it.
+    #[serde(default)]
+    reasoning: Option<Value>,
     #[serde(default)]
     tool_calls: Vec<CallDelta>,
 }
@@ -169,7 +175,7 @@ pub(crate) fn body(provider: &Provider, req: &Request) -> Value {
 }
 
 pub async fn complete(
-    client: &reqwest::Client, provider: &Provider, req: &Request, deltas: &UnboundedSender<String>,
+    client: &reqwest::Client, provider: &Provider, req: &Request, deltas: &UnboundedSender<Piece>,
 ) -> Result<Completion, String> {
     let mut headers = Vec::new();
     if let Some(key) = &provider.api_key {
@@ -223,9 +229,14 @@ pub async fn complete(
                 };
             }
             let Some(choice) = chunk.choices.into_iter().next() else { continue };
+            let thinking = [&choice.delta.reasoning_content, &choice.delta.reasoning];
+            for text in thinking.into_iter().flatten().filter_map(Value::as_str) {
+                out.thinking.push_str(text);
+                let _ = deltas.send(Piece::Thinking(text.to_string()));
+            }
             if let Some(text) = choice.delta.content.filter(|t| !t.is_empty()) {
                 out.text.push_str(&text);
-                let _ = deltas.send(text);
+                let _ = deltas.send(Piece::Text(text));
             }
             for frag in choice.delta.tool_calls {
                 if partials.len() <= frag.index {
@@ -289,7 +300,7 @@ mod tests {
         }
     }
 
-    fn run(base_url: &str, req: Request) -> (Result<Completion, String>, Vec<String>) {
+    fn run(base_url: &str, req: Request) -> (Result<Completion, String>, Vec<Piece>) {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -308,11 +319,24 @@ mod tests {
         Request { system: "s".into(), turns: vec![Turn::User("hi".into())], ..Default::default() }
     }
 
+    /// Thinking comes beside the reply under either of two names.
+    #[test]
+    fn thinking_streams_apart_from_the_reply() {
+        const SSE: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+            data: {\"choices\":[{\"delta\":{\"reasoning_content\":\"9:40 and \"}}]}\n\n\
+            data: {\"choices\":[{\"delta\":{\"reasoning\":\"2:35\",\"content\":null}}]}\n\n\
+            data: {\"choices\":[{\"delta\":{\"content\":\"12:15\"}}]}\n\ndata: [DONE]\n\n";
+        let (result, pieces) = run(&mock::serve_once(SSE), hi());
+        let c = result.unwrap();
+        assert_eq!((c.thinking.as_str(), c.text.as_str()), ("9:40 and 2:35", "12:15"));
+        assert_eq!(pieces[0], Piece::Thinking("9:40 and ".into()));
+    }
+
     #[test]
     fn streams_deltas_and_usage() {
         let (result, deltas) = run(&mock::serve_once(SSE_HELLO), hi());
         let c = result.unwrap();
-        assert_eq!(deltas, ["Hel", "lo"]);
+        assert_eq!(deltas, [Piece::Text("Hel".into()), Piece::Text("lo".into())]);
         assert_eq!(c.text, "Hello");
         assert_eq!(c.usage, Usage { input: 7, output: 2, cache_read: 3, cache_write: 0 });
     }

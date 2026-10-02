@@ -173,7 +173,9 @@ fn run() -> CliResult<()> {
                 .input(Arg::str("message").default(String::new()).description("what to say; omit to print the chat"))
                 .input(Flag::<String>::new("model").description("provider/model for this chat from now on, e.g. anthropic/claude-haiku-4-5-20251001"))
                 .input(Flag::<String>::new("effort").description("how hard the model thinks from now on, where that is known to work: none, low, medium, high, ..., or default"))
-                .handler(|target, message, model, effort| chat::chat(target.get(), message.get(), model.get(), effort.get()))
+                .input(Flag::<String>::new("attach").description("path of a note to send with the message")
+                    .completor(|prompt| input::file_completor(prompt, None)))
+                .handler(|target, message, model, effort, attach| chat::chat(target.get(), message.get(), model.get(), effort.get(), attach.get()))
         )
         .subcommand(
             Command::name("cat")

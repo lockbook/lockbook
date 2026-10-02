@@ -4,7 +4,7 @@
 //! again if it needs the content back. They go a batch at a time: a turn
 //! that changes ends the provider's cached prefix there.
 
-use lb_rs::model::chat::{Body, Chat, Mention};
+use lb_rs::model::chat::{Body, Chat};
 
 use crate::territory::Territory;
 use crate::wire::{Call, ToolResult, Turn};
@@ -14,8 +14,6 @@ pub const RECENT_TOOL_RESULTS: usize = 8;
 /// Tool results elided together.
 pub const ELIDE_BATCH: usize = 8;
 pub const ELIDED: &str = "(elided; call the tool again if you need this)";
-/// Bytes of attached note content inlined into a message.
-pub const MENTION_CAP: usize = 16 * 1024;
 
 /// Today's date as the model is told it.
 fn today() -> String {
@@ -48,11 +46,8 @@ pub fn system_prompt(territory: &Territory) -> String {
 /// Folds the transcript into turns for `user`'s model. Their own messages,
 /// replies, and tool calls are the conversation; everyone else's messages
 /// and replies are quoted into the user turns; everyone else's tool calls
-/// are left out. `read_mention` supplies the current bytes of an attached
-/// file, or nothing if it is gone.
-pub fn turns(
-    chat: &Chat, user: &str, read_mention: &mut dyn FnMut(&Mention) -> Option<String>,
-) -> Vec<Turn> {
+/// are left out. What a message attached is the read lines after it.
+pub fn turns(chat: &Chat, user: &str) -> Vec<Turn> {
     let tool_total = chat
         .entries
         .iter()
@@ -73,20 +68,7 @@ pub fn turns(
     for entry in &chat.entries {
         let own = entry.from == user;
         match &entry.body {
-            Body::User { text, mentions, .. } if own => {
-                let mut text = text.clone();
-                for m in mentions {
-                    let content = match read_mention(m) {
-                        Some(c) => truncate(&c, MENTION_CAP),
-                        None => "(missing)".to_string(),
-                    };
-                    text.push_str(&format!(
-                        "\n\n<attached path=\"{}\">\n{content}\n</attached>",
-                        m.path
-                    ));
-                }
-                push_user(&mut turns, text);
-            }
+            Body::User { text, .. } if own => push_user(&mut turns, text.clone()),
             Body::User { text, .. } => {
                 push_user(&mut turns, format!("**{}**: {text}", entry.from));
             }
@@ -170,7 +152,7 @@ mod tests {
     }
 
     fn fold(chat: &Chat) -> Vec<Turn> {
-        turns(chat, "u", &mut |_| None)
+        turns(chat, "u")
     }
 
     #[test]
@@ -274,20 +256,11 @@ mod tests {
     }
 
     #[test]
-    fn mentions_inline_current_content_and_users_merge() {
+    fn messages_in_a_row_are_one_turn() {
         let mut chat = Chat::default();
-        let mut first = at(1, Entry::user("u", "see"));
-        if let Body::User { mentions, .. } = &mut first.body {
-            mentions.push(Mention { path: "/a.md".into(), id: None });
-        }
-        chat.push(first);
+        chat.push(at(1, Entry::user("u", "see")));
         chat.push(at(2, Entry::user("u", "again")));
-        let turns = turns(&chat, "u", &mut |m| Some(format!("content of {}", m.path)));
-        assert_eq!(turns.len(), 1);
-        let Turn::User(text) = &turns[0] else { panic!() };
-        assert!(
-            text.contains("<attached path=\"/a.md\">\ncontent of /a.md") && text.ends_with("again")
-        );
+        assert_eq!(fold(&chat), [Turn::User("see\n\nagain".into())]);
     }
 
     /// Another person's messages and their assistant's replies are quoted

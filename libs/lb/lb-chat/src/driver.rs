@@ -11,6 +11,7 @@ use std::sync::mpsc::{Receiver, Sender, channel};
 
 use lb_rs::Uuid;
 use lb_rs::model::chat::{Body, Chat, Entry, Mention, Settings};
+use serde_json::json;
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::error::TryRecvError;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
@@ -21,10 +22,14 @@ use crate::provider::Provider;
 use crate::store::Store;
 use crate::territory::Territory;
 use crate::tools::{ToolOutcome, Tools};
-use crate::wire::{self, Call, Request};
+use crate::wire::{self, Call, Piece, Request};
 
 /// Bytes of a tool result written to the chat.
 pub const TOOL_RESULT_CAP: usize = 16 * 1024;
+
+/// What a call is answered with once it has answered the same twice.
+const REPEATED: &str = "you have made this call twice already and it answered the same; \
+    do something else or answer the user";
 
 pub enum Cmd {
     Say {
@@ -47,6 +52,8 @@ pub enum Cmd {
 pub enum Event {
     RunStarted,
     Delta(String),
+    /// More of what the model shows of its thinking.
+    Thinking(String),
     ToolStarted(Call),
     /// A line settled into the chat.
     Written(Entry),
@@ -97,6 +104,7 @@ impl Driver {
                     busy: worker_busy,
                     client,
                     rt,
+                    made: Vec::new(),
                 }
                 .run(cmd_rx);
             })
@@ -126,6 +134,16 @@ struct Worker {
     busy: Arc<AtomicBool>,
     client: reqwest::Client,
     rt: Runtime,
+    made: Vec<Made>,
+}
+
+/// A call made in this run, what it last answered, and how many times
+/// running it has since answered the same.
+struct Made {
+    name: String,
+    args: serde_json::Value,
+    answer: Option<(String, bool)>,
+    repeats: usize,
 }
 
 enum Outcome {
@@ -189,6 +207,36 @@ impl Worker {
     fn turn(&mut self, cmds: &mut UnboundedReceiver<Cmd>) {
         self.busy.store(true, Ordering::Relaxed);
         self.emit(Event::RunStarted);
+        self.made.clear();
+        if self.read_attached(cmds) {
+            self.rounds(cmds);
+        }
+        self.busy.store(false, Ordering::Relaxed);
+        self.emit(Event::RunEnded);
+    }
+
+    /// Reads what the newest message attached, as tool lines: the model
+    /// keeps each note as it was then. Returns whether the run continues.
+    fn read_attached(&mut self, cmds: &mut UnboundedReceiver<Cmd>) -> bool {
+        let user = self.config.user.clone();
+        let Ok((_, bytes)) = self.store.load() else { return true };
+        let chat = Chat::parse(&bytes);
+        let newest = chat.entries.iter().rfind(|e| e.from == user);
+        let Some(Body::User { mentions, .. }) = newest.map(|e| &e.body) else { return true };
+        self.tools.prepare(&chat, &user, &self.config.working_dir);
+        let calls = mentions
+            .iter()
+            .map(|mention| Call {
+                id: Uuid::new_v4().to_string(),
+                name: "read".into(),
+                args: json!({ "path": self.tools.locate(mention) }),
+                echo: None,
+            })
+            .collect();
+        self.run_tools(calls, cmds)
+    }
+
+    fn rounds(&mut self, cmds: &mut UnboundedReceiver<Cmd>) {
         let user = self.config.user.clone();
         loop {
             let (provider, request) = match self.prepare() {
@@ -198,20 +246,11 @@ impl Worker {
                     break;
                 }
             };
-            let (streamed, outcome) = self.complete(&provider, &request, cmds);
+            let (heard, outcome) = self.complete(&provider, &request, cmds);
             match outcome {
                 Outcome::Stopped => {
-                    if !streamed.trim().is_empty() {
-                        let mut entry = Entry::assistant(
-                            &user,
-                            streamed.trim(),
-                            provider.selection(),
-                            Default::default(),
-                        );
-                        if let Body::Assistant { interrupted, .. } = &mut entry.body {
-                            *interrupted = true;
-                        }
-                        self.settle(entry);
+                    if !heard.text.trim().is_empty() {
+                        self.settle(reply(&user, &provider, &heard, true));
                     }
                     break;
                 }
@@ -220,13 +259,8 @@ impl Worker {
                     break;
                 }
                 Outcome::Finished(completion) => {
-                    let reply = Entry::assistant(
-                        &user,
-                        completion.text.trim(),
-                        provider.selection(),
-                        completion.usage,
-                    );
-                    if !self.settle(reply) || completion.calls.is_empty() {
+                    let said = reply(&user, &provider, &completion, false);
+                    if !self.settle(said) || completion.calls.is_empty() {
                         break;
                     }
                     if !self.run_tools(completion.calls, cmds) {
@@ -235,8 +269,6 @@ impl Worker {
                 }
             }
         }
-        self.busy.store(false, Ordering::Relaxed);
-        self.emit(Event::RunEnded);
     }
 
     /// Runs the calls in order. Returns whether the run continues.
@@ -244,7 +276,7 @@ impl Worker {
         let user = self.config.user.clone();
         for call in calls {
             self.emit(Event::ToolStarted(call.clone()));
-            let (text, ok) = match self.tools.call(&call) {
+            let (text, ok) = match self.call(&call) {
                 ToolOutcome::Done { text, ok } => (text, ok),
                 ToolOutcome::Abort { text } => {
                     self.settle(Entry::error(&user, format!("stopped: {text}")));
@@ -267,6 +299,38 @@ impl Worker {
         true
     }
 
+    /// Runs `call` unless it has answered the same twice in this run: then
+    /// it is refused once, and after that it ends the run.
+    fn call(&mut self, call: &Call) -> ToolOutcome {
+        let same = |m: &Made| m.name == call.name && m.args == call.args;
+        let at = self.made.iter().position(same).unwrap_or_else(|| {
+            let (name, args) = (call.name.clone(), call.args.clone());
+            self.made
+                .push(Made { name, args, answer: None, repeats: 0 });
+            self.made.len() - 1
+        });
+        match self.made[at].repeats {
+            0 => {}
+            1 => {
+                self.made[at].repeats = 2;
+                return ToolOutcome::err(REPEATED);
+            }
+            _ => return ToolOutcome::Abort { text: format!("{} kept repeating", call.name) },
+        }
+        let outcome = self.tools.call(call);
+        if let ToolOutcome::Done { text, ok } = &outcome {
+            let answer = Some((text.clone(), *ok));
+            if self.made[at].answer == answer {
+                self.made[at].repeats = 1;
+            } else {
+                // A new answer is progress: earlier repeats no longer count.
+                self.made.iter_mut().for_each(|m| m.repeats = 0);
+                self.made[at].answer = answer;
+            }
+        }
+        outcome
+    }
+
     fn prepare(&mut self) -> Result<(Provider, Request), String> {
         let (_, bytes) = self.store.load()?;
         let chat = Chat::parse(&bytes);
@@ -278,8 +342,7 @@ impl Worker {
         let territory = Territory::new(&self.config.working_dir, &settings);
         self.tools
             .prepare(&chat, &self.config.user, &self.config.working_dir);
-        let tools = &mut self.tools;
-        let turns = context::turns(&chat, &self.config.user, &mut |m| tools.read_mention(m));
+        let turns = context::turns(&chat, &self.config.user);
         let request = Request {
             system: context::system_prompt(&territory),
             turns,
@@ -291,9 +354,9 @@ impl Worker {
 
     fn complete(
         &self, provider: &Provider, request: &Request, cmds: &mut UnboundedReceiver<Cmd>,
-    ) -> (String, Outcome) {
-        let (delta_tx, mut deltas) = unbounded_channel::<String>();
-        let mut streamed = String::new();
+    ) -> (wire::Completion, Outcome) {
+        let (delta_tx, mut deltas) = unbounded_channel::<Piece>();
+        let mut heard = wire::Completion::default();
         let outcome = self.rt.block_on(async {
             let future = wire::complete(&self.client, provider, request, &delta_tx);
             tokio::pin!(future);
@@ -303,10 +366,7 @@ impl Worker {
                         Ok(completion) => Outcome::Finished(completion),
                         Err(err) => Outcome::Failed(err),
                     },
-                    Some(delta) = deltas.recv() => {
-                        streamed.push_str(&delta);
-                        self.emit(Event::Delta(delta));
-                    }
+                    Some(piece) = deltas.recv() => self.hear(&mut heard, piece),
                     cmd = cmds.recv() => match cmd {
                         Some(Cmd::Stop) | None => break Outcome::Stopped,
                         Some(_) => warn!("chat command ignored while a run is live"),
@@ -314,11 +374,23 @@ impl Worker {
                 }
             }
         });
-        while let Ok(delta) = deltas.try_recv() {
-            streamed.push_str(&delta);
-            self.emit(Event::Delta(delta));
+        while let Ok(piece) = deltas.try_recv() {
+            self.hear(&mut heard, piece);
         }
-        (streamed, outcome)
+        (heard, outcome)
+    }
+
+    fn hear(&self, heard: &mut wire::Completion, piece: Piece) {
+        match piece {
+            Piece::Text(text) => {
+                heard.text.push_str(&text);
+                self.emit(Event::Delta(text));
+            }
+            Piece::Thinking(text) => {
+                heard.thinking.push_str(&text);
+                self.emit(Event::Thinking(text));
+            }
+        }
     }
 
     /// Appends `entry`; false means it was lost and the run should stop.
@@ -341,11 +413,19 @@ impl Worker {
     }
 }
 
+/// The reply line for what a completion said, whole or cut short.
+fn reply(user: &str, provider: &Provider, said: &wire::Completion, cut_short: bool) -> Entry {
+    let mut entry = Entry::assistant(user, said.text.trim(), provider.selection(), said.usage);
+    if let Body::Assistant { thinking, interrupted, .. } = &mut entry.body {
+        *thinking = said.thinking.trim().to_string();
+        *interrupted = cut_short;
+    }
+    entry
+}
+
 #[cfg(test)]
 mod tests {
     use std::time::{Duration, Instant};
-
-    use serde_json::json;
 
     use super::*;
     use crate::mock::{self, sse_call, sse_text};
@@ -430,6 +510,60 @@ mod tests {
         }
     }
 
+    /// Reads say how many reads there have been.
+    struct Shelf(usize);
+
+    impl Tools for Shelf {
+        fn schemas(&self) -> Vec<ToolSchema> {
+            Vec::new()
+        }
+
+        fn call(&mut self, call: &Call) -> ToolOutcome {
+            self.0 += 1;
+            ToolOutcome::ok(format!("{} v{}", call.args["path"].as_str().unwrap_or(""), self.0))
+        }
+    }
+
+    fn attached() -> Vec<Mention> {
+        vec![Mention { path: "/a.md".into(), id: None }]
+    }
+
+    /// An attached note is read once, when its message is sent, and that
+    /// reading is what the model keeps: the next request starts as this one.
+    #[test]
+    fn an_attached_note_is_read_when_its_message_is_sent() {
+        let store = MemStore::default();
+        let (url, bodies) = mock::serve(vec![sse_text("seen"), sse_text("still")]);
+        let d = driver(store.clone(), Shelf(0), url);
+        d.send(Cmd::Say { text: "look".into(), mentions: attached() });
+        wait_for_run(&d);
+        d.send(Cmd::Say { text: "more".into(), mentions: vec![] });
+        wait_for_run(&d);
+
+        assert_eq!(kinds(&store.chat()), ["user", "tool", "assistant", "user", "assistant"]);
+        let sent: Vec<serde_json::Value> = bodies
+            .try_iter()
+            .map(|body| serde_json::from_str(&body).unwrap())
+            .collect();
+        let first = sent[0]["messages"].as_array().unwrap();
+        assert_eq!(first.last().unwrap()["content"], "/a.md v1");
+        assert_eq!(sent[1]["messages"].as_array().unwrap()[..first.len()], first[..]);
+    }
+
+    #[test]
+    fn a_message_run_again_reads_its_note_again() {
+        let store = MemStore::default();
+        let d = driver(store.clone(), Shelf(0), mock::serve(vec![sse_text("a"), sse_text("b")]).0);
+        d.send(Cmd::Say { text: "look".into(), mentions: attached() });
+        wait_for_run(&d);
+        d.send(Cmd::Regenerate);
+        wait_for_run(&d);
+
+        let chat = store.chat();
+        assert_eq!(kinds(&chat), ["user", "tool", "assistant"]);
+        assert!(matches!(&chat.entries[1].body, Body::Tool { result, .. } if result == "/a.md v2"));
+    }
+
     #[test]
     fn a_turn_settles_the_question_and_the_reply() {
         let store = MemStore::default();
@@ -483,6 +617,45 @@ mod tests {
         assert_eq!(kinds(&chat), ["user", "assistant", "error"]);
         assert!(chat.entries[2].text().contains("blocked"));
         assert_eq!(bodies.try_iter().count(), 1);
+    }
+
+    /// A call that answered the same twice is not run a third time; made a
+    /// fourth time, it ends the run.
+    #[test]
+    fn a_call_repeated_to_the_same_answer_is_refused_and_then_ends_the_run() {
+        let store = MemStore::default();
+        let call = || sse_call("echo", "{\"text\":\"x\"}");
+        let (url, bodies) = mock::serve(vec![call(), call(), call(), call(), sse_text("never")]);
+        let d = driver(store.clone(), Mock, url);
+        d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
+        wait_for_run(&d);
+
+        let chat = store.chat();
+        let turns = ["assistant", "tool", "assistant", "tool", "assistant", "tool"];
+        assert_eq!(kinds(&chat)[1..7], turns);
+        assert_eq!(kinds(&chat)[7..], ["assistant", "error"]);
+        assert_eq!((chat.entries[2].text(), chat.entries[4].text()), ("echo:x", "echo:x"));
+        assert!(
+            matches!(&chat.entries[6].body, Body::Tool { result, ok: false, .. } if result == REPEATED)
+        );
+        assert!(chat.entries[8].text().starts_with("stopped: echo"));
+        assert_eq!(bodies.try_iter().count(), 4);
+    }
+
+    #[test]
+    fn a_call_made_again_that_answers_differently_is_not_a_repeat() {
+        let store = MemStore::default();
+        let read = || sse_call("read", "{\"path\":\"/a.md\"}");
+        let (url, _) = mock::serve(vec![read(), read(), read(), read(), sse_text("done")]);
+        let d = driver(store.clone(), Shelf(0), url);
+        d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
+        wait_for_run(&d);
+
+        let chat = store.chat();
+        assert_eq!(chat.entries.last().unwrap().text(), "done");
+        assert!(
+            matches!(&chat.entries[8].body, Body::Tool { result, ok: true, .. } if result == "/a.md v4")
+        );
     }
 
     /// Nothing holds the driver any more: a tab navigated away, an app
@@ -563,7 +736,7 @@ mod tests {
         );
 
         // The same transcript, folded for a different provider.
-        let turns = context::turns(&chat, "u", &mut |_| None);
+        let turns = context::turns(&chat, "u");
         let req = Request { turns, ..Default::default() };
         let other = Provider {
             name: "other".into(),
@@ -616,7 +789,7 @@ mod tests {
         };
         let d = Driver::spawn(store.clone(), Mock, config, || {});
         d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
-        wait_for_run(&d);
+        assert!(wait_for_run(&d).contains(&Event::Thinking("hm".into())));
 
         let chat = store.chat();
         assert_eq!(kinds(&chat), ["user", "assistant", "tool", "assistant"]);
@@ -624,6 +797,10 @@ mod tests {
             chat.entries[2]
                 .to_json_line()
                 .contains("\"signature\":\"SIG\"")
+        );
+        // What it showed of its thinking is on the reply it led to.
+        assert!(
+            matches!(&chat.entries[1].body, Body::Assistant { thinking, .. } if thinking == "hm")
         );
         let sent: Vec<serde_json::Value> = bodies
             .try_iter()

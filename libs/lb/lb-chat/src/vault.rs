@@ -407,17 +407,9 @@ impl Tools for VaultTools {
         }
     }
 
-    fn read_mention(&mut self, mention: &Mention) -> Option<String> {
-        let path = normalize(&mention.path);
-        let file = mention
-            .id
-            .and_then(|id| self.lb.get_file_by_id(id).ok())
-            .or_else(|| self.visible_file(&path).ok())?;
-        let path = self.lb.get_path_by_id(file.id).unwrap_or(path);
-        if !self.territory.visible(&path) {
-            return None;
-        }
-        self.text_of(&file, &path).ok()
+    fn locate(&mut self, mention: &Mention) -> String {
+        let moved = mention.id.and_then(|id| self.lb.get_path_by_id(id).ok());
+        moved.unwrap_or_else(|| mention.path.clone())
     }
 }
 
