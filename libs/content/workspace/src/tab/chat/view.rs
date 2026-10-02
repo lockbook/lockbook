@@ -156,9 +156,9 @@ impl Chat {
         let wrap_w = (col_w - pad_x * 2.0).max(1.0);
         // Where the chips would leave too little room to type beside them,
         // one button stands for both and the text keeps the row.
-        let compact = wrap_w - gap - (folder_w + gap + model_w + gap + hit) < MIN_BESIDE;
-        let (folder_w, model_w) = if compact { (0.0, hit) } else { (folder_w, model_w) };
         let call_w = if voice::offered() { hit + gap } else { 0.0 };
+        let compact = wrap_w - gap - call_w - (folder_w + gap + model_w + gap + hit) < MIN_BESIDE;
+        let (folder_w, model_w) = if compact { (0.0, hit) } else { (folder_w, model_w) };
         let trailing =
             call_w + if compact { hit + gap + hit } else { folder_w + gap + model_w + gap + hit };
         let inner_w = (wrap_w - gap - trailing).max(1.0);

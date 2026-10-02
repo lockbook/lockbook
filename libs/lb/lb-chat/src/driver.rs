@@ -31,9 +31,6 @@ use crate::wire::{self, Call, Piece, Request, images};
 pub const TOOL_RESULT_CAP: usize = 16 * 1024;
 /// The same for the device's own model, whose window is small.
 const FENCED_RESULT_CAP: usize = 8 * 1024;
-/// Said to the device's own model in place of the note tools it is not given.
-const FENCED: &str = "You can only read notes here, not change them; if the user asks for a \
-    change, say that a cloud model in Lockbook can make it.";
 
 /// What a call is answered with once it has answered the same twice.
 const REPEATED: &str = "you have made this call twice already and it answered the same; \
@@ -117,6 +114,16 @@ pub struct Handle(UnboundedSender<Cmd>);
 impl Handle {
     pub fn send(&self, cmd: Cmd) {
         let _ = self.0.send(cmd);
+    }
+
+    /// Whether `other` leads to the same driver.
+    pub fn is(&self, other: &Handle) -> bool {
+        self.0.same_channel(&other.0)
+    }
+
+    /// A handle onto a channel of one's own, for a host's tests.
+    pub fn from_sender(sender: UnboundedSender<Cmd>) -> Handle {
+        Handle(sender)
     }
 }
 
@@ -334,6 +341,10 @@ impl Worker {
         self.busy.store(true, Ordering::Relaxed);
         self.lines.emit(Event::RunStarted);
         self.made.clear();
+        // Attached notes are read before the first completion prepares.
+        if let Ok(provider) = (self.config.provider)() {
+            self.result_cap = cap_for(&provider);
+        }
         if self.read_attached(cmds) {
             self.rounds(cmds);
         }
@@ -503,18 +514,17 @@ impl Worker {
         let fenced = provider.fenced();
         let instructions =
             if fenced { Vec::new() } else { self.tools.instructions(&self.config.working_dir) };
-        let mut system = context::system_prompt(&territory, &instructions);
+        let system = context::system_prompt(&territory, &instructions, fenced);
         let mut tools = self.tools.schemas();
         if provider.reaches_the_web() && !spoken {
             tools.retain(|tool| tool.name != web::SEARCH && tool.name != web::FETCH);
         }
-        self.result_cap = if fenced { FENCED_RESULT_CAP } else { TOOL_RESULT_CAP };
+        self.result_cap = cap_for(&provider);
         if fenced {
             tools.retain(|tool| {
                 ["search", "read", "list", web::SEARCH, web::FETCH].contains(&tool.name.as_str())
             });
             tools.iter_mut().for_each(slim);
-            system = format!("{system} {FENCED}");
         }
         self.artist = provider
             .draws()
@@ -584,9 +594,15 @@ impl Worker {
     }
 }
 
-/// Leaves a tool only its required arguments: the device's own model
-/// reaches for optional ones it then gets wrong.
+/// Bytes of a tool result kept for `provider`'s model.
+fn cap_for(provider: &Provider) -> usize {
+    if provider.fenced() { FENCED_RESULT_CAP } else { TOOL_RESULT_CAP }
+}
+
+/// Leaves a tool its required arguments and the few optional ones reading
+/// needs: the device's own model reaches for the rest and gets them wrong.
 fn slim(tool: &mut wire::ToolSchema) {
+    const KEPT: &[(&str, &str)] = &[("read", "section"), ("list", "path")];
     let required: Vec<String> = tool.parameters["required"]
         .as_array()
         .into_iter()
@@ -594,7 +610,9 @@ fn slim(tool: &mut wire::ToolSchema) {
         .filter_map(|v| v.as_str().map(str::to_string))
         .collect();
     if let Some(props) = tool.parameters["properties"].as_object_mut() {
-        props.retain(|name, _| required.contains(name));
+        props.retain(|name, _| {
+            required.contains(name) || KEPT.contains(&(tool.name.as_str(), name.as_str()))
+        });
     }
 }
 

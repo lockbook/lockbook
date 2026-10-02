@@ -2,23 +2,17 @@
 //! reached without a network. One native session is kept alive across a
 //! round of tool calls, so a call costs no second prefill: the dialect
 //! answers with the call, the driver runs it, and the next completion
-//! hands the result back into the same session.
-
-use std::sync::Mutex;
-use std::time::Duration;
+//! hands the result back into the same session, if that is what the next
+//! completion is; anything else starts afresh and the parked session goes.
 
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Call, Completion, Piece, Request, Turn};
+use super::{Completion, Piece, Request};
 
 /// What the one model is called on the wire.
 pub const MODEL: &str = "on-device";
 /// The model's window, input and output together.
 pub const WINDOW: u64 = 8192;
-/// Tokens a reply may run to.
-const REPLY_TOKENS: u32 = 768;
-/// How long a completion waits on the model between pieces.
-const IDLE: Duration = Duration::from_secs(120);
 
 /// Whether the device's model can be used, else why not.
 pub fn available() -> Result<(), String> {
@@ -33,36 +27,43 @@ pub async fn complete(
     native::complete(req, deltas).await
 }
 
-/// The native session waiting on a tool result, and the call it made.
-static PENDING: Mutex<Option<(native::Request, String)>> = Mutex::new(None);
-
-fn take_pending() -> Option<(native::Request, String)> {
-    PENDING.lock().unwrap_or_else(|e| e.into_inner()).take()
-}
-
-fn keep_pending(request: native::Request, call: String) {
-    *PENDING.lock().unwrap_or_else(|e| e.into_inner()) = Some((request, call));
-}
-
-/// The answer to the pending call: the last tool result in the transcript,
-/// which is the one the driver just ran.
-fn last_result(req: &Request) -> Option<String> {
-    req.turns.iter().rev().find_map(|turn| match turn {
-        Turn::ToolResults(results) => results
-            .last()
-            .map(|r| if r.ok { r.text.clone() } else { format!("The tool failed: {}", r.text) }),
-        _ => None,
-    })
+/// The answer to the call a session is parked on, when the transcript ends
+/// with that call and its result. Calls are matched by what they asked,
+/// since a line's id is not the server's.
+#[cfg(any(target_os = "macos", test))]
+fn answered(req: &Request, name: &str, args: &serde_json::Value) -> Option<String> {
+    use super::Turn;
+    let n = req.turns.len();
+    let before = n.checked_sub(2).and_then(|i| req.turns.get(i));
+    let (Some(Turn::Assistant { calls, .. }), Some(Turn::ToolResults(results))) =
+        (before, req.turns.last())
+    else {
+        return None;
+    };
+    let (call, result) = (calls.last()?, results.last()?);
+    if call.name != name || call.args != *args {
+        return None;
+    }
+    Some(if result.ok { result.text.clone() } else { format!("The tool failed: {}", result.text) })
 }
 
 #[cfg(target_os = "macos")]
 mod native {
+    use std::sync::Mutex;
+    use std::time::Duration;
+
     use lb_apple_ai::{Event, Input, Message, Tool};
 
     use super::*;
-    use crate::wire::{Turn, parse_args};
+    use crate::wire::{Call, Turn, parse_args};
 
-    pub type Request = lb_apple_ai::Request;
+    /// Tokens a reply may run to.
+    const REPLY_TOKENS: u32 = 768;
+    /// How long a completion waits on the model between pieces.
+    const IDLE: Duration = Duration::from_secs(120);
+
+    /// The native session waiting on a tool result, and the call it made.
+    static PENDING: Mutex<Option<(lb_apple_ai::Request, Call)>> = Mutex::new(None);
 
     pub fn available() -> Result<(), String> {
         lb_apple_ai::availability()
@@ -70,7 +71,7 @@ mod native {
 
     /// The transcript as the bridge takes it: earlier tool results read as
     /// context the user supplied.
-    fn messages(req: &Request_) -> Vec<Message> {
+    fn messages(req: &Request) -> Vec<Message> {
         let mut out = Vec::new();
         for turn in &req.turns {
             match turn {
@@ -90,15 +91,17 @@ mod native {
         out
     }
 
-    type Request_ = super::Request;
-
     pub async fn complete(
-        req: &Request_, deltas: &UnboundedSender<Piece>,
+        req: &Request, deltas: &UnboundedSender<Piece>,
     ) -> Result<Completion, String> {
-        let mut request = match take_pending() {
-            Some((request, call)) => {
-                let answer = last_result(req).ok_or("the tool's result is missing")?;
-                request.tool_result(&call, &answer)?;
+        let parked = PENDING.lock().unwrap_or_else(|e| e.into_inner()).take();
+        let resumed = parked.and_then(|(request, call)| {
+            let answer = answered(req, &call.name, &call.args)?;
+            Some((request, call.id, answer))
+        });
+        let mut request = match resumed {
+            Some((request, id, answer)) => {
+                request.tool_result(&id, &answer)?;
                 request
             }
             None => lb_apple_ai::start(Input {
@@ -127,8 +130,7 @@ mod native {
                     let _ = deltas.send(Piece::Text(text));
                 }
                 Some(Event::ToolCall(call)) => {
-                    let id = call.id.clone();
-                    done.calls.push(Call {
+                    let call = Call {
                         id: call.id,
                         name: call.name,
                         args: match call.args {
@@ -136,8 +138,9 @@ mod native {
                             args => args,
                         },
                         echo: None,
-                    });
-                    keep_pending(request, id);
+                    };
+                    done.calls.push(call.clone());
+                    *PENDING.lock().unwrap_or_else(|e| e.into_inner()) = Some((request, call));
                     return Ok(done);
                 }
                 Some(Event::Done) => return Ok(done),
@@ -151,8 +154,6 @@ mod native {
 #[cfg(not(target_os = "macos"))]
 mod native {
     use super::*;
-
-    pub struct Request;
 
     const ELSEWHERE: &str = "Apple Intelligence runs only in the Mac app for now";
 
@@ -169,27 +170,51 @@ mod native {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use crate::wire::ToolResult;
+    use serde_json::json;
 
+    use super::*;
+    use crate::wire::{Call, ToolResult, Turn};
+
+    /// A parked session goes on only when the transcript ends with its own
+    /// call answered; a different call, or a new message, starts afresh.
     #[test]
-    fn the_pending_calls_answer_is_the_last_result() {
-        let result = |id: &str, text: &str, ok: bool| ToolResult {
-            id: id.into(),
+    fn a_parked_call_is_answered_only_by_its_own_result() {
+        let call = |name: &str| Call {
+            id: "c".into(),
+            name: name.into(),
+            args: json!({ "path": "/a.md" }),
+            echo: None,
+        };
+        let result = |text: &str, ok: bool| ToolResult {
+            id: "x".into(),
             text: text.into(),
             ok,
             media: vec![],
         };
-        let req = Request {
-            turns: vec![
-                Turn::User("q".into()),
-                Turn::ToolResults(vec![result("a", "first", true)]),
-                Turn::Assistant { text: String::new(), calls: vec![] },
-                Turn::ToolResults(vec![result("b", "gone", false)]),
-            ],
-            ..Default::default()
-        };
-        assert_eq!(last_result(&req).as_deref(), Some("The tool failed: gone"));
-        assert_eq!(last_result(&Request::default()), None);
+        let ended_with = |turns: Vec<Turn>| Request { turns, ..Default::default() };
+        let args = json!({ "path": "/a.md" });
+
+        let answered_read = ended_with(vec![
+            Turn::User("q".into()),
+            Turn::Assistant { text: String::new(), calls: vec![call("read")] },
+            Turn::ToolResults(vec![result("# A", true)]),
+        ]);
+        assert_eq!(answered(&answered_read, "read", &args).as_deref(), Some("# A"));
+        assert_eq!(answered(&answered_read, "search", &args), None);
+        assert_eq!(answered(&answered_read, "read", &json!({ "path": "/b.md" })), None);
+
+        let failed = ended_with(vec![
+            Turn::Assistant { text: String::new(), calls: vec![call("read")] },
+            Turn::ToolResults(vec![result("gone", false)]),
+        ]);
+        assert_eq!(answered(&failed, "read", &args).as_deref(), Some("The tool failed: gone"));
+
+        let new_message = ended_with(vec![
+            Turn::Assistant { text: String::new(), calls: vec![call("read")] },
+            Turn::ToolResults(vec![result("# A", true)]),
+            Turn::User("another question".into()),
+        ]);
+        assert_eq!(answered(&new_message, "read", &args), None);
+        assert_eq!(answered(&Request::default(), "read", &args), None);
     }
 }

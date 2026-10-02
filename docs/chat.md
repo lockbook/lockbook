@@ -8,6 +8,8 @@ Create a chat from the new-file menu. The first chat walks you through choosing 
 
 A server of your own, such as Ollama, LM Studio, or llama.cpp on a machine on your network, is added the same way with its address and no key. Models on such a server are often small; the assistant works harder for them and tells them when a note is long.
 
+On a Mac with Apple Intelligence, the device's own model is offered first and needs nothing at all. It is kept to reading: it searches, lists, and reads notes and answers from them, but cannot edit, follows no `AGENTS.md`, and is shown no pictures. Ask it about one note at a time.
+
 ## What the assistant can do
 
 The assistant works in the folder the chat lives in. It can search, list, and read the notes there, and it can edit, create, move, and delete them. Every call it makes shows in the chat as a row you can open, and edits show as word-level differences. It asks nobody before acting; scope is the only permission. Widen or narrow the folder from the composer's folder chip, and leave a chat in a folder of its own when you want it to see nothing else.
@@ -16,7 +18,7 @@ A note you mention in a message is read when you send it, and the assistant keep
 
 An `AGENTS.md` note in a folder holds your standing instructions for work there: how a calendar is kept, what to do on a check-in. The assistant reads every `AGENTS.md` from the root down to the chat's folder, the deeper one having the later word.
 
-Providers that search the web do so with their own tools. For the others, add a search engine file under `.agent/search` and the assistant gains `web_search` and `fetch`.
+Providers that search the web do so with their own tools. The others can always fetch a page you link; to let them search, add a search engine file under `.agent/search`: `{"kind": "brave", "api_key": "..."}` or `{"kind": "searxng", "base_url": "http://..."}`.
 
 ## Talking by voice
 
@@ -24,7 +26,7 @@ On a provider with a voice model, the phone button in the composer opens a spoke
 
 ## What leaves your device
 
-Your messages, the notes the assistant reads on your behalf, and the pictures or files it is shown go to the provider you chose, under that provider's terms. With a server of your own, they go only there. Lockbook never sees them, and your key never leaves your vault. The chat shows where messages go before you send the first one.
+Your messages, the notes the assistant reads on your behalf, and the pictures or files it is shown go to the provider you chose, under that provider's terms; with a server of your own or the device's model, they go there and nowhere else. Two things reach further: a web search goes to the search engine you set up and a fetch to the site, and a recording you mention is transcribed once by the first of your providers that transcribes. Lockbook's servers never see any of it, and never see your keys. The chat shows where messages go before you send the first one.
 
 ## Settings
 

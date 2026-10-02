@@ -82,9 +82,14 @@ impl Reply {
         self.done && (self.cut.is_some() || self.played >= self.received)
     }
 
-    /// The words the user heard.
+    /// The words the user heard: nothing of a reply cut before any of it
+    /// played, since the first words come ahead of their audio.
     fn heard(&self) -> String {
-        let within = self.cut.unwrap_or(u64::MAX);
+        let within = match self.cut {
+            Some(0) => return String::new(),
+            Some(cut) => cut,
+            None => u64::MAX,
+        };
         self.words
             .iter()
             .filter(|(at, _)| *at <= within)
@@ -190,16 +195,20 @@ impl Session<'_> {
                 self.responding = true;
                 if !self.in_run {
                     self.in_run = true;
+                    self.host.made.clear();
                     self.host.busy.store(true, Ordering::Relaxed);
                     self.host.lines.emit(Event::RunStarted);
                 }
             }
             Incoming::Audio { item, pcm } => {
                 let n = self.reply(&item);
-                self.replies[n].received += pcm.len() as u64 / BYTES_PER_MS;
-                self.host
-                    .lines
-                    .emit(Event::Audio { reply: n as u32 + 1, pcm });
+                // What comes after the cut was never heard.
+                if self.replies[n].cut.is_none() {
+                    self.replies[n].received += pcm.len() as u64 / BYTES_PER_MS;
+                    self.host
+                        .lines
+                        .emit(Event::Audio { reply: n as u32 + 1, pcm });
+                }
             }
             Incoming::Transcript { item, text } => {
                 let n = self.reply(&item);
@@ -218,6 +227,8 @@ impl Session<'_> {
                     self.replies[n].done = true;
                     self.replies[n].usage = usage;
                 }
+                // A response cut short may hold a call with half its arguments.
+                let calls = if status == "completed" { calls } else { Vec::new() };
                 // A round of calls alone is a reply with nothing said.
                 if spoken.is_empty() && !calls.is_empty() {
                     let mut entry = Entry::assistant(self.host.user, "", &self.host.model, usage);
@@ -227,6 +238,11 @@ impl Session<'_> {
                     self.queue.push_back(Slot::Ready(entry));
                 }
                 self.run_tools(calls).await?;
+            }
+            // A response asked for while the server had begun one of its
+            // own is refused; the server's goes on, and nothing is lost.
+            Incoming::Error(message) if message.contains("active response") => {
+                warn!("voice: {message}");
             }
             Incoming::Error(message) => {
                 let error = Entry::error(self.host.user, format!("voice: {message}"));
@@ -806,8 +822,8 @@ mod tests {
         assert!(!d.busy());
     }
 
-    /// Stopping keeps what was heard of the reply and waits a moment for
-    /// the words of the turn just spoken, which come first.
+    /// Stopping waits a moment for the words of the turn just spoken, and
+    /// a reply nothing of which had played is not written as heard.
     #[test]
     fn stopping_keeps_what_was_heard_and_waits_for_the_last_words() {
         let mut steps = opened();
@@ -830,7 +846,8 @@ mod tests {
         wait_for(&d, &mut seen, |e| e.iter().any(|e| matches!(e, Event::Audio { .. })));
         d.send(Cmd::Stop);
         wait_for(&d, &mut seen, |e| e.contains(&Event::VoiceEnded));
-        assert_eq!(kinds(&store.chat()), ["user~:late words", "assistant~!:Hi"]);
+        // The reply's words came ahead of any audio played, so none were heard.
+        assert_eq!(kinds(&store.chat()), ["user~:late words"]);
     }
 
     /// Voice on a provider with nothing that speaks is one error line.

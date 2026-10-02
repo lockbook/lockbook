@@ -164,7 +164,9 @@ pub fn availability() -> Result<(), String> {
     };
     #[cfg(not(apple_ai_native))]
     deliver(request.id, Event::Error("Apple Intelligence requires an Apple Silicon Mac and a build made with Xcode 26 or newer. This build does not include native inference.".into()));
-    match request.next_blocking() {
+    // The bridge answers before returning, so nothing waits here, and the
+    // caller may be inside a runtime.
+    match request.events.try_recv().ok() {
         Some(Event::Done) => Ok(()),
         Some(Event::Error(e)) => Err(e),
         _ => Err("Apple Intelligence did not report its availability.".into()),
