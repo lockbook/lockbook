@@ -1,0 +1,174 @@
+{% extends "base.html" %}
+{% block title %}Download — Lockbook{% endblock %}
+{% block description %}Get Lockbook for macOS, iOS, Android, Linux and Windows, plus the command line client.{% endblock %}
+{% block content %}
+
+<section class="section dl">
+  <div class="wrap">
+    <div class="measure">
+      <p class="eyebrow">Download</p>
+      <h1>Get Lockbook</h1>
+      <p class="lede">No sign-up, no email. Pick a platform.</p>
+    </div>
+
+    <div class="dl-pick">
+      <div class="seg seg-lg seg-5" id="dl-rail" role="tablist" aria-label="Platforms">
+        <span class="seg-thumb" id="dl-thumb" aria-hidden="true"></span>
+        <button role="tab" id="dl-tab-macos" aria-controls="dl-macos" aria-selected="true" data-platform="macos">macOS</button>
+        <button role="tab" id="dl-tab-ios" aria-controls="dl-ios" aria-selected="false" data-platform="ios" tabindex="-1">iOS</button>
+        <button role="tab" id="dl-tab-android" aria-controls="dl-android" aria-selected="false" data-platform="android" tabindex="-1">Android</button>
+        <button role="tab" id="dl-tab-linux" aria-controls="dl-linux" aria-selected="false" data-platform="linux" tabindex="-1">Linux</button>
+        <button role="tab" id="dl-tab-windows" aria-controls="dl-windows" aria-selected="false" data-platform="windows" tabindex="-1">Windows</button>
+      </div>
+    </div>
+
+    <div class="dl-panels">
+      <div class="dl-panel is-on" id="dl-macos" role="tabpanel" aria-labelledby="dl-tab-macos">
+        <div class="dl-table">
+          <h3>Desktop</h3>
+          <div class="cmd"><span><a href="https://apps.apple.com/us/app/lockbook/id1526775001">App Store</a></span><a href="https://apps.apple.com/us/app/lockbook/id1526775001">apps.apple.com/us/app/lockbook/id1526775001</a></div>
+          <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-macos.app.zip">lockbook-macos.app.zip</a></div>
+        </div>
+        <div class="dl-table">
+          <h3>CLI</h3>
+          <div class="cmd"><span>Homebrew</span><code>brew tap lockbook/lockbook &amp;&amp; brew install lockbook</code></div>
+          <div class="cmd"><span><a href="https://crates.io/crates/lockbook">Cargo</a></span><code>cargo install lockbook</code></div>
+          <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-cli-macos.tar.gz">lockbook-cli-macos.tar.gz</a></div>
+        </div>
+        <p class="dl-note">Then set up <a href="/docs/cli.html#completions">tab completion</a>; it is how the CLI is meant to be driven.</p>
+      </div>
+
+      <div class="dl-panel" id="dl-ios" role="tabpanel" aria-labelledby="dl-tab-ios">
+        <div class="dl-table">
+          <h3>App</h3>
+          <div class="cmd"><span><a href="https://apps.apple.com/us/app/lockbook/id1526775001">App Store</a></span><a href="https://apps.apple.com/us/app/lockbook/id1526775001">apps.apple.com/us/app/lockbook/id1526775001</a></div>
+        </div>
+      </div>
+
+      <div class="dl-panel" id="dl-android" role="tabpanel" aria-labelledby="dl-tab-android">
+        <div class="dl-table">
+          <h3>App</h3>
+          <div class="cmd"><span><a href="https://play.google.com/store/apps/details?id=app.lockbook">Google Play</a></span><a href="https://play.google.com/store/apps/details?id=app.lockbook">play.google.com/store/apps/details?id=app.lockbook</a></div>
+          <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-android.apk">lockbook-android.apk</a></div>
+        </div>
+      </div>
+
+      <div class="dl-panel" id="dl-linux" role="tabpanel" aria-labelledby="dl-tab-linux">
+        <div class="dl-table">
+          <h3>Desktop</h3>
+          <div class="cmd"><span><a href="https://flathub.org/apps/net.lockbook.Lockbook">Flatpak</a></span><code>flatpak install flathub net.lockbook.Lockbook</code></div>
+          <div class="cmd"><span><a href="https://snapcraft.io/lockbook-desktop">Snap</a></span><code>snap install lockbook-desktop</code></div>
+          <div class="cmd"><span><a href="https://aur.archlinux.org/packages/lockbook-desktop">AUR</a></span><code>yay -S lockbook-desktop</code></div>
+          <div class="cmd"><span><a href="https://search.nixos.org/packages?channel=25.05&amp;show=lockbook-desktop&amp;from=0&amp;size=50&amp;sort=relevance&amp;type=packages&amp;query=lockbook-desktop">Nix</a></span><code>nix-shell -p lockbook-desktop</code></div>
+          <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-linux">lockbook-linux</a></div>
+        </div>
+        <div class="dl-table">
+          <h3>CLI</h3>
+          <div class="cmd"><span><a href="https://crates.io/crates/lockbook">Cargo</a></span><code>cargo install lockbook</code></div>
+          <div class="cmd"><span><a href="https://aur.archlinux.org/packages/lockbook">AUR</a></span><code>yay -S lockbook</code></div>
+          <div class="cmd"><span><a href="https://snapcraft.io/lockbook">Snap</a></span><code>snap install lockbook</code></div>
+          <div class="cmd"><span><a href="https://search.nixos.org/packages?channel=25.05&amp;show=lockbook&amp;from=0&amp;size=50&amp;sort=relevance&amp;type=packages&amp;query=lockbook">Nix</a></span><code>nix-shell -p lockbook</code></div>
+          <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-cli-linux">lockbook-cli-linux</a></div>
+        </div>
+        <p class="dl-note">Then set up <a href="/docs/cli.html#completions">tab completion</a>; it is how the CLI is meant to be driven.</p>
+      </div>
+
+      <div class="dl-panel" id="dl-windows" role="tabpanel" aria-labelledby="dl-tab-windows">
+        <div class="dl-table">
+          <h3>Desktop</h3>
+          <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-setup-x86_64.exe">lockbook-windows-setup-x86_64.exe</a></div>
+          <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-setup-arm64.exe">lockbook-windows-setup-arm64.exe</a></div>
+        </div>
+        <div class="dl-table">
+          <h3>CLI</h3>
+          <div class="cmd"><span><a href="https://crates.io/crates/lockbook">Cargo</a></span><code>cargo install lockbook</code></div>
+          <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-cli.zip">lockbook-windows-cli.zip</a></div>
+          <div class="cmd"><span><a href="https://github.com/lockbook/lockbook/releases">Binary</a></span><a href="https://github.com/lockbook/lockbook/releases/latest/download/lockbook-windows-cli-arm.zip">lockbook-windows-cli-arm.zip</a></div>
+        </div>
+        <p class="dl-note">Then set up <a href="/docs/cli.html#completions">tab completion</a>; it is how the CLI is meant to be driven.</p>
+      </div>
+    </div>
+
+    <p class="dl-foot">Every client is open source. Prefer to compile it yourself? See <a href="/docs/building.html">Building Lockbook</a>.</p>
+  </div>
+</section>
+
+<style>{% raw %}
+  .dl{border-top:0}
+  .dl h1{font-size:var(--t-title)}
+  .dl .lede{color:var(--fg-2);margin-top:var(--s-md)}
+  .dl-pick{margin-top:var(--s-lg)}
+  .dl-panels{margin-top:var(--s-sm)}
+  .dl-panel{display:none}
+  .dl-panel.is-on{display:block}
+  .dl-table{margin-top:var(--s-xl);max-width:680px;border-bottom:1px solid var(--divider)}
+  .dl-table h3{font-size:var(--t-heading);margin-bottom:var(--s-sm)}
+  .cmd{
+    display:grid;grid-template-columns:110px minmax(0,1fr);gap:var(--s-md);align-items:center;
+    padding:var(--s-sm) 0;border-top:1px solid var(--divider);
+  }
+  .cmd > span{font-family:var(--mono);font-size:11px;letter-spacing:.08em;text-transform:uppercase;color:var(--fg-3)}
+  .cmd > span a{color:var(--fg-2);text-decoration:underline;text-decoration-color:var(--stroke);text-underline-offset:3px}
+  .cmd > span a:hover{color:var(--accent);text-decoration-color:currentColor}
+  .cmd code,.cmd > a{font-family:var(--mono);font-size:13px;white-space:pre-wrap;word-break:break-word}
+  .cmd code{color:var(--fg)}
+  .dl-note{margin-top:var(--s-md);color:var(--fg-3);font-size:15px;max-width:var(--measure)}
+  .dl-foot{margin-top:var(--s-2xl);color:var(--fg-2)}
+  @media (max-width:759px){.cmd{grid-template-columns:1fr;gap:var(--s-xs)}}
+{% endraw %}</style>
+{% endblock content %}
+
+{% block scripts %}
+<script>{% raw %}
+  (function () {
+    var rail = document.getElementById('dl-rail');
+    if (!rail) return;
+    var tabs = [].slice.call(rail.querySelectorAll('button'));
+    var thumb = document.getElementById('dl-thumb');
+
+    function show(tab) {
+      tabs.forEach(function (t) {
+        var on = t === tab;
+        t.setAttribute('aria-selected', on ? 'true' : 'false');
+        t.tabIndex = on ? 0 : -1;
+        var panel = document.getElementById(t.getAttribute('aria-controls'));
+        if (panel) panel.classList.toggle('is-on', on);
+      });
+      if (thumb) thumb.style.transform = 'translateX(' + (tabs.indexOf(tab) * 100) + '%)';
+    }
+
+    tabs.forEach(function (t, i) {
+      t.addEventListener('click', function () {
+        show(t);
+        if (history.replaceState) history.replaceState(null, '', '#' + t.dataset.platform);
+      });
+      t.addEventListener('keydown', function (e) {
+        var d = e.key === 'ArrowRight' ? 1 : e.key === 'ArrowLeft' ? -1 : 0;
+        if (!d) return;
+        e.preventDefault();
+        var next = tabs[(i + d + tabs.length) % tabs.length];
+        next.focus();
+        show(next);
+      });
+    });
+
+    function detect() {
+      var ua = navigator.userAgent || '';
+      var plat = navigator.platform || '';
+      var touch = navigator.maxTouchPoints || 0;
+      if (/iPhone|iPod/.test(ua)) return 'ios';
+      if (/iPad/.test(ua) || (/Mac/.test(plat) && touch > 1)) return 'ios';
+      if (/Mac/.test(plat) || /Mac/.test(ua)) return 'macos';
+      if (/Android/.test(ua)) return 'android';
+      if (/Win/.test(plat) || /Windows/.test(ua)) return 'windows';
+      if (/Linux|X11/.test(plat)) return 'linux';
+      return null;
+    }
+
+    var want = location.hash.replace('#', '') || detect();
+    var pick = null;
+    tabs.forEach(function (t) { if (t.dataset.platform === want) pick = t; });
+    if (pick) show(pick);
+  })();
+{% endraw %}</script>
+{% endblock scripts %}
