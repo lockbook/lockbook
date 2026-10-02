@@ -44,6 +44,17 @@
                     app:strokeWidth="0dp" />
 
                 <com.google.android.material.button.MaterialButton
+                    android:id="@+id/type_chat"
+                    style="@style/Widget.Material3Expressive.Button.TonalButton"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_weight="1"
+                    android:checkable="true"
+                    android:paddingHorizontal="8dp"
+                    android:text="@string/chat"
+                    app:strokeWidth="0dp" />
+
+                <com.google.android.material.button.MaterialButton
                     android:id="@+id/type_drawing"
                     style="@style/Widget.Material3Expressive.Button.TonalButton"
                     android:layout_width="0dp"

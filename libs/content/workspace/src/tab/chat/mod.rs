@@ -91,6 +91,9 @@ pub struct Chat {
     pub busy: bool,
     streaming: String,
     streaming_label: MdLabel,
+    /// The message a finger last tapped: its actions show, as a pointer
+    /// over it shows them.
+    tapped: Option<Uuid>,
     /// Where this device keeps the place each chat was scrolled to.
     pub persistence: Option<WsPersistentStore>,
     /// Whether the kept place has been gone back to.
@@ -192,6 +195,7 @@ impl Chat {
             busy: false,
             streaming: String::new(),
             streaming_label,
+            tapped: None,
             persistence: None,
             placed: false,
             held: None,
