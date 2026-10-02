@@ -18,7 +18,8 @@ use tracing::warn;
 use crate::context::{self, truncate};
 use crate::provider::Provider;
 use crate::store::Store;
-use crate::tools::Tools;
+use crate::territory::Territory;
+use crate::tools::{ToolOutcome, Tools};
 use crate::wire::{self, Call, Request};
 
 /// Bytes of a tool result written to the chat.
@@ -36,6 +37,9 @@ pub enum Cmd {
     },
     /// Drop everything after the last message and run again.
     Regenerate,
+    /// Answer the pending [`Event::Ask`].
+    Approve,
+    Deny,
     Stop,
 }
 
@@ -44,6 +48,11 @@ pub enum Event {
     RunStarted,
     Delta(String),
     ToolStarted(Call),
+    /// A tool needs the user's go-ahead; the run waits for Approve or Deny.
+    Ask {
+        call: Call,
+        prompt: String,
+    },
     /// A line settled into the chat.
     Written(Entry),
     RunEnded,
@@ -158,7 +167,7 @@ impl Worker {
                         }
                     })
                     .map(|_| None),
-                Cmd::Stop => continue,
+                Cmd::Approve | Cmd::Deny | Cmd::Stop => continue,
             };
             match staged {
                 Ok(entry) => {
@@ -215,18 +224,7 @@ impl Worker {
                     if completion.calls.is_empty() {
                         break;
                     }
-                    let mut stopped = false;
-                    for call in completion.calls {
-                        self.emit(Event::ToolStarted(call.clone()));
-                        let outcome = self.tools.call(&call);
-                        let result = truncate(&outcome.text, TOOL_RESULT_CAP);
-                        self.settle(Entry::tool(&user, call.name, call.args, result, outcome.ok));
-                        if matches!(cmds.try_recv(), Ok(Cmd::Stop)) {
-                            stopped = true;
-                            break;
-                        }
-                    }
-                    if stopped {
+                    if !self.run_tools(completion.calls, cmds) {
                         break;
                     }
                 }
@@ -236,14 +234,70 @@ impl Worker {
         self.emit(Event::RunEnded);
     }
 
+    /// Runs the calls in order. Returns whether the run continues.
+    fn run_tools(&mut self, calls: Vec<Call>, cmds: &mut UnboundedReceiver<Cmd>) -> bool {
+        let user = self.config.user.clone();
+        for call in calls {
+            self.emit(Event::ToolStarted(call.clone()));
+            let mut outcome = self.tools.call(&call, false);
+            if let ToolOutcome::Ask { prompt } = &outcome {
+                self.emit(Event::Ask { call: call.clone(), prompt: prompt.clone() });
+                outcome = loop {
+                    match cmds.blocking_recv() {
+                        Some(Cmd::Approve) => break self.tools.call(&call, true),
+                        Some(Cmd::Deny) => break ToolOutcome::err("the user declined"),
+                        Some(Cmd::Stop) | None => return false,
+                        Some(_) => warn!("chat command ignored while a tool awaits approval"),
+                    }
+                };
+            }
+            let (text, ok) = match outcome {
+                ToolOutcome::Done { text, ok } => (text, ok),
+                ToolOutcome::Ask { .. } => ("the user declined".to_string(), false),
+                ToolOutcome::Grant { path, text } => {
+                    let granted = self.store.update(&mut |chat| {
+                        let mut settings = chat.settings_for(&user);
+                        if !settings.include.contains(&path) {
+                            settings.include.push(path.clone());
+                        }
+                        chat.push(Entry::settings(&user, settings));
+                    });
+                    match granted {
+                        Ok(chat) => {
+                            if let Some(entry) = chat.entries.last() {
+                                self.emit(Event::Written(entry.clone()));
+                            }
+                            (text, true)
+                        }
+                        Err(err) => (err, false),
+                    }
+                }
+                ToolOutcome::Abort { text } => {
+                    self.settle(Entry::error(&user, format!("stopped: {text}")));
+                    return false;
+                }
+            };
+            let result = truncate(&text, TOOL_RESULT_CAP);
+            self.settle(Entry::tool(&user, call.name, call.args, result, ok));
+            if matches!(cmds.try_recv(), Ok(Cmd::Stop)) {
+                return false;
+            }
+        }
+        true
+    }
+
     fn prepare(&mut self) -> Result<(Provider, Request), String> {
         let (_, bytes) = self.store.load()?;
         let chat = Chat::parse(&bytes);
         let provider = (self.config.provider)()?;
+        let settings = chat.settings_for(&self.config.user);
+        let territory = Territory::new(&self.config.working_dir, &settings);
+        self.tools
+            .prepare(&chat, &self.config.user, &self.config.working_dir);
         let tools = &mut self.tools;
         let turns = context::turns(&chat, &mut |m| tools.read_mention(m));
         let request = Request {
-            system: context::system_prompt(&self.config.working_dir),
+            system: context::system_prompt(&territory),
             turns,
             tools: self.tools.schemas(),
         };
@@ -305,7 +359,7 @@ mod tests {
     use crate::mock::{self, sse_call, sse_text};
     use crate::provider::Kind;
     use crate::store::MemStore;
-    use crate::tools::{NoTools, ToolOutcome};
+    use crate::tools::NoTools;
     use crate::wire::ToolSchema;
 
     fn driver(store: MemStore, tools: impl Tools + 'static, base_url: String) -> Driver {
@@ -325,17 +379,21 @@ mod tests {
         Driver::spawn(store, tools, config, || {})
     }
 
-    fn wait_for_run(driver: &Driver) -> Vec<Event> {
+    fn wait_for(driver: &Driver, done: impl Fn(&[Event]) -> bool) -> Vec<Event> {
         let start = Instant::now();
         let mut events = Vec::new();
         while start.elapsed() < Duration::from_secs(10) {
             events.extend(driver.poll());
-            if events.contains(&Event::RunEnded) {
+            if done(&events) {
                 return events;
             }
             std::thread::sleep(Duration::from_millis(10));
         }
-        panic!("run never ended: {events:?}");
+        panic!("timed out: {events:?}");
+    }
+
+    fn wait_for_run(driver: &Driver) -> Vec<Event> {
+        wait_for(driver, |events| events.contains(&Event::RunEnded))
     }
 
     fn kinds(chat: &Chat) -> Vec<&str> {
@@ -346,24 +404,40 @@ mod tests {
                 Body::Assistant { .. } => "assistant",
                 Body::Tool { .. } => "tool",
                 Body::Error { .. } => "error",
+                Body::Settings(_) => "settings",
                 _ => "other",
             })
             .collect()
     }
 
-    struct Echo;
+    /// `echo` answers; `danger` asks first; `wall` aborts; `grant` grants.
+    struct Mock;
 
-    impl Tools for Echo {
+    impl Tools for Mock {
         fn schemas(&self) -> Vec<ToolSchema> {
-            vec![ToolSchema {
-                name: "echo".into(),
-                description: "echoes".into(),
-                parameters: json!({"type": "object", "properties": {"text": {"type": "string"}}}),
-            }]
+            ["echo", "danger", "wall", "grant"]
+                .iter()
+                .map(|name| ToolSchema {
+                    name: name.to_string(),
+                    description: name.to_string(),
+                    parameters: json!({"type": "object", "properties": {"text": {"type": "string"}}}),
+                })
+                .collect()
         }
 
-        fn call(&mut self, call: &Call) -> ToolOutcome {
-            ToolOutcome::ok(format!("echo:{}", call.args["text"].as_str().unwrap_or("")))
+        fn call(&mut self, call: &Call, approved: bool) -> ToolOutcome {
+            match call.name.as_str() {
+                "echo" => {
+                    ToolOutcome::ok(format!("echo:{}", call.args["text"].as_str().unwrap_or("")))
+                }
+                "danger" if !approved => ToolOutcome::Ask { prompt: "ok?".into() },
+                "danger" => ToolOutcome::ok("did it"),
+                "wall" => ToolOutcome::Abort { text: "blocked".into() },
+                "grant" => {
+                    ToolOutcome::Grant { path: "/more/".into(), text: "granted /more/".into() }
+                }
+                _ => ToolOutcome::err("unknown"),
+            }
         }
     }
 
@@ -385,7 +459,7 @@ mod tests {
         let store = MemStore::default();
         let (url, bodies) =
             mock::serve(vec![sse_call("echo", "{\"text\":\"x\"}"), sse_text("done")]);
-        let d = driver(store.clone(), Echo, url);
+        let d = driver(store.clone(), Mock, url);
         d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
         let events = wait_for_run(&d);
         assert!(
@@ -407,6 +481,52 @@ mod tests {
             .collect();
         assert_eq!(roles, ["system", "user", "assistant", "tool"]);
         assert_eq!(second["messages"][3]["content"], "echo:x");
+    }
+
+    #[test]
+    fn approval_runs_the_tool_and_denial_answers_the_model() {
+        for (decision, expected) in [(Cmd::Approve, "did it"), (Cmd::Deny, "the user declined")] {
+            let store = MemStore::default();
+            let (url, _) = mock::serve(vec![sse_call("danger", "{}"), sse_text("ok")]);
+            let d = driver(store.clone(), Mock, url);
+            d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
+            let events = wait_for(&d, |e| e.iter().any(|e| matches!(e, Event::Ask { .. })));
+            assert!(
+                events
+                    .iter()
+                    .any(|e| matches!(e, Event::Ask { prompt, .. } if prompt == "ok?"))
+            );
+            d.send(decision);
+            wait_for_run(&d);
+            let chat = store.chat();
+            assert_eq!(kinds(&chat), ["user", "assistant", "tool", "assistant"]);
+            assert_eq!(chat.entries[2].text(), expected);
+        }
+    }
+
+    #[test]
+    fn an_abort_ends_the_run_with_an_error_and_no_further_completion() {
+        let store = MemStore::default();
+        let (url, bodies) = mock::serve(vec![sse_call("wall", "{}")]);
+        let d = driver(store.clone(), Mock, url);
+        d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
+        wait_for_run(&d);
+        let chat = store.chat();
+        assert_eq!(kinds(&chat), ["user", "assistant", "error"]);
+        assert!(chat.entries[2].text().contains("blocked"));
+        assert_eq!(bodies.try_iter().count(), 1);
+    }
+
+    #[test]
+    fn a_grant_persists_a_settings_line() {
+        let store = MemStore::default();
+        let (url, _) = mock::serve(vec![sse_call("grant", "{}"), sse_text("ok")]);
+        let d = driver(store.clone(), Mock, url);
+        d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
+        wait_for_run(&d);
+        let chat = store.chat();
+        assert_eq!(kinds(&chat), ["user", "assistant", "settings", "tool", "assistant"]);
+        assert_eq!(chat.settings_for("u").include, ["/more/"]);
     }
 
     #[test]
@@ -450,11 +570,7 @@ mod tests {
         let url = mock::serve_split(SLOW, SLOW.len());
         let d = driver(store.clone(), NoTools, url);
         d.send(Cmd::Say { text: "hello".into(), mentions: vec![] });
-        let start = Instant::now();
-        while !d.poll().contains(&Event::Delta("part".into())) {
-            assert!(start.elapsed() < Duration::from_secs(10), "no delta");
-            std::thread::sleep(Duration::from_millis(10));
-        }
+        wait_for(&d, |e| e.contains(&Event::Delta("part".into())));
         d.send(Cmd::Stop);
         wait_for_run(&d);
         let chat = store.chat();
