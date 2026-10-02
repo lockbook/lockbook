@@ -1,9 +1,10 @@
-//! The `.chat` document: one JSON entry per line, append-only, merged across
-//! devices as a set union by id. Only settled facts are written (a message
-//! that was sent, a reply that finished, a tool call that returned), so
-//! nothing in flight is ever reconciled.
+//! The `.chat` document: a first line of metadata (each user's settings),
+//! then one JSON entry per line, merged across devices as a set union by
+//! id. Only settled facts are written (a message that was sent, a reply that
+//! finished, a tool call that returned), so nothing in flight is ever
+//! reconciled.
 
-use std::collections::HashSet;
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::{Map, Value, json};
@@ -47,7 +48,6 @@ pub enum Body {
     Error {
         text: String,
     },
-    Settings(Settings),
     /// A kind this client doesn't know; its fields live in [`Entry::extra`].
     Other(String),
 }
@@ -60,8 +60,8 @@ pub struct Mention {
     pub id: Option<Uuid>,
 }
 
-/// Per-user chat settings; the latest entry by `(ts, id)` wins wholesale.
-/// The folder the chat lives in is always included and never listed.
+/// One user's settings for a chat. The folder the chat lives in is always
+/// included and never listed.
 #[derive(Clone, Debug, PartialEq, Default, Serialize, Deserialize)]
 pub struct Settings {
     /// `provider/model`; absent means the default provider.
@@ -123,16 +123,12 @@ impl Entry {
         Self::new(from, Body::Error { text: text.into() })
     }
 
-    pub fn settings(from: impl Into<String>, settings: Settings) -> Self {
-        Self::new(from, Body::Settings(settings))
-    }
-
-    /// The text a reader sees; empty for settings and unknown kinds.
+    /// The text a reader sees; empty for unknown kinds.
     pub fn text(&self) -> &str {
         match &self.body {
             Body::User { text, .. } | Body::Assistant { text, .. } | Body::Error { text } => text,
             Body::Tool { result, .. } => result,
-            Body::Settings(_) | Body::Other(_) => "",
+            Body::Other(_) => "",
         }
     }
 
@@ -165,11 +161,6 @@ impl Entry {
                 server: take_bool(&mut map, "server", false),
             },
             "error" => Body::Error { text: take_string(&mut map, "text") },
-            "settings" => Body::Settings(Settings {
-                model: take(&mut map, "model"),
-                include: take(&mut map, "include").unwrap_or_default(),
-                exclude: take(&mut map, "exclude").unwrap_or_default(),
-            }),
             other => Body::Other(other.to_string()),
         };
         Some(Self { id, ts, from, body, extra: map })
@@ -220,14 +211,6 @@ impl Entry {
                 put("kind", json!("error"));
                 put("text", json!(text));
             }
-            Body::Settings(settings) => {
-                put("kind", json!("settings"));
-                if let Value::Object(fields) = json!(settings) {
-                    for (k, v) in fields {
-                        put(&k, v);
-                    }
-                }
-            }
             Body::Other(kind) => put("kind", json!(kind)),
         }
         for (k, v) in &self.extra {
@@ -255,33 +238,70 @@ fn take_bool(map: &mut Map<String, Value>, key: &str, default: bool) -> bool {
     map.remove(key).and_then(|v| v.as_bool()).unwrap_or(default)
 }
 
+/// The file's first line: what each user chose for this chat. A user writes
+/// only their own entry.
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct Meta {
+    pub settings: BTreeMap<String, Settings>,
+    /// Fields this client doesn't know, carried verbatim through merge and save.
+    pub extra: Map<String, Value>,
+}
+
+impl Meta {
+    fn absorb(&mut self, mut map: Map<String, Value>) {
+        if let Some(settings) = take::<BTreeMap<String, Settings>>(&mut map, "settings") {
+            self.settings.extend(settings);
+        }
+        self.extra.extend(map);
+    }
+
+    fn to_json_line(&self) -> Option<String> {
+        let mut m = self.extra.clone();
+        if !self.settings.is_empty() {
+            m.insert("settings".into(), json!(self.settings));
+        }
+        if m.is_empty() {
+            return None;
+        }
+        Some(serde_json::to_string(&Value::Object(m)).expect("maps serialize"))
+    }
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct Chat {
+    pub meta: Meta,
     /// Sorted by `(ts, id)`, ids unique.
     pub entries: Vec<Entry>,
 }
 
 impl Chat {
-    /// Lines that aren't a JSON object with an id are dropped; everything else
-    /// is kept, known kind or not.
+    /// A JSON object line with an id is an entry, kept whether or not its
+    /// kind is known; one without an id is metadata; anything else is dropped.
     pub fn parse(bytes: &[u8]) -> Self {
         let text = String::from_utf8_lossy(bytes);
+        let mut meta = Meta::default();
         let mut seen = HashSet::new();
-        let mut entries: Vec<Entry> = text
-            .lines()
-            .filter_map(|line| serde_json::from_str::<Value>(line).ok())
-            .filter_map(|value| match value {
-                Value::Object(map) => Entry::from_map(map),
-                _ => None,
-            })
-            .filter(|entry| seen.insert(entry.id))
-            .collect();
+        let mut entries = Vec::new();
+        for line in text.lines() {
+            let Ok(Value::Object(map)) = serde_json::from_str::<Value>(line) else { continue };
+            if !map.contains_key("id") {
+                meta.absorb(map);
+            } else if let Some(entry) = Entry::from_map(map) {
+                if seen.insert(entry.id) {
+                    entries.push(entry);
+                }
+            }
+        }
         sort(&mut entries);
-        Self { entries }
+        Self { meta, entries }
     }
 
     pub fn serialize(&self) -> Vec<u8> {
         let mut out = String::new();
+        if let Some(meta) = self.meta.to_json_line() {
+            out.push_str(&meta);
+            out.push('\n');
+        }
         for entry in &self.entries {
             out.push_str(&entry.to_json_line());
             out.push('\n');
@@ -298,27 +318,37 @@ impl Chat {
         self.entries.push(entry);
     }
 
-    /// Removes `id` and everything after it. Returns whether `id` was present.
-    pub fn truncate_from(&mut self, id: Uuid) -> bool {
-        match self.entries.iter().position(|e| e.id == id) {
-            Some(i) => {
-                self.entries.truncate(i);
-                true
-            }
-            None => false,
-        }
+    /// Removes `id` and every later entry by `user`; other people's entries
+    /// stay, so a rewrite in a shared chat only touches one's own history.
+    /// Returns whether `id` was present.
+    pub fn truncate_from(&mut self, id: Uuid, user: &str) -> bool {
+        let Some(i) = self.entries.iter().position(|e| e.id == id) else { return false };
+        let tail = self.entries.split_off(i);
+        self.entries
+            .extend(tail.into_iter().filter(|e| e.id != id && e.from != user));
+        true
+    }
+
+    /// Removes `user`'s entries after their last message, keeping everyone
+    /// else's. Returns whether there was a message to regenerate from.
+    pub fn truncate_after_last_user(&mut self, user: &str) -> bool {
+        let last = self
+            .entries
+            .iter()
+            .rposition(|e| e.from == user && matches!(e.body, Body::User { .. }));
+        let Some(i) = last else { return false };
+        let tail = self.entries.split_off(i + 1);
+        self.entries
+            .extend(tail.into_iter().filter(|e| e.from != user));
+        true
     }
 
     pub fn settings_for(&self, user: &str) -> Settings {
-        self.entries
-            .iter()
-            .rev()
-            .filter(|e| e.from == user)
-            .find_map(|e| match &e.body {
-                Body::Settings(s) => Some(s.clone()),
-                _ => None,
-            })
-            .unwrap_or_default()
+        self.meta.settings.get(user).cloned().unwrap_or_default()
+    }
+
+    pub fn set_settings(&mut self, user: &str, settings: Settings) {
+        self.meta.settings.insert(user.to_string(), settings);
     }
 
     /// What content search indexes: what people and models said.
@@ -349,7 +379,7 @@ impl Chat {
                     out.push_str(&format!("- `{name}` {args} · {status}\n\n"));
                 }
                 Body::Error { text } => out.push_str(&format!("> {text}\n\n")),
-                Body::Settings(_) | Body::Other(_) => {}
+                Body::Other(_) => {}
             }
         }
         out
@@ -360,12 +390,33 @@ fn sort(entries: &mut [Entry]) {
     entries.sort_by_key(|e| (e.ts, e.id));
 }
 
-/// Three-way merge of two edits of `base`. Union by id; an entry one side
-/// deleted from `base` stays deleted; identical ids take the local copy.
+/// Three-way merge of two edits of `base`. Entries union by id; an entry one
+/// side deleted from `base` stays deleted; identical ids take the local copy.
+/// Each user's settings take whichever side changed them; if both sides did
+/// (one user, two devices, between syncs), the local side wins.
 pub fn merge(base: &[u8], local: &[u8], remote: &[u8]) -> Vec<u8> {
     let base = Chat::parse(base);
     let local = Chat::parse(local);
     let remote = Chat::parse(remote);
+
+    let users: BTreeSet<&String> = [&base, &local, &remote]
+        .into_iter()
+        .flat_map(|c| c.meta.settings.keys())
+        .collect();
+    let mut settings = BTreeMap::new();
+    for user in users {
+        let (b, l, r) = (
+            base.meta.settings.get(user),
+            local.meta.settings.get(user),
+            remote.meta.settings.get(user),
+        );
+        if let Some(chosen) = if l == b { r } else { l } {
+            settings.insert(user.clone(), chosen.clone());
+        }
+    }
+    let mut extra = remote.meta.extra.clone();
+    extra.extend(local.meta.extra.clone());
+    let meta = Meta { settings, extra };
 
     let ids = |c: &Chat| c.entries.iter().map(|e| e.id).collect::<HashSet<_>>();
     let (base_ids, local_ids, remote_ids) = (ids(&base), ids(&local), ids(&remote));
@@ -384,7 +435,7 @@ pub fn merge(base: &[u8], local: &[u8], remote: &[u8]) -> Vec<u8> {
             .filter(|e| !local_ids.contains(&e.id) && !deleted_locally.contains(&e.id)),
     );
     sort(&mut entries);
-    Chat { entries }.serialize()
+    Chat { meta, entries }.serialize()
 }
 
 #[cfg(test)]
@@ -420,28 +471,29 @@ mod tests {
         ));
         chat.push(at(3, Entry::tool("a", "search", json!({"query": "q"}), "r", false)));
         chat.push(at(4, Entry::error("a", "boom")));
-        chat.push(at(
-            5,
-            Entry::settings(
-                "a",
-                Settings {
-                    model: Some("p/m".into()),
-                    include: vec!["/i/".into()],
-                    exclude: vec![],
-                },
-            ),
-        ));
+        chat.set_settings(
+            "a",
+            Settings { model: Some("p/m".into()), include: vec!["/i/".into()], exclude: vec![] },
+        );
 
-        assert_eq!(Chat::parse(&chat.serialize()), chat);
+        let bytes = chat.serialize();
+        let first = String::from_utf8_lossy(&bytes)
+            .lines()
+            .next()
+            .unwrap()
+            .to_string();
+        assert!(first.starts_with("{\"settings\":{\"a\":"), "{first}");
+        assert_eq!(Chat::parse(&bytes), chat);
     }
 
     #[test]
     fn keeps_unknown_kinds_and_fields() {
-        let line = "{\"id\":\"4d0b3f2a-0000-4000-8000-000000000001\",\"ts\":7,\"from\":\"a\",\"kind\":\"reaction\",\"emoji\":\"x\"}\n{\"id\":\"4d0b3f2a-0000-4000-8000-000000000002\",\"ts\":8,\"from\":\"a\",\"kind\":\"user\",\"text\":\"t\",\"mood\":3}\n";
+        let line = "{\"settings\":{},\"theme\":\"dusk\"}\n{\"id\":\"4d0b3f2a-0000-4000-8000-000000000001\",\"ts\":7,\"from\":\"a\",\"kind\":\"reaction\",\"emoji\":\"x\"}\n{\"id\":\"4d0b3f2a-0000-4000-8000-000000000002\",\"ts\":8,\"from\":\"a\",\"kind\":\"user\",\"text\":\"t\",\"mood\":3}\n";
         let chat = Chat::parse(line.as_bytes());
         assert_eq!(chat.entries.len(), 2);
         assert_eq!(chat.entries[0].body, Body::Other("reaction".into()));
         let out = String::from_utf8(chat.serialize()).unwrap();
+        assert!(out.starts_with("{\"theme\":\"dusk\"}\n"), "{out}");
         assert!(out.contains("\"emoji\":\"x\""), "{out}");
         assert!(out.contains("\"mood\":3"), "{out}");
         assert_eq!(Chat::parse(&chat.serialize()), chat);
@@ -465,24 +517,51 @@ mod tests {
         assert_eq!(texts(bytes.as_bytes()), ["early", "late"]);
     }
 
+    fn model(name: &str) -> Settings {
+        Settings { model: Some(name.into()), ..Default::default() }
+    }
+
     #[test]
-    fn latest_settings_win_per_user() {
+    fn settings_are_per_user() {
         let mut chat = Chat::default();
-        chat.push(at(
-            1,
-            Entry::settings("a", Settings { model: Some("one".into()), ..Default::default() }),
-        ));
-        chat.push(at(
-            2,
-            Entry::settings("b", Settings { model: Some("theirs".into()), ..Default::default() }),
-        ));
-        chat.push(at(
-            3,
-            Entry::settings("a", Settings { model: Some("two".into()), ..Default::default() }),
-        ));
+        chat.set_settings("a", model("one"));
+        chat.set_settings("b", model("theirs"));
+        chat.set_settings("a", model("two"));
         assert_eq!(chat.settings_for("a").model.as_deref(), Some("two"));
         assert_eq!(chat.settings_for("b").model.as_deref(), Some("theirs"));
         assert_eq!(chat.settings_for("c"), Settings::default());
+    }
+
+    #[test]
+    fn settings_merge_per_user_and_a_changed_side_wins() {
+        let base = Chat::default();
+        let mut local = base.clone();
+        local.set_settings("a", model("a-local"));
+        let mut remote = base.clone();
+        remote.set_settings("b", model("b-remote"));
+        let (b, l, r) = (base.serialize(), local.serialize(), remote.serialize());
+        let merged = Chat::parse(&merge(&b, &l, &r));
+        assert_eq!(merged.settings_for("a").model.as_deref(), Some("a-local"));
+        assert_eq!(merged.settings_for("b").model.as_deref(), Some("b-remote"));
+        assert_eq!(merge(&b, &l, &r), merge(&b, &r, &l));
+
+        let mut remote = base.clone();
+        remote.set_settings("a", model("a-remote"));
+        let r = remote.serialize();
+        assert_eq!(
+            Chat::parse(&merge(&b, &b, &r))
+                .settings_for("a")
+                .model
+                .as_deref(),
+            Some("a-remote")
+        );
+        assert_eq!(
+            Chat::parse(&merge(&b, &l, &r))
+                .settings_for("a")
+                .model
+                .as_deref(),
+            Some("a-local")
+        );
     }
 
     #[test]
@@ -493,9 +572,28 @@ mod tests {
         chat.push(keep);
         chat.push(cut.clone());
         chat.push(at(3, Entry::assistant("a", "gone", "m", Usage::default())));
-        assert!(chat.truncate_from(cut.id));
+        assert!(chat.truncate_from(cut.id, "a"));
         assert_eq!(texts(&chat.serialize()), ["keep"]);
-        assert!(!chat.truncate_from(cut.id));
+        assert!(!chat.truncate_from(cut.id, "a"));
+    }
+
+    #[test]
+    fn rewrites_in_a_shared_chat_leave_others_lines_alone() {
+        let mut chat = Chat::default();
+        let mine = at(1, Entry::user("a", "mine"));
+        chat.push(mine.clone());
+        chat.push(at(2, Entry::assistant("a", "my reply", "m", Usage::default())));
+        chat.push(at(3, Entry::user("b", "theirs")));
+        chat.push(at(4, Entry::assistant("b", "their reply", "m", Usage::default())));
+        chat.push(at(5, Entry::assistant("a", "my later reply", "m", Usage::default())));
+
+        let mut regen = chat.clone();
+        assert!(regen.truncate_after_last_user("a"));
+        assert_eq!(texts(&regen.serialize()), ["mine", "theirs", "their reply"]);
+
+        assert!(chat.truncate_from(mine.id, "a"));
+        assert_eq!(texts(&chat.serialize()), ["theirs", "their reply"]);
+        assert!(!chat.truncate_after_last_user("a"));
     }
 
     #[test]
@@ -505,7 +603,7 @@ mod tests {
             base.push(at(i as i64, Entry::user("u", *t)));
         }
         let mut truncated = base.clone();
-        truncated.truncate_from(base.entries[1].id);
+        truncated.truncate_from(base.entries[1].id, "u");
         let mut appended = base.clone();
         appended.push(at(9, Entry::user("u", "d")));
 
@@ -571,7 +669,6 @@ mod tests {
         chat.push(at(1, Entry::user("a", "question")));
         chat.push(at(2, Entry::tool("a", "search", json!({}), "noise", true)));
         chat.push(at(3, Entry::assistant("a", "answer", "p/m", Usage::default())));
-        chat.push(at(4, Entry::settings("a", Settings::default())));
         assert_eq!(chat.text(), "question\nanswer");
         let md = chat.to_markdown();
         assert!(md.contains("question") && md.contains("answer") && md.contains("`search`"));

@@ -62,6 +62,7 @@ urlencoding = "2.1.3"
 web-time = "1.1.0"
 
 [target.'cfg(not(target_family = "wasm"))'.dependencies]
+lb-chat = { path = "../../lb/lb-chat" }
 reqwest = { version = "0.11.1", default-features = false, features = [
     "json",
     "rustls-tls",
@@ -84,3 +85,6 @@ ndk-sys = "0.4"
 raw-window-handle = "0.6"
 jni = "0.21.0"
 pollster = "0.2"
+
+[dev-dependencies]
+test_utils = { path = "../../lb/test_utils" }

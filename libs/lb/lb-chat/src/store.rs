@@ -1,6 +1,7 @@
 //! Where the `.chat` bytes live. Writes are compare-and-swap on the hmac the
 //! bytes were read with; a conflict means re-read and re-apply.
 
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::{Arc, Mutex};
 
 use lb_rs::Uuid;
@@ -94,5 +95,49 @@ impl Store for MemStore {
         state.0 = state.0.wrapping_add(1);
         state.1 = bytes;
         Ok([state.0; 32])
+    }
+}
+
+/// A transcript owned by a view. The driver appends into it and bumps `seq`;
+/// the owner notices the bump, marks itself dirty, and persists through its
+/// own save lifecycle.
+#[derive(Clone, Default)]
+pub struct SharedStore {
+    pub chat: Arc<Mutex<Chat>>,
+    pub seq: Arc<AtomicUsize>,
+}
+
+impl SharedStore {
+    pub fn new(chat: Chat) -> Self {
+        Self { chat: Arc::new(Mutex::new(chat)), seq: Arc::new(AtomicUsize::new(0)) }
+    }
+
+    pub fn seq(&self) -> usize {
+        self.seq.load(Ordering::Relaxed)
+    }
+
+    pub fn bump(&self) {
+        self.seq.fetch_add(1, Ordering::Relaxed);
+    }
+}
+
+impl Store for SharedStore {
+    fn load(&self) -> Result<(Option<DocumentHmac>, Vec<u8>), String> {
+        Ok((None, self.chat.lock().unwrap().serialize()))
+    }
+
+    fn save(
+        &self, _hmac: Option<DocumentHmac>, bytes: Vec<u8>,
+    ) -> Result<DocumentHmac, Option<String>> {
+        *self.chat.lock().unwrap() = Chat::parse(&bytes);
+        self.bump();
+        Ok([0; 32])
+    }
+
+    fn update(&self, edit: &mut dyn FnMut(&mut Chat)) -> Result<Chat, String> {
+        let mut chat = self.chat.lock().unwrap();
+        edit(&mut chat);
+        self.bump();
+        Ok(chat.clone())
     }
 }

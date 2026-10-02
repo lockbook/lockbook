@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::{Receiver, Sender, channel};
 
 use lb_rs::Uuid;
-use lb_rs::model::chat::{Body, Chat, Entry, Mention};
+use lb_rs::model::chat::{Body, Chat, Entry, Mention, Settings};
 use tokio::runtime::Runtime;
 use tokio::sync::mpsc::{UnboundedReceiver, UnboundedSender, unbounded_channel};
 use tracing::warn;
@@ -40,6 +40,8 @@ pub enum Cmd {
     /// Answer the pending [`Event::Ask`].
     Approve,
     Deny,
+    /// Persist this user's settings without running.
+    SetSettings(Settings),
     Stop,
 }
 
@@ -55,6 +57,11 @@ pub enum Event {
     },
     /// A line settled into the chat.
     Written(Entry),
+    /// A line could not be written to the chat; the run stops.
+    Lost {
+        entry: Entry,
+        error: String,
+    },
     RunEnded,
 }
 
@@ -150,7 +157,7 @@ impl Worker {
                     let entry = Entry::user(&user, text);
                     self.store
                         .update(&mut |chat| {
-                            chat.truncate_from(id);
+                            chat.truncate_from(id, &user);
                             chat.push(entry.clone());
                         })
                         .map(|chat| chat.entries.last().cloned())
@@ -158,15 +165,18 @@ impl Worker {
                 Cmd::Regenerate => self
                     .store
                     .update(&mut |chat| {
-                        let last_user = chat
-                            .entries
-                            .iter()
-                            .rposition(|e| matches!(e.body, Body::User { .. }));
-                        if let Some(i) = last_user {
-                            chat.entries.truncate(i + 1);
-                        }
+                        chat.truncate_after_last_user(&user);
                     })
                     .map(|_| None),
+                Cmd::SetSettings(settings) => {
+                    let saved = self
+                        .store
+                        .update(&mut |chat| chat.set_settings(&user, settings.clone()));
+                    if let Err(err) = saved {
+                        self.settle(Entry::error(&user, err));
+                    }
+                    continue;
+                }
                 Cmd::Approve | Cmd::Deny | Cmd::Stop => continue,
             };
             match staged {
@@ -176,7 +186,9 @@ impl Worker {
                     }
                     self.turn(&mut cmds);
                 }
-                Err(err) => self.settle(Entry::error(&user, err)),
+                Err(err) => {
+                    self.settle(Entry::error(&user, err));
+                }
             }
         }
     }
@@ -215,13 +227,13 @@ impl Worker {
                     break;
                 }
                 Outcome::Finished(completion) => {
-                    self.settle(Entry::assistant(
+                    let reply = Entry::assistant(
                         &user,
                         completion.text,
                         provider.selection(),
                         completion.usage,
-                    ));
-                    if completion.calls.is_empty() {
+                    );
+                    if !self.settle(reply) || completion.calls.is_empty() {
                         break;
                     }
                     if !self.run_tools(completion.calls, cmds) {
@@ -260,15 +272,10 @@ impl Worker {
                         if !settings.include.contains(&path) {
                             settings.include.push(path.clone());
                         }
-                        chat.push(Entry::settings(&user, settings));
+                        chat.set_settings(&user, settings);
                     });
                     match granted {
-                        Ok(chat) => {
-                            if let Some(entry) = chat.entries.last() {
-                                self.emit(Event::Written(entry.clone()));
-                            }
-                            (text, true)
-                        }
+                        Ok(_) => (text, true),
                         Err(err) => (err, false),
                     }
                 }
@@ -278,7 +285,9 @@ impl Worker {
                 }
             };
             let result = truncate(&text, TOOL_RESULT_CAP);
-            self.settle(Entry::tool(&user, call.name, call.args, result, ok));
+            if !self.settle(Entry::tool(&user, call.name, call.args, result, ok)) {
+                return false;
+            }
             if matches!(cmds.try_recv(), Ok(Cmd::Stop)) {
                 return false;
             }
@@ -295,7 +304,7 @@ impl Worker {
         self.tools
             .prepare(&chat, &self.config.user, &self.config.working_dir);
         let tools = &mut self.tools;
-        let turns = context::turns(&chat, &mut |m| tools.read_mention(m));
+        let turns = context::turns(&chat, &self.config.user, &mut |m| tools.read_mention(m));
         let request = Request {
             system: context::system_prompt(&territory),
             turns,
@@ -336,10 +345,17 @@ impl Worker {
         (streamed, outcome)
     }
 
-    fn settle(&mut self, entry: Entry) {
-        match self.store.append(entry) {
-            Ok(stored) => self.emit(Event::Written(stored)),
-            Err(err) => warn!("chat write failed: {err}"),
+    /// Appends `entry`; false means it was lost and the run should stop.
+    fn settle(&mut self, entry: Entry) -> bool {
+        match self.store.append(entry.clone()) {
+            Ok(stored) => {
+                self.emit(Event::Written(stored));
+                true
+            }
+            Err(error) => {
+                self.emit(Event::Lost { entry, error });
+                false
+            }
         }
     }
 
@@ -404,7 +420,6 @@ mod tests {
                 Body::Assistant { .. } => "assistant",
                 Body::Tool { .. } => "tool",
                 Body::Error { .. } => "error",
-                Body::Settings(_) => "settings",
                 _ => "other",
             })
             .collect()
@@ -518,14 +533,14 @@ mod tests {
     }
 
     #[test]
-    fn a_grant_persists_a_settings_line() {
+    fn a_grant_widens_the_users_settings() {
         let store = MemStore::default();
         let (url, _) = mock::serve(vec![sse_call("grant", "{}"), sse_text("ok")]);
         let d = driver(store.clone(), Mock, url);
         d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
         wait_for_run(&d);
         let chat = store.chat();
-        assert_eq!(kinds(&chat), ["user", "assistant", "settings", "tool", "assistant"]);
+        assert_eq!(kinds(&chat), ["user", "assistant", "tool", "assistant"]);
         assert_eq!(chat.settings_for("u").include, ["/more/"]);
     }
 
