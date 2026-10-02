@@ -49,6 +49,8 @@ pub enum Cmd {
     },
     /// Drop everything after the last message and run again.
     Regenerate,
+    /// Run on from where the last turn stopped, keeping what it had done.
+    Resume,
     /// Persist this user's settings without running.
     SetSettings(Settings),
     /// Open a spoken conversation on the chat; `Stop` ends it.
@@ -307,6 +309,10 @@ impl Worker {
                         chat.truncate_after_last_user(&user);
                     })
                     .map(|_| None),
+                Cmd::Resume => {
+                    self.turn(&mut cmds, false);
+                    continue;
+                }
                 Cmd::SetSettings(settings) => {
                     let saved = self
                         .lines
@@ -328,7 +334,7 @@ impl Worker {
                     if let Some(entry) = entry {
                         self.lines.emit(Event::Written(entry));
                     }
-                    self.turn(&mut cmds);
+                    self.turn(&mut cmds, true);
                 }
                 Err(err) => {
                     self.lines.settle(Entry::error(&user, err));
@@ -337,7 +343,9 @@ impl Worker {
         }
     }
 
-    fn turn(&mut self, cmds: &mut UnboundedReceiver<Cmd>) {
+    /// A run: what the newest message attached is read first, unless the
+    /// run goes on from a stop, when that was done.
+    fn turn(&mut self, cmds: &mut UnboundedReceiver<Cmd>, attached: bool) {
         self.busy.store(true, Ordering::Relaxed);
         self.lines.emit(Event::RunStarted);
         self.made.clear();
@@ -345,7 +353,7 @@ impl Worker {
         if let Ok(provider) = (self.config.provider)() {
             self.result_cap = cap_for(&provider);
         }
-        if self.read_attached(cmds) {
+        if !attached || self.read_attached(cmds) {
             self.rounds(cmds);
         }
         self.busy.store(false, Ordering::Relaxed);
@@ -1159,6 +1167,39 @@ mod tests {
         assert_eq!(kinds(&chat), ["user", "assistant"]);
         assert_eq!(chat.entries[0].text(), "edited");
         assert_eq!(chat.entries[1].text(), "two");
+    }
+
+    /// A turn stopped mid-reply goes on from there when resumed: the note
+    /// it attached is not read again, and the model is asked with the
+    /// partial reply in place.
+    #[test]
+    fn a_resumed_turn_goes_on_from_where_it_stopped() {
+        let store = MemStore::default();
+        const PART: &str = "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nConnection: close\r\n\r\n\
+            data: {\"choices\":[{\"delta\":{\"content\":\"part\"}}]}\n\n";
+        let (url, bodies, release) = mock::serve_held(PART, vec![sse_text("rest")]);
+        let d = driver(store.clone(), Shelf(0), url);
+        d.send(Cmd::Say { text: "look".into(), mentions: attached() });
+        wait_for(&d, |e| e.contains(&Event::Delta("part".into())));
+        d.send(Cmd::Stop);
+        wait_for_run(&d);
+        release.send(()).unwrap();
+        assert_eq!(kinds(&store.chat()), ["user", "tool", "assistant"]);
+
+        d.send(Cmd::Resume);
+        wait_for_run(&d);
+        let chat = store.chat();
+        assert_eq!(kinds(&chat), ["user", "tool", "assistant", "assistant"]);
+        assert!(
+            matches!(&chat.entries[2].body, Body::Assistant { text, interrupted: true, .. } if text == "part")
+        );
+        assert_eq!(chat.entries[3].text(), "rest");
+        let sent: Vec<serde_json::Value> = bodies
+            .try_iter()
+            .map(|body| serde_json::from_str(&body).unwrap())
+            .collect();
+        let last = sent[1]["messages"].as_array().unwrap().last().unwrap();
+        assert_eq!((&last["role"], &last["content"]), (&json!("assistant"), &json!("part")));
     }
 
     #[test]
