@@ -16,7 +16,7 @@ use unicode_segmentation::UnicodeSegmentation as _;
 
 use super::diff::Change;
 use super::setup::{Key as KeyNeed, OWN, TEMPLATES};
-use super::{Chat, Setup, rows};
+use super::{Chat, IN_FLIGHT, Setup, rows};
 use crate::file_cache::FilesExt;
 use crate::style::chrome::{display_file_name, file_row_icon, shortcut_enter, shortcut_esc};
 use crate::style::file_name;
@@ -417,15 +417,33 @@ impl Chat {
                 prev_day = day;
                 prev_kind = None;
             }
+            // A reply that showed its thinking opens on a row for it, which
+            // sits among tool rows as one of them.
+            let (lead, trail) = match &entry.body {
+                Body::Assistant { text, thinking, .. } if !thinking.is_empty() => {
+                    (Kind::Tool, if text.is_empty() { Kind::Tool } else { kind })
+                }
+                _ => (kind, kind),
+            };
             if let Some(prev) = prev_kind {
-                ui.add(Spacer::new(gap(prev, kind)));
+                ui.add(Spacer::new(gap(prev, lead)));
             }
             let mine = entry.from == me;
             match &entry.body {
                 Body::User { text, .. } => self.show_user(ui, t, col_w, entry, text),
-                Body::Assistant { text, interrupted, .. } => {
+                Body::Assistant { text, thinking, interrupted, .. } => {
                     if !mine {
                         caption(ui, t, col_w, &format!("{}'s assistant", entry.from));
+                    }
+                    if !thinking.is_empty() {
+                        let thought = Some((thinking.as_str(), true));
+                        let none = Value::Null;
+                        self.tool_card(
+                            ui, t, col_w, entry.id, "thought", &none, thought, text_areas,
+                        );
+                        if !text.is_empty() {
+                            ui.add(Spacer::new(gap(lead, kind)));
+                        }
                     }
                     self.show_assistant(ui, t, col_w, entry.id, text);
                     if *interrupted {
@@ -453,18 +471,25 @@ impl Chat {
                 "a row left the cursor {} above what it drew",
                 ui.min_rect().bottom() - ui.cursor().top()
             );
-            prev_kind = Some(kind);
+            prev_kind = Some(trail);
         }
 
+        if !self.thinking.is_empty() {
+            ui.add(Spacer::new(gap(prev_kind.unwrap_or(Kind::User), Kind::Tool)));
+            let thinking = self.thinking.clone();
+            let so_far = Some((thinking.as_str(), true));
+            self.tool_card(ui, t, col_w, IN_FLIGHT, "thinking", &Value::Null, so_far, text_areas);
+            prev_kind = Some(Kind::Tool);
+        }
         if let Some(call) = self.running_tool.clone() {
             ui.add(Spacer::new(gap(prev_kind.unwrap_or(Kind::User), Kind::Tool)));
             let (name, args) = (&call.name, &call.args);
             self.tool_card(ui, t, col_w, Uuid::nil(), name, args, None, text_areas);
         } else if !self.streaming.is_empty() {
-            ui.add(Spacer::new(Space::Md));
+            ui.add(Spacer::new(gap(prev_kind.unwrap_or(Kind::User), Kind::Assistant)));
             let streaming = self.streaming.clone();
             text_areas.extend(self.streaming_label.show(ui, &streaming, col_w));
-        } else if self.busy {
+        } else if self.busy && self.thinking.is_empty() {
             ui.add(Spacer::new(Space::Md));
             caption_pulsing(ui, t, col_w, "Thinking…");
         } else if !self.busy {
@@ -687,8 +712,11 @@ impl Chat {
         place_at(ui, text, Layout::left_to_right(Align::Center), |ui| {
             ui.add(statement(span_refs(&spans), t.neutral_fg()));
         });
+        // A thought still arriving opens like a settled card.
+        let arriving = name == "thinking";
         let status = match outcome {
             None => Status::Running,
+            Some(_) if arriving => Status::Running,
             Some((_, true)) => Status::Done,
             Some((_, false)) => Status::Failed,
         };
@@ -716,7 +744,9 @@ impl Chat {
         if !after_files {
             ui.add(Spacer::new(Space::Sm));
         }
-        self.bodies.insert(id, parts);
+        if !arriving {
+            self.bodies.insert(id, parts);
+        }
         let card = Rect::from_min_max(bar.min, pos2(bar.right(), ui.cursor().top()));
         ui.painter().rect_stroke(
             card,

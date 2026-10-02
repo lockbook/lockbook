@@ -47,6 +47,8 @@ pub enum ListingState {
 
 /// Where pinned models live, as `provider/model` selections.
 const FAVORITES_PATH: &str = "/.agent/favorites.json";
+/// The row of a thought still arriving, which has no line of its own yet.
+const IN_FLIGHT: Uuid = Uuid::nil();
 
 /// What `/.agent` currently says: the selected provider, the providers on
 /// offer, and the pinned models.
@@ -85,6 +87,8 @@ pub struct Chat {
     pub busy: bool,
     streaming: String,
     streaming_label: MdLabel,
+    /// What the model has shown of its thinking for the reply in flight.
+    thinking: String,
     /// The call the driver is executing right now, drawn as a live row.
     running_tool: Option<lb_chat::Call>,
 
@@ -172,6 +176,7 @@ impl Chat {
             busy: false,
             streaming: String::new(),
             streaming_label,
+            thinking: String::new(),
             running_tool: None,
             composer,
             composer_rect: Rect::NOTHING,
@@ -567,34 +572,13 @@ impl Chat {
                 Err(err) => self.setup.error = Some(err),
             }
         }
-        if let Some(driver) = &self.driver {
-            for event in driver.poll() {
-                match event {
-                    Event::RunStarted => {
-                        self.busy = true;
-                        self.scroll_to_bottom = true;
-                    }
-                    Event::Delta(text) => self.streaming.push_str(&text),
-                    Event::ToolStarted(call) => {
-                        self.streaming.clear();
-                        self.running_tool = Some(call);
-                    }
-                    Event::Written(entry) => {
-                        if matches!(entry.body, Body::Assistant { .. }) {
-                            self.streaming.clear();
-                        }
-                        if matches!(entry.body, Body::Tool { .. }) {
-                            self.running_tool = None;
-                        }
-                    }
-                    Event::Lost { error, .. } => error!("chat line lost: {error}"),
-                    Event::RunEnded => {
-                        self.busy = false;
-                        self.streaming.clear();
-                        self.running_tool = None;
-                    }
-                }
-            }
+        for event in self
+            .driver
+            .iter()
+            .flat_map(Driver::poll)
+            .collect::<Vec<_>>()
+        {
+            self.hear(event);
         }
         if self.store.seq() != self.view_seq {
             self.refresh_view();
@@ -631,13 +615,50 @@ impl Chat {
 
     /// The entries that draw a row. A reply with no text (a round that was
     /// only tool calls) draws nothing, so it takes no gap either.
+    /// Takes in one thing the driver reports.
+    fn hear(&mut self, event: Event) {
+        match event {
+            Event::RunStarted => {
+                self.busy = true;
+                self.scroll_to_bottom = true;
+            }
+            Event::Delta(text) => self.streaming.push_str(&text),
+            Event::Thinking(text) => self.thinking.push_str(&text),
+            Event::ToolStarted(call) => {
+                self.streaming.clear();
+                self.running_tool = Some(call);
+            }
+            Event::Written(entry) => {
+                if matches!(entry.body, Body::Assistant { .. }) {
+                    self.streaming.clear();
+                    self.thinking.clear();
+                    // A thought opened while it arrived stays open on its line.
+                    if self.expanded.remove(&IN_FLIGHT) {
+                        self.expanded.insert(entry.id);
+                    }
+                }
+                if matches!(entry.body, Body::Tool { .. }) {
+                    self.running_tool = None;
+                }
+            }
+            Event::Lost { error, .. } => error!("chat line lost: {error}"),
+            Event::RunEnded => {
+                self.busy = false;
+                self.streaming.clear();
+                self.thinking.clear();
+                self.expanded.remove(&IN_FLIGHT);
+                self.running_tool = None;
+            }
+        }
+    }
+
     fn visible_entries(&self) -> Vec<Entry> {
         self.transcript
             .entries
             .iter()
             .filter(|e| match &e.body {
                 Body::Other(_) => false,
-                Body::Assistant { text, .. } => !text.is_empty(),
+                Body::Assistant { text, thinking, .. } => !text.is_empty() || !thinking.is_empty(),
                 _ => true,
             })
             .cloned()

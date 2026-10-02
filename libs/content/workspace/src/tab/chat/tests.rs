@@ -799,6 +799,85 @@ mod on_its_own {
         assert!(rect(file(0)).is_none() && chat.bodies.is_empty());
     }
 
+    /// A reply leads with a row for what it showed of its thinking, and one
+    /// that only thought before calling a tool is still that row.
+    #[test]
+    fn a_reply_leads_with_what_it_thought() {
+        let (lb, id) = account_with_chat();
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let me = account.username.clone();
+        let thinking = |text: &str, thought: &str| {
+            let mut reply = Entry::assistant(&me, text, "m", Usage::default());
+            if let Body::Assistant { thinking, .. } = &mut reply.body {
+                *thinking = thought.into();
+            }
+            reply
+        };
+        let mut t = Transcript::default();
+        t.push(Entry::user(&me, "when does it arrive"));
+        let silent = thinking("", "the timetable will say");
+        let spoken = thinking("12:15", "9:40 and 2:35");
+        let (silent_id, spoken_id) = (silent.id, spoken.id);
+        t.push(silent);
+        t.push(Entry::tool(&me, "read", serde_json::json!({"path": "/t.md"}), "9:40", true));
+        t.push(spoken);
+        let mut chat = Chat::new(&t.serialize(), id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        for _ in 0..3 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        let rect = |id: Uuid| {
+            ctx.read_response(egui::Id::new(("chat_tool", id)))
+                .map(|r| r.rect)
+        };
+        let silent_row = rect(silent_id).expect("the row of a reply that only thought");
+        let spoken_row = rect(spoken_id).expect("the row above a reply's text");
+        assert!(silent_row.bottom() < spoken_row.top());
+
+        click(&ctx, &mut chat, spoken_row.center());
+        frame(&ctx, &mut chat, vec![]);
+        let note = crate::tab::chat::rows::Part::Note("9:40 and 2:35".into());
+        assert_eq!(chat.bodies.get(&spoken_id), Some(&vec![note]));
+    }
+
+    /// A thought can be read while it is still arriving, and stays open on
+    /// the reply it settles into.
+    #[test]
+    fn a_thought_opens_while_it_arrives() {
+        use super::super::IN_FLIGHT;
+        use lb_chat::Event as Heard;
+        let (lb, id) = account_with_chat();
+        let ctx = context();
+        let files = Arc::new(RwLock::new(FileCache::new(&lb).unwrap()));
+        let account = lb.get_account().unwrap().clone();
+        let me = account.username.clone();
+        let mut t = Transcript::default();
+        t.push(Entry::user(&me, "when does it arrive"));
+        let mut chat = Chat::new(&t.serialize(), id, None, account, ctx.clone(), files, &lb);
+        frames_until(&ctx, &mut chat, |c| c.is_ready());
+        chat.hear(Heard::RunStarted);
+        chat.hear(Heard::Thinking("9:40 and".into()));
+        for _ in 0..3 {
+            frame(&ctx, &mut chat, vec![]);
+        }
+        let row = ctx
+            .read_response(egui::Id::new(("chat_tool", IN_FLIGHT)))
+            .expect("the row of the thought in flight");
+        click(&ctx, &mut chat, row.rect.center());
+        assert!(chat.expanded.contains(&IN_FLIGHT));
+        // What has arrived is laid out afresh, so more of it shows.
+        chat.hear(Heard::Thinking(" 2:35".into()));
+        frame(&ctx, &mut chat, vec![]);
+        assert!(!chat.bodies.contains_key(&IN_FLIGHT));
+
+        let reply = Entry::assistant(&me, "12:15", "m", Usage::default());
+        chat.hear(Heard::Written(reply.clone()));
+        assert!(chat.expanded.contains(&reply.id) && !chat.expanded.contains(&IN_FLIGHT));
+        assert!(chat.thinking.is_empty());
+    }
+
     /// Jump to latest pressed while the wheel still coasts: the view goes to
     /// the newest line and stays there, and once the wheel has rested it
     /// scrolls again.

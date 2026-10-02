@@ -7,14 +7,17 @@ use lb_chat::driver::Config;
 use lb_chat::{Cmd, Driver, Event, LbStore, Provider, Store, VaultTools};
 use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::model::chat::{Body, Chat, Settings};
+use lb_rs::model::chat::{Body, Chat, Mention, Settings};
 use lb_rs::model::core_config::Config as LbConfig;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 
-/// With a message: send it and stream the reply. Without: print the chat.
-/// A model or an effort is remembered in the chat first.
-pub fn chat(target: String, message: String, model: String, effort: String) -> CliResult<()> {
+/// With a message: send it, with a note attached if one is named, and
+/// stream the reply. Without: print the chat. A model or an effort is
+/// remembered in the chat first.
+pub fn chat(
+    target: String, message: String, model: String, effort: String, attach: String,
+) -> CliResult<()> {
     let lb = Lb::init(LbConfig::cli_config("cli")).map_err(|e| CliError::from(e.to_string()))?;
     let user = lb
         .get_account()
@@ -32,6 +35,10 @@ pub fn chat(target: String, message: String, model: String, effort: String) -> C
         return Ok(());
     }
 
+    let mentions = match attach.as_str() {
+        "" => Vec::new(),
+        path => vec![Mention { path: path.to_string(), id: Some(lb.get_by_path(path)?.id) }],
+    };
     let working_dir = {
         let path = lb.get_path_by_id(file.id)?;
         path[..path.rfind('/').map_or(0, |i| i + 1)].to_string()
@@ -52,15 +59,25 @@ pub fn chat(target: String, message: String, model: String, effort: String) -> C
     };
     let tools = VaultTools::new(lb.clone());
     let driver = Driver::spawn(LbStore { lb, id }, tools, config, || {});
-    driver.send(Cmd::Say { text: message, mentions: Vec::new() });
+    driver.send(Cmd::Say { text: message, mentions });
 
     let mut out = std::io::stdout();
+    // Thinking goes to stderr, and a line break ends it.
+    let mut thinking = false;
     loop {
         for event in driver.poll() {
+            if thinking && !matches!(event, Event::Thinking(_)) {
+                eprintln!();
+                thinking = false;
+            }
             match event {
                 Event::Delta(text) => {
                     print!("{text}");
                     out.flush()?;
+                }
+                Event::Thinking(text) => {
+                    eprint!("{text}");
+                    thinking = true;
                 }
                 Event::ToolStarted(call) => eprintln!("[{} {}]", call.name, call.args),
                 Event::Written(entry) => {

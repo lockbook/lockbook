@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use tokio::sync::mpsc::UnboundedSender;
 
-use super::{Call, Completion, Echo, Request, STREAM_IDLE, Sse, Turn, parse_args, send};
+use super::{Call, Completion, Echo, Piece, Request, STREAM_IDLE, Sse, Turn, parse_args, send};
 use crate::provider::Provider;
 
 const MAX_TOKENS: u32 = 16_384;
@@ -211,7 +211,8 @@ pub(super) fn body(provider: &Provider, req: &Request, max_tokens: u32) -> Value
         }
         Some("on") | None => {}
         Some(effort) => {
-            body["thinking"] = json!({ "type": "adaptive", "block_binding": binding });
+            body["thinking"] =
+                json!({ "type": "adaptive", "display": "summarized", "block_binding": binding });
             body["output_config"] = json!({ "effort": effort });
         }
     }
@@ -219,7 +220,7 @@ pub(super) fn body(provider: &Provider, req: &Request, max_tokens: u32) -> Value
 }
 
 pub async fn complete(
-    client: &reqwest::Client, provider: &Provider, req: &Request, deltas: &UnboundedSender<String>,
+    client: &reqwest::Client, provider: &Provider, req: &Request, deltas: &UnboundedSender<Piece>,
 ) -> Result<Completion, String> {
     let key = provider
         .api_key
@@ -244,6 +245,8 @@ pub async fn complete(
     let mut blocks: BTreeMap<usize, (String, String, String)> = BTreeMap::new();
     let mut thoughts: BTreeMap<usize, Thought> = BTreeMap::new();
     let mut after_text = false;
+    // The block the last thinking text came in.
+    let mut thinking_in: Option<usize> = None;
     let mut sse = Sse::default();
     let mut stream = resp.bytes_stream();
     loop {
@@ -293,7 +296,18 @@ pub async fn complete(
                     let Some(delta) = event.delta else { continue };
                     if let Some(text) = delta.text.filter(|t| !t.is_empty()) {
                         out.text.push_str(&text);
-                        let _ = deltas.send(text);
+                        let _ = deltas.send(Piece::Text(text));
+                    }
+                    if let Some(text) = delta.thinking.clone().filter(|t| !t.is_empty()) {
+                        // A block of its own starts a paragraph of its own.
+                        let index = event.index.unwrap_or(0);
+                        let new_block = thinking_in.replace(index) != Some(index);
+                        let text = match new_block && !out.thinking.is_empty() {
+                            true => format!("\n\n{text}"),
+                            false => text,
+                        };
+                        out.thinking.push_str(&text);
+                        let _ = deltas.send(Piece::Thinking(text));
                     }
                     if let Some(fragment) = delta.partial_json {
                         if let Some((_, _, args)) = event.index.and_then(|i| blocks.get_mut(&i)) {
@@ -379,7 +393,7 @@ mod tests {
         }
     }
 
-    fn run(base_url: &str, req: Request) -> (Result<Completion, String>, Vec<String>) {
+    fn run(base_url: &str, req: Request) -> (Result<Completion, String>, Vec<Piece>) {
         let rt = tokio::runtime::Builder::new_current_thread()
             .enable_all()
             .build()
@@ -403,7 +417,7 @@ mod tests {
         };
         let (result, deltas) = run(&mock::serve_once(SSE), req);
         let c = result.unwrap();
-        assert_eq!(deltas, ["Hel", "lo"]);
+        assert_eq!(deltas, [Piece::Text("Hel".into()), Piece::Text("lo".into())]);
         assert_eq!(c.text, "Hello");
         assert_eq!(c.usage, Usage { input: 5, output: 9, cache_read: 2, cache_write: 0 });
         assert_eq!(
@@ -518,12 +532,16 @@ mod tests {
         assert_eq!(unasked["messages"][1]["content"].as_array().unwrap().len(), 3);
     }
 
-    /// A chat that asks for no thinking keeps none of what arrives anyway.
+    /// A chat that asks for no thinking keeps none to hand back. What it
+    /// was shown of it is still shown.
     #[test]
-    fn unasked_thinking_is_not_kept() {
-        let reply = run(&mock::serve_once(SSE_THINKING), asked(None)).0.unwrap();
+    fn unasked_thinking_is_not_handed_back() {
+        let (reply, pieces) = run(&mock::serve_once(SSE_THINKING), asked(None));
+        let reply = reply.unwrap();
         assert_eq!(reply.text, "Looking.");
         assert!(reply.calls.iter().all(|c| c.echo.is_none()));
+        assert_eq!(reply.thinking, "Today is the first.");
+        assert_eq!(pieces[0], Piece::Thinking("Today is ".into()));
     }
 
     /// "on" switches on a model that thinks against a budget; anything else
@@ -541,6 +559,7 @@ mod tests {
         assert_eq!(high["thinking"]["type"], "adaptive");
         assert_eq!(high["output_config"]["effort"], "high");
         assert_eq!(high["thinking"]["block_binding"]["prefix_mismatch_behavior"], "drop_block");
+        assert_eq!(high["thinking"]["display"], "summarized");
 
         assert_eq!(sent(None, MAX_TOKENS)["thinking"], Value::Null);
         // A budget that would not fit under the output cap is not asked for.

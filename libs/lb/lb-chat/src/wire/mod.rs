@@ -60,9 +60,18 @@ pub struct ToolSchema {
     pub parameters: Value,
 }
 
+/// A piece of a completion as it streams.
+#[derive(Clone, Debug, PartialEq)]
+pub enum Piece {
+    Text(String),
+    /// Whatever the provider shows of the model's thinking.
+    Thinking(String),
+}
+
 #[derive(Debug, Default)]
 pub struct Completion {
     pub text: String,
+    pub thinking: String,
     pub calls: Vec<Call>,
     pub usage: Usage,
 }
@@ -70,10 +79,10 @@ pub struct Completion {
 pub const STREAM_IDLE: Duration = Duration::from_secs(120);
 const MAX_ATTEMPTS: u32 = 3;
 
-/// Run one completion, sending text deltas as they arrive. Dropping the
-/// future cancels the request; the caller keeps the deltas it has seen.
+/// Run one completion, sending its pieces as they arrive. Dropping the
+/// future cancels the request; the caller keeps the pieces it has seen.
 pub async fn complete(
-    client: &reqwest::Client, provider: &Provider, req: &Request, deltas: &UnboundedSender<String>,
+    client: &reqwest::Client, provider: &Provider, req: &Request, deltas: &UnboundedSender<Piece>,
 ) -> Result<Completion, String> {
     match provider.kind {
         Kind::OpenAi => openai::complete(client, provider, req, deltas).await,
