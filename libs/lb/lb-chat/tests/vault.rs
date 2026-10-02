@@ -3,7 +3,7 @@
 
 use lb_chat::{Call, Provider, ToolOutcome, Tools, VaultTools};
 use lb_rs::blocking::Lb;
-use lb_rs::model::chat::{Chat, Settings};
+use lb_rs::model::chat::{Chat, Entry, Settings};
 use serde_json::{Value, json};
 use test_utils::{random_name, test_config, url};
 
@@ -41,7 +41,8 @@ fn librarian_over_a_small_vault() {
 
     let mut chat = Chat::default();
     chat.set_settings("u", Settings { include: vec!["/team/".into()], ..Default::default() });
-    let mut tools = VaultTools::new(lb.clone());
+    let own = lb.create_at_path("/home/talk.chat").unwrap();
+    let mut tools = VaultTools::new(lb.clone(), own.id);
     tools.prepare(&chat, "u", "/home/");
 
     assert_eq!(done(call(&mut tools, "list", json!({}))).0, "notes/\ntodo.md");
@@ -109,6 +110,54 @@ fn librarian_over_a_small_vault() {
     assert!(!ok && text.contains("outside") && !text.contains("request_access"), "{text}");
 }
 
+#[test]
+fn a_chat_does_not_exist_to_its_own_tools_and_other_chats_do() {
+    let lb = account();
+    let mut said = Chat::default();
+    said.push(Entry::user("u", "zebra crossing"));
+    let transcript = String::from_utf8(said.serialize()).unwrap();
+    write(&lb, "/home/talk.chat", &transcript);
+    write(&lb, "/home/other.chat", &transcript);
+    write(&lb, "/home/todo.md", "milk");
+    let own = lb.get_by_path("/home/talk.chat").unwrap();
+    let mut tools = VaultTools::new(lb.clone(), own.id);
+    tools.prepare(&Chat::default(), "u", "/home/");
+
+    assert_eq!(done(call(&mut tools, "list", json!({}))).0, "other.chat\ntodo.md");
+    let (hits, _) = done(call(&mut tools, "search", json!({"query": "zebra"})));
+    assert!(hits.contains("/home/other.chat") && !hits.contains("talk"), "{hits}");
+    assert_eq!(done(call(&mut tools, "search", json!({"query": "talk"}))).0, "no matches");
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/other.chat"})));
+    assert!(ok && text.contains("zebra crossing"), "{text}");
+
+    for (tool, args) in [
+        ("read", json!({"path": "/home/talk.chat"})),
+        ("list", json!({"path": "/home/talk.chat"})),
+        ("edit", json!({"path": "/home/talk.chat", "old": "zebra", "new": "horse"})),
+        ("move", json!({"path": "/home/talk.chat", "to": "/home/moved.chat"})),
+        ("delete", json!({"path": "/home/talk.chat"})),
+    ] {
+        let (text, ok) = done(call(&mut tools, tool, args));
+        assert!(!ok && text.ends_with("does not exist"), "{tool}: {text}");
+    }
+
+    // Its path is refused without ending the run, and it is left as it was.
+    let (text, ok) = done(call(&mut tools, "create", json!({"path": "/home/talk.chat"})));
+    assert!(!ok && text.contains("is taken"), "{text}");
+    let onto = json!({"path": "/home/todo.md", "to": "/home/talk.chat"});
+    let (text, ok) = done(call(&mut tools, "move", onto));
+    assert!(!ok && text.contains("is taken"), "{text}");
+    assert_eq!(lb.get_path_by_id(own.id).unwrap(), "/home/talk.chat");
+    assert_eq!(lb.read_document(own.id, false).unwrap(), transcript.as_bytes());
+
+    // It stays hidden where the user moves it.
+    lb.rename_file(&own.id, "renamed.chat").unwrap();
+    tools.prepare(&Chat::default(), "u", "/home/");
+    assert_eq!(done(call(&mut tools, "list", json!({}))).0, "other.chat\ntodo.md");
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/renamed.chat"})));
+    assert!(!ok && text.ends_with("does not exist"), "{text}");
+}
+
 /// A chat's effort is its own choice, else the default's while it follows
 /// the default's model, and never a value its model has not been shown to
 /// take.
@@ -129,4 +178,41 @@ fn a_chat_resolves_its_effort() {
     let own = |model: &str| Settings { model: Some(model.into()), ..Default::default() };
     assert_eq!(effort(own("xai/grok-4.7")), None);
     assert_eq!(effort(Settings { model: Some("xai/grok-9".into()), ..chose("low") }), None);
+}
+
+/// A folder's standing instructions are its `AGENTS.md`, gathered from the
+/// root down to the chat's folder, whoever's reach they are in or out of.
+#[test]
+fn instructions_come_from_the_root_down_to_the_chats_folder() {
+    let lb = account();
+    write(&lb, "/AGENTS.md", "be brief");
+    write(&lb, "/home/AGENTS.md", "  ");
+    write(&lb, "/home/trips/AGENTS.md", "dates are ISO");
+    write(&lb, "/home/trips/deeper/AGENTS.md", "not for this chat");
+    write(&lb, "/elsewhere/AGENTS.md", "nor this");
+    let own = lb.create_at_path("/home/trips/talk.chat").unwrap();
+    let mut tools = VaultTools::new(lb.clone(), own.id);
+    let found = tools.instructions("/home/trips/");
+    let expected = [("/AGENTS.md", "be brief"), ("/home/trips/AGENTS.md", "dates are ISO")];
+    let found: Vec<(&str, &str)> = found
+        .iter()
+        .map(|(p, t)| (p.as_str(), t.as_str()))
+        .collect();
+    assert_eq!(found, expected);
+}
+
+/// A long note with no headings cannot be read by section, so it is read
+/// from its start, and asking for a section says why there is none.
+#[test]
+fn a_long_note_without_headings_reads_from_its_start() {
+    let lb = account();
+    write(&lb, "/home/log.md", &"a line of the log\n".repeat(3000));
+    let own = lb.create_at_path("/home/talk.chat").unwrap();
+    let mut tools = VaultTools::new(lb.clone(), own.id);
+    tools.prepare(&Chat::default(), "u", "/home/");
+    let (text, ok) = done(call(&mut tools, "read", json!({"path": "/home/log.md"})));
+    assert!(ok && text.starts_with("a line of the log") && text.ends_with("more bytes not shown)"));
+    let args = json!({"path": "/home/log.md", "section": "Monday"});
+    let (text, ok) = done(call(&mut tools, "read", args));
+    assert!(!ok && text.contains("has no headings"), "{text}");
 }

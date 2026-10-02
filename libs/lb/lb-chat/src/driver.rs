@@ -40,6 +40,7 @@ pub enum Cmd {
     Edit {
         id: Uuid,
         text: String,
+        mentions: Vec<Mention>,
     },
     /// Drop everything after the last message and run again.
     Regenerate,
@@ -69,6 +70,9 @@ pub struct Config {
     pub user: String,
     pub working_dir: String,
     pub provider: Box<dyn Fn() -> Result<Provider, String> + Send>,
+    /// The model's context window in tokens, when known. Asked before every
+    /// completion, so it remembers what it learned.
+    pub window: fn(&Provider) -> Option<u64>,
 }
 
 pub struct Driver {
@@ -158,14 +162,10 @@ impl Worker {
             let user = self.config.user.clone();
             let staged = match cmd {
                 Cmd::Say { text, mentions } => {
-                    let mut entry = Entry::user(&user, text);
-                    if let Body::User { mentions: m, .. } = &mut entry.body {
-                        *m = mentions;
-                    }
-                    self.store.append(entry).map(Some)
+                    self.store.append(said(&user, text, mentions)).map(Some)
                 }
-                Cmd::Edit { id, text } => {
-                    let entry = Entry::user(&user, text);
+                Cmd::Edit { id, text, mentions } => {
+                    let entry = said(&user, text, mentions);
                     self.store
                         .update(&mut |chat| {
                             chat.truncate_from(id, &user);
@@ -342,13 +342,19 @@ impl Worker {
         let territory = Territory::new(&self.config.working_dir, &settings);
         self.tools
             .prepare(&chat, &self.config.user, &self.config.working_dir);
-        let turns = context::turns(&chat, &self.config.user);
-        let request = Request {
-            system: context::system_prompt(&territory),
-            turns,
-            tools: self.tools.schemas(),
-            effort: provider.effort.clone(),
-        };
+        let instructions = self.tools.instructions(&self.config.working_dir);
+        let system = context::system_prompt(&territory, &instructions);
+        let tools = self.tools.schemas();
+        // Tool results get half of what the prompt and the schemas leave,
+        // at four bytes a token.
+        let budget = (self.config.window)(&provider).map(|window| {
+            let fixed = tools.iter().fold(system.len(), |sum, tool| {
+                sum + tool.name.len() + tool.description.len() + tool.parameters.to_string().len()
+            });
+            (window as usize * 4).saturating_sub(fixed) / 2
+        });
+        let turns = context::turns(&chat, &self.config.user, budget);
+        let request = Request { system, turns, tools, effort: provider.effort.clone() };
         Ok((provider, request))
     }
 
@@ -413,6 +419,15 @@ impl Worker {
     }
 }
 
+/// The line for a message of the user's and what it attached.
+fn said(user: &str, text: String, mentions: Vec<Mention>) -> Entry {
+    let mut entry = Entry::user(user, text);
+    if let Body::User { mentions: attached, .. } = &mut entry.body {
+        *attached = mentions;
+    }
+    entry
+}
+
 /// The reply line for what a completion said, whole or cut short.
 fn reply(user: &str, provider: &Provider, said: &wire::Completion, cut_short: bool) -> Entry {
     let mut entry = Entry::assistant(user, said.text.trim(), provider.selection(), said.usage);
@@ -450,6 +465,7 @@ mod tests {
                     effort: None,
                 })
             }),
+            window: |_| None,
         };
         Driver::spawn(store, tools, config, || {})
     }
@@ -736,7 +752,7 @@ mod tests {
         );
 
         // The same transcript, folded for a different provider.
-        let turns = context::turns(&chat, "u");
+        let turns = context::turns(&chat, "u", None);
         let req = Request { turns, ..Default::default() };
         let other = Provider {
             name: "other".into(),
@@ -786,6 +802,7 @@ mod tests {
                     effort: Some("on".into()),
                 })
             }),
+            window: |_| None,
         };
         let d = Driver::spawn(store.clone(), Mock, config, || {});
         d.send(Cmd::Say { text: "go".into(), mentions: vec![] });
@@ -858,7 +875,7 @@ mod tests {
         d.send(Cmd::Say { text: "first".into(), mentions: vec![] });
         wait_for_run(&d);
         let first_id = store.chat().entries[0].id;
-        d.send(Cmd::Edit { id: first_id, text: "edited".into() });
+        d.send(Cmd::Edit { id: first_id, text: "edited".into(), mentions: vec![] });
         wait_for_run(&d);
         let chat = store.chat();
         assert_eq!(kinds(&chat), ["user", "assistant"]);

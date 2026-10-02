@@ -1,18 +1,21 @@
 //! The librarian: search, read, list, edit, create, move, and delete over
 //! the vault, every one of them behind the territory and none of them asking.
 //! A walled path reads as nonexistent; creating or moving onto one ends the
-//! run instead of answering, so a name collision cannot leak a name.
+//! run instead of answering, so a name collision cannot leak a name. The
+//! chat's own file reads as nonexistent too, and its path is refused.
 
 use std::time::{Duration, Instant};
 
+use lb_rs::Uuid;
 use lb_rs::blocking::Lb;
-use lb_rs::model::chat::{Chat, Mention};
+use lb_rs::model::chat::{Body, Chat, Mention};
 use lb_rs::model::errors::LbErrKind;
 use lb_rs::model::file::File;
 use lb_rs::model::file_metadata::FileType;
 use lb_rs::model::path_ops::Filter;
 use serde_json::{Value, json};
 
+use crate::context::truncate;
 use crate::territory::{Territory, normalize};
 use crate::tools::{ToolOutcome, Tools};
 use crate::wire::{Call, ToolSchema};
@@ -22,10 +25,19 @@ const SNIPPET: usize = 80;
 const LIST_CAP: usize = 200;
 /// Above this, `read` answers with the outline unless a section was asked for.
 const LONG_NOTE: usize = 24 * 1024;
+/// Characters of a message's first line that name its section of a chat.
+const CHAT_HEADING: usize = 60;
 const INDEX_TTL: Duration = Duration::from_secs(30);
+
+/// The note a folder keeps its standing instructions in.
+pub const INSTRUCTIONS: &str = "AGENTS.md";
+/// Bytes of one such note that reach the prompt.
+const INSTRUCTIONS_CAP: usize = 16 * 1024;
 
 pub struct VaultTools {
     lb: Lb,
+    /// The document holding the chat these tools serve.
+    chat: Uuid,
     territory: Territory,
     index: Option<(Instant, Vec<Doc>)>,
 }
@@ -36,8 +48,8 @@ struct Doc {
 }
 
 impl VaultTools {
-    pub fn new(lb: Lb) -> Self {
-        Self { lb, territory: Territory::default(), index: None }
+    pub fn new(lb: Lb, chat: Uuid) -> Self {
+        Self { lb, chat, territory: Territory::default(), index: None }
     }
 
     pub fn territory(&self) -> &Territory {
@@ -74,7 +86,7 @@ impl VaultTools {
             .read_document(file.id, false)
             .map_err(|e| e.to_string())?;
         if path.ends_with(".chat") {
-            return Ok(Chat::parse(&bytes).to_markdown());
+            return Ok(chat_text(&Chat::parse(&bytes)));
         }
         String::from_utf8(bytes).map_err(|_| format!("{path} is not text"))
     }
@@ -178,11 +190,20 @@ impl VaultTools {
         if !section.is_empty() {
             return match section_of(&text, &section) {
                 Some(s) => ToolOutcome::ok(s),
+                None if headings(&text).is_empty() => {
+                    ToolOutcome::err(format!("{path} has no headings; read it without section"))
+                }
                 None => ToolOutcome::err(format!(
                     "no heading matching {section:?}; headings:\n{}",
                     outline(&text)
                 )),
             };
+        }
+        // With no headings to read by, a long note is read from its start.
+        if text.len() > LONG_NOTE && headings(&text).is_empty() {
+            let rest = text.len() - LONG_NOTE;
+            let start = truncate(&text, LONG_NOTE);
+            return ToolOutcome::ok(format!("{start}\n({rest} more bytes not shown)"));
         }
         if text.len() > LONG_NOTE {
             return ToolOutcome::ok(format!(
@@ -356,6 +377,9 @@ impl VaultTools {
         if !self.territory.allowed(path) {
             return Some(ToolOutcome::err(outside_or_missing(&self.territory, path)));
         }
+        if self.territory.own(path) {
+            return Some(ToolOutcome::err(format!("{path} is taken; choose another path")));
+        }
         match self.file_at(path) {
             Ok(Some(_)) => Some(ToolOutcome::err(format!("{path} already exists"))),
             Ok(None) => None,
@@ -386,7 +410,8 @@ impl Tools for VaultTools {
 
     fn prepare(&mut self, chat: &Chat, user: &str, working_dir: &str) {
         let settings = chat.settings_for(user);
-        let territory = Territory::load(&self.lb, working_dir, &settings);
+        let mut territory = Territory::load(&self.lb, working_dir, &settings);
+        territory.own = self.lb.get_path_by_id(self.chat).ok();
         if territory != self.territory {
             self.index = None;
         }
@@ -405,6 +430,23 @@ impl Tools for VaultTools {
             "delete" => self.delete(args),
             other => ToolOutcome::err(format!("no tool named {other}")),
         }
+    }
+
+    /// Read whatever the territory is: these are the user's words to the
+    /// model, not notes it found.
+    fn instructions(&mut self, working_dir: &str) -> Vec<(String, String)> {
+        let folders = working_dir
+            .match_indices('/')
+            .map(|(i, _)| &working_dir[..=i]);
+        folders
+            .filter_map(|folder| {
+                let path = format!("{folder}{INSTRUCTIONS}");
+                let file = self.lb.get_by_path(&path).ok()?;
+                let bytes = self.lb.read_document(file.id, false).ok()?;
+                let text = String::from_utf8(bytes).ok()?;
+                (!text.trim().is_empty()).then(|| (path, truncate(text.trim(), INSTRUCTIONS_CAP)))
+            })
+            .collect()
     }
 
     fn locate(&mut self, mention: &Mention) -> String {
@@ -494,18 +536,60 @@ fn headings(text: &str) -> Vec<(usize, &str)> {
     out
 }
 
+/// A chat as a note the tools can read by section: each message of a
+/// person's is a heading, dated and named for how it starts, over the
+/// replies and calls it led to.
+fn chat_text(chat: &Chat) -> String {
+    let mut out = String::new();
+    for e in &chat.entries {
+        let when = chrono::DateTime::from_timestamp_millis(e.ts)
+            .map(|t| t.format("%Y-%m-%d %H:%M").to_string())
+            .unwrap_or_default();
+        match &e.body {
+            Body::User { text, .. } => {
+                let line = text.lines().next().unwrap_or_default();
+                let opening: String = line.chars().take(CHAT_HEADING).collect();
+                out.push_str(&format!("## {when} {}: {opening}\n\n{text}\n\n", e.from));
+            }
+            Body::Assistant { text, .. } if !text.is_empty() => {
+                out.push_str(&format!("{text}\n\n"))
+            }
+            Body::Tool { name, args, ok, .. } => {
+                let status = if *ok { "ok" } else { "failed" };
+                out.push_str(&format!("- `{name}` {args} · {status}\n\n"));
+            }
+            _ => {}
+        }
+    }
+    out
+}
+
+/// The headings of `text`, indented by level, each with its section's size.
 fn outline(text: &str) -> String {
     let lines: Vec<String> = headings(text)
         .into_iter()
-        .map(|(level, h)| format!("{}{h}", "  ".repeat(level - 1)))
+        .map(|(level, h)| {
+            let size = section_of(text, h).map_or(0, |s| s.len());
+            format!("{}{h} ({size} bytes)", "  ".repeat(level - 1))
+        })
         .collect();
     if lines.is_empty() { "(no headings)".into() } else { lines.join("\n") }
 }
 
 /// The heading matching `section` and its body, up to the next heading of
 /// the same or a higher level.
+/// The section under the heading `section` names: the one that reads the
+/// same, else the only one that contains it.
 fn section_of(text: &str, section: &str) -> Option<String> {
     let wanted = section.trim().trim_start_matches('#').trim().to_lowercase();
+    let all = headings(text);
+    let named = |h: &&(usize, &str)| h.1.to_lowercase() == wanted;
+    let mut holding = all.iter().filter(|h| h.1.to_lowercase().contains(&wanted));
+    let wanted = match (all.iter().find(named), holding.next(), holding.next()) {
+        (Some(_), ..) => wanted,
+        (None, Some(only), None) if !wanted.is_empty() => only.1.to_lowercase(),
+        _ => return None,
+    };
     let mut out: Vec<&str> = Vec::new();
     let mut level = None;
     let mut fenced = false;
@@ -558,10 +642,10 @@ pub fn schemas() -> Vec<ToolSchema> {
         ),
         schema(
             "read",
-            "Read a note. Long notes answer with their headings; pass section to read one heading's content.",
+            "Read a note. A long note answers with its headings and their sizes; pass section to read under one. A chat reads as a note with a heading per message.",
             json!({
                 "path": { "type": "string", "description": "absolute path of the note" },
-                "section": { "type": "string", "description": "optional heading text to read" },
+                "section": { "type": "string", "description": "optional heading to read under; a distinct part of it is enough" },
             }),
             &["path"],
         ),
@@ -609,9 +693,40 @@ mod tests {
 
     const NOTE: &str = "intro\n\n# Plan\n\nstep one\n\n## Details\n\nfine print\n\n```\n# not a heading\n```\n\n# Other\n\nend\n";
 
+    /// A chat reads as a note with a section per message, and a section
+    /// answers to any part of its heading that no other heading has.
+    #[test]
+    fn a_chat_has_a_section_for_each_message() {
+        use lb_rs::model::chat::{Entry, Usage};
+        let mut chat = Chat::default();
+        chat.push(Entry::user("u", "plan the Hartford trip\nwith the dog"));
+        chat.push(Entry::assistant("u", "Booked the sitter.", "m", Usage::default()));
+        chat.push(Entry::user("u", "now the Seattle talk"));
+        chat.push(Entry::assistant("u", "Rehearse twice.", "m", Usage::default()));
+        let text = chat_text(&chat);
+        let found = headings(&text);
+        assert_eq!(found.len(), 2);
+        assert!(found[0].1.ends_with("u: plan the Hartford trip"), "{}", found[0].1);
+        let hartford = section_of(&text, "hartford").unwrap();
+        assert!(hartford.contains("with the dog") && hartford.contains("Booked the sitter."));
+        assert!(!hartford.contains("Seattle"));
+        // What two headings share names neither.
+        assert_eq!(section_of(&text, "the"), None);
+    }
+
     #[test]
     fn outline_skips_fences() {
-        assert_eq!(outline(NOTE), "Plan\n  Details\nOther");
+        let sizes: Vec<usize> = ["Plan", "Details", "Other"]
+            .iter()
+            .map(|h| section_of(NOTE, h).unwrap().len())
+            .collect();
+        assert_eq!(
+            outline(NOTE),
+            format!(
+                "Plan ({} bytes)\n  Details ({} bytes)\nOther ({} bytes)",
+                sizes[0], sizes[1], sizes[2]
+            )
+        );
     }
 
     #[test]

@@ -3,9 +3,11 @@
 //! none. Chat works without this (the provider file names a model); it feeds
 //! the picker.
 
+use std::sync::Mutex;
+
 use serde::Deserialize;
 
-use crate::provider::{Kind, Provider};
+use crate::provider::{Kind, Place, Provider};
 use crate::wire::{explain, unsent};
 
 /// One entry from a provider's listing. `id` is what goes on the wire.
@@ -52,6 +54,33 @@ pub fn list_models_blocking(provider: &Provider) -> Result<Vec<ModelInfo>, Strin
     rt.block_on(list_models(provider))
 }
 
+/// What each `(base_url, model)` asked about reported, a failure included.
+static WINDOWS: Mutex<Vec<(String, String, Option<u64>)>> = Mutex::new(Vec::new());
+
+/// The window of the provider's model on a server of the user's own, which
+/// may be far smaller than the model's. Asks the listing once a process;
+/// call from a plain thread.
+pub fn window(provider: &Provider) -> Option<u64> {
+    if provider.place() == Place::Internet {
+        return None;
+    }
+    let known = |windows: &[(String, String, Option<u64>)]| {
+        windows
+            .iter()
+            .find(|(url, model, _)| *url == provider.base_url && *model == provider.model)
+            .map(|(_, _, window)| *window)
+    };
+    if let Some(window) = known(&WINDOWS.lock().unwrap()) {
+        return window;
+    }
+    let window = list_models_blocking(provider)
+        .ok()
+        .and_then(|models| models.into_iter().find(|m| m.id == provider.model)?.window);
+    let model = (provider.base_url.clone(), provider.model.clone(), window);
+    WINDOWS.lock().unwrap().push(model);
+    window
+}
+
 fn client() -> Result<reqwest::Client, String> {
     reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(10))
@@ -84,9 +113,18 @@ async fn list_openai(provider: &Provider) -> Result<Vec<ModelInfo>, String> {
         context_length: Option<u64>,
         #[serde(default)]
         max_context_length: Option<u64>,
+        /// llama.cpp: `n_ctx` is the window the server was started with.
+        #[serde(default)]
+        meta: Option<Meta>,
         /// Unix seconds; hosts that don't say sort last, in their own order.
         #[serde(default)]
         created: i64,
+    }
+
+    #[derive(Deserialize)]
+    struct Meta {
+        #[serde(default)]
+        n_ctx: Option<u64>,
     }
 
     let url = format!("{}/models", provider.base_url.trim_end_matches('/'));
@@ -126,7 +164,10 @@ async fn list_openai(provider: &Provider) -> Result<Vec<ModelInfo>, String> {
                 .display_name
                 .or(m.name)
                 .filter(|n| !n.is_empty() && (n.contains(' ') || !n.contains('/'))),
-            window: m.context_length.or(m.max_context_length),
+            window: m
+                .context_length
+                .or(m.max_context_length)
+                .or(m.meta.and_then(|meta| meta.n_ctx)),
         })
         .collect();
     // These first-party hosts list every generation and dated snapshot with
@@ -445,6 +486,30 @@ mod tests {
             list_models_blocking(&provider).unwrap_err(),
             format!("can't reach 127.0.0.1:{port}")
         );
+    }
+
+    /// llama.cpp's listing, asked once: the mock answers one connection.
+    #[test]
+    fn a_local_servers_window_is_asked_for_once() {
+        let body = r#"{"object":"list","data":[{"id":"small","created":1,"meta":{"n_ctx":8192,"n_ctx_train":524288}}]}"#;
+        let response = format!(
+            "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+            body.len()
+        );
+        let provider = Provider {
+            name: "own".into(),
+            display_name: None,
+            kind: Kind::OpenAi,
+            base_url: crate::mock::serve_once(&response),
+            api_key: None,
+            needs_key: false,
+            model: "small".into(),
+            effort: None,
+        };
+        assert_eq!(window(&provider), Some(8192));
+        assert_eq!(window(&provider), Some(8192));
+        let elsewhere = Provider { base_url: "https://api.example.com/v1".into(), ..provider };
+        assert_eq!(window(&elsewhere), None);
     }
 
     fn ids(models: Vec<ModelInfo>) -> Vec<String> {

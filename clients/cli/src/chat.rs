@@ -56,8 +56,9 @@ pub fn chat(
             let settings = Chat::parse(&bytes).settings_for(&resolver_user);
             Provider::resolve(&resolver_lb, &settings)
         }),
+        window: lb_chat::window,
     };
-    let tools = VaultTools::new(lb.clone());
+    let tools = VaultTools::new(lb.clone(), id);
     let driver = Driver::spawn(LbStore { lb, id }, tools, config, || {});
     driver.send(Cmd::Say { text: message, mentions });
 

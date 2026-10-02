@@ -32,6 +32,11 @@ pub trait Tools: Send {
     /// Called before each completion with the chat as it stands.
     fn prepare(&mut self, _chat: &Chat, _user: &str, _working_dir: &str) {}
     fn call(&mut self, call: &Call) -> ToolOutcome;
+    /// The `AGENTS.md` of each folder from the root down to `working_dir`,
+    /// as (path, text): the user's standing instructions for work there.
+    fn instructions(&mut self, _working_dir: &str) -> Vec<(String, String)> {
+        Vec::new()
+    }
     /// Where a file the user attached is now.
     fn locate(&mut self, mention: &Mention) -> String {
         mention.path.clone()
