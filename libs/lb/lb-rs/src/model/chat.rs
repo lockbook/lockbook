@@ -71,6 +71,10 @@ pub struct Settings {
     pub include: Vec<String>,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub exclude: Vec<String>,
+    /// How hard the model thinks: one of the values its listing offers.
+    /// Absent means the provider's default.
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
 }
 
 /// Disjoint token counts; total context is their sum.
@@ -473,7 +477,12 @@ mod tests {
         chat.push(at(4, Entry::error("a", "boom")));
         chat.set_settings(
             "a",
-            Settings { model: Some("p/m".into()), include: vec!["/i/".into()], exclude: vec![] },
+            Settings {
+                model: Some("p/m".into()),
+                include: vec!["/i/".into()],
+                exclude: vec![],
+                effort: Some("high".into()),
+            },
         );
 
         let bytes = chat.serialize();

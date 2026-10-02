@@ -1,21 +1,24 @@
 //! What the model sees: the system prompt and the transcript folded into
 //! wire turns from one user's point of view. Older tool results are elided
 //! so a long chat stays within the window; the model may call the tool
-//! again if it needs the content back.
+//! again if it needs the content back. They go a batch at a time: a turn
+//! that changes ends the provider's cached prefix there.
 
 use lb_rs::model::chat::{Body, Chat, Mention};
 
 use crate::territory::Territory;
 use crate::wire::{Call, ToolResult, Turn};
 
-/// Tool results kept verbatim, counting back from the newest.
+/// Tool results always kept verbatim, counting back from the newest.
 pub const RECENT_TOOL_RESULTS: usize = 8;
+/// Tool results elided together.
+pub const ELIDE_BATCH: usize = 8;
 pub const ELIDED: &str = "(elided; call the tool again if you need this)";
 /// Bytes of attached note content inlined into a message.
 pub const MENTION_CAP: usize = 16 * 1024;
 
 /// Today's date as the model is told it.
-pub fn today() -> String {
+fn today() -> String {
     chrono::Local::now()
         .format("Today is %A, %B %-d, %Y.")
         .to_string()
@@ -55,6 +58,7 @@ pub fn turns(
         .iter()
         .filter(|e| e.from == user && matches!(e.body, Body::Tool { .. }))
         .count();
+    let elide = tool_total.saturating_sub(RECENT_TOOL_RESULTS) / ELIDE_BATCH * ELIDE_BATCH;
     let mut tool_seen = 0;
     let mut turns: Vec<Turn> = Vec::new();
 
@@ -98,7 +102,7 @@ pub fn turns(
             }
             Body::Tool { name, args, result, ok, .. } if own => {
                 tool_seen += 1;
-                let elided = tool_seen + RECENT_TOOL_RESULTS <= tool_total;
+                let elided = tool_seen <= elide;
                 let call = Call {
                     id: entry.id.to_string(),
                     name: name.clone(),
@@ -229,18 +233,44 @@ mod tests {
         assert!(matches!(&turns[2], Turn::ToolResults(r) if r.len() == 1));
     }
 
-    #[test]
-    fn old_tool_results_are_elided() {
+    fn with_tools(n: usize) -> Chat {
         let mut chat = Chat::default();
         chat.push(at(0, Entry::user("u", "q")));
-        for i in 0..(RECENT_TOOL_RESULTS as i64 + 2) {
-            chat.push(at(i + 1, Entry::tool("u", "read", json!({}), format!("r{i}"), true)));
+        for i in 0..n {
+            let ts = i as i64 + 1;
+            chat.push(at(ts, Entry::tool("u", "read", json!({}), format!("r{i}"), true)));
         }
-        let turns = fold(&chat);
+        chat
+    }
+
+    fn results(chat: &Chat) -> Vec<String> {
+        let turns = fold(chat);
         let Turn::ToolResults(results) = &turns[2] else { panic!() };
-        assert_eq!(results[0].text, ELIDED);
-        assert_eq!(results[1].text, ELIDED);
-        assert_eq!(results[2].text, "r2");
+        results.iter().map(|r| r.text.clone()).collect()
+    }
+
+    #[test]
+    fn old_tool_results_are_elided() {
+        let n = RECENT_TOOL_RESULTS + ELIDE_BATCH + 2;
+        let results = results(&with_tools(n));
+        assert!(results[..ELIDE_BATCH].iter().all(|r| r == ELIDED));
+        assert_eq!(results[ELIDE_BATCH], format!("r{ELIDE_BATCH}"));
+        assert_eq!(results.iter().filter(|r| *r != ELIDED).count(), RECENT_TOOL_RESULTS + 2);
+    }
+
+    /// What was sent is what is sent again, so a provider's cache of it
+    /// holds, except once a batch.
+    #[test]
+    fn a_longer_chat_starts_as_the_shorter_one_did() {
+        let n = RECENT_TOOL_RESULTS + ELIDE_BATCH * 3;
+        let mut prev = results(&with_tools(1));
+        let mut rewrites = 0;
+        for i in 2..=n {
+            let next = results(&with_tools(i));
+            rewrites += usize::from(next[..prev.len()] != prev[..]);
+            prev = next;
+        }
+        assert_eq!(rewrites, 3);
     }
 
     #[test]

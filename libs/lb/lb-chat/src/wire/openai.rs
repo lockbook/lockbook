@@ -1,6 +1,8 @@
 //! OpenAI-compatible chat completions: OpenAI, xAI, Groq, Cerebras, Together,
 //! OpenRouter, Google's compatibility layer, and every self-hosted server.
 
+use std::sync::Mutex;
+
 use futures::StreamExt;
 use lb_rs::model::chat::Usage;
 use serde::Deserialize;
@@ -76,6 +78,26 @@ struct Partial {
     extra: Option<Value>,
 }
 
+/// `(base_url, model)` pairs that refused tools unless reasoning is off, as
+/// OpenAI's models from GPT-5.6 on do at this endpoint.
+static REASONING_OFF: Mutex<Vec<(String, String)>> = Mutex::new(Vec::new());
+
+fn reasoning_off(provider: &Provider) -> bool {
+    let known = REASONING_OFF.lock().unwrap();
+    known
+        .iter()
+        .any(|(url, model)| *url == provider.base_url && *model == provider.model)
+}
+
+/// What a model says through us when it cannot use tools at this endpoint
+/// with reasoning on or off, as GPT-6 Astra cannot.
+fn responses_only(provider: &Provider) -> String {
+    format!(
+        "{} uses tools only through OpenAI's Responses API, which is not supported yet",
+        provider.model
+    )
+}
+
 pub(crate) fn body(provider: &Provider, req: &Request) -> Value {
     let mut messages = Vec::new();
     if !req.system.is_empty() {
@@ -138,6 +160,11 @@ pub(crate) fn body(provider: &Provider, req: &Request) -> Value {
             })
             .collect();
     }
+    if !req.tools.is_empty() && reasoning_off(provider) {
+        body["reasoning_effort"] = json!("none");
+    } else if let Some(effort) = &req.effort {
+        body["reasoning_effort"] = json!(effort);
+    }
     body
 }
 
@@ -149,7 +176,26 @@ pub async fn complete(
         headers.push(("authorization", format!("Bearer {key}")));
     }
     let url = format!("{}/chat/completions", provider.base_url);
-    let resp = send(client, &url, &headers, &body(provider, req)).await?;
+    let resp = match send(client, &url, &headers, &body(provider, req)).await {
+        // The model takes tools here only with reasoning off and says so;
+        // once that works it is asked that way from the start.
+        Err(e)
+            if e.starts_with("400")
+                && e.contains("reasoning_effort")
+                && e.contains("'none'")
+                && !reasoning_off(provider) =>
+        {
+            let mut unreasoned = body(provider, req);
+            unreasoned["reasoning_effort"] = json!("none");
+            let resp = send(client, &url, &headers, &unreasoned)
+                .await
+                .map_err(|e| if e.starts_with("400") { responses_only(provider) } else { e })?;
+            let model = (provider.base_url.clone(), provider.model.clone());
+            REASONING_OFF.lock().unwrap().push(model);
+            resp
+        }
+        other => other?,
+    };
 
     let mut out = Completion::default();
     let mut partials: Vec<Partial> = Vec::new();
@@ -228,7 +274,7 @@ mod tests {
     use super::*;
     use crate::mock::{self, SSE_HELLO};
     use crate::provider::Kind;
-    use crate::wire::ToolResult;
+    use crate::wire::{ToolResult, ToolSchema};
 
     fn provider(base_url: &str) -> Provider {
         Provider {
@@ -239,6 +285,7 @@ mod tests {
             base_url: base_url.into(),
             api_key: Some("k".into()),
             model: "m".into(),
+            effort: None,
         }
     }
 
@@ -258,12 +305,7 @@ mod tests {
     }
 
     fn hi() -> Request {
-        Request {
-            system: "s".into(),
-            turns: vec![Turn::User("hi".into())],
-            tools: vec![],
-            today: String::new(),
-        }
+        Request { system: "s".into(), turns: vec![Turn::User("hi".into())], ..Default::default() }
     }
 
     #[test]
@@ -325,8 +367,7 @@ mod tests {
                     ok: true,
                 }]),
             ],
-            tools: vec![],
-            today: String::new(),
+            ..Default::default()
         };
         run(&url, req).0.unwrap();
         let sent: Value = serde_json::from_str(&rx.recv().unwrap()).unwrap();
@@ -343,5 +384,63 @@ mod tests {
         let (result, _) = run(&mock::serve_once(ERR), hi());
         let err = result.unwrap_err();
         assert!(err.starts_with("400") && err.contains("bad request!!"), "{err}");
+    }
+    /// OpenAI's newer models refuse tools at this endpoint unless reasoning
+    /// is off. The refusal is retried that way, and the model is asked that
+    /// way from then on.
+    #[test]
+    fn a_model_that_takes_tools_only_unreasoned_is_asked_that_way() {
+        const REFUSAL: &str = "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n\
+            {\"error\":{\"message\":\"Function tools with reasoning_effort are not supported for m in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'.\",\"param\":\"reasoning_effort\"}}";
+        let replies = vec![REFUSAL.to_string(), SSE_HELLO.to_string(), SSE_HELLO.to_string()];
+        let (url, rx) = mock::serve(replies);
+        let tool = ToolSchema {
+            name: "read".into(),
+            description: "d".into(),
+            parameters: json!({ "type": "object" }),
+        };
+        let asked = || Request { tools: vec![tool.clone()], ..hi() };
+
+        assert_eq!(run(&url, asked()).0.unwrap().text, "Hello");
+        assert_eq!(run(&url, asked()).0.unwrap().text, "Hello");
+        let efforts: Vec<Value> = rx
+            .try_iter()
+            .map(|sent| serde_json::from_str::<Value>(&sent).unwrap()["reasoning_effort"].clone())
+            .collect();
+        assert_eq!(efforts, [Value::Null, json!("none"), json!("none")]);
+    }
+
+    /// A model that refuses tools with reasoning off as well cannot use them
+    /// here at all. It says so in plain words, and is not remembered.
+    #[test]
+    fn a_model_that_takes_no_tools_here_says_so() {
+        const REFUSAL: &str = "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n\
+            {\"error\":{\"message\":\"Function tools with reasoning_effort are not supported for m in /v1/chat/completions. To use function tools, use /v1/responses or set reasoning_effort to 'none'.\"}}";
+        const NO_NONE: &str = "HTTP/1.1 400 Bad Request\r\nContent-Type: application/json\r\nConnection: close\r\n\r\n\
+            {\"error\":{\"message\":\"Unsupported value: 'reasoning_effort' does not support 'none' with this model.\"}}";
+        let replies = vec![REFUSAL.to_string(), NO_NONE.to_string(), REFUSAL.to_string()];
+        let (url, rx) = mock::serve(replies);
+        let tool = ToolSchema {
+            name: "read".into(),
+            description: "d".into(),
+            parameters: json!({ "type": "object" }),
+        };
+        let asked = Request { tools: vec![tool], ..hi() };
+
+        let err = run(&url, asked).0.unwrap_err();
+        assert_eq!(
+            err,
+            "m uses tools only through OpenAI's Responses API, which is not supported yet"
+        );
+        assert!(!reasoning_off(&provider(&url)));
+        assert_eq!(rx.try_iter().count(), 2);
+    }
+
+    #[test]
+    fn the_effort_setting_rides_as_reasoning_effort() {
+        let set = Request { effort: Some("high".into()), ..hi() };
+        let provider = provider("http://unused");
+        assert_eq!(body(&provider, &set)["reasoning_effort"], "high");
+        assert_eq!(body(&provider, &hi())["reasoning_effort"], Value::Null);
     }
 }

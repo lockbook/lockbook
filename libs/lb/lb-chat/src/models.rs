@@ -416,6 +416,7 @@ mod tests {
             api_key: None,
             needs_key: false,
             model: String::new(),
+            effort: None,
         };
         assert_eq!(
             list_models_blocking(&provider).unwrap_err(),
@@ -438,6 +439,7 @@ mod tests {
             api_key: None,
             needs_key: false,
             model: String::new(),
+            effort: None,
         };
         assert_eq!(
             list_models_blocking(&provider).unwrap_err(),
@@ -539,6 +541,7 @@ mod tests {
             base_url: crate::mock::serve_once(&response),
             api_key: Some("k".into()),
             model: String::new(),
+            effort: None,
         };
         let models = list_models_blocking(&provider).unwrap();
         let listed: Vec<(String, String)> = models
@@ -567,6 +570,7 @@ mod tests {
             base_url: crate::mock::serve_once(response),
             api_key: Some("k".into()),
             model: String::new(),
+            effort: None,
         };
         assert_eq!(
             list_models_blocking(&provider).unwrap_err(),

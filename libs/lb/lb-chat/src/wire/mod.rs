@@ -13,13 +13,13 @@ use tokio::sync::mpsc::UnboundedSender;
 
 use crate::provider::{Kind, Provider};
 
+#[derive(Default)]
 pub struct Request {
     pub system: String,
     pub turns: Vec<Turn>,
     pub tools: Vec<ToolSchema>,
-    /// Today's date as a sentence, for a dialect that can say it again
-    /// after the newest turn.
-    pub today: String,
+    /// The chat's `Settings::effort`; each dialect says it its own way.
+    pub effort: Option<String>,
 }
 
 #[derive(Clone, Debug, PartialEq)]
