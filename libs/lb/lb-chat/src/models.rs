@@ -64,15 +64,18 @@ pub fn list_models_blocking(provider: &Provider) -> Result<Vec<ModelInfo>, Strin
 /// What each `(base_url, model)` asked about reported, a failure included.
 static WINDOWS: Mutex<Vec<(String, String, Option<u64>)>> = Mutex::new(Vec::new());
 
-/// The window of the provider's model on a server of the user's own, which
-/// may be far smaller than the model's. Asks the listing once a process;
-/// call from a plain thread.
-pub fn window(provider: &Provider) -> Option<u64> {
+/// What a hosted model is taken to hold when its listing does not say: the
+/// frontier models' windows are at least this.
+const HOSTED_WINDOW: u64 = 200_000;
+/// What a server of the user's own is taken to hold when it does not say.
+const OWN_WINDOW: u64 = 8_192;
+
+/// The window of the provider's model in tokens: what its listing says, else
+/// what a model in its place is taken to hold. Asks the listing once a
+/// process; call from a plain thread.
+pub fn window(provider: &Provider) -> u64 {
     if provider.kind == Kind::Apple {
-        return Some(crate::wire::apple::WINDOW);
-    }
-    if provider.place() == Place::Internet {
-        return None;
+        return crate::wire::apple::WINDOW;
     }
     let known = |windows: &[(String, String, Option<u64>)]| {
         windows
@@ -80,15 +83,23 @@ pub fn window(provider: &Provider) -> Option<u64> {
             .find(|(url, model, _)| *url == provider.base_url && *model == provider.model)
             .map(|(_, _, window)| *window)
     };
-    if let Some(window) = known(&WINDOWS.lock().unwrap()) {
-        return window;
-    }
-    let window = list_models_blocking(provider)
-        .ok()
-        .and_then(|models| models.into_iter().find(|m| m.id == provider.model)?.window);
-    let model = (provider.base_url.clone(), provider.model.clone(), window);
-    WINDOWS.lock().unwrap().push(model);
-    window
+    let cached = known(&WINDOWS.lock().unwrap());
+    let listed = match cached {
+        Some(window) => window,
+        None => {
+            let window = list_models_blocking(provider)
+                .ok()
+                .and_then(|models| models.into_iter().find(|m| m.id == provider.model)?.window);
+            let model = (provider.base_url.clone(), provider.model.clone(), window);
+            WINDOWS.lock().unwrap().push(model);
+            window
+        }
+    };
+    listed.unwrap_or_else(|| assumed(provider))
+}
+
+fn assumed(provider: &Provider) -> u64 {
+    if provider.place() == Place::Internet { HOSTED_WINDOW } else { OWN_WINDOW }
 }
 
 fn client() -> Result<reqwest::Client, String> {
@@ -123,6 +134,9 @@ async fn list_openai(provider: &Provider) -> Result<Vec<ModelInfo>, String> {
         context_length: Option<u64>,
         #[serde(default)]
         max_context_length: Option<u64>,
+        /// Groq's name for it.
+        #[serde(default)]
+        context_window: Option<u64>,
         /// llama.cpp: `n_ctx` is the window the server was started with.
         #[serde(default)]
         meta: Option<Meta>,
@@ -177,6 +191,7 @@ async fn list_openai(provider: &Provider) -> Result<Vec<ModelInfo>, String> {
             window: m
                 .context_length
                 .or(m.max_context_length)
+                .or(m.context_window)
                 .or(m.meta.and_then(|meta| meta.n_ctx)),
         })
         .collect();
@@ -516,10 +531,27 @@ mod tests {
             model: "small".into(),
             effort: None,
         };
-        assert_eq!(window(&provider), Some(8192));
-        assert_eq!(window(&provider), Some(8192));
-        let elsewhere = Provider { base_url: "https://api.example.com/v1".into(), ..provider };
-        assert_eq!(window(&elsewhere), None);
+        assert_eq!(window(&provider), 8192);
+        assert_eq!(window(&provider), 8192);
+    }
+
+    /// A listing that says nothing leaves a hosted model a frontier model's
+    /// window and a server of the user's own a small one.
+    #[test]
+    fn an_unlisted_window_is_assumed_by_place() {
+        let own = Provider {
+            name: "own".into(),
+            display_name: None,
+            kind: Kind::OpenAi,
+            base_url: "http://linux-box:11434/v1".into(),
+            api_key: None,
+            needs_key: false,
+            model: "m".into(),
+            effort: None,
+        };
+        assert_eq!(assumed(&own), OWN_WINDOW);
+        let hosted = Provider { base_url: "https://api.example.com/v1".into(), ..own };
+        assert_eq!(assumed(&hosted), HOSTED_WINDOW);
     }
 
     fn ids(models: Vec<ModelInfo>) -> Vec<String> {

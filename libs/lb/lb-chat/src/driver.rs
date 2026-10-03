@@ -550,13 +550,13 @@ impl Worker {
         if self.artist.is_some() {
             tools.push(images::schema());
         }
-        // Tool results get half of what the prompt and the schemas leave,
-        // at four bytes a token.
+        // The conversation gets three quarters of the window, at four bytes
+        // a token, less the prompt and the schemas; the rest is the reply's.
         let budget = (self.config.window)(&provider).map(|window| {
             let fixed = tools.iter().fold(system.len(), |sum, tool| {
                 sum + tool.name.len() + tool.description.len() + tool.parameters.to_string().len()
             });
-            (window as usize * 4).saturating_sub(fixed) / 2
+            (window as usize * 3).saturating_sub(fixed)
         });
         let (sees, reads) = (provider.sees(), provider.reads_pdfs());
         let eyes = &mut self.tools;
